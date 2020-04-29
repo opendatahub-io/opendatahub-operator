@@ -1,7 +1,8 @@
 package kfdef
 
 import (
-	"context"
+	"os"
+        "context"
 	"io/ioutil"
 	"strings"
 
@@ -250,6 +251,17 @@ func kfLoadConfig(instance *kfdefv1.KfDef, reqLogger logr.Logger, action string)
 		reqLogger.Info("Failed to write config.yaml ", err)
 		return nil, err
 	}
+        
+        // This is temp. fix to allow users to install multiple kfdefs
+        if action == "apply" {
+            // Delete kustomize folder
+            reqLogger.Info("Deleting kustomize Folder")
+            err :=os.RemoveAll("/tmp/kustomize")
+            if err != nil {
+              reqLogger.Info("Error Deleting folder /tmp/kustomize", err)
+            }
+        }
+         
 	if action == "delete" {
 		// Enable force delete since inClusterConfig has no ./kube/config file to pass the delete safety check.
 		forceDeleteAnn := strings.Join([]string{kfutils.KfDefAnnotation, kfutils.ForceDelete}, "/")
