@@ -1,7 +1,7 @@
 module github.com/kubeflow/kfctl/v3
 
 require (
-	cloud.google.com/go v0.47.0
+	cloud.google.com/go v0.49.0
 	github.com/Azure/go-autorest v13.3.3+incompatible // indirect
 	github.com/MakeNowJust/heredoc v1.0.0 // indirect
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
@@ -9,7 +9,7 @@ require (
 	github.com/aws/aws-sdk-go v1.27.1
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/chai2010/gettext-go v0.0.0-20170215093142-bf70f2a70fb1 // indirect
-	github.com/davecgh/go-spew v1.1.1
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/deckarep/golang-set v1.7.1
 	github.com/docker/docker v1.13.1 // indirect
 	github.com/docker/spdystream v0.0.0-20181023171402-6480d4af844c // indirect
@@ -21,45 +21,44 @@ require (
 	github.com/go-yaml/yaml v2.1.0+incompatible
 	github.com/gogo/protobuf v1.3.1
 	github.com/golangplus/testing v0.0.0-20180327235837-af21d9c3145e
-	github.com/google/go-cmp v0.3.1
+	github.com/google/go-cmp v0.4.0
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79 // indirect
 	github.com/hashicorp/go-getter v1.0.2
 	github.com/hashicorp/go-version v1.2.0
 	github.com/imdario/mergo v0.3.8
-	github.com/kubernetes-sigs/application v0.8.0
+	github.com/kubernetes-sigs/application v0.0.0-00010101000000-000000000000
 	github.com/onrik/logrus v0.2.1
 	github.com/operator-framework/operator-sdk v0.13.0
 	github.com/otiai10/copy v1.0.2
-	github.com/pkg/errors v0.8.1
-	github.com/prometheus/common v0.7.0
-	github.com/sirupsen/logrus v1.4.2
+	github.com/pkg/errors v0.9.1
+	github.com/prometheus/common v0.9.1
+	github.com/sirupsen/logrus v1.5.0
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.4.0
-	github.com/stretchr/testify v1.4.0
+	github.com/stretchr/testify v1.4.0 // indirect
 	github.com/tektoncd/pipeline v0.10.1
 	github.com/tidwall/gjson v1.4.0
 	github.com/tidwall/pretty v1.0.1 // indirect
-	go.uber.org/zap v1.12.0 // indirect
 	golang.org/x/crypto v0.0.0
-	golang.org/x/net v0.0.0-20191119073136-fc4aabc6c914
+	golang.org/x/net v0.0.0-20200226121028-0de0cce0169b
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
-	google.golang.org/api v0.10.0
-	google.golang.org/genproto v0.0.0-20191009194640-548a555dbc03
+	google.golang.org/api v0.14.0
+	google.golang.org/genproto v0.0.0-20191115194625-c23dd37a84c9
 	gopkg.in/airbrake/gobrake.v2 v2.0.9 // indirect
 	gopkg.in/gemnasium/logrus-airbrake-hook.v2 v2.1.2 // indirect
 	gopkg.in/yaml.v2 v2.2.8
-	gotest.tools v2.2.0+incompatible
-	k8s.io/api v0.17.0
-	k8s.io/apiextensions-apiserver v0.0.0
-	k8s.io/apimachinery v0.17.1
-	k8s.io/cli-runtime v0.0.0
+	gotest.tools v2.2.0+incompatible // indirect
+	k8s.io/api v0.17.4
+	k8s.io/apiextensions-apiserver v0.17.4
+	k8s.io/apimachinery v0.17.4
+	k8s.io/cli-runtime v0.17.4
 	k8s.io/client-go v12.0.0+incompatible
-	k8s.io/code-generator v0.18.1 // indirect
+	k8s.io/code-generator v0.18.2 // indirect
 	k8s.io/kubernetes v1.16.2
-	k8s.io/utils v0.0.0-20191030222137-2b95a09bc58d // indirect
-	sigs.k8s.io/controller-runtime v0.4.0
-	sigs.k8s.io/kustomize v2.0.3+incompatible
+	sigs.k8s.io/application v0.8.1 // indirect
+	sigs.k8s.io/controller-runtime v0.5.2
+	sigs.k8s.io/kustomize v2.0.3+incompatible // indirect
 	sigs.k8s.io/kustomize/v3 v3.2.0
 	sigs.k8s.io/yaml v1.1.0
 )
@@ -71,7 +70,9 @@ replace (
 	github.com/go-openapi/jsonreference => github.com/go-openapi/jsonreference v0.17.0
 	github.com/go-openapi/spec => github.com/go-openapi/spec v0.18.0
 	github.com/go-openapi/swag => github.com/go-openapi/swag v0.17.0
+	github.com/kubernetes-sigs/application => sigs.k8s.io/application v0.0.0-20190404151855-67ae7f915d4e
 	github.com/mitchellh/go-homedir => github.com/mitchellh/go-homedir v1.0.0
+	github.com/openshift/api => github.com/openshift/api v0.0.0-20190924102528-32369d4db2ad
 	github.com/otiai10/copy => github.com/otiai10/copy v1.0.2
 	github.com/otiai10/mint => github.com/otiai10/mint v1.3.0
 	github.com/russross/blackfriday => github.com/russross/blackfriday v1.5.2-0.20180428102519-11635eb403ff // indirect
@@ -98,7 +99,6 @@ replace (
 	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.0.0-20190620090156-2138f2c9de18
 	k8s.io/metrics => k8s.io/metrics v0.0.0-20190620085625-3b22d835f165
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.0.0-20190620085408-1aef9010884e
-	sigs.k8s.io/application => sigs.k8s.io/application v0.0.0-20190404151855-67ae7f915d4e
 	sigs.k8s.io/controller-runtime => sigs.k8s.io/controller-runtime v0.2.0
 	sigs.k8s.io/kustomize/v3 => sigs.k8s.io/kustomize/v3 v3.2.0
 )
