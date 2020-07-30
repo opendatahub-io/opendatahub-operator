@@ -1,11 +1,7 @@
 
 approvers:
-  - adrian555
-  - animeshsingh
-  - gabrielwen
-  - kkasravi
-  - kunmingg
-  - jlewi
-  - yanniszark
+  - crobby
+  - vpavlin
 reviewers:
-  - tomcli
+  - crobby
+  - vpavlin
