@@ -45,7 +45,7 @@ func getReconcileStatus(cr *kfdefv1.KfDef, err error) {
 			LastUpdateTime: cr.CreationTimestamp,
 			Status:         corev1.ConditionTrue,
 			Reason:         err.Error(),
-			Type:           kfdefv1.KfAvailable,
+			Type:           kfdefv1.KfDegraded,
 		})
 	}
 
