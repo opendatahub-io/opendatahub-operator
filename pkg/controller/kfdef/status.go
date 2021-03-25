@@ -37,7 +37,7 @@ func (r *ReconcileKfDef) reconcileStatus(cr *kfdefv1.KfDef) error {
 	return r.setKfDefStatus(cr)
 }
 
-func getReconcileStatus(cr *kfdefv1.KfDef, err error) {
+func getReconcileStatus(cr *kfdefv1.KfDef, err error) error {
 	conditions := []kfdefv1.KfDefCondition{}
 
 	if err != nil {
@@ -57,4 +57,6 @@ func getReconcileStatus(cr *kfdefv1.KfDef, err error) {
 	})
 
 	cr.Status.Conditions = conditions
+
+	return err
 }

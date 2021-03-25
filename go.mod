@@ -2,6 +2,7 @@ module github.com/kubeflow/kfctl/v3
 
 require (
 	cloud.google.com/go v0.57.0
+	github.com/Azure/go-autorest v13.3.3+incompatible // indirect
 	github.com/MakeNowJust/heredoc v1.0.0 // indirect
 	github.com/Sirupsen/logrus v0.0.0-00010101000000-000000000000 // indirect
 	github.com/aws/aws-sdk-go v1.27.1
