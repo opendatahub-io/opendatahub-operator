@@ -18,7 +18,6 @@ var (
 		{Group: "apiextensions.k8s.io", Version: "v1beta1", Kind: "CustomResourceDefinition"},
 		{Group: "apps", Version: "v1", Kind: "DaemonSet"},
 		{Group: "apps", Version: "v1", Kind: "Deployment"},
-		{Group: "extensions", Version: "v1beta1", Kind: "Deployment"},
 		{Group: "extensions", Version: "v1beta1", Kind: "Ingress"},
 		{Group: "admissionregistration.k8s.io", Version: "v1beta1", Kind: "MutatingWebhookConfiguration"},
 		{Group: "", Version: "v1", Kind: "Namespace"},
