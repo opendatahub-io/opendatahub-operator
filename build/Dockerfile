@@ -1,28 +1,25 @@
 ARG binary_name=kfctl
-FROM registry.access.redhat.com/ubi8/ubi-minimal:latest AS build
+FROM docker.io/openshift/origin-release:golang-1.13 AS build
+ARG binary_name
 
-ENV OPERATOR=/usr/local/bin/${binary_name} \
-    USER_UID=1001 \
-    USER_NAME=kfctl \
-    HOMEDIR=/homedir
+COPY . /opt/kfctl
+WORKDIR /opt/kfctl/
 
-# install operator binary
-COPY _output/bin/${binary_name} ${OPERATOR}
+RUN GOOS=linux GOARCH=amd64 go build -a -o build/_output/bin/${binary_name} -ldflags="-X 'github.com/kubeflow/kfctl/v3/pkg/kfapp/kustomize.enableKustAlphaPlugin=yes'" cmd/manager/main.go
 
-COPY bin /usr/local/bin
-RUN  /usr/local/bin/user_setup
-RUN  /usr/local/bin/entrypoint
+FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
+ARG binary_name
+ENV OPERATOR=/usr/local/bin/${binary_name}\
+    HOME=/opt/${binary_name}
 
-FROM gcr.io/distroless/base-debian10
-ENV OPERATOR=/usr/local/bin/${binary_name} \
-    USER_UID=1001 \
-    USER_NAME=kfctl \
-    HOMEDIR=/homedir
+RUN mkdir -p ${HOME} &&\
+    chown 1001:0 ${HOME} &&\
+    chmod ug+rwx ${HOME}
 
-COPY --from=build /usr/local/bin/${binary_name} ${OPERATOR}
-COPY --from=build /etc/passwd /etc/passwd
-COPY --from=build ${HOMEDIR} ${HOME}
+WORKDIR ${HOME}
+
+COPY --from=build /opt/kfctl/build/_output/bin/${binary_name} ${OPERATOR}
 
 ENTRYPOINT ["${OPERATOR}"]
 
-USER ${USER_UID}
+USER 1001

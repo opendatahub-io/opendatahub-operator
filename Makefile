@@ -148,29 +148,19 @@ build-kfctl-tgz: build-kfctl
 build-and-push-operator: build-operator push-operator
 build-push-update-operator: build-operator push-operator update-operator-image
 
-# Build operator image
-build-operator:
+prep-build-operator:
 	go mod vendor
-	# Fix duplicated logrus library (Sirupsen/logrus and sirupsen/logrus) bug
-	# due to the two different logrus versions that kfctl is using.
-	pushd vendor/github.com/Sirupsen/logrus/ && \
-	echo '\
-	// +build linux aix\n\
-	package logrus\n\
-	import "golang.org/x/sys/unix"\n\
-	func isTerminal(fd int) bool {\n\
-		_, err := unix.IoctlGetTermios(fd, unix.TCGETS)\n\
-		return err == nil\n\
-	} ' > terminal_check_unix.go && \
-	popd
+
+# Build operator image
+build-operator: prep-build-operator
 ifneq ($(DOCKERFILE), Dockerfile)
 	pushd build &&\
 	cp Dockerfile Dockerfile.bckp &&\
 	cp ${DOCKERFILE} Dockerfile &&\
 	popd
 endif
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 ${GO} build -a -o build/_output/bin/$(OPERATOR_BINARY_NAME) cmd/manager/main.go
-	${IMAGE_BUILDER} build build -t ${OPERATOR_IMG}
+
+	${IMAGE_BUILDER} build . -f build/Dockerfile -t ${OPERATOR_IMG}
 ifneq ($(DOCKERFILE), Dockerfile)
 	pushd build &&\
 	cp Dockerfile.bckp Dockerfile &&\

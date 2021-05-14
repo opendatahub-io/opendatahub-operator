@@ -54,7 +54,23 @@ type KfDefSpec struct {
 	Plugins      []Plugin      `json:"plugins,omitempty"`
 	Secrets      []Secret      `json:"secrets,omitempty"`
 	Repos        []Repo        `json:"repos,omitempty"`
+	Global       Global        `json:"global,omitempty"`
 }
+
+type Global struct {
+	Transformers []Transformer `json:"transformers,omitempty"`
+	//Generators   []Generator   `json:"generators,omitempty"`
+}
+
+type Transformer struct {
+	Name    string   `json:"name,omitempty"`
+	RepoRef *RepoRef `json:"repoRef,omitempty"`
+}
+
+//type Generator struct {
+//	Name    string   `json:"name,omitempty"`
+//	RepoRef *RepoRef `json:"repoRef,omitempty"`
+//}
 
 // Application defines an application to install
 type Application struct {

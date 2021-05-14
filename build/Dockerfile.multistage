@@ -3,10 +3,7 @@ USER root
 WORKDIR /scratch
 COPY . .
 
-# Rather than echo the contents of terminal_check_unit.go as in the Makefile, we just copy it since the
-# file in sirupsen is essentially identical to what is being generated.  If that changes, so will this.
-RUN go mod vendor &&\
-    cp vendor/github.com/sirupsen/logrus/terminal_check_unix.go vendor/github.com/Sirupsen/logrus/terminal_check_unix.go
+RUN go mod vendor
 
 RUN go build -o build/_output/bin/kfctl -gcflags all=-trimpath=/scratch -asmflags all=-trimpath=/scratch -mod=vendor github.com/kubeflow/kfctl/v3/cmd/manager
 

@@ -1,5 +1,14 @@
 ARG binary_name=kfctl
+FROM registry.access.redhat.com/ubi8/go-toolset:latest AS build
+ARG binary_name
+
+COPY . /opt/kfctl
+WORKDIR /opt/kfctl/
+
+RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -a -o build/_output/bin/${binary_name} -ldflags="-X 'github.com/kubeflow/kfctl/v3/pkg/kfapp/kustomize.enableKustAlphaPlugin=yes'" cmd/manager/main.go
+
 FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
+ARG binary_name
 ENV OPERATOR=/usr/local/bin/${binary_name}\
     HOME=/opt/${binary_name}
 
@@ -9,7 +18,7 @@ RUN mkdir -p ${HOME} &&\
 
 WORKDIR ${HOME}
 
-COPY _output/bin/${binary_name} ${OPERATOR}
+COPY --from=build /opt/kfctl/build/_output/bin/${binary_name} ${OPERATOR}
 
 ENTRYPOINT ["${OPERATOR}"]
 
