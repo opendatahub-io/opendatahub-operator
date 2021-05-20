@@ -6,6 +6,8 @@ COPY . /opt/kfctl
 WORKDIR /opt/kfctl/
 
 RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -a -o build/_output/bin/${binary_name} -ldflags="-X 'github.com/kubeflow/kfctl/v3/pkg/kfapp/kustomize.enableKustAlphaPlugin=yes'" cmd/manager/main.go
+RUN cd kustomize-fns/v1alpha1/applyresources && go mod vendor &&\
+CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -buildmode plugin -o /opt/kfctl/build/_output/plugins/v1alpha1/applyresources/ApplyResources.so ApplyResources.go
 
 FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
 ARG binary_name
@@ -19,6 +21,7 @@ RUN mkdir -p ${HOME} &&\
 WORKDIR ${HOME}
 
 COPY --from=build /opt/kfctl/build/_output/bin/${binary_name} ${OPERATOR}
+COPY --from=build /opt/kfctl/build/_output/plugins/ $HOME/.config/kustomize/plugin/
 
 ENTRYPOINT ["${OPERATOR}"]
 

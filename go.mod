@@ -54,7 +54,7 @@ require (
 	k8s.io/kubernetes v1.16.2
 	sigs.k8s.io/controller-runtime v0.4.0
 	sigs.k8s.io/kustomize/v3 v3.2.0
-	sigs.k8s.io/yaml v1.1.0
+	sigs.k8s.io/yaml v1.2.0
 )
 
 replace (

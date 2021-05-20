@@ -244,10 +244,16 @@ var ownedResourcePredicates = predicate.Funcs{
 		if err != nil {
 			return false
 		}
-		log.Infof("Got update event for %v.%v.", object.GetName(), object.GetNamespace())
 		// if this object has an owner, let the owner handle the appropriate recovery
 		if len(object.GetOwnerReferences()) > 0 {
 			return false
+		}
+		// Only log events when a resource is configurable.
+		labels := e.MetaOld.GetLabels()
+		if val, ok := labels["opendatahub.io/configurable"]; ok {
+			if val == "true" {
+				log.Infof("Got update event for configurable object: %v.%v.", object.GetName(), object.GetNamespace())
+			}
 		}
 		return true
 	},

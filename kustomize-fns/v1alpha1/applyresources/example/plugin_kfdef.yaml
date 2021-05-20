@@ -1,0 +1,85 @@
+// This is an example kfdef with applyresources plugin added as a transformer
+
+apiVersion: kfdef.apps.kubeflow.org/v1
+kind: KfDef
+metadata:
+  name: opendatahub
+spec:
+  applications:
+    - kustomizeConfig:
+        repoRef:
+          name: manifests
+          path: application/application-crds
+      name: application-crds
+    - kustomizeConfig:
+        overlays:
+          - application
+        repoRef:
+          name: manifests
+          path: application/application
+      name: application
+    - kustomizeConfig:
+        overlays:
+          - application
+        parameters:
+          - name: minioPvcName
+            value: minio-pv-claim
+        repoRef:
+          name: manifests
+          path: pipeline/minio
+      name: minio
+    - kustomizeConfig:
+        overlays:
+          - application
+        parameters:
+          - name: mysqlPvcName
+            value: mysql-pv-claim
+        repoRef:
+          name: manifests
+          path: pipeline/mysql
+      name: mysql
+    - kustomizeConfig:
+        overlays:
+          - application
+        repoRef:
+          name: manifests
+          path: pipeline/persistent-agent
+      name: persistent-agent
+    - kustomizeConfig:
+        overlays:
+          - application
+        repoRef:
+          name: manifests
+          path: pipeline/pipelines-runner
+      name: pipelines-runner
+    - kustomizeConfig:
+        overlays:
+          - application
+        repoRef:
+          name: manifests
+          path: pipeline/pipelines-viewer
+      name: pipelines-viewer
+    - kustomizeConfig:
+        overlays:
+          - application
+        repoRef:
+          name: manifests
+          path: pipeline/scheduledworkflow
+      name: scheduledworkflow
+    - kustomizeConfig:
+        overlays:
+          - application
+        repoRef:
+          name: manifests
+          path: pipeline/pipeline-visualization-service
+      name: pipeline-visualization-service
+  global:
+    transformers:
+      - name: Apply Resources
+        repoRef:
+          name: manifests
+          path: transformers/resourceApply.yaml
+  repos:
+    - name: manifests
+      uri: https://github.com/VaishnaviHire/manifests/archive/add_resource_plugin.tar.gz
+  version: v1.2-branch
