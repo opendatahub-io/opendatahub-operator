@@ -56,7 +56,6 @@ func (p *plugin) Config(ldr ifc.Loader, rf *resmap.Factory, c []byte) error {
 }
 
 func (p *plugin) Transform(m resmap.ResMap) error {
-	log.Info("Inside the transform function")
 	inClusterconfig, err := rest.InClusterConfig()
 	if err != nil {
 		return fmt.Errorf("error getting incluster config %v", err)

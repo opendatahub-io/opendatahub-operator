@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
+	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -96,6 +97,8 @@ const (
 	patchesJson6902Map       MapType = 11
 	OverlayParamName                 = "overlay"
 	transformersDirName              = "globalTransformers"
+	defaultPluginsConfigMap          = "default-plugins"
+	defaultPluginsConfigPath         = "/opt/kfctl/default-plugins"
 )
 
 type kustomize struct {
@@ -719,6 +722,11 @@ func createStackAppKustomization(stackAppDir string, basePath string, kfDef *kfc
 	}
 
 	if enableKustAlphaPlugin == "yes" {
+		if err := AddDefaultTransformers(kustomization); err != nil {
+			log.Printf("Error while adding the Default transformers %v ", err)
+			return "", err
+		}
+
 		if err := AddGlobalTransformers(kfDef, kustomization, stackAppDir); err != nil {
 			log.Printf("Error while adding the transformer %v ", err)
 			return "", err
@@ -1296,8 +1304,12 @@ func GenerateKustomizationFile(kfDef *kfconfig.KfConfig, root string,
 		}
 	}
 
-
 	if enableKustAlphaPlugin == "yes" {
+		if err := AddDefaultTransformers(kustomization); err != nil {
+			log.Printf("Error while adding the Default transformers %v ", err)
+			return err
+		}
+
 		if err := AddGlobalTransformers(kfDef, kustomization, compDir); err != nil {
 			log.Printf("Error while adding the transformer %v ", err)
 			return err
@@ -1360,6 +1372,38 @@ func AddGlobalTransformers(kfDef *kfconfig.KfConfig, kustomization *types.Kustom
 	return nil
 }
 
+func AddDefaultTransformers(kustomization *types.Kustomization) error {
+	config, _ := rest.InClusterConfig()
+	corev1client, err := corev1.NewForConfig(config)
+	if err != nil {
+		return err
+	}
+	operatorNs , err := k8sutil.GetOperatorNamespace()
+	if err != nil{
+		return err
+	}
+	cfmap, err := corev1client.ConfigMaps(operatorNs).Get(defaultPluginsConfigMap, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	for key, _ := range cfmap.Data {
+		transformerTargetFile := filepath.Join(defaultPluginsConfigPath, key)
+		add := true
+		for _, tx := range kustomization.Transformers {
+			if tx == transformerTargetFile {
+				add = false
+				break
+			}
+		}
+
+		if add {
+			kustomization.Transformers = append(kustomization.Transformers, transformerTargetFile)
+		}
+	}
+
+return nil
+
+}
 // EvaluateKustomizeManifest evaluates the kustomize dir compDir, and returns the resources.
 func EvaluateKustomizeManifest(compDir string) (resmap.ResMap, error) {
 	fsys := fs.MakeRealFS()
