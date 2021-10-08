@@ -17,8 +17,19 @@ spec:
         - name: kubeflow-operator
           # Replace this with the built image name
           image: aipipeline/kubeflow-operator:v1.1.0
+          readinessProbe:
+            tcpSocket:
+              port: 8383
+            initialDelaySeconds: 30
+          livenessProbe:
+            tcpSocket:
+              port: 8383
+            initialDelaySeconds: 30
           command:
           - kfctl
+          ports:
+            - containerPort: 8383
+              protocol: TCP
           imagePullPolicy: Always
           env:
             - name: WATCH_NAMESPACE

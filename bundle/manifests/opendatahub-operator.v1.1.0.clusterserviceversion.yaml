@@ -307,10 +307,21 @@ spec:
                             fieldPath: metadata.name
                       - name: OPERATOR_NAME
                         value: opendatahub-operator
+                    ports:
+                      - containerPort: 8383
+                        protocol: TCP
                     image: quay.io/opendatahub/opendatahub-operator:v1.1.0
                     imagePullPolicy: Always
                     name: opendatahub-operator
                     resources: {}
+                    readinessProbe:
+                      tcpSocket:
+                        port: 8383
+                      initialDelaySeconds: 30
+                    livenessProbe:
+                      tcpSocket:
+                        port: 8383
+                      initialDelaySeconds: 30
                 serviceAccountName: opendatahub-operator
     strategy: deployment
   installModes:
