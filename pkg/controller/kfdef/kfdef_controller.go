@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/record"
 	apiserv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -76,7 +77,11 @@ func Add(mgr manager.Manager) error {
 
 // newReconciler returns a new reconcile.Reconciler
 func newReconciler(mgr manager.Manager) reconcile.Reconciler {
-	return &ReconcileKfDef{client: mgr.GetClient(), scheme: mgr.GetScheme(), restConfig: mgr.GetConfig()}
+	return &ReconcileKfDef{
+		client: mgr.GetClient(),
+		scheme: mgr.GetScheme(),
+		restConfig: mgr.GetConfig(),
+		recorder:  mgr.GetEventRecorderFor("kfdef-controller")}
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
@@ -119,7 +124,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		return err
 	}
 
-	// Watch for changes to kfdef resource and requeue the owner KfDef
+	// Watch for changes to kfdefgit  resource and requeue the owner KfDef
 	err = watchKubeflowResources(c, mgr.GetClient(), watchedResources)
 	if err != nil {
 		return err
@@ -264,6 +269,8 @@ type ReconcileKfDef struct {
 	client     client.Client
 	scheme     *runtime.Scheme
 	restConfig *rest.Config
+	// recorder to generate events
+	recorder record.EventRecorder
 }
 
 // Reconcile reads that state of the cluster for a KfDef object and makes changes based on the state read
@@ -282,6 +289,8 @@ func (r *ReconcileKfDef) Reconcile(request reconcile.Request) (reconcile.Result,
 			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
 			// Return and don't requeue
 			if hasDeleteConfigMap(r.client) {
+				r.recorder.Eventf(instance, v1.EventTypeWarning, "UninstallInProgress",
+					"Resource deletion restricted as the operator uninstall is in progress")
 				return reconcile.Result{}, fmt.Errorf("error while operator uninstall: %v",
 						r.operatorUninstall(request))
 
@@ -315,9 +324,14 @@ func (r *ReconcileKfDef) Reconcile(request reconcile.Request) (reconcile.Result,
 		err = kfDelete(instance)
 		if err == nil {
 			log.Infof("KubeFlow Deployment Deleted.")
+			r.recorder.Eventf(instance, v1.EventTypeNormal, "KfDefDeletionSuccessful",
+				"KF instance %s deleted successfully", instance.Name)
 		} else {
 			// log an error and continue for cleanup. It does not make sense to retry the delete.
+			r.recorder.Eventf(instance, v1.EventTypeWarning, "KfDefDeletionFailed",
+				"Error deleting KF instance %s", instance.Name)
 			log.Errorf("Failed to delete Kubeflow.")
+
 		}
 
 		// Delete the kfapp directory
@@ -402,6 +416,8 @@ func (r *ReconcileKfDef) Reconcile(request reconcile.Request) (reconcile.Result,
 	err = getReconcileStatus(instance, kfApply(instance))
 	if err == nil {
 		log.Infof("KubeFlow Deployment Completed.")
+		r.recorder.Eventf(instance, v1.EventTypeNormal, "KfDefCreationSuccessful",
+			"KfDef instance %s created and deployed successfully", instance.Name)
 
 		// add to kfdefInstances if not exists
 		if _, ok := kfdefInstances[strings.Join([]string{instance.GetName(), instance.GetNamespace()}, ".")]; !ok {
@@ -570,6 +586,8 @@ func (r *ReconcileKfDef) operatorUninstall(request reconcile.Request) error {
 			return fmt.Errorf("error deleting current namespace :%v", err)
 		}
 	}
+	r.recorder.Eventf(namespace, v1.EventTypeNormal, "NamespaceDeletionSuccessful",
+		"Namespace %s deleted as a part of uninstall.", namespace.Name )
 	log.Infof("Namespace %s deleted as a part of uninstall.", namespace.Name)
 
 	// Delete any unavailable api services
@@ -616,6 +634,8 @@ func (r *ReconcileKfDef) operatorUninstall(request reconcile.Request) error {
 					if err := r.client.Delete(context.TODO(), &namespace, []client.DeleteOption{}...); err != nil {
 						return fmt.Errorf("error deleting namespace %v: %v", namespace.Name, err)
 					}
+					r.recorder.Eventf(&namespace, v1.EventTypeNormal, "NamespaceDeletionSuccessful",
+						"Namespace %s deleted as a part of uninstall.", namespace.Name )
 					log.Infof("Namespace %s deleted as a part of uninstall.", namespace.Name)
 				}
 			}
