@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
+	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -95,6 +96,9 @@ const (
 	patchesStrategicMergeMap MapType = 10
 	patchesJson6902Map       MapType = 11
 	OverlayParamName                 = "overlay"
+	transformersDirName              = "globalTransformers"
+	defaultPluginsConfigMap          = "default-plugins"
+	defaultPluginsConfigPath         = "/opt/kfctl/default-plugins"
 )
 
 type kustomize struct {
@@ -108,6 +112,8 @@ type kustomize struct {
 	// when set to true, apply() will skip local kube config, directly build config from restConfig
 	configOverwrite bool
 }
+
+var enableKustAlphaPlugin = "no"
 
 const (
 	defaultUserId = "anonymous"
@@ -174,9 +180,17 @@ func (kustomize *kustomize) render(app kfconfig.Application) ([]byte, error) {
 	var data []byte
 	if setOperatorAnnotation {
 		// retrieve the UID of the KfDef resource using dynamic client
-		config, _ := rest.InClusterConfig()
+		config, err := rest.InClusterConfig()
+		if err != nil {
+			log.Errorf("Failed to load in cluster config: %v", err)
+			return nil, &kfapisv3.KfError{
+				Code:    int(kfapisv3.INTERNAL_ERROR),
+				Message: fmt.Sprintf("failed to load in cluster config: %v", err),
+			}
+		}
 		dyn, err := dynamic.NewForConfig(config)
 		if err != nil {
+			log.Errorf("Failed to create dynamic client: %v", err)
 			return nil, &kfapisv3.KfError{
 				Code:    int(kfapisv3.INTERNAL_ERROR),
 				Message: fmt.Sprintf("failed to create dynamic client: %v", err),
@@ -185,6 +199,7 @@ func (kustomize *kustomize) render(app kfconfig.Application) ([]byte, error) {
 		kfDefRes := schema.GroupVersionResource{Group: "kfdef.apps.kubeflow.org", Version: "v1", Resource: "kfdefs"}
 		instance, err := dyn.Resource(kfDefRes).Namespace(kustomize.kfDef.GetNamespace()).Get(kustomize.kfDef.GetName(), metav1.GetOptions{})
 		if err != nil {
+			log.Errorf("Failed to get the KfDef object: %v", err)
 			return nil, &kfapisv3.KfError{
 				Code:    int(kfapisv3.INTERNAL_ERROR),
 				Message: fmt.Sprintf("failed to get the KfDef object: %v", err),
@@ -192,14 +207,16 @@ func (kustomize *kustomize) render(app kfconfig.Application) ([]byte, error) {
 		}
 		data, err = GenerateYamlWithOperatorAnnotation(resMap, instance)
 		if err != nil {
+			log.Errorf("Failed to add operator annotations for %v: %v", app.Name, err)
 			return nil, &kfapisv3.KfError{
 				Code:    int(kfapisv3.INTERNAL_ERROR),
-				Message: fmt.Sprintf("can not encode component %v as yaml: %v", app.Name, err),
+				Message: fmt.Sprintf("failed to add operator annotations for %v: %v", app.Name, err),
 			}
 		}
 	} else {
 		data, err = resMap.AsYaml()
 		if err != nil {
+			log.Errorf("Failed to encode component %v as yaml: %v", app.Name, err)
 			return nil, &kfapisv3.KfError{
 				Code:    int(kfapisv3.INTERNAL_ERROR),
 				Message: fmt.Sprintf("can not encode component %v as yaml: %v", app.Name, err),
@@ -612,7 +629,7 @@ func (kustomize *kustomize) Generate(resources kftypesv3.ResourceEnum) error {
 
 				// Path to the stack inside the cache.
 				stacksCacheDir := filepath.Join("../..", appPath)
-				if _, err := createStackAppKustomization(stackAppDir, stacksCacheDir); err != nil {
+				if _, err := createStackAppKustomization(stackAppDir, stacksCacheDir, kustomize.kfDef); err != nil {
 					return errors.WithStack(fmt.Errorf("There was a problem building the kustomize app for the Kubeflow application stack; %v ", err))
 				}
 			} else {
@@ -657,7 +674,7 @@ func (kustomize *kustomize) Generate(resources kftypesv3.ResourceEnum) error {
 // Returns the path to the kusotmizationFile.
 //
 // If the kustomization.yaml already exists then the changes are merged in.
-func createStackAppKustomization(stackAppDir string, basePath string) (string, error) {
+func createStackAppKustomization(stackAppDir string, basePath string, kfDef *kfconfig.KfConfig) (string, error) {
 	kustomizationFile := filepath.Join(stackAppDir, kftypesv3.KustomizationFile)
 
 	if _, err := os.Stat(stackAppDir); err == nil {
@@ -701,6 +718,18 @@ func createStackAppKustomization(stackAppDir string, basePath string) (string, e
 		if string(r) == basePath {
 			hasBasePath = true
 			break
+		}
+	}
+
+	if enableKustAlphaPlugin == "yes" {
+		if err := AddDefaultTransformers(kustomization); err != nil {
+			log.Printf("Error while adding the Default transformers %v ", err)
+			return "", err
+		}
+
+		if err := AddGlobalTransformers(kfDef, kustomization, stackAppDir); err != nil {
+			log.Printf("Error while adding the transformer %v ", err)
+			return "", err
 		}
 	}
 
@@ -1274,6 +1303,18 @@ func GenerateKustomizationFile(kfDef *kfconfig.KfConfig, root string,
 			kustomization.PatchesStrategicMerge = nil
 		}
 	}
+
+	if enableKustAlphaPlugin == "yes" {
+		if err := AddDefaultTransformers(kustomization); err != nil {
+			log.Printf("Error while adding the Default transformers %v ", err)
+			return err
+		}
+
+		if err := AddGlobalTransformers(kfDef, kustomization, compDir); err != nil {
+			log.Printf("Error while adding the transformer %v ", err)
+			return err
+		}
+	}
 	buf, bufErr := yaml.Marshal(kustomization)
 	if bufErr != nil {
 		return bufErr
@@ -1283,6 +1324,86 @@ func GenerateKustomizationFile(kfDef *kfconfig.KfConfig, root string,
 	return kustomizationPathErr
 }
 
+// AddGlobalTransformers adds globaly defined transformers to the kustomization
+func AddGlobalTransformers(kfDef *kfconfig.KfConfig, kustomization *types.Kustomization, compDir string) *kfapisv3.KfError {
+	transformersDir := filepath.Join(compDir, transformersDirName)
+	if len(kfDef.Spec.Global.Transformers) > 0 {
+		if err := os.MkdirAll(transformersDir, os.ModePerm); err != nil {
+			err := fmt.Errorf("could not create directory %v", transformersDir)
+			log.Errorf("%v", err)
+			return &kfapisv3.KfError{
+				Code:    int(kfapisv3.INTERNAL_ERROR),
+				Message: err.Error(),
+			}
+		}
+	}
+
+	for _, t := range kfDef.Spec.Global.Transformers {
+		repoCache, ok := kfDef.GetRepoCache(t.RepoRef.Name)
+		if !ok {
+			err := fmt.Errorf("could note get repo cache for repo %s", t.RepoRef.Name)
+			log.Errorf("%v", err)
+			return &kfapisv3.KfError{
+				Code:    int(kfapisv3.INTERNAL_ERROR),
+				Message: err.Error(),
+			}
+		}
+		transformetTargetFile := filepath.Join(transformersDir, filepath.Base(t.RepoRef.Path))
+		transformetTargetFileRelative := filepath.Join(transformersDirName, filepath.Base(t.RepoRef.Path))
+		if err := copy.Copy(filepath.Join(repoCache.LocalPath, t.RepoRef.Path), transformetTargetFile); err != nil {
+			return &kfapisv3.KfError{
+				Code:    int(kfapisv3.INTERNAL_ERROR),
+				Message: fmt.Sprintf("couldn't copy transformer %s to %s: %v", t.Name, transformetTargetFile, err),
+			}
+		}
+		add := true
+		for _, tx := range kustomization.Transformers {
+			if tx == transformetTargetFileRelative {
+				add = false
+				break
+			}
+		}
+
+		if add {
+			kustomization.Transformers = append(kustomization.Transformers, transformetTargetFileRelative)
+		}
+	}
+
+	return nil
+}
+
+func AddDefaultTransformers(kustomization *types.Kustomization) error {
+	config, _ := rest.InClusterConfig()
+	corev1client, err := corev1.NewForConfig(config)
+	if err != nil {
+		return err
+	}
+	operatorNs , err := k8sutil.GetOperatorNamespace()
+	if err != nil{
+		return err
+	}
+	cfmap, err := corev1client.ConfigMaps(operatorNs).Get(defaultPluginsConfigMap, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	for key, _ := range cfmap.Data {
+		transformerTargetFile := filepath.Join(defaultPluginsConfigPath, key)
+		add := true
+		for _, tx := range kustomization.Transformers {
+			if tx == transformerTargetFile {
+				add = false
+				break
+			}
+		}
+
+		if add {
+			kustomization.Transformers = append(kustomization.Transformers, transformerTargetFile)
+		}
+	}
+
+return nil
+
+}
 // EvaluateKustomizeManifest evaluates the kustomize dir compDir, and returns the resources.
 func EvaluateKustomizeManifest(compDir string) (resmap.ResMap, error) {
 	fsys := fs.MakeRealFS()
@@ -1296,15 +1417,26 @@ func EvaluateKustomizeManifest(compDir string) (resmap.ResMap, error) {
 	}
 	defer ldr.Cleanup()
 	rf := resmap.NewFactory(resource.NewFactory(kunstruct.NewKunstructuredFactoryImpl()), transformer.NewFactoryImpl())
-	pc := plugins.DefaultPluginConfig()
+	var pc *types.PluginConfig
+	if enableKustAlphaPlugin == "yes" {
+		log.Warn("Kustomize Alpha Plugins enabled")
+		pc = plugins.ActivePluginConfig()
+	} else {
+		log.Warn("Kustomize Alpha Plugins disabled")
+		pc = plugins.DefaultPluginConfig()
+	}
+
 	kt, err := target.NewKustTarget(ldr, rf, transformer.NewFactoryImpl(), plugins.NewLoader(pc, rf))
 	if err != nil {
+		log.Printf("Error loading the plugin %v", err)
 		return nil, err
 	}
+
 	allResources, err := kt.MakeCustomizedResMap()
 	if err != nil {
 		return nil, err
 	}
+
 	err = builtin.NewLegacyOrderTransformerPlugin().Transform(allResources)
 	if err != nil {
 		return nil, err

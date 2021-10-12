@@ -44,3 +44,14 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+          volumeMounts:
+            - mountPath: /opt/kfctl/default-plugins
+              name: default-plugins
+              readOnly: true
+      volumes:
+      - name: default-plugins
+        configMap:
+          name: default-plugins
+          items:
+            - key: applyResources.yaml
+              path: applyResources.yaml

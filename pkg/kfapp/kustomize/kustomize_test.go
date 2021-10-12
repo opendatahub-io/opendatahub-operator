@@ -189,7 +189,7 @@ func TestCreateStackAppKustomization(t *testing.T) {
 			}
 		}
 
-		kustomizationFile, err := createStackAppKustomization(testDir, c.BasePath)
+		kustomizationFile, err := createStackAppKustomization(testDir, c.BasePath, &kfconfig.KfConfig{})
 
 		if err != nil {
 			t.Fatalf("Failed to create kustomization.yaml for Kubeflow apps stack: %v", err)

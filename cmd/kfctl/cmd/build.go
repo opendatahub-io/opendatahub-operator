@@ -104,7 +104,7 @@ func init() {
 		string(kftypes.DUMP)+" manifests to stdout, default is false")
 	bindErr = buildCfg.BindPFlag(string(kftypes.DUMP), buildCmd.Flags().Lookup(string(kftypes.DUMP)))
 	if bindErr != nil {
-		log.Errorf("Couldn't set flag --%v: %v", string(kftypes.VERBOSE), bindErr)
+		log.Errorf("Couldn't set flag --%v: %v", string(kftypes.DUMP), bindErr)
 		return
 	}
 }

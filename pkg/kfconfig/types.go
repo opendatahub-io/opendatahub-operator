@@ -75,7 +75,22 @@ type KfConfigSpec struct {
 	Plugins      []Plugin      `json:"plugins,omitempty"`
 	Secrets      []Secret      `json:"secrets,omitempty"`
 	Repos        []Repo        `json:"repos,omitempty"`
+	Global       Global        `json:"global,omitempty"`
 }
+type Global struct {
+	Transformers []Transformer `json:"transformers,omitempty"`
+	//Generators   []Generator   `json:"generators,omitempty"`
+}
+
+type Transformer struct {
+	Name    string   `json:"name,omitempty"`
+	RepoRef *RepoRef `json:"repoRef,omitempty"`
+}
+
+//type Generator struct {
+//	Name    string   `json:"name,omitempty"`
+//	RepoRef *RepoRef `json:"repoRef,omitempty"`
+//}
 
 // Application defines an application to install
 type Application struct {
@@ -843,7 +858,7 @@ func (c *KfConfig) SetApplicationParameter(appName string, paramName string, val
 			"profiles":         KfAppsStackName,
 			"dex":              "dex",
 			// Spartakus is its own application because we want kfctl to be able to remove it.
-			"spartakus":                  "spartakus",
+			"spartakus": "spartakus",
 			// AWS Specific
 			"aws-alb-ingress-controller": KfAppsStackName,
 			"istio-ingress":              "istio-ingress",
