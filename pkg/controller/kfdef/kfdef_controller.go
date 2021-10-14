@@ -250,11 +250,11 @@ var ownedResourcePredicates = predicate.Funcs{
 		if err != nil {
 			return false
 		}
-		log.Infof("Got update event for %v.%v.", object.GetName(), object.GetNamespace())
 		// if this object has an owner, let the owner handle the appropriate recovery
 		if len(object.GetOwnerReferences()) > 0 {
 			return false
 		}
+		// TODO:  Add update log message when plugin is integrated. We need to only log events for the resources with 'configurable' label
 		return true
 	},
 }
@@ -305,14 +305,14 @@ func (r *ReconcileKfDef) Reconcile(request reconcile.Request) (reconcile.Result,
 	finalizers := sets.NewString(instance.GetFinalizers()...)
 	if deleted {
 		if !finalizers.Has(finalizer) {
-			log.Info("Kfdef deleted.")
+			log.Infof("Kfdef instance %s deleted.", instance.Name)
 			if hasDeleteConfigMap(r.client) {
 				// if delete configmap exists, requeue the request to handle operator uninstall
 				return reconcile.Result{Requeue: true}, err
 			}
 			return reconcile.Result{}, nil
 		}
-		log.Infof("Deleting kfdef.")
+		log.Infof("Deleting kfdef instance %s.", instance.Name)
 
 		// stop the 2nd controller
 		if len(kfdefInstances) == 1 {
@@ -640,6 +640,7 @@ func (r *ReconcileKfDef) operatorUninstall(request reconcile.Request) error {
 				}
 			}
 		}
+	log.Info("All resources deleted as part of uninstall. Removing the operator csv")
 	return removeCsv(r.client, r.restConfig)
 }
 
