@@ -124,8 +124,8 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		return err
 	}
 
-	// Watch for changes to kfdefgit  resource and requeue the owner KfDef
-	err = watchKubeflowResources(c, mgr.GetClient(), watchedResources)
+	// Watch for changes to kfdef resource and requeue the owner KfDef
+	err = watchKubeflowResources(c, mgr.GetClient(), WatchedResources)
 	if err != nil {
 		return err
 	}
@@ -430,7 +430,7 @@ func (r *ReconcileKfDef) Reconcile(request reconcile.Request) (reconcile.Result,
 				return reconcile.Result{}, nil
 			}
 			// Watch for changes to kfdef resource and requeue the owner KfDef
-			err = watchKubeflowResources(c, kfdefManager.GetClient(), watchedKubeflowResources)
+			err = watchKubeflowResources(c, kfdefManager.GetClient(), WatchedKubeflowResources)
 			if err != nil {
 				return reconcile.Result{}, nil
 			}
