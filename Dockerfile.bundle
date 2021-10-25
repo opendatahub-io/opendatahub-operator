@@ -1,6 +1,7 @@
 FROM scratch
 
-ARG OPERTOR_RELEASE=1.1.0
+# This arg should be updated to use the most recent release in deploy/olm-catalog/opendatahub
+ARG OPERTOR_RELEASE=1.1.1
 
 # Operator bundle Dockerfile
 # See - https://github.com/operator-framework/operator-registry/blob/master/docs/design/operator-bundle.md
