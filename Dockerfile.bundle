@@ -1,7 +1,7 @@
 FROM scratch
 
 # This arg should be updated to use the most recent release in deploy/olm-catalog/opendatahub
-ARG OPERTOR_RELEASE=1.1.1
+ARG OPERATOR_RELEASE=1.1.2
 
 # Operator bundle Dockerfile
 # See - https://github.com/operator-framework/operator-registry/blob/master/docs/design/operator-bundle.md
@@ -12,5 +12,5 @@ LABEL operators.operatorframework.io.bundle.package.v1=opendatahub-operator
 LABEL operators.operatorframework.io.bundle.channels.v1=stable,rolling,beta
 LABEL operators.operatorframework.io.bundle.channel.default.v1=stable
 
-COPY deploy/olm-catalog/opendatahub/${OPERTOR_RELEASE}/manifests /manifests/
-COPY deploy/olm-catalog/opendatahub/${OPERTOR_RELEASE}/metadata /metadata/
+COPY deploy/olm-catalog/opendatahub/${OPERATOR_RELEASE}/manifests /manifests/
+COPY deploy/olm-catalog/opendatahub/${OPERATOR_RELEASE}/metadata /metadata/
