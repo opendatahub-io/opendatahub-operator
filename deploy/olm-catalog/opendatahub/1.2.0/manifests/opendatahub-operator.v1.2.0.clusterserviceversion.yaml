@@ -92,15 +92,6 @@ metadata:
                 "kustomizeConfig": {
                   "repoRef": {
                     "name": "manifests",
-                    "path": "radanalyticsio/spark/cluster"
-                  }
-                },
-                "name": "radanalyticsio-spark-cluster"
-              },
-              {
-                "kustomizeConfig": {
-                  "repoRef": {
-                    "name": "manifests",
                     "path": "prometheus/cluster"
                   }
                 },
@@ -195,7 +186,7 @@ metadata:
               },
               {
                 "name": "manifests",
-                "uri": "https://github.com/opendatahub-io/odh-manifests/tarball/v1.2.0"
+                "uri": "https://github.com/opendatahub-io/odh-manifests/tarball/v1.2"
               }
             ]
           }
@@ -228,34 +219,36 @@ spec:
     projects share some components, but can be mostly seen as an extension of each other to provide a complete solution for both novice and skilled enterprise users.
 
     ### Components
-    * JupyterHub v0.3.5 - Open source multi-user JupyterLab notebook platform w/ GPU support and **NEW** High Availability.
+    * JupyterHub v0.3.6 - Open source multi-user JupyterLab notebook platform w/ GPU support and High Availability.
     * Trino v355 - Distributed analytics SQL database that supports multiple data sources
     * Hue v4.8.0 - A service that provides data exploration on Hive and S3 buckets.
     * Spark Thrift Server - A service that allows JDBC clients run Spark SQL queries.
     * Open Data Hub Dashboard v1.0  - A web dashboard that displays installed Open Data Hub components with easy access to component UIs and documentation
-    * Elyra v2.2.4 - JupyterLab notebooks with support for AI workflows
+    * Elyra v3.8.0 - **NEW** JupyterLab notebook with support for AI workflows
     * Ceph Nano v0.7 - Minimal Object Storage provided by Ceph for development use
-    * Apache Spark v2.4.5 - Unified analytics engine for large-scale data processing
-    * Prometheus v2.16.0 - Monitoring and alerting tool
-    * Grafana v7.1.1 - Data visualization and monitoring
+    * Prometheus - Monitoring and alerting tool
+    * Grafana - Data visualization and monitoring
     * Airflow v1.10.11 - Workflow management
-    * Seldon v1.2.0 - Open source platform for deploying machine learning models
+    * Seldon - Open source platform for deploying machine learning models
     * Argo v2.12.5 - Container-native Workflow Engine
-    * Apache Superset v1.3.2 - **NEW** Open source application for data exploration and visualization
-    * Apache Kafka v2.8.0 - The open source stream processing platform
-    * OpenShift Pipelines v1.3.1 - Cloud-native CI/CD on OpenShift
+    * Apache Superset v1.4.1 - **NEW** Open source application for data exploration and visualization
+    * Apache Kafka - The open source stream processing platform
+    * OpenShift Pipelines - Cloud-native CI/CD on OpenShift
+
     To install one or multiple of these components use the default KfDef provided with the operator.
+
+    NOTE: Components without versions are defaulting to the default release version available in the OperatorHub. These versions may change as each component updates their respective operator releases in OperatorHub.
 
     ### Kubeflow Components
     ODH 1.2.0 supports Kubeflow v1.4.0 and some components such as KF Serving and KFP on Tekton from master branch. To install Kubeflow v1.4.0 components please use this example [KfDef](https://raw.githubusercontent.com/opendatahub-io/manifests/v1.4.0-rc.2-openshift/openshift/kfdef/kfctl_openshift_v1.4.0_odh.yaml).
 
-    NOTE: The Open Data Hub distribution of the Kubeflow 1.4 stack  currently runs on OpenShift versions of 4.8 (or lower). For latest updates, please visit [link](https://github.com/opendatahub-io)
+    NOTE: The Open Data Hub distribution of the Kubeflow 1.4 stack currently runs on OpenShift versions of 4.8 (or lower). For latest updates, please visit [link](https://github.com/opendatahub-io/manifests)
 
     ### OpenShift 4.9
 
-    For installing Open Data Hub on OpenShift 4.9, please use the provided sample [KfDef](https://github.com/opendatahub-io/odh-manifests/blob/master/kfdef/kfctl_openshift4.9_odh.yaml) that only includes JupyterHub. We are currently updating all other components to work on OpenShift 4.9 for the latest update please visit [ODH-522](https://issues.redhat.com/browse/ODH-522)
+    For installing Open Data Hub on OpenShift 4.9, please use the provided sample [KfDef](https://github.com/opendatahub-io/odh-manifests/blob/master/kfdef/kfctl_openshift4.9_odh.yaml) that only includes JupyterHub. We are currently updating all other components to work on OpenShift 4.9 for the latest update please visit [ODH-522](https://issues.redhat.com/browse/ODH-522).  As of this release, the Radanalytics Spark Operator is no longer supported on OpenShift 4.9+.
 
-    At this time, Kubeflow deployments on OpenShift 4.9 (k8s API 1.22) are not supported.
+    At this time, Kubeflow deployments on OpenShift 4.9+ (k8s API 1.22+) are not supported.
 
     ### Available Channels
 
@@ -266,10 +259,6 @@ spec:
     #### Rolling
 
     Channel `rolling` will offer the latest release of Open Data Hub operator and manifests. Subscribing to this branch will provide faster updates and access to components that will be in developement and testing for the next stable release
-
-    #### Beta
-
-    This channel will be **DEPRECATED** and removed on the next major release after ODH v1.1 in favor of the ``stable`` channel. If you subscribe to the `beta` channel, please move to `stable` channel to prevent any issues when `beta` is removed.
 
   displayName: Open Data Hub Operator
   icon:
@@ -333,7 +322,7 @@ spec:
     - supported: true
       type: AllNamespaces
   maturity: stable
-  minKubeVersion: 1.21.0
+  minKubeVersion: 1.16.0
   links:
     - name: Open Data Hub
       url: https://opendatahub.io
@@ -346,8 +335,8 @@ spec:
   provider:
     name: Open Data Hub
   maintainers:
-    - name: Open Data Hub Contributors
-      email: contributors@lists.opendatahub.io
+    - name: Open Data Hub Maintainers
+      email: maintainers@lists.opendatahub.io
   keywords:
     - Kubeflow
     - Operator

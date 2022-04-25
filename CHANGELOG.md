@@ -40,3 +40,8 @@
 ## Release 1.1.0 (2021-06-21T01:41:47)
 ### Improvements
 * Add OLM files for v1.1.0 release
+
+## Release 1.2.0 (2022-04-21T01:46:27)
+### Improvements
+* Fix syncing cache behind HTTP proxy (#148)
+* Add OLM files for v1.2.0 release
