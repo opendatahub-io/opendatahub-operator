@@ -1,0 +1,114 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.8.0
+  creationTimestamp: null
+  name: odhdeployments.opendatahub.io
+spec:
+  group: opendatahub.io
+  names:
+    kind: OdhDeployment
+    listKind: OdhDeploymentList
+    plural: odhdeployments
+    singular: odhdeployment
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: OdhDeployment is the Schema for the odhdeployments API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: OdhDeploymentSpec defines the desired state of OdhDeployment
+            properties:
+              components:
+                description: 'List of AI/ML components that need to be installed'
+                items:
+                  description: Component defines user options for a Component
+                  properties:
+                    enabled:
+                      description: enabled field if set to True installs the component
+                        and when set to False, uninstalls it.
+                      type: boolean
+                    manifests:
+                      description: manifests defines path of the component in a repo
+                      properties:
+                        path:
+                          description: relative path of the component in the repo
+                          type: string
+                        repoName:
+                          description: RepoName name is the name defined in the repo
+                            struct
+                          type: string
+                      required:
+                      - path
+                      - repoName
+                      type: object
+                    name:
+                      description: name of the component
+                      type: string
+                    reconcile:
+                      description: reconcile if set to False, will allow user to make
+                        any changes to the Resources Additionally when reconcile field
+                        is set to False, an update in version won't update the manifests
+                        for the given component.
+                      type: boolean
+                  required:
+                  - enabled
+                  - manifests
+                  - name
+                  - reconcile
+                  type: object
+                type: array
+              repos:
+                description: List of repositories for the component manifests
+                items:
+                  description: Repo defines the manifest repository for all the components
+                  properties:
+                    name:
+                      description: name of the repository
+                      type: string
+                    uri:
+                      description: uri is the Github url or path to local folder for
+                        the manifests
+                      type: string
+                  required:
+                  - name
+                  - uri
+                  type: object
+                type: array
+              version:
+                description: Manifest version A user can update the version value
+                  to update the components
+                type: string
+            required:
+            - version
+            type: object
+          status:
+            description: OdhDeploymentStatus defines the observed state of OdhDeployment
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

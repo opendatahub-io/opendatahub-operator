@@ -1,0 +1,16 @@
+apiVersion: opendatahub.io/v1alpha1
+kind: OdhDeployment
+metadata:
+  name: odhdeployment-sample
+spec:
+  components:
+    - name: example-component
+      manifests: 
+       repoName: example-manifests
+       path: /path/to/component
+      enabled: True
+      reconcile: True
+  version: v0.0.1
+  repos:
+   - name: example-manifests
+     uri: https://github.com/example/example-manifests/archive/v0.0.1.tar.gz
