@@ -1,0 +1,6 @@
+apiVersion: opendatahub.io/v1alpha1
+kind: OdhDeployment
+metadata:
+  name: odhdeployment-sample
+spec:
+  # TODO(user): Add fields here
