@@ -27,6 +27,7 @@ require (
 	github.com/jlewi/cloud-endpoints-controller v0.0.0-20200604211613-aff0aaad5602
 	github.com/kubernetes-sigs/application v0.8.0
 	github.com/onrik/logrus v0.5.1
+	github.com/openshift/api v3.9.1-0.20190924102528-32369d4db2ad+incompatible
 	github.com/operator-framework/operator-lifecycle-manager v0.0.0-20191115003340-16619cd27fa5
 	github.com/operator-framework/operator-sdk v0.13.0
 	github.com/otiai10/copy v1.0.2
@@ -69,6 +70,7 @@ replace (
 	github.com/go-openapi/spec => github.com/go-openapi/spec v0.18.0
 	github.com/go-openapi/swag => github.com/go-openapi/swag v0.17.0
 	github.com/mitchellh/go-homedir => github.com/mitchellh/go-homedir v1.0.0
+	github.com/openshift/api => github.com/openshift/api v0.0.0-20171215170046-3922a2604003
 	github.com/otiai10/copy => github.com/otiai10/copy v1.0.2
 	github.com/otiai10/mint => github.com/otiai10/mint v1.3.0
 	github.com/russross/blackfriday => github.com/russross/blackfriday v1.5.2-0.20180428102519-11635eb403ff // indirect

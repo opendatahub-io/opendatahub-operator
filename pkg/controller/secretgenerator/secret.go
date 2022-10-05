@@ -9,10 +9,11 @@ import (
 )
 
 const (
-	SECRET_NAME_ANNOTATION    = "secret-generator.opendatahub.io/name"
-	SECRET_TYPE_ANNOTATION    = "secret-generator.opendatahub.io/type"
-	SECRET_LENGTH_ANNOTATION  = "secret-generator.opendatahub.io/complexity"
-	SECRET_DEFAULT_COMPLEXITY = 16
+	SECRET_NAME_ANNOTATION         = "secret-generator.opendatahub.io/name"
+	SECRET_TYPE_ANNOTATION         = "secret-generator.opendatahub.io/type"
+	SECRET_LENGTH_ANNOTATION       = "secret-generator.opendatahub.io/complexity"
+	SECRET_OAUTH_CLIENT_ANNOTATION = "secret-generator.opendatahub.io/oauth-client-route"
+	SECRET_DEFAULT_COMPLEXITY      = 16
 
 	letterRunes = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 
@@ -23,10 +24,11 @@ const (
 )
 
 type Secret struct {
-	Name       string
-	Type       string
-	Complexity int
-	Value      string
+	Name             string
+	Type             string
+	Complexity       int
+	Value            string
+	OAuthClientRoute string
 }
 
 func newSecret(annotations map[string]string) (*Secret, error) {
@@ -82,6 +84,9 @@ func newSecret(annotations map[string]string) (*Secret, error) {
 	default:
 		return nil, errors.New(errUnsupportedType)
 	}
-
+	// Get OAuthClient route name from annotation
+	if secretOAuthClientRoute, found := annotations[SECRET_OAUTH_CLIENT_ANNOTATION]; found {
+		secret.OAuthClientRoute = secretOAuthClientRoute
+	}
 	return &secret, nil
 }
