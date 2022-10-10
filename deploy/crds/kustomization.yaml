@@ -1,2 +1,0 @@
-resources:
-- kfdef.apps.kubeflow.org_kfdefs_crd.yaml

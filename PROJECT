@@ -1,0 +1,9 @@
+domain: opendatahub.io
+layout:
+- go.kubebuilder.io/v3
+plugins:
+  manifests.sdk.operatorframework.io/v2: {}
+  scorecard.sdk.operatorframework.io/v2: {}
+projectName: opendatahub-operator
+repo: github.com/opendatahub-io/opendatahub-operator
+version: "3"
