@@ -26,6 +26,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -846,7 +847,7 @@ func MergeKustomization(compDir string, targetDir string, kfDef *kfconfig.KfConf
 
 	paramMap := make(map[string]string)
 	for _, nv := range params {
-		paramMap[nv.Name] = nv.Value
+		paramMap[nv.Name] = getParameterValue(nv.Value)
 	}
 	updateParamFiles := func() error {
 		paramFile := filepath.Join(targetDir, kftypesv3.KustomizationParamFile)
@@ -1461,4 +1462,24 @@ func GenerateYamlWithOperatorAnnotation(resMap resmap.ResMap, instance *unstruct
 		}
 	}
 	return buf.Bytes(), nil
+}
+
+func getParameterValue(value string) string {
+	// Check if there is a environment variable
+	// Supported format: $VAR and ${VAR}
+	var re = regexp.MustCompile(`(?m)^\$({(.*)}|\w)`)
+	envVariable := ""
+	if re.Match([]byte(value)){
+		if strings.HasPrefix(value, "${"){
+			envVariable = value[2:len(value)-1]
+		}else if strings.HasPrefix(value, "$") {
+			envVariable = value[1:]
+		}
+		return os.Getenv(envVariable)
+
+	}else{
+		log.Info("env variables are not used or are invalid in the parameters." +
+			" Supported Usage: $VAR and ${VAR}")
+	}
+	return value
 }
