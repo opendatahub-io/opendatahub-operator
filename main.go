@@ -98,8 +98,10 @@ func main() {
 	}
 
 	if err = (&kfdefappskubefloworgcontrollers.KfDefReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		client: mgr.GetClient(),
+		scheme: mgr.GetScheme(),
+		restConfig: mgr.GetConfig(),
+		recorder:  mgr.GetEventRecorderFor("kfdef-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "KfDef")
 		os.Exit(1)
