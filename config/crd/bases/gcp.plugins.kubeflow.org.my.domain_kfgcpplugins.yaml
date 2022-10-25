@@ -1,0 +1,92 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.9.2
+  creationTimestamp: null
+  name: kfgcpplugins.gcp.plugins.kubeflow.org.my.domain
+spec:
+  group: gcp.plugins.kubeflow.org.my.domain
+  names:
+    kind: KfGcpPlugin
+    listKind: KfGcpPluginList
+    plural: kfgcpplugins
+    singular: kfgcpplugin
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Placeholder for the plugin API.
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: GcpPluginSpec defines the desired state of GcpPlugin
+            properties:
+              auth:
+                properties:
+                  basicAuth:
+                    properties:
+                      password: {}
+                      username:
+                        type: string
+                    type: object
+                  iap:
+                    properties:
+                      oAuthClientId:
+                        type: string
+                      oAuthClientSecret: {}
+                    type: object
+                type: object
+              createPipelinePersistentStorage:
+                description: CreatePipelinePersistentStorage indicates whether to
+                  create storage. Use a pointer so we can distinguish unset values.
+                type: boolean
+              deleteStorage:
+                type: boolean
+              deploymentManagerConfig:
+                description: DeploymentManagerConfig provides location of the deployment
+                  manager configs.
+                properties:
+                  repoRef: {}
+                type: object
+              email:
+                type: string
+              enableWorkloadIdentity:
+                description: EnableWorkloadIdentity indicates whether to enable workload
+                  identity. Use a pointer so we can distinguish unset values.
+                type: boolean
+              hostname:
+                type: string
+              ipName:
+                type: string
+              project:
+                type: string
+              skipInitProject:
+                type: boolean
+              useBasicAuth:
+                type: boolean
+              username:
+                description: 'SAClientId if supplied grant this service account cluster
+                  admin access TODO(jlewi): Might want to make it a list'
+                type: string
+              zone:
+                type: string
+            required:
+            - useBasicAuth
+            type: object
+        type: object
+    served: true
+    storage: true

@@ -30,6 +30,13 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	awspluginskubefloworgv1alpha1 "github.com/kubeflow/kfctl/v3/apis/aws.plugins.kubeflow.org/v1alpha1"
+	gcppluginskubefloworgv1alpha1 "github.com/kubeflow/kfctl/v3/apis/gcp.plugins.kubeflow.org/v1alpha1"
+	kfconfigappskubefloworgv1alpha1 "github.com/kubeflow/kfctl/v3/apis/kfconfig.apps.kubeflow.org/v1alpha1"
+	kfdefappskubefloworgv1 "github.com/kubeflow/kfctl/v3/apis/kfdef.apps.kubeflow.org/v1"
+	kfupdateappskubefloworgv1alpha1 "github.com/kubeflow/kfctl/v3/apis/kfupdate.apps.kubeflow.org/v1alpha1"
+	kfdefappskubefloworgcontrollers "github.com/kubeflow/kfctl/v3/controllers/kfdef.apps.kubeflow.org"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -41,6 +48,11 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
+	utilruntime.Must(kfdefappskubefloworgv1.AddToScheme(scheme))
+	utilruntime.Must(kfconfigappskubefloworgv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(kfupdateappskubefloworgv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(awspluginskubefloworgv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(gcppluginskubefloworgv1alpha1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -67,7 +79,7 @@ func main() {
 		Port:                   9443,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "07ed84f7.opendatahub.io",
+		LeaderElectionID:       "e1f2c194.my.domain",
 		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
 		// when the Manager ends. This requires the binary to immediately end when the
 		// Manager is stopped, otherwise, this setting is unsafe. Setting this significantly
@@ -85,6 +97,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err = (&kfdefappskubefloworgcontrollers.KfDefReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "KfDef")
+		os.Exit(1)
+	}
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
