@@ -50,7 +50,7 @@ metadata:
                   ],
                   "repoRef": {
                     "name": "manifests",
-                    "path": "model-meth"
+                    "path": "model-mesh"
                   }
                 },
                 "name": "model-mesh"
@@ -58,16 +58,17 @@ metadata:
               {
                 "kustomizeConfig": {
                   "overlays": [
-                    "metadata-store-mysql",
-                    "ml-pipeline-ui",
-                    "object-store-minio"
+                    "metadata-store-mariadb",
+                    "ds-pipeline-ui",
+                    "object-store-minio",
+                    "default-configs"
                   ],
                   "repoRef": {
                     "name": "manifests",
-                    "path": "ml-pipelines"
+                    "path": "data-science-pipelines"
                   }
                 },
-                "name": "ml-pipelines"
+                "name": "ds-pipelines"
               },
               {
                 "kustomizeConfig": {
@@ -121,7 +122,7 @@ metadata:
             "repos": [
               {
                 "name": "manifests",
-                "uri": "https://github.com/opendatahub-io/odh-manifests/tarball/v1.4.0"
+                "uri": "https://github.com/opendatahub-io/odh-manifests/tarball/v1.4"
               }
             ]
           }
@@ -148,43 +149,38 @@ spec:
         displayName: Open Data Hub
         group: kfdef.apps.kubeflow.org
   description: |
-    The Open Data Hub is a machine-learning-as-a-service platform built on Red Hat's Kubernetes-based OpenShift® Container Platform. Open Data Hub integrates multiple AI/ML open source components into one operator that can easily be downloaded and installed by 
-OpenShift users.
+    The Open Data Hub is a machine-learning-as-a-service platform built on Red Hat's Kubernetes-based OpenShift® Container Platform. Open Data Hub integrates multiple AI/ML open source components into one operator that can easily be downloaded 
+and installed by OpenShift users.
 
-    Open Data Hub operator allows users to install and manage Open Data Hub and Kubeflow components. Users can mix and match tools from each project to fulfill the needs of their use case. Each of the
+    Open Data Hub operator allows users to install and manage components of the Open Data Hub. Users can mix and match tools from each project to fulfill the needs of their use case. Each of the
     projects share some components, but can be mostly seen as an extension of each other to provide a complete solution for both novice and skilled enterprise users.
 
     ### Components
-    * Open Data Hub Dashboard v2.2.1  - A web dashboard that displays installed Open Data Hub components with easy access to component UIs and documentation
-    * ODH Notebook Controller - 
-    * ML Pipelines - 
-    * Model Mesh - 
+    * Open Data Hub Dashboard - A web dashboard that displays installed Open Data Hub components with easy access to component UIs and documentation
+    * ODH Notebook Controller - Secure management of Jupyter Notebook in Kubernetes environments built on top of Kubeflow Notebook Controller with support for OAuth
+    * Jupyter Notebooks - JupyterLab notebook that provide Python support for GPU workloads
+    * Data Science Pipelines - Pipeline solution for end to end MLOps workflows that support the Kubeflow Pipelines SDK and Tekton
+    * Model Mesh - ModelMesh Serving is the Controller for managing ModelMesh, a general-purpose model serving management/routing layer.
     * Prometheus - Monitoring and alerting tool
     * Grafana - Data visualization and monitoring
-    * JupyterHub v0.3.8 - Open source multi-user JupyterLab notebook platform w/ GPU support and High Availability.
 
     To install one or multiple of these components use the default KfDef provided with the operator.
 
-    NOTE: Components without versions are defaulting to the default release version available in the OperatorHub. These versions may change as each component updates their respective operator releases in OperatorHub.
+    NOTE: As of ODH 1.4, ODH has replaced JupyterHub multi-user server with ODH Notebook Controller for lifecycle management of Jupyter Notebook servers.  JupyterHub is still available for deployment but there will be no further updates and it 
+will be officially deprecated with the release of ODH 1.5
+
 
     ### Kubeflow Components
-    ODH 1.3.0 supports Kubeflow v1.5.0 and some components such as KF Serving and KFP on Tekton from master branch. To install Kubeflow v1.5.0 components please use this example 
-[KfDef](https://raw.githubusercontent.com/opendatahub-io/manifests/v1.5-branch-openshift/openshift/kfdef/kfctl_openshift_v1.5.0_odh.yaml).
-
-    NOTE: The Open Data Hub distribution of the Kubeflow 1.5 stack currently runs on OpenShift versions of 4.8 (or lower). For latest updates, please visit [link](https://github.com/opendatahub-io/manifests)
-
-    ### OpenShift 4.9+
-    For installing Open Data Hub on OpenShift 4.9, please use the provided sample [KfDef](https://github.com/opendatahub-io/odh-manifests/blob/v1.3/kfdef/kfctl_openshift4.9_odh.yaml). As of the previous ODH 1.2 release, the Radanalytics Spark Operator is no longer 
-supported on OpenShift 4.9+.
-
-    At this time, Kubeflow deployments on OpenShift 4.9+ (k8s API 1.22+) are not supported.
+    ODH 1.4.0 supports Kubeflow v1.6.0 and some components such as KF Serving and KFP on Tekton from master branch. Please visit [opendatahub-io/manifests](https://github.com/opendatahub-io/manifests/tree/v1.6-branch-openshift/openshift) for 
+installation instructions on deploying Kubeflow v1.6.0 on OpenShift.
 
     ### Available Channels
 
     #### Stable
 
     Channel `stable` offers the major releases of Open Data Hub operator and ODH manifests. It is based on Kubeflow Operator and Kustomize for deployment configuration. This version is compatible with [Open Data Hub 
-manifests](https://github.com/opendatahub-io/odh-manifests/) as well as [Kubeflow manifests](https://github.com/opendatahub-io/manifests). This channel will offer new components and features that have been thoroughly tested by consumers of the `rolling` channel
+manifests](https://github.com/opendatahub-io/odh-manifests/) as well as [Kubeflow manifests](https://github.com/opendatahub-io/manifests). This channel will offer new components and features that have been thoroughly tested by consumers of the 
+`rolling` channel
 
     #### Rolling
 
@@ -267,7 +263,7 @@ iVBORw0KGgoAAAANSUhEUgAAAUIAAAEiCAYAAACMWdvGAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAO
     - supported: true
       type: AllNamespaces
   maturity: stable
-  minKubeVersion: 1.16.0
+  minKubeVersion: 1.21.0
   links:
     - name: Open Data Hub
       url: https://opendatahub.io
