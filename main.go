@@ -18,6 +18,7 @@ package main
 
 import (
 	"flag"
+	"github.com/opendatahub-io/opendatahub-operator/controllers/secretgenerator"
 	"os"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -104,6 +105,14 @@ func main() {
 		recorder:  mgr.GetEventRecorderFor("kfdef-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "KfDef")
+		os.Exit(1)
+	}
+
+	if err = (&secretgenerator.SecretGeneratorReconciler{
+		client: mgr.GetClient(),
+		scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "SecretGenerator")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
