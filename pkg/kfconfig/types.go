@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"github.com/ghodss/yaml"
 	"github.com/hashicorp/go-getter/helper/url"
-	kfapis "github.com/kubeflow/kfctl/v3/pkg/apis"
-	kftypesv3 "github.com/kubeflow/kfctl/v3/pkg/apis/apps"
+	kfapis "github.com/opendatahub-io/opendatahub-operator/apis"
+	kftypesv3 "github.com/opendatahub-io/opendatahub-operator/apis/apps"
 	"github.com/otiai10/copy"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -845,7 +845,7 @@ func (c *KfConfig) SetApplicationParameter(appName string, paramName string, val
 			"profiles":         KfAppsStackName,
 			"dex":              "dex",
 			// Spartakus is its own application because we want kfctl to be able to remove it.
-			"spartakus":                  "spartakus",
+			"spartakus": "spartakus",
 			// AWS Specific
 			"aws-alb-ingress-controller": KfAppsStackName,
 			"istio-ingress":              "istio-ingress",

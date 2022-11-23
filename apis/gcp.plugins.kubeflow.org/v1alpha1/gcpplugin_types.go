@@ -17,6 +17,9 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"fmt"
+
+	kfdeftypes "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -28,6 +31,7 @@ type KfGcpPlugin struct {
 
 	Spec GcpPluginSpec `json:"spec,omitempty"`
 }
+
 // GcpPluginSpec defines the desired state of GcpPlugin
 type GcpPluginSpec struct {
 	Auth *Auth `json:"auth,omitempty"`

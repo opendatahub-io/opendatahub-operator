@@ -12,9 +12,9 @@ import (
 
 	"github.com/ghodss/yaml"
 	gogetter "github.com/hashicorp/go-getter"
-	kfapis "github.com/kubeflow/kfctl/v3/pkg/apis"
-	"github.com/kubeflow/kfctl/v3/pkg/kfconfig"
-	"github.com/kubeflow/kfctl/v3/pkg/utils"
+	kfapis "github.com/opendatahub-io/opendatahub-operator/apis"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/kfconfig"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/utils"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -139,9 +139,7 @@ func LoadConfigFromURI(configFile string) (*kfconfig.KfConfig, error) {
 	}
 
 	converters := map[string]Loader{
-		"v1alpha1": V1alpha1{},
-		"v1beta1":  V1beta1{},
-		"v1":       V1{},
+		"v1": V1{},
 	}
 
 	converter, ok := converters[apiVersionSeparated[1]]
@@ -204,9 +202,7 @@ func WriteConfigToFile(config kfconfig.KfConfig) error {
 	}
 	filename := filepath.Join(config.Spec.AppDir, config.Spec.ConfigFileName)
 	converters := map[string]Loader{
-		"v1alpha1": V1alpha1{},
-		"v1beta1":  V1beta1{},
-		"v1":       V1{},
+		"v1": V1{},
 	}
 	apiVersionSeparated := strings.Split(config.APIVersion, "/")
 	if len(apiVersionSeparated) < 2 || apiVersionSeparated[0] != Api {

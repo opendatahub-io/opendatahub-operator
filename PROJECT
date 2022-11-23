@@ -1,4 +1,4 @@
-domain: my.domain
+domain: opendatahub.io
 layout:
 - go.kubebuilder.io/v3
 multigroup: true
@@ -6,15 +6,14 @@ plugins:
   manifests.sdk.operatorframework.io/v2: {}
   scorecard.sdk.operatorframework.io/v2: {}
 projectName: opendatahub-operator
-repo: github.com/kubeflow/kfctl/v3
+repo: github.com/opendatahub-io/opendatahub-operator
 resources:
 - api:
     crdVersion: v1
     namespaced: true
   controller: true
-  domain: my.domain
   group: kfdef.apps.kubeflow.org
   kind: KfDef
-  path: github.com/kubeflow/kfctl/v3/api/v1
+  path: github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1
   version: v1
 version: "3"

@@ -32,12 +32,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	awspluginskubefloworgv1alpha1 "github.com/kubeflow/kfctl/v3/apis/aws.plugins.kubeflow.org/v1alpha1"
-	gcppluginskubefloworgv1alpha1 "github.com/kubeflow/kfctl/v3/apis/gcp.plugins.kubeflow.org/v1alpha1"
-	kfconfigappskubefloworgv1alpha1 "github.com/kubeflow/kfctl/v3/apis/kfconfig.apps.kubeflow.org/v1alpha1"
-	kfdefappskubefloworgv1 "github.com/kubeflow/kfctl/v3/apis/kfdef.apps.kubeflow.org/v1"
-	kfupdateappskubefloworgv1alpha1 "github.com/kubeflow/kfctl/v3/apis/kfupdate.apps.kubeflow.org/v1alpha1"
-	kfdefappskubefloworgcontrollers "github.com/kubeflow/kfctl/v3/controllers/kfdef.apps.kubeflow.org"
+	awspluginskubefloworgv1alpha1 "github.com/opendatahub-io/opendatahub-operator/apis/aws.plugins.kubeflow.org/v1alpha1"
+	gcppluginskubefloworgv1alpha1 "github.com/opendatahub-io/opendatahub-operator/apis/gcp.plugins.kubeflow.org/v1alpha1"
+	kfconfigappskubefloworgv1alpha1 "github.com/opendatahub-io/opendatahub-operator/apis/kfconfig.apps.kubeflow.org/v1alpha1"
+	kfdefappskubefloworgv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
+	kfupdateappskubefloworgv1alpha1 "github.com/opendatahub-io/opendatahub-operator/apis/kfupdate.apps.kubeflow.org/v1alpha1"
+	kfdefappskubefloworg "github.com/opendatahub-io/opendatahub-operator/controllers/kfdef.apps.kubeflow.org"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -98,19 +98,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&kfdefappskubefloworgcontrollers.KfDefReconciler{
-		client: mgr.GetClient(),
-		scheme: mgr.GetScheme(),
-		restConfig: mgr.GetConfig(),
-		recorder:  mgr.GetEventRecorderFor("kfdef-controller"),
-	}).SetupWithManager(mgr); err != nil {
+	if err = (&kfdefappskubefloworg.KfDefReconciler{Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(), RestConfig: mgr.GetConfig(), Recorder: mgr.GetEventRecorderFor("kfdef-controller"), Log: ctrl.Log.WithName("controllers").WithName("KfDef")}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "KfDef")
 		os.Exit(1)
 	}
 
 	if err = (&secretgenerator.SecretGeneratorReconciler{
-		client: mgr.GetClient(),
-		scheme: mgr.GetScheme(),
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "SecretGenerator")
 		os.Exit(1)

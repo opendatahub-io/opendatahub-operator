@@ -31,7 +31,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	kfdefappskubefloworgv1 "github.com/kubeflow/kfctl/v3/apis/kfdef.apps.kubeflow.org/v1"
+	kfdefappskubefloworgv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
 	//+kubebuilder:scaffold:imports
 )
 

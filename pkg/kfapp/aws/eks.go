@@ -6,12 +6,14 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/eks"
 	versionChecker "github.com/hashicorp/go-version"
-	kfapis "github.com/kubeflow/kfctl/v3/pkg/apis"
+	kfapis "github.com/opendatahub-io/opendatahub-operator/apis"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"os/exec"
 	"path/filepath"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
+
+var eksLog = log.Log.WithName("Eks")
 
 type Cluster struct {
 	name              string
@@ -74,7 +76,7 @@ func (aws *Aws) createEKSCluster() error {
 	}
 
 	if awsPluginSpec.GetManagedCluster() {
-		log.Infoln("Start to create eks cluster. Please wait for 10-15 mins...")
+		eksLog.Info("Start to create eks cluster. Please wait for 10-15 mins...")
 		clusterConfigFile := filepath.Join(aws.kfDef.Spec.AppDir, KUBEFLOW_AWS_INFRA_DIR, CLUSTER_CONFIG_FILE)
 		output, err := exec.Command("eksctl", "create", "cluster", "--config-file="+clusterConfigFile).Output()
 		if err != nil {
@@ -83,7 +85,7 @@ func (aws *Aws) createEKSCluster() error {
 				Message: fmt.Sprintf("Call 'eksctl create cluster --config-file=%s' with errors: %v", clusterConfigFile, string(output)),
 			}
 		}
-		log.Infoln(string(output))
+		eksLog.Info(string(output))
 
 		nodeGroupIamRoles, getRoleError := aws.getWorkerNodeGroupRoles(aws.kfDef.Name)
 		if getRoleError != nil {
@@ -92,7 +94,7 @@ func (aws *Aws) createEKSCluster() error {
 
 		aws.roles = nodeGroupIamRoles
 	} else {
-		log.Infof("You already have cluster setup. Skip creating new eks cluster. ")
+		eksLog.Info("You already have cluster setup. Skip creating new eks cluster. ")
 	}
 
 	return nil
@@ -107,17 +109,17 @@ func (aws *Aws) deleteEKSCluster() error {
 
 	// Delete cluster if it's a managed cluster created by kfctl
 	if awsPluginSpec.GetManagedCluster() {
-		log.Infoln("Start to delete eks cluster. Please wait for 5 mins...")
+		eksLog.Info("Start to delete eks cluster. Please wait for 5 mins...")
 		clusterConfigFile := filepath.Join(aws.kfDef.Spec.AppDir, KUBEFLOW_AWS_INFRA_DIR, CLUSTER_CONFIG_FILE)
 		output, err := exec.Command("eksctl", "delete", "cluster", "--config-file="+clusterConfigFile).Output()
-		log.Infoln("Please go to aws console to check CloudFormation status and double make sure your cluster has been shutdown.")
+		eksLog.Info("Please go to aws console to check CloudFormation status and double make sure your cluster has been shutdown.")
 		if err != nil {
 			return &kfapis.KfError{
 				Code:    int(kfapis.INVALID_ARGUMENT),
 				Message: fmt.Sprintf("could not call 'eksctl delete cluster --config-file=%s': %v", clusterConfigFile, string(output)),
 			}
 		}
-		log.Infoln(string(output))
+		eksLog.Info(string(output))
 	}
 
 	return nil

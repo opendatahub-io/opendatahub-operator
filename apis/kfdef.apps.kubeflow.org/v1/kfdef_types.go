@@ -18,9 +18,14 @@ package v1
 
 import (
 	"fmt"
-	"google.golang.org/appengine/log"
+	"github.com/ghodss/yaml"
+	kfapis "github.com/opendatahub-io/opendatahub-operator/apis"
+	log "github.com/sirupsen/logrus"
+	v1 "k8s.io/api/core/v1"
+	valid "k8s.io/apimachinery/pkg/api/validation"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"os"
 	"strings"
 )
 
@@ -35,7 +40,6 @@ type KfDefSpec struct {
 	Secrets      []Secret      `json:"secrets,omitempty"`
 	Repos        []Repo        `json:"repos,omitempty"`
 }
-
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
@@ -57,6 +61,7 @@ type KfDefList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []KfDef `json:"items"`
 }
+
 // Application defines an application to install
 type Application struct {
 	Name            string           `json:"name,omitempty"`

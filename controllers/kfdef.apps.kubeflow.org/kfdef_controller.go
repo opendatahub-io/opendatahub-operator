@@ -19,8 +19,8 @@ package kfdefappskubefloworg
 import (
 	"context"
 	"fmt"
-	"github.com/opendatahub-io/opendatahub-operator/pkg/kfapp/coordinator"
-	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
+	"github.com/ghodss/yaml"
+	"github.com/go-logr/logr"
 	"io/ioutil"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -44,12 +44,18 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 	"strings"
 
+	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	olmclientset "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/operators/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
+	apiserv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	kfdefappskubefloworgv1 "github.com/kubeflow/kfctl/v3/apis/kfdef.apps.kubeflow.org/v1"
+	kftypesv3 "github.com/opendatahub-io/opendatahub-operator/apis/apps"
+	kfdefappskubefloworgv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/kfapp/coordinator"
+	kfloaders "github.com/opendatahub-io/opendatahub-operator/pkg/kfconfig/loaders"
+	kfutils "github.com/opendatahub-io/opendatahub-operator/pkg/utils"
 )
 
 const (
@@ -72,18 +78,21 @@ var b2ndController = false
 // the manager
 var kfdefManager manager.Manager
 
-// the stop channel for the 2nd controller
-var stop chan struct{}
+// Add logger for helper functions
+var kfdefLog logr.Logger
+
+// the stop Context for the 2nd controller
+var stopCtx context.Context
 
 // KfDefReconciler reconciles a KfDef object
 type KfDefReconciler struct {
-	client client.Client
-	scheme *runtime.Scheme
-	restConfig *rest.Config
-	// recorder to generate events
-	recorder record.EventRecorder
+	Client     client.Client
+	Scheme     *runtime.Scheme
+	RestConfig *rest.Config
+	Log        logr.Logger
+	// Recorder to generate events
+	Recorder record.EventRecorder
 }
-
 
 //+kubebuilder:rbac:groups=kfdef.apps.kubeflow.org.my.domain,resources=kfdefs,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=kfdef.apps.kubeflow.org.my.domain,resources=kfdefs/status,verbs=get;update;patch
@@ -98,20 +107,21 @@ type KfDefReconciler struct {
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.2/pkg/reconcile
+
 func (r *KfDefReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
 
-	log.Infof("Reconciling KfDef resources. Request.Namespace: %v, Request.Name: %v.", request.Namespace, request.Name)
+	_ = r.Log.WithValues(request.NamespacedName)
+	r.Log.Info("Reconciling KfDef resources", "Request.Namespace", request.Namespace, "Request.Name", request.Name)
 
-	instance := &kfdefv1.KfDef{}
-	err := r.client.Get(context.TODO(), request.NamespacedName, instance)
+	instance := &kfdefappskubefloworgv1.KfDef{}
+	err := r.Client.Get(ctx, request.NamespacedName, instance)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
 			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
 			// Return and don't requeue
-			if hasDeleteConfigMap(r.client) {
-				r.recorder.Eventf(instance, v1.EventTypeWarning, "UninstallInProgress",
+			if hasDeleteConfigMap(r.Client) {
+				r.Recorder.Eventf(instance, v1.EventTypeWarning, "UninstallInProgress",
 					"Resource deletion restricted as the operator uninstall is in progress")
 				return ctrl.Result{}, fmt.Errorf("error while operator uninstall: %v",
 					r.operatorUninstall(request))
@@ -127,42 +137,41 @@ func (r *KfDefReconciler) Reconcile(ctx context.Context, request ctrl.Request) (
 	finalizers := sets.NewString(instance.GetFinalizers()...)
 	if deleted {
 		if !finalizers.Has(finalizer) {
-			log.Infof("Kfdef instance %s deleted.", instance.Name)
-			if hasDeleteConfigMap(r.client) {
+			r.Log.Info("Kfdef instance deleted.", "instance", instance.Name)
+			if hasDeleteConfigMap(r.Client) {
 				// if delete configmap exists, requeue the request to handle operator uninstall
 				return ctrl.Result{Requeue: true}, err
 			}
 			return ctrl.Result{}, nil
 		}
-		log.Infof("Deleting kfdef instance %s.", instance.Name)
+		r.Log.Info("Deleting kfdef instance", "instance", instance.Name)
 
 		// stop the 2nd controller
 		if len(kfdefInstances) == 1 {
-			close(stop)
+			stopCtx.Done()
 			b2ndController = false
 		}
 
 		// Uninstall Kubeflow
 		err = kfDelete(instance)
 		if err == nil {
-			log.Infof("KubeFlow Deployment Deleted.")
-			r.recorder.Eventf(instance, v1.EventTypeNormal, "KfDefDeletionSuccessful",
+			r.Log.Info("KubeFlow Deployment Deleted.")
+			r.Recorder.Eventf(instance, v1.EventTypeNormal, "KfDefDeletionSuccessful",
 				"KF instance %s deleted successfully", instance.Name)
 		} else {
 			// log an error and continue for cleanup. It does not make sense to retry the delete.
-			r.recorder.Eventf(instance, v1.EventTypeWarning, "KfDefDeletionFailed",
+			r.Recorder.Eventf(instance, v1.EventTypeWarning, "KfDefDeletionFailed",
 				"Error deleting KF instance %s", instance.Name)
-			log.Errorf("Failed to delete Kubeflow.")
-
+			r.Log.Error(fmt.Errorf("failed to delete Kubeflow"), "", "instance", instance.Name)
 		}
 
 		// Delete the kfapp directory
 		kfAppDir := path.Join("/tmp", instance.GetNamespace(), instance.GetName())
 		if err := os.RemoveAll(kfAppDir); err != nil {
-			log.Errorf("Failed to delete the app directory. Error: %v.", err)
+			r.Log.Error(err, "Failed to delete the app directory")
 			return ctrl.Result{}, err
 		}
-		log.Infof("kfAppDir deleted.")
+		r.Log.Info("kfAppDir deleted.")
 
 		// Remove this KfDef instance
 		delete(kfdefInstances, strings.Join([]string{instance.GetName(), instance.GetNamespace()}, "."))
@@ -170,32 +179,32 @@ func (r *KfDefReconciler) Reconcile(ctx context.Context, request ctrl.Request) (
 		// Remove finalizer once kfDelete is completed.
 		finalizers.Delete(finalizer)
 		instance.SetFinalizers(finalizers.List())
-		finalizerError := r.client.Update(context.TODO(), instance)
+		finalizerError := r.Client.Update(context.TODO(), instance)
 		for retryCount := 0; errors.IsConflict(finalizerError) && retryCount < finalizerMaxRetries; retryCount++ {
 			// Based on Istio operator at https://github.com/istio/istio/blob/master/operator/pkg/controller/istiocontrolplane/istiocontrolplane_controller.go
 			// for finalizer removal errors workaround.
-			log.Info("Conflict during finalizer removal, retrying.")
-			_ = r.client.Get(context.TODO(), request.NamespacedName, instance)
+			r.Log.Info("Conflict during finalizer removal, retrying.")
+			_ = r.Client.Get(ctx, request.NamespacedName, instance)
 			finalizers = sets.NewString(instance.GetFinalizers()...)
 			finalizers.Delete(finalizer)
 			instance.SetFinalizers(finalizers.List())
-			finalizerError = r.client.Update(context.TODO(), instance)
+			finalizerError = r.Client.Update(ctx, instance)
 		}
 		if finalizerError != nil {
-			log.Errorf("Error removing finalizer: %v.", finalizerError)
+			r.Log.Error(finalizerError, "error removing finalizer")
 			return ctrl.Result{}, finalizerError
 		}
-		if hasDeleteConfigMap(r.client) {
+		if hasDeleteConfigMap(r.Client) {
 			return ctrl.Result{Requeue: true}, nil
 		}
 		return ctrl.Result{}, nil
 	} else if !finalizers.Has(finalizer) {
-		log.Infof("Normally this should not happen. Adding finalizer %v: %v.", finalizer, request)
+		r.Log.Info("Normally this should not happen. Adding the finalizer", finalizer, request)
 		finalizers.Insert(finalizer)
 		instance.SetFinalizers(finalizers.List())
-		err = r.client.Update(context.TODO(), instance)
+		err = r.Client.Update(ctx, instance)
 		if err != nil {
-			log.Errorf("Failed to update kfdef with finalizer. Error: %v.", err)
+			r.Log.Error(err, "failed to update kfdef with finalizer")
 			return ctrl.Result{}, err
 		}
 	}
@@ -204,29 +213,29 @@ func (r *KfDefReconciler) Reconcile(ctx context.Context, request ctrl.Request) (
 	if request.Name == instance.GetName() && request.Namespace == instance.GetNamespace() {
 		kfAppDir := path.Join("/tmp", instance.GetNamespace(), instance.GetName())
 		if err = os.RemoveAll(kfAppDir); err != nil {
-			log.Errorf("Failed to delete the app directory. Error: %v.", err)
+			r.Log.Error(err, "failed to delete the app directory")
 			return ctrl.Result{}, err
 		}
 	}
 
-	if hasDeleteConfigMap(r.client) {
-		for key, _ := range kfdefInstances{
-			keyVal := strings.Split(key,".")
+	if hasDeleteConfigMap(r.Client) {
+		for key, _ := range kfdefInstances {
+			keyVal := strings.Split(key, ".")
 			if len(keyVal) == 2 {
 				instanceName, namespace := keyVal[0], keyVal[1]
-				currentInstance := &kfdefv1.KfDef{
+				currentInstance := &kfdefappskubefloworgv1.KfDef{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      instanceName,
 						Namespace: namespace,
 					},
 				}
 
-				if err := r.client.Delete(context.TODO(), currentInstance, []client.DeleteOption{}...); err != nil {
+				if err := r.Client.Delete(ctx, currentInstance, []client.DeleteOption{}...); err != nil {
 					if !errors.IsNotFound(err) {
 						return ctrl.Result{}, err
 					}
 				}
-			}else{
+			} else {
 				return ctrl.Result{}, fmt.Errorf("error getting kfdef instance name and namespace")
 			}
 
@@ -237,8 +246,8 @@ func (r *KfDefReconciler) Reconcile(ctx context.Context, request ctrl.Request) (
 
 	err = getReconcileStatus(instance, kfApply(instance))
 	if err == nil {
-		log.Infof("KubeFlow Deployment Completed.")
-		r.recorder.Eventf(instance, v1.EventTypeNormal, "KfDefCreationSuccessful",
+		r.Log.Info("KubeFlow Deployment Completed.")
+		r.Recorder.Eventf(instance, v1.EventTypeNormal, "KfDefCreationSuccessful",
 			"KfDef instance %s created and deployed successfully", instance.Name)
 
 		// add to kfdefInstances if not exists
@@ -247,27 +256,27 @@ func (r *KfDefReconciler) Reconcile(ctx context.Context, request ctrl.Request) (
 		}
 
 		if !b2ndController {
-			c, err := controller.New("kubeflow-controller", kfdefManager, controller.Options{Reconciler: r})
+			kfBuilder := ctrl.NewControllerManagedBy(kfdefManager).Named("kubeflow-controller").WithOptions(controller.Options{Reconciler: r})
+			c, err := kfBuilder.Build(r)
 			if err != nil {
 				return ctrl.Result{}, nil
 			}
 			// Watch for changes to kfdef resource and requeue the owner KfDef
-			err = watchKubeflowResources(c, kfdefManager.GetClient(), WatchedKubeflowResources)
+			err = r.watchKubeflowResources(kfBuilder, WatchedKubeflowResources)
 			if err != nil {
 				return ctrl.Result{}, nil
 			}
-			stop = make(chan struct{})
+			stopCtx = context.TODO()
 			go func() {
 				// Start the controller
-				if err := c.Start(stop); err != nil {
-					log.Error(err, "cannot run the 2nd Kubeflow controller")
+				if err := c.Start(stopCtx); err != nil {
+					r.Log.Error(err, "cannot run the 2nd Kubeflow controller")
 				}
 			}()
-			log.Infof("Controller added to watch resources from CRDs created by Kubeflow deployment.")
+			r.Log.Info("Controller added to watch resources from CRDs created by Kubeflow deployment.")
 			b2ndController = true
 		}
 	}
-
 
 	// set status of the KfDef resource
 	if err := r.reconcileStatus(instance); err != nil {
@@ -281,33 +290,33 @@ func (r *KfDefReconciler) Reconcile(ctx context.Context, request ctrl.Request) (
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *KfDefReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	log.Infof("Adding controller for kfdef.")
+	r.Log.Info("Adding controller for kfdef.")
 
 	kfDefBuilder := ctrl.NewControllerManagedBy(mgr).Named("kfdef-controller")
 	err := kfDefBuilder.
-		Watches(&source.Kind{Type: &kfdefv1.KfDef{}}, handler.EnqueueRequestsFromMapFunc(
+		Watches(&source.Kind{Type: &kfdefappskubefloworgv1.KfDef{}}, handler.EnqueueRequestsFromMapFunc(
 			func(a client.Object) []reconcile.Request {
 				namespacedName := types.NamespacedName{Name: a.GetName(), Namespace: a.GetNamespace()}
 				finalizers := sets.NewString(a.GetFinalizers()...)
 				if !finalizers.Has(finalizer) {
 					// assume this is a CREATE event
-					log.Infof("Adding finalizer %v: %v.", finalizer, namespacedName)
+					r.Log.Info("Adding finalizer", finalizer, namespacedName)
 					finalizers.Insert(finalizer)
-					instance := &kfdefv1.KfDef{}
+					instance := &kfdefappskubefloworgv1.KfDef{}
 					err := mgr.GetClient().Get(context.TODO(), namespacedName, instance)
 					if err != nil {
-						log.Errorf("Failed to get kfdef CR. Error: %v.", err)
+						r.Log.Error(err, "Failed to get kfdef CR.")
 						return nil
 					}
 					instance.SetFinalizers(finalizers.List())
 					err = mgr.GetClient().Update(context.TODO(), instance)
 					if err != nil {
-						log.Errorf("Failed to update kfdef with finalizer. Error: %v.", err)
+						r.Log.Error(err, "Failed to update kfdef with finalizer. Error: %v.")
 					}
 					// let the UPDATE event request queue
 					return nil
 				}
-				log.Infof("Watch a change for KfDef CR: %v.%v.", a.GetName(), a.GetNamespace())
+				r.Log.Info("Watch a change for KfDef CR", "instance", a.GetName(), "namespace", a.GetNamespace())
 				return []reconcile.Request{{NamespacedName: namespacedName}}
 			}), builder.WithPredicates(kfdefPredicates)).
 		Complete(r)
@@ -321,12 +330,14 @@ func (r *KfDefReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if err != nil {
 		return err
 	}
-	log.Infof("Controller added to watch on Kubeflow resources with known GVK.")
+	r.Log.Info("Controller added to watch on Kubeflow resources with known GVK.")
+	// Setup logger for helper functions
+	kfdefLog = r.Log
 	return nil
 }
 
 // watch is monitoring changes for kfctl resources managed by the operator
-func (r *KfDefReconciler)  watchKubeflowResources(b *builder.Builder, watchedResources []schema.GroupVersionKind) error {
+func (r *KfDefReconciler) watchKubeflowResources(b *builder.Builder, watchedResources []schema.GroupVersionKind) error {
 	for _, t := range watchedResources {
 		u := &unstructured.Unstructured{}
 		u.SetGroupVersionKind(schema.GroupVersionKind{
@@ -336,40 +347,40 @@ func (r *KfDefReconciler)  watchKubeflowResources(b *builder.Builder, watchedRes
 		})
 		err := b.
 			Watches(&source.Kind{Type: u}, handler.EnqueueRequestsFromMapFunc(func(a client.Object) []reconcile.Request {
-			anns := a.GetAnnotations()
-			kfdefAnn := strings.Join([]string{kfutils.KfDefAnnotation, kfutils.KfDefInstance}, "/")
-			_, found := anns[kfdefAnn]
-			if found {
-				kfdefCr := strings.Split(anns[kfdefAnn], ".")
-				namespacedName := types.NamespacedName{Name: kfdefCr[0], Namespace: kfdefCr[1]}
-				instance := &kfdefv1.KfDef{}
-				err := r.client.Get(context.TODO(), types.NamespacedName{Name: kfdefCr[0], Namespace: kfdefCr[1]}, instance)
-				if err != nil {
-					if errors.IsNotFound(err) {
-						// KfDef CR may have been deleted
+				anns := a.GetAnnotations()
+				kfdefAnn := strings.Join([]string{kfutils.KfDefAnnotation, kfutils.KfDefInstance}, "/")
+				_, found := anns[kfdefAnn]
+				if found {
+					kfdefCr := strings.Split(anns[kfdefAnn], ".")
+					namespacedName := types.NamespacedName{Name: kfdefCr[0], Namespace: kfdefCr[1]}
+					instance := &kfdefappskubefloworgv1.KfDef{}
+					err := r.Client.Get(context.TODO(), types.NamespacedName{Name: kfdefCr[0], Namespace: kfdefCr[1]}, instance)
+					if err != nil {
+						if errors.IsNotFound(err) {
+							// KfDef CR may have been deleted
+							return nil
+						}
+					} else if instance.GetDeletionTimestamp() != nil {
+						// KfDef is being deleted
 						return nil
 					}
-				} else if instance.GetDeletionTimestamp() != nil {
-					// KfDef is being deleted
-					return nil
-				}
-				log.Infof("Watch a change for Kubeflow resource: %v.%v.", a.GetName(), a.GetNamespace())
-				return []reconcile.Request{{NamespacedName: namespacedName}}
-			} else if a.GetObjectKind().GroupVersionKind().Kind == "ConfigMap" {
-				labels := a.GetLabels()
-				if val, ok := labels[deleteConfigMapLabel]; ok {
-					if val == "true" {
-						for k := range kfdefInstances {
-							kfdefCr := strings.Split(k, ".")
-							return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: kfdefCr[0], Namespace: kfdefCr[1]}}}
+					r.Log.Info("Watch a change for Kubeflow resource", "instance", a.GetName(), "namespace", a.GetNamespace())
+					return []reconcile.Request{{NamespacedName: namespacedName}}
+				} else if a.GetObjectKind().GroupVersionKind().Kind == "ConfigMap" {
+					labels := a.GetLabels()
+					if val, ok := labels[deleteConfigMapLabel]; ok {
+						if val == "true" {
+							for k := range kfdefInstances {
+								kfdefCr := strings.Split(k, ".")
+								return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: kfdefCr[0], Namespace: kfdefCr[1]}}}
+							}
 						}
 					}
 				}
-			}
-			return nil
-		}), builder.WithPredicates(ownedResourcePredicates)).Complete(r)
+				return nil
+			}), builder.WithPredicates(ownedResourcePredicates)).Complete(r)
 		if err != nil {
-			log.Errorf("Cannot create watch for resources %v %v/%v: %v.", t.Kind, t.Group, t.Version, err)
+			r.Log.Error(err, "cannot create watch for resources", "Kind", t.Kind, "Group", t.Group, "Version", t.Version)
 		}
 	}
 	return nil
@@ -377,23 +388,15 @@ func (r *KfDefReconciler)  watchKubeflowResources(b *builder.Builder, watchedRes
 
 var kfdefPredicates = predicate.Funcs{
 	CreateFunc: func(e event.CreateEvent) bool {
-		object, _ := meta.Accessor(e.Object)
-		log.Infof("Got create event for %v.%v.", object.GetName(), object.GetNamespace())
 		return true
 	},
 	GenericFunc: func(e event.GenericEvent) bool {
-		object, _ := meta.Accessor(e.Object)
-		log.Infof("Got generic event for %v.%v.", object.GetName(), object.GetNamespace())
 		return true
 	},
 	DeleteFunc: func(e event.DeleteEvent) bool {
-		object, _ := meta.Accessor(e.Object)
-		log.Infof("Got delete event for %v.%v.", object.GetName(), object.GetNamespace())
 		return false
 	},
 	UpdateFunc: func(e event.UpdateEvent) bool {
-		object, _ := meta.Accessor(e.ObjectOld)
-		log.Infof("Got update event for %v.%v.", object.GetName(), object.GetNamespace())
 		return true
 	},
 }
@@ -401,13 +404,12 @@ var kfdefPredicates = predicate.Funcs{
 var ownedResourcePredicates = predicate.Funcs{
 	CreateFunc: func(e event.CreateEvent) bool {
 		// handle create event
-		object, err := meta.Accessor(e.Object)
+		_, err := meta.Accessor(e.Object)
 		if err != nil {
 			return false
 		}
 		// handle create event if object has kind configMap
 		if e.Object.GetObjectKind().GroupVersionKind().Kind == "ConfigMap" {
-			log.Infof("Got create event for %v.%v.", object.GetName(), object.GetNamespace())
 			labels := e.Object.GetLabels()
 			if val, ok := labels[deleteConfigMapLabel]; ok {
 				if val == "true" {
@@ -428,7 +430,6 @@ var ownedResourcePredicates = predicate.Funcs{
 		if err != nil {
 			return false
 		}
-		log.Infof("Got delete event for %v.%v.", object.GetName(), object.GetNamespace())
 		// if this object has an owner, let the owner handle the appropriate recovery
 		if len(object.GetOwnerReferences()) > 0 {
 			return false
@@ -450,14 +451,12 @@ var ownedResourcePredicates = predicate.Funcs{
 	},
 }
 
-
-
 // kfApply is equivalent of kfctl apply
-func kfApply(instance *kfdefv1.KfDef) error {
-	log.Infof("Creating a new KubeFlow Deployment. KubeFlow.Namespace: %v.", instance.Namespace)
+func kfApply(instance *kfdefappskubefloworgv1.KfDef) error {
+	kfdefLog.Info("Creating a new KubeFlow Deployment", "KubeFlow.Namespace", instance.Namespace)
 	kfApp, err := kfLoadConfig(instance, "apply")
 	if err != nil {
-		log.Errorf("Failed to load KfApp. Error: %v.", err)
+		kfdefLog.Error(err, "failed to load KfApp")
 		return err
 	}
 	// Apply kfApp.
@@ -466,11 +465,11 @@ func kfApply(instance *kfdefv1.KfDef) error {
 }
 
 // kfDelete is equivalent of kfctl delete
-func kfDelete(instance *kfdefv1.KfDef) error {
-	log.Infof("Uninstall Kubeflow. KubeFlow.Namespace: %v.", instance.Namespace)
+func kfDelete(instance *kfdefappskubefloworgv1.KfDef) error {
+	kfdefLog.Info("Uninstall Kubeflow.", "KubeFlow.Namespace", instance.Namespace)
 	kfApp, err := kfLoadConfig(instance, "delete")
 	if err != nil {
-		log.Errorf("Failed to load KfApp. Error: %v.", err)
+		kfdefLog.Error(err, "Failed to load KfApp")
 		return err
 	}
 	// Delete kfApp.
@@ -478,21 +477,21 @@ func kfDelete(instance *kfdefv1.KfDef) error {
 	return err
 }
 
-func kfLoadConfig(instance *kfdefv1.KfDef, action string) (kftypesv3.KfApp, error) {
+func kfLoadConfig(instance *kfdefappskubefloworgv1.KfDef, action string) (kftypesv3.KfApp, error) {
 	// Define kfApp
 	kfdefBytes, _ := yaml.Marshal(instance)
 
 	// Make the kfApp directory
 	kfAppDir := path.Join("/tmp", instance.GetNamespace(), instance.GetName())
 	if err := os.MkdirAll(kfAppDir, 0755); err != nil {
-		log.Errorf("Failed to create the app directory. Error: %v.", err)
+		kfdefLog.Error(err, "Failed to create the app directory")
 		return nil, err
 	}
 
 	configFilePath := path.Join(kfAppDir, "config.yaml")
 	err := ioutil.WriteFile(configFilePath, kfdefBytes, 0644)
 	if err != nil {
-		log.Errorf("Failed to write config.yaml. Error: %v.", err)
+		kfdefLog.Error(err, "Failed to write config.yaml")
 		return nil, err
 	}
 
@@ -520,7 +519,7 @@ func kfLoadConfig(instance *kfdefv1.KfDef, action string) (kftypesv3.KfApp, erro
 
 	kfApp, err := coordinator.NewLoadKfAppFromURI(configFilePath)
 	if err != nil {
-		log.Errorf("failed to build kfApp from URI %v: Error: %v.", configFilePath, err)
+		kfdefLog.Error(err, "failed to build kfApp from URI", "uri", configFilePath)
 
 		return nil, err
 	}
@@ -544,13 +543,13 @@ func setAnnotations(configPath string, annotations map[string]string) error {
 }
 
 // getClusterServiceVersion retries the clusterserviceversions available in the operator namespace.
-func getClusterServiceVersion(cfg *rest.Config, watchNameSpace string) (*olm.ClusterServiceVersion, error) {
+func getClusterServiceVersion(cfg *rest.Config, watchNameSpace string) (*ofapi.ClusterServiceVersion, error) {
 
 	operatorClient, err := olmclientset.NewForConfig(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("error getting operator client %v", err)
 	}
-	csvs, err := operatorClient.ClusterServiceVersions(watchNameSpace).List(metav1.ListOptions{})
+	csvs, err := operatorClient.ClusterServiceVersions(watchNameSpace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -573,22 +572,22 @@ func getClusterServiceVersion(cfg *rest.Config, watchNameSpace string) (*olm.Clu
 func (r *KfDefReconciler) operatorUninstall(request reconcile.Request) error {
 
 	// Delete namespace for the given request
-	namespace := &v1.Namespace{ObjectMeta:metav1.ObjectMeta{
-		Name:                       request.Namespace,
+	namespace := &v1.Namespace{ObjectMeta: metav1.ObjectMeta{
+		Name: request.Namespace,
 	}}
 
-	if err := r.client.Delete(context.TODO(), namespace); err!=nil{
+	if err := r.Client.Delete(context.TODO(), namespace); err != nil {
 		if !errors.IsNotFound(err) {
 			return fmt.Errorf("error deleting current namespace :%v", err)
 		}
 	}
-	r.recorder.Eventf(namespace, v1.EventTypeNormal, "NamespaceDeletionSuccessful",
-		"Namespace %s deleted as a part of uninstall.", namespace.Name )
-	log.Infof("Namespace %s deleted as a part of uninstall.", namespace.Name)
+	r.Recorder.Eventf(namespace, v1.EventTypeNormal, "NamespaceDeletionSuccessful",
+		"Namespace %s deleted as a part of uninstall.", namespace.Name)
+	kfdefLog.Info("Namespace deleted as a part of uninstall.", "namespace", namespace.Name)
 
 	// Delete any unavailable api services
 	apiservices := &apiserv1.APIServiceList{}
-	if err := r.client.List(context.TODO(), apiservices); err != nil {
+	if err := r.Client.List(context.TODO(), apiservices); err != nil {
 		if !errors.IsNotFound(err) {
 			return fmt.Errorf("error getting dangling apiservices : %v", err)
 		}
@@ -597,14 +596,14 @@ func (r *KfDefReconciler) operatorUninstall(request reconcile.Request) error {
 	if len(apiservices.Items) != 0 {
 		for _, apiservice := range apiservices.Items {
 			conditionsLength := len(apiservice.Status.Conditions)
-			if conditionsLength >= 1{
-				if apiservice.Status.Conditions[conditionsLength - 1].Status == apiserv1.ConditionFalse {
-					if err := r.client.Delete(context.TODO(), &apiservice, []client.DeleteOption{}...); err != nil {
+			if conditionsLength >= 1 {
+				if apiservice.Status.Conditions[conditionsLength-1].Status == apiserv1.ConditionFalse {
+					if err := r.Client.Delete(context.TODO(), &apiservice, []client.DeleteOption{}...); err != nil {
 						return fmt.Errorf("error deleting apiservice %v: %v", apiservice.Name, err)
 					}
 				}
 			}
-			log.Infof("Unavailable api service %v is deleted", apiservice.Name)
+			kfdefLog.Info("Unavailable api service is deleted", "api", apiservice.Name)
 
 		}
 	}
@@ -619,7 +618,7 @@ func (r *KfDefReconciler) operatorUninstall(request reconcile.Request) error {
 	nsOptions := []client.ListOption{
 		client.MatchingLabels{odhGeneratedNamespaceLabel: "true"},
 	}
-	if err := r.client.List(context.TODO(), generatedNamespaces, nsOptions...); err != nil {
+	if err := r.Client.List(context.TODO(), generatedNamespaces, nsOptions...); err != nil {
 		if !errors.IsNotFound(err) {
 			return fmt.Errorf("error getting generated namespaces : %v", err)
 		}
@@ -627,24 +626,24 @@ func (r *KfDefReconciler) operatorUninstall(request reconcile.Request) error {
 	if len(generatedNamespaces.Items) != 0 {
 		for _, namespace := range generatedNamespaces.Items {
 			if namespace.Status.Phase == v1.NamespaceActive {
-				if err := r.client.Delete(context.TODO(), &namespace, []client.DeleteOption{}...); err != nil {
+				if err := r.Client.Delete(context.TODO(), &namespace, []client.DeleteOption{}...); err != nil {
 					return fmt.Errorf("error deleting namespace %v: %v", namespace.Name, err)
 				}
-				r.recorder.Eventf(&namespace, v1.EventTypeNormal, "NamespaceDeletionSuccessful",
-					"Namespace %s deleted as a part of uninstall.", namespace.Name )
-				log.Infof("Namespace %s deleted as a part of uninstall.", namespace.Name)
+				r.Recorder.Eventf(&namespace, v1.EventTypeNormal, "NamespaceDeletionSuccessful",
+					"Namespace %s deleted as a part of uninstall.", namespace.Name)
+				kfdefLog.Info("Namespace deleted as a part of uninstall.", "namespace", namespace.Name)
 			}
 		}
 	}
-	log.Info("All resources deleted as part of uninstall. Removing the operator csv")
-	return removeCsv(r.client, r.restConfig)
+	kfdefLog.Info("All resources deleted as part of uninstall. Removing the operator csv")
+	return removeCsv(r.Client, r.RestConfig)
 }
 
 // hasDeleteConfigMap returns true if delete configMap is added to the operator namespace by managed-tenants repo.
 // It returns false in all other cases.
 func hasDeleteConfigMap(c client.Client) bool {
 	// Get watchNamespace
-	operatorNamespace, err := k8sutil.GetOperatorNamespace()
+	operatorNamespace, err := getOperatorNamespace()
 	if err != nil {
 		return false
 	}
@@ -662,9 +661,8 @@ func hasDeleteConfigMap(c client.Client) bool {
 	return len(deleteConfigMapList.Items) != 0
 }
 
-func removeCsv(	c client.Client, r *rest.Config) error{
-	// Get watchNamespace
-	operatorNamespace, err := k8sutil.GetOperatorNamespace()
+func removeCsv(c client.Client, r *rest.Config) error {
+	operatorNamespace, err := getOperatorNamespace()
 	if err != nil {
 		return err
 	}
@@ -675,7 +673,7 @@ func removeCsv(	c client.Client, r *rest.Config) error{
 	}
 
 	if operatorCsv != nil {
-		log.Infof("Deleting csv %s", operatorCsv.Name)
+		kfdefLog.Info("Deleting the csv", operatorCsv.Name)
 		err = c.Delete(context.TODO(), operatorCsv, []client.DeleteOption{}...)
 		if err != nil {
 			if errors.IsNotFound(err) {
@@ -683,8 +681,19 @@ func removeCsv(	c client.Client, r *rest.Config) error{
 			}
 			return fmt.Errorf("error deleting clusterserviceversion: %v", err)
 		}
-		log.Infof("Clusterserviceversion %s deleted as a part of uninstall.", operatorCsv.Name)
+		kfdefLog.Info("Clusterserviceversion deleted as a part of uninstall.", "csvName", operatorCsv.Name)
 	}
-	log.Info("No clusterserviceversion for the operator found.")
+	kfdefLog.Info("No clusterserviceversion for the operator found.")
 	return nil
+}
+
+// getOperatorNamespace returns the Namespace the operator is installed in
+func getOperatorNamespace() (string, error) {
+	var watchNamespaceEnvVar = "OPERATOR_NAMESPACE"
+
+	ns, found := os.LookupEnv(watchNamespaceEnvVar)
+	if !found {
+		return "", fmt.Errorf("%s must be set", watchNamespaceEnvVar)
+	}
+	return ns, nil
 }

@@ -22,9 +22,9 @@ import (
 	"github.com/ghodss/yaml"
 	goyaml "github.com/go-yaml/yaml"
 	gogetter "github.com/hashicorp/go-getter"
-	configtypes "github.com/kubeflow/kfctl/v3/config"
-	kfapis "github.com/kubeflow/kfctl/v3/pkg/apis"
-	kftypes "github.com/kubeflow/kfctl/v3/pkg/apis/apps"
+	kfapis "github.com/opendatahub-io/opendatahub-operator/apis"
+	kftypes "github.com/opendatahub-io/opendatahub-operator/apis/apps"
+	configtypes "github.com/opendatahub-io/opendatahub-operator/apis/config"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"io"
@@ -40,9 +40,9 @@ import (
 	"k8s.io/cli-runtime/pkg/printers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	kubectlapply "k8s.io/kubernetes/pkg/kubectl/cmd/apply"
-	kubectldelete "k8s.io/kubernetes/pkg/kubectl/cmd/delete"
-	cmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
+	kubectlapply "k8s.io/kubectl/pkg/cmd/apply"
+	kubectldelete "k8s.io/kubectl/pkg/cmd/delete"
+	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 	"math/rand"
 	netUrl "net/url"
 	"os"
@@ -298,7 +298,7 @@ func NewApply(namespace string, restConfig *rest.Config) (*Apply, error) {
 }
 
 func (a *Apply) IfNamespaceExist(name string) bool {
-	_, nsMissingErr := a.clientset.CoreV1().Namespaces().Get(name, metav1.GetOptions{})
+	_, nsMissingErr := a.clientset.CoreV1().Namespaces().Get(context.TODO(), name, metav1.GetOptions{})
 	if nsMissingErr != nil {
 		return false
 	}
@@ -311,10 +311,19 @@ func (a *Apply) Apply(data []byte) error {
 	os.Stdin = a.tmpfile
 	defer a.cleanup()
 	ioStreams := genericclioptions.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
-	a.options = kubectlapply.NewApplyOptions(ioStreams)
-	a.options.DeleteFlags = a.deleteFlags("that contains the configuration to apply")
-	// This is a required field for server-side apply
-	a.options.FieldManager =  "application/apply-patch+yaml"
+	a.options = &kubectlapply.ApplyOptions{
+		IOStreams: ioStreams,
+	}
+	deleteFlags := a.deleteFlags("that contains the configuration to apply")
+	dynamicClient, err := a.factory.DynamicClient()
+	if err != nil {
+		return err
+	}
+	a.options.DeleteOptions, err = deleteFlags.ToOptions(dynamicClient, ioStreams)
+	if err != nil {
+		return err
+	}
+	a.options.FieldManager = "application/apply-patch+yaml" // This is a required field for server-side apply
 	a.options.ServerSideApply = true
 	// This is required to apply aggregated cluster roles :
 	// https://kubernetes.io/docs/reference/access-authn-authz/rbac/#aggregated-clusterroles
@@ -326,7 +335,7 @@ func (a *Apply) Apply(data []byte) error {
 			Message: fmt.Sprintf("could not initialize : %v", initializeErr),
 		}
 	}
-	var err error
+	//var err error
 	func() {
 		defer func() {
 			if temp := recover(); temp != nil {
@@ -370,32 +379,33 @@ func (a *Apply) init() error {
 	// allow for a success message operation to be specified at print time
 	o.ToPrinter = func(operation string) (printers.ResourcePrinter, error) {
 		o.PrintFlags.NamePrintFlags.Operation = operation
-		if o.DryRun {
-			err = o.PrintFlags.Complete("%s (dry run)")
-			if err != nil {
-				return nil, err
-			}
-		}
-		if o.ServerDryRun {
-			err = o.PrintFlags.Complete("%s (server dry run)")
-			if err != nil {
-				return nil, err
-			}
-		}
+		//if o.DryRun {
+		//	err = o.PrintFlags.Complete("%s (dry run)")
+		//	if err != nil {
+		//		return nil, err
+		//	}
+		//}
+		//if o.ServerDryRun {
+		//	err = o.PrintFlags.Complete("%s (server dry run)")
+		//	if err != nil {
+		//		return nil, err
+		//	}
+		//}
 		return o.PrintFlags.ToPrinter()
 	}
-	o.DiscoveryClient, err = f.ToDiscoveryClient()
+
+	//	o.DiscoveryClient, err = f.ToDiscoveryClient()
 	if err != nil {
 		return err
 	}
-	dynamicClient, err := f.DynamicClient()
-	if err != nil {
-		return err
-	}
-	o.DeleteOptions = o.DeleteFlags.ToOptions(dynamicClient, o.IOStreams)
+	//dynamicClient, err := f.DynamicClient()
+	//if err != nil {
+	//	return err
+	//}
+	//o.DeleteOptions, err = o.DeleteFlags.ToOptions(dynamicClient, o.IOStreams)
 	o.OpenAPIPatch = true
 	o.OpenAPISchema, _ = f.OpenAPISchema()
-	o.Validator, err = f.Validator(false)
+	//o.Validator, err = f.Validator(o.ValidationDirective, false)
 	o.Builder = f.NewBuilder()
 	o.Mapper, err = f.ToRESTMapper()
 	if err != nil {
@@ -424,11 +434,7 @@ func (a *Apply) patchNamespaceWithLabel(namespace string, labelKey string,
 		return err
 	}
 	log.Infof("Labeling Namespace: %v", namespace)
-	_, err = a.clientset.CoreV1().Namespaces().Patch(
-		namespace,
-		"application/strategic-merge-patch+json",
-		[]byte(labelPatchJSON),
-	)
+	_, err = a.clientset.CoreV1().Namespaces().Patch(context.TODO(), namespace, k8stypes.StrategicMergePatchType, []byte(labelPatchJSON), metav1.PatchOptions{})
 	if err != nil {
 		return err
 	}
@@ -437,7 +443,7 @@ func (a *Apply) patchNamespaceWithLabel(namespace string, labelKey string,
 
 func (a *Apply) namespace(namespace string) error {
 	log.Infof(string(kftypes.NAMESPACE)+": %v", namespace)
-	namespaceInstance, nsMissingErr := a.clientset.CoreV1().Namespaces().Get(
+	namespaceInstance, nsMissingErr := a.clientset.CoreV1().Namespaces().Get(context.TODO(),
 		namespace, metav1.GetOptions{},
 	)
 	if nsMissingErr != nil {
@@ -451,7 +457,7 @@ func (a *Apply) namespace(namespace string) error {
 				},
 			},
 		}
-		_, nsErr := a.clientset.CoreV1().Namespaces().Create(nsSpec)
+		_, nsErr := a.clientset.CoreV1().Namespaces().Create(context.TODO(), nsSpec, metav1.CreateOptions{})
 		if nsErr != nil {
 			return &kfapis.KfError{
 				Code: int(kfapis.INVALID_ARGUMENT),
@@ -502,7 +508,6 @@ func (a *Apply) tempFile(data []byte) *os.File {
 }
 
 func (a *Apply) deleteFlags(usage string) *kubectldelete.DeleteFlags {
-	cascade := true
 	gracePeriod := -1
 	// setup command defaults
 	all := false
@@ -520,7 +525,6 @@ func (a *Apply) deleteFlags(usage string) *kubectldelete.DeleteFlags {
 		FileNameFlags:  &genericclioptions.FileNameFlags{Usage: usage, Filenames: &filenames, Recursive: &recursive},
 		LabelSelector:  &labelSelector,
 		FieldSelector:  &fieldSelector,
-		Cascade:        &cascade,
 		GracePeriod:    &gracePeriod,
 		All:            &all,
 		Force:          &force,

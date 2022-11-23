@@ -2,8 +2,8 @@ package mirror
 
 import (
 	"bytes"
-	mirrorv1alpha1 "github.com/kubeflow/kfctl/v3/pkg/apis/apps/imagemirror/v1alpha1"
-	"github.com/kubeflow/kfctl/v3/pkg/utils"
+	mirrorv1alpha1 "github.com/opendatahub-io/opendatahub-operator/apis/apps/imagemirror/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/utils"
 	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"os"

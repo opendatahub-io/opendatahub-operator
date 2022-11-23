@@ -20,19 +20,19 @@ import (
 	"fmt"
 	"github.com/ghodss/yaml"
 	gogetter "github.com/hashicorp/go-getter"
-	kfapis "github.com/kubeflow/kfctl/v3/pkg/apis"
-	log "github.com/sirupsen/logrus"
-	"google.golang.org/appengine/log"
+	kfapis "github.com/opendatahub-io/opendatahub-operator/apis"
 	"io/ioutil"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"path"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 const (
 	KfUpgradeFile = "update.yaml"
 )
 
+var kfupgradeLog = log.Log.WithName("kfupgrade")
 
 // KfUpgradeSpec defines the desired state of KfUpgrade
 type KfUpgradeSpec struct {
@@ -47,7 +47,6 @@ type KfUpgradeSpec struct {
 	// +optional
 	BaseConfigPath string `json:"baseConfigPath,omitempty"`
 }
-
 
 type KfDefRef struct {
 	// Name of the referrent.
@@ -96,7 +95,6 @@ type KfUpgradeCondition struct {
 	Message string `json:"message,omitempty" protobuf:"bytes,5,opt,name=message"`
 }
 
-
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
@@ -117,6 +115,7 @@ type KfUpgradeList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []KfUpgrade `json:"items"`
 }
+
 // LoadKfUpgradeFromUri constructs a KfUpgrade given the path to a YAML file.
 // configFile is the path to the YAML file containing the KfDef spec. Can be any URI supported by hashicorp
 // go-getter.
@@ -132,7 +131,7 @@ func LoadKfUpgradeFromUri(configFile string) (*KfUpgrade, error) {
 	// Open config file
 	appFile := path.Join(appDir, KfUpgradeFile)
 
-	log.Infof("Downloading %v to %v", configFile, appFile)
+	kfupgradeLog.Info("Downloading..", "config-file", configFile, "app-file", appFile)
 	err = gogetter.GetFile(appFile, configFile)
 	if err != nil {
 		return nil, &kfapis.KfError{
@@ -166,10 +165,10 @@ func (u *KfUpgrade) WriteToFile(path string) error {
 	// Write app.yaml
 	buf, bufErr := yaml.Marshal(u)
 	if bufErr != nil {
-		log.Errorf("Error marshaling kfdev; %v", bufErr)
+		kfupgradeLog.Error(bufErr, "Error marshaling kfdef")
 		return bufErr
 	}
-	log.Infof("Writing KfUpgrade to %v", path)
+	kfupgradeLog.Info("Writing KfUpgrade", "path", path)
 	return ioutil.WriteFile(path, buf, 0644)
 }
 

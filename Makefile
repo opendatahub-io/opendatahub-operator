@@ -29,7 +29,7 @@ BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 #
 # For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
 # my.domain/opendatahub-operator-bundle:$VERSION and my.domain/opendatahub-operator-catalog:$VERSION.
-IMAGE_TAG_BASE ?= my.domain/opendatahub-operator
+IMAGE_TAG_BASE ?= quay.io/opendatahub/opendatahub-operator
 
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)

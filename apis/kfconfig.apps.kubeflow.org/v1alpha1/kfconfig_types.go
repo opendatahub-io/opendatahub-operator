@@ -18,9 +18,13 @@ package v1alpha1
 
 import (
 	"fmt"
+	"github.com/ghodss/yaml"
+	gogetter "github.com/hashicorp/go-getter"
+	kfapis "github.com/opendatahub-io/opendatahub-operator/apis"
 	"github.com/pkg/errors"
-	"google.golang.org/appengine/log"
+	log "github.com/sirupsen/logrus"
 	"io/ioutil"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"net/url"
@@ -135,7 +139,6 @@ type Repo struct {
 	// https://github.com/hashicorp/go-getter/blob/master/README.md#installation-and-usage
 	URI string `json:"uri,omitempty"`
 }
-
 
 type Status struct {
 	Conditions []Condition `json:"conditions,omitempty"`
@@ -685,6 +688,7 @@ func setParameter(parameters []NameValue, paramName string, value string) []Name
 
 	return parameters
 }
+
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
@@ -693,8 +697,8 @@ type KfConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   KfConfigSpec   `json:"spec,omitempty"`
-	Status Status `json:"status,omitempty"`
+	Spec   KfConfigSpec `json:"spec,omitempty"`
+	Status Status       `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true

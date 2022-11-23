@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kubeflow/kfctl/v3/pkg/kfconfig"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/kfconfig"
 	"github.com/otiai10/copy"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"

@@ -2,8 +2,8 @@ package gcpplugin
 
 import (
 	"fmt"
-	kfapis "github.com/kubeflow/kfctl/v3/pkg/apis"
-	"github.com/kubeflow/kfctl/v3/pkg/kfconfig"
+	kfapis "github.com/opendatahub-io/opendatahub-operator/apis"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/kfconfig"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"
 )

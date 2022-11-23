@@ -22,9 +22,9 @@ import (
 	"github.com/ghodss/yaml"
 
 	//"github.com/kubeflow/kfctl/v3/config"
-	kfapis "github.com/kubeflow/kfctl/v3/pkg/apis"
-	kftypes "github.com/kubeflow/kfctl/v3/pkg/apis/apps"
-	"github.com/kubeflow/kfctl/v3/pkg/kfconfig"
+	kfapis "github.com/opendatahub-io/opendatahub-operator/apis"
+	kftypes "github.com/opendatahub-io/opendatahub-operator/apis/apps"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/kfconfig"
 
 	//kfdefs "github.com/kubeflow/kfctl/v3/pkg/apis/apps/kfdef/v1alpha1"
 	"io/ioutil"
