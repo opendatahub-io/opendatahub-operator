@@ -213,3 +213,54 @@ func TestCreateStackAppKustomization(t *testing.T) {
 		}
 	}
 }
+
+
+func TestGetParameterValue(t *testing.T) {
+	type testCase struct {
+		Name     string
+		Input    string
+		Expected string
+	}
+	// Set EXAMPLE_VAR env variable
+	err := os.Setenv("EXAMPLE_VAR", "example")
+	if err !=nil {
+		t.Fatalf("Error setting env variable: %v", err)
+	}
+
+	testCases := []testCase{
+		{
+			Name:     "Input env variable of type $VAR",
+			Input:    "$EXAMPLE_VAR",
+			Expected: "example",
+		},
+		{
+			Name:     "Input env variable of type ${VAR}",
+			Input:    "${EXAMPLE_VAR}",
+			Expected: "example",
+		},
+		{
+			Name:     "Input string without env variable",
+			Input:    "example",
+			Expected: "example",
+		},
+	}
+
+	for _, c := range testCases {
+
+		t.Log(c.Name)
+		result := getParameterValue(c.Input)
+
+		if diff := cmp.Diff(c.Expected, result); diff != "" {
+			t.Fatalf("Result string is different from expected. (-want, +got):\n%s", diff)
+		}
+
+	}
+
+	// Unset the env variable
+	err = os.Unsetenv("EXAMPLE_VAR")
+	if err !=nil {
+		t.Fatalf("Error unsetting env variable: %v", err)
+	}
+
+
+}
