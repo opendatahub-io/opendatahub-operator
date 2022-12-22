@@ -17,6 +17,7 @@ limitations under the License.
 // Package v1alpha1 contains API Schema definitions for the kfconfig.apps.kubeflow.org v1alpha1 API group
 // +kubebuilder:object:generate=true
 // +groupName=kfconfig.apps.kubeflow.org
+// //+kubebuilder:storageversion
 package v1alpha1
 
 import (

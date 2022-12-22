@@ -6,28 +6,8 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - kfdef.apps.kubeflow.org.my.domain
+  - '*'
   resources:
-  - kfdefs
+  - '*'
   verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - kfdef.apps.kubeflow.org.my.domain
-  resources:
-  - kfdefs/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - kfdef.apps.kubeflow.org.my.domain
-  resources:
-  - kfdefs/status
-  verbs:
-  - get
-  - patch
-  - update
+  - '*'

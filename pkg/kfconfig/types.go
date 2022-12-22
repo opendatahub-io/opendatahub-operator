@@ -37,6 +37,7 @@ const (
 
 // Internal data structure to hold app related info.
 // +k8s:openapi-gen=true
+// +kubebuilder:storageversion
 type KfConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

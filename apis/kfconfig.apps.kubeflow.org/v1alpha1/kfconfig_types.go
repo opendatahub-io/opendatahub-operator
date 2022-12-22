@@ -37,6 +37,8 @@ const (
 	DefaultCacheDir = ".cache"
 )
 
+//+kubebuilder:storageversion
+
 // KfConfigSpec defines the desired state of KfConfig
 type KfConfigSpec struct {
 	// Shared fields among all components. should limit this list.
