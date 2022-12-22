@@ -4,6 +4,8 @@
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
 VERSION ?= 0.0.1
+IMG ?= quay.io/opendatahub/opendatahub-operator:dev-$(VERSION)
+IMAGE_BUILDER ?= podman
 
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
@@ -28,8 +30,8 @@ BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 # This variable is used to construct full image tags for bundle and catalog images.
 #
 # For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
-# my.domain/opendatahub-operator-bundle:$VERSION and my.domain/opendatahub-operator-catalog:$VERSION.
-IMAGE_TAG_BASE ?= quay.io/opendatahub/opendatahub-operator
+# opendatahub-operator-bundle:$VERSION and opendatahub-operator-catalog:$VERSION.
+IMAGE_TAG_BASE ?= opendatahub-operator
 
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
@@ -116,12 +118,15 @@ run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./main.go
 
 .PHONY: docker-build
-docker-build: test ## Build docker image with the manager.
-	docker build -t ${IMG} .
+docker-build: manifests generate fmt vet ## Build docker image with the manager.
+	${IMAGE_BUILDER} build -t ${IMG} .
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
-	docker push ${IMG}
+	${IMAGE_BUILDER} push ${IMG}
+
+.PHONY: image
+image: docker-build docker-push ## Build and push docker image with the manager.
 
 ##@ Deployment
 
@@ -187,7 +192,7 @@ bundle: manifests kustomize ## Generate bundle manifests and metadata, then vali
 
 .PHONY: bundle-build
 bundle-build: ## Build the bundle image.
-	docker build -f bundle.Dockerfile -t $(BUNDLE_IMG) .
+	${IMAGE_BUILDER} build -f bundle.Dockerfile -t $(BUNDLE_IMG) .
 
 .PHONY: bundle-push
 bundle-push: ## Push the bundle image.
