@@ -10,7 +10,6 @@ import (
 	routev1 "github.com/openshift/api/route/v1"
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -44,8 +43,7 @@ func (r *SecretGeneratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Watch only new secrets with the corresponding annotation
 	predicates := predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
-			object, _ := meta.Accessor(e.Object)
-			if _, found := object.GetAnnotations()[SECRET_NAME_ANNOTATION]; found {
+			if _, found := e.Object.GetAnnotations()[SECRET_NAME_ANNOTATION]; found {
 				return true
 			}
 			return false
@@ -54,8 +52,7 @@ func (r *SecretGeneratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			return false
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
-			object, _ := meta.Accessor(e.Object)
-			if _, found := object.GetAnnotations()[SECRET_NAME_ANNOTATION]; found {
+			if _, found := e.Object.GetAnnotations()[SECRET_NAME_ANNOTATION]; found {
 				return true
 			}
 			return false
@@ -66,11 +63,12 @@ func (r *SecretGeneratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	secretBuilder := ctrl.NewControllerManagedBy(mgr).Named("secret-generator-controller")
-	err := secretBuilder.Watches(&source.Kind{Type: &v1.Secret{}}, handler.EnqueueRequestsFromMapFunc(
-		func(a client.Object) []reconcile.Request {
-			namespacedName := types.NamespacedName{Name: a.GetName(), Namespace: a.GetNamespace()}
-			return []reconcile.Request{{NamespacedName: namespacedName}}
-		}), builder.WithPredicates(predicates)).
+	err := secretBuilder.For(&v1.Secret{}).
+		Watches(&source.Kind{Type: &v1.Secret{}}, handler.EnqueueRequestsFromMapFunc(
+			func(a client.Object) []reconcile.Request {
+				namespacedName := types.NamespacedName{Name: a.GetName(), Namespace: a.GetNamespace()}
+				return []reconcile.Request{{NamespacedName: namespacedName}}
+			}), builder.WithPredicates(predicates)).WithEventFilter(predicates).
 		Complete(r)
 
 	return err

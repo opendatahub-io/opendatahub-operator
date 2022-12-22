@@ -21,24 +21,29 @@ import (
 	"fmt"
 	"github.com/ghodss/yaml"
 	"github.com/go-logr/logr"
+	ocappsv1 "github.com/openshift/api/apps/v1"
+	ocbuildv1 "github.com/openshift/api/build/v1"
+	ocimgv1 "github.com/openshift/api/image/v1"
 	"io/ioutil"
+	admv1 "k8s.io/api/admissionregistration/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	netv1 "k8s.io/api/networking/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
+	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	"os"
 	"path"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
@@ -70,19 +75,13 @@ const (
 )
 
 // kfdefInstances keep all KfDef CRs watched by the operator
-var kfdefInstances = map[string]struct{}{}
-
-// whether the 2nd controller is added
-var b2ndController = false
-
-// the manager
-var kfdefManager manager.Manager
+var kfdefInstances = make(map[string]struct{})
 
 // Add logger for helper functions
 var kfdefLog logr.Logger
 
 // the stop Context for the 2nd controller
-var stopCtx context.Context
+//var stopCtx context.Context
 
 // KfDefReconciler reconciles a KfDef object
 type KfDefReconciler struct {
@@ -94,9 +93,7 @@ type KfDefReconciler struct {
 	Recorder record.EventRecorder
 }
 
-//+kubebuilder:rbac:groups=kfdef.apps.kubeflow.org.my.domain,resources=kfdefs,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=kfdef.apps.kubeflow.org.my.domain,resources=kfdefs/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=kfdef.apps.kubeflow.org.my.domain,resources=kfdefs/finalizers,verbs=update
+//+kubebuilder:rbac:groups=*,resources=*,verbs=*
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -109,8 +106,6 @@ type KfDefReconciler struct {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.2/pkg/reconcile
 
 func (r *KfDefReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
-
-	_ = r.Log.WithValues(request.NamespacedName)
 	r.Log.Info("Reconciling KfDef resources", "Request.Namespace", request.Namespace, "Request.Name", request.Name)
 
 	instance := &kfdefappskubefloworgv1.KfDef{}
@@ -145,12 +140,6 @@ func (r *KfDefReconciler) Reconcile(ctx context.Context, request ctrl.Request) (
 			return ctrl.Result{}, nil
 		}
 		r.Log.Info("Deleting kfdef instance", "instance", instance.Name)
-
-		// stop the 2nd controller
-		if len(kfdefInstances) == 1 {
-			stopCtx.Done()
-			b2ndController = false
-		}
 
 		// Uninstall Kubeflow
 		err = kfDelete(instance)
@@ -255,27 +244,6 @@ func (r *KfDefReconciler) Reconcile(ctx context.Context, request ctrl.Request) (
 			kfdefInstances[strings.Join([]string{instance.GetName(), instance.GetNamespace()}, ".")] = struct{}{}
 		}
 
-		if !b2ndController {
-			kfBuilder := ctrl.NewControllerManagedBy(kfdefManager).Named("kubeflow-controller").WithOptions(controller.Options{Reconciler: r})
-			c, err := kfBuilder.Build(r)
-			if err != nil {
-				return ctrl.Result{}, nil
-			}
-			// Watch for changes to kfdef resource and requeue the owner KfDef
-			err = r.watchKubeflowResources(kfBuilder, WatchedKubeflowResources)
-			if err != nil {
-				return ctrl.Result{}, nil
-			}
-			stopCtx = context.TODO()
-			go func() {
-				// Start the controller
-				if err := c.Start(stopCtx); err != nil {
-					r.Log.Error(err, "cannot run the 2nd Kubeflow controller")
-				}
-			}()
-			r.Log.Info("Controller added to watch resources from CRDs created by Kubeflow deployment.")
-			b2ndController = true
-		}
 	}
 
 	// set status of the KfDef resource
@@ -292,98 +260,102 @@ func (r *KfDefReconciler) Reconcile(ctx context.Context, request ctrl.Request) (
 func (r *KfDefReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Log.Info("Adding controller for kfdef.")
 
-	kfDefBuilder := ctrl.NewControllerManagedBy(mgr).Named("kfdef-controller")
-	err := kfDefBuilder.
-		Watches(&source.Kind{Type: &kfdefappskubefloworgv1.KfDef{}}, handler.EnqueueRequestsFromMapFunc(
-			func(a client.Object) []reconcile.Request {
-				namespacedName := types.NamespacedName{Name: a.GetName(), Namespace: a.GetNamespace()}
-				finalizers := sets.NewString(a.GetFinalizers()...)
-				if !finalizers.Has(finalizer) {
-					// assume this is a CREATE event
-					r.Log.Info("Adding finalizer", finalizer, namespacedName)
-					finalizers.Insert(finalizer)
-					instance := &kfdefappskubefloworgv1.KfDef{}
-					err := mgr.GetClient().Get(context.TODO(), namespacedName, instance)
-					if err != nil {
-						r.Log.Error(err, "Failed to get kfdef CR.")
-						return nil
-					}
-					instance.SetFinalizers(finalizers.List())
-					err = mgr.GetClient().Update(context.TODO(), instance)
-					if err != nil {
-						r.Log.Error(err, "Failed to update kfdef with finalizer. Error: %v.")
-					}
-					// let the UPDATE event request queue
-					return nil
-				}
-				r.Log.Info("Watch a change for KfDef CR", "instance", a.GetName(), "namespace", a.GetNamespace())
-				return []reconcile.Request{{NamespacedName: namespacedName}}
-			}), builder.WithPredicates(kfdefPredicates)).
+	watchKfdefHandler := handler.EnqueueRequestsFromMapFunc(r.watchKfDef)
+	watchedHandler    := handler.EnqueueRequestsFromMapFunc(r.watchKubeflowResources)
+
+	err := ctrl.NewControllerManagedBy(mgr).Named("kfdef-controller").
+		For(&kfdefappskubefloworgv1.KfDef{}).
+		Watches(&source.Kind{Type: &kfdefappskubefloworgv1.KfDef{}}, watchKfdefHandler, builder.WithPredicates(kfdefPredicates)).
+		Watches(&source.Kind{Type: &appsv1.Deployment{}}, watchedHandler, builder.WithPredicates(ownedResourcePredicates)).
+		Watches(&source.Kind{Type: &v1.Namespace{}}, watchedHandler, builder.WithPredicates(ownedResourcePredicates)).
+		Watches(&source.Kind{Type: &v1.PersistentVolumeClaim{}}, watchedHandler, builder.WithPredicates(ownedResourcePredicates)).
+		Watches(&source.Kind{Type: &v1.Service{}}, watchedHandler, builder.WithPredicates(ownedResourcePredicates)).
+		Watches(&source.Kind{Type: &appsv1.DaemonSet{}}, watchedHandler, builder.WithPredicates(ownedResourcePredicates)).
+		Watches(&source.Kind{Type: &appsv1.StatefulSet{}}, watchedHandler, builder.WithPredicates(ownedResourcePredicates)).
+		Watches(&source.Kind{Type: &ocappsv1.DeploymentConfig{}}, watchedHandler, builder.WithPredicates(ownedResourcePredicates)).
+		Watches(&source.Kind{Type: &ocimgv1.ImageStream{}}, watchedHandler, builder.WithPredicates(ownedResourcePredicates)).
+		Watches(&source.Kind{Type: &ocbuildv1.BuildConfig{}}, watchedHandler, builder.WithPredicates(ownedResourcePredicates)).
+		Watches(&source.Kind{Type: &apiextensionsv1.CustomResourceDefinition{}}, watchedHandler, builder.WithPredicates(ownedResourcePredicates)).
+		Watches(&source.Kind{Type: &apiregistrationv1.APIService{}}, watchedHandler, builder.WithPredicates(ownedResourcePredicates)).
+		Watches(&source.Kind{Type: &netv1.Ingress{}}, watchedHandler, builder.WithPredicates(ownedResourcePredicates)).
+		Watches(&source.Kind{Type: &admv1.MutatingWebhookConfiguration{}}, watchedHandler, builder.WithPredicates(ownedResourcePredicates)).
+		Watches(&source.Kind{Type: &admv1.ValidatingWebhookConfiguration{}}, watchedHandler, builder.WithPredicates(ownedResourcePredicates)).
+		Watches(&source.Kind{Type: &v1.Secret{}}, watchedHandler, builder.WithPredicates(ownedResourcePredicates)).
+		Watches(&source.Kind{Type: &v1.ConfigMap{}}, watchedHandler, builder.WithPredicates(ownedResourcePredicates)).
+		Watches(&source.Kind{Type: &v1.ServiceAccount{}}, watchedHandler, builder.WithPredicates(ownedResourcePredicates)).
+		Watches(&source.Kind{Type: &rbacv1.Role{}}, watchedHandler, builder.WithPredicates(ownedResourcePredicates)).
+		Watches(&source.Kind{Type: &rbacv1.RoleBinding{}}, watchedHandler, builder.WithPredicates(ownedResourcePredicates)).
+		Watches(&source.Kind{Type: &rbacv1.ClusterRole{}}, watchedHandler, builder.WithPredicates(ownedResourcePredicates)).
+		Watches(&source.Kind{Type: &rbacv1.ClusterRoleBinding{}}, watchedHandler, builder.WithPredicates(ownedResourcePredicates)).
 		Complete(r)
 
 	if err != nil {
 		return err
 	}
-
-	// Watch for changes to kfdef resource and requeue the owner KfDef
-	err = r.watchKubeflowResources(kfDefBuilder, WatchedResources)
-	if err != nil {
-		return err
-	}
-	r.Log.Info("Controller added to watch on Kubeflow resources with known GVK.")
-	// Setup logger for helper functions
 	kfdefLog = r.Log
 	return nil
 }
 
-// watch is monitoring changes for kfctl resources managed by the operator
-func (r *KfDefReconciler) watchKubeflowResources(b *builder.Builder, watchedResources []schema.GroupVersionKind) error {
-	for _, t := range watchedResources {
-		u := &unstructured.Unstructured{}
-		u.SetGroupVersionKind(schema.GroupVersionKind{
-			Kind:    t.Kind,
-			Group:   t.Group,
-			Version: t.Version,
-		})
-		err := b.
-			Watches(&source.Kind{Type: u}, handler.EnqueueRequestsFromMapFunc(func(a client.Object) []reconcile.Request {
-				anns := a.GetAnnotations()
-				kfdefAnn := strings.Join([]string{kfutils.KfDefAnnotation, kfutils.KfDefInstance}, "/")
-				_, found := anns[kfdefAnn]
-				if found {
-					kfdefCr := strings.Split(anns[kfdefAnn], ".")
-					namespacedName := types.NamespacedName{Name: kfdefCr[0], Namespace: kfdefCr[1]}
-					instance := &kfdefappskubefloworgv1.KfDef{}
-					err := r.Client.Get(context.TODO(), types.NamespacedName{Name: kfdefCr[0], Namespace: kfdefCr[1]}, instance)
-					if err != nil {
-						if errors.IsNotFound(err) {
-							// KfDef CR may have been deleted
-							return nil
-						}
-					} else if instance.GetDeletionTimestamp() != nil {
-						// KfDef is being deleted
-						return nil
-					}
-					r.Log.Info("Watch a change for Kubeflow resource", "instance", a.GetName(), "namespace", a.GetNamespace())
-					return []reconcile.Request{{NamespacedName: namespacedName}}
-				} else if a.GetObjectKind().GroupVersionKind().Kind == "ConfigMap" {
-					labels := a.GetLabels()
-					if val, ok := labels[deleteConfigMapLabel]; ok {
-						if val == "true" {
-							for k := range kfdefInstances {
-								kfdefCr := strings.Split(k, ".")
-								return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: kfdefCr[0], Namespace: kfdefCr[1]}}}
-							}
-						}
-					}
-				}
-				return nil
-			}), builder.WithPredicates(ownedResourcePredicates)).Complete(r)
+func (r *KfDefReconciler) watchKfDef(a client.Object) (requests []reconcile.Request) {
+	namespacedName := types.NamespacedName{Name: a.GetName(), Namespace: a.GetNamespace()}
+	finalizers := sets.NewString(a.GetFinalizers()...)
+	if !finalizers.Has(finalizer) {
+		// assume this is a CREATE event
+		r.Log.Info("Adding finalizer", finalizer, namespacedName)
+		finalizers.Insert(finalizer)
+		instance := &kfdefappskubefloworgv1.KfDef{}
+		err := r.Client.Get(context.TODO(), namespacedName, instance)
 		if err != nil {
-			r.Log.Error(err, "cannot create watch for resources", "Kind", t.Kind, "Group", t.Group, "Version", t.Version)
+			r.Log.Error(err, "Failed to get kfdef CR.")
+			return nil
+		}
+		instance.SetFinalizers(finalizers.List())
+		err = r.Client.Update(context.TODO(), instance)
+		if err != nil {
+			r.Log.Error(err, "Failed to update kfdef with finalizer. Error: %v.")
+		}
+		// let the UPDATE event request queue
+		return nil
+	}
+	r.Log.Info("Watch a change for KfDef CR", "instance", a.GetName(), "namespace", a.GetNamespace())
+	return []reconcile.Request{{NamespacedName: namespacedName}}
+
+}
+
+// watch is monitoring changes for kfctl resources managed by the operator
+func (r *KfDefReconciler) watchKubeflowResources(a client.Object) (requests []reconcile.Request) {
+	anns := a.GetAnnotations()
+	kfdefAnn := strings.Join([]string{kfutils.KfDefAnnotation, kfutils.KfDefInstance}, "/")
+	_, found := anns[kfdefAnn]
+	if found {
+		kfdefCr := strings.Split(anns[kfdefAnn], ".")
+		namespacedName := types.NamespacedName{Name: kfdefCr[0], Namespace: kfdefCr[1]}
+		instance := &kfdefappskubefloworgv1.KfDef{}
+		err := r.Client.Get(context.TODO(), types.NamespacedName{Name: kfdefCr[0], Namespace: kfdefCr[1]}, instance)
+		if err != nil {
+			if errors.IsNotFound(err) {
+				// KfDef CR may have been deleted
+				return nil
+			}
+		} else if instance.GetDeletionTimestamp() != nil {
+			// KfDef is being deleted
+			return nil
+		}
+		r.Log.Info("Watch a change for Kubeflow resource", "instance", a.GetName(), "namespace", a.GetNamespace())
+		return []reconcile.Request{{NamespacedName: namespacedName}}
+	} else if a.GetObjectKind().GroupVersionKind().Kind == "ConfigMap" {
+		labels := a.GetLabels()
+		if val, ok := labels[deleteConfigMapLabel]; ok {
+			if val == "true" {
+				for k := range kfdefInstances {
+					kfdefCr := strings.Split(k, ".")
+					return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: kfdefCr[0], Namespace: kfdefCr[1]}}}
+				}
+			}
 		}
 	}
 	return nil
+
 }
 
 var kfdefPredicates = predicate.Funcs{
@@ -403,11 +375,6 @@ var kfdefPredicates = predicate.Funcs{
 
 var ownedResourcePredicates = predicate.Funcs{
 	CreateFunc: func(e event.CreateEvent) bool {
-		// handle create event
-		_, err := meta.Accessor(e.Object)
-		if err != nil {
-			return false
-		}
 		// handle create event if object has kind configMap
 		if e.Object.GetObjectKind().GroupVersionKind().Kind == "ConfigMap" {
 			labels := e.Object.GetLabels()
