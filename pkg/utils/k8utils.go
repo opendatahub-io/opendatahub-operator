@@ -35,6 +35,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	k8syaml "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/cli-runtime/pkg/printers"
@@ -311,17 +312,17 @@ func (a *Apply) Apply(data []byte) error {
 	os.Stdin = a.tmpfile
 	defer a.cleanup()
 	ioStreams := genericclioptions.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
-	a.options = &kubectlapply.ApplyOptions{
-		IOStreams: ioStreams,
-	}
+	a.options = kubectlapply.NewApplyOptions(ioStreams)
 	deleteFlags := a.deleteFlags("that contains the configuration to apply")
-	dynamicClient, err := a.factory.DynamicClient()
-	if err != nil {
-		return err
+	dynamicClient, clierr := a.factory.DynamicClient()
+	if clierr != nil {
+		fmt.Printf("error in client %v\n", clierr)
+		return clierr
 	}
-	a.options.DeleteOptions, err = deleteFlags.ToOptions(dynamicClient, ioStreams)
-	if err != nil {
-		return err
+	a.options.DeleteOptions, clierr = deleteFlags.ToOptions(dynamicClient, ioStreams)
+	if clierr != nil {
+		fmt.Printf("error in delete options %v\n", clierr)
+		return clierr
 	}
 	a.options.FieldManager = "application/apply-patch+yaml" // This is a required field for server-side apply
 	a.options.ServerSideApply = true
@@ -335,7 +336,7 @@ func (a *Apply) Apply(data []byte) error {
 			Message: fmt.Sprintf("could not initialize : %v", initializeErr),
 		}
 	}
-	//var err error
+	var err error
 	func() {
 		defer func() {
 			if temp := recover(); temp != nil {
@@ -379,30 +380,9 @@ func (a *Apply) init() error {
 	// allow for a success message operation to be specified at print time
 	o.ToPrinter = func(operation string) (printers.ResourcePrinter, error) {
 		o.PrintFlags.NamePrintFlags.Operation = operation
-		//if o.DryRun {
-		//	err = o.PrintFlags.Complete("%s (dry run)")
-		//	if err != nil {
-		//		return nil, err
-		//	}
-		//}
-		//if o.ServerDryRun {
-		//	err = o.PrintFlags.Complete("%s (server dry run)")
-		//	if err != nil {
-		//		return nil, err
-		//	}
-		//}
 		return o.PrintFlags.ToPrinter()
 	}
 
-	//	o.DiscoveryClient, err = f.ToDiscoveryClient()
-	if err != nil {
-		return err
-	}
-	//dynamicClient, err := f.DynamicClient()
-	//if err != nil {
-	//	return err
-	//}
-	//o.DeleteOptions, err = o.DeleteFlags.ToOptions(dynamicClient, o.IOStreams)
 	o.OpenAPIPatch = true
 	o.OpenAPISchema, _ = f.OpenAPISchema()
 	//o.Validator, err = f.Validator(o.ValidationDirective, false)
@@ -419,6 +399,8 @@ func (a *Apply) init() error {
 	if err != nil {
 		return err
 	}
+	o.VisitedNamespaces = sets.NewString()
+	o.VisitedUids = sets.NewString()
 	return nil
 }
 
@@ -542,7 +524,7 @@ func (a *Apply) deleteFlags(usage string) *kubectldelete.DeleteFlags {
 func DeleteResource(resourceBytes []byte, kubeclient client.Client, timeout time.Duration, byOperator bool) error {
 
 	// Convert to unstructured in order to access object metadata
-	resourceMap := map[string]interface{}{}
+	resourceMap := make(map[string]interface{})
 	err := yaml.Unmarshal(resourceBytes, &resourceMap)
 	if err != nil {
 		return err

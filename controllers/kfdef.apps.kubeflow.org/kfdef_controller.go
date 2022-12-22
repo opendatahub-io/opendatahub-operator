@@ -261,7 +261,7 @@ func (r *KfDefReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Log.Info("Adding controller for kfdef.")
 
 	watchKfdefHandler := handler.EnqueueRequestsFromMapFunc(r.watchKfDef)
-	watchedHandler    := handler.EnqueueRequestsFromMapFunc(r.watchKubeflowResources)
+	watchedHandler := handler.EnqueueRequestsFromMapFunc(r.watchKubeflowResources)
 
 	err := ctrl.NewControllerManagedBy(mgr).Named("kfdef-controller").
 		For(&kfdefappskubefloworgv1.KfDef{}).

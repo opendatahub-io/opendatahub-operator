@@ -295,7 +295,7 @@ func (kustomize *kustomize) Apply(resources kftypesv3.ResourceEnum) error {
 	// Default user namespace when multi-tenancy enabled
 	defaultProfileNamespace := kftypesv3.EmailToDefaultName(kustomize.kfDef.Spec.Email)
 	// Default user namespace when multi-tenancy disabled
-	anonymousNamespace := "anonymous"
+	anonymousNamespace := "default"
 	b := utils.NewDefaultBackoff()
 	err = backoff.Retry(func() error {
 		if !(apply.IfNamespaceExist(defaultProfileNamespace) || apply.IfNamespaceExist(anonymousNamespace)) {
