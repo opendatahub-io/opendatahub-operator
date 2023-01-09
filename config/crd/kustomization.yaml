@@ -3,6 +3,10 @@
 # It should be run by config/default
 resources:
   - bases/kfdef.apps.kubeflow.org_kfdefs.yaml
+  - dashboard-crds/odhapplications.dashboard.opendatahub.io.crd.yaml
+  - dashboard-crds/odhdashboardconfigs.opendatahub.io.crd.yaml
+  - dashboard-crds/odhdocuments.dashboard.opendatahub.io.crd.yaml
+  - dashboard-crds/odhquickstarts.console.openshift.io.crd.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 
 patchesStrategicMerge:
