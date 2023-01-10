@@ -51,8 +51,22 @@ and installed from source manually, see the Developer guide for further instruct
 
 **Deploying operator using OLM**
 
-- TBD
-- [Refrence](https://sdk.operatorframework.io/docs/olm-integration/tutorial-bundle/)
+- To create a new bundle, run following command:
+  ```commandline
+  make bundle
+  ```
+  **Note** : Skip the above step if you want to run the existing operator bundle.
+
+
+- Build Bundle Image:
+  ```
+  make bundle-build bundle-push BUNDLE_IMG=quay.io/<username>/opendatahub-operator-bundle:<VERSION>
+  ```
+  
+- Run the Bundle on a cluster:
+  ```commandline
+  operator-sdk run bundle quay.io/<username>/opendatahub-operator-bundle:<VERSION>
+  ```
 
 
 ### Example KfDefs
