@@ -3,8 +3,10 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
-	log "github.com/sirupsen/logrus"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
+
+var prettylog = log.Log
 
 // PrettyPrint returns a pretty format output of any value.
 func PrettyPrint(value interface{}) string {
@@ -13,7 +15,7 @@ func PrettyPrint(value interface{}) string {
 	}
 	valueJson, err := json.MarshalIndent(value, "", "  ")
 	if err != nil {
-		log.Errorf("Failed to marshal value; error %v", err)
+		prettylog.Error(err, "Failed to marshal value")
 		return fmt.Sprintf("%+v", value)
 	}
 	return string(valueJson)

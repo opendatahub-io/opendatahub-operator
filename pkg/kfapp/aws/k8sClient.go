@@ -1,7 +1,8 @@
 package aws
 
 import (
-	kfapis "github.com/kubeflow/kfctl/v3/pkg/apis"
+	"context"
+	kfapis "github.com/opendatahub-io/opendatahub-operator/apis"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -45,36 +46,34 @@ func homeDir() string {
 }
 
 func createNamespace(client *clientset.Clientset, namespace string) error {
-	_, err := client.CoreV1().Namespaces().Get(namespace, metav1.GetOptions{})
+	_, err := client.CoreV1().Namespaces().Get(context.TODO(), namespace, metav1.GetOptions{})
 	if err == nil {
 		log.Infof("Namespace %v already exists...", namespace)
 		return nil
 	}
 	log.Infof("Creating namespace: %v", namespace)
-	_, err = client.CoreV1().Namespaces().Create(
+	_, err = client.CoreV1().Namespaces().Create(context.TODO(),
 		&v1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: namespace,
 			},
-		},
-	)
+		}, metav1.CreateOptions{})
 
 	return err
 }
 
 func deleteNamespace(client *clientset.Clientset, namespace string) error {
-	_, err := client.CoreV1().Namespaces().Get(namespace, metav1.GetOptions{})
+	_, err := client.CoreV1().Namespaces().Get(context.TODO(), namespace, metav1.GetOptions{})
 	if err != nil {
 		log.Infof("Namespace %v does not exist, skip deleting", namespace)
 		return nil
 	}
 	log.Infof("Deleting namespace: %v", namespace)
 	background := metav1.DeletePropagationBackground
-	err = client.CoreV1().Namespaces().Delete(
-		namespace, &metav1.DeleteOptions{
+	err = client.CoreV1().Namespaces().Delete(context.TODO(),
+		namespace, metav1.DeleteOptions{
 			PropagationPolicy: &background,
-		},
-	)
+		})
 
 	return err
 }
@@ -88,7 +87,7 @@ func createSecret(client *clientset.Clientset, secretName string, namespace stri
 		Data: data,
 	}
 	log.Infof("Creating secret: %v/%v", namespace, secretName)
-	_, err := client.CoreV1().Secrets(namespace).Create(secret)
+	_, err := client.CoreV1().Secrets(namespace).Create(context.TODO(), secret, metav1.CreateOptions{})
 	if err == nil {
 		return nil
 	} else {

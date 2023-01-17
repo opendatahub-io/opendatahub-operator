@@ -17,6 +17,7 @@ limitations under the License.
 package aws
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -38,11 +39,11 @@ import (
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/ghodss/yaml"
-	kfapis "github.com/kubeflow/kfctl/v3/pkg/apis"
-	kftypes "github.com/kubeflow/kfctl/v3/pkg/apis/apps"
-	"github.com/kubeflow/kfctl/v3/pkg/kfconfig"
-	"github.com/kubeflow/kfctl/v3/pkg/kfconfig/awsplugin"
-	"github.com/kubeflow/kfctl/v3/pkg/utils"
+	kfapis "github.com/opendatahub-io/opendatahub-operator/apis"
+	kftypes "github.com/opendatahub-io/opendatahub-operator/apis/apps"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/kfconfig"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/kfconfig/awsplugin"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/utils"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1068,7 +1069,7 @@ func (aws *Aws) setupOIDC() error {
 
 	if awsPluginSpec.Auth.Oidc != nil {
 		// Create OIDC Secret from clientId and clientSecret.
-		_, err = aws.k8sClient.CoreV1().Secrets(IstioNamespace).Get(ALB_OIDC_SECRET, metav1.GetOptions{})
+		_, err = aws.k8sClient.CoreV1().Secrets(IstioNamespace).Get(context.TODO(), ALB_OIDC_SECRET, metav1.GetOptions{})
 		if err == nil {
 			log.Warnf("Secret %v already exists...", ALB_OIDC_SECRET)
 			return nil

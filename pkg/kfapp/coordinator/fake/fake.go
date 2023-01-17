@@ -4,10 +4,10 @@ package fake
 import (
 	"path"
 
-	kftypes "github.com/kubeflow/kfctl/v3/pkg/apis/apps"
-	gcpFake "github.com/kubeflow/kfctl/v3/pkg/kfapp/gcp/fake"
-	"github.com/kubeflow/kfctl/v3/pkg/kfconfig"
-	kfloaders "github.com/kubeflow/kfctl/v3/pkg/kfconfig/loaders"
+	kftypes "github.com/opendatahub-io/opendatahub-operator/apis/apps"
+	gcpFake "github.com/opendatahub-io/opendatahub-operator/pkg/kfapp/gcp/fake"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/kfconfig"
+	kfloaders "github.com/opendatahub-io/opendatahub-operator/pkg/kfconfig/loaders"
 )
 
 type FakeCoordinator struct {

@@ -1,8 +1,8 @@
 package kfupgrade
 
 import (
-	"github.com/kubeflow/kfctl/v3/pkg/kfconfig"
-	"github.com/kubeflow/kfctl/v3/pkg/utils"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/kfconfig"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/utils"
 	"reflect"
 	"testing"
 )

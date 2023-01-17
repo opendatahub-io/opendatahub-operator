@@ -35,11 +35,11 @@ import (
 	mapset "github.com/deckarep/golang-set"
 	"github.com/ghodss/yaml"
 	"github.com/gogo/protobuf/proto"
-	kfapis "github.com/kubeflow/kfctl/v3/pkg/apis"
-	kftypesv3 "github.com/kubeflow/kfctl/v3/pkg/apis/apps"
-	"github.com/kubeflow/kfctl/v3/pkg/kfconfig"
-	"github.com/kubeflow/kfctl/v3/pkg/kfconfig/gcpplugin"
-	"github.com/kubeflow/kfctl/v3/pkg/utils"
+	kfapis "github.com/opendatahub-io/opendatahub-operator/apis"
+	kftypesv3 "github.com/opendatahub-io/opendatahub-operator/apis/apps"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/kfconfig"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/kfconfig/gcpplugin"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/utils"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
@@ -478,19 +478,18 @@ func (gcp *Gcp) updateDeployment(deploymentmanagerService *deploymentmanager.Ser
 
 func createNamespace(k8sClientset *clientset.Clientset, namespace string) error {
 	log.Infof("Creating namespace: %v", namespace)
-	_, err := k8sClientset.CoreV1().Namespaces().Get(namespace, metav1.GetOptions{})
+	_, err := k8sClientset.CoreV1().Namespaces().Get(context.TODO(), namespace, metav1.GetOptions{})
 	if err == nil {
 		log.Infof("Namespace already exists...")
 		return nil
 	}
 	log.Infof("Get namespace error: %v", err)
-	_, err = k8sClientset.CoreV1().Namespaces().Create(
+	_, err = k8sClientset.CoreV1().Namespaces().Create(context.TODO(),
 		&v1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: namespace,
 			},
-		},
-	)
+		}, metav1.CreateOptions{})
 	if err == nil {
 		return nil
 	} else {
@@ -504,7 +503,7 @@ func createNamespace(k8sClientset *clientset.Clientset, namespace string) error 
 func bindAdmin(k8sClientset *clientset.Clientset, user string) error {
 	log.Infof("Binding admin role for %v ...", user)
 	defaultAdmin := "default-admin"
-	_, err := k8sClientset.RbacV1().ClusterRoleBindings().Get(defaultAdmin,
+	_, err := k8sClientset.RbacV1().ClusterRoleBindings().Get(context.TODO(), defaultAdmin,
 		metav1.GetOptions{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: "rbac.authorization.k8s.io/v1beta1",
@@ -534,10 +533,10 @@ func bindAdmin(k8sClientset *clientset.Clientset, user string) error {
 	}
 	if err == nil {
 		log.Infof("Updating default-admin...")
-		_, err = k8sClientset.RbacV1().ClusterRoleBindings().Update(binding)
+		_, err = k8sClientset.RbacV1().ClusterRoleBindings().Update(context.TODO(), binding, metav1.UpdateOptions{})
 	} else {
 		log.Infof("Default-admin not found, creating...")
-		_, err = k8sClientset.RbacV1().ClusterRoleBindings().Create(binding)
+		_, err = k8sClientset.RbacV1().ClusterRoleBindings().Create(context.TODO(), binding, metav1.CreateOptions{})
 	}
 	if err == nil {
 		return nil
@@ -1436,11 +1435,11 @@ func (gcp *Gcp) generateDMConfigs() error {
 // createOrUpdateSecret creates or updates the existing secret.
 func createOrUpdateSecret(client *clientset.Clientset, secret *v1.Secret) error {
 	// Try creating the secret
-	_, err := client.CoreV1().Secrets(secret.Namespace).Create(secret)
+	_, err := client.CoreV1().Secrets(secret.Namespace).Create(context.TODO(), secret, metav1.CreateOptions{})
 
 	if err != nil {
 		if k8serrors.IsAlreadyExists(err) {
-			_, err = client.CoreV1().Secrets(secret.Namespace).Update(secret)
+			_, err = client.CoreV1().Secrets(secret.Namespace).Update(context.TODO(), secret, metav1.UpdateOptions{})
 
 			if err != nil {
 				log.Errorf("Error trying to update secret %v.%v; error %v", secret.Namespace, secret.Name, err)
@@ -1469,7 +1468,7 @@ func insertSecret(client *clientset.Clientset, secretName string, namespace stri
 		},
 		Data: data,
 	}
-	_, err := client.CoreV1().Secrets(namespace).Create(secret)
+	_, err := client.CoreV1().Secrets(namespace).Create(context.TODO(), secret, metav1.CreateOptions{})
 	if err == nil {
 		return nil
 	} else {
@@ -1487,7 +1486,7 @@ func insertSecret(client *clientset.Clientset, secretName string, namespace stri
 // Create key for service account and write to GCP as secret.
 func (gcp *Gcp) createGcpServiceAcctSecret(ctx context.Context, client *clientset.Clientset,
 	email string, secretName string, namespace string) error {
-	_, err := client.CoreV1().Secrets(namespace).Get(secretName, metav1.GetOptions{})
+	_, err := client.CoreV1().Secrets(namespace).Get(context.TODO(), secretName, metav1.GetOptions{})
 	if err == nil {
 		log.Infof("Secret for %v already exists ...", secretName)
 		return nil
@@ -1547,7 +1546,7 @@ func (gcp *Gcp) createIapSecret(ctx context.Context, client *clientset.Clientset
 	log.Infof("OAuthSecretNS: %v", oauthSecretNamespace)
 
 	if _, err := client.CoreV1().Secrets(oauthSecretNamespace).
-		Get(KUBEFLOW_OAUTH, metav1.GetOptions{}); err == nil {
+		Get(context.TODO(), KUBEFLOW_OAUTH, metav1.GetOptions{}); err == nil {
 		log.Infof("Secret for %v already exits ...", KUBEFLOW_OAUTH)
 		return nil
 	}
@@ -1770,14 +1769,14 @@ func (gcp *Gcp) setupWorkloadIdentity(namespace string, k8sSa2gcpSa map[string]s
 // TODO(lunkai): Ideally the k8s service account should be specified by kustomize.
 func createOrUpdateK8sServiceAccount(k8sClientset *clientset.Clientset, namespace string, name string, gsa string) error {
 	log.Infof("Creating service account %v in namespace %v", name, namespace)
-	currSA, err := k8sClientset.CoreV1().ServiceAccounts(namespace).Get(name, metav1.GetOptions{})
+	currSA, err := k8sClientset.CoreV1().ServiceAccounts(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if err == nil {
 		log.Infof("Service account already exists...")
 		if currSA.Annotations == nil {
 			currSA.Annotations = map[string]string{}
 		}
 		currSA.Annotations["iam.gke.io/gcp-service-account"] = gsa
-		_, err = k8sClientset.CoreV1().ServiceAccounts(namespace).Update(currSA)
+		_, err = k8sClientset.CoreV1().ServiceAccounts(namespace).Update(context.TODO(), currSA, metav1.UpdateOptions{})
 		if err != nil {
 			return &kfapis.KfError{
 				Code:    int(kfapis.INTERNAL_ERROR),
@@ -1787,7 +1786,7 @@ func createOrUpdateK8sServiceAccount(k8sClientset *clientset.Clientset, namespac
 		return nil
 	}
 	log.Infof("Get service account error: %v", err)
-	_, err = k8sClientset.CoreV1().ServiceAccounts(namespace).Create(
+	_, err = k8sClientset.CoreV1().ServiceAccounts(namespace).Create(context.TODO(),
 		&v1.ServiceAccount{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name,
@@ -1796,8 +1795,8 @@ func createOrUpdateK8sServiceAccount(k8sClientset *clientset.Clientset, namespac
 					"iam.gke.io/gcp-service-account": gsa,
 				},
 			},
-		},
-	)
+		}, metav1.CreateOptions{})
+
 	if err == nil {
 		return nil
 	} else {
@@ -1884,13 +1883,13 @@ func (gcp *Gcp) ConfigPodDefault() error {
 	}
 
 	defaultNamespace := kftypesv3.EmailToDefaultName(gcp.kfDef.Spec.Email)
-	_, err = k8sClient.CoreV1().Namespaces().Get(defaultNamespace, metav1.GetOptions{})
+	_, err = k8sClient.CoreV1().Namespaces().Get(context.TODO(), defaultNamespace, metav1.GetOptions{})
 	if err != nil {
 		log.Warnf("Default namespace %v creation skipped", defaultNamespace)
 		return nil
 	}
 	log.Infof("Downloading secret %v from namespace %v", USER_SECRET_NAME, gcp.kfDef.Namespace)
-	secret, err := k8sClient.CoreV1().Secrets(gcp.kfDef.Namespace).Get(USER_SECRET_NAME, metav1.GetOptions{})
+	secret, err := k8sClient.CoreV1().Secrets(gcp.kfDef.Namespace).Get(context.TODO(), USER_SECRET_NAME, metav1.GetOptions{})
 	if err != nil {
 		return kfapis.NewKfErrorWithMessage(err, "User service account secret is not created.")
 	}
@@ -1950,7 +1949,8 @@ func (gcp *Gcp) ConfigPodDefault() error {
 		Group:   group,
 		Version: version,
 	}
-	c.NegotiatedSerializer = serializer.DirectCodecFactory{CodecFactory: scheme.Codecs}
+	c.NegotiatedSerializer = serializer.NewCodecFactory(scheme.Scheme)
+
 	c.APIPath = "/apis"
 	crdClient, err := restv2.RESTClientFor(c)
 	if err != nil {
@@ -1961,14 +1961,14 @@ func (gcp *Gcp) ConfigPodDefault() error {
 	}
 
 	getReq := crdClient.Get().Resource(mapping.Resource.Resource).Namespace(defaultNamespace).Name(PodDefaultName)
-	if err := getReq.Do().Error(); err == nil {
+	if err := getReq.Do(context.TODO()).Error(); err == nil {
 		// pod default already exists.
 		return nil
 	}
 
 	req := crdClient.Post().Resource(mapping.Resource.Resource).Body(body)
 	req = req.Namespace(defaultNamespace)
-	result := req.Do()
+	result := req.Do(context.TODO())
 
 	return result.Error()
 }

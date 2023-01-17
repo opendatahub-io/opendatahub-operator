@@ -2,6 +2,7 @@ package utils
 
 import (
 	"encoding/base64"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"cloud.google.com/go/container/apiv1"
 	"golang.org/x/net/context"
@@ -73,7 +74,7 @@ func CreateK8sRoleBing(config *rest.Config, roleBinding *v1.ClusterRoleBinding) 
 	if err != nil {
 		return err
 	}
-	_, err = kubeClient.RbacV1().ClusterRoleBindings().Create(roleBinding)
+	_, err = kubeClient.RbacV1().ClusterRoleBindings().Create(context.TODO(), roleBinding, metav1.CreateOptions{})
 	if err != nil {
 		return err
 	}

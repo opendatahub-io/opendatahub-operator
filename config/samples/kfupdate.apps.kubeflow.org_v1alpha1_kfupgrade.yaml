@@ -1,0 +1,6 @@
+apiVersion: kfupdate.apps.kubeflow.org.my.domain/v1alpha1
+kind: KfUpgrade
+metadata:
+  name: kfupgrade-sample
+spec:
+  # TODO(user): Add fields here

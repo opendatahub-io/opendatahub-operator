@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 
 	"github.com/gogo/protobuf/proto"
-	kftypes "github.com/kubeflow/kfctl/v3/pkg/apis/apps"
-	"github.com/kubeflow/kfctl/v3/pkg/kfconfig"
-	"github.com/kubeflow/kfctl/v3/pkg/kfconfig/gcpplugin"
+	kftypes "github.com/opendatahub-io/opendatahub-operator/apis/apps"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/kfconfig"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/kfconfig/gcpplugin"
 
 	"os"
 	"reflect"

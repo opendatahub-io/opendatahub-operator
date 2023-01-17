@@ -1,0 +1,20 @@
+# permissions for end users to view kfupgrades.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kfupgrade-viewer-role
+rules:
+- apiGroups:
+  - kfupdate.apps.kubeflow.org.my.domain
+  resources:
+  - kfupgrades
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - kfupdate.apps.kubeflow.org.my.domain
+  resources:
+  - kfupgrades/status
+  verbs:
+  - get
