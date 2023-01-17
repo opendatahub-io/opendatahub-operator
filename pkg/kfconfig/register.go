@@ -20,6 +20,7 @@
 // +k8s:conversion-gen=github.com/kubeflow/kfctl/v3/pkg/kfconfig
 // +k8s:defaulter-gen=TypeMeta
 // +groupName=kfconfig.apps.kubeflow.org
+// +kubebuilder:storageversion
 package kfconfig
 
 import (

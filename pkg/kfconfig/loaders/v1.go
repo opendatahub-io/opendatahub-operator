@@ -4,10 +4,10 @@ import (
 	"fmt"
 
 	"github.com/ghodss/yaml"
-	kfapis "github.com/kubeflow/kfctl/v3/pkg/apis"
-	kfdeftypes "github.com/kubeflow/kfctl/v3/pkg/apis/apps/kfdef/v1"
-	kfdefgcpplugin "github.com/kubeflow/kfctl/v3/pkg/apis/apps/plugins/gcp/v1alpha1"
-	"github.com/kubeflow/kfctl/v3/pkg/kfconfig"
+	kfapis "github.com/opendatahub-io/opendatahub-operator/apis"
+	kfdefgcpplugin "github.com/opendatahub-io/opendatahub-operator/apis/gcp.plugins.kubeflow.org/v1alpha1"
+	kfdeftypes "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/kfconfig"
 )
 
 // Empty struct - used to implement Converter interface.
@@ -43,7 +43,6 @@ func (v V1) LoadKfConfig(def interface{}) (*kfconfig.KfConfig, error) {
 	config.Kind = "KfConfig"
 	config.Labels = kfdef.Labels
 	config.Annotations = kfdef.Annotations
-	config.ClusterName = kfdef.ClusterName
 	config.Spec.Version = kfdef.Spec.Version
 	for _, app := range kfdef.Spec.Applications {
 		application := kfconfig.Application{
@@ -167,7 +166,6 @@ func (v V1) LoadKfDef(config kfconfig.KfConfig, out interface{}) error {
 	kfdef.Kind = "KfDef"
 	kfdef.Labels = config.Labels
 	kfdef.Annotations = config.Annotations
-	kfdef.ClusterName = config.ClusterName
 	kfdef.Spec.Version = config.Spec.Version
 
 	for _, app := range config.Spec.Applications {

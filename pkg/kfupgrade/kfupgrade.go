@@ -25,16 +25,13 @@ import (
 	"reflect"
 	"strings"
 
-	"k8s.io/client-go/kubernetes/scheme"
-
-	kfapis "github.com/kubeflow/kfctl/v3/pkg/apis"
-	kftypesv3 "github.com/kubeflow/kfctl/v3/pkg/apis/apps"
-	kfupgrade "github.com/kubeflow/kfctl/v3/pkg/apis/apps/kfupgrade/v1alpha1"
-	kfdefgcpplugin "github.com/kubeflow/kfctl/v3/pkg/apis/apps/plugins/gcp/v1alpha1"
-	"github.com/kubeflow/kfctl/v3/pkg/kfapp/coordinator"
-	"github.com/kubeflow/kfctl/v3/pkg/kfconfig"
-	kfconfigloaders "github.com/kubeflow/kfctl/v3/pkg/kfconfig/loaders"
-	applicationsv1beta1 "github.com/kubernetes-sigs/application/pkg/apis/app/v1beta1"
+	kfapis "github.com/opendatahub-io/opendatahub-operator/apis"
+	kftypesv3 "github.com/opendatahub-io/opendatahub-operator/apis/apps"
+	kfdefgcpplugin "github.com/opendatahub-io/opendatahub-operator/apis/gcp.plugins.kubeflow.org/v1alpha1"
+	kfupgrade "github.com/opendatahub-io/opendatahub-operator/apis/kfupdate.apps.kubeflow.org/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/kfapp/coordinator"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/kfconfig"
+	kfconfigloaders "github.com/opendatahub-io/opendatahub-operator/pkg/kfconfig/loaders"
 	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -305,12 +302,10 @@ func (upgrader *KfUpgrader) Dump() error {
 }
 
 func (upgrader *KfUpgrader) DeleteObsoleteResources(ns string) error {
-	applicationsv1beta1.AddToScheme(scheme.Scheme)
 
 	log.Infof("Deleting resources in in namespace %v", ns)
 
 	objs := []runtime.Object{
-		&applicationsv1beta1.Application{},
 		&appsv1.Deployment{},
 		&appsv1.StatefulSet{},
 		&appsv1.ReplicaSet{},
@@ -334,7 +329,7 @@ func (upgrader *KfUpgrader) DeleteResources(ns string, obj runtime.Object) error
 
 	log.Infof("Deleting resources type %v in in namespace %v", objKind, ns)
 	err = kubeClient.DeleteAllOf(context.Background(),
-		obj,
+		obj.(client.Object),
 		client.InNamespace(ns),
 		client.MatchingLabels{
 			"app.kubernetes.io/part-of": "kubeflow",

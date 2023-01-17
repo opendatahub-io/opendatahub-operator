@@ -1,0 +1,24 @@
+# permissions for end users to edit kfupgrades.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kfupgrade-editor-role
+rules:
+- apiGroups:
+  - aws.plugins.kubeflow.org.my.domain
+  resources:
+  - kfupgrades
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - aws.plugins.kubeflow.org.my.domain
+  resources:
+  - kfupgrades/status
+  verbs:
+  - get

@@ -20,14 +20,16 @@ import (
 	"fmt"
 	"github.com/deckarep/golang-set"
 	"github.com/ghodss/yaml"
-	kfapis "github.com/kubeflow/kfctl/v3/pkg/apis"
-	log "github.com/sirupsen/logrus"
+	kfapis "github.com/opendatahub-io/opendatahub-operator/apis"
 	"golang.org/x/net/context"
 	"google.golang.org/api/cloudresourcemanager/v1"
 	"google.golang.org/api/iam/v1"
 	"io/ioutil"
 	"net/http"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
+
+var utilLog = log.Log
 
 func transformSliceToInterface(slice []string) []interface{} {
 	ret := make([]interface{}, len(slice))
@@ -209,7 +211,7 @@ func UpdateWorkloadIdentityBindingsPolicy(currentPolicy *iam.Policy, project str
 		fmt.Sprintf("serviceAccount:%v.svc.id.goog[%v/%v]", project, namespace, ksa),
 	}
 	currentPolicy.Bindings = append(currentPolicy.Bindings, &newBinding)
-	log.Infof("New policy: %v", PrettyPrint(*currentPolicy))
+	utilLog.Info("New policy created", "policy", PrettyPrint(*currentPolicy))
 	return nil
 }
 

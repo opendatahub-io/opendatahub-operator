@@ -19,6 +19,7 @@ package kustomize
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
@@ -26,7 +27,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -37,11 +37,11 @@ import (
 	"github.com/cenkalti/backoff"
 	"github.com/ghodss/yaml"
 	"github.com/imdario/mergo"
-	kfapisv3 "github.com/kubeflow/kfctl/v3/pkg/apis"
-	kftypesv3 "github.com/kubeflow/kfctl/v3/pkg/apis/apps"
-	kfdefsv3 "github.com/kubeflow/kfctl/v3/pkg/apis/apps/kfdef/v1alpha1"
-	"github.com/kubeflow/kfctl/v3/pkg/kfconfig"
-	"github.com/kubeflow/kfctl/v3/pkg/utils"
+	kfapisv3 "github.com/opendatahub-io/opendatahub-operator/apis"
+	kftypesv3 "github.com/opendatahub-io/opendatahub-operator/apis/apps"
+	kfdefsv3 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/kfconfig"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/utils"
 	"github.com/otiai10/copy"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -184,7 +184,7 @@ func (kustomize *kustomize) render(app kfconfig.Application) ([]byte, error) {
 			}
 		}
 		kfDefRes := schema.GroupVersionResource{Group: "kfdef.apps.kubeflow.org", Version: "v1", Resource: "kfdefs"}
-		instance, err := dyn.Resource(kfDefRes).Namespace(kustomize.kfDef.GetNamespace()).Get(kustomize.kfDef.GetName(), metav1.GetOptions{})
+		instance, err := dyn.Resource(kfDefRes).Namespace(kustomize.kfDef.GetNamespace()).Get(context.TODO(), kustomize.kfDef.GetName(), metav1.GetOptions{})
 		if err != nil {
 			return nil, &kfapisv3.KfError{
 				Code:    int(kfapisv3.INTERNAL_ERROR),
@@ -252,7 +252,7 @@ func (kustomize *kustomize) Apply(resources kftypesv3.ResourceEnum) error {
 			log.Errorf("Cannot find current-context in kubeconfig.")
 		} else {
 			log.Infof("Log cluster name into KfDef: %v", ctx.Cluster)
-			kustomize.kfDef.ClusterName = ctx.Cluster
+			//kustomize.kfDef.ClusterName = ctx.Cluster
 		}
 	}
 
@@ -295,7 +295,7 @@ func (kustomize *kustomize) Apply(resources kftypesv3.ResourceEnum) error {
 	// Default user namespace when multi-tenancy enabled
 	defaultProfileNamespace := kftypesv3.EmailToDefaultName(kustomize.kfDef.Spec.Email)
 	// Default user namespace when multi-tenancy disabled
-	anonymousNamespace := "anonymous"
+	anonymousNamespace := "default"
 	b := utils.NewDefaultBackoff()
 	err = backoff.Retry(func() error {
 		if !(apply.IfNamespaceExist(defaultProfileNamespace) || apply.IfNamespaceExist(anonymousNamespace)) {
@@ -333,7 +333,7 @@ func (kustomize *kustomize) deleteGlobalResources() error {
 	lo := metav1.ListOptions{
 		LabelSelector: kftypesv3.DefaultAppLabel + "=" + kustomize.kfDef.Name,
 	}
-	crdsErr := apiextclientset.CustomResourceDefinitions().DeleteCollection(do, lo)
+	crdsErr := apiextclientset.CustomResourceDefinitions().DeleteCollection(context.TODO(), *do, lo)
 	if crdsErr != nil {
 		return &kfapisv3.KfError{
 			Code:    int(kfapisv3.INVALID_ARGUMENT),
@@ -347,14 +347,14 @@ func (kustomize *kustomize) deleteGlobalResources() error {
 			Message: fmt.Sprintf("couldn't get rbac/v1 client: %v", err),
 		}
 	}
-	crbsErr := rbacclient.ClusterRoleBindings().DeleteCollection(do, lo)
+	crbsErr := rbacclient.ClusterRoleBindings().DeleteCollection(context.TODO(), *do, lo)
 	if crbsErr != nil {
 		return &kfapisv3.KfError{
 			Code:    int(kfapisv3.INVALID_ARGUMENT),
 			Message: fmt.Sprintf("couldn't delete clusterrolebindings: %v", crbsErr),
 		}
 	}
-	crsErr := rbacclient.ClusterRoles().DeleteCollection(do, lo)
+	crsErr := rbacclient.ClusterRoles().DeleteCollection(context.TODO(), *do, lo)
 	if crsErr != nil {
 		return &kfapisv3.KfError{
 			Code:    int(kfapisv3.INVALID_ARGUMENT),
@@ -394,12 +394,13 @@ func (kustomize *kustomize) Delete(resources kftypesv3.ResourceEnum) error {
 		currentCtx := kubeconfig.CurrentContext
 		if ctx, ok := kubeconfig.Contexts[currentCtx]; !ok || ctx == nil {
 			msg = "cannot find current-context in kubeconfig."
-		} else {
-			if kustomize.kfDef.ClusterName != ctx.Cluster {
-				msg = fmt.Sprintf("cluster name doesn't match: KfDef(%v) v.s. current-context(%v)",
-					kustomize.kfDef.ClusterName, ctx.Cluster)
-			}
 		}
+		//else {
+		//	if kustomize.kfDef.ClusterName != ctx.Cluster {
+		//		msg = fmt.Sprintf("cluster name doesn't match: KfDef(%v) v.s. current-context(%v)",
+		//			kustomize.kfDef.ClusterName, ctx.Cluster)
+		//	}
+		//}
 	}
 	if msg != "" {
 		if forceDelete {
@@ -481,7 +482,7 @@ func (kustomize *kustomize) Delete(resources kftypesv3.ResourceEnum) error {
 		}
 	}
 	namespace := kustomize.kfDef.Namespace
-	ns, nsMissingErr := corev1client.Namespaces().Get(namespace, metav1.GetOptions{})
+	ns, nsMissingErr := corev1client.Namespaces().Get(context.TODO(), namespace, metav1.GetOptions{})
 	if nsMissingErr == nil {
 		// if the func is called by the Kubeflow operator, validate it is installed through the operator
 		if byOperator {
@@ -494,7 +495,7 @@ func (kustomize *kustomize) Delete(resources kftypesv3.ResourceEnum) error {
 		}
 
 		log.Infof("Deleting namespace: %v", namespace)
-		nsErr := corev1client.Namespaces().Delete(ns.Name, metav1.NewDeleteOptions(int64(100)))
+		nsErr := corev1client.Namespaces().Delete(context.TODO(), ns.Name, *metav1.NewDeleteOptions(int64(100)))
 		if nsErr != nil {
 			return &kfapisv3.KfError{
 				Code:    int(kfapisv3.INVALID_ARGUMENT),
@@ -847,7 +848,7 @@ func MergeKustomization(compDir string, targetDir string, kfDef *kfconfig.KfConf
 
 	paramMap := make(map[string]string)
 	for _, nv := range params {
-		paramMap[nv.Name] = getParameterValue(nv.Value)
+		paramMap[nv.Name] = nv.Value
 	}
 	updateParamFiles := func() error {
 		paramFile := filepath.Join(targetDir, kftypesv3.KustomizationParamFile)
@@ -1219,19 +1220,6 @@ func MergeKustomizations(kfDef *kfconfig.KfConfig, compDir string, overlayParams
 func GenerateKustomizationFile(kfDef *kfconfig.KfConfig, root string,
 	compPath string, overlays []string, params []kfconfig.NameValue) error {
 
-	moveToFront := func(item string, list []string) []string {
-		olen := len(list)
-		newlist := make([]string, 0)
-		for i, component := range list {
-			if component == item {
-				newlist = append(newlist, list[i])
-				newlist = append(newlist, list[0:i]...)
-				newlist = append(newlist, list[i+1:olen]...)
-				break
-			}
-		}
-		return newlist
-	}
 	compDir := path.Join(root, compPath)
 	kustomization, kustomizationErr := MergeKustomizations(kfDef, compDir, overlays, params)
 	if kustomizationErr != nil {
@@ -1262,12 +1250,6 @@ func GenerateKustomizationFile(kfDef *kfconfig.KfConfig, root string,
 			}
 			//TODO look at sort options
 			//See https://github.com/kubernetes-sigs/kustomize/issues/821
-			//TODO upgrade to v2.0.4 when available
-			baseKfDef.Spec.Components = moveToFront("application", baseKfDef.Spec.Components)
-			baseKfDef.Spec.Components = moveToFront("application-crds", baseKfDef.Spec.Components)
-			baseKfDef.Spec.Components = moveToFront("istio", baseKfDef.Spec.Components)
-			baseKfDef.Spec.Components = moveToFront("istio-install", baseKfDef.Spec.Components)
-			baseKfDef.Spec.Components = moveToFront("istio-crds", baseKfDef.Spec.Components)
 			writeErr := WriteKfDef(baseKfDef, basefile)
 			if writeErr != nil {
 				return writeErr
@@ -1286,7 +1268,7 @@ func GenerateKustomizationFile(kfDef *kfconfig.KfConfig, root string,
 
 // EvaluateKustomizeManifest evaluates the kustomize dir compDir, and returns the resources.
 func EvaluateKustomizeManifest(compDir string) (resmap.ResMap, error) {
-	fsys := fs.MakeRealFS()
+	fsys := fs.MakeFsOnDisk()
 	// We don't enforce the security check because our kustomize packages are such that kustomization.yaml
 	// files may refer to patches and resources that are not in the current directory or below them.
 	// See http://bit.ly/kf_kustomize_v3
@@ -1423,7 +1405,7 @@ func GenerateYamlWithOperatorAnnotation(resMap resmap.ResMap, instance *unstruct
 					Message: fmt.Sprintf("failed to create corev1 client: %v", err),
 				}
 			}
-			_, err = corev1client.Namespaces().Get(m.GetName(), metav1.GetOptions{})
+			_, err = corev1client.Namespaces().Get(context.TODO(), m.GetName(), metav1.GetOptions{})
 			if err == nil {
 				log.Infof("Namespace %v already exists.", m.GetName())
 
@@ -1462,24 +1444,4 @@ func GenerateYamlWithOperatorAnnotation(resMap resmap.ResMap, instance *unstruct
 		}
 	}
 	return buf.Bytes(), nil
-}
-
-func getParameterValue(value string) string {
-	// Check if there is a environment variable
-	// Supported format: $VAR and ${VAR}
-	var re = regexp.MustCompile(`(?m)^\$({(.*)}|\w)`)
-	envVariable := ""
-	if re.Match([]byte(value)){
-		if strings.HasPrefix(value, "${"){
-			envVariable = value[2:len(value)-1]
-		}else if strings.HasPrefix(value, "$") {
-			envVariable = value[1:]
-		}
-		return os.Getenv(envVariable)
-
-	}else{
-		log.Info("env variables are not used or are invalid in the parameters." +
-			" Supported Usage: $VAR and ${VAR}")
-	}
-	return value
 }
