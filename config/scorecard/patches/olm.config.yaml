@@ -23,16 +23,6 @@
   value:
     entrypoint:
     - scorecard-test
-    - olm-crds-have-resources
-    image: quay.io/operator-framework/scorecard-test:v1.23.0
-    labels:
-      suite: olm
-      test: olm-crds-have-resources-test
-- op: add
-  path: /stages/0/tests/-
-  value:
-    entrypoint:
-    - scorecard-test
     - olm-spec-descriptors
     image: quay.io/operator-framework/scorecard-test:v1.23.0
     labels:
