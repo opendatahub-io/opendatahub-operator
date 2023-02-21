@@ -5,6 +5,95 @@ metadata:
     alm-examples: |-
       [
         {
+          "apiVersion": "dashboard.opendatahub.io/v1",
+          "kind": "OdhApplication",
+          "metadata": {
+            "name": "example-odhapplication",
+            "annotations": {
+              "opendatahub.io/categories": "Model development,Model training,Notebook environments"
+            }
+          },
+          "spec": {
+            "displayName": "ODHAPPLICATION DISPLAY NAME",
+            "provider": "PROVIDER_NAME",
+            "description": "Description of your ODHApplication",
+            "kfdefApplications": [
+              "NAME OF THE ODH APPLICATION IN KFDEF"
+            ],
+            "route": "OCP_ROUTE_OBJECT_NAME_TO_APPLICATION",
+            "img": null,
+            "category": "Open Data Hub",
+            "support": "open data hub",
+            "docsLink": "https://opendatahub.io/REPLACE_THIS_LINK",
+            "quickStart": "example-odhquickstart",
+            "getStartedLink": "https://opendatahub.io/REPLACE_THIS_LINK",
+            "getStartedMarkDown": "# Header for GetStartedMarkDown section\nHere is where you add information about your ODHApplication in markdown format\n\n1. List item\n1. List item\n1. List item"
+          }
+        },
+        {
+          "apiVersion": "dashboard.opendatahub.io/v1",
+          "kind": "OdhDocument",
+          "metadata": {
+            "name": "example-odhdocument",
+            "annotations": {
+              "opendatahub.io/categories": "Getting started"
+            }
+          },
+          "spec": {
+            "displayName": "Example ODHDocument",
+            "appName": "example-odhdocument",
+            "type": "how-to",
+            "description": "This is an example of an ODHDocument custom resource",
+            "url": "http://opendatahub.io/docs.html",
+            "durationMinutes": 5
+          }
+        },
+        {
+          "apiVersion": "console.openshift.io/v1",
+          "kind": "OdhQuickStart",
+          "metadata": {
+            "name": "example-odhquickstart",
+            "annotations": {
+              "opendatahub.io/categories": "Getting started"
+            }
+          },
+          "spec": {
+            "displayName": "Example ODHQuickstart Name",
+            "appName": "name-of-app-in-kfdef-kustomizeconfig",
+            "durationMinutes": 5,
+            "description": "Description of an example quickstart",
+            "introduction": "### Introduction Header\nThis is the body of the introduction for an ODHQuickstart",
+            "tasks": [
+              {
+                "title": "Title of the first task",
+                "description": "### Desription header for the first task\n1. First Step\n2. Second Step\n3. Third Step",
+                "review": {
+                  "instructions": "#### Header for the review instructions\nThis is the body of the review instructions for the first task",
+                  "failedTaskHelp": "This task is not verified yet. Try the task again."
+                },
+                "summary": {
+                  "success": "Success Message",
+                  "failed": "Failure Message"
+                }
+              },
+              {
+                "title": "Title of the second task",
+                "description": "### Desription header for the second task\n1. First Step\n2. Second Step\n3. Third Step",
+                "review": {
+                  "instructions": "#### Header for the review instructions\nThis is the body of the review instructions for the second task",
+                  "failedTaskHelp": "This task is not verified yet. Try the task again."
+                },
+                "summary": {
+                  "success": "Success Message",
+                  "failed": "Failure Message"
+                }
+              }
+            ],
+            "conclusion": "Message for the conclusion of the ODHQuickstart",
+            "nextQuickStart": null
+          }
+        },
+        {
           "apiVersion": "kfdef.apps.kubeflow.org/v1",
           "kind": "KfDef",
           "metadata": {
