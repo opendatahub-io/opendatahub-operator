@@ -40,7 +40,7 @@ require (
 	k8s.io/kube-aggregator v0.23.0-alpha.1
 	k8s.io/kubectl v0.24.0
 	sigs.k8s.io/controller-runtime v0.13.0
-	sigs.k8s.io/kustomize/v3 v3.3.1
+	sigs.k8s.io/kustomize/v3 v3.10.0
 )
 
 require (
