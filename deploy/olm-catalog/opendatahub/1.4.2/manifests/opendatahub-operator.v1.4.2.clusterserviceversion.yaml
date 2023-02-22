@@ -5,95 +5,6 @@ metadata:
     alm-examples: |-
       [
         {
-          "apiVersion": "dashboard.opendatahub.io/v1",
-          "kind": "OdhApplication",
-          "metadata": {
-            "name": "example-odhapplication",
-            "annotations": {
-              "opendatahub.io/categories": "Model development,Model training,Notebook environments"
-            }
-          },
-          "spec": {
-            "displayName": "ODHAPPLICATION DISPLAY NAME",
-            "provider": "PROVIDER_NAME",
-            "description": "Description of your ODHApplication",
-            "kfdefApplications": [
-              "NAME OF THE ODH APPLICATION IN KFDEF"
-            ],
-            "route": "OCP_ROUTE_OBJECT_NAME_TO_APPLICATION",
-            "img": null,
-            "category": "Open Data Hub",
-            "support": "open data hub",
-            "docsLink": "https://opendatahub.io/REPLACE_THIS_LINK",
-            "quickStart": "example-odhquickstart",
-            "getStartedLink": "https://opendatahub.io/REPLACE_THIS_LINK",
-            "getStartedMarkDown": "# Header for GetStartedMarkDown section\nHere is where you add information about your ODHApplication in markdown format\n\n1. List item\n1. List item\n1. List item"
-          }
-        },
-        {
-          "apiVersion": "dashboard.opendatahub.io/v1",
-          "kind": "OdhDocument",
-          "metadata": {
-            "name": "example-odhdocument",
-            "annotations": {
-              "opendatahub.io/categories": "Getting started"
-            }
-          },
-          "spec": {
-            "displayName": "Example ODHDocument",
-            "appName": "example-odhdocument",
-            "type": "how-to",
-            "description": "This is an example of an ODHDocument custom resource",
-            "url": "http://opendatahub.io/docs.html",
-            "durationMinutes": 5
-          }
-        },
-        {
-          "apiVersion": "console.openshift.io/v1",
-          "kind": "OdhQuickStart",
-          "metadata": {
-            "name": "example-odhquickstart",
-            "annotations": {
-              "opendatahub.io/categories": "Getting started"
-            }
-          },
-          "spec": {
-            "displayName": "Example ODHQuickstart Name",
-            "appName": "name-of-app-in-kfdef-kustomizeconfig",
-            "durationMinutes": 5,
-            "description": "Description of an example quickstart",
-            "introduction": "### Introduction Header\nThis is the body of the introduction for an ODHQuickstart",
-            "tasks": [
-              {
-                "title": "Title of the first task",
-                "description": "### Desription header for the first task\n1. First Step\n2. Second Step\n3. Third Step",
-                "review": {
-                  "instructions": "#### Header for the review instructions\nThis is the body of the review instructions for the first task",
-                  "failedTaskHelp": "This task is not verified yet. Try the task again."
-                },
-                "summary": {
-                  "success": "Success Message",
-                  "failed": "Failure Message"
-                }
-              },
-              {
-                "title": "Title of the second task",
-                "description": "### Desription header for the second task\n1. First Step\n2. Second Step\n3. Third Step",
-                "review": {
-                  "instructions": "#### Header for the review instructions\nThis is the body of the review instructions for the second task",
-                  "failedTaskHelp": "This task is not verified yet. Try the task again."
-                },
-                "summary": {
-                  "success": "Success Message",
-                  "failed": "Failure Message"
-                }
-              }
-            ],
-            "conclusion": "Message for the conclusion of the ODHQuickstart",
-            "nextQuickStart": null
-          }
-        },
-        {
           "apiVersion": "kfdef.apps.kubeflow.org/v1",
           "kind": "KfDef",
           "metadata": {
@@ -208,6 +119,95 @@ metadata:
                 "uri": "https://github.com/opendatahub-io/odh-manifests/tarball/v1.4.2"
               }
             ]
+          }
+        },
+        {
+          "apiVersion": "dashboard.opendatahub.io/v1",
+          "kind": "OdhApplication",
+          "metadata": {
+            "name": "example-odhapplication",
+            "annotations": {
+              "opendatahub.io/categories": "Getting started,Model development,Model training,Notebook environments,Package management,Data Management"
+            }
+          },
+          "spec": {
+            "displayName": "ODHAPPLICATION DISPLAY NAME",
+            "provider": "PROVIDER_NAME",
+            "description": "Description of your ODHApplication",
+            "kfdefApplications": [
+              "<NAME OF THE ODH APPLICATION IN KFDEF>"
+            ],
+            "route": "<APPLICATION_OCP_ROUTE_OBJECT_NAME>",
+            "img": "<svg xmlns=\"http://www.w3.org/2000/svg\" role=\"img\" viewBox=\"-1.13 -1.13 58.50 48.94\"><title>Open Data Hub logo</title><g><g><g fill=\"#4d5258\" stroke-width=\".006\"><path fill=\"#bbb\" d=\"M112.30231 22.797083c-.2034 0-.35737.143517-.35737.337407 0 .192939.15397.339307.35737.339307.20339 0 .35736-.147318.35736-.339307 0-.19294-.15397-.337407-.35736-.337407zm.002.131161c.1112 0 .20149.08934.20149.206246 0 .116904-.0903.208146-.20149.208146-.1112 0-.2053-.09124-.2053-.208146 0-.116904.0931-.206246.2053-.206246zM113.04141 22.801836h-.28228v.665308h.15017v-.190088h.13211c.16918 0 .26612-.08934.26612-.244263 0-.147319-.0969-.230957-.26612-.230957zm-.008.349762h-.12451v-.225255h.12451c.0836 0 .13116.03707.13116.111202 0 .07603-.0475.114053-.13116.114053zM113.40328 22.801836v.665308h.51703v-.124508h-.36687v-.147318h.32125V23.07081h-.32125v-.144467h.35642v-.124507zM114.03814 22.801836v.665308h.14352v-.426748l.3222.426748h.13686v-.665308h-.14257v.427698L114.175 22.801836z\" transform=\"translate(-789.851 -124.305) scale(7.05736)\"/><path d=\"M115.29685 22.801836h-.28228v.665308h.27658c.21004 0 .35546-.136863.35546-.332654 0-.196741-.14351-.332654-.34976-.332654zm.004.538899h-.13591v-.412491h.12926c.11405 0 .19959.08459.19959.207196 0 .121657-.0817.205295-.19294.205295zM116.21878 23.467144h.16062l-.28418-.665308h-.15492l-.28894.665308h.15493l.0523-.12926h.30794zm-.3108-.249966l.1055-.25852.10455.25852zM116.31525 22.801836v.127359h.20244v.537949h.15017v-.537949h.2034v-.127359zM117.37527 23.467144h.16063l-.28419-.665308h-.15492l-.28893.665308h.15492l.0523-.12926h.30795zm-.31079-.249966l.1055-.25852.10454.25852zM117.83433 22.801836v.665308h.15017v-.262322h.30129v.262322h.15017v-.665308h-.15017v.277528h-.30129v-.277528zM118.72025 23.188665v-.386829h-.15017v.386829c0 .175831.11785.285132.30224.285132.18343 0 .29844-.109301.29844-.285132v-.386829h-.15017v.386829c0 .09599-.0589.153971-.14827.153971-.0893 0-.15207-.05798-.15207-.153971zM119.61059 22.801836h-.30604v.665308h.31649c.15492 0 .25092-.07033.25092-.184385 0-.08744-.0532-.152071-.13876-.168228.0713-.01806.115-.07413.115-.146368 0-.102648-.0912-.166327-.23761-.166327zm-.008.268024h-.14826v-.145418h.14826c.0561 0 .0913.02566.0913.07128 0 .04657-.0352.07413-.0913.07413zm0 .274677h-.14826v-.158723h.14826c.0713 0 .11406.02946.11406.07794 0 .05132-.0428.08079-.11406.08079z\" transform=\"translate(-789.851 -124.305) scale(7.05736)\"/></g><g fill=\"#58595b\" stroke-width=\".01\"><path d=\"M112.19192 24.15027h.0381l-.13717-.306759h-.0364l-.1376.306759h.0372l.0342-.07844h.16696zm-.18712-.110871l.0688-.157763.0697.157763zM112.27858 23.843511v.306759h.0351v-.306759zM112.64205 23.843511h-.11525v.306759h.0351v-.09729h.0802c.0758 0 .11964-.039.11964-.10649 0-.0653-.0438-.102983-.11964-.102983zm-.001.177044h-.0789V23.87594h.0789c.0552 0 .0872.02454.0872.07143 0 .0482-.032.07318-.0872.07318zM112.81775 23.825105v.325165h.0342v-.325165zM113.1137 24.15027l-.00044-.152503c-.00044-.04908-.032-.07932-.089-.07932-.0394 0-.0644.01139-.0942.03111l.0145.0241c.0241-.01709.0478-.02673.0732-.02673.0408 0 .0618.0206.0618.05434v.01446h-.0758c-.0543.000439-.0863.02586-.0863.06617 0 .03944.0307.06968.0784.06968.0368 0 .0662-.01227.0846-.03725v.03593zm-.11131-.02717c-.0324 0-.053-.01709-.053-.04251 0-.02585.0202-.03769.0587-.03769h.0719v.02805c-.009.03287-.0386.05215-.0776.05215zM113.29915 24.108201c-.0127.0074-.025.01139-.0368.01183-.0197 0-.0307-.01139-.0307-.03944v-.127086h.0732v-.02673h-.0732v-.06048h-.0337v.06048h-.0333v.02673h.0333v.132783c0 .04558.025.06573.0587.0653.0184 0 .0359-.0061.0521-.01709zM113.44228 23.854466c.0118 0 .0245.0044.0351.01183l.014-.02629c-.014-.01052-.032-.01622-.0495-.01622-.0386-.000438-.0741.02717-.0741.07713v.02586h-.0298v.02673h.0298v.196764h.0337v-.196764h.0662v-.02673h-.0662v-.03024c0-.02717.0184-.04251.0408-.04207zM113.59236 23.918448c-.0684 0-.11701.04777-.11701.11613 0 .06924.0486.117007.11701.117007.0684 0 .117-.04777.117-.117007 0-.06836-.0486-.11613-.117-.11613zm0 .03024c.0482 0 .0828.0355.0828.08633 0 .05171-.0346.08677-.0828.08677-.0482 0-.0828-.03506-.0828-.08677 0-.05083.0346-.08633.0828-.08633zM113.80323 23.971035v-.05127h-.0342v.230508h.0342V24.02757c.004-.04645.0342-.07669.0828-.07581v-.0333c-.039.000438-.0675.01884-.0828.05259zM114.22747 23.918448c-.0443.000438-.0767.01972-.0911.06004-.01-.03813-.0394-.06004-.0828-.06004-.0416.000438-.0727.01753-.0881.05346v-.05215h-.0337v.230508h.0337v-.113501c0-.04996.0285-.08458.0758-.08589.0403 0 .064.02454.064.06617v.133221h.0346v-.113501c0-.04996.0276-.08458.0754-.08589.0399 0 .064.02454.064.06617v.133221h.0342V24.00828c0-.05609-.032-.08984-.0859-.08984zM114.63474 23.918448c-.0403 0-.0719.01884-.089.05083v-.04952h-.0342v.315525h.0342v-.134536c.0171.03199.0487.05083.0898.05083.0653 0 .11-.04777.11-.11613 0-.0688-.0456-.117007-.11088-.117007zm-.006.202899c-.0486 0-.0828-.03593-.0828-.08677 0-.0504.0342-.08677.0828-.08677.0482 0 .0824.03681.0824.08677 0 .0504-.0342.08677-.0824.08677zM114.89934 23.918448c-.0684 0-.11701.04777-.11701.11613 0 .06924.0486.117007.11701.117007.0684 0 .117-.04777.117-.117007 0-.06836-.0486-.11613-.117-.11613zm0 .03024c.0482 0 .0828.0355.0828.08633 0 .05171-.0346.08677-.0828.08677-.0482 0-.0828-.03506-.0828-.08677 0-.05083.0346-.08633.0828-.08633zM115.02844 23.919762l.0863.230508h.0355l.0675-.188876.0679.188876h.0355l.0855-.230508h-.0355l-.0675.195888-.0679-.195888h-.0359l-.067.195888-.0684-.195888zM115.53009 23.918448c-.067.000438-.11438.04777-.11438.116568 0 .0688.0469.116569.11481.116569.0386 0 .071-.01402.0929-.03813l-.0189-.01972c-.018.01884-.0429.02936-.0714.02936-.0451 0-.078-.0298-.0837-.07538h.18844c.004-.07801-.0333-.129277-.1078-.129277zm-.0806.102107c.005-.0447.0364-.07362.0806-.07362.0451 0 .0749.02892.0771.07362zM115.73075 23.971035v-.05127h-.0342v.230508h.0342V24.02757c.004-.04645.0342-.07669.0828-.07581v-.0333c-.039.000438-.0675.01884-.0828.05259zM115.95034 23.918448c-.067.000438-.11438.04777-.11438.116568 0 .0688.0469.116569.11482.116569.0386 0 .071-.01402.0929-.03813l-.0188-.01972c-.018.01884-.0429.02936-.0714.02936-.0451 0-.078-.0298-.0837-.07538h.18843c.004-.07801-.0333-.129277-.1078-.129277zm-.0806.102107c.005-.0447.0364-.07362.0806-.07362.0451 0 .0749.02892.0771.07362zM116.29474 23.825105v.144615c-.0171-.03287-.0491-.05171-.0903-.05171-.0653 0-.11087.04777-.11087.116569 0 .0688.0456.117445.11131.117445.0412 0 .0727-.01884.0898-.05127v.04952h.0342v-.325165zm-.0833.297557c-.0491 0-.0837-.03637-.0837-.08721 0-.05083.0346-.08765.0837-.08765.0486 0 .0833.03681.0833.08765 0 .05083-.0346.08721-.0833.08721zM116.65984 23.918448c-.0403 0-.0719.01884-.089.05083v-.144177h-.0342v.325165h.0342v-.04952c.0171.03199.0486.05083.0898.05083.0653 0 .11-.04777.11-.11613 0-.0688-.0456-.117007-.11087-.117007zm-.006.202899c-.0486 0-.0828-.03593-.0828-.08677 0-.0504.0342-.08677.0828-.08677.0482 0 .0824.03681.0824.08677 0 .0504-.0342.08677-.0824.08677zM116.89657 24.183138l.10605-.263376h-.0351l-.0732.191944-.0767-.191944h-.0359l.0955.228756-.01.02191c-.009.02191-.0241.03331-.0421.03331-.0114 0-.0219-.0035-.0324-.01095l-.0145.02717c.014.01139.0294.01665.0486.01665.0307 0 .0548-.01841.0692-.05346zM117.29947 23.842634c-.0898 0-.16083.06793-.16083.154257 0 .08633.071.154694.16083.154694.0894 0 .16039-.06836.16039-.154694 0-.08633-.071-.154257-.16039-.154257zm0 .03243c.0684 0 .12446.0539.12446.121828 0 .06792-.0561.122703-.12446.122703-.0684 0-.12533-.05478-.12533-.122703 0-.06793.057-.121828.12533-.121828zM117.64414 23.918448c-.0403 0-.0719.01884-.089.05083v-.04952h-.0342v.315525h.0342v-.134536c.0171.03199.0486.05083.0898.05083.0653 0 .10999-.04777.10999-.11613 0-.0688-.0456-.117007-.11087-.117007zm-.006.202899c-.0486 0-.0828-.03593-.0828-.08677 0-.0504.0342-.08677.0828-.08677.0482 0 .0824.03681.0824.08677 0 .0504-.0342.08677-.0824.08677zM117.9061 23.918448c-.067.000438-.11437.04777-.11437.116568 0 .0688.0469.116569.11481.116569.0386 0 .071-.01402.0929-.03813l-.0189-.01972c-.018.01884-.0429.02936-.0714.02936-.0451 0-.078-.0298-.0837-.07538h.18844c.004-.07801-.0333-.129277-.10781-.129277zm-.0806.102107c.005-.0447.0364-.07362.0806-.07362.0451 0 .0749.02892.0771.07362zM118.19616 23.918448c-.0421.000438-.0732.01709-.0894.05215v-.05084h-.0342v.230508h.0342v-.12358c.004-.0447.032-.07494.0776-.07537.0408 0 .0653.02454.0653.06573v.133221h.0342v-.141986c0-.05609-.0324-.08984-.0876-.08984zM118.65836 23.901795l.0149-.03111c-.0254-.01709-.0618-.02848-.0973-.02848-.0635 0-.10605.03068-.10605.07888 0 .109995.17266.06661.17222.148559 0 .0298-.0276.04777-.0719.04777-.0346 0-.0736-.01578-.1021-.04295l-.0158.03024c.0289.02761.0727.04689.11745.04689.0657 0 .11087-.03287.11087-.0837.00044-.11131-.17223-.06968-.17223-.149436 0-.02629.0259-.04207.0653-.04207.0245 0 .057.0075.0846.02542zM118.84168 23.918448c-.0684 0-.11701.04777-.11701.11613 0 .06924.0486.117007.11701.117007.0684 0 .11701-.04777.11701-.117007 0-.06836-.0487-.11613-.11701-.11613zm0 .03024c.0482 0 .0828.0355.0828.08633 0 .05171-.0346.08677-.0828.08677-.0482 0-.0828-.03506-.0828-.08677 0-.05083.0346-.08633.0828-.08633zM119.18446 23.919762v.113063c0 .04996-.0281.08502-.0758.08589-.0399 0-.064-.02454-.064-.06573v-.133222h-.0342v.141986c0 .05565.0324.08984.0863.08984.0416-.000438.0723-.01753.0876-.05346v.05215h.0342v-.230508zM119.33586 23.971035v-.05127h-.0342v.230508h.0342V24.02757c.004-.04645.0342-.07669.0828-.07581v-.0333c-.039.000438-.0675.01884-.0828.05259zM119.62557 23.976294l.0188-.02366c-.021-.02147-.0517-.03418-.089-.03418-.0666 0-.11438.0482-.11438.116568 0 .0688.0473.116569.11438.116569.0399 0 .0719-.0149.0925-.03988l-.0197-.02016c-.0162.01928-.0412.0298-.0714.0298-.0478 0-.082-.03506-.082-.08633 0-.05083.0342-.08589.082-.08589.028 0 .0513.01008.0688.02717zM119.78997 23.918448c-.067.000438-.11437.04777-.11437.116568 0 .0688.0469.116569.11481.116569.0386 0 .071-.01402.0929-.03813l-.0189-.01972c-.018.01884-.0429.02936-.0714.02936-.0451 0-.078-.0298-.0837-.07538h.18844c.004-.07801-.0333-.129277-.10781-.129277zm-.0806.102107c.005-.0447.0364-.07362.0806-.07362.0451 0 .0749.02892.0771.07362z\" transform=\"translate(-789.851 -124.305) scale(7.05736)\"/></g></g><g><g><path fill=\"#a586f3\" d=\"m 7808.8125,2097.1875 c -9.6898,0.1378 -17.423,8.1233 -17.25,17.8125 v 329.875 c -0.8781,10.2195 7.1804,19 17.4375,19 10.2571,0 19.0227,-8.7805 18.1446,-19 v -77.7324 l 0.4179,-6.1426 c 0,-55.1597 44.2153,-99.5625 99.375,-99.5625 55.1596,0 99.5625,44.4028 99.5625,99.5625 0.01,0.1837 0.015,0.3674 0.027,0.5508 -0.026,0.4409 -0.035,0.8826 -0.027,1.3242 v 110 c 0,9.6822 7.849,17.5312 17.5312,17.5312 9.6823,0 17.5313,-7.849 17.5313,-17.5312 v -110 c 0,-0.3245 -0.012,-0.6488 -0.031,-0.9727 0.018,-0.3004 0.029,-0.6013 0.031,-0.9023 1e-4,-74.075 -60.55,-134.4374 -134.625,-134.4375 -39.9177,1e-4 -75.8465,17.5354 -100.5,45.293 V 2115 c 0.1749,-9.8356 -7.7881,-17.8833 -17.625,-17.8125 z\" color=\"#000\" transform=\"translate(-449.265 -129.165) scale(.06159)\" style=\"text-indent:0;text-align:start;text-decoration-line:none;text-decoration-style:solid;text-decoration-color:#000;text-transform:none;text-orientation:mixed;shape-padding:0;isolation:auto;mix-blend-mode:normal;solid-color:#000;solid-opacity:1\" overflow=\"visible\"/><path fill=\"#5ed3ee\" d=\"m 7765.8027,2098.123 c -0.038,5e-4 -0.077,0 -0.1152,0 -9.6898,0.1378 -17.423,8.1233 -17.25,17.8125 V 2361 c 0,41.9333 -26.0162,79.2671 -65.4375,93.5625 -39.4213,14.2954 -83.5594,2.3741 -110.4375,-29.8125 -26.878,-32.1865 -30.6579,-77.5719 -9.5625,-113.8125 21.0955,-36.2406 62.4262,-55.2897 103.6875,-47.8125 9.5173,1.7397 18.6463,-4.5547 20.4043,-14.0686 1.758,-9.514 -4.5187,-18.6551 -14.0293,-20.4314 -55.6354,-10.082 -111.8054,15.8219 -140.25,64.6875 -28.4446,48.8656 -23.3039,110.5381 12.9375,153.9375 36.2415,43.3993 95.908,59.4005 149.0625,40.125 44.7667,-16.2337 77.0286,-54.658 86.0977,-100.1562 0,0 1.9812,-4.7686 2.5898,-9.1563 0.6086,-4.3877 0,-17.0625 0,-17.0625 v -245.0625 c 0.1769,-9.865 -7.8313,-17.9263 -17.6973,-17.8145 z\" color=\"#000\" transform=\"translate(-449.265 -129.165) scale(.06159)\" style=\"text-indent:0;text-align:start;text-decoration-line:none;text-decoration-style:solid;text-decoration-color:#000;text-transform:none;text-orientation:mixed;shape-padding:0;isolation:auto;mix-blend-mode:normal;solid-color:#000;solid-opacity:1\" overflow=\"visible\"/><g fill=\"none\" stroke-width=\".365\" transform=\"translate(-449.265 -83.342) scale(5.91262)\"><circle cx=\"79.677\" cy=\"16.823\" r=\".645\" stroke=\"#c6ea70\"/><path stroke=\"#dff3b1\" stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"m 80.808656,18.234303 a 1.8088735,1.8088735 0 0 1 -2.309183,-0.03848 1.8088735,1.8088735 0 0 1 -0.389241,-2.276466 1.8088735,1.8088735 0 0 1 2.165211,-0.803532\"/><path stroke=\"#f2fadf\" stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"m 82.216272,17.248644 a 2.455857,2.4425189 0 0 1 -2.468226,2.016391 2.455857,2.4425189 0 0 1 -2.383743,-2.114547 2.455857,2.4425189 0 0 1 1.733108,-2.668494\"/></g></g></g></g></svg>",
+            "category": "Open Data Hub",
+            "support": "open data hub",
+            "docsLink": "http://REPLACE.THIS.URL",
+            "quickStart": "example-odhquickstart",
+            "getStartedLink": "http://REPLACE.THIS.URL",
+            "getStartedMarkDown": "# Header for Getting Started MarkDown section\nHere is where you add information about your ODHApplication in markdown format\n\n1. List item\n1. List item\n1. List item"
+          }
+        },
+        {
+          "apiVersion": "dashboard.opendatahub.io/v1",
+          "kind": "OdhDocument",
+          "metadata": {
+            "name": "example-odhdocument",
+            "annotations": {
+              "opendatahub.io/categories": "Getting started"
+            }
+          },
+          "spec": {
+            "displayName": "Example ODHDocument",
+            "appName": "<EXAMPLE-ODHAPPLICATION-CUSTOM-RESOURCE-NAME>",
+            "type": "how-to",
+            "description": "This is an example of an ODHDocument custom resource",
+            "url": "http://REPLACE.THIS.URL",
+            "durationMinutes": 5
+          }
+        },
+        {
+          "apiVersion": "console.openshift.io/v1",
+          "kind": "OdhQuickStart",
+          "metadata": {
+            "name": "example-odhquickstart",
+            "annotations": {
+              "opendatahub.io/categories": "Getting started"
+            }
+          },
+          "spec": {
+            "displayName": "Example ODHQuickstart Name",
+            "appName": "<EXAMPLE-ODHAPPLICATION-CUSTOM-RESOURCE-NAME>",
+            "durationMinutes": 5,
+            "description": "Description of an example quickstart",
+            "introduction": "### Introduction Header\nThis is the body of the introduction for an ODHQuickstart",
+            "tasks": [
+              {
+                "title": "Title of the first task",
+                "description": "### Desription header for the first task\n1. First Step\n2. Second Step\n3. Third Step",
+                "review": {
+                  "instructions": "#### Header for the review instructions\nThis is the body of the review instructions for the first task",
+                  "failedTaskHelp": "This task is not verified yet. Try the task again."
+                },
+                "summary": {
+                  "success": "Success Message",
+                  "failed": "Failure Message"
+                }
+              },
+              {
+                "title": "Title of the second task",
+                "description": "### Desription header for the second task\n1. First Step\n2. Second Step\n3. Third Step",
+                "review": {
+                  "instructions": "#### Header for the review instructions\nThis is the body of the review instructions for the second task",
+                  "failedTaskHelp": "This task is not verified yet. Try the task again."
+                },
+                "summary": {
+                  "success": "Success Message",
+                  "failed": "Failure Message"
+                }
+              }
+            ],
+            "conclusion": "Message for the conclusion of the ODHQuickstart",
+            "nextQuickStart": null
           }
         }
       ]
