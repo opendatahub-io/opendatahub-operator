@@ -15,12 +15,12 @@ and installed from source manually, see the Developer guide for further instruct
 
 ### Developer Guide
 
-**Pre-requisites**
+#### Pre-requisites
 
 - Go version **go1.18.4** 
 - operator-sdk version can be updated to **v1.24.1**
 
-**Build Image**
+#### Build Image
 
 - Custom operator image can be built using your local repository
     ```
@@ -35,10 +35,14 @@ and installed from source manually, see the Developer guide for further instruct
   export KUBECONFIG=<path to kubeconfig>
   ```
 
-**Deployment**
+#### Deployment
 
 **Deploying operator locally**
 
+- Define operator namespace
+  ```
+  export OPERATOR_NAMESPACE=<namespace-to-install-operator>
+  ```
 - Deploy the created image in your cluster using following command:
   ```
   make deploy -e IMG=quay.io/<username>/opendatahub-operator:<custom-tag>
@@ -51,6 +55,11 @@ and installed from source manually, see the Developer guide for further instruct
 
 **Deploying operator using OLM**
 
+- Define operator namespace
+  ```
+  export OPERATOR_NAMESPACE=<namespace-to-install-operator>
+  ```
+  
 - To create a new bundle, run following command:
   ```commandline
   make bundle
@@ -65,7 +74,7 @@ and installed from source manually, see the Developer guide for further instruct
   
 - Run the Bundle on a cluster:
   ```commandline
-  operator-sdk run bundle quay.io/<username>/opendatahub-operator-bundle:<VERSION>
+  operator-sdk run bundle quay.io/<username>/opendatahub-operator-bundle:<VERSION> --namespace $OPERATOR_NAMESPACE
   ```
 
 
@@ -78,4 +87,35 @@ following KfDefs to install Open Data Hub components:
 
 
 
+### Run e2e Tests
 
+A user can run the e2e tests in the same namespace as the operator. To deploy
+opendatahub-operator refer to [this](#deployment) section. The
+following environment variables must be set when running locally:
+
+```shell
+export KUBECONFIG=/path/to/kubeconfig
+export OPERATOR_NAMESPACE=<namespace-of-operator>
+```
+
+Once the above variables are set, run the following:
+
+```shell
+make e2e-test
+```
+
+Additional flags that can be passed to e2e-tests by setting up `E2E_TEST_FLAGS`
+variable. Following table lists all the available flags to run the tests:
+
+| Flag            | Description                                                                                                                                         | Default value |
+|-----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|---------------|
+| --skip-deletion | To skip running  of `kfdef-deletion` test that includes deleting `KfDef` resources. Assign this variable to `true` to skip KfDef deletion. | false         |
+
+
+
+Example command to run full test suite in a custom namespace, skipping the test
+for KfDef deletion.
+
+```shell
+make e2e-test -e OPERATOR_NAMESPACE=<YOUR_NAMESPACE> -e E2E_TEST_FLAGS="--skip-deletion=true"
+```
