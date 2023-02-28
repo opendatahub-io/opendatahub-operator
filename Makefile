@@ -6,6 +6,7 @@
 VERSION ?= 0.0.1
 IMG ?= quay.io/opendatahub/opendatahub-operator:dev-$(VERSION)
 IMAGE_BUILDER ?= podman
+OPERATOR_NAMESPACE ?= opendatahub-operator-system
 
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
@@ -64,6 +65,9 @@ endif
 # Options are set to exit when a recipe line exits non-zero or a piped command fails.
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
+
+# E2E tests additional flags
+E2E_TEST_FLAGS = "--skip-deletion=false" # See README.md
 
 .PHONY: all
 all: build
@@ -136,20 +140,22 @@ endif
 
 .PHONY: install
 install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build config/crd | kubectl apply -f -
+	$(KUSTOMIZE) build config/crd | oc apply -f -
 
 .PHONY: uninstall
 uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUSTOMIZE) build config/crd | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+	$(KUSTOMIZE) build config/crd | oc delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: deploy
 deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+	sed -i'' -e 's,namespace: .*,namespace: '"${OPERATOR_NAMESPACE}"',' config/default/kustomization.yaml
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
-	$(KUSTOMIZE) build config/default | kubectl apply -f -
+
+	$(KUSTOMIZE) build config/default | oc apply -f -
 
 .PHONY: undeploy
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+	$(KUSTOMIZE) build config/default | oc delete --ignore-not-found=$(ignore-not-found) -f -
 
 ##@ Build Dependencies
 
@@ -187,6 +193,7 @@ $(ENVTEST): $(LOCALBIN)
 bundle: manifests kustomize ## Generate bundle manifests and metadata, then validate generated files.
 	operator-sdk generate kustomize manifests -q
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
+	sed -i'' -e 's,namespace: .*,namespace: '"${OPERATOR_NAMESPACE}"',' config/default/kustomization.yaml
 	$(KUSTOMIZE) build config/manifests | operator-sdk generate bundle $(BUNDLE_GEN_FLAGS)
 	operator-sdk bundle validate ./bundle
 
@@ -238,3 +245,7 @@ catalog-build: opm ## Build a catalog image.
 .PHONY: catalog-push
 catalog-push: ## Push a catalog image.
 	$(MAKE) docker-push IMG=$(CATALOG_IMG)
+
+.PHONY: e2e-test
+e2e-test: ## Run e2e tests for the controller
+	go test ./tests/e2e/ -run ^TestOdhOperator -v --kf-namespace=${OPERATOR_NAMESPACE} ${E2E_TEST_FLAGS}
