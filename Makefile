@@ -123,7 +123,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./main.go
 
 .PHONY: docker-build
-docker-build: manifests generate fmt vet update-test-data ## Build docker image with the manager.
+docker-build: manifests generate fmt vet get-tar update-test-data ## Build docker image with the manager.
 	${IMAGE_BUILDER} build -t ${IMG} .
 
 .PHONY: docker-push
@@ -255,3 +255,9 @@ e2e-test: ## Run e2e tests for the controller
 .PHONY: update-test-data ## Any update to manifests should be reflected in the tar.gz file
 update-test-data:
 	tar -czvf ./tests/data/test-data.tar.gz ./tests/data/manifests
+	
+MANIFESTS_TARBALL_URL=https://github.com/opendatahub-io/odh-manifests/tarball/master
+
+.PHONY: get-tar
+get-tar: ## Get latest odh-manifests tarball
+	wget $(MANIFESTS_TARBALL_URL) -O odh-manifests.tar.gz

@@ -25,6 +25,7 @@ FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
 WORKDIR /
 COPY --from=builder /workspace/manager .
 COPY tests/data/test-data.tar.gz /opt/test-data/
-USER 65532:65532
+COPY odh-manifests.tar.gz /opt/manifests/
+USER 65532:65532  
 
 ENTRYPOINT ["/manager"]
