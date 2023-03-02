@@ -420,6 +420,13 @@ var ownedResourcePredicates = predicate.Funcs{
 
 // kfApply is equivalent of kfctl apply
 func kfApply(instance *kfdefappskubefloworgv1.KfDef) error {
+
+	// Check if the user specified the repo. If not, replace it with a local tarball of odh-core
+	err := checkIfRepoSpecified(instance)
+	if err != nil {
+		return err
+	}
+
 	kfdefLog.Info("Creating a new KubeFlow Deployment", "KubeFlow.Namespace", instance.Namespace)
 	kfApp, err := kfLoadConfig(instance, "apply")
 	if err != nil {
@@ -663,4 +670,21 @@ func getOperatorNamespace() (string, error) {
 		return "", fmt.Errorf("%s must be set", watchNamespaceEnvVar)
 	}
 	return ns, nil
+}
+
+func checkIfRepoSpecified(instance *kfdefappskubefloworgv1.KfDef) error {
+	repos := instance.Spec.Repos
+	if len(repos) <= 0 {
+		if _, err := os.Stat("/opt/manifests/odh-manifests.tar.gz"); err == nil {
+			return fmt.Errorf("error finding local manifests tarball: %s", err)
+		}
+		instance.Spec.Repos = append(
+			instance.Spec.Repos,
+			kfdefappskubefloworgv1.Repo{
+				Name: "manifests",
+				URI:  "file:///opt/manifests/odh-manifests.tar.gz",
+			},
+		)
+	}
+	return nil
 }

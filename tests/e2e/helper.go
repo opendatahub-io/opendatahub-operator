@@ -72,7 +72,7 @@ func setupCoreKfdef() kfDefContext {
 			Repos: []kfdefappskubefloworgv1.Repo{
 				{
 					Name: "manifests",
-					URI:  "https://github.com/opendatahub-io/odh-manifests/tarball/master",
+					URI:  "file:///opt/manifests/odh-manifests.tar.gz",
 				}, {
 					//Any update to manifests should be reflected in the tar.gz file by doing
 					//`make update-test-data`
