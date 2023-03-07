@@ -65,7 +65,6 @@ const (
 	katibMetricsCollectorLabel = "katib-metricscollector-injection"
 	KfDefAnnotation            = "kfctl.kubeflow.io"
 	ForceDelete                = "force-delete"
-	SetAnnotation              = "set-kubeflow-annotation"
 	KfDefInstance              = "kfdef-instance"
 	InstallByOperator          = "install-by-operator"
 )
@@ -549,16 +548,6 @@ func DeleteResource(resourceBytes []byte, kubeclient client.Client, timeout time
 	}
 	if err != nil {
 		return err
-	}
-
-	// if the func is called by the Kubeflow operator, validate it is installed through the operator
-	if byOperator {
-		anns := unstructuredObject.GetAnnotations()
-		kfdefAnn := strings.Join([]string{KfDefAnnotation, KfDefInstance}, "/")
-		_, found := anns[kfdefAnn]
-		if !found {
-			return nil
-		}
 	}
 
 	// Resource exists, try to delete
