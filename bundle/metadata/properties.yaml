@@ -1,0 +1,11 @@
+properties:
+- type: olm.gvk.required
+  value:
+    group: monitoring.coreos.com
+    kind: Prometheus
+    version: v1
+- type: olm.gvk.required
+  value:
+    group: monitoring.coreos.com
+    kind: PrometheusRule
+    version: v1
