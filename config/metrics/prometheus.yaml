@@ -1,0 +1,25 @@
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: sre-metrics-collector
+spec:
+  serviceMonitorSelector: {} # matches all ServiceMonitors
+  serviceMonitorNamespaceSelector: &ns-selector # in selected namespaces
+    matchExpressions:
+      key: control-plane
+      operator: In
+      values:
+        - odh-model-controller
+        - modelmesh-controller
+        - controller-manager
+      # Ideally, we should instead have something like
+      # app.kubernetes.io/part-of: odh/rhods
+      #
+      # TODO: check which namespace for SRE, discard the others in their own Prom
+  podMonitorSelector: {}
+  podMonitorNamespaceSelector: *ns-selector
+  probeSelector: {}
+  probeNamespaceSelector: *ns-selector
+  ruleSelector: {}
+  ruleNamespaceSelector: *ns-selector
+# TODO: Prometheus storage, retention and runtime config.
