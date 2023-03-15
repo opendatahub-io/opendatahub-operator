@@ -1,0 +1,8 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: odh-configurable
+  labels:
+    opendatahub.io/configurable: "true"
+data:
+  MESSAGE: "This configmap can be modified"
