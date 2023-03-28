@@ -114,7 +114,7 @@ test: manifests generate fmt vet envtest ## Run tests.
 ##@ Build
 
 .PHONY: build
-build: generate fmt vet ## Build manager binary.
+build: generate fmt vet update-test-data ## Build manager binary.
 	go build -o bin/manager main.go
 
 .PHONY: run
@@ -122,7 +122,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./main.go
 
 .PHONY: docker-build
-docker-build: manifests generate fmt vet ## Build docker image with the manager.
+docker-build: manifests generate fmt vet update-test-data ## Build docker image with the manager.
 	${IMAGE_BUILDER} build -t ${IMG} .
 
 .PHONY: docker-push
@@ -249,3 +249,8 @@ catalog-push: ## Push a catalog image.
 .PHONY: e2e-test
 e2e-test: ## Run e2e tests for the controller
 	go test ./tests/e2e/ -run ^TestOdhOperator -v --kf-namespace=${OPERATOR_NAMESPACE} ${E2E_TEST_FLAGS}
+
+
+.PHONY: update-test-data ## Any update to manifests should be reflected in the tar.gz file
+update-test-data:
+	tar -czvf ./tests/data/test-data.tar.gz ./tests/data/manifests

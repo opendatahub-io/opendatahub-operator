@@ -23,10 +23,13 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/restmapper"
 	"math/rand"
 	"os"
 	"path"
 	"path/filepath"
+	"sigs.k8s.io/kustomize/v3/pkg/transformers/config"
 	"strconv"
 	"strings"
 	"time"
@@ -49,6 +52,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/dynamic"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	rbacv1 "k8s.io/client-go/kubernetes/typed/rbac/v1"
@@ -56,6 +60,7 @@ import (
 	"sigs.k8s.io/kustomize/v3/k8sdeps/kunstruct"
 	"sigs.k8s.io/kustomize/v3/k8sdeps/transformer"
 	"sigs.k8s.io/kustomize/v3/pkg/fs"
+	"sigs.k8s.io/kustomize/v3/pkg/ifc"
 	"sigs.k8s.io/kustomize/v3/pkg/image"
 	"sigs.k8s.io/kustomize/v3/pkg/loader"
 	"sigs.k8s.io/kustomize/v3/pkg/plugins"
@@ -96,6 +101,11 @@ const (
 	patchesStrategicMergeMap MapType = 10
 	patchesJson6902Map       MapType = 11
 	OverlayParamName                 = "overlay"
+	// configurableResourcesLabel is a label added by odh dev to specify which objects can be updated.
+	configurableResourcesLabel = "opendatahub.io/configurable"
+	// forceUpdateResourcesLabel is a label added by end user to specify that an object needs to be patched with latest
+	// changes irrespective of the modified label.
+	forceUpdateResourcesLabel = "opendatahub.io/force-update"
 )
 
 type kustomize struct {
@@ -1279,17 +1289,35 @@ func EvaluateKustomizeManifest(compDir string) (resmap.ResMap, error) {
 	}
 	defer ldr.Cleanup()
 	rf := resmap.NewFactory(resource.NewFactory(kunstruct.NewKunstructuredFactoryImpl()), transformer.NewFactoryImpl())
-	pc := plugins.DefaultPluginConfig()
+	var pc *types.PluginConfig
+	pc = plugins.DefaultPluginConfig()
+	//}
 	kt, err := target.NewKustTarget(ldr, rf, transformer.NewFactoryImpl(), plugins.NewLoader(pc, rf))
 	if err != nil {
+		log.Warn("Error loading the plugin", err)
+		log.Printf("Error loading the plugin %v", err)
 		return nil, err
 	}
 	allResources, err := kt.MakeCustomizedResMap()
 	if err != nil {
+		log.Warn("Error getting all resources", err)
 		return nil, err
 	}
 	err = builtin.NewLegacyOrderTransformerPlugin().Transform(allResources)
 	if err != nil {
+		log.Warn("Error during transform", err)
+		return nil, err
+	}
+	customPlugin := &UpdateResourcesPlugin{
+		rmf:        rf,
+		ldr:        ldr,
+		c:          nil,
+		ObjectMeta: types.ObjectMeta{},
+		Spec:       Spec{},
+	}
+	err = customPlugin.Transform(allResources)
+	if err != nil {
+		log.Warn("Error during custom transform", err)
 		return nil, err
 	}
 	return allResources, nil
@@ -1444,4 +1472,90 @@ func GenerateYamlWithOperatorAnnotation(resMap resmap.ResMap, instance *unstruct
 		}
 	}
 	return buf.Bytes(), nil
+}
+
+type Spec struct {
+	FieldSpecs []config.FieldSpec `yaml:"fieldSpecs"`
+}
+
+type plugin struct {
+	rmf *resmap.Factory
+	ldr ifc.Loader
+	c   *resmap.Configurable
+
+	types.ObjectMeta `json:"metadata,omitempty" yaml:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+	Spec             Spec `yaml:"spec"`
+}
+
+//nolint: golint
+//noinspection GoUnusedGlobalVariable
+type UpdateResourcesPlugin plugin
+
+func (p *UpdateResourcesPlugin) Config(ldr ifc.Loader, rf *resmap.Factory, c []byte) error {
+	p.ldr = ldr
+	p.rmf = rf
+	return yaml.Unmarshal(c, p)
+}
+
+func (p *UpdateResourcesPlugin) Transform(m resmap.ResMap) error {
+	log.Info("Inside the transform function")
+	inClusterconfig, err := rest.InClusterConfig()
+	if err != nil {
+		return fmt.Errorf("error getting incluster config %v", err)
+	}
+	dc, err := discovery.NewDiscoveryClientForConfig(inClusterconfig)
+	if err != nil {
+		return fmt.Errorf("error getting discovery client config %v", err)
+
+	}
+	mapper := restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(dc))
+
+	// 2. Prepare the dynamic client
+	dyn, err := dynamic.NewForConfig(inClusterconfig)
+	if err != nil {
+
+		return fmt.Errorf("error getting dynamic config %v", err)
+	}
+
+	for _, r := range m.Resources() {
+		err := updateResMap(r, mapper, dyn, m)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func updateResMap(localResource *resource.Resource, mapper *restmapper.DeferredDiscoveryRESTMapper, dyn dynamic.Interface, m resmap.ResMap) error {
+	localObjectLabels := localResource.GetLabels()
+
+	mapping, err := mapper.RESTMapping(schema.GroupKind{
+		Group: localResource.GetGvk().Group,
+		Kind:  localResource.GetGvk().Kind}, localResource.GetGvk().Version)
+	if err != nil {
+
+		return fmt.Errorf("error mapping rest config %v", err)
+	}
+	res, err := dyn.Resource(mapping.Resource).Namespace(localResource.GetNamespace()).Get(context.TODO(), localResource.GetName(), metav1.GetOptions{})
+	if err != nil {
+		// Note: If the plugin fails to get any resource, it continues updating other resources in resmap
+		log.Printf("Error getting resources %v: %v ", localResource.GetName(), err)
+		return nil
+	}
+	clusterObjectLabels := res.GetLabels()
+	if configLabelval, ok := localObjectLabels[configurableResourcesLabel]; ok {
+		if configLabelval == "true" {
+			needsUpdateLabelVal, ok := clusterObjectLabels[forceUpdateResourcesLabel]
+			if ok && needsUpdateLabelVal == "true" {
+				return nil
+			}
+			err := m.Remove(localResource.CurId())
+			if err != nil {
+				return fmt.Errorf("error removing resource from the map: %v ", err)
+			} else {
+				log.Printf("Resource is %v removed from resource map", localResource.GetName())
+			}
+		}
+	}
+	return nil
 }
