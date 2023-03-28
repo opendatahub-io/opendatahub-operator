@@ -6,7 +6,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-
 func testKfDefControllerValidation(t *testing.T) {
 	testCtx, err := NewTestContext()
 	require.NoError(t, err)

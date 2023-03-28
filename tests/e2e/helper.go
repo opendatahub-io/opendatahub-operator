@@ -59,11 +59,25 @@ func setupCoreKfdef() kfDefContext {
 						},
 					},
 				},
+				{
+					Name: "sample-app",
+					KustomizeConfig: &kfdefappskubefloworgv1.KustomizeConfig{
+						RepoRef: &kfdefappskubefloworgv1.RepoRef{
+							Name: "sample-manifests",
+							Path: "/data/manifests/sample-app",
+						},
+					},
+				},
 			},
 			Repos: []kfdefappskubefloworgv1.Repo{
 				{
 					Name: "manifests",
 					URI:  "https://github.com/opendatahub-io/odh-manifests/tarball/master",
+				}, {
+					//Any update to manifests should be reflected in the tar.gz file by doing
+					//`make update-test-data`
+					Name: "sample-manifests",
+					URI:  "file:///opt/test-data/test-data.tar.gz",
 				},
 			},
 		},

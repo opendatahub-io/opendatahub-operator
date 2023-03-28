@@ -40,9 +40,17 @@ func creationTestSuite(t *testing.T) {
 				err = testCtx.testUpdateManagedResource(kfContext)
 				require.NoError(t, err, "error testing updates for Kfdef resource ")
 			})
+			t.Run("Validate Controller makes resources configurable", func(t *testing.T) {
+				err = testCtx.testUpdatingConfigurableResource(kfContext)
+				require.NoError(t, err, "error testing updates for Kfdef resource ")
+			})
+			t.Run("Validate Controller force updates configurable resources", func(t *testing.T) {
+				err = testCtx.testRevertingConfigurableResource(kfContext)
+				require.NoError(t, err, "error testing updates for Kfdef resource ")
+			})
+
 		})
 	}
-
 }
 
 func (tc *testContext) testKfDefCreation(kfContext kfDefContext) error {
@@ -88,7 +96,7 @@ func (tc *testContext) testKfDefApplications(kfmeta *metav1.ObjectMeta, appName 
 		})
 		if err != nil {
 			log.Printf("error listing application deployments :%v. Trying again...", err)
-			return false, err
+			return false, fmt.Errorf("error listing application deployments :%v. Trying again", err)
 		}
 		if len(appList.Items) != 0 {
 			allAppDeploymentsReady := true
@@ -164,7 +172,7 @@ func (tc *testContext) testKfDefAnnotation(kfContext kfDefContext) error {
 	return nil
 }
 
-// this test verifies that any updates to resources managed by KfDef are reverted
+// this test verifies that any updates to resources managed by KfDef are reverted if they are not configurable
 func (tc *testContext) testUpdateManagedResource(kfContext kfDefContext) error {
 	appDeployments, err := tc.kubeClient.AppsV1().Deployments(kfContext.kfObjectMeta.Namespace).List(context.TODO(), metav1.ListOptions{
 		LabelSelector: "app=" + kfContext.kfSpec.Applications[0].Name,
@@ -186,7 +194,6 @@ func (tc *testContext) testUpdateManagedResource(kfContext kfDefContext) error {
 			},
 			Status: autoscalingv1.ScaleStatus{},
 		}
-
 		retrievedDep, err := tc.kubeClient.AppsV1().Deployments(kfContext.kfObjectMeta.Namespace).UpdateScale(context.TODO(), testDeployment.Name, patchedReplica, metav1.UpdateOptions{})
 		if err != nil {
 
@@ -206,9 +213,59 @@ func (tc *testContext) testUpdateManagedResource(kfContext kfDefContext) error {
 		if *revertedDep.Spec.Replicas != *expectedReplica {
 			return fmt.Errorf("failed to revert updated resource")
 		}
-
 	}
 
 	return nil
 
+}
+
+// This test verifies if a resource has `opendatahub.io/configurable=true` label, it can be modified
+func (tc *testContext) testUpdatingConfigurableResource(kfContext kfDefContext) error {
+	configmapName := "odh-configurable"
+	configurableCM, err := tc.kubeClient.CoreV1().ConfigMaps(kfContext.kfObjectMeta.Namespace).Patch(context.TODO(),
+		configmapName, types.MergePatchType, []byte(`{"data":{"MESSAGE":"This is modified message"}}`), metav1.PatchOptions{})
+
+	if err != nil {
+		return fmt.Errorf("error modifying configmap : %v", err)
+	}
+	time.Sleep(tc.resourceRetryInterval)
+
+	// Retrieve configmap to verify modified data
+	retrievedCM, err := tc.kubeClient.CoreV1().ConfigMaps(kfContext.kfObjectMeta.Namespace).Get(context.TODO(), configmapName,
+		metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("error getting configmap %v: %v", configmapName, err)
+	}
+
+	if configurableCM.Data["MESSAGE"] != retrievedCM.Data["MESSAGE"] {
+		return fmt.Errorf("unable to modify configurable resource. Expected data value %v, got %v",
+			configurableCM.Data["MESSAGE"], retrievedCM.Data["MESSAGE"])
+	}
+	return nil
+}
+
+// This test verifies if a configurable resource has `opendatahub.io/force-update=true` label, it reverts it
+// to match the manifests
+func (tc *testContext) testRevertingConfigurableResource(kfContext kfDefContext) error {
+	configmapName := "odh-configurable"
+	// Get configmap data from manifests
+	configurableCM, err := tc.kubeClient.CoreV1().ConfigMaps(kfContext.kfObjectMeta.Namespace).Patch(context.TODO(),
+		configmapName, types.MergePatchType, []byte(`{"metadata":{"labels":{"opendatahub.io/force-update" : "true"}}}`), metav1.PatchOptions{})
+
+	if err != nil {
+		return fmt.Errorf("error adding 'opendatahub.io/force-update' label to configmap : %v", err)
+	}
+	time.Sleep(tc.resourceRetryInterval)
+
+	// verify that the configmap values are updated to match manifests
+	retrievedCM, err := tc.kubeClient.CoreV1().ConfigMaps(kfContext.kfObjectMeta.Namespace).Get(context.TODO(), configmapName,
+		metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("error getting configmap %v: %v", configmapName, err)
+	}
+
+	if configurableCM.Data["MESSAGE"] == retrievedCM.Data["MESSAGE"] {
+		return fmt.Errorf("unable to revert modified resource")
+	}
+	return nil
 }
