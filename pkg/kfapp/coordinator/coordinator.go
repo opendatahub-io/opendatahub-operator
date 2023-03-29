@@ -23,18 +23,16 @@ import (
 	"path/filepath"
 	"strings"
 
-	kfapis "github.com/kubeflow/kfctl/v3/pkg/apis"
-	kftypesv3 "github.com/kubeflow/kfctl/v3/pkg/apis/apps"
-	kfdefsv1alpha1 "github.com/kubeflow/kfctl/v3/pkg/apis/apps/kfdef/v1alpha1"
-	kfdefsv1beta1 "github.com/kubeflow/kfctl/v3/pkg/apis/apps/kfdef/v1beta1"
-	"github.com/kubeflow/kfctl/v3/pkg/kfapp/aws"
-	"github.com/kubeflow/kfctl/v3/pkg/kfapp/existing_arrikto"
-	"github.com/kubeflow/kfctl/v3/pkg/kfapp/gcp"
-	"github.com/kubeflow/kfctl/v3/pkg/kfapp/kustomize"
-	"github.com/kubeflow/kfctl/v3/pkg/kfapp/minikube"
-	"github.com/kubeflow/kfctl/v3/pkg/kfconfig"
-	kfconfigloaders "github.com/kubeflow/kfctl/v3/pkg/kfconfig/loaders"
-	"github.com/kubeflow/kfctl/v3/pkg/utils"
+	kfapis "github.com/opendatahub-io/opendatahub-operator/apis"
+	kftypesv3 "github.com/opendatahub-io/opendatahub-operator/apis/apps"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/kfapp/aws"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/kfapp/existing_arrikto"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/kfapp/gcp"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/kfapp/kustomize"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/kfapp/minikube"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/kfconfig"
+	kfconfigloaders "github.com/opendatahub-io/opendatahub-operator/pkg/kfconfig/loaders"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/utils"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -243,15 +241,15 @@ func NewLoadKfAppFromURI(configFile string) (kftypesv3.KfApp, error) {
 
 // TODO: remove this
 // This is for kfctlServer. We can remove this after kfctlServer uses kfconfig
-func CreateKfAppCfgFileWithKfDef(d *kfdefsv1alpha1.KfDef) (string, error) {
-	alphaConverter := kfconfigloaders.V1alpha1{}
-	kfconfig, err := alphaConverter.LoadKfConfig(*d)
-	if err != nil {
-		return "", err
-	}
-	kfconfig.Spec.ConfigFileName = kftypesv3.KfConfigFile
-	return CreateKfAppCfgFile(kfconfig)
-}
+//func CreateKfAppCfgFileWithKfDef(d *kfdefsv1.KfDef) (string, error) {
+//	alphaConverter := kfconfigloaders.V1alpha1{}
+//	kfconfig, err := alphaConverter.LoadKfConfig(*d)
+//	if err != nil {
+//		return "", err
+//	}
+//	kfconfig.Spec.ConfigFileName = kftypesv3.KfConfigFile
+//	return CreateKfAppCfgFile(kfconfig)
+//}
 
 // CreateKfAppCfgFile will create the application directory and persist
 // the KfDef to it as app.yaml.
@@ -309,34 +307,9 @@ type coordinator struct {
 	KfDef           *kfconfig.KfConfig
 }
 
-// Return a copy of kfdef v1beta1
-type KfDefGetterV1beta1 interface {
-	GetKfDefV1Beta1() *kfdefsv1beta1.KfDef
-}
-
 // Get reference to the plugin .
 type PluginGetter interface {
 	GetPlugin(name string) (kftypesv3.KfApp, bool)
-}
-
-//TODO(kunming): remove after kfctlserver change (https://github.com/kubeflow/kubeflow/pull/4399) merged.
-func (kfapp *coordinator) GetKfDef() *kfdefsv1beta1.KfDef {
-	return nil
-}
-
-// GetKfDefV1Beta1 returns a copy of KfDef V1Beta1 used by this application.
-func (kfapp *coordinator) GetKfDefV1Beta1() *kfdefsv1beta1.KfDef {
-	kfdefIns := &kfdefsv1beta1.KfDef{}
-	err := kfconfigloaders.V1beta1{}.LoadKfDef(*(kfapp.KfDef.DeepCopy()), kfdefIns)
-	if err != nil {
-		kfdefIns.Status.Conditions = append(kfdefIns.Status.Conditions, kfdefsv1beta1.KfDefCondition{
-			Type:    kfdefsv1beta1.KfDegraded,
-			Message: err.Error(),
-		})
-		return kfdefIns
-	}
-
-	return kfdefIns
 }
 
 // GetPlatform returns the specified platform.

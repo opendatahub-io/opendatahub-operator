@@ -1,0 +1,20 @@
+# permissions for end users to view kfdefs.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kfdef-viewer-role
+rules:
+- apiGroups:
+  - kfdef.apps.kubeflow.org.my.domain
+  resources:
+  - kfdefs
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - kfdef.apps.kubeflow.org.my.domain
+  resources:
+  - kfdefs/status
+  verbs:
+  - get

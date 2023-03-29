@@ -1,8 +1,8 @@
 package loaders
 
 import (
-	kftypesv3 "github.com/kubeflow/kfctl/v3/pkg/apis/apps"
-	"github.com/kubeflow/kfctl/v3/pkg/kfconfig"
+	kftypesv3 "github.com/opendatahub-io/opendatahub-operator/apis/apps"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/kfconfig"
 )
 
 func maybeGetPlatform(pluginKind string) string {

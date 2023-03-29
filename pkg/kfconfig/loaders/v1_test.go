@@ -9,8 +9,8 @@ import (
 
 	"github.com/ghodss/yaml"
 	"github.com/google/go-cmp/cmp"
-	"github.com/kubeflow/kfctl/v3/pkg/kfconfig"
-	kfutils "github.com/kubeflow/kfctl/v3/pkg/utils"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/kfconfig"
+	kfutils "github.com/opendatahub-io/opendatahub-operator/pkg/utils"
 )
 
 func TestV1_expectedConfig(t *testing.T) {
@@ -39,8 +39,8 @@ func TestV1_expectedConfig(t *testing.T) {
 			t.Fatalf("Error when unmarshaling file %v; error %v", fPath, err)
 		}
 
-		v1beta1 := V1beta1{}
-		config, err := v1beta1.LoadKfConfig(obj)
+		v1 := V1{}
+		config, err := v1.LoadKfConfig(obj)
 		if err != nil {
 			t.Fatalf("Error converting to KfConfig: %v", err)
 		}

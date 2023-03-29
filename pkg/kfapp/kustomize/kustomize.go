@@ -19,14 +19,17 @@ package kustomize
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/restmapper"
 	"math/rand"
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
+	"sigs.k8s.io/kustomize/v3/pkg/transformers/config"
 	"strconv"
 	"strings"
 	"time"
@@ -37,11 +40,11 @@ import (
 	"github.com/cenkalti/backoff"
 	"github.com/ghodss/yaml"
 	"github.com/imdario/mergo"
-	kfapisv3 "github.com/kubeflow/kfctl/v3/pkg/apis"
-	kftypesv3 "github.com/kubeflow/kfctl/v3/pkg/apis/apps"
-	kfdefsv3 "github.com/kubeflow/kfctl/v3/pkg/apis/apps/kfdef/v1alpha1"
-	"github.com/kubeflow/kfctl/v3/pkg/kfconfig"
-	"github.com/kubeflow/kfctl/v3/pkg/utils"
+	kfapisv3 "github.com/opendatahub-io/opendatahub-operator/apis"
+	kftypesv3 "github.com/opendatahub-io/opendatahub-operator/apis/apps"
+	kfdefsv3 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/kfconfig"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/utils"
 	"github.com/otiai10/copy"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -49,6 +52,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/dynamic"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	rbacv1 "k8s.io/client-go/kubernetes/typed/rbac/v1"
@@ -56,6 +60,7 @@ import (
 	"sigs.k8s.io/kustomize/v3/k8sdeps/kunstruct"
 	"sigs.k8s.io/kustomize/v3/k8sdeps/transformer"
 	"sigs.k8s.io/kustomize/v3/pkg/fs"
+	"sigs.k8s.io/kustomize/v3/pkg/ifc"
 	"sigs.k8s.io/kustomize/v3/pkg/image"
 	"sigs.k8s.io/kustomize/v3/pkg/loader"
 	"sigs.k8s.io/kustomize/v3/pkg/plugins"
@@ -96,6 +101,11 @@ const (
 	patchesStrategicMergeMap MapType = 10
 	patchesJson6902Map       MapType = 11
 	OverlayParamName                 = "overlay"
+	// configurableResourcesLabel is a label added by odh dev to specify which objects can be updated.
+	configurableResourcesLabel = "opendatahub.io/configurable"
+	// forceUpdateResourcesLabel is a label added by end user to specify that an object needs to be patched with latest
+	// changes irrespective of the modified label.
+	forceUpdateResourcesLabel = "opendatahub.io/force-update"
 )
 
 type kustomize struct {
@@ -162,49 +172,29 @@ func (kustomize *kustomize) render(app kfconfig.Application) ([]byte, error) {
 
 	sortResourceByKind(resMap, utils.InstallOrder)
 
-	// check to set owner references for resources if installed through kubeflow operator
-	annotations := kustomize.kfDef.GetAnnotations()
-	setOperatorAnnotation := false
-	if setOperator, ok := annotations[strings.Join([]string{utils.KfDefAnnotation, utils.SetAnnotation}, "/")]; ok {
-		if setOperatorBool, err := strconv.ParseBool(setOperator); err == nil {
-			setOperatorAnnotation = setOperatorBool
-		}
-	}
-
 	//TODO this should be streamed
 	var data []byte
-	if setOperatorAnnotation {
-		// retrieve the UID of the KfDef resource using dynamic client
-		config, _ := rest.InClusterConfig()
-		dyn, err := dynamic.NewForConfig(config)
-		if err != nil {
-			return nil, &kfapisv3.KfError{
-				Code:    int(kfapisv3.INTERNAL_ERROR),
-				Message: fmt.Sprintf("failed to create dynamic client: %v", err),
-			}
+	config, _ := rest.InClusterConfig()
+	dyn, err := dynamic.NewForConfig(config)
+	if err != nil {
+		return nil, &kfapisv3.KfError{
+			Code:    int(kfapisv3.INTERNAL_ERROR),
+			Message: fmt.Sprintf("failed to create dynamic client: %v", err),
 		}
-		kfDefRes := schema.GroupVersionResource{Group: "kfdef.apps.kubeflow.org", Version: "v1", Resource: "kfdefs"}
-		instance, err := dyn.Resource(kfDefRes).Namespace(kustomize.kfDef.GetNamespace()).Get(kustomize.kfDef.GetName(), metav1.GetOptions{})
-		if err != nil {
-			return nil, &kfapisv3.KfError{
-				Code:    int(kfapisv3.INTERNAL_ERROR),
-				Message: fmt.Sprintf("failed to get the KfDef object: %v", err),
-			}
+	}
+	kfDefRes := schema.GroupVersionResource{Group: "kfdef.apps.kubeflow.org", Version: "v1", Resource: "kfdefs"}
+	instance, err := dyn.Resource(kfDefRes).Namespace(kustomize.kfDef.GetNamespace()).Get(context.TODO(), kustomize.kfDef.GetName(), metav1.GetOptions{})
+	if err != nil {
+		return nil, &kfapisv3.KfError{
+			Code:    int(kfapisv3.INTERNAL_ERROR),
+			Message: fmt.Sprintf("failed to get the KfDef object: %v", err),
 		}
-		data, err = GenerateYamlWithOperatorAnnotation(resMap, instance)
-		if err != nil {
-			return nil, &kfapisv3.KfError{
-				Code:    int(kfapisv3.INTERNAL_ERROR),
-				Message: fmt.Sprintf("can not encode component %v as yaml: %v", app.Name, err),
-			}
-		}
-	} else {
-		data, err = resMap.AsYaml()
-		if err != nil {
-			return nil, &kfapisv3.KfError{
-				Code:    int(kfapisv3.INTERNAL_ERROR),
-				Message: fmt.Sprintf("can not encode component %v as yaml: %v", app.Name, err),
-			}
+	}
+	data, err = GenerateYamlWithOwnerReference(resMap, instance)
+	if err != nil {
+		return nil, &kfapisv3.KfError{
+			Code:    int(kfapisv3.INTERNAL_ERROR),
+			Message: fmt.Sprintf("can not encode component %v as yaml: %v", app.Name, err),
 		}
 	}
 	return data, nil
@@ -252,7 +242,7 @@ func (kustomize *kustomize) Apply(resources kftypesv3.ResourceEnum) error {
 			log.Errorf("Cannot find current-context in kubeconfig.")
 		} else {
 			log.Infof("Log cluster name into KfDef: %v", ctx.Cluster)
-			kustomize.kfDef.ClusterName = ctx.Cluster
+			//kustomize.kfDef.ClusterName = ctx.Cluster
 		}
 	}
 
@@ -295,7 +285,7 @@ func (kustomize *kustomize) Apply(resources kftypesv3.ResourceEnum) error {
 	// Default user namespace when multi-tenancy enabled
 	defaultProfileNamespace := kftypesv3.EmailToDefaultName(kustomize.kfDef.Spec.Email)
 	// Default user namespace when multi-tenancy disabled
-	anonymousNamespace := "anonymous"
+	anonymousNamespace := "default"
 	b := utils.NewDefaultBackoff()
 	err = backoff.Retry(func() error {
 		if !(apply.IfNamespaceExist(defaultProfileNamespace) || apply.IfNamespaceExist(anonymousNamespace)) {
@@ -333,7 +323,7 @@ func (kustomize *kustomize) deleteGlobalResources() error {
 	lo := metav1.ListOptions{
 		LabelSelector: kftypesv3.DefaultAppLabel + "=" + kustomize.kfDef.Name,
 	}
-	crdsErr := apiextclientset.CustomResourceDefinitions().DeleteCollection(do, lo)
+	crdsErr := apiextclientset.CustomResourceDefinitions().DeleteCollection(context.TODO(), *do, lo)
 	if crdsErr != nil {
 		return &kfapisv3.KfError{
 			Code:    int(kfapisv3.INVALID_ARGUMENT),
@@ -347,14 +337,14 @@ func (kustomize *kustomize) deleteGlobalResources() error {
 			Message: fmt.Sprintf("couldn't get rbac/v1 client: %v", err),
 		}
 	}
-	crbsErr := rbacclient.ClusterRoleBindings().DeleteCollection(do, lo)
+	crbsErr := rbacclient.ClusterRoleBindings().DeleteCollection(context.TODO(), *do, lo)
 	if crbsErr != nil {
 		return &kfapisv3.KfError{
 			Code:    int(kfapisv3.INVALID_ARGUMENT),
 			Message: fmt.Sprintf("couldn't delete clusterrolebindings: %v", crbsErr),
 		}
 	}
-	crsErr := rbacclient.ClusterRoles().DeleteCollection(do, lo)
+	crsErr := rbacclient.ClusterRoles().DeleteCollection(context.TODO(), *do, lo)
 	if crsErr != nil {
 		return &kfapisv3.KfError{
 			Code:    int(kfapisv3.INVALID_ARGUMENT),
@@ -394,12 +384,13 @@ func (kustomize *kustomize) Delete(resources kftypesv3.ResourceEnum) error {
 		currentCtx := kubeconfig.CurrentContext
 		if ctx, ok := kubeconfig.Contexts[currentCtx]; !ok || ctx == nil {
 			msg = "cannot find current-context in kubeconfig."
-		} else {
-			if kustomize.kfDef.ClusterName != ctx.Cluster {
-				msg = fmt.Sprintf("cluster name doesn't match: KfDef(%v) v.s. current-context(%v)",
-					kustomize.kfDef.ClusterName, ctx.Cluster)
-			}
 		}
+		//else {
+		//	if kustomize.kfDef.ClusterName != ctx.Cluster {
+		//		msg = fmt.Sprintf("cluster name doesn't match: KfDef(%v) v.s. current-context(%v)",
+		//			kustomize.kfDef.ClusterName, ctx.Cluster)
+		//	}
+		//}
 	}
 	if msg != "" {
 		if forceDelete {
@@ -481,20 +472,11 @@ func (kustomize *kustomize) Delete(resources kftypesv3.ResourceEnum) error {
 		}
 	}
 	namespace := kustomize.kfDef.Namespace
-	ns, nsMissingErr := corev1client.Namespaces().Get(namespace, metav1.GetOptions{})
+	ns, nsMissingErr := corev1client.Namespaces().Get(context.TODO(), namespace, metav1.GetOptions{})
 	if nsMissingErr == nil {
-		// if the func is called by the Kubeflow operator, validate it is installed through the operator
-		if byOperator {
-			anns := ns.GetAnnotations()
-			kfdefAnn := strings.Join([]string{utils.KfDefAnnotation, utils.KfDefInstance}, "/")
-			_, found := anns[kfdefAnn]
-			if !found {
-				return nil
-			}
-		}
 
 		log.Infof("Deleting namespace: %v", namespace)
-		nsErr := corev1client.Namespaces().Delete(ns.Name, metav1.NewDeleteOptions(int64(100)))
+		nsErr := corev1client.Namespaces().Delete(context.TODO(), ns.Name, *metav1.NewDeleteOptions(int64(100)))
 		if nsErr != nil {
 			return &kfapisv3.KfError{
 				Code:    int(kfapisv3.INVALID_ARGUMENT),
@@ -847,7 +829,7 @@ func MergeKustomization(compDir string, targetDir string, kfDef *kfconfig.KfConf
 
 	paramMap := make(map[string]string)
 	for _, nv := range params {
-		paramMap[nv.Name] = getParameterValue(nv.Value)
+		paramMap[nv.Name] = nv.Value
 	}
 	updateParamFiles := func() error {
 		paramFile := filepath.Join(targetDir, kftypesv3.KustomizationParamFile)
@@ -1219,19 +1201,6 @@ func MergeKustomizations(kfDef *kfconfig.KfConfig, compDir string, overlayParams
 func GenerateKustomizationFile(kfDef *kfconfig.KfConfig, root string,
 	compPath string, overlays []string, params []kfconfig.NameValue) error {
 
-	moveToFront := func(item string, list []string) []string {
-		olen := len(list)
-		newlist := make([]string, 0)
-		for i, component := range list {
-			if component == item {
-				newlist = append(newlist, list[i])
-				newlist = append(newlist, list[0:i]...)
-				newlist = append(newlist, list[i+1:olen]...)
-				break
-			}
-		}
-		return newlist
-	}
 	compDir := path.Join(root, compPath)
 	kustomization, kustomizationErr := MergeKustomizations(kfDef, compDir, overlays, params)
 	if kustomizationErr != nil {
@@ -1262,12 +1231,6 @@ func GenerateKustomizationFile(kfDef *kfconfig.KfConfig, root string,
 			}
 			//TODO look at sort options
 			//See https://github.com/kubernetes-sigs/kustomize/issues/821
-			//TODO upgrade to v2.0.4 when available
-			baseKfDef.Spec.Components = moveToFront("application", baseKfDef.Spec.Components)
-			baseKfDef.Spec.Components = moveToFront("application-crds", baseKfDef.Spec.Components)
-			baseKfDef.Spec.Components = moveToFront("istio", baseKfDef.Spec.Components)
-			baseKfDef.Spec.Components = moveToFront("istio-install", baseKfDef.Spec.Components)
-			baseKfDef.Spec.Components = moveToFront("istio-crds", baseKfDef.Spec.Components)
 			writeErr := WriteKfDef(baseKfDef, basefile)
 			if writeErr != nil {
 				return writeErr
@@ -1286,7 +1249,7 @@ func GenerateKustomizationFile(kfDef *kfconfig.KfConfig, root string,
 
 // EvaluateKustomizeManifest evaluates the kustomize dir compDir, and returns the resources.
 func EvaluateKustomizeManifest(compDir string) (resmap.ResMap, error) {
-	fsys := fs.MakeRealFS()
+	fsys := fs.MakeFsOnDisk()
 	// We don't enforce the security check because our kustomize packages are such that kustomization.yaml
 	// files may refer to patches and resources that are not in the current directory or below them.
 	// See http://bit.ly/kf_kustomize_v3
@@ -1297,17 +1260,35 @@ func EvaluateKustomizeManifest(compDir string) (resmap.ResMap, error) {
 	}
 	defer ldr.Cleanup()
 	rf := resmap.NewFactory(resource.NewFactory(kunstruct.NewKunstructuredFactoryImpl()), transformer.NewFactoryImpl())
-	pc := plugins.DefaultPluginConfig()
+	var pc *types.PluginConfig
+	pc = plugins.DefaultPluginConfig()
+	//}
 	kt, err := target.NewKustTarget(ldr, rf, transformer.NewFactoryImpl(), plugins.NewLoader(pc, rf))
 	if err != nil {
+		log.Warn("Error loading the plugin", err)
+		log.Printf("Error loading the plugin %v", err)
 		return nil, err
 	}
 	allResources, err := kt.MakeCustomizedResMap()
 	if err != nil {
+		log.Warn("Error getting all resources", err)
 		return nil, err
 	}
 	err = builtin.NewLegacyOrderTransformerPlugin().Transform(allResources)
 	if err != nil {
+		log.Warn("Error during transform", err)
+		return nil, err
+	}
+	customPlugin := &UpdateResourcesPlugin{
+		rmf:        rf,
+		ldr:        ldr,
+		c:          nil,
+		ObjectMeta: types.ObjectMeta{},
+		Spec:       Spec{},
+	}
+	err = customPlugin.Transform(allResources)
+	if err != nil {
+		log.Warn("Error during custom transform", err)
 		return nil, err
 	}
 	return allResources, nil
@@ -1423,7 +1404,7 @@ func GenerateYamlWithOperatorAnnotation(resMap resmap.ResMap, instance *unstruct
 					Message: fmt.Sprintf("failed to create corev1 client: %v", err),
 				}
 			}
-			_, err = corev1client.Namespaces().Get(m.GetName(), metav1.GetOptions{})
+			_, err = corev1client.Namespaces().Get(context.TODO(), m.GetName(), metav1.GetOptions{})
 			if err == nil {
 				log.Infof("Namespace %v already exists.", m.GetName())
 
@@ -1464,22 +1445,140 @@ func GenerateYamlWithOperatorAnnotation(resMap resmap.ResMap, instance *unstruct
 	return buf.Bytes(), nil
 }
 
-func getParameterValue(value string) string {
-	// Check if there is a environment variable
-	// Supported format: $VAR and ${VAR}
-	var re = regexp.MustCompile(`(?m)^\$({(.*)}|\w)`)
-	envVariable := ""
-	if re.Match([]byte(value)){
-		if strings.HasPrefix(value, "${"){
-			envVariable = value[2:len(value)-1]
-		}else if strings.HasPrefix(value, "$") {
-			envVariable = value[1:]
-		}
-		return os.Getenv(envVariable)
+type Spec struct {
+	FieldSpecs []config.FieldSpec `yaml:"fieldSpecs"`
+}
 
-	}else{
-		log.Info("env variables are not used or are invalid in the parameters." +
-			" Supported Usage: $VAR and ${VAR}")
+type plugin struct {
+	rmf *resmap.Factory
+	ldr ifc.Loader
+	c   *resmap.Configurable
+
+	types.ObjectMeta `json:"metadata,omitempty" yaml:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+	Spec             Spec `yaml:"spec"`
+}
+
+//nolint: golint
+//noinspection GoUnusedGlobalVariable
+type UpdateResourcesPlugin plugin
+
+func (p *UpdateResourcesPlugin) Config(ldr ifc.Loader, rf *resmap.Factory, c []byte) error {
+	p.ldr = ldr
+	p.rmf = rf
+	return yaml.Unmarshal(c, p)
+}
+
+func (p *UpdateResourcesPlugin) Transform(m resmap.ResMap) error {
+	log.Info("Inside the transform function")
+	inClusterconfig, err := rest.InClusterConfig()
+	if err != nil {
+		return fmt.Errorf("error getting incluster config %v", err)
 	}
-	return value
+	dc, err := discovery.NewDiscoveryClientForConfig(inClusterconfig)
+	if err != nil {
+		return fmt.Errorf("error getting discovery client config %v", err)
+
+	}
+	mapper := restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(dc))
+
+	// 2. Prepare the dynamic client
+	dyn, err := dynamic.NewForConfig(inClusterconfig)
+	if err != nil {
+
+		return fmt.Errorf("error getting dynamic config %v", err)
+	}
+
+	for _, r := range m.Resources() {
+		err := updateResMap(r, mapper, dyn, m)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func updateResMap(localResource *resource.Resource, mapper *restmapper.DeferredDiscoveryRESTMapper, dyn dynamic.Interface, m resmap.ResMap) error {
+	localObjectLabels := localResource.GetLabels()
+
+	mapping, err := mapper.RESTMapping(schema.GroupKind{
+		Group: localResource.GetGvk().Group,
+		Kind:  localResource.GetGvk().Kind}, localResource.GetGvk().Version)
+	if err != nil {
+
+		return fmt.Errorf("error mapping rest config %v", err)
+	}
+	res, err := dyn.Resource(mapping.Resource).Namespace(localResource.GetNamespace()).Get(context.TODO(), localResource.GetName(), metav1.GetOptions{})
+	if err != nil {
+		// Note: If the plugin fails to get any resource, it continues updating other resources in resmap
+		log.Printf("Error getting resources %v: %v ", localResource.GetName(), err)
+		return nil
+	}
+	clusterObjectLabels := res.GetLabels()
+	if configLabelval, ok := localObjectLabels[configurableResourcesLabel]; ok {
+		if configLabelval == "true" {
+			needsUpdateLabelVal, ok := clusterObjectLabels[forceUpdateResourcesLabel]
+			if ok && needsUpdateLabelVal == "true" {
+				return nil
+			}
+			err := m.Remove(localResource.CurId())
+			if err != nil {
+				return fmt.Errorf("error removing resource from the map: %v ", err)
+			} else {
+				log.Printf("Resource is %v removed from resource map", localResource.GetName())
+			}
+		}
+	}
+	return nil
+}
+
+// GenerateYamlWithOwnerReference adds ownerReferences to every resource
+// some code copied from ResMap.AsYaml() func
+func GenerateYamlWithOwnerReference(resMap resmap.ResMap, instance *unstructured.Unstructured) ([]byte, error) {
+	firstObj := true
+	var b []byte
+	buf := bytes.NewBuffer(b)
+	for _, res := range resMap.Resources() {
+		y, err := res.AsYAML()
+		if err != nil {
+			return nil, err
+		}
+		m := &unstructured.Unstructured{}
+		if err = yaml.Unmarshal(y, m); err != nil {
+			return nil, err
+		}
+		boolTrue := true
+		// Create OwnerReference object
+		owner := []metav1.OwnerReference{
+			{
+				Kind:               instance.GetKind(),
+				Name:               instance.GetName(),
+				APIVersion:         instance.GetAPIVersion(),
+				UID:                instance.GetUID(),
+				BlockOwnerDeletion: &boolTrue,
+				Controller:         &boolTrue,
+			},
+		}
+
+		if len(m.GetOwnerReferences()) == 0 {
+			m.SetOwnerReferences(owner)
+		}
+
+		out, err := yaml.Marshal(m)
+		if err != nil {
+			return nil, err
+		}
+
+		log.Infof("ownerReferences added for resource %v.%v", m.GetName(), m.GetNamespace())
+		if firstObj {
+			firstObj = false
+		} else {
+			if _, err = buf.WriteString("---\n"); err != nil {
+				return nil, err
+			}
+		}
+		if _, err = buf.Write(out); err != nil {
+			return nil, err
+		}
+	}
+	return buf.Bytes(), nil
 }

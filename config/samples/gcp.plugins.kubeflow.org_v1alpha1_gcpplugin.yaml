@@ -1,0 +1,6 @@
+apiVersion: gcp.plugins.kubeflow.org.my.domain/v1alpha1
+kind: GcpPlugin
+metadata:
+  name: gcpplugin-sample
+spec:
+  # TODO(user): Add fields here

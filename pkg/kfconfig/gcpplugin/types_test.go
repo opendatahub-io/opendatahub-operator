@@ -1,9 +1,9 @@
 package gcpplugin
 
 import (
-	kfapis "github.com/kubeflow/kfctl/v3/pkg/apis"
-	"github.com/kubeflow/kfctl/v3/pkg/kfconfig"
-	kfutils "github.com/kubeflow/kfctl/v3/pkg/utils"
+	kfapis "github.com/opendatahub-io/opendatahub-operator/apis"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/kfconfig"
+	kfutils "github.com/opendatahub-io/opendatahub-operator/pkg/utils"
 	"testing"
 )
 

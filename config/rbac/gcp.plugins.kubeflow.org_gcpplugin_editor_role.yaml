@@ -1,0 +1,24 @@
+# permissions for end users to edit gcpplugins.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: gcpplugin-editor-role
+rules:
+- apiGroups:
+  - gcp.plugins.kubeflow.org.my.domain
+  resources:
+  - gcpplugins
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - gcp.plugins.kubeflow.org.my.domain
+  resources:
+  - gcpplugins/status
+  verbs:
+  - get

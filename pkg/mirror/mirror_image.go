@@ -3,9 +3,9 @@ package mirror
 import (
 	"fmt"
 	"github.com/ghodss/yaml"
-	mirrorv1alpha1 "github.com/kubeflow/kfctl/v3/pkg/apis/apps/imagemirror/v1alpha1"
-	"github.com/kubeflow/kfctl/v3/pkg/kfapp/kustomize"
-	"github.com/kubeflow/kfctl/v3/pkg/utils"
+	mirrorv1alpha1 "github.com/opendatahub-io/opendatahub-operator/apis/apps/imagemirror/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/kfapp/kustomize"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/utils"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	pipeline "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1alpha1"

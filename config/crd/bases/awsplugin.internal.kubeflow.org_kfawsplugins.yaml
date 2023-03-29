@@ -1,0 +1,116 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.9.2
+  creationTimestamp: null
+  name: kfawsplugins.awsplugin.internal.kubeflow.org
+spec:
+  group: awsplugin.internal.kubeflow.org
+  names:
+    kind: KfAwsPlugin
+    listKind: KfAwsPluginList
+    plural: kfawsplugins
+    singular: kfawsplugin
+  scope: Namespaced
+  versions:
+  - name: awsplugin
+    schema:
+      openAPIV3Schema:
+        description: Placeholder for the plugin API.
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: AwsPlugin defines the extra data provided by the GCP Plugin
+              in KfDef
+            properties:
+              auth:
+                properties:
+                  basicAuth:
+                    properties:
+                      password:
+                        type: string
+                      username:
+                        type: string
+                    type: object
+                  cognito:
+                    properties:
+                      certArn:
+                        type: string
+                      cognitoAppClientId:
+                        type: string
+                      cognitoUserPoolArn:
+                        type: string
+                      cognitoUserPoolDomain:
+                        type: string
+                    type: object
+                  oidc:
+                    properties:
+                      certArn:
+                        type: string
+                      oAuthClientId:
+                        type: string
+                      oAuthClientSecret:
+                        type: string
+                      oidcAuthorizationEndpoint:
+                        type: string
+                      oidcIssuer:
+                        type: string
+                      oidcTokenEndpoint:
+                        type: string
+                      oidcUserInfoEndpoint:
+                        type: string
+                    type: object
+                type: object
+              enableNodeGroupLog:
+                type: boolean
+              enablePodIamPolicy:
+                type: boolean
+              managedCluster:
+                type: boolean
+              managedObjectStorage:
+                properties:
+                  bucket:
+                    type: string
+                  endpoint:
+                    type: string
+                  pathPrefix:
+                    type: string
+                  region:
+                    type: string
+                type: object
+              managedRelationDatabase:
+                properties:
+                  database:
+                    type: string
+                  host:
+                    type: string
+                  password:
+                    type: string
+                  port:
+                    type: integer
+                  username:
+                    type: string
+                type: object
+              region:
+                type: string
+              roles:
+                items:
+                  type: string
+                type: array
+            type: object
+        type: object
+    served: true
+    storage: true

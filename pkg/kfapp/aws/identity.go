@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"context"
 	"crypto/sha1"
 	"crypto/tls"
 	json "encoding/json"
@@ -8,7 +9,7 @@ import (
 	awssdk "github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/iam"
-	kfapis "github.com/kubeflow/kfctl/v3/pkg/apis"
+	kfapis "github.com/opendatahub-io/opendatahub-operator/apis"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/tidwall/gjson"
@@ -137,7 +138,7 @@ func (aws *Aws) createOrUpdateWebIdentityRole(oidcProviderArn, issuerUrl, roleNa
 
 // createOrUpdateK8sServiceAccount creates or updates k8s service account with annotation
 func (aws *Aws) createOrUpdateK8sServiceAccount(k8sClientset *clientset.Clientset, serviceAccountNamespace, serviceAccountName, iamRoleArn string) error {
-	existingSA, err := k8sClientset.CoreV1().ServiceAccounts(serviceAccountNamespace).Get(serviceAccountName, metav1.GetOptions{})
+	existingSA, err := k8sClientset.CoreV1().ServiceAccounts(serviceAccountNamespace).Get(context.TODO(), serviceAccountName, metav1.GetOptions{})
 	if err == nil {
 		log.Infof("Service account %v already exists", serviceAccountName)
 		if existingSA.Annotations == nil {
@@ -145,7 +146,7 @@ func (aws *Aws) createOrUpdateK8sServiceAccount(k8sClientset *clientset.Clientse
 		}
 
 		existingSA.Annotations[AWS_SERVICE_ACCOUNT_ANNOTATION_KEY] = iamRoleArn
-		_, err = k8sClientset.CoreV1().ServiceAccounts(serviceAccountNamespace).Update(existingSA)
+		_, err = k8sClientset.CoreV1().ServiceAccounts(serviceAccountNamespace).Update(context.TODO(), existingSA, metav1.UpdateOptions{})
 		if err != nil {
 			return &kfapis.KfError{
 				Code:    int(kfapis.INTERNAL_ERROR),
@@ -156,7 +157,7 @@ func (aws *Aws) createOrUpdateK8sServiceAccount(k8sClientset *clientset.Clientse
 	}
 
 	log.Infof("Can not find existing service account, creating %s/%s", serviceAccountNamespace, serviceAccountName)
-	_, err = k8sClientset.CoreV1().ServiceAccounts(serviceAccountNamespace).Create(
+	_, err = k8sClientset.CoreV1().ServiceAccounts(serviceAccountNamespace).Create(context.TODO(),
 		&v1.ServiceAccount{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      serviceAccountName,
@@ -165,8 +166,8 @@ func (aws *Aws) createOrUpdateK8sServiceAccount(k8sClientset *clientset.Clientse
 					AWS_SERVICE_ACCOUNT_ANNOTATION_KEY: iamRoleArn,
 				},
 			},
-		},
-	)
+		}, metav1.CreateOptions{})
+
 	if err == nil {
 		return nil
 	} else {

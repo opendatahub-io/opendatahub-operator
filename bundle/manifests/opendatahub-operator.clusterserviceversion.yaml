@@ -1,0 +1,192 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  annotations:
+    alm-examples: '[]'
+    capabilities: Basic Install
+    operators.operatorframework.io/builder: operator-sdk-v1.24.1
+    operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
+  name: opendatahub-operator.v0.0.1
+  namespace: placeholder
+spec:
+  apiservicedefinitions: {}
+  customresourcedefinitions:
+    owned:
+    - description: KfDef is the Schema for the kfdefs API
+      displayName: Kf Def
+      kind: KfDef
+      name: kfdefs.kfdef.apps.kubeflow.org
+      version: v1
+    - kind: OdhApplication
+      name: odhapplications.dashboard.opendatahub.io
+      version: v1
+    - kind: OdhDashboardConfig
+      name: odhdashboardconfigs.opendatahub.io
+      version: v1alpha
+    - kind: OdhDocument
+      name: odhdocuments.dashboard.opendatahub.io
+      version: v1
+    - kind: OdhQuickStart
+      name: odhquickstarts.console.openshift.io
+      version: v1
+  description: The Open Data Hub is a machine-learning-as-a-service platform built
+    on Red Hat's Kubernetes-based OpenShift® Container Platform. Open Data Hub integrates
+    multiple AI/ML open source components into one operator that can easily be downloaded
+    and installed by OpenShift users.
+  displayName: Open Data Hub Operator
+  icon:
+  - base64data: ""
+    mediatype: ""
+  install:
+    spec:
+      clusterPermissions:
+      - rules:
+        - apiGroups:
+          - '*'
+          resources:
+          - '*'
+          verbs:
+          - '*'
+        - apiGroups:
+          - authentication.k8s.io
+          resources:
+          - tokenreviews
+          verbs:
+          - create
+        - apiGroups:
+          - authorization.k8s.io
+          resources:
+          - subjectaccessreviews
+          verbs:
+          - create
+        serviceAccountName: opendatahub-operator-controller-manager
+      deployments:
+      - label:
+          control-plane: controller-manager
+        name: opendatahub-operator-controller-manager
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              control-plane: controller-manager
+          strategy: {}
+          template:
+            metadata:
+              annotations:
+                kubectl.kubernetes.io/default-container: manager
+              labels:
+                control-plane: controller-manager
+            spec:
+              containers:
+              - args:
+                - --secure-listen-address=0.0.0.0:8443
+                - --upstream=http://127.0.0.1:8080/
+                - --logtostderr=true
+                - --v=0
+                image: gcr.io/kubebuilder/kube-rbac-proxy:v0.13.0
+                name: kube-rbac-proxy
+                ports:
+                - containerPort: 8443
+                  name: https
+                  protocol: TCP
+                resources:
+                  limits:
+                    cpu: 500m
+                    memory: 128Mi
+                  requests:
+                    cpu: 5m
+                    memory: 64Mi
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  capabilities:
+                    drop:
+                    - ALL
+              - args:
+                - --health-probe-bind-address=:8081
+                - --metrics-bind-address=127.0.0.1:8080
+                - --leader-elect
+                command:
+                - /manager
+                image: quay.io/opendatahub/opendatahub-operator:dev-1.0.1
+                imagePullPolicy: Always
+                livenessProbe:
+                  httpGet:
+                    path: /healthz
+                    port: 8081
+                  initialDelaySeconds: 15
+                  periodSeconds: 20
+                name: manager
+                readinessProbe:
+                  httpGet:
+                    path: /readyz
+                    port: 8081
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+                resources: {}
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  capabilities:
+                    drop:
+                    - ALL
+              securityContext:
+                runAsNonRoot: true
+              serviceAccountName: opendatahub-operator-controller-manager
+              terminationGracePeriodSeconds: 10
+      permissions:
+      - rules:
+        - apiGroups:
+          - ""
+          resources:
+          - configmaps
+          verbs:
+          - get
+          - list
+          - watch
+          - create
+          - update
+          - patch
+          - delete
+        - apiGroups:
+          - coordination.k8s.io
+          resources:
+          - leases
+          verbs:
+          - get
+          - list
+          - watch
+          - create
+          - update
+          - patch
+          - delete
+        - apiGroups:
+          - ""
+          resources:
+          - events
+          verbs:
+          - create
+          - patch
+        serviceAccountName: opendatahub-operator-controller-manager
+    strategy: deployment
+  installModes:
+  - supported: false
+    type: OwnNamespace
+  - supported: false
+    type: SingleNamespace
+  - supported: false
+    type: MultiNamespace
+  - supported: true
+    type: AllNamespaces
+  keywords:
+  - '### Components'
+  links:
+  - name: Opendatahub Operator
+    url: https://opendatahub-operator.domain
+  maturity: alpha
+  provider:
+    name: Open Data Hub operator allows users to install and manage components of
+      the Open Data Hub. Users can mix and match tools from each project to fulfill
+      the needs of their use case. Each of the
+    url: projects share some components, but can be mostly seen as an extension of
+      each other to provide a complete solution for both novice and skilled enterprise
+      users.
+  version: 0.0.1

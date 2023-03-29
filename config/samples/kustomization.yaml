@@ -1,0 +1,8 @@
+## Append samples you want in your CSV to this file as resources ##
+resources:
+- kfdef.apps.kubeflow.org_v1_kfdef.yaml
+- kfconfig.apps.kubeflow.org_v1alpha1_kfconfig.yaml
+- kfupdate.apps.kubeflow.org_v1alpha1_kfupgrade.yaml
+- aws.plugins.kubeflow.org_v1alpha1_awsplugin.yaml
+- gcp.plugins.kubeflow.org_v1alpha1_gcpplugin.yaml
+#+kubebuilder:scaffold:manifestskustomizesamples
