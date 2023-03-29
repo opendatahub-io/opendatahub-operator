@@ -108,6 +108,7 @@ spec:
                 command:
                 - /manager
                 image: quay.io/opendatahub/opendatahub-operator:dev-1.0.1
+                imagePullPolicy: Always
                 livenessProbe:
                   httpGet:
                     path: /healthz
