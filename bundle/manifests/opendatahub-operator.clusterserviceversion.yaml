@@ -107,7 +107,7 @@ spec:
                 - --leader-elect
                 command:
                 - /manager
-                image: quay.io/opendatahub/opendatahub-operator:dev-1.0.1
+                image: quay.io/opendatahub/opendatahub-operator:dev-0.0.1
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:
@@ -181,7 +181,7 @@ spec:
   links:
   - name: Opendatahub Operator
     url: https://opendatahub-operator.domain
-  maturity: alpha
+  maturity: stable
   provider:
     name: Open Data Hub operator allows users to install and manage components of
       the Open Data Hub. Users can mix and match tools from each project to fulfill
