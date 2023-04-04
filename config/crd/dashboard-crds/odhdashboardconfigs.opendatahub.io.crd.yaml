@@ -43,6 +43,8 @@ spec:
                       type: boolean
                     disableProjects:
                       type: boolean
+                    disableServiceMesh:
+                      type: boolean
                     disableModelServing:
                       type: boolean
                 groupsConfig:
