@@ -41,7 +41,7 @@ spec:
   links:
   - name: Opendatahub Operator
     url: https://opendatahub-operator.domain
-  maturity: alpha
+  maturity: stable
   provider:
     name: Open Data Hub operator allows users to install and manage components of
       the Open Data Hub. Users can mix and match tools from each project to fulfill
