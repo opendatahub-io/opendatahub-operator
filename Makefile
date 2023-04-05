@@ -8,7 +8,7 @@ IMG ?= quay.io/opendatahub/opendatahub-operator:dev-$(VERSION)
 IMAGE_BUILDER ?= podman
 OPERATOR_NAMESPACE ?= opendatahub-operator-system
 CHANNELS="stable,rolling"
-DEFAULT_CHANNEL="stable"
+DEFAULT_CHANNEL="rolling"
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
 # To re-generate a bundle for other specific channels without changing the standard setup, you can:

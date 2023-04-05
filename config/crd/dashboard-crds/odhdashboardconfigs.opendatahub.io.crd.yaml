@@ -45,6 +45,8 @@ spec:
                       type: boolean
                     disableModelServing:
                       type: boolean
+                    modelMetricsNamespace:
+                      type: string
                 groupsConfig:
                   type: object
                   required:
