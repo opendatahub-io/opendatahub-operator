@@ -1,0 +1,35 @@
+name: Create ODH Operator Release
+on:
+  workflow_dispatch:
+    # Enable manual trigger for this action.
+    inputs:
+      version:
+        description: Bundle version.
+        required: true
+
+jobs:
+  generate-bundle:
+    runs-on: ubuntu-latest
+    name: Generate operator bundle
+    steps:
+      - uses: actions/checkout@v2
+      - name: olm-bundle action
+        id: bundle
+        uses: darkowlzz/olm-bundle@master
+        with:
+          manifestsDir: bundle/manifests
+          outputDir: releases/${{ github.event.inputs.version }}
+          channels: stable,rolling
+          defaultChannel: stable
+          package: opendatahub-operator
+      - name: bundle tree output
+        run: echo "${{ steps.bundle.outputs.tree }}"
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5.0.0
+        with:
+          token: ${{ secrets.GH_TOKEN }}
+          commit-message: Update ODH Operator version to ${{ github.event.inputs.version }}
+          committer: GitHub <noreply@github.com>
+          author: ${{ github.actor }} <${{ github.actor }}@users.noreply.github.com>
+          signoff: false
+          branch: release-${{ github.event.inputs.version }}
