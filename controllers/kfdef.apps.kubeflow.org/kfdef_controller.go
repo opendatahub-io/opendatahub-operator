@@ -273,6 +273,7 @@ func (r *KfDefReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&source.Kind{Type: &rbacv1.RoleBinding{}}, watchedHandler, builder.WithPredicates(ownedResourcePredicates)).
 		Watches(&source.Kind{Type: &rbacv1.ClusterRole{}}, watchedHandler, builder.WithPredicates(ownedResourcePredicates)).
 		Watches(&source.Kind{Type: &rbacv1.ClusterRoleBinding{}}, watchedHandler, builder.WithPredicates(ownedResourcePredicates)).
+		Watches(&source.Kind{Type: &ofapi.Subscription{}}, watchedHandler, builder.WithPredicates(ownedResourcePredicates)).
 		Complete(r)
 
 	if err != nil {
