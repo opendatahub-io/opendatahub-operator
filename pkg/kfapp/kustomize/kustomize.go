@@ -1559,8 +1559,11 @@ func GenerateYamlWithOwnerReference(resMap resmap.ResMap, instance *unstructured
 			},
 		}
 
-		if len(m.GetOwnerReferences()) == 0 {
+		// Do not add ownerreference to subscription, since it can be created in another namespace
+		// than the KfDef instance
+		if len(m.GetOwnerReferences()) == 0 && m.GetKind() != "Subscription" {
 			m.SetOwnerReferences(owner)
+			log.Infof("ownerReferences added for resource %v.%v", m.GetName(), m.GetNamespace())
 		}
 
 		out, err := yaml.Marshal(m)
@@ -1568,7 +1571,6 @@ func GenerateYamlWithOwnerReference(resMap resmap.ResMap, instance *unstructured
 			return nil, err
 		}
 
-		log.Infof("ownerReferences added for resource %v.%v", m.GetName(), m.GetNamespace())
 		if firstObj {
 			firstObj = false
 		} else {

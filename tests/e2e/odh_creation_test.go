@@ -32,9 +32,9 @@ func creationTestSuite(t *testing.T) {
 					})
 				}
 			})
-			t.Run("Validate KfDef Annotation is added", func(t *testing.T) {
-				err = testCtx.testKfDefAnnotation(kfContext)
-				require.NoError(t, err, "error testing KfDef annotation ")
+			t.Run("Validate KfDef OwnerReference is added", func(t *testing.T) {
+				err = testCtx.testKfDefOwnerReference(kfContext)
+				require.NoError(t, err, "error testing KfDef OwnerReference ")
 			})
 			t.Run("Validate Controller Reverts Updates", func(t *testing.T) {
 				err = testCtx.testUpdateManagedResource(kfContext)
@@ -120,8 +120,8 @@ func (tc *testContext) testKfDefApplications(kfmeta *metav1.ObjectMeta, appName 
 	return err
 }
 
-// This test verifies all resources of an application have the kfdef annotation added by the operator
-func (tc *testContext) testKfDefAnnotation(kfContext kfDefContext) error {
+// This test verifies all resources of an application have the kfdef ownerReference added by the operator
+func (tc *testContext) testKfDefOwnerReference(kfContext kfDefContext) error {
 	testapp := kfContext.kfSpec.Applications[0].Name
 
 	appDeployments, err := tc.kubeClient.AppsV1().Deployments(kfContext.kfObjectMeta.Namespace).List(context.TODO(), metav1.ListOptions{
@@ -130,12 +130,11 @@ func (tc *testContext) testKfDefAnnotation(kfContext kfDefContext) error {
 	if err != nil {
 		return fmt.Errorf("error list application deployments %v", err)
 	} else {
-		// test any one deployment for annotation
-		if len(appDeployments.Items) != 0 && appDeployments.Items[0].Annotations["kfctl.kubeflow.io/kfdef-instance"] !=
-			kfContext.kfObjectMeta.Name+"."+kfContext.kfObjectMeta.Namespace {
+		// test any one deployment for ownerreference
+		if len(appDeployments.Items) != 0 && appDeployments.Items[0].OwnerReferences[0].Kind != "KfDef" {
 
-			return fmt.Errorf("expected annotation not found. Got annotation: %v",
-				appDeployments.Items[0].Annotations["kfctl.kubeflow.io/kfdef-instance"])
+			return fmt.Errorf("expected ownerreference not found. Got ownereferrence: %v",
+				appDeployments.Items[0].OwnerReferences)
 		}
 	}
 
@@ -146,11 +145,10 @@ func (tc *testContext) testKfDefAnnotation(kfContext kfDefContext) error {
 		return fmt.Errorf("error list application secrets %v", err)
 	} else {
 		// test any one secret for annotation
-		if len(appSecrets.Items) != 0 && appSecrets.Items[0].Annotations["kfctl.kubeflow.io/kfdef-instance"] !=
-			kfContext.kfObjectMeta.Name+"."+kfContext.kfObjectMeta.Namespace {
+		if len(appSecrets.Items) != 0 && appSecrets.Items[0].OwnerReferences[0].Kind != "KfDef" {
 
-			return fmt.Errorf("expected annotation not found. Got annotation: %v",
-				appSecrets.Items[0].Annotations["kfctl.kubeflow.io/kfdef-instance"])
+			return fmt.Errorf("expected ownerreference not found. Got ownereferrence: %v",
+				appDeployments.Items[0].OwnerReferences)
 		}
 	}
 
@@ -158,14 +156,12 @@ func (tc *testContext) testKfDefAnnotation(kfContext kfDefContext) error {
 		LabelSelector: "app=" + testapp,
 	})
 	if err != nil {
-		return fmt.Errorf("error list application secrets %v", err)
+		return fmt.Errorf("error list application configmaps %v", err)
 	} else {
 		// test any one configmap for annotation
-		if len(appConfigMaps.Items) != 0 && appConfigMaps.Items[0].Annotations["kfctl.kubeflow.io/kfdef-instance"] !=
-			kfContext.kfObjectMeta.Name+"."+kfContext.kfObjectMeta.Namespace {
-
-			return fmt.Errorf("expected annotation not found. Got annotation: %v",
-				appConfigMaps.Items[0].Annotations["kfctl.kubeflow.io/kfdef-instance"])
+		if len(appConfigMaps.Items) != 0 && appConfigMaps.Items[0].OwnerReferences[0].Kind != "KfDef" {
+			return fmt.Errorf("expected ownerreference not found. Got ownereferrence: %v",
+				appDeployments.Items[0].OwnerReferences)
 		}
 	}
 

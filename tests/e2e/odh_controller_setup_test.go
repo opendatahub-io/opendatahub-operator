@@ -84,11 +84,12 @@ func NewTestContext() (*testContext, error) {
 	testKfDefContextList := []kfDefContext{setupCoreKfdef()}
 
 	return &testContext{
-		cfg:                     config,
-		kubeClient:              kc,
-		customClient:            custClient,
-		testNamespace:           kfdefTestNamespace,
-		resourceCreationTimeout: time.Minute * 2,
+		cfg:           config,
+		kubeClient:    kc,
+		customClient:  custClient,
+		testNamespace: kfdefTestNamespace,
+		// Set high timeout for CI environment
+		resourceCreationTimeout: time.Minute * 3,
 		resourceRetryInterval:   time.Second * 10,
 		ctx:                     context.TODO(),
 		testKfDefs:              testKfDefContextList,

@@ -27,6 +27,10 @@ spec:
                     type: boolean
                   disableInfo:
                     type: boolean
+                  disableModelServing:
+                    type: boolean
+                  disableProjects:
+                    type: boolean
                   disableSupport:
                     type: boolean
                   disableTracking:
@@ -35,6 +39,8 @@ spec:
                     type: boolean
                   enablement:
                     type: boolean
+                  modelMetricsNamespace:
+                    type: string
                 type: object
               groupsConfig:
                 properties:
@@ -46,10 +52,43 @@ spec:
                 - adminGroups
                 - allowedGroups
                 type: object
+              modelServerSizes:
+                items:
+                  properties:
+                    name:
+                      type: string
+                    resources:
+                      properties:
+                        limits:
+                          properties:
+                            cpu:
+                              type: string
+                            memory:
+                              type: string
+                          type: object
+                        requests:
+                          properties:
+                            cpu:
+                              type: string
+                            memory:
+                              type: string
+                          type: object
+                      type: object
+                  required:
+                  - name
+                  - resources
+                  type: object
+                type: array
               notebookController:
                 properties:
                   enabled:
                     type: boolean
+                  gpuSetting:
+                    description: Configure how the GPU field works on the Jupyter
+                      tile. One of 'autodetect' (default, fetches for information),
+                      'hidden' (remove the field) or a number-string (eg '5') to specify
+                      a hardcoded 0 to that number options
+                    type: string
                   notebookNamespace:
                     type: string
                   notebookTolerationSettings:
