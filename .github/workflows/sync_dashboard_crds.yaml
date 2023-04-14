@@ -1,0 +1,29 @@
+# Opens a PR in the opendatahub-operator repo when crds are updated in the dashboard repo
+name: Sync Dashboard CRDs
+
+# Await dispatch from dashboard repo that crds have been modified
+on:
+  workflow_dispatch
+
+jobs:
+  dashboard-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: '0'
+      - name: Gather files
+        shell: bash
+        run: |
+          cd ${{ github.workspace }}/config/crd/dashboard-crds
+          svn export --force https://github.com/opendatahub-io/odh-dashboard/branches/main/manifests/crd .
+          rm kustomization.yaml
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v4.2.3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: dashboard-sync
+          commit-message: Automated Change
+          title: Sync operator crds with dashboard crds
+          body: This is an automated pull request to sync the operator crds with dashboard crds.
