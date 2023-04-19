@@ -172,29 +172,49 @@ func (kustomize *kustomize) render(app kfconfig.Application) ([]byte, error) {
 
 	sortResourceByKind(resMap, utils.InstallOrder)
 
+	// check to set owner references for resources if installed through kubeflow operator
+	annotations := kustomize.kfDef.GetAnnotations()
+	setOperatorAnnotation := false
+	if setOperator, ok := annotations[strings.Join([]string{utils.KfDefAnnotation, utils.SetAnnotation}, "/")]; ok {
+		if setOperatorBool, err := strconv.ParseBool(setOperator); err == nil {
+			setOperatorAnnotation = setOperatorBool
+		}
+	}
+
 	//TODO this should be streamed
 	var data []byte
-	config, _ := rest.InClusterConfig()
-	dyn, err := dynamic.NewForConfig(config)
-	if err != nil {
-		return nil, &kfapisv3.KfError{
-			Code:    int(kfapisv3.INTERNAL_ERROR),
-			Message: fmt.Sprintf("failed to create dynamic client: %v", err),
+	if setOperatorAnnotation {
+		// retrieve the UID of the KfDef resource using dynamic client
+		config, _ := rest.InClusterConfig()
+		dyn, err := dynamic.NewForConfig(config)
+		if err != nil {
+			return nil, &kfapisv3.KfError{
+				Code:    int(kfapisv3.INTERNAL_ERROR),
+				Message: fmt.Sprintf("failed to create dynamic client: %v", err),
+			}
 		}
-	}
-	kfDefRes := schema.GroupVersionResource{Group: "kfdef.apps.kubeflow.org", Version: "v1", Resource: "kfdefs"}
-	instance, err := dyn.Resource(kfDefRes).Namespace(kustomize.kfDef.GetNamespace()).Get(context.TODO(), kustomize.kfDef.GetName(), metav1.GetOptions{})
-	if err != nil {
-		return nil, &kfapisv3.KfError{
-			Code:    int(kfapisv3.INTERNAL_ERROR),
-			Message: fmt.Sprintf("failed to get the KfDef object: %v", err),
+		kfDefRes := schema.GroupVersionResource{Group: "kfdef.apps.kubeflow.org", Version: "v1", Resource: "kfdefs"}
+		instance, err := dyn.Resource(kfDefRes).Namespace(kustomize.kfDef.GetNamespace()).Get(context.TODO(), kustomize.kfDef.GetName(), metav1.GetOptions{})
+		if err != nil {
+			return nil, &kfapisv3.KfError{
+				Code:    int(kfapisv3.INTERNAL_ERROR),
+				Message: fmt.Sprintf("failed to get the KfDef object: %v", err),
+			}
 		}
-	}
-	data, err = GenerateYamlWithOwnerReference(resMap, instance)
-	if err != nil {
-		return nil, &kfapisv3.KfError{
-			Code:    int(kfapisv3.INTERNAL_ERROR),
-			Message: fmt.Sprintf("can not encode component %v as yaml: %v", app.Name, err),
+		data, err = GenerateYamlWithOperatorAnnotation(resMap, instance)
+		if err != nil {
+			return nil, &kfapisv3.KfError{
+				Code:    int(kfapisv3.INTERNAL_ERROR),
+				Message: fmt.Sprintf("can not encode component %v as yaml: %v", app.Name, err),
+			}
+		}
+	} else {
+		data, err = resMap.AsYaml()
+		if err != nil {
+			return nil, &kfapisv3.KfError{
+				Code:    int(kfapisv3.INTERNAL_ERROR),
+				Message: fmt.Sprintf("can not encode component %v as yaml: %v", app.Name, err),
+			}
 		}
 	}
 	return data, nil
@@ -474,6 +494,15 @@ func (kustomize *kustomize) Delete(resources kftypesv3.ResourceEnum) error {
 	namespace := kustomize.kfDef.Namespace
 	ns, nsMissingErr := corev1client.Namespaces().Get(context.TODO(), namespace, metav1.GetOptions{})
 	if nsMissingErr == nil {
+		// if the func is called by the Kubeflow operator, validate it is installed through the operator
+		if byOperator {
+			anns := ns.GetAnnotations()
+			kfdefAnn := strings.Join([]string{utils.KfDefAnnotation, utils.KfDefInstance}, "/")
+			_, found := anns[kfdefAnn]
+			if !found {
+				return nil
+			}
+		}
 
 		log.Infof("Deleting namespace: %v", namespace)
 		nsErr := corev1client.Namespaces().Delete(context.TODO(), ns.Name, *metav1.NewDeleteOptions(int64(100)))
@@ -1529,58 +1558,4 @@ func updateResMap(localResource *resource.Resource, mapper *restmapper.DeferredD
 		}
 	}
 	return nil
-}
-
-// GenerateYamlWithOwnerReference adds ownerReferences to every resource
-// some code copied from ResMap.AsYaml() func
-func GenerateYamlWithOwnerReference(resMap resmap.ResMap, instance *unstructured.Unstructured) ([]byte, error) {
-	firstObj := true
-	var b []byte
-	buf := bytes.NewBuffer(b)
-	for _, res := range resMap.Resources() {
-		y, err := res.AsYAML()
-		if err != nil {
-			return nil, err
-		}
-		m := &unstructured.Unstructured{}
-		if err = yaml.Unmarshal(y, m); err != nil {
-			return nil, err
-		}
-		boolTrue := true
-		// Create OwnerReference object
-		owner := []metav1.OwnerReference{
-			{
-				Kind:               instance.GetKind(),
-				Name:               instance.GetName(),
-				APIVersion:         instance.GetAPIVersion(),
-				UID:                instance.GetUID(),
-				BlockOwnerDeletion: &boolTrue,
-				Controller:         &boolTrue,
-			},
-		}
-
-		// Do not add ownerreference to subscription, since it can be created in another namespace
-		// than the KfDef instance
-		if len(m.GetOwnerReferences()) == 0 && m.GetKind() != "Subscription" {
-			m.SetOwnerReferences(owner)
-			log.Infof("ownerReferences added for resource %v.%v", m.GetName(), m.GetNamespace())
-		}
-
-		out, err := yaml.Marshal(m)
-		if err != nil {
-			return nil, err
-		}
-
-		if firstObj {
-			firstObj = false
-		} else {
-			if _, err = buf.WriteString("---\n"); err != nil {
-				return nil, err
-			}
-		}
-		if _, err = buf.Write(out); err != nil {
-			return nil, err
-		}
-	}
-	return buf.Bytes(), nil
 }
