@@ -1,0 +1,27 @@
+# permissions for end users to view odhdeployments.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: odhdeployment-viewer-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: opendatahub-operator
+    app.kubernetes.io/part-of: opendatahub-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: odhdeployment-viewer-role
+rules:
+- apiGroups:
+  - odhdeployment.opendatahub.io.opendatahub.io
+  resources:
+  - odhdeployments
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - odhdeployment.opendatahub.io.opendatahub.io
+  resources:
+  - odhdeployments/status
+  verbs:
+  - get

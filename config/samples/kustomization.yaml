@@ -1,0 +1,5 @@
+## Append samples you want in your CSV to this file as resources ##
+resources:
+- odhdeployment.opendatahub.io_v1_odhdeployment.yaml
+- odhdeployment_v1_odhdeployment.yaml
+#+kubebuilder:scaffold:manifestskustomizesamples

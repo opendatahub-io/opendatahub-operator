@@ -1,0 +1,33 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: manager-role
+rules:
+- apiGroups:
+  - odhdeployment.opendatahub.io
+  resources:
+  - odhdeployments
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - odhdeployment.opendatahub.io
+  resources:
+  - odhdeployments/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - odhdeployment.opendatahub.io
+  resources:
+  - odhdeployments/status
+  verbs:
+  - get
+  - patch
+  - update

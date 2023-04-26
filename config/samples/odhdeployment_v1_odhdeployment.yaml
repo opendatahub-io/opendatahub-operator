@@ -1,0 +1,12 @@
+apiVersion: odhdeployment.opendatahub.io/v1
+kind: OdhDeployment
+metadata:
+  labels:
+    app.kubernetes.io/name: odhdeployment
+    app.kubernetes.io/instance: odhdeployment-sample
+    app.kubernetes.io/part-of: opendatahub-operator
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: opendatahub-operator
+  name: odhdeployment-sample
+spec:
+  # TODO(user): Add fields here
