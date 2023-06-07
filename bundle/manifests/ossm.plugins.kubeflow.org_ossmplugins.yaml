@@ -1,25 +1,22 @@
----
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.9.2
   creationTimestamp: null
-  name: plugins.kfdef.apps.kubeflow.org
+  name: ossmplugins.ossm.plugins.kubeflow.org
 spec:
-  group: kfdef.apps.kubeflow.org
+  group: ossm.plugins.kubeflow.org
   names:
-    kind: Plugin
-    listKind: PluginList
-    plural: plugins
-    singular: plugin
+    kind: OssmPlugin
+    listKind: OssmPluginList
+    plural: ossmplugins
+    singular: ossmplugin
   scope: Namespaced
   versions:
-  - name: v1
+  - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Plugin can be used to customize the generation and deployment
-          of Kubeflow
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -34,8 +31,23 @@ spec:
           metadata:
             type: object
           spec:
+            description: OssmPluginSpec defines the extra data provided by the Openshift
+              Service Mesh Plugin in KfDef spec.
+            properties:
+              namespace:
+                type: string
             type: object
-            x-kubernetes-preserve-unknown-fields: true
+          status:
+            description: GcpPluginStatus defines the observed state of GcpPlugin
+            type: object
         type: object
     served: true
     storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: null
+  storedVersions: null

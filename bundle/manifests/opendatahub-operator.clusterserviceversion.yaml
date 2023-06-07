@@ -212,7 +212,7 @@ metadata:
     createdAt: "2023-8-23T00:00:00Z"
     description: Open Data Hub Operator for deployment and management of Open Data
       Hub
-    operators.operatorframework.io/builder: operator-sdk-v1.24.1
+    operators.operatorframework.io/builder: operator-sdk-v1.28.1
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/opendatahub-io/opendatahub-operator
     support: Open Data Hub
@@ -248,6 +248,9 @@ spec:
       kind: OdhQuickStart
       name: odhquickstarts.console.openshift.io
       version: v1
+    - kind: OssmPlugin
+      name: ossmplugins.ossm.plugins.kubeflow.org
+      version: v1alpha1
   description: |
     The Open Data Hub is a machine-learning-as-a-service platform built on Red Hat's Kubernetes-based OpenShift® Container Platform. Open Data Hub integrates multiple AI/ML open source components into one operator that can easily be downloaded and installed by OpenShift users.
 

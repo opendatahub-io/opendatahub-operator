@@ -1653,7 +1653,8 @@ func (gcp *Gcp) getIstioNamespace() string {
 		log.Warnf("Assuming iap-ingress is installed in namespace: %v", DefaultIstioNamespace)
 		return DefaultIstioNamespace
 	}
-	if ingressNamespace, ok := gcp.kfDef.GetApplicationParameter("iap-ingress", "namespace"); ok {
+	if ingressNamespace, ok := gcp.kfDef.
+		GetApplicationParameter("iap-ingress", "namespace"); ok {
 		return ingressNamespace
 	}
 	if ingressNamespace, ok := gcp.kfDef.GetApplicationParameter("basic-auth-ingress", "namespace"); ok {

@@ -89,6 +89,8 @@ type Plugin struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
+	// +optional
+	// +kubebuilder:pruning:PreserveUnknownFields
 	Spec *runtime.RawExtension `json:"spec,omitempty"`
 }
 

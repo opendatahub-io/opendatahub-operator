@@ -87,6 +87,7 @@ spec:
                       type: object
                     spec:
                       type: object
+                      x-kubernetes-preserve-unknown-fields: true
                   type: object
                 type: array
               repos:

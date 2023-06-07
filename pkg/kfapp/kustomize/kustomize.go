@@ -1211,10 +1211,10 @@ func MergeKustomizations(kfDef *kfconfig.KfConfig, compDir string, overlayParams
 // It will parse a args structure that provides mixin or multiple overlays to be merged with the base kustomization file
 // for example
 //
-//   componentParams:
-//    tf-job-operator:
-//    - name: overlay
-//      value: namespaced-gangscheduled
+//	componentParams:
+//	 tf-job-operator:
+//	 - name: overlay
+//	   value: namespaced-gangscheduled
 //
 // TODO(https://github.com/kubeflow/kubeflow/issues/3491): As part of fixing the discovery
 // logic we should change the KfDef spec to provide a list of applications (not a map).
@@ -1487,8 +1487,8 @@ type plugin struct {
 	Spec             Spec `yaml:"spec"`
 }
 
-//nolint: golint
-//noinspection GoUnusedGlobalVariable
+// nolint: golint
+// noinspection GoUnusedGlobalVariable
 type UpdateResourcesPlugin plugin
 
 func (p *UpdateResourcesPlugin) Config(ldr ifc.Loader, rf *resmap.Factory, c []byte) error {
@@ -1499,11 +1499,15 @@ func (p *UpdateResourcesPlugin) Config(ldr ifc.Loader, rf *resmap.Factory, c []b
 
 func (p *UpdateResourcesPlugin) Transform(m resmap.ResMap) error {
 	log.Info("Inside the transform function")
-	inClusterconfig, err := rest.InClusterConfig()
+	k8sConfig, err := rest.InClusterConfig()
 	if err != nil {
-		return fmt.Errorf("error getting incluster config %v", err)
+		if errors.Is(err, rest.ErrNotInCluster) {
+			k8sConfig = kftypesv3.GetConfig()
+		} else {
+			return fmt.Errorf("error getting cluster config %v", err)
+		}
 	}
-	dc, err := discovery.NewDiscoveryClientForConfig(inClusterconfig)
+	dc, err := discovery.NewDiscoveryClientForConfig(k8sConfig)
 	if err != nil {
 		return fmt.Errorf("error getting discovery client config %v", err)
 
@@ -1511,7 +1515,7 @@ func (p *UpdateResourcesPlugin) Transform(m resmap.ResMap) error {
 	mapper := restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(dc))
 
 	// 2. Prepare the dynamic client
-	dyn, err := dynamic.NewForConfig(inClusterconfig)
+	dyn, err := dynamic.NewForConfig(k8sConfig)
 	if err != nil {
 
 		return fmt.Errorf("error getting dynamic config %v", err)

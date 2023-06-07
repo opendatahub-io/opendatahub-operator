@@ -18,6 +18,7 @@ package coordinator
 
 import (
 	"fmt"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/kfapp/ossm"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -61,6 +62,8 @@ func getPlatform(kfdef *kfconfig.KfConfig) (kftypesv3.Platform, error) {
 		return existing_arrikto.GetPlatform(kfdef)
 	case string(kftypesv3.AWS):
 		return aws.GetPlatform(kfdef)
+	case string(kftypesv3.OSSM):
+		return ossm.GetPlatform(kfdef)
 	default:
 		// TODO(https://github.com/kubeflow/kubeflow/issues/3520) Fix dynamic loading
 		// of platform plugins.
@@ -84,7 +87,6 @@ func (coord *coordinator) getPackageManagers(kfdef *kfconfig.KfConfig) *map[stri
 // getPackageManager will return an implementation of kftypesv3.KfApp that matches the packagemanager string
 // It looks for statically compiled-in implementations, otherwise it delegates to
 // kftypesv3.LoadKfApp which will try and dynamically load a .so
-//
 func getPackageManager(kfdef *kfconfig.KfConfig) (kftypesv3.KfApp, error) {
 	return kustomize.GetKfApp(kfdef), nil
 }
@@ -124,10 +126,9 @@ func usageReportWarn(applications []kfconfig.Application) {
 // repoVersionToRepoStruct converts the name of a repo and the old style version
 // into a new go-getter style syntax and a Repo spec
 //
-//   master
-//	 tag
-//	 pull/<ID>[/head]
-//
+//	  master
+//		 tag
+//		 pull/<ID>[/head]
 func repoVersionToUri(repo string, version string) string {
 	// Version can be
 	// --version master

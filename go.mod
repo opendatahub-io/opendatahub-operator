@@ -5,6 +5,7 @@ go 1.18
 require (
 	cloud.google.com/go/container v1.9.0
 	github.com/aws/aws-sdk-go v1.34.9
+	github.com/bitly/go-simplejson v0.5.0
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/deckarep/golang-set v1.8.0
 	github.com/ghodss/yaml v1.0.0
