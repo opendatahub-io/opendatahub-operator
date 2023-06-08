@@ -52,5 +52,3 @@ components/gcp-click-to-deploy/src/user_config/**
 **/reg_tmp
 scripts/gke/build/**
 
-# test data
-tests/data/test-data.tar.gz

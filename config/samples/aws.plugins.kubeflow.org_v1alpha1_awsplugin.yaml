@@ -1,6 +1,0 @@
-apiVersion: aws.plugins.kubeflow.org.my.domain/v1alpha1
-kind: AwsPlugin
-metadata:
-  name: awsplugin-sample
-spec:
-  # TODO(user): Add fields here

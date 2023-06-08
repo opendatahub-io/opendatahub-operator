@@ -1,6 +1,0 @@
-apiVersion: kfdef.apps.kubeflow.org.my.domain/v1
-kind: KfDef
-metadata:
-  name: kfdef-sample
-spec:
-  # TODO(user): Add fields here
