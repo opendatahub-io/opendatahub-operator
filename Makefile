@@ -4,11 +4,13 @@
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
 VERSION ?= 0.0.1
-IMG ?= quay.io/opendatahub/opendatahub-operator:dev-$(VERSION)
+# TOD0: Revert default image repo to `opendatahub` when merging to main branch
+IMG ?= quay.io/vhire/opendatahub-operator:dev-$(VERSION)
 IMAGE_BUILDER ?= podman
 OPERATOR_NAMESPACE ?= opendatahub-operator-system
 CHANNELS="stable,rolling"
 DEFAULT_CHANNEL="rolling"
+
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
 # To re-generate a bundle for other specific channels without changing the standard setup, you can:
@@ -32,8 +34,8 @@ BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 # This variable is used to construct full image tags for bundle and catalog images.
 #
 # For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
-# opendatahub-operator-bundle:$VERSION and opendatahub-operator-catalog:$VERSION.
-IMAGE_TAG_BASE ?= opendatahub-operator
+# opendatahub.io/opendatahub-operator-bundle:$VERSION and opendatahub.io/opendatahub-operator-catalog:$VERSION.
+IMAGE_TAG_BASE ?= opendatahub.io/opendatahub-operator
 
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
@@ -66,9 +68,6 @@ endif
 # Options are set to exit when a recipe line exits non-zero or a piped command fails.
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
-
-# E2E tests additional flags
-E2E_TEST_FLAGS = "--skip-deletion=false" # See README.md
 
 .PHONY: all
 all: build
@@ -115,7 +114,7 @@ test: manifests generate fmt vet envtest ## Run tests.
 ##@ Build
 
 .PHONY: build
-build: generate fmt vet update-test-data ## Build manager binary.
+build: generate fmt vet ## Build manager binary.
 	go build -o bin/manager main.go
 
 .PHONY: run
@@ -123,7 +122,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./main.go
 
 .PHONY: docker-build
-docker-build: manifests generate fmt vet update-test-data ## Build docker image with the manager.
+docker-build: test ## Build docker image with the manager.
 	${IMAGE_BUILDER} build -t ${IMG} .
 
 .PHONY: docker-push
@@ -141,22 +140,20 @@ endif
 
 .PHONY: install
 install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build config/crd | oc apply -f -
+	$(KUSTOMIZE) build config/crd | kubectl apply -f -
 
 .PHONY: uninstall
 uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUSTOMIZE) build config/crd | oc delete --ignore-not-found=$(ignore-not-found) -f -
+	$(KUSTOMIZE) build config/crd | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: deploy
 deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	sed -i'' -e 's,namespace: .*,namespace: '"${OPERATOR_NAMESPACE}"',' config/default/kustomization.yaml
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
-
-	$(KUSTOMIZE) build config/default | oc apply -f -
+	$(KUSTOMIZE) build config/default | kubectl apply -f -
 
 .PHONY: undeploy
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUSTOMIZE) build config/default | oc delete --ignore-not-found=$(ignore-not-found) -f -
+	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 ##@ Build Dependencies
 
@@ -194,7 +191,6 @@ $(ENVTEST): $(LOCALBIN)
 bundle: manifests kustomize ## Generate bundle manifests and metadata, then validate generated files.
 	operator-sdk generate kustomize manifests -q
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
-	sed -i'' -e 's,namespace: .*,namespace: '"${OPERATOR_NAMESPACE}"',' config/default/kustomization.yaml
 	$(KUSTOMIZE) build config/manifests | operator-sdk generate bundle $(BUNDLE_GEN_FLAGS)
 	operator-sdk bundle validate ./bundle
 
@@ -240,18 +236,9 @@ endif
 # https://github.com/operator-framework/community-operators/blob/7f1438c/docs/packaging-operator.md#updating-your-existing-operator
 .PHONY: catalog-build
 catalog-build: opm ## Build a catalog image.
-	$(OPM) index add --container-tool $(IMAGE_BUILDER) --mode semver --tag $(CATALOG_IMG) --bundles $(BUNDLE_IMGS) $(FROM_INDEX_OPT)
+	$(OPM) index add --container-tool ${IMAGE_BUILDER} --mode semver --tag $(CATALOG_IMG) --bundles $(BUNDLE_IMGS) $(FROM_INDEX_OPT)
 
 # Push the catalog image.
 .PHONY: catalog-push
 catalog-push: ## Push a catalog image.
 	$(MAKE) docker-push IMG=$(CATALOG_IMG)
-
-.PHONY: e2e-test
-e2e-test: ## Run e2e tests for the controller
-	go test ./tests/e2e/ -run ^TestOdhOperator -v --kf-namespace=${OPERATOR_NAMESPACE} ${E2E_TEST_FLAGS}
-
-
-.PHONY: update-test-data ## Any update to manifests should be reflected in the tar.gz file
-update-test-data:
-	tar -czvf ./tests/data/test-data.tar.gz ./tests/data/manifests
