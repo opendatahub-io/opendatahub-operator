@@ -1,0 +1,40 @@
+# Open Data Hub Operator Redsign
+
+## Motivation
+
+Following are the general goals for redesigning the existing ODH operator:
+- Create an opinionated deployment of ODH components.
+- Provide users / cluster administrators with ability to customize components
+- Provide ability to enable / disable individual components
+- Eliminate limitations of the existing operator:
+  - ODH uninstallation fails to clean up, leaving broken clusters that cannot be easily upgraded.
+  - ODH deployments, when they fail, provide no useful troubleshooting or debugging information.
+  - ODH cannot easily reconcile some change in live declared state.
+
+## Proposed Design
+
+To deploy ODH components seamlessly, ODH operator will watch two CRDS:
+- DSCInitialization
+- DataScienceCluster
+
+![Operator Rearchitecture](images/Operator%20Architecture.png)
+
+### DSCInitialization
+
+- This CR will be created by the ODH operator to perform initial setup that is common for all components
+- Some examples of initial setup include creating namespaces, network policies, SCCs, common configmaps and secrets.
+- This will be a singleton CR i.e 1 instance of this CR will always be present in the cluster.
+- DSCInitialization CR can be deleted to re-run initial setup without requiring re-build of the operator.
+
+
+### DataScienceCluster
+
+- This CR will be watched by the ODH operator to enable various data science components.
+- It is responsible for enabling support for CRDs like Notebooks, DataSciencePipelinesApplication, InferenceService etc based on the configuration
+- Initially only one instance of DataScienceCluster CR will be supported by the operator. A user can extend/update the CR to enable/disable components.
+- Detailed API fields are described in the CRD.
+
+## Examples
+
+- TBD
+
