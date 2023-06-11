@@ -1,0 +1,5 @@
+## Append samples you want in your CSV to this file as resources ##
+resources:
+- dscinitialization_v1alpha1_dscinitiatlization.yaml
+- dscinitialization_v1alpha1_dscinitialization.yaml
+#+kubebuilder:scaffold:manifestskustomizesamples
