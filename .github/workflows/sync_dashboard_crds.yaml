@@ -3,27 +3,35 @@ name: Sync Dashboard CRDs
 
 # Await dispatch from dashboard repo that crds have been modified
 on:
-  workflow_dispatch
+  workflow_dispatch:
+    inputs:
+      dashboard_label:
+        description: "Label from odh-dashboard to sync CRD from"
+      source_branch:
+        default: "master"
+        description: "branch of opendatahub-operator to checkout from"
 
 jobs:
   dashboard-sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Git checkout
+      - name: Checkout operator source code on master branch
         uses: actions/checkout@v3
         with:
-          fetch-depth: '0'
+          fetch-depth: '1'
+          ref: ${{ github.event.inputs.source_branch }}
       - name: Gather files
         shell: bash
         run: |
           cd ${{ github.workspace }}/config/crd/dashboard-crds
-          svn export --force https://github.com/opendatahub-io/odh-dashboard/branches/main/manifests/crd .
+          svn export --force "https://github.com/opendatahub-io/odh-dashboard/tags/${{ github.event.inputs.dashboard_label }}/manifests/crd" .
           rm kustomization.yaml
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v4.2.3
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          branch: dashboard-sync
-          commit-message: Automated Change
-          title: Sync operator crds with dashboard crds
+          commit-message: Automated Change by GitHub Action
+          delete-branch: true
+          title: Sync operator CRDs from odh-dashboard manifests CRDs
           body: This is an automated pull request to sync the operator crds with dashboard crds.
+          signoff: true
