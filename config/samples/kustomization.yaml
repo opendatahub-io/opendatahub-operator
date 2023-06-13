@@ -2,4 +2,5 @@
 resources:
 - dscinitialization_v1alpha1_dscinitiatlization.yaml
 - dscinitialization_v1alpha1_dscinitialization.yaml
+- datasciencecluster_v1alpha1_datasciencecluster.yaml
 #+kubebuilder:scaffold:manifestskustomizesamples

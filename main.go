@@ -31,7 +31,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	datascienceclusterv1alpha1 "github.com/opendatahub-io/opendatahub-operator/apis/datasciencecluster/v1alpha1"
 	dsci "github.com/opendatahub-io/opendatahub-operator/apis/dscinitialization/v1alpha1"
+	datascienceclustercontrollers "github.com/opendatahub-io/opendatahub-operator/controllers/datasciencecluster"
 	dscicontr "github.com/opendatahub-io/opendatahub-operator/controllers/dscinitialization"
 	//+kubebuilder:scaffold:imports
 )
@@ -45,6 +47,7 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	utilruntime.Must(dsci.AddToScheme(scheme))
+	utilruntime.Must(datascienceclusterv1alpha1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -101,6 +104,13 @@ func main() {
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DSCInitialization")
+		os.Exit(1)
+	}
+	if err = (&datascienceclustercontrollers.DataScienceClusterReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "DataScienceCluster")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder

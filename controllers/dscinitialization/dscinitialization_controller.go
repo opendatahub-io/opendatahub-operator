@@ -27,6 +27,7 @@ import (
 
 	"github.com/go-logr/logr"
 	dsci "github.com/opendatahub-io/opendatahub-operator/apis/dscinitialization/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/controllers/status"
 )
 
 // DSCInitializationReconciler reconciles a DSCInitialization object
@@ -64,11 +65,11 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	// Start reconciling
 	if instance.Status.Conditions == nil {
-		reason := dsci.ReconcileInit
+		reason := status.ReconcileInit
 		message := "Initializing DSCInitialization resource"
-		SetProgressingCondition(&instance.Status.Conditions, reason, message)
+		status.SetProgressingCondition(&instance.Status.Conditions, reason, message)
 
-		instance.Status.Phase = PhaseProgressing
+		instance.Status.Phase = status.PhaseProgressing
 		err = r.Client.Status().Update(ctx, instance)
 		if err != nil {
 			r.Log.Error(err, "Failed to add conditions to status of DSCInitialization resource.", "DSCInitialization", klog.KRef(instance.Namespace, instance.Name))
@@ -79,11 +80,11 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	// ADD RECONCILIATION LOGIC HERE
 
 	// Finish reconciling
-	reason := dsci.ReconcileCompleted
-	message := dsci.ReconcileCompletedMessage
-	SetCompleteCondition(&instance.Status.Conditions, reason, message)
+	reason := status.ReconcileCompleted
+	message := status.ReconcileCompletedMessage
+	status.SetCompleteCondition(&instance.Status.Conditions, reason, message)
 
-	instance.Status.Phase = PhaseReady
+	instance.Status.Phase = status.PhaseReady
 	err = r.Client.Status().Update(ctx, instance)
 
 	return ctrl.Result{}, nil
