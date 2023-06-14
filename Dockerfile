@@ -18,6 +18,7 @@ COPY controllers/ controllers/
 COPY pkg/ pkg/
 
 # Build
+ARG LOCAL_BUNDLE=odh-manifests.tar.gz
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o manager main.go
 
 
@@ -25,7 +26,7 @@ FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
 WORKDIR /
 COPY --from=builder /workspace/manager .
 COPY tests/data/test-data.tar.gz /opt/test-data/
-COPY odh-manifests.tar.gz /opt/manifests/
+COPY $LOCAL_BUNDLE /opt/manifests/
 USER 65532:65532  
 
 ENTRYPOINT ["/manager"]
