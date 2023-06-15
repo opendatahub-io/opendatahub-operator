@@ -2,8 +2,9 @@ package e2e
 
 import (
 	"context"
-	corev1 "k8s.io/api/core/v1"
 	"log"
+
+	corev1 "k8s.io/api/core/v1"
 
 	kfdefappskubefloworgv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -72,7 +73,7 @@ func setupCoreKfdef() kfDefContext {
 			Repos: []kfdefappskubefloworgv1.Repo{
 				{
 					Name: "manifests",
-					URI:  "file:///opt/manifests/odh-manifests.tar.gz",
+					URI:  "https://github.com/opendatahub-io/odh-manifests/tarball/master",
 				}, {
 					//Any update to manifests should be reflected in the tar.gz file by doing
 					//`make update-test-data`
