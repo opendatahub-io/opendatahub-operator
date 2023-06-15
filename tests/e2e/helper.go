@@ -2,9 +2,8 @@ package e2e
 
 import (
 	"context"
-	"log"
-
 	corev1 "k8s.io/api/core/v1"
+	"log"
 
 	kfdefappskubefloworgv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
 	appsv1 "k8s.io/api/apps/v1"
