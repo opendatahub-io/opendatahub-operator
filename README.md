@@ -2,11 +2,11 @@
 
 ## Introduction
 
-Open Data Hub operator is a downstream project of [kfctl](https://github.com/kubeflow/kfctl) operator that manages the 
-[KfDef](config/crd/bases/kfdef.apps.kubeflow.org_kfdefs.yaml) Custom Resource . This CR is used to deploy [Open Data Hub components](https://github.com/opendatahub-io/odh-manifests/blob/master/kfdef/odh-core.yaml) in the
-OpenShift cluster. 
+The Open Data Hub operator is responsible for managing the deployment and lifecycle of ODH Component manifests in [odh-manifests](https://github.com/opendatahub-io/odh-manifests) using the [KfDef](config/crd/bases/kfdef.apps.kubeflow.org_kfdefs.yaml) Custom Resource.  The focus is on supporting the [ODH Core](https://github.com/opendatahub-io/odh-manifests/blob/master/kfdef/odh-core.yaml) stack in the OpenShift clusters. 
 
-## Usage
+NOTE: The Open Data Hub operator was originally a downstream project of the [kfctl](https://github.com/kubeflow/kfctl) operator but has diverged from the original functionality after the Kubeflow community deprecated the use of `kfctl` for deployment in favor of [kustomize](https://kustomize.io/).  `kfctl` cli is no longer a maintained or supported tool for parsing or processing the `kfdef` custom resource.
+
+##Usage
 
 ### Installation
 
