@@ -38,7 +38,7 @@ metadata:
     capabilities: Basic Install
     operators.operatorframework.io/builder: operator-sdk-v1.24.1
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
-  name: opendatahub-operator.v0.0.3
+  name: opendatahub-operator.v0.0.1
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -247,4 +247,4 @@ spec:
   maturity: alpha
   provider:
     name: ODH
-  version: 0.0.3
+  version: 0.0.1
