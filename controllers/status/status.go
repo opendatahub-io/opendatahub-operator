@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package dscinitialization
+package status
 
 import (
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
@@ -21,7 +21,7 @@ import (
 )
 
 // These constants represent the overall Phase as used by .Status.Phase
-var (
+const (
 	// PhaseIgnored is used when a resource is ignored
 	PhaseIgnored = "Ignored"
 	// PhaseProgressing is used when SetProgressingCondition is called
@@ -41,6 +41,14 @@ var (
 	PhaseConnecting = "Connecting"
 	// PhaseOnboarding is used when consumer is Onboarding
 	PhaseOnboarding = "Onboarding"
+)
+
+// List of constants to show different different reconciliation messages and statuses.
+const (
+	ReconcileFailed           = "ReconcileFailed"
+	ReconcileInit             = "ReconcileInit"
+	ReconcileCompleted        = "ReconcileCompleted"
+	ReconcileCompletedMessage = "Reconcile completed successfully"
 )
 
 const (
