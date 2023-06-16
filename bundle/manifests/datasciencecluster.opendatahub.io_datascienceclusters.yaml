@@ -124,6 +124,10 @@ spec:
                         type: boolean
                     type: object
                 type: object
+              manifestsUri:
+                description: URI to the manifests repository. If not defined, defaults
+                  to the embedded manifests
+                type: string
               profile:
                 description: 'A profile sets the default components and configuration
                   to install for a given use case. The profile configuration can still

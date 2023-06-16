@@ -22,6 +22,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const (
+	ProfileFull      = "full"
+	ProfileServing   = "serving"
+	ProfileTraining  = "training"
+	ProfileWorkbench = "workbench"
+)
+
 // DataScienceClusterSpec defines the desired state of DataScienceCluster
 type DataScienceClusterSpec struct {
 	// A profile sets the default components and configuration to install for a given
@@ -32,6 +39,9 @@ type DataScienceClusterSpec struct {
 	// - training: only training components are installed
 	// - workbench: only workbench components are installed
 	Profile string `json:"profile,omitempty"`
+
+	// URI to the manifests repository. If not defined, defaults to the embedded manifests
+	ManifestsUri string `json:"manifestsUri,omitempty"`
 
 	// Components are used to override and fine tune specific component configurations.
 	Components Components `json:"components,omitempty"`
@@ -53,7 +63,7 @@ type Components struct {
 
 type Component struct {
 	// enables or disables the component. A disabled component will not be installed.
-	Enabled bool `json:"enabled,omitempty"`
+	Enabled *bool `json:"enabled,omitempty"`
 }
 
 type Dashboard struct {
