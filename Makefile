@@ -124,7 +124,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./main.go
 
 .PHONY: docker-build
-docker-build: test ## Build docker image with the manager.
+docker-build: test odh-manifests/version.py ## Build docker image with the manager.
 	${IMAGE_BUILDER} build -t ${IMG} .
 
 .PHONY: docker-push
@@ -137,9 +137,11 @@ image: docker-build docker-push ## Build and push docker image with the manager.
 MANIFESTS_TARBALL_URL="https://github.com/${MANIFEST_REPO}/odh-manifests/tarball/${MANIFEST_RELEASE}"
 
 .PHONY: get-manifests
-get-manifests: ## Get latest odh-manifests tarball
-	rm -r odh-manifests && mkdir odh-manifests
-	wget -c $(MANIFESTS_TARBALL_URL) -O - | tar -xv -C odh-manifests/ --strip-components 1
+get-manifests: odh-manifests/version.py ## Get latest odh-manifests tarball
+
+odh-manifests/version.py: ## Get latest odh-manifests tarball
+	rm -fr odh-manifests && mkdir odh-manifests
+	wget -c $(MANIFESTS_TARBALL_URL) -O - | tar -zxv -C odh-manifests/ --strip-components 1
 
 ##@ Deployment
 
@@ -251,3 +253,17 @@ catalog-build: opm ## Build a catalog image.
 .PHONY: catalog-push
 catalog-push: ## Push a catalog image.
 	$(MAKE) docker-push IMG=$(CATALOG_IMG)
+
+TOOLBOX_GOLANG_VERSION := 1.18.9
+TOOLBOX_OPERATOR_SDK_VERSION := 1.24.1
+
+# Generate a Toolbox container for locally testing changes easily
+.PHONY: toolbox
+toolbox: ## Create a toolbox instance with the proper Golang and Operator SDK versions
+	$(IMAGE_BUILDER) build \
+		--build-arg GOLANG_VERSION=$(TOOLBOX_GOLANG_VERSION) \
+		--build-arg OPERATOR_SDK_VERSION=$(TOOLBOX_OPERATOR_SDK_VERSION) \
+		-f toolbox.Dockerfile -t opendatahub-toolbox .
+	$(IMAGE_BUILDER) stop opendatahub-toolbox ||:
+	toolbox rm opendatahub-toolbox ||:
+	toolbox create opendatahub-toolbox --image localhost/opendatahub-toolbox:latest
