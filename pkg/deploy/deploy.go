@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	dsci "github.com/opendatahub-io/opendatahub-operator/apis/dscinitialization/v1alpha1"
 	"io"
 	"net/http"
 	"os"

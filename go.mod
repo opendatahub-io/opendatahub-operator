@@ -9,7 +9,6 @@ require (
 	github.com/openshift/addon-operator/apis v0.0.0-20230616140313-b6e2f736fdcd
 	github.com/openshift/api v3.9.0+incompatible
 	github.com/openshift/custom-resource-status v1.1.2
-	github.com/operator-framework/api v0.17.6
 	k8s.io/api v0.26.2
 	k8s.io/apiextensions-apiserver v0.26.1
 	k8s.io/apimachinery v0.26.2
@@ -21,7 +20,6 @@ require (
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.9.0 // indirect
