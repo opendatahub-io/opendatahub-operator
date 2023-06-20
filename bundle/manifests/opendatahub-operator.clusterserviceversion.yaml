@@ -5,6 +5,21 @@ metadata:
     alm-examples: |-
       [
         {
+          "apiVersion": "datasciencecluster.opendatahub.io/v1alpha1",
+          "kind": "DataScienceCluster",
+          "metadata": {
+            "labels": {
+              "app.kubernetes.io/created-by": "opendatahub-operator",
+              "app.kubernetes.io/instance": "datasciencecluster-sample",
+              "app.kubernetes.io/managed-by": "kustomize",
+              "app.kubernetes.io/name": "datasciencecluster",
+              "app.kubernetes.io/part-of": "opendatahub-operator"
+            },
+            "name": "datasciencecluster-sample"
+          },
+          "spec": null
+        },
+        {
           "apiVersion": "dscinitialization.opendatahub.io/v1alpha1",
           "kind": "DSCInitialization",
           "metadata": {
@@ -29,11 +44,28 @@ spec:
   apiservicedefinitions: {}
   customresourcedefinitions:
     owned:
+    - description: DataScienceCluster is the Schema for the datascienceclusters API
+      displayName: Data Science Cluster
+      kind: DataScienceCluster
+      name: datascienceclusters.datasciencecluster.opendatahub.io
+      version: v1alpha1
     - description: DSCInitialization is the Schema for the dscinitializations API
       displayName: DSC Initialization
       kind: DSCInitialization
       name: dscinitializations.dscinitialization.opendatahub.io
       version: v1alpha1
+    - kind: OdhApplication
+      name: odhapplications.dashboard.opendatahub.io
+      version: v1
+    - kind: OdhDashboardConfig
+      name: odhdashboardconfigs.opendatahub.io
+      version: v1alpha
+    - kind: OdhDocument
+      name: odhdocuments.dashboard.opendatahub.io
+      version: v1
+    - kind: OdhQuickStart
+      name: odhquickstarts.console.openshift.io
+      version: v1
   description: Primary operator provided by ODH to enable Data Science components
   displayName: Open Data Hub Operator
   icon:
@@ -71,6 +103,32 @@ spec:
           verbs:
           - get
           - list
+        - apiGroups:
+          - datasciencecluster.opendatahub.io
+          resources:
+          - datascienceclusters
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - datasciencecluster.opendatahub.io
+          resources:
+          - datascienceclusters/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - datasciencecluster.opendatahub.io
+          resources:
+          - datascienceclusters/status
+          verbs:
+          - get
+          - patch
+          - update
         - apiGroups:
           - dscinitialization.opendatahub.io
           resources:
@@ -182,7 +240,7 @@ spec:
                 - --leader-elect
                 command:
                 - /manager
-                image: quay.io/vhire/opendatahub-operator:dev-0.0.1
+                image: registry.jharmison.com/library/opendatahub-operator:dev
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:

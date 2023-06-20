@@ -4,6 +4,10 @@
 resources:
 - bases/dscinitialization.opendatahub.io_dscinitializations.yaml
 - bases/datasciencecluster.opendatahub.io_datascienceclusters.yaml
+- bases/odhapplications.dashboard.opendatahub.io_odhapplications.yaml
+- bases/odhdashboardconfigs.opendatahub.io_odhdashboardconfigs.yaml
+- bases/odhdocuments.dashboard.opendatahub.io_odhdocuments.yaml
+- bases/odhquickstarts.console.openshift.io_odhquickstarts.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 
 patchesStrategicMerge:
