@@ -52,3 +52,6 @@ components/gcp-click-to-deploy/src/user_config/**
 **/reg_tmp
 scripts/gke/build/**
 
+odh-manifests/
+
+cover.out
