@@ -38,6 +38,11 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/pkg/deploy"
 )
 
+const (
+	managedServiceApplicationNamespace = "redhat-ods-applications"
+	defaultManifestPath                = "/opt/odh-manifests"
+)
+
 // DSCInitializationReconciler reconciles a DSCInitialization object
 type DSCInitializationReconciler struct {
 	client.Client
@@ -109,6 +114,19 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			managedServiceApplicationNamespace, r.Scheme)
 		if err != nil {
 			return reconcile.Result{}, err
+		}
+	}
+
+	// If monitoring enabled
+	if instance.Spec.Monitoring.Enabled {
+		if r.isManagedService() {
+			err := r.configureManagedMonitoring(instance)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+
+		} else {
+			// TODO: ODH specific monitoring logic
 		}
 	}
 

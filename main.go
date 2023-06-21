@@ -65,6 +65,7 @@ func init() {
 	utilruntime.Must(apiextv1.AddToScheme(scheme))
 	utilruntime.Must(routev1.AddToScheme(scheme))
 	utilruntime.Must(appsv1.AddToScheme(scheme))
+
 	//+kubebuilder:scaffold:scheme
 }
 

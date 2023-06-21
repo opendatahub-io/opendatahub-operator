@@ -9,16 +9,23 @@ import (
 	"k8s.io/client-go/util/retry"
 	"reflect"
 	"strings"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	authv1 "k8s.io/api/rbac/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsci "github.com/opendatahub-io/opendatahub-operator/apis/dscinitialization/v1alpha1"
+)
+
+var (
+	resourceInterval = 10 * time.Second
+	resourceTimeout  = 1 * time.Minute
 )
 
 // createOdhNamespace creates a Namespace with given name and with ODH defaults. The defaults include:
@@ -56,6 +63,12 @@ func (r *DSCInitializationReconciler) createOdhNamespace(dscInit *dsci.DSCInitia
 			}
 		} else {
 			r.Log.Error(err, "Unable to fetch namespace", "name", name)
+			return err
+		}
+	} else if dscInit.Spec.Monitoring.Enabled {
+		err = r.Patch(ctx, foundNamespace, client.RawPatch(types.MergePatchType,
+			[]byte(`{"metadata": {"labels": {"openshift.io/cluster-monitoring": "true"}}}`)))
+		if err != nil {
 			return err
 		}
 	}
@@ -200,6 +213,28 @@ func CompareNotebookNetworkPolicies(np1 netv1.NetworkPolicy, np2 netv1.NetworkPo
 	// Two network policies will be equal if the labels and specs are identical
 	return reflect.DeepEqual(np1.ObjectMeta.Labels, np2.ObjectMeta.Labels) &&
 		reflect.DeepEqual(np1.Spec, np2.Spec)
+}
+
+func (r *DSCInitializationReconciler) waitForManagedSecret(name, namespace string) (*corev1.Secret, error) {
+	managedSecret := &corev1.Secret{}
+	err := wait.Poll(resourceInterval, resourceTimeout, func() (done bool, err error) {
+
+		err = r.Client.Get(context.TODO(), client.ObjectKey{
+			Namespace: namespace,
+			Name:      name,
+		}, managedSecret)
+
+		if err != nil {
+			if apierrs.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		} else {
+			return true, nil
+		}
+	})
+
+	return managedSecret, err
 }
 
 func GenerateRandomHex(length int) ([]byte, error) {
