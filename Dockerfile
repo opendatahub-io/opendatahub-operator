@@ -1,5 +1,6 @@
 # Build the manager binary
 ARG GOLANG_VERSION=1.18.4
+ARG LOCAL_BUNDLE=odh-manifests.tar.gz
 FROM registry.access.redhat.com/ubi8/go-toolset:$GOLANG_VERSION as builder
 ARG LOCAL_BUNDLE=odh-manifests.tar.gz
 
