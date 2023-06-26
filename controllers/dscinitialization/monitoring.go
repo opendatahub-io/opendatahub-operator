@@ -62,7 +62,7 @@ func configurePrometheus(dsciInit *dsci.DSCInitialization, r *DSCInitializationR
 	}
 
 	// Update prometheus manifests
-	err = ReplaceStringsInFile(defaultManifestPath+"/monitoring/prometheus/prometheus.yaml", map[string]string{
+	err = ReplaceStringsInFile(deploy.DefaultManifestPath+"/monitoring/prometheus/prometheus.yaml", map[string]string{
 		"<set_alertmanager_host>":    alertmanagerRoute.Spec.Host,
 		"<alertmanager_config_hash>": alertmanagerData,
 		"<prometheus_config_hash>":   prometheusData,
@@ -71,7 +71,7 @@ func configurePrometheus(dsciInit *dsci.DSCInitialization, r *DSCInitializationR
 		return err
 	}
 
-	err = ReplaceStringsInFile(defaultManifestPath+"/monitoring/prometheus/prometheus-viewer-rolebinding.yaml", map[string]string{
+	err = ReplaceStringsInFile(deploy.DefaultManifestPath+"/monitoring/prometheus/prometheus-viewer-rolebinding.yaml", map[string]string{
 		"<odh_monitoring_project>": dsciInit.Spec.Monitoring.Namespace,
 	})
 
@@ -81,7 +81,7 @@ func configurePrometheus(dsciInit *dsci.DSCInitialization, r *DSCInitializationR
 
 	// Deploy manifests
 	err = deploy.DeployManifestsFromPath(dsciInit, r.Client,
-		defaultManifestPath+"/monitoring/prometheus",
+		deploy.DefaultManifestPath+"/monitoring/prometheus",
 		dsciInit.Spec.Monitoring.Namespace, r.Scheme)
 	if err != nil {
 		return err
@@ -115,7 +115,7 @@ func configureAlertManager(dsciInit *dsci.DSCInitialization, r *DSCInitializatio
 
 	// Replace variables in alertmanager configmap
 	// TODO: Following variables can later be exposed by the API
-	err = ReplaceStringsInFile(defaultManifestPath+"/monitoring/alertmanager/monitoring-configs.yaml",
+	err = ReplaceStringsInFile(deploy.DefaultManifestPath+"/monitoring/alertmanager/monitoring-configs.yaml",
 		map[string]string{
 			"<snitch_url>":      b64.StdEncoding.EncodeToString(deadmansnitchSecret.Data["SNITCH_URL"]),
 			"<pagerduty_token>": b64.StdEncoding.EncodeToString(pagerDutySecret.Data["PAGERDUTY_KEY"]),
@@ -130,7 +130,7 @@ func configureAlertManager(dsciInit *dsci.DSCInitialization, r *DSCInitializatio
 	}
 
 	err = deploy.DeployManifestsFromPath(dsciInit, r.Client,
-		defaultManifestPath+"/monitoring/alertmanager",
+		deploy.DefaultManifestPath+"/monitoring/alertmanager",
 		dsciInit.Spec.Monitoring.Namespace, r.Scheme)
 	if err != nil {
 		return err
@@ -157,7 +157,7 @@ func configureBlackboxExporter(dsciInit *dsci.DSCInitialization, cli client.Clie
 
 	if apierrs.IsNotFound(err) || strings.Contains(consoleRoute.Spec.Host, "redhat.com") {
 		err := deploy.DeployManifestsFromPath(dsciInit, cli,
-			defaultManifestPath+"/monitoring/blackbox-exporter/internal",
+			deploy.DefaultManifestPath+"/monitoring/blackbox-exporter/internal",
 			dsciInit.Spec.Monitoring.Namespace, s)
 		if err != nil {
 			return err
@@ -165,7 +165,7 @@ func configureBlackboxExporter(dsciInit *dsci.DSCInitialization, cli client.Clie
 
 	} else {
 		err := deploy.DeployManifestsFromPath(dsciInit, cli,
-			defaultManifestPath+"/monitoring/blackbox-exporter/external",
+			deploy.DefaultManifestPath+"/monitoring/blackbox-exporter/external",
 			dsciInit.Spec.Monitoring.Namespace, s)
 		if err != nil {
 			return err

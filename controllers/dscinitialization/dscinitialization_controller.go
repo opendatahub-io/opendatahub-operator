@@ -19,6 +19,10 @@ package dscinitialization
 import (
 	"context"
 	"github.com/go-logr/logr"
+	"google.golang.org/appengine/log"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	addonv1alpha1 "github.com/openshift/addon-operator/apis/addons/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -38,19 +42,15 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/pkg/deploy"
 )
 
-const (
-	managedServiceApplicationNamespace = "redhat-ods-applications"
-	defaultManifestPath                = "/opt/odh-manifests"
-)
-
 // DSCInitializationReconciler reconciles a DSCInitialization object
 type DSCInitializationReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
-	Log    logr.Logger
+	Scheme                *runtime.Scheme
+	Log                   logr.Logger
+	ApplicationsNamespace string
 }
 
-//+kubebuilder:rbac:groups=*,resources=*,verbs=*
+// Reconcile +kubebuilder:rbac:groups=*,resources=*,verbs=*
 //+kubebuilder:rbac:groups=dscinitialization.opendatahub.io,resources=dscinitializations,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=dscinitialization.opendatahub.io,resources=dscinitializations/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=dscinitialization.opendatahub.io,resources=dscinitializations/finalizers,verbs=update
@@ -58,21 +58,12 @@ type DSCInitializationReconciler struct {
 //+kubebuilder:rbac:groups="",resources=services;namespaces;serviceaccounts;secrets;configmaps,verbs=get;list;watch;create;update;patch
 //+kubebuilder:rbac:groups=addons.managed.openshift.io,resources=addons,verbs=get;list
 //+kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=rolebindings;roles;clusterrolebindings;clusterroles,verbs=get;list;watch;create;update;patch
-
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the DSCInitialization object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.14.1/pkg/reconcile
 func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.Log.Info("Reconciling DSCInitialization.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
 
 	instance := &dsci.DSCInitialization{}
-	err := r.Client.Get(ctx, req.NamespacedName, instance)
+	// Only apply reconcile logic to 'default' instance of DataScienceInitialization
+	err := r.Client.Get(ctx, types.NamespacedName{Name: "default"}, instance)
 	if err != nil && apierrs.IsNotFound(err) {
 		return ctrl.Result{}, nil
 	} else if err != nil {
@@ -110,8 +101,8 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	if r.isManagedService() {
 		//Apply osd specific permissions
 		err = deploy.DeployManifestsFromPath(instance, r.Client,
-			defaultManifestPath+"/osd-configs",
-			managedServiceApplicationNamespace, r.Scheme)
+			deploy.DefaultManifestPath+"/osd-configs",
+			r.ApplicationsNamespace, r.Scheme)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
@@ -144,7 +135,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 // SetupWithManager sets up the controller with the Manager.
 func (r *DSCInitializationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&dsci.DSCInitialization{}).
+		For(&dsci.DSCInitialization{}, builder.WithPredicates(singletonPredicate)).
 		Owns(&corev1.Secret{}).
 		Owns(&corev1.ConfigMap{}).
 		Owns(&netv1.NetworkPolicy{}).
@@ -186,4 +177,29 @@ func (r *DSCInitializationReconciler) isManagedService() bool {
 		}
 		return true
 	}
+}
+
+var singletonPredicate = predicate.Funcs{
+	// Only reconcile on 'default' initialization
+	CreateFunc: func(e event.CreateEvent) bool {
+
+		if e.Object.GetObjectKind().GroupVersionKind().Kind == "DSCInitialization" {
+			if e.Object.GetName() == "default" {
+				return true
+			}
+		}
+		log.Warningf(context.TODO(), "Only single DSCInitialization can be created. Update existing %v DSCInitialization instance", "default")
+		return false
+	},
+
+	UpdateFunc: func(e event.UpdateEvent) bool {
+		// handle update events
+		if e.ObjectNew.GetObjectKind().GroupVersionKind().Kind == "DSCInitialization" {
+			if e.ObjectNew.GetName() == "default" {
+				return true
+			}
+		}
+		log.Warningf(context.TODO(), "Only single DSCInitialization can be updated. Update existing %v DSCInitialization instance ", "default")
+		return false
+	},
 }

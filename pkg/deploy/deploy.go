@@ -7,24 +7,28 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"net/http"
 	"os"
 	"path/filepath"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/yaml"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/kustomize/api/filesys"
 	"sigs.k8s.io/kustomize/api/krusty"
 	"sigs.k8s.io/kustomize/api/resmap"
 
 	"github.com/opendatahub-io/opendatahub-operator/pkg/plugins"
+)
+
+const (
+	DefaultManifestPath = "/opt/odh-manifests"
 )
 
 // DownloadManifests function performs following tasks:
@@ -46,15 +50,6 @@ func DownloadManifests(uri string) error {
 		}
 		reader = resp.Body
 
-		//else {
-		//	file, err := os.Open("/opt/manifests/odh-manifests.tar.gz")
-		//	if err != nil {
-		//		return err
-		//	}
-		//	defer file.Close()
-		//	reader = file
-		//}
-
 		// Create a new gzip reader
 		gzipReader, err := gzip.NewReader(reader)
 		if err != nil {
@@ -67,7 +62,7 @@ func DownloadManifests(uri string) error {
 
 		// Create manifest directory
 		mode := os.ModePerm
-		err = os.MkdirAll("/opt/odh-manifests", mode)
+		err = os.MkdirAll(DefaultManifestPath, mode)
 		if err != nil {
 			return fmt.Errorf("error creating manifests directory : %v", err)
 		}
@@ -83,7 +78,7 @@ func DownloadManifests(uri string) error {
 			manifestsPath := strings.Split(header.Name, "/")
 
 			// Determine the file or directory path to extract to
-			target := filepath.Join("/opt/odh-manifests", strings.Join(manifestsPath[1:], "/"))
+			target := filepath.Join(DefaultManifestPath, strings.Join(manifestsPath[1:], "/"))
 
 			if header.Typeflag == tar.TypeDir {
 				// Create directories

@@ -18,26 +18,29 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
-	addonv1alpha1 "github.com/openshift/addon-operator/apis/addons/v1alpha1"
-	corev1 "k8s.io/api/core/v1"
-	netv1 "k8s.io/api/networking/v1"
-	authv1 "k8s.io/api/rbac/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"os"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	addonv1alpha1 "github.com/openshift/addon-operator/apis/addons/v1alpha1"
 	routev1 "github.com/openshift/api/route/v1"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	netv1 "k8s.io/api/networking/v1"
+	authv1 "k8s.io/api/rbac/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	client2 "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
@@ -73,11 +76,17 @@ func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
+	var dscApplicationsNamespace string
+	var dscMonitoringNamespace string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
+	flag.StringVar(&dscApplicationsNamespace, "dsc-applications-namespace", "opendatahub", "The namespace where data science cluster"+
+		"applications will be deployed")
+	flag.StringVar(&dscMonitoringNamespace, "dsc-monitoring-namespace", "opendatahub", "The namespace where data science cluster"+
+		"monitoring stack will be deployed")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -111,9 +120,10 @@ func main() {
 	}
 
 	if err = (&dscicontr.DSCInitializationReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		Log:    ctrl.Log.WithName("controllers").WithName("DSCInitialization"),
+		Client:                mgr.GetClient(),
+		Scheme:                mgr.GetScheme(),
+		Log:                   ctrl.Log.WithName("controllers").WithName("DSCInitialization"),
+		ApplicationsNamespace: dscApplicationsNamespace,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DSCInitiatlization")
 		os.Exit(1)
@@ -132,13 +142,16 @@ func main() {
 	// Create OCSInitialization CR if it's not present
 	client := mgr.GetClient()
 	releaseDscInitialization := &dsci.DSCInitialization{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "DSCInitialization",
+			APIVersion: "dscinitialization.opendatahub.io/v1alpha1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "default",
 		},
 		Spec: dsci.DSCInitializationSpec{
 			Namespaces: []string{
-				"redhat-ods-applications",
-				"rhods-notebooks",
+				dscApplicationsNamespace,
 			},
 			Monitoring: dsci.Monitoring{
 				Enabled: false,
@@ -151,12 +164,16 @@ func main() {
 		setupLog.Info("created DscInitialization resource")
 	case errors.IsAlreadyExists(err):
 		// Update if already exists
-		err = client.Update(context.TODO(), releaseDscInitialization)
+		data, err := json.Marshal(releaseDscInitialization)
+		if err != nil {
+			setupLog.Error(err, "failed to get DscInitialization custom resource data")
+		}
+		err = client.Patch(context.TODO(), releaseDscInitialization, client2.RawPatch(types.ApplyPatchType, data), client2.FieldOwner("opendatahub-operator"))
 		if err != nil {
 			setupLog.Error(err, "failed to update DscInitialization custom resource")
 			os.Exit(1)
 		}
-		setupLog.Info("DscInitialization resource already exists")
+		setupLog.Info("DscInitialization resource already exists. Updating it.")
 	default:
 		setupLog.Error(err, "failed to create DscInitialization custom resource")
 		os.Exit(1)
