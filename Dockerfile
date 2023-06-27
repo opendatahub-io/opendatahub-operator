@@ -2,12 +2,14 @@
 ARG GOLANG_VERSION=1.18.9
 
 FROM registry.access.redhat.com/ubi8/go-toolset:$GOLANG_VERSION as builder
-ARG LOCAL_BUNDLE=odh-manifests
+
+ARG MANIFEST_REPO="https://github.com/opendatahub-io/odh-manifests"
+ARG MANIFEST_RELEASE="master"
+ARG MANIFEST_TARBALL="${MANIFEST_REPO}/tarball/${MANIFEST_RELEASE}"
 
 WORKDIR /workspace
 USER root
 # Copy the Go Modules manifests
-ENV BUNDLE=$LOCAL_BUNDLE
 COPY go.mod go.mod
 COPY go.sum go.sum
 # cache deps before building and copying source so that we don't need to re-download as much
@@ -20,8 +22,11 @@ COPY apis/ apis/
 COPY controllers/ controllers/
 COPY pkg/ pkg/
 
-# Add in the odh-manifests tarball
-COPY $BUNDLE/ /opt/odh-manifests/
+# Dowwload odh-manifests tarball
+ADD $MANIFEST_TARBALL ${MANIFEST_RELEASE}.tar.gz
+RUN mkdir /opt/odh-manifests/ && \
+    tar --strip-components=1 -xf ${MANIFEST_RELEASE}.tar.gz -C /opt/odh-manifests/ && \
+    rm -rf ${MANIFEST_RELEASE}.tar.gz
 
 # Build
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o manager main.go
