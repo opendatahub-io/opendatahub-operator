@@ -8,7 +8,18 @@ metadata:
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
-  customresourcedefinitions: {}
+  customresourcedefinitions:
+    owned:
+    - description: DataScienceCluster is the Schema for the datascienceclusters API
+      displayName: Data Science Cluster
+      kind: DataScienceCluster
+      name: datascienceclusters.datasciencecluster.opendatahub.io
+      version: v1alpha1
+    - description: DSCInitialization is the Schema for the dscinitializations API
+      displayName: DSC Initialization
+      kind: DSCInitialization
+      name: dscinitializations.dscinitialization.opendatahub.io
+      version: v1alpha1
   description: Primary operator provided by ODH to enable Data Science components
   displayName: Open Data Hub Operator
   icon:

@@ -22,7 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// List of constants to show different different reconciliation messages and statuses.
+// List of constants to show different  reconciliation messages and statuses.
 const (
 	ReconcileFailed           = "ReconcileFailed"
 	ReconcileInit             = "ReconcileInit"
@@ -32,11 +32,14 @@ const (
 
 // DSCInitializationSpec defines the desired state of DSCInitialization
 type DSCInitializationSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	Namespaces   []string   `json:"namespaces"`
+	Monitoring   Monitoring `json:"monitoring,omitempty"`
+	ManifestsUri string     `json:"manifestsUri,omitempty"`
+}
 
-	// Foo is an example field of DSCInitialization. Edit dscinitialization_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+type Monitoring struct {
+	Enabled   bool   `json:"enabled,omitempty"`
+	Namespace string `json:"namespace"`
 }
 
 // DSCInitializationStatus defines the observed state of DSCInitialization
@@ -59,6 +62,7 @@ type DSCInitializationStatus struct {
 }
 
 //+kubebuilder:object:root=true
+//+kubebuilder:resource:scope=Cluster
 //+kubebuilder:subresource:status
 //+kubebuilder:printcolumn:name="Age",type=date,JSONPath=.metadata.creationTimestamp
 //+kubebuilder:printcolumn:name="Phase",type=string,JSONPath=.status.phase,description="Current Phase"
