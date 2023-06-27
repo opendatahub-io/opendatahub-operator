@@ -6,9 +6,32 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - namespaces
+  - operatorgroups
+  - secrets
+  - serviceaccounts
+  - services
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - addons.managed.openshift.io
+  resources:
+  - addons
+  verbs:
+  - get
+  - list
+- apiGroups:
   - datasciencecluster.opendatahub.io
   resources:
-  - '*'
+  - datascienceclusters
   verbs:
   - create
   - delete
@@ -31,3 +54,17 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterrolebindings
+  - clusterroles
+  - rolebindings
+  - roles
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
