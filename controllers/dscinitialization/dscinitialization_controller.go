@@ -31,12 +31,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	addonv1alpha1 "github.com/openshift/addon-operator/apis/addons/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	authv1 "k8s.io/api/rbac/v1"
-	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -102,7 +100,15 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return reconcile.Result{}, err
 	}
 
-	if r.isManagedService() {
+	// Get platform
+	platform, err := deploy.GetPlatform(r.Client)
+	if err != nil {
+		return reconcile.Result{}, err
+
+	}
+
+	// Apply Rhods specific configs
+	if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
 		//Apply osd specific permissions
 		err = deploy.DeployManifestsFromPath(instance, r.Client,
 			deploy.DefaultManifestPath+"/osd-configs",
@@ -114,7 +120,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	// If monitoring enabled
 	if instance.Spec.Monitoring.Enabled {
-		if r.isManagedService() {
+		if platform == deploy.ManagedRhods {
 			err := r.configureManagedMonitoring(instance)
 			if err != nil {
 				return reconcile.Result{}, err
@@ -154,33 +160,6 @@ func (r *DSCInitializationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// this predicates prevents meaningless reconciliations from being triggered
 		WithEventFilter(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{})).
 		Complete(r)
-}
-
-func (r *DSCInitializationReconciler) isManagedService() bool {
-	addonCRD := &apiextv1.CustomResourceDefinition{}
-
-	err := r.Client.Get(context.TODO(), client.ObjectKey{Name: "addons.managed.openshift.io"}, addonCRD)
-	if err != nil {
-		if apierrs.IsNotFound(err) {
-			return false
-		} else {
-			r.Log.Info("error getting Addon CRD for managed service", "err", err.Error())
-			return false
-		}
-	} else {
-
-		expectedAddon := &addonv1alpha1.Addon{}
-		err := r.Client.Get(context.TODO(), client.ObjectKey{Name: "managed-odh"}, expectedAddon)
-		if err != nil {
-			if apierrs.IsNotFound(err) {
-				return false
-			} else {
-				r.Log.Info("error getting Addon instance for managed service", "err", err.Error())
-				return false
-			}
-		}
-		return true
-	}
 }
 
 var singletonPredicate = predicate.Funcs{
