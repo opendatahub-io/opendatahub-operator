@@ -130,8 +130,10 @@ func main() {
 	}
 
 	if err = (&datascienceclustercontrollers.DataScienceClusterReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:                mgr.GetClient(),
+		Scheme:                mgr.GetScheme(),
+		Log:                   ctrl.Log.WithName("controllers").WithName("DataScienceCluster"),
+		ApplicationsNamespace: dscApplicationsNamespace,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DataScienceCluster")
 		os.Exit(1)

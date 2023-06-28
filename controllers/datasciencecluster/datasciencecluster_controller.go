@@ -19,34 +19,30 @@ package datasciencecluster
 import (
 	"context"
 
-	operators "github.com/operator-framework/api/pkg/operators/v1"
 	corev1 "k8s.io/api/core/v1"
 	authv1 "k8s.io/api/rbac/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 
+	"github.com/go-logr/logr"
+	addonv1alpha1 "github.com/openshift/addon-operator/apis/addons/v1alpha1"
+	operators "github.com/operator-framework/api/pkg/operators/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/go-logr/logr"
 	dsc "github.com/opendatahub-io/opendatahub-operator/apis/datasciencecluster/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/pkg/deploy"
-	addonv1alpha1 "github.com/openshift/addon-operator/apis/addons/v1alpha1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/client-go/tools/record"
 )
 
 const (
-	finalizer                    = "dsc-finalizer.operator.opendatahub.io"
-	finalizerMaxRetries          = 10
-	odhGeneratedResourceLabel    = "opendatahub.io/generated-resource"
-	odhNamespace                 = "opendatahub"
-	operatorGroupName            = "opendatahub-og" // hardcoded for now, but we can make it configurable later
-	operatorGroupTargetNamespace = "opendatahub"    // hardcoded for now, but we can make it configurable later
+	finalizer                 = "dsc-finalizer.operator.opendatahub.io"
+	finalizerMaxRetries       = 10
+	odhGeneratedResourceLabel = "opendatahub.io/generated-resource" // hardcoded for now, but we can make it configurable later
 )
 
 // DataScienceClusterReconciler reconciles a DataScienceCluster object
@@ -55,7 +51,8 @@ type DataScienceClusterReconciler struct {
 	Scheme *runtime.Scheme
 	Log    logr.Logger
 	// Recorder to generate events
-	Recorder record.EventRecorder
+	Recorder              record.EventRecorder
+	ApplicationsNamespace string
 }
 
 //+kubebuilder:rbac:groups=datasciencecluster.opendatahub.io,resources=datascienceclusters,verbs=get;list;watch;create;update;patch;delete
@@ -140,53 +137,47 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	// RECONCILE LOGIC
 	plan := createReconciliatioPlan(instance)
 
-	// Extract latest Manifests
-	err = deploy.DownloadManifests(instance.Spec.ManifestsUri)
-	if err != nil {
-		return reconcile.Result{}, err
-	}
-
 	if r.isManagedService() {
 		//Apply osd specific permissions
 		err = deploy.DeployManifestsFromPath(instance, r.Client,
 			"/opt/odh-manifests/osd-configs",
-			"redhat-ods-applications", r.Scheme)
+			r.ApplicationsNamespace, r.Scheme)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
 	}
 
 	// reconcile components
-	if err = r.createOperatorGroup(ctx, instance, plan); err != nil {
-		r.Log.Error(err, "failed to reconcile DataScienceCluster (common resources)")
-		// 	r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DataScienceClusterReconcileError",
-		// 		"Failed to reconcile common resources on DataScienceCluster instance %s", instance.Name)
+	//if err = r.createOperatorGroup(ctx, instance, plan); err != nil {
+	//	r.Log.Error(err, "failed to reconcile DataScienceCluster (common resources)")
+	//	// 	r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DataScienceClusterReconcileError",
+	//	// 		"Failed to reconcile common resources on DataScienceCluster instance %s", instance.Name)
+	//	return ctrl.Result{}, err
+	//}
+	if err = reconcileDashboard(instance, r.Client, r.Scheme, plan); err != nil {
+		r.Log.Error(err, "failed to reconcile DataScienceCluster (dashboard resources)")
+		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DataScienceClusterReconcileError",
+			"Failed to reconcile dashboard resources on DataScienceCluster instance %s", instance.Name)
 		return ctrl.Result{}, err
 	}
-	// if err = reconcileDashboard(instance, r.Client, r.Scheme, plan); err != nil {
-	// 	r.Log.Error(err, "failed to reconcile DataScienceCluster (dashboard resources)")
-	// 	r.Recorder.Eventf(instance, v1.EventTypeWarning, "DataScienceClusterReconcileError",
-	// 		"Failed to reconcile dashboard resources on DataScienceCluster instance %s", instance.Name)
-	// 	return ctrl.Result{}, err
-	// }
-	// if err = reconcileTraining(instance, r.Client, r.Scheme, plan); err != nil {
-	// 	r.Log.Error(err, "failed to reconcile DataScienceCluster (training resources)")
-	// 	r.Recorder.Eventf(instance, v1.EventTypeWarning, "DataScienceClusterReconcileError",
-	// 		"Failed to reconcile training resources on DataScienceCluster instance %s", instance.Name)
-	// 	return ctrl.Result{}, err
-	// }
-	// if err = reconcileServing(instance, r.Client, r.Scheme, plan); err != nil {
-	// 	r.Log.Error(err, "failed to reconcile DataScienceCluster (serving resources)")
-	// 	r.Recorder.Eventf(instance, v1.EventTypeWarning, "DataScienceClusterReconcileError",
-	// 		"Failed to reconcile serving resources on DataScienceCluster instance %s", instance.Name)
-	// 	return ctrl.Result{}, err
-	// }
-	// if err = reconcileWorkbench(instance, r.Client, r.Scheme, plan); err != nil {
-	// 	r.Log.Error(err, "failed to reconcile DataScienceCluster (workbench resources)")
-	// 	r.Recorder.Eventf(instance, v1.EventTypeWarning, "DataScienceClusterReconcileError",
-	// 		"Failed to reconcile common workbench on DataScienceCluster instance %s", instance.Name)
-	// 	return ctrl.Result{}, err
-	// }
+	if err = reconcileTraining(instance, r.Client, r.Scheme, plan); err != nil {
+		r.Log.Error(err, "failed to reconcile DataScienceCluster (training resources)")
+		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DataScienceClusterReconcileError",
+			"Failed to reconcile training resources on DataScienceCluster instance %s", instance.Name)
+		return ctrl.Result{}, err
+	}
+	if err = reconcileServing(instance, r.Client, r.Scheme, plan); err != nil {
+		r.Log.Error(err, "failed to reconcile DataScienceCluster (serving resources)")
+		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DataScienceClusterReconcileError",
+			"Failed to reconcile serving resources on DataScienceCluster instance %s", instance.Name)
+		return ctrl.Result{}, err
+	}
+	if err = reconcileWorkbench(instance, r.Client, r.Scheme, plan); err != nil {
+		r.Log.Error(err, "failed to reconcile DataScienceCluster (workbench resources)")
+		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DataScienceClusterReconcileError",
+			"Failed to reconcile common workbench on DataScienceCluster instance %s", instance.Name)
+		return ctrl.Result{}, err
+	}
 
 	// finalize reconciliation
 	status.SetCompleteCondition(&instance.Status.Conditions, status.ReconcileCompleted, "DataScienceCluster resource reconciled successfully.")
@@ -291,67 +282,26 @@ func (r *DataScienceClusterReconciler) isManagedService() bool {
 	return true
 }
 
-func (r *DataScienceClusterReconciler) createOperatorGroup(ctx context.Context, instance *dsc.DataScienceCluster, plan *ReconciliationPlan) error {
-
-	// check if operator group already exists
-	r.Log.Info("Reconciling the OperatorGroup", "name", operatorGroupName)
-	foundOperatorGroup := &operators.OperatorGroup{}
-	err := r.Get(ctx, client.ObjectKey{Name: operatorGroupName}, foundOperatorGroup)
-	if err != nil {
-		if apierrs.IsNotFound(err) {
-			r.Log.Info("Creating OperatorGroup", "name", operatorGroupName)
-
-			operatorGroup := &operators.OperatorGroup{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      operatorGroupName,
-					Namespace: odhNamespace,
-					Labels: map[string]string{
-						odhGeneratedResourceLabel: "true",
-					},
-				},
-				Spec: operators.OperatorGroupSpec{
-					TargetNamespaces: []string{operatorGroupTargetNamespace},
-				},
-			}
-			// Set Controller reference
-			err = ctrl.SetControllerReference(instance, operatorGroup, r.Scheme)
-			if err != nil {
-				r.Log.Error(err, "Unable to add OwnerReference to the OperatorGroup", "name", operatorGroupName)
-				return err
-			}
-			err = r.Create(ctx, operatorGroup)
-			if err != nil && !apierrs.IsAlreadyExists(err) {
-				r.Log.Error(err, "Unable to create OperatorGroup", "name", operatorGroupName)
-				return err
-			}
-		} else {
-			r.Log.Error(err, "Unable to fetch OperatorGroup", "name", operatorGroupName)
-			return err
-		}
+func reconcileWorkbench(instance *dsc.DataScienceCluster, client client.Client, scheme *runtime.Scheme, plan *ReconciliationPlan) error {
+	// check if we need to apply the resources or if they already exist
+	if plan.Dashboard {
+		err := deploy.DeployManifestsFromPath(instance, client,
+			"/opt/odh-manifests/odh-dashboard/base",
+			"opendatahub",
+			scheme)
+		return err
 	}
 	return nil
 }
 
-// func reconcileWorkbench(instance *dsc.DataScienceCluster, client client.Client, scheme *runtime.Scheme, plan *ReconciliationPlan) error {
-// 	// check if we need to apply the resources or if they already exist
-// 	if plan.Dashboard {
-// 		err := deploy.DeployManifestsFromPath(instance, client,
-// 			"/opt/odh-manifests/odh-dashboard/base",
-// 			"opendatahub",
-// 			scheme)
-// 		return err
-// 	}
-// 	return nil
-// }
+func reconcileServing(instance *dsc.DataScienceCluster, client client.Client, scheme *runtime.Scheme, plan *ReconciliationPlan) error {
+	panic("unimplemented")
+}
 
-// func reconcileServing(instance *dsc.DataScienceCluster, client client.Client, scheme *runtime.Scheme, plan *ReconciliationPlan) error {
-// 	panic("unimplemented")
-// }
+func reconcileTraining(instance *dsc.DataScienceCluster, client client.Client, scheme *runtime.Scheme, plan *ReconciliationPlan) error {
+	panic("unimplemented")
+}
 
-// func reconcileTraining(instance *dsc.DataScienceCluster, client client.Client, scheme *runtime.Scheme, plan *ReconciliationPlan) error {
-// 	panic("unimplemented")
-// }
-
-// func reconcileDashboard(instance *dsc.DataScienceCluster, client client.Client, scheme *runtime.Scheme, plan *ReconciliationPlan) error {
-// 	panic("unimplemented")
-// }
+func reconcileDashboard(instance *dsc.DataScienceCluster, client client.Client, scheme *runtime.Scheme, plan *ReconciliationPlan) error {
+	panic("unimplemented")
+}

@@ -40,9 +40,6 @@ type DataScienceClusterSpec struct {
 	// - workbench: only workbench components are installed
 	Profile string `json:"profile,omitempty"`
 
-	// URI to the manifests repository. If not defined, defaults to the embedded manifests
-	ManifestsUri string `json:"manifestsUri,omitempty"`
-
 	// Components are used to override and fine tune specific component configurations.
 	Components Components `json:"components,omitempty"`
 }
@@ -75,8 +72,7 @@ type Training struct {
 }
 
 type Serving struct {
-	Component     `json:""`
-	TestConfigMap corev1.ConfigMap `json:"testConfigMap,omitempty"`
+	Component `json:""`
 }
 
 // DataScienceClusterStatus defines the observed state of DataScienceCluster
@@ -100,8 +96,6 @@ type DataScienceClusterStatus struct {
 
 type Workbenches struct {
 	Component `json:""`
-	// List of configurable controllers/deployments
-	ManagedImages bool `json:"managedImages,omitempty"`
 }
 
 //+kubebuilder:object:root=true
