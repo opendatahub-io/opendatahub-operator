@@ -3,9 +3,10 @@
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
+IMAGE_OWNER ?= opendatahub
 VERSION ?= 0.0.1
 # TOD0: Revert default image repo to `opendatahub` when merging to main branch
-IMG ?= quay.io/opendatahub/opendatahub-operator:dev-$(VERSION)
+IMG ?= quay.io/$(IMAGE_OWNER)/opendatahub-operator:dev-$(VERSION)
 IMAGE_BUILDER ?= podman
 OPERATOR_NAMESPACE ?= opendatahub-operator-system
 MANIFEST_REPO ?= opendatahub-io
@@ -127,16 +128,16 @@ run: manifests generate fmt vet ## Run a controller from your host.
 
 .PHONY: image-build
 image-build: test odh-manifests/version.py ## Build image with the manager.
-	${IMAGE_BUILDER} build -t ${IMG} .
+	$(IMAGE_BUILDER) build -f Dockerfiles/Dockerfile -t $(IMG) .
 
 .PHONY: image-push
 image-push: ## Push image with the manager.
-	${IMAGE_BUILDER} push ${IMG}
+	$(IMAGE_BUILDER) push $(IMG)
 
 .PHONY: image
 image: image-build image-push ## Build and push image with the manager.
 
-MANIFESTS_TARBALL_URL="https://github.com/${MANIFEST_REPO}/odh-manifests/tarball/${MANIFEST_RELEASE}"
+MANIFESTS_TARBALL_URL="https://github.com/$(IMAGE_BUILDER)/odh-manifests/tarball/$(MANIFEST_RELEASE)"
 
 .PHONY: get-manifests
 get-manifests: odh-manifests/version.py ## Get latest odh-manifests tarball
@@ -161,8 +162,8 @@ uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified 
 
 .PHONY: deploy
 deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
-	$(KUSTOMIZE) build config/default | kubectl apply -f -
+	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
+	$(KUSTOMIZE) build config/default | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
 
 .PHONY: undeploy
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
@@ -217,21 +218,26 @@ else
 OPERATOR_SDK = $(shell which operator-sdk)
 endif
 
-
+BUNDLE_DIR ?= "bundle"
 .PHONY: bundle
 bundle: manifests kustomize operator-sdk ## Generate bundle manifests and metadata, then validate generated files.
 	$(OPERATOR_SDK) generate kustomize manifests -q
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
 	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS)
-	$(OPERATOR_SDK) bundle validate ./bundle
+	$(OPERATOR_SDK) bundle validate ./$(BUNDLE_DIR)
+	mv bundle.Dockerfile Dockerfiles/
 
 .PHONY: bundle-build
 bundle-build: ## Build the bundle image.
-	${IMAGE_BUILDER} build -f bundle.Dockerfile -t $(BUNDLE_IMG) .
+	$(IMAGE_BUILDER) build -f Dockerfiles/bundle.Dockerfile -t $(BUNDLE_IMG) .
 
 .PHONY: bundle-push
 bundle-push: ## Push the bundle image.
 	$(MAKE) image-push IMG=$(BUNDLE_IMG)
+
+.PHONY: deploy-bundle
+deploy-bundle: operator-sdk bundle-build bundle-push
+	$(OPERATOR_SDK) run bundle $(BUNDLE_IMG)
 
 .PHONY: opm
 OPM = ./bin/opm
@@ -267,7 +273,7 @@ endif
 # https://github.com/operator-framework/community-operators/blob/7f1438c/docs/packaging-operator.md#updating-your-existing-operator
 .PHONY: catalog-build
 catalog-build: opm ## Build a catalog image.
-	$(OPM) index add --container-tool ${IMAGE_BUILDER} --mode semver --tag $(CATALOG_IMG) --bundles $(BUNDLE_IMGS) $(FROM_INDEX_OPT)
+	$(OPM) index add --container-tool $(IMAGE_BUILDER) --mode semver --tag $(CATALOG_IMG) --bundles $(BUNDLE_IMGS) $(FROM_INDEX_OPT)
 
 # Push the catalog image.
 .PHONY: catalog-push
@@ -283,11 +289,7 @@ toolbox: ## Create a toolbox instance with the proper Golang and Operator SDK ve
 	$(IMAGE_BUILDER) build \
 		--build-arg GOLANG_VERSION=$(TOOLBOX_GOLANG_VERSION) \
 		--build-arg OPERATOR_SDK_VERSION=$(TOOLBOX_OPERATOR_SDK_VERSION) \
-		-f toolbox.Dockerfile -t opendatahub-toolbox .
+		-f Dockerfiles/toolbox.Dockerfile -t opendatahub-toolbox .
 	$(IMAGE_BUILDER) stop opendatahub-toolbox ||:
 	toolbox rm opendatahub-toolbox ||:
 	toolbox create opendatahub-toolbox --image localhost/opendatahub-toolbox:latest
-
-.PHONY: deploy-bundle
-deploy-bundle: operator-sdk bundle-build bundle-push
-	$(OPERATOR_SDK) run bundle $(BUNDLE_IMG)
