@@ -21,6 +21,7 @@ COPY pkg/ pkg/
 
 # Add the local bundle
 ADD https://github.com/opendatahub-io/odh-manifests/tarball/master $LOCAL_BUNDLE
+RUN chmod g+r $LOCAL_BUNDLE
 # Build
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o manager main.go
 
