@@ -40,9 +40,9 @@ spec:
                     properties:
                       image:
                         type: string
-                      name:
+                      label:
                         type: string
-                      topic:
+                      name:
                         type: string
                     type: object
                   name:

@@ -41,7 +41,7 @@ type AuthSpec struct {
 
 type AuthorinoSpec struct {
 	Name  string `json:"name,omitempty" default:"authorino-mesh-authz-provider"`
-	Topic string `json:"topic,omitempty" default:"authorino/topic=odh"`
+	Label string `json:"label,omitempty" default:"authorino/topic=odh"`
 	Image string `json:"image,omitempty" default:"quay.io/kuadrant/authorino:v0.13.0"`
 }
 

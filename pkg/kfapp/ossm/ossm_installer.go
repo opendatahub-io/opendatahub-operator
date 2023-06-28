@@ -121,6 +121,7 @@ func (ossm *Ossm) createMeshRefConfigMap() error {
 		Data: map[string]string{
 			"CONTROL_PLANE_NAME": pluginSpec.Mesh.Name,
 			"MESH_NAMESPACE":     pluginSpec.Mesh.Namespace,
+			"AUTHORINO_LABEL":    pluginSpec.Auth.Authorino.Label,
 		},
 	}
 

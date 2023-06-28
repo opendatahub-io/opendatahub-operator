@@ -42,7 +42,7 @@ type AuthSpec struct {
 
 type AuthorinoSpec struct {
 	Name  string `json:"name,omitempty"`
-	Topic string `json:"topic,omitempty"`
+	Label string `json:"label,omitempty"`
 	Image string `json:"image,omitempty"`
 }
 
