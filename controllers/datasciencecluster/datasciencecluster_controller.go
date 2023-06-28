@@ -236,18 +236,40 @@ func createReconciliatioPlan(instance *dsc.DataScienceCluster) *ReconciliationPl
 
 	switch profile {
 	case dsc.ProfileServing:
+		// serving is enabled by default, unless explicitly overriden
 		plan.Serving = instance.Spec.Components.Serving.Enabled == nil || *instance.Spec.Components.Serving.Enabled
+		// training is disabled by default, unless explicitly overriden
+		plan.Training = instance.Spec.Components.Training.Enabled != nil && *instance.Spec.Components.Training.Enabled
+		// workbenches is disabled by default, unless explicitly overriden
+		plan.Workbenches = instance.Spec.Components.Workbenches.Enabled != nil && *instance.Spec.Components.Workbenches.Enabled
+		// dashboard is enabled by default, unless explicitly overriden
 		plan.Dashboard = instance.Spec.Components.Dashboard.Enabled == nil || *instance.Spec.Components.Dashboard.Enabled
 	case dsc.ProfileTraining:
+		// serving is disabled by default, unless explicitly overriden
+		plan.Serving = instance.Spec.Components.Serving.Enabled != nil && *instance.Spec.Components.Serving.Enabled
+		// training is enabled by default, unless explicitly overriden
 		plan.Training = instance.Spec.Components.Training.Enabled == nil || *instance.Spec.Components.Training.Enabled
+		// workbenches is disabled by default, unless explicitly overriden
+		plan.Workbenches = instance.Spec.Components.Workbenches.Enabled != nil && *instance.Spec.Components.Workbenches.Enabled
+		// dashboard is enabled by default, unless explicitly overriden
 		plan.Dashboard = instance.Spec.Components.Dashboard.Enabled == nil || *instance.Spec.Components.Dashboard.Enabled
 	case dsc.ProfileWorkbench:
+		// serving is disabled by default, unless explicitly overriden
+		plan.Serving = instance.Spec.Components.Serving.Enabled != nil && *instance.Spec.Components.Serving.Enabled
+		// training is disabled by default, unless explicitly overriden
+		plan.Training = instance.Spec.Components.Training.Enabled != nil && *instance.Spec.Components.Training.Enabled
+		// workbenches is enabled by default, unless explicitly overriden
 		plan.Workbenches = instance.Spec.Components.Workbenches.Enabled == nil || *instance.Spec.Components.Workbenches.Enabled
+		// dashboard is enabled by default, unless explicitly overriden
 		plan.Dashboard = instance.Spec.Components.Dashboard.Enabled == nil || *instance.Spec.Components.Dashboard.Enabled
 	case dsc.ProfileFull:
+		// serving is enabled by default, unless explicitly overriden
 		plan.Serving = instance.Spec.Components.Serving.Enabled == nil || *instance.Spec.Components.Serving.Enabled
+		// training is enabled by default, unless explicitly overriden
 		plan.Training = instance.Spec.Components.Training.Enabled == nil || *instance.Spec.Components.Training.Enabled
+		// workbenches is enabled by default, unless explicitly overriden
 		plan.Workbenches = instance.Spec.Components.Workbenches.Enabled == nil || *instance.Spec.Components.Workbenches.Enabled
+		// dashboard is enabled by default, unless explicitly overriden
 		plan.Dashboard = instance.Spec.Components.Dashboard.Enabled == nil || *instance.Spec.Components.Dashboard.Enabled
 	}
 
