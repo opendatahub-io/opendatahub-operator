@@ -52,6 +52,11 @@ type DSCInitializationReconciler struct {
 }
 
 // +kubebuilder:rbac:groups=*,resources=*,verbs=*
+<<<<<<< HEAD
+=======
+
+// Reconcile contains controller logic specific to DSCInitialization instance updates
+>>>>>>> 9f4e5b2 (Update manager role)
 // +kubebuilder:rbac:groups=dscinitialization.opendatahub.io,resources=dscinitializations,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=dscinitialization.opendatahub.io,resources=dscinitializations/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=dscinitialization.opendatahub.io,resources=dscinitializations/finalizers,verbs=update
