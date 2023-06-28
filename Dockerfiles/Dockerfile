@@ -23,25 +23,23 @@ COPY controllers/ controllers/
 COPY pkg/ pkg/
 COPY components/ components/
 
-# Dowwload odh-manifests tarball
-ADD $MANIFEST_TARBALL ${MANIFEST_RELEASE}.tar.gz
+# Download odh-manifests tarball
+ADD ${MANIFEST_TARBALL} ${MANIFEST_RELEASE}.tar.gz
 RUN mkdir /opt/odh-manifests/ && \
-    tar --strip-components=1 -xf ${MANIFEST_RELEASE}.tar.gz -C /opt/odh-manifests/ && \
+    tar --exclude={.*,*.md,LICENSE,Makefile,Dockerfile,version.py,OWNERS,tests,ai-library} --strip-components=1 -xf ${MANIFEST_RELEASE}.tar.gz -C /opt/odh-manifests/ && \
     rm -rf ${MANIFEST_RELEASE}.tar.gz
 # COPY odh-manifests/ /opt/odh-manifests/
 
 # Build
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o manager main.go
 
-
 FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
 WORKDIR /
 COPY --from=builder /workspace/manager .
-COPY --from=builder /opt/odh-manifests /opt/odh-manifests
-
+COPY --chown=1001:0 --from=builder /opt/odh-manifests /opt/odh-manifests
+# Recursive change all files
 RUN chown -R 1001:0 /opt/odh-manifests &&\
     chmod -R a+r /opt/odh-manifests
-
 USER 1001
 
 ENTRYPOINT ["/manager"]
