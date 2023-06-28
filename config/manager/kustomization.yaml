@@ -13,4 +13,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: quay.io/maistra-dev/opendatahub-operator
-  newTag: ossm_plugin
+  newTag: v0.0.3

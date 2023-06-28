@@ -37,6 +37,8 @@ spec:
                     type: boolean
                   disableProjects:
                     type: boolean
+                  disableServiceMesh:
+                    type: boolean
                   disableSupport:
                     type: boolean
                   disableTracking:
