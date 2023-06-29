@@ -54,3 +54,5 @@ scripts/gke/build/**
 
 # test data
 tests/data/test-data.tar.gz
+# Ignore downloaded odh manifests
+odh-manifests.tar.gz

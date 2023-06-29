@@ -140,7 +140,7 @@ metadata:
             "repos": [
               {
                 "name": "manifests",
-                "uri": "https://github.com/opendatahub-io/odh-manifests/tarball/v1.6"
+                "uri": "file:///opt/manifests/odh-manifests.tar.gz"
               }
             ]
           }

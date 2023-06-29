@@ -255,3 +255,4 @@ e2e-test: ## Run e2e tests for the controller
 .PHONY: update-test-data ## Any update to manifests should be reflected in the tar.gz file
 update-test-data:
 	tar -czvf ./tests/data/test-data.tar.gz ./tests/data/manifests
+	
