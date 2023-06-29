@@ -45,8 +45,14 @@ spec:
                       type: boolean
                     disableModelServing:
                       type: boolean
+                    disableProjectSharing:
+                      type: boolean
+                    disableCustomServingRuntimes:
+                      type: boolean
                     modelMetricsNamespace:
                       type: string
+                    disablePipelines:
+                      type: boolean
                 groupsConfig:
                   type: object
                   required:
@@ -128,9 +134,13 @@ spec:
                     notebookTolerationSettings:
                       type: object
                       properties:
-                        enabled:
-                          type: boolean
-                        key:
-                          type: string
+                          enabled:
+                            type: boolean
+                          key:
+                            type: string
                     storageClassName:
                       type: string
+                templateOrder:
+                  type: array
+                  items:
+                    type: string
