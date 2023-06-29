@@ -18,6 +18,7 @@ package datasciencecluster
 
 import (
 	"context"
+	"github.com/opendatahub-io/opendatahub-operator/components/profiles"
 
 	corev1 "k8s.io/api/core/v1"
 	authv1 "k8s.io/api/rbac/v1"
@@ -135,7 +136,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	// RECONCILE LOGIC
-	plan := createReconciliatioPlan(instance)
+	plan := profiles.CreateReconciliationPlan(instance)
 
 	if r.isManagedService() {
 		//Apply osd specific permissions
@@ -147,13 +148,6 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 	}
 
-	// reconcile components
-	//if err = r.createOperatorGroup(ctx, instance, plan); err != nil {
-	//	r.Log.Error(err, "failed to reconcile DataScienceCluster (common resources)")
-	//	// 	r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DataScienceClusterReconcileError",
-	//	// 		"Failed to reconcile common resources on DataScienceCluster instance %s", instance.Name)
-	//	return ctrl.Result{}, err
-	//}
 	if err = reconcileDashboard(instance, r.Client, r.Scheme, plan); err != nil {
 		r.Log.Error(err, "failed to reconcile DataScienceCluster (dashboard resources)")
 		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DataScienceClusterReconcileError",
@@ -210,63 +204,6 @@ func (r *DataScienceClusterReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		Complete(r)
 }
 
-type ReconciliationPlan struct {
-	Serving     bool
-	Training    bool
-	Workbenches bool
-	Dashboard   bool
-}
-
-func createReconciliatioPlan(instance *dsc.DataScienceCluster) *ReconciliationPlan {
-	plan := &ReconciliationPlan{}
-
-	profile := instance.Spec.Profile
-	if profile == "" {
-		profile = dsc.ProfileFull
-	}
-
-	switch profile {
-	case dsc.ProfileServing:
-		// serving is enabled by default, unless explicitly overriden
-		plan.Serving = instance.Spec.Components.Serving.Enabled == nil || *instance.Spec.Components.Serving.Enabled
-		// training is disabled by default, unless explicitly overriden
-		plan.Training = instance.Spec.Components.Training.Enabled != nil && *instance.Spec.Components.Training.Enabled
-		// workbenches is disabled by default, unless explicitly overriden
-		plan.Workbenches = instance.Spec.Components.Workbenches.Enabled != nil && *instance.Spec.Components.Workbenches.Enabled
-		// dashboard is enabled by default, unless explicitly overriden
-		plan.Dashboard = instance.Spec.Components.Dashboard.Enabled == nil || *instance.Spec.Components.Dashboard.Enabled
-	case dsc.ProfileTraining:
-		// serving is disabled by default, unless explicitly overriden
-		plan.Serving = instance.Spec.Components.Serving.Enabled != nil && *instance.Spec.Components.Serving.Enabled
-		// training is enabled by default, unless explicitly overriden
-		plan.Training = instance.Spec.Components.Training.Enabled == nil || *instance.Spec.Components.Training.Enabled
-		// workbenches is disabled by default, unless explicitly overriden
-		plan.Workbenches = instance.Spec.Components.Workbenches.Enabled != nil && *instance.Spec.Components.Workbenches.Enabled
-		// dashboard is enabled by default, unless explicitly overriden
-		plan.Dashboard = instance.Spec.Components.Dashboard.Enabled == nil || *instance.Spec.Components.Dashboard.Enabled
-	case dsc.ProfileWorkbench:
-		// serving is disabled by default, unless explicitly overriden
-		plan.Serving = instance.Spec.Components.Serving.Enabled != nil && *instance.Spec.Components.Serving.Enabled
-		// training is disabled by default, unless explicitly overriden
-		plan.Training = instance.Spec.Components.Training.Enabled != nil && *instance.Spec.Components.Training.Enabled
-		// workbenches is enabled by default, unless explicitly overriden
-		plan.Workbenches = instance.Spec.Components.Workbenches.Enabled == nil || *instance.Spec.Components.Workbenches.Enabled
-		// dashboard is enabled by default, unless explicitly overriden
-		plan.Dashboard = instance.Spec.Components.Dashboard.Enabled == nil || *instance.Spec.Components.Dashboard.Enabled
-	case dsc.ProfileFull:
-		// serving is enabled by default, unless explicitly overriden
-		plan.Serving = instance.Spec.Components.Serving.Enabled == nil || *instance.Spec.Components.Serving.Enabled
-		// training is enabled by default, unless explicitly overriden
-		plan.Training = instance.Spec.Components.Training.Enabled == nil || *instance.Spec.Components.Training.Enabled
-		// workbenches is enabled by default, unless explicitly overriden
-		plan.Workbenches = instance.Spec.Components.Workbenches.Enabled == nil || *instance.Spec.Components.Workbenches.Enabled
-		// dashboard is enabled by default, unless explicitly overriden
-		plan.Dashboard = instance.Spec.Components.Dashboard.Enabled == nil || *instance.Spec.Components.Dashboard.Enabled
-	}
-
-	return plan
-}
-
 // TODO: should we generalize this function and move it to a common place?
 func (r *DataScienceClusterReconciler) isManagedService() bool {
 	expectedAddon := &addonv1alpha1.Addon{}
@@ -282,7 +219,8 @@ func (r *DataScienceClusterReconciler) isManagedService() bool {
 	return true
 }
 
-func reconcileWorkbench(instance *dsc.DataScienceCluster, client client.Client, scheme *runtime.Scheme, plan *ReconciliationPlan) error {
+// TODO: Move this to component package
+func reconcileWorkbench(instance *dsc.DataScienceCluster, client client.Client, scheme *runtime.Scheme, plan *profiles.ReconciliationPlan) error {
 	// check if we need to apply the resources or if they already exist
 	if plan.Dashboard {
 		err := deploy.DeployManifestsFromPath(instance, client,
@@ -294,14 +232,14 @@ func reconcileWorkbench(instance *dsc.DataScienceCluster, client client.Client, 
 	return nil
 }
 
-func reconcileServing(instance *dsc.DataScienceCluster, client client.Client, scheme *runtime.Scheme, plan *ReconciliationPlan) error {
+func reconcileServing(instance *dsc.DataScienceCluster, client client.Client, scheme *runtime.Scheme, plan *profiles.ReconciliationPlan) error {
 	panic("unimplemented")
 }
 
-func reconcileTraining(instance *dsc.DataScienceCluster, client client.Client, scheme *runtime.Scheme, plan *ReconciliationPlan) error {
+func reconcileTraining(instance *dsc.DataScienceCluster, client client.Client, scheme *runtime.Scheme, plan *profiles.ReconciliationPlan) error {
 	panic("unimplemented")
 }
 
-func reconcileDashboard(instance *dsc.DataScienceCluster, client client.Client, scheme *runtime.Scheme, plan *ReconciliationPlan) error {
+func reconcileDashboard(instance *dsc.DataScienceCluster, client client.Client, scheme *runtime.Scheme, plan *profiles.ReconciliationPlan) error {
 	panic("unimplemented")
 }
