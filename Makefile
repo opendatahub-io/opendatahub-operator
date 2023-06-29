@@ -5,6 +5,9 @@
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
 VERSION ?= 0.0.1
 IMG ?= quay.io/opendatahub/opendatahub-operator:dev-$(VERSION)
+# Specify the url to download the tarball to use for the local repo manifest
+ODH_MANIFESTS_REF=master
+ODH_MANIFESTS_URL=https://github.com/opendatahub-io/odh-manifests/tarball/$(ODH_MANIFESTS_REF)
 IMAGE_BUILDER ?= podman
 OPERATOR_NAMESPACE ?= opendatahub-operator-system
 CHANNELS="rolling"
@@ -124,7 +127,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 
 .PHONY: docker-build
 docker-build: manifests generate fmt vet update-test-data ## Build docker image with the manager.
-	${IMAGE_BUILDER} build -t ${IMG} .
+	${IMAGE_BUILDER} build -t ${IMG} --build-arg ODH_MANIFESTS_REF=${ODH_MANIFESTS_REF} --build-arg ODH_MANIFESTS_URL=${ODH_MANIFESTS_URL} .
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
