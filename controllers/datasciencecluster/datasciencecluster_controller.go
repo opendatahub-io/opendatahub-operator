@@ -141,7 +141,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		//Apply osd specific permissions
 		err = deploy.DeployManifestsFromPath(instance, r.Client,
 			"/opt/odh-manifests/osd-configs",
-			r.ApplicationsNamespace, r.Scheme)
+			r.ApplicationsNamespace, r.Scheme, true)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
@@ -288,7 +288,7 @@ func reconcileWorkbench(instance *dsc.DataScienceCluster, client client.Client, 
 		err := deploy.DeployManifestsFromPath(instance, client,
 			"/opt/odh-manifests/odh-dashboard/base",
 			"opendatahub",
-			scheme)
+			scheme, plan.Dashboard)
 		return err
 	}
 	return nil

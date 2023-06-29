@@ -7,18 +7,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
 	"net/http"
 	"os"
 	"path/filepath"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/yaml"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/kustomize/api/filesys"
 	"sigs.k8s.io/kustomize/api/krusty"
@@ -105,7 +105,7 @@ func DownloadManifests(uri string) error {
 	return nil
 }
 
-func DeployManifestsFromPath(owner metav1.Object, cli client.Client, manifestPath, namespace string, s *runtime.Scheme) error {
+func DeployManifestsFromPath(owner metav1.Object, cli client.Client, manifestPath, namespace string, s *runtime.Scheme, componentEnabled bool) error {
 
 	// Render the Kustomize manifests
 	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
@@ -137,10 +137,9 @@ func DeployManifestsFromPath(owner metav1.Object, cli client.Client, manifestPat
 		return err
 	}
 
-	// Create or update resources in the cluster
+	// Create / apply / delete resources in the cluster
 	for _, obj := range objs {
-
-		err = createOrUpdate(owner, context.TODO(), cli, obj, s)
+		err = manageResource(owner, context.TODO(), cli, obj, s, componentEnabled)
 		if err != nil {
 			return err
 		}
@@ -164,26 +163,54 @@ func getResources(resMap resmap.ResMap) ([]*unstructured.Unstructured, error) {
 	return resources, nil
 }
 
-func createOrUpdate(owner metav1.Object, ctx context.Context, cli client.Client, obj *unstructured.Unstructured, s *runtime.Scheme) error {
+func manageResource(owner metav1.Object, ctx context.Context, cli client.Client, obj *unstructured.Unstructured, s *runtime.Scheme, enabled bool) error {
+	resourceName := obj.GetName()
+	namespace := obj.GetNamespace()
+
 	found := obj.DeepCopy()
-	err := cli.Get(ctx, types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, found)
-	if err != nil && errors.IsNotFound(err) {
-		// Set the owner reference for garbage collection
-		if err = ctrl.SetControllerReference(owner, metav1.Object(obj), s); err != nil {
-			return err
-		}
-		// Create the resource if it doesn't exist
-		return cli.Create(ctx, obj)
-	} else if err != nil {
+
+	err := cli.Get(ctx, types.NamespacedName{Name: resourceName, Namespace: namespace}, found)
+	if err != nil && !errors.IsNotFound(err) {
 		return err
 	}
 
-	// Update the resource if they already exists
+	// Resource exists but component is disabled
+	if !enabled {
+		if obj.GetOwnerReferences() == nil {
+			return cli.Delete(ctx, found)
+		}
+
+		found.SetOwnerReferences([]metav1.OwnerReference{})
+		data, err := json.Marshal(found)
+		if err != nil {
+			return err
+		}
+
+		err = cli.Patch(ctx, found, client.RawPatch(types.ApplyPatchType, data), client.ForceOwnership, client.FieldOwner(owner.GetName()))
+		if err != nil {
+			return err
+		}
+
+		return cli.Delete(ctx, found)
+	}
+
+	// Set the owner reference for garbage collection
+	if err = ctrl.SetControllerReference(owner, metav1.Object(found), s); err != nil {
+		return err
+	}
+
+	// Create the resource if it doesn't exist
+	if errors.IsNotFound(err) {
+		return cli.Create(ctx, obj)
+	}
+
+	// Perform server-side apply
 	data, err := json.Marshal(obj)
 	if err != nil {
 		return err
 	}
 
-	// Perform server-side apply
-	return cli.Patch(ctx, obj, client.RawPatch(types.ApplyPatchType, data), client.ForceOwnership, client.FieldOwner(owner.GetName()))
+	return cli.Patch(ctx, found, client.RawPatch(types.ApplyPatchType, data), client.ForceOwnership, client.FieldOwner(owner.GetName()))
 }
+
+// TODO : Add function to cleanup code created as part of preinstall and post intall task of a component

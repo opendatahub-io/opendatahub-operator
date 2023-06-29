@@ -82,7 +82,7 @@ func configurePrometheus(dsciInit *dsci.DSCInitialization, r *DSCInitializationR
 	// Deploy manifests
 	err = deploy.DeployManifestsFromPath(dsciInit, r.Client,
 		deploy.DefaultManifestPath+"/monitoring/prometheus",
-		dsciInit.Spec.Monitoring.Namespace, r.Scheme)
+		dsciInit.Spec.Monitoring.Namespace, r.Scheme, dsciInit.Spec.Monitoring.Enabled)
 	if err != nil {
 		return err
 	}
@@ -131,7 +131,7 @@ func configureAlertManager(dsciInit *dsci.DSCInitialization, r *DSCInitializatio
 
 	err = deploy.DeployManifestsFromPath(dsciInit, r.Client,
 		deploy.DefaultManifestPath+"/monitoring/alertmanager",
-		dsciInit.Spec.Monitoring.Namespace, r.Scheme)
+		dsciInit.Spec.Monitoring.Namespace, r.Scheme, dsciInit.Spec.Monitoring.Enabled)
 	if err != nil {
 		return err
 	}
@@ -158,7 +158,7 @@ func configureBlackboxExporter(dsciInit *dsci.DSCInitialization, cli client.Clie
 	if apierrs.IsNotFound(err) || strings.Contains(consoleRoute.Spec.Host, "redhat.com") {
 		err := deploy.DeployManifestsFromPath(dsciInit, cli,
 			deploy.DefaultManifestPath+"/monitoring/blackbox-exporter/internal",
-			dsciInit.Spec.Monitoring.Namespace, s)
+			dsciInit.Spec.Monitoring.Namespace, s, dsciInit.Spec.Monitoring.Enabled)
 		if err != nil {
 			return err
 		}
@@ -166,7 +166,7 @@ func configureBlackboxExporter(dsciInit *dsci.DSCInitialization, cli client.Clie
 	} else {
 		err := deploy.DeployManifestsFromPath(dsciInit, cli,
 			deploy.DefaultManifestPath+"/monitoring/blackbox-exporter/external",
-			dsciInit.Spec.Monitoring.Namespace, s)
+			dsciInit.Spec.Monitoring.Namespace, s, dsciInit.Spec.Monitoring.Enabled)
 		if err != nil {
 			return err
 		}
