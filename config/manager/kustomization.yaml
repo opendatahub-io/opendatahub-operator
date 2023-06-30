@@ -12,5 +12,5 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 images:
 - name: controller
-  newName: quay.io/vhire/opendatahub-operator
+  newName: quay.io/opendatahub/opendatahub-operator
   newTag: dev-0.0.1
