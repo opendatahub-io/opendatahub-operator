@@ -113,6 +113,12 @@ func configureAlertManager(dsciInit *dsci.DSCInitialization, r *DSCInitializatio
 		return fmt.Errorf("error getting smtp secret: %v", err)
 	}
 
+	// Get SMTP receiver email secret (assume operator namespace for managed service is not configable)
+	smtpEmailSecret, err := r.waitForManagedSecret("addon-managed-odh-parameters", "redhat-ods-operator")
+	if err != nil {
+		return fmt.Errorf("error getting smtp receiver email secret: %v", err)
+	}
+
 	// Replace variables in alertmanager configmap
 	// TODO: Following variables can later be exposed by the API
 	err = ReplaceStringsInFile(deploy.DefaultManifestPath+"/monitoring/alertmanager/monitoring-configs.yaml",
@@ -123,6 +129,8 @@ func configureAlertManager(dsciInit *dsci.DSCInitialization, r *DSCInitializatio
 			"<smtp_port>":       b64.StdEncoding.EncodeToString(smtpSecret.Data["port"]),
 			"<smtp_username>":   b64.StdEncoding.EncodeToString(smtpSecret.Data["username"]),
 			"<smtp_password>":   b64.StdEncoding.EncodeToString(smtpSecret.Data["password"]),
+			"<user_emails>":     b64.StdEncoding.EncodeToString(smtpEmailSecret.Data["notification-email"]),
+			"@devshift.net":     "@rhmw.io",
 		})
 
 	if err != nil {
@@ -135,8 +143,6 @@ func configureAlertManager(dsciInit *dsci.DSCInitialization, r *DSCInitializatio
 	if err != nil {
 		return err
 	}
-
-	// TODO: Add watch for SMTP secret and configure emails
 
 	// Create proxy secret
 	if err := createMonitoringProxySecret("alertmanager-proxy", dsciInit, r.Client, r.Scheme); err != nil {
