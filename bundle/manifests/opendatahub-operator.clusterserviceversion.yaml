@@ -76,6 +76,34 @@ spec:
       clusterPermissions:
       - rules:
         - apiGroups:
+          - ""
+          resources:
+          - configmaps
+          - namespaces
+          - secrets
+          - serviceaccounts
+          - services
+          verbs:
+          - create
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - '*'
+          resources:
+          - '*'
+          verbs:
+          - '*'
+        - apiGroups:
+          - addons.managed.openshift.io
+          resources:
+          - addons
+          verbs:
+          - get
+          - list
+        - apiGroups:
           - datasciencecluster.opendatahub.io
           resources:
           - datascienceclusters
@@ -101,6 +129,57 @@ spec:
           - get
           - patch
           - update
+        - apiGroups:
+          - dscinitialization.opendatahub.io
+          resources:
+          - dscinitializations
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - dscinitialization.opendatahub.io
+          resources:
+          - dscinitializations/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - dscinitialization.opendatahub.io
+          resources:
+          - dscinitializations/status
+          verbs:
+          - get
+          - patch
+          - update
+        - apiGroups:
+          - networking.k8s.io
+          resources:
+          - networkpolicies
+          verbs:
+          - create
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - rbac.authorization.k8s.io
+          resources:
+          - clusterrolebindings
+          - clusterroles
+          - rolebindings
+          - roles
+          verbs:
+          - create
+          - get
+          - list
+          - patch
+          - update
+          - watch
         - apiGroups:
           - authentication.k8s.io
           resources:
