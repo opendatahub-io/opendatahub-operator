@@ -26,38 +26,41 @@ func configurePrometheus(dsciInit *dsci.DSCInitialization, r *DSCInitializationR
 		Namespace: dsciInit.Spec.Monitoring.Namespace,
 		Name:      "alertmanager",
 	}, alertmanagerRoute)
-
 	if err != nil {
-		return fmt.Errorf("error getting alertmanager host : %v", err)
+		r.Log.Error(err, "error to get alertmanager route")
+		return err
 	}
 
+	// Get alertmanager configmap
 	alertManagerConfigMap := &corev1.ConfigMap{}
 	err = r.Client.Get(context.TODO(), client.ObjectKey{
 		Namespace: dsciInit.Spec.Monitoring.Namespace,
 		Name:      "alertmanager",
 	}, alertManagerConfigMap)
-
 	if err != nil {
-		return fmt.Errorf("error getting alertmanager configmap : %v", err)
+		r.Log.Error(err, "error to get alertmanager configmap")
+		return err
+	}
+	alertmanagerData, err := getMonitoringData(alertManagerConfigMap.Data["alertmanager.yml"])
+	if err != nil {
+		r.Log.Error(err, "error to get alertmanager data from alertmanager.yaml")
+		return err
 	}
 
+	// Get promethus configmap
 	prometheusConfigMap := &corev1.ConfigMap{}
 	err = r.Client.Get(context.TODO(), client.ObjectKey{
 		Namespace: dsciInit.Spec.Monitoring.Namespace,
 		Name:      "prometheus",
 	}, prometheusConfigMap)
-
 	if err != nil {
-		return fmt.Errorf("error getting prometheus configmap : %v", err)
-	}
-
-	alertmanagerData, err := getMonitoringData(alertManagerConfigMap.Data["alertmanager.yml"])
-	if err != nil {
+		r.Log.Error(err, "error to get prometheus configmap")
 		return err
 	}
-
+	// Get prometheus data
 	prometheusData, err := getMonitoringData(fmt.Sprint(prometheusConfigMap.Data))
 	if err != nil {
+		r.Log.Error(err, "error to get prometheus data")
 		return err
 	}
 
@@ -68,14 +71,15 @@ func configurePrometheus(dsciInit *dsci.DSCInitialization, r *DSCInitializationR
 		"<prometheus_config_hash>":   prometheusData,
 	})
 	if err != nil {
+		r.Log.Error(err, "error to inject data to prometheus.yaml manifests")
 		return err
 	}
 
 	err = ReplaceStringsInFile(deploy.DefaultManifestPath+"/monitoring/prometheus/prometheus-viewer-rolebinding.yaml", map[string]string{
 		"<odh_monitoring_project>": dsciInit.Spec.Monitoring.Namespace,
 	})
-
 	if err != nil {
+		r.Log.Error(err, "error to inject data to prometheus-viewer-rolebinding.yaml")
 		return err
 	}
 
@@ -84,6 +88,7 @@ func configurePrometheus(dsciInit *dsci.DSCInitialization, r *DSCInitializationR
 		deploy.DefaultManifestPath+"/monitoring/prometheus",
 		dsciInit.Spec.Monitoring.Namespace, r.Scheme, dsciInit.Spec.Monitoring.Enabled)
 	if err != nil {
+		r.Log.Error(err, "error to deploy manifests under /odh-manifests/monitoring/prometheus")
 		return err
 	}
 
@@ -98,19 +103,22 @@ func configureAlertManager(dsciInit *dsci.DSCInitialization, r *DSCInitializatio
 	// Get Deadmansnitch secret
 	deadmansnitchSecret, err := r.waitForManagedSecret("redhat-rhods-deadmanssnitch", dsciInit.Spec.Monitoring.Namespace)
 	if err != nil {
-		return fmt.Errorf("error getting deadmansnitch secret: %v", err)
+		r.Log.Error(err, "error getting deadmansnitch secret from namespace "+dsciInit.Spec.Monitoring.Namespace)
+		return err
 	}
 
 	// Get PagerDuty Secret
 	pagerDutySecret, err := r.waitForManagedSecret("redhat-rhods-pagerduty", dsciInit.Spec.Monitoring.Namespace)
 	if err != nil {
-		return fmt.Errorf("error getting pagerduty secret: %v", err)
+		r.Log.Error(err, "error getting pagerduty secret from namespace "+dsciInit.Spec.Monitoring.Namespace)
+		return err
 	}
 
 	// Get Smtp Secret
 	smtpSecret, err := r.waitForManagedSecret("redhat-rhods-smtp", dsciInit.Spec.Monitoring.Namespace)
 	if err != nil {
-		return fmt.Errorf("error getting smtp secret: %v", err)
+		r.Log.Error(err, "error getting smtp secret from namespace "+dsciInit.Spec.Monitoring.Namespace)
+		return err
 	}
 
 	// Replace variables in alertmanager configmap
@@ -124,8 +132,8 @@ func configureAlertManager(dsciInit *dsci.DSCInitialization, r *DSCInitializatio
 			"<smtp_username>":   b64.StdEncoding.EncodeToString(smtpSecret.Data["username"]),
 			"<smtp_password>":   b64.StdEncoding.EncodeToString(smtpSecret.Data["password"]),
 		})
-
 	if err != nil {
+		r.Log.Error(err, "error to inject data to monitoring-configs.yaml")
 		return err
 	}
 
@@ -133,6 +141,7 @@ func configureAlertManager(dsciInit *dsci.DSCInitialization, r *DSCInitializatio
 		deploy.DefaultManifestPath+"/monitoring/alertmanager",
 		dsciInit.Spec.Monitoring.Namespace, r.Scheme, dsciInit.Spec.Monitoring.Enabled)
 	if err != nil {
+		r.Log.Error(err, "error to deploy manifests under /odh-manifests/monitoring/alertmanager")
 		return err
 	}
 
@@ -140,13 +149,13 @@ func configureAlertManager(dsciInit *dsci.DSCInitialization, r *DSCInitializatio
 
 	// Create proxy secret
 	if err := createMonitoringProxySecret("alertmanager-proxy", dsciInit, r.Client, r.Scheme); err != nil {
+		r.Log.Error(err, "error to create secret alertmanager-proxy")
 		return err
 	}
 	return nil
 }
 
 func configureBlackboxExporter(dsciInit *dsci.DSCInitialization, cli client.Client, s *runtime.Scheme) error {
-
 	consoleRoute := &routev1.Route{}
 	err := cli.Get(context.TODO(), client.ObjectKey{Name: "console", Namespace: "openshift-console"}, consoleRoute)
 	if err != nil {
@@ -160,7 +169,7 @@ func configureBlackboxExporter(dsciInit *dsci.DSCInitialization, cli client.Clie
 			deploy.DefaultManifestPath+"/monitoring/blackbox-exporter/internal",
 			dsciInit.Spec.Monitoring.Namespace, s, dsciInit.Spec.Monitoring.Enabled)
 		if err != nil {
-			return err
+			return fmt.Errorf("error to deploy manifests: %v", err)
 		}
 
 	} else {
@@ -168,7 +177,7 @@ func configureBlackboxExporter(dsciInit *dsci.DSCInitialization, cli client.Clie
 			deploy.DefaultManifestPath+"/monitoring/blackbox-exporter/external",
 			dsciInit.Spec.Monitoring.Namespace, s, dsciInit.Spec.Monitoring.Enabled)
 		if err != nil {
-			return err
+			return fmt.Errorf("error to deploy manifests: %v", err)
 		}
 	}
 	return nil
@@ -177,20 +186,17 @@ func configureBlackboxExporter(dsciInit *dsci.DSCInitialization, cli client.Clie
 func (r *DSCInitializationReconciler) configureManagedMonitoring(dscInit *dsci.DSCInitialization) error {
 	// configure Alertmanager
 	if err := configureAlertManager(dscInit, r); err != nil {
-		fmt.Printf("Error in alertmanager")
-		return err
+		return fmt.Errorf("Error in configureAlertManager: %v", err)
 	}
 
 	// configure Prometheus
 	if err := configurePrometheus(dscInit, r); err != nil {
-		fmt.Printf("Error in prometheus")
-		return err
+		return fmt.Errorf("Error in configurePrometheus: %v", err)
 	}
 
 	// configure Blackbox exporter
 	if err := configureBlackboxExporter(dscInit, r.Client, r.Scheme); err != nil {
-		fmt.Printf("Error in blackbox exporter")
-		return err
+		return fmt.Errorf("Error in configureBlackboxExporter: %v", err)
 	}
 	return nil
 }

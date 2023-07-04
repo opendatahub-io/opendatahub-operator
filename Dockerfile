@@ -4,7 +4,7 @@ ARG GOLANG_VERSION=1.18.9
 FROM registry.access.redhat.com/ubi8/go-toolset:$GOLANG_VERSION as builder
 
 ARG MANIFEST_REPO="https://github.com/opendatahub-io/odh-manifests"
-ARG MANIFEST_RELEASE="master"
+ARG MANIFEST_RELEASE="feature-rearchitecture"
 ARG MANIFEST_TARBALL="${MANIFEST_REPO}/tarball/${MANIFEST_RELEASE}"
 
 WORKDIR /workspace
@@ -28,6 +28,7 @@ ADD $MANIFEST_TARBALL ${MANIFEST_RELEASE}.tar.gz
 RUN mkdir /opt/odh-manifests/ && \
     tar --strip-components=1 -xf ${MANIFEST_RELEASE}.tar.gz -C /opt/odh-manifests/ && \
     rm -rf ${MANIFEST_RELEASE}.tar.gz
+# COPY odh-manifests/ /opt/odh-manifests/
 
 # Build
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o manager main.go

@@ -50,6 +50,7 @@ func isManagedRHODS(cli client.Client) (Platform, error) {
 	err := cli.Get(context.TODO(), client.ObjectKey{Name: "addons.managed.openshift.io"}, addonCRD)
 	if err != nil {
 		if apierrs.IsNotFound(err) {
+			// self managed service
 			return "", nil
 		} else {
 			return "", err
