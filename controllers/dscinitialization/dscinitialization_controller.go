@@ -18,11 +18,18 @@ package dscinitialization
 
 import (
 	"context"
-	"github.com/go-logr/logr"
-	"google.golang.org/appengine/log"
+
+	"errors"
+	logr "github.com/go-logr/logr"
+
 	"k8s.io/apimachinery/pkg/types"
+
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	addonv1alpha1 "github.com/openshift/addon-operator/apis/addons/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -32,10 +39,6 @@ import (
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	dsci "github.com/opendatahub-io/opendatahub-operator/apis/dscinitialization/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/controllers/status"
@@ -182,14 +185,16 @@ func (r *DSCInitializationReconciler) isManagedService() bool {
 
 var singletonPredicate = predicate.Funcs{
 	// Only reconcile on 'default' initialization
-	CreateFunc: func(e event.CreateEvent) bool {
 
+	CreateFunc: func(e event.CreateEvent) bool {
 		if e.Object.GetObjectKind().GroupVersionKind().Kind == "DSCInitialization" {
 			if e.Object.GetName() == "default" {
 				return true
 			}
 		}
-		log.Warningf(context.TODO(), "Only single DSCInitialization can be created. Update existing %v DSCInitialization instance", "default")
+		// Set to error level since it causes Panic
+		setupLog := ctrl.Log.WithName("dscinitialization")
+		setupLog.Error(errors.New("Only single DSCInitialization instance can be created. Mismatch CreateEvent Object.GetName not to 'default'"), "Wrong name", "object", e.Object.GetName())
 		return false
 	},
 
@@ -200,7 +205,8 @@ var singletonPredicate = predicate.Funcs{
 				return true
 			}
 		}
-		log.Warningf(context.TODO(), "Only single DSCInitialization can be updated. Update existing %v DSCInitialization instance ", "default")
+		setupLog := ctrl.Log.WithName("dscinitialization")
+		setupLog.Error(errors.New("Only single DSCInitialization instance can be updated. Mismatch UpdateEvent Object.GetName not to 'default'"), "Wrong name", "object", e.ObjectNew.GetName())
 		return false
 	},
 }
