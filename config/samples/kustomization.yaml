@@ -2,4 +2,8 @@
 resources:
 - dscinitialization_v1alpha1_dscinitialization.yaml
 - datasciencecluster_v1alpha1_datasciencecluster.yaml
+- opendatahub_v1alpha1_odhdashboardconfigs.yaml
+- dashboard_v1_odhdocuments.yaml
+- dashboard_v1_odhapplications.yaml
+- console_v1_odhquickstarts.yaml
 #+kubebuilder:scaffold:manifestskustomizesamples

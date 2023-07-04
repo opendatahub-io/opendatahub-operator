@@ -9,4 +9,15 @@ metadata:
     app.kubernetes.io/created-by: opendatahub-operator
   name: datasciencecluster-sample
 spec:
-  # TODO(user): Add fields here
+  profile: "none"
+  components:
+    dashboard: {}
+    workbenches: {
+      enabled: true
+    }
+    datasciencepipelines: {
+      enabled: true
+    }
+    modelmeshserving: {
+      enabled: false
+    }

@@ -40,8 +40,10 @@ type DSCInitializationSpec struct {
 }
 
 type Monitoring struct {
+	// +kubebuilder:default=false
 	Enabled   bool   `json:"enabled,omitempty"`
-	Namespace string `json:"namespace"`
+	// +kubebuilder:default=opendatahub
+	Namespace string `json:"namespace,omitempty"`
 }
 
 // DSCInitializationStatus defines the observed state of DSCInitialization
