@@ -21,6 +21,7 @@ COPY main.go main.go
 COPY apis/ apis/
 COPY controllers/ controllers/
 COPY pkg/ pkg/
+COPY components/ components/
 
 # Dowwload odh-manifests tarball
 ADD $MANIFEST_TARBALL ${MANIFEST_RELEASE}.tar.gz

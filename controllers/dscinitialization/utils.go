@@ -99,9 +99,9 @@ func (r *DSCInitializationReconciler) createDefaultRoleBinding(dscInit *dsci.DSC
 		},
 		Subjects: []authv1.Subject{
 			{
-				Kind:     "Group",
-				APIGroup: "rbac.authorization.k8s.io",
-				Name:     "system:serviceaccounts:" + name,
+				Kind:      "ServiceAccount",
+				Namespace: name,
+				Name:      "default",
 			},
 		},
 		RoleRef: authv1.RoleRef{
@@ -113,7 +113,7 @@ func (r *DSCInitializationReconciler) createDefaultRoleBinding(dscInit *dsci.DSC
 
 	// Create RoleBinding if doesnot exists
 	foundRoleBinding := &authv1.RoleBinding{}
-	err := r.Client.Get(ctx, client.ObjectKey{Name: name}, foundRoleBinding)
+	err := r.Client.Get(ctx, client.ObjectKey{Name: name, Namespace: name}, foundRoleBinding)
 	if err != nil {
 		if apierrs.IsNotFound(err) {
 			// Set Controller reference

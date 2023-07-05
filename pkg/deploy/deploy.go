@@ -110,7 +110,7 @@ func DeployManifestsFromPath(owner metav1.Object, cli client.Client, manifestPat
 	// Render the Kustomize manifests
 	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
 	fs := filesys.MakeFsOnDisk()
-
+	fmt.Printf("Updating manifests : %v", manifestPath)
 	// Create resmap
 	// Use kustomization file under manifestPath or use `default` overlay
 	var resMap resmap.ResMap
@@ -176,6 +176,10 @@ func manageResource(owner metav1.Object, ctx context.Context, cli client.Client,
 
 	// Resource exists but component is disabled
 	if !enabled {
+		if errors.IsNotFound(err) {
+			return nil
+		}
+
 		if obj.GetOwnerReferences() == nil {
 			return cli.Delete(ctx, found)
 		}
@@ -194,13 +198,12 @@ func manageResource(owner metav1.Object, ctx context.Context, cli client.Client,
 		return cli.Delete(ctx, found)
 	}
 
-	// Set the owner reference for garbage collection
-	if err = ctrl.SetControllerReference(owner, metav1.Object(found), s); err != nil {
-		return err
-	}
-
 	// Create the resource if it doesn't exist
 	if errors.IsNotFound(err) {
+		// Set the owner reference for garbage collection
+		if err = ctrl.SetControllerReference(owner, metav1.Object(obj), s); err != nil {
+			return err
+		}
 		return cli.Create(ctx, obj)
 	}
 
@@ -213,4 +216,4 @@ func manageResource(owner metav1.Object, ctx context.Context, cli client.Client,
 	return cli.Patch(ctx, found, client.RawPatch(types.ApplyPatchType, data), client.ForceOwnership, client.FieldOwner(owner.GetName()))
 }
 
-// TODO : Add function to cleanup code created as part of preinstall and post intall task of a component
+// TODO : Add function to cleanup code created as part of pre install and post intall task of a component

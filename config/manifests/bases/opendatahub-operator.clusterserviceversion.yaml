@@ -4,6 +4,11 @@ metadata:
   annotations:
     alm-examples: '[]'
     capabilities: Basic Install
+    operatorframework.io/initialization-resource: |-
+      { "apiVersion": "datasciencecluster.opendatahub.io/v1alpha1",
+      "kind": "DataScienceCluster", "metadata":{ "name": "default" }, "spec" : {}
+      }
+    operators.operatorframework.io/internal-objects: '[dscinitialization.opendatahub.io]'
   name: opendatahub-operator.v0.0.0
   namespace: placeholder
 spec:
