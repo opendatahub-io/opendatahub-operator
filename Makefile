@@ -37,7 +37,7 @@ BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 #
 # For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
 # opendatahub.io/opendatahub-operator-bundle:$VERSION and opendatahub.io/opendatahub-operator-catalog:$VERSION.
-IMAGE_TAG_BASE ?= opendatahub.io/opendatahub-operator
+IMAGE_TAG_BASE ?= quay.io/opendatahub/opendatahub-operator
 
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
@@ -287,3 +287,7 @@ toolbox: ## Create a toolbox instance with the proper Golang and Operator SDK ve
 	$(IMAGE_BUILDER) stop opendatahub-toolbox ||:
 	toolbox rm opendatahub-toolbox ||:
 	toolbox create opendatahub-toolbox --image localhost/opendatahub-toolbox:latest
+
+.PHONY: deploy-bundle
+deploy-bundle: operator-sdk bundle-build bundle-push
+	$(OPERATOR_SDK) run bundle $(BUNDLE_IMG)

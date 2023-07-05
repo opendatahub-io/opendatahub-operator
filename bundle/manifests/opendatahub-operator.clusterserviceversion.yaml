@@ -241,7 +241,7 @@ spec:
                 - --leader-elect
                 command:
                 - /manager
-                image: quay.io/opendatahub/opendatahub-operator:dev-0.0.1
+                image: quay.io/vhire/opendatahub-operator:dev-0.0.1
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:
