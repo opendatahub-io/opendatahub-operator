@@ -17,16 +17,13 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"github.com/opendatahub-io/opendatahub-operator/components/dashboard"
+	"github.com/opendatahub-io/opendatahub-operator/components/datasciencepipelines"
+	"github.com/opendatahub-io/opendatahub-operator/components/modelmeshserving"
+	"github.com/opendatahub-io/opendatahub-operator/components/workbenches"
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-)
-
-const (
-	ProfileFull      = "full"
-	ProfileServing   = "serving"
-	ProfileTraining  = "training"
-	ProfileWorkbench = "workbench"
 )
 
 // DataScienceClusterSpec defines the desired state of DataScienceCluster
@@ -34,7 +31,7 @@ type DataScienceClusterSpec struct {
 	// A profile sets the default components and configuration to install for a given
 	// use case. The profile configuration can still be overriden by the user on a per
 	// component basis. If not defined, the 'full' profile is used. Valid values are:
-	// - full: all components are installed
+	// - core: all core components are installed
 	// - serving: only serving components are installed
 	// - training: only training components are installed
 	// - workbench: only workbench components are installed
@@ -46,33 +43,16 @@ type DataScienceClusterSpec struct {
 
 type Components struct {
 	// Dashboard component configuration
-	Dashboard Dashboard `json:"dashboard,omitempty"`
+	Dashboard dashboard.Dashboard `json:"dashboard,omitempty"`
 
 	// Workbenches component configuration
-	Workbenches Workbenches `json:"workbenches,omitempty"`
+	Workbenches workbenches.Workbenches `json:"workbenches,omitempty"`
 
-	// Serving component configuration
-	Serving Serving `json:"serving,omitempty"`
+	// ModelMeshServing component configuration
+	ModelMeshServing modelmeshserving.ModelMeshServing `json:"modelmeshserving,omitempty"`
 
 	// DataServicePipeline component configuration
-	Training Training `json:"training,omitempty"`
-}
-
-type Component struct {
-	// enables or disables the component. A disabled component will not be installed.
-	Enabled *bool `json:"enabled,omitempty"`
-}
-
-type Dashboard struct {
-	Component `json:""`
-}
-
-type Training struct {
-	Component `json:""`
-}
-
-type Serving struct {
-	Component `json:""`
+	DataSciencePipelines datasciencepipelines.DataSciencePipelines `json:"datasciencepipelines,omitempty"`
 }
 
 // DataScienceClusterStatus defines the observed state of DataScienceCluster
@@ -92,10 +72,6 @@ type DataScienceClusterStatus struct {
 	// +optional
 	RelatedObjects []corev1.ObjectReference `json:"relatedObjects,omitempty"`
 	ErrorMessage   string                   `json:"errorMessage,omitempty"`
-}
-
-type Workbenches struct {
-	Component `json:""`
 }
 
 //+kubebuilder:object:root=true
