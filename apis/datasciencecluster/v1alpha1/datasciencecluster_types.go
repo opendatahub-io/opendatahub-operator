@@ -30,12 +30,8 @@ import (
 type DataScienceClusterSpec struct {
 	// A profile sets the default components and configuration to install for a given
 	// use case. The profile configuration can still be overriden by the user on a per
-	// component basis. If not defined, the 'full' profile is used. Valid values are:
-	// - core: all core components are installed
-	// - serving: only serving components are installed
-	// - training: only training components are installed
-	// - workbench: only workbench components are installed
-	Profile string `json:"profile,omitempty"`
+	// component basis. If not defined, the 'core' profile is used.
+	Profile ProfileValue `json:"profile,omitempty"`
 
 	// Components are used to override and fine tune specific component configurations.
 	Components Components `json:"components,omitempty"`
