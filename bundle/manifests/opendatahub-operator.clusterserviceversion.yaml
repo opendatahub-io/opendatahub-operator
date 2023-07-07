@@ -36,7 +36,12 @@ metadata:
         }
       ]
     capabilities: Basic Install
+    operatorframework.io/initialization-resource: |-
+      { "apiVersion": "datasciencecluster.opendatahub.io/v1alpha1",
+      "kind": "DataScienceCluster", "metadata":{ "name": "default" }, "spec" : {}
+      }
     operators.operatorframework.io/builder: operator-sdk-v1.24.1
+    operators.operatorframework.io/internal-objects: '[dscinitialization.opendatahub.io]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
   name: opendatahub-operator.v0.0.1
   namespace: placeholder
@@ -79,6 +84,19 @@ spec:
           - ""
           resources:
           - configmaps
+          - endpoints
+          - events
+          - persistentvolumeclaims
+          - pods
+          - secrets
+          - services
+          - services/finalizers
+          verbs:
+          - '*'
+        - apiGroups:
+          - ""
+          resources:
+          - configmaps
           - namespaces
           - secrets
           - serviceaccounts
@@ -103,6 +121,15 @@ spec:
           verbs:
           - get
           - list
+        - apiGroups:
+          - apps
+          resources:
+          - daemonsets
+          - deployments
+          - replicasets
+          - statefulsets
+          verbs:
+          - '*'
         - apiGroups:
           - datasciencecluster.opendatahub.io
           resources:

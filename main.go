@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"github.com/opendatahub-io/opendatahub-operator/controllers/secretgenerator"
 	"k8s.io/apimachinery/pkg/types"
 	"os"
 
@@ -130,10 +131,20 @@ func main() {
 	}
 
 	if err = (&datascienceclustercontrollers.DataScienceClusterReconciler{
+		Client:                mgr.GetClient(),
+		Scheme:                mgr.GetScheme(),
+		Log:                   ctrl.Log.WithName("controllers").WithName("DataScienceCluster"),
+		ApplicationsNamespace: dscApplicationsNamespace,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "DataScienceCluster")
+		os.Exit(1)
+	}
+
+	if err = (&secretgenerator.SecretGeneratorReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "DataScienceCluster")
+		setupLog.Error(err, "unable to create controller", "controller", "SecretGenerator")
 		os.Exit(1)
 	}
 
