@@ -74,13 +74,15 @@ spec:
                     type: object
                 type: object
               profile:
-                description: 'A profile sets the default components and configuration
+                description: A profile sets the default components and configuration
                   to install for a given use case. The profile configuration can still
                   be overriden by the user on a per component basis. If not defined,
-                  the ''full'' profile is used. Valid values are: - core: all core
-                  components are installed - serving: only serving components are
-                  installed - training: only training components are installed - workbench:
-                  only workbench components are installed'
+                  the 'core' profile is used.
+                enum:
+                - core
+                - serving
+                - training
+                - workbench
                 type: string
             type: object
           status:

@@ -4,6 +4,11 @@ This operator is the primary operator for Open Data Hub. It is responsible for e
 Jupyter Notebooks, Modelmesh serving, Datascience pipelines etc. The operator makes use of `DataScienceCluster` CRD to deploy
 and configure these applications.
 
+## Dev Preview
+
+Developer Preview of the new Open Data Hub operator codebase is now avaible.
+Refer [Dev-Preview.md](./docs/Dev-Preview.md) for testing preview features. 
+
 ## Usage
 
 ### Installation
@@ -74,3 +79,4 @@ and installed from source manually, see the Developer guide for further instruct
   ```commandline
   operator-sdk run bundle quay.io/<username>/opendatahub-operator-bundle:<VERSION> --namespace $OPERATOR_NAMESPACE
   ```
+

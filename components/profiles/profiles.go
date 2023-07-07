@@ -9,20 +9,20 @@ import (
 )
 
 const (
-	ProfileCore      = "core"
-	ProfileServing   = "serving"
-	ProfileTraining  = "training"
-	ProfileWorkbench = "workbench"
+	ProfileCore      dsc.ProfileValue = "core"
+	ProfileServing   dsc.ProfileValue = "serving"
+	ProfileTraining  dsc.ProfileValue = "training"
+	ProfileWorkbench dsc.ProfileValue = "workbench"
 )
 
 type ProfileConfig struct {
 	ComponentDefaults map[string]bool
 }
 
-var ProfileConfigs = make(map[string]ProfileConfig)
+var ProfileConfigs = make(map[dsc.ProfileValue]ProfileConfig)
 
-func SetDefaultProfiles() map[string]ProfileConfig {
-	ProfileConfigs = map[string]ProfileConfig{
+func SetDefaultProfiles() map[dsc.ProfileValue]ProfileConfig {
+	ProfileConfigs = map[dsc.ProfileValue]ProfileConfig{
 		ProfileServing: {
 			ComponentDefaults: map[string]bool{
 				modelmeshserving.ComponentName:     true,
