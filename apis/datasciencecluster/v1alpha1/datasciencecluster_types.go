@@ -37,6 +37,14 @@ type DataScienceClusterSpec struct {
 	Components Components `json:"components,omitempty"`
 }
 
+// Valid values for the Profile in the DataScienceCluster are as follows:
+// - core: all core components are installed
+// - serving: only serving components are installed
+// - training: only training components are installed
+// - workbench: only workbench components are installed
+// +kubebuilder:validation:Enum=core;serving;training;workbench
+type ProfileValue string
+
 type Components struct {
 	// Dashboard component configuration
 	Dashboard dashboard.Dashboard `json:"dashboard,omitempty"`
