@@ -10,8 +10,8 @@ IMAGE_BUILDER ?= podman
 OPERATOR_NAMESPACE ?= opendatahub-operator-system
 MANIFEST_REPO ?= opendatahub-io
 MANIFEST_RELEASE ?= master
-CHANNELS="stable,rolling"
-DEFAULT_CHANNEL="rolling"
+CHANNELS="fast"
+DEFAULT_CHANNEL="fast"
 
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
