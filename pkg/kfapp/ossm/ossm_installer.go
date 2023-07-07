@@ -70,7 +70,18 @@ func (ossm *Ossm) Init(resources kftypesv3.ResourceEnum) error {
 
 	// TODO ensure operators are installed
 
-	if err := ossm.createMeshRefConfigMap(); err != nil {
+	if err := ossm.createConfigMap("service-mesh-refs",
+		map[string]string{
+			"CONTROL_PLANE_NAME": pluginSpec.Mesh.Name,
+			"MESH_NAMESPACE":     pluginSpec.Mesh.Namespace,
+		}); err != nil {
+		return internalError(err)
+	}
+
+	if err := ossm.createConfigMap("auth-refs",
+		map[string]string{
+			"AUTHORINO_LABEL": pluginSpec.Auth.Authorino.Label,
+		}); err != nil {
 		return internalError(err)
 	}
 
@@ -106,23 +117,14 @@ func ExtractHostName(s string) string {
 	return withoutProtocol[:index]
 }
 
-func (ossm *Ossm) createMeshRefConfigMap() error {
-
-	pluginSpec, err := ossm.GetPluginSpec()
-	if err != nil {
-		return err
-	}
+func (ossm *Ossm) createConfigMap(cfgMapName string, data map[string]string) error {
 
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "service-mesh-refs",
+			Name:      cfgMapName,
 			Namespace: ossm.KfConfig.Namespace,
 		},
-		Data: map[string]string{
-			"CONTROL_PLANE_NAME": pluginSpec.Mesh.Name,
-			"MESH_NAMESPACE":     pluginSpec.Mesh.Namespace,
-			"AUTHORINO_LABEL":    pluginSpec.Auth.Authorino.Label,
-		},
+		Data: data,
 	}
 
 	client, err := clientset.NewForConfig(ossm.config)
