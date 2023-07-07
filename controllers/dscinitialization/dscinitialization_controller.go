@@ -88,12 +88,11 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 	}
 
-	// Check for list of namespaces
-	for _, namespace := range instance.Spec.Namespaces {
-		err = r.createOdhNamespace(instance, namespace, ctx)
-		if err != nil {
-			return reconcile.Result{}, err
-		}
+	// Check namespace
+	namespace := instance.Spec.ApplicationsNamespace
+	err = r.createOdhNamespace(instance, namespace, ctx)
+	if err != nil {
+		return reconcile.Result{}, err
 	}
 
 	// Extract latest Manifests
