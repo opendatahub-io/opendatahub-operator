@@ -1,0 +1,31 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  name: replace-description-patch
+spec:
+  description: |-
+    The Open Data Hub is a machine-learning-as-a-service platform built on Red Hat's Kubernetes-based OpenShift® Container Platform. Open Data Hub integrates multiple AI/ML open source components into one operator that can easily be downloaded and installed by OpenShift users.
+    
+    Open Data Hub operator allows users to install and manage components of the Open Data Hub. Users can mix and match tools from each project to fulfill the needs of their use case. Each of the projects share some components, but can be mostly seen as an extension of each other to provide a complete solution for both novice and skilled enterprise users.
+        
+    ### Components
+    
+    * Open Data Hub Dashboard - A web dashboard that displays installed Open Data Hub components with easy access to component UIs and documentation
+    * ODH Notebook Controller - Secure management of Jupyter Notebook in Kubernetes environments built on top of Kubeflow Notebook Controller with support for OAuth
+    * Jupyter Notebooks - JupyterLab notebook that provide Python support for GPU workloads
+    * Data Science Pipelines - Pipeline solution for end to end MLOps workflows that support the Kubeflow Pipelines SDK and Tekton
+    * Model Mesh - ModelMesh Serving is the Controller for managing ModelMesh, a general-purpose model serving management/routing layer
+    
+    ### Profiles
+    
+    Users can directly enable sets of ODH components according to profiles:
+    - **core**
+      * Enabled Components: All core components enabled
+    - **serving**
+      * Enabled Components: Modelmesh Serving, Dashboard
+    - **training**
+      * Enabled Components: Data Science Pipelines, Dashboard
+    - **workbenches**
+      * Enabled Components: Notebook Controller, Jupyter Notebook Images, ODH Notebook Controller, Dashboard
+    - **none**
+      * Enabled Components: No components are enabled, allowing explicit component selection
