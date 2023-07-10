@@ -1,0 +1,20 @@
+apiVersion: opendatahub.io/v1alpha
+kind: OdhDashboardConfig
+metadata:
+  labels:
+    opendatahub.io/dashboard: 'true'
+    app.kubernetes.io/part-of: odh-dashboard
+    app.kubernetes.io/name: odh-dashboard
+    app.kubernetes.io/instance: odh-dashboard-sample
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: odh-dashboard
+  name: odh-dashboard-config-sample
+  namespace: opendatahub
+spec:
+  dashboardConfig:
+  groupsConfig:
+    adminGroups: odh-admins
+    allowedGroups: 'system:authenticated'
+  notebookController:
+    enabled: true
+  templateOrder: []

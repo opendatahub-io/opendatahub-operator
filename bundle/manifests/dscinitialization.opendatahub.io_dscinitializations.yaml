@@ -54,11 +54,11 @@ spec:
               monitoring:
                 properties:
                   enabled:
+                    default: false
                     type: boolean
                   namespace:
+                    default: opendatahub
                     type: string
-                required:
-                - namespace
                 type: object
             required:
             - applicationsNamespace
