@@ -15,35 +15,40 @@ released in phases and will be made available before release in the form of a `c
 
    ```console
    $ cat <<EOF | oc create -f -
-    apiVersion: operators.coreos.com/v1alpha1
-    kind: CatalogSource
-    metadata:
-    name: opendatahub-dev-catalog
-    namespace: openshift-marketplace
-    spec:
-    sourceType: grpc
-    image: quay.io/opendatahub/opendatahub-operator-catalog:$RELEASE_TAG
-    displayName: Open Data Hub Operator (Preview)
-    publisher: ODH
-    EOF
+   apiVersion: operators.coreos.com/v1alpha1
+   kind: CatalogSource
+   metadata:
+     name: opendatahub-dev-catalog
+     namespace: openshift-marketplace
+   spec:
+     sourceType: grpc
+     image: quay.io/opendatahub/opendatahub-operator-catalog:$RELEASE_TAG
+     displayName: Open Data Hub Operator (Preview)
+     publisher: ODH
+   EOF
 
    ```
 3. Subscribe to the ODH custom catalog
    ```console
    $ cat <<EOF | oc create -f -
-    apiVersion: operators.coreos.com/v1alpha1
-    kind: Subscription
-    metadata:
-    name: opendatahub-operator
-    namespace: openshift-operators
-    spec:
-    channel: fast
-    name: opendatahub-operator
-    source: opendatahub-dev-catalog
-    sourceNamespace: openshift-marketplace
-    EOF
+   apiVersion: operators.coreos.com/v1alpha1
+   kind: Subscription
+   metadata:
+     name: opendatahub-operator
+     namespace: openshift-operators
+   spec:
+     channel: fast
+     name: opendatahub-operator
+     source: opendatahub-dev-catalog
+     sourceNamespace: openshift-marketplace
+   EOF
    ```
-
+4. Delete CatalogSource and Subscription after use.
+   ```console
+   oc delete subscription/opendatahub-dev-catalog -n openshift-operators
+   oc delete catalogsource/opendatahub-dev-catalog -n openshift-marketplace
+   ```
+   
 ## Usage
 
 1. When Operator is installed it creates a namespace called `opendatahub`.

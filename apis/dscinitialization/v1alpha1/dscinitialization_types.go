@@ -41,7 +41,7 @@ type DSCInitializationSpec struct {
 
 type Monitoring struct {
 	// +kubebuilder:default=false
-	Enabled   bool   `json:"enabled,omitempty"`
+	Enabled bool `json:"enabled,omitempty"`
 	// +kubebuilder:default=opendatahub
 	Namespace string `json:"namespace,omitempty"`
 }
