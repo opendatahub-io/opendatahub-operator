@@ -3,6 +3,7 @@ package ossm
 import (
 	"context"
 	"fmt"
+	multierror "github.com/hashicorp/go-multierror"
 	kfapisv3 "github.com/opendatahub-io/opendatahub-operator/apis"
 	kftypesv3 "github.com/opendatahub-io/opendatahub-operator/apis/apps"
 	"github.com/opendatahub-io/opendatahub-operator/pkg/kfconfig"
@@ -11,6 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"regexp"
@@ -85,6 +87,10 @@ func (ossm *Ossm) Init(resources kftypesv3.ResourceEnum) error {
 		return internalError(err)
 	}
 
+	if err := ossm.migrateDSProjects(); err != nil {
+		log.Error(err, "failed migrating Data Science Projects")
+	}
+
 	if err := ossm.processManifests(); err != nil {
 		return internalError(err)
 	}
@@ -150,6 +156,38 @@ func (ossm *Ossm) createConfigMap(cfgMapName string, data map[string]string) err
 	}
 
 	return nil
+}
+
+func (ossm *Ossm) migrateDSProjects() error {
+
+	client, err := clientset.NewForConfig(ossm.config)
+	if err != nil {
+		return err
+	}
+
+	selector := labels.SelectorFromSet(labels.Set{"opendatahub.io/dashboard": "true"})
+
+	namespaces, err := client.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{LabelSelector: selector.String()})
+	if err != nil {
+		return fmt.Errorf("failed to get namespaces: %v", err)
+	}
+
+	var result *multierror.Error
+
+	for _, ns := range namespaces.Items {
+		annotations := ns.GetAnnotations()
+		if annotations == nil {
+			annotations = map[string]string{}
+		}
+		annotations["opendatahub.io/service-mesh"] = "true"
+		ns.SetAnnotations(annotations)
+
+		if _, err := client.CoreV1().Namespaces().Update(context.TODO(), &ns, metav1.UpdateOptions{}); err != nil {
+			result = multierror.Append(result, err)
+		}
+	}
+
+	return result.ErrorOrNil()
 }
 
 // TODO handle delete
