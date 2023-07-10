@@ -20,8 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	"github.com/opendatahub-io/opendatahub-operator/controllers/secretgenerator"
-	"k8s.io/apimachinery/pkg/types"
 	"os"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -29,6 +27,7 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	addonv1alpha1 "github.com/openshift/addon-operator/apis/addons/v1alpha1"
+	ocv1 "github.com/openshift/api/oauth/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -38,6 +37,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -49,6 +49,7 @@ import (
 	dsci "github.com/opendatahub-io/opendatahub-operator/apis/dscinitialization/v1alpha1"
 	datascienceclustercontrollers "github.com/opendatahub-io/opendatahub-operator/controllers/datasciencecluster"
 	dscicontr "github.com/opendatahub-io/opendatahub-operator/controllers/dscinitialization"
+	"github.com/opendatahub-io/opendatahub-operator/controllers/secretgenerator"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -69,6 +70,7 @@ func init() {
 	utilruntime.Must(apiextv1.AddToScheme(scheme))
 	utilruntime.Must(routev1.AddToScheme(scheme))
 	utilruntime.Must(appsv1.AddToScheme(scheme))
+	utilruntime.Must(ocv1.AddToScheme(scheme))
 
 	//+kubebuilder:scaffold:scheme
 }
