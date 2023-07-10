@@ -37,7 +37,7 @@ released in phases and will be made available before release in the form of a `c
     name: opendatahub-operator
     namespace: openshift-operators
     spec:
-    channel: rolling
+    channel: fast
     name: opendatahub-operator
     source: opendatahub-dev-catalog
     sourceNamespace: openshift-marketplace
