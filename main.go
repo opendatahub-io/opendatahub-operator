@@ -161,9 +161,7 @@ func main() {
 			Name: "default",
 		},
 		Spec: dsci.DSCInitializationSpec{
-			Namespaces: []string{
-				dscApplicationsNamespace,
-			},
+			ApplicationsNamespace: dscApplicationsNamespace,
 			Monitoring: dsci.Monitoring{
 				Enabled: false,
 			},

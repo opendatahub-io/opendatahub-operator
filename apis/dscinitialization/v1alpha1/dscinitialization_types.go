@@ -32,9 +32,11 @@ const (
 
 // DSCInitializationSpec defines the desired state of DSCInitialization
 type DSCInitializationSpec struct {
-	Namespaces   []string   `json:"namespaces"`
-	Monitoring   Monitoring `json:"monitoring,omitempty"`
-	ManifestsUri string     `json:"manifestsUri,omitempty"`
+	// +kubebuilder:default:=opendatahub
+	ApplicationsNamespace string     `json:"applicationsNamespace"`
+	Monitoring            Monitoring `json:"monitoring,omitempty"`
+	// Internal development useful field
+	ManifestsUri string `json:"manifestsUri,omitempty"`
 }
 
 type Monitoring struct {
