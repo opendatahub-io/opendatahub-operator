@@ -123,6 +123,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	// If monitoring enabled
 	if instance.Spec.Monitoring.Enabled {
 		if platform == deploy.ManagedRhods {
+			r.Log.Info("Monitoring enabled", "cluster", "Managed Serivce Mode")
 			err := r.configureManagedMonitoring(instance)
 			if err != nil {
 				return reconcile.Result{}, err
@@ -130,6 +131,15 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 		} else {
 			// TODO: ODH specific monitoring logic
+			r.Log.Info("Monitoring enabled, won't apply changes", "cluster", "Self-Managed  Mode")
+			// mocking to test
+			r.Log.Info("Monitoring enabled, apply changes for test purpose", "cluster", "Self-Managed  Mode")
+			err := r.configureManagedMonitoring(instance)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+			// mocking done
+
 		}
 	}
 
