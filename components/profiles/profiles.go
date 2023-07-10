@@ -9,6 +9,7 @@ import (
 )
 
 const (
+	ProfileNone      dsc.ProfileValue = "none"
 	ProfileCore      dsc.ProfileValue = "core"
 	ProfileServing   dsc.ProfileValue = "serving"
 	ProfileTraining  dsc.ProfileValue = "training"
@@ -23,6 +24,14 @@ var ProfileConfigs = make(map[dsc.ProfileValue]ProfileConfig)
 
 func SetDefaultProfiles() map[dsc.ProfileValue]ProfileConfig {
 	ProfileConfigs = map[dsc.ProfileValue]ProfileConfig{
+		ProfileNone: {
+			ComponentDefaults: map[string]bool{
+				modelmeshserving.ComponentName:     false,
+				datasciencepipelines.ComponentName: false,
+				workbenches.ComponentName:          false,
+				dashboard.ComponentName:            false,
+			},
+		},
 		ProfileServing: {
 			ComponentDefaults: map[string]bool{
 				modelmeshserving.ComponentName:     true,

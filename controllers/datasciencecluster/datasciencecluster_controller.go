@@ -179,9 +179,6 @@ func CreateReconciliationPlan(instance *dsc.DataScienceCluster) *profiles.Reconc
 	plan := &profiles.ReconciliationPlan{Components: make(map[string]bool)}
 
 	profile := instance.Spec.Profile
-	if profile == "" {
-		profile = profiles.ProfileCore
-	}
 
 	// Set profile defaults
 	profiles.ProfileConfigs = profiles.SetDefaultProfiles()

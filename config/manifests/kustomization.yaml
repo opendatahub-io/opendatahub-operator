@@ -6,6 +6,13 @@ resources:
 - ../samples
 - ../scorecard
 
+patches:
+- path: description-patch.yml
+  target:
+    group: operators.coreos.com
+    kind: ClusterServiceVersion
+    name: opendatahub-operator.v0.0.0
+
 # [WEBHOOK] To enable webhooks, uncomment all the sections with [WEBHOOK] prefix.
 # Do NOT uncomment sections with prefix [CERTMANAGER], as OLM does not support cert-manager.
 # These patches remove the unnecessary "cert" volume and its manager container volumeMount.
