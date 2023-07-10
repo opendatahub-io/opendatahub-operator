@@ -169,7 +169,7 @@ func configureBlackboxExporter(dsciInit *dsci.DSCInitialization, cli client.Clie
 			return err
 		}
 	}
-	
+
 	if apierrs.IsNotFound(err) || strings.Contains(consoleRoute.Spec.Host, "redhat.com") {
 		err := deploy.DeployManifestsFromPath(dsciInit, cli,
 			deploy.DefaultManifestPath+"/monitoring/blackbox-exporter/internal",

@@ -167,7 +167,7 @@ metadata:
     operators.operatorframework.io/internal-objects: '[dscinitialization.opendatahub.io]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/opendatahub-io/opendatahub-operator
-  name: opendatahub-operator.v0.0.1
+  name: opendatahub-operator.v0.0.2
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -390,7 +390,7 @@ spec:
                 - --leader-elect
                 command:
                 - /manager
-                image: quay.io/opendatahub/opendatahub-operator:dev-0.0.1
+                image: quay.io/opendatahub/opendatahub-operator:dev-0.0.2
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:
@@ -478,4 +478,4 @@ spec:
   maturity: alpha
   provider:
     name: ODH
-  version: 0.0.1
+  version: 0.0.2
