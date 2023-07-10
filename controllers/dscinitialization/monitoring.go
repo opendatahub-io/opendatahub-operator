@@ -169,7 +169,7 @@ func configureBlackboxExporter(dsciInit *dsci.DSCInitialization, cli client.Clie
 			return err
 		}
 	}
-	
+
 	if apierrs.IsNotFound(err) || strings.Contains(consoleRoute.Spec.Host, "redhat.com") {
 		err := deploy.DeployManifestsFromPath(dsciInit, cli,
 			deploy.DefaultManifestPath+"/monitoring/blackbox-exporter/internal",
@@ -192,17 +192,17 @@ func configureBlackboxExporter(dsciInit *dsci.DSCInitialization, cli client.Clie
 func (r *DSCInitializationReconciler) configureManagedMonitoring(dscInit *dsci.DSCInitialization) error {
 	// configure Alertmanager
 	if err := configureAlertManager(dscInit, r); err != nil {
-		return fmt.Errorf("Error in configureAlertManager: %v", err)
+		return fmt.Errorf("error in configureAlertManager: %v", err)
 	}
 
 	// configure Prometheus
 	if err := configurePrometheus(dscInit, r); err != nil {
-		return fmt.Errorf("Error in configurePrometheus: %v", err)
+		return fmt.Errorf("error in configurePrometheus: %v", err)
 	}
 
 	// configure Blackbox exporter
 	if err := configureBlackboxExporter(dscInit, r.Client, r.Scheme); err != nil {
-		return fmt.Errorf("Error in configureBlackboxExporter: %v", err)
+		return fmt.Errorf("error in configureBlackboxExporter: %v", err)
 	}
 	return nil
 }
