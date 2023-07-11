@@ -1,5 +1,7 @@
+# include odh-common/base/odh-common-configmap for backwards compatible
 resources:
 - manager.yaml
+- odh_common_configmap.yaml
 
 generatorOptions:
   disableNameSuffixHash: true

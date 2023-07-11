@@ -1,0 +1,8 @@
+apiVersion: v1
+data:
+  namespace: opendatahub
+kind: ConfigMap
+metadata:
+  labels:
+    control-plane: controller-manager
+  name: opendatahub-operator-odh-common-config
