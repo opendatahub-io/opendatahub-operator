@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"errors"
+
 	logr "github.com/go-logr/logr"
 
 	"k8s.io/apimachinery/pkg/types"
@@ -71,6 +72,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	if err != nil && apierrs.IsNotFound(err) {
 		return ctrl.Result{}, nil
 	} else if err != nil {
+		r.Log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
 		return ctrl.Result{}, err
 	}
 
@@ -92,20 +94,22 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	namespace := instance.Spec.ApplicationsNamespace
 	err = r.createOdhNamespace(instance, namespace, ctx)
 	if err != nil {
+		// no need to log error as it was already logged in createOdhNamespace
 		return reconcile.Result{}, err
 	}
 
 	// Extract latest Manifests
 	err = deploy.DownloadManifests(instance.Spec.ManifestsUri)
 	if err != nil {
+		r.Log.Error(err, "Failed to download and unpack manifests.", "ManifestsURI", instance.Spec.ManifestsUri)
 		return reconcile.Result{}, err
 	}
 
 	// Get platform
 	platform, err := deploy.GetPlatform(r.Client)
 	if err != nil {
+		r.Log.Error(err, "Failed to determine platform (managed vs self-managed)")
 		return reconcile.Result{}, err
-
 	}
 
 	// Apply Rhods specific configs
@@ -115,6 +119,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			deploy.DefaultManifestPath+"/osd-configs",
 			r.ApplicationsNamespace, r.Scheme, true)
 		if err != nil {
+			r.Log.Error(err, "Failed to apply osd specific configs from manifests", "Manifests path", deploy.DefaultManifestPath+"/osd-configs")
 			return reconcile.Result{}, err
 		}
 	}
@@ -122,23 +127,16 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	// If monitoring enabled
 	if instance.Spec.Monitoring.Enabled {
 		if platform == deploy.ManagedRhods {
-			r.Log.Info("Monitoring enabled", "cluster", "Managed Serivce Mode")
+			r.Log.Info("Monitoring enabled", "cluster", "Managed Service Mode")
 			err := r.configureManagedMonitoring(instance)
 			if err != nil {
+				// no need to log error as it was already logged in configureManagedMonitoring
 				return reconcile.Result{}, err
 			}
 
 		} else {
 			// TODO: ODH specific monitoring logic
 			r.Log.Info("Monitoring enabled, won't apply changes", "cluster", "Self-Managed  Mode")
-			// mocking to test
-			r.Log.Info("Monitoring enabled, apply changes for test purpose", "cluster", "Self-Managed  Mode")
-			err := r.configureManagedMonitoring(instance)
-			if err != nil {
-				return reconcile.Result{}, err
-			}
-			// mocking done
-
 		}
 	}
 
@@ -148,8 +146,9 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	status.SetCompleteCondition(&instance.Status.Conditions, reason, message)
 
 	instance.Status.Phase = status.PhaseReady
-	err = r.Client.Status().Update(ctx, instance)
-
+	if err = r.Client.Status().Update(ctx, instance); err != nil {
+		r.Log.Error(err, "failed to update DSCInitialization status after successfuly completed reconciliation")
+	}
 	return ctrl.Result{}, nil
 }
 
@@ -184,7 +183,7 @@ var singletonPredicate = predicate.Funcs{
 		}
 		// Set to error level since it causes Panic
 		setupLog := ctrl.Log.WithName("dscinitialization")
-		setupLog.Error(errors.New("Only single DSCInitialization instance can be created. Mismatch CreateEvent Object.GetName not to 'default'"), "Wrong name", "object", e.Object.GetName())
+		setupLog.Error(errors.New("only single DSCInitialization instance can be created. Mismatch CreateEvent Object.GetName not to 'default'"), "Wrong name", "object", e.Object.GetName())
 		return false
 	},
 
@@ -196,7 +195,7 @@ var singletonPredicate = predicate.Funcs{
 			}
 		}
 		setupLog := ctrl.Log.WithName("dscinitialization")
-		setupLog.Error(errors.New("Only single DSCInitialization instance can be updated. Mismatch UpdateEvent Object.GetName not to 'default'"), "Wrong name", "object", e.ObjectNew.GetName())
+		setupLog.Error(errors.New("only single DSCInitialization instance can be updated. Mismatch UpdateEvent Object.GetName not to 'default'"), "Wrong name", "object", e.ObjectNew.GetName())
 		return false
 	},
 }

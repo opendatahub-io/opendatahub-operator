@@ -19,6 +19,7 @@ package datasciencecluster
 import (
 	"context"
 	"fmt"
+
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	netv1 "k8s.io/api/networking/v1"
@@ -38,12 +39,6 @@ import (
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-)
-
-const (
-	finalizer                 = "dsc-finalizer.operator.opendatahub.io"
-	finalizerMaxRetries       = 10
-	odhGeneratedResourceLabel = "opendatahub.io/generated-resource" // hardcoded for now, but we can make it configurable later
 )
 
 // DataScienceClusterReconciler reconciles a DataScienceCluster object
@@ -78,7 +73,9 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return ctrl.Result{}, err
 	}
 	if len(instanceList.Items) > 1 {
-		return ctrl.Result{}, fmt.Errorf("only one instance of DataScienceCluster object is allowed. Update existing instance")
+		message := fmt.Sprintf("only one instance of DataScienceCluster object is allowed. Update existing instance on namespace %s and name %s", req.Namespace, req.Name)
+		r.reportError(err, &instanceList.Items[0], ctx, message)
+		return ctrl.Result{}, fmt.Errorf(message)
 	}
 
 	instance := &instanceList.Items[0]
@@ -91,49 +88,27 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		instance.Status.Phase = status.PhaseProgressing
 		err = r.Client.Status().Update(ctx, instance)
 		if err != nil {
-			r.Log.Error(err, "Failed to add conditions to status of DataScienceCluster resource.", "DataScienceCluster", req.Namespace, "Request.Name", req.Name)
-			// r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DataScienceClusterReconcileError",
-			// 	"Failed to add conditions to DataScienceCluster instance %s", instance.Name)
+			r.reportError(err, instance, ctx, fmt.Sprintf("failed to add conditions to status of DataScienceCluster resource on namespace %s and name %s", req.Namespace, req.Name))
 			return ctrl.Result{}, err
 		}
 	}
 
 	// Create reconciliation plan i.e identify which components need to be enabled
-	plan := CreateReconciliationPlan(instance)
+	plan := r.CreateReconciliationPlan(instance)
 	if err = instance.Spec.Components.Dashboard.ReconcileComponent(instance, r.Client, r.Scheme, plan.Components[dashboard.ComponentName], r.ApplicationsNamespace); err != nil {
-		r.Log.Error(err, "failed to reconcile DataScienceCluster (dashboard resources)")
-		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DataScienceClusterReconcileError",
-			"Failed to reconcile dashboard resources on DataScienceCluster instance %s", instance.Name)
-		status.SetErrorCondition(&instance.Status.Conditions, status.ReconcileFailed, fmt.Sprintf("Dashboard failed to deploy : %v", err))
-		instance.Status.Phase = status.PhaseError
-		err = r.Client.Status().Update(ctx, instance)
+		r.reportError(err, instance, ctx, "failed to reconcile Dashboard on DataScienceCluster")
 		return ctrl.Result{}, err
 	}
 	if err = instance.Spec.Components.DataSciencePipelines.ReconcileComponent(instance, r.Client, r.Scheme, plan.Components[datasciencepipelines.ComponentName], r.ApplicationsNamespace); err != nil {
-		r.Log.Error(err, "failed to reconcile DataScienceCluster (DataSciencePipelines)")
-		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DataScienceClusterReconcileError",
-			"Failed to reconcile training resources on DataScienceCluster instance %s", instance.Name)
-		status.SetErrorCondition(&instance.Status.Conditions, status.ReconcileFailed, fmt.Sprintf("DataSciencePipelines failed to deploy : %v", err))
-		instance.Status.Phase = status.PhaseError
-		err = r.Client.Status().Update(ctx, instance)
+		r.reportError(err, instance, ctx, "failed to reconcile DataSciencePipelines on DataScienceCluster")
 		return ctrl.Result{}, err
 	}
 	if err = instance.Spec.Components.ModelMeshServing.ReconcileComponent(instance, r.Client, r.Scheme, plan.Components[modelmeshserving.ComponentName], r.ApplicationsNamespace); err != nil {
-		r.Log.Error(err, "failed to reconcile DataScienceCluster (modelmesh serving resources)")
-		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DataScienceClusterReconcileError",
-			"Failed to reconcile serving resources on DataScienceCluster instance %s", instance.Name)
-		status.SetErrorCondition(&instance.Status.Conditions, status.ReconcileFailed, fmt.Sprintf("Modelmesh serving failed to deploy : %v", err))
-		instance.Status.Phase = status.PhaseError
-		err = r.Client.Status().Update(ctx, instance)
+		r.reportError(err, instance, ctx, "failed to reconcile ModelMesh serving on DataScienceCluster")
 		return ctrl.Result{}, err
 	}
 	if err = instance.Spec.Components.Workbenches.ReconcileComponent(instance, r.Client, r.Scheme, plan.Components[workbenches.ComponentName], r.ApplicationsNamespace); err != nil {
-		r.Log.Error(err, "failed to reconcile DataScienceCluster (workbench resources)")
-		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DataScienceClusterReconcileError",
-			"Failed to reconcile common workbench on DataScienceCluster instance %s", instance.Name)
-		status.SetErrorCondition(&instance.Status.Conditions, status.ReconcileFailed, fmt.Sprintf("Modelmesh serving failed to deploy : %v", err))
-		instance.Status.Phase = status.PhaseError
-		err = r.Client.Status().Update(ctx, instance)
+		r.reportError(err, instance, ctx, "failed to reconcile Workbench on DataScienceCluster")
 		return ctrl.Result{}, err
 	}
 
@@ -141,18 +116,31 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	status.SetCompleteCondition(&instance.Status.Conditions, status.ReconcileCompleted, "DataScienceCluster resource reconciled successfully.")
 	err = r.Client.Update(ctx, instance)
 	if err != nil {
-		r.Log.Error(err, "failed to update DataScienceCluster after successfuly completed reconciliation")
+		r.Log.Error(err, "failed to update DataScienceCluster conditions after successfuly completed reconciliation")
 		return ctrl.Result{}, err
 	} else {
 		r.Log.Info("DataScienceCluster Deployment Completed.")
-		// r.Recorder.Eventf(instance, corev1.EventTypeNormal, "DataScienceClusterCreationSuccessful",
-		// 	"DataScienceCluster instance %s created and deployed successfully", instance.Name)
+		r.Recorder.Eventf(instance, corev1.EventTypeNormal, "DataScienceClusterCreationSuccessful",
+			"DataScienceCluster instance %s created and deployed successfully", instance.Name)
 	}
 
 	instance.Status.Phase = status.PhaseReady
-	err = r.Client.Status().Update(ctx, instance)
+	if err = r.Client.Status().Update(ctx, instance); err != nil {
+		r.Log.Error(err, "failed to update DataScienceCluster status after successfuly completed reconciliation")
+	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *DataScienceClusterReconciler) reportError(err error, instance *dsc.DataScienceCluster, ctx context.Context, message string) {
+	r.Log.Error(err, message, "instance.Name", instance.Name)
+	r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DataScienceClusterReconcileError",
+		"%s for instance %s", message, instance.Name)
+	status.SetErrorCondition(&instance.Status.Conditions, status.ReconcileFailed, fmt.Sprintf("%s : %v", message, err))
+	instance.Status.Phase = status.PhaseError
+	if err = r.Client.Status().Update(ctx, instance); err != nil {
+		r.Log.Error(err, "failed to update DataScienceCluster status after error", "instance.Name", instance.Name)
+	}
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -175,7 +163,7 @@ func (r *DataScienceClusterReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		Complete(r)
 }
 
-func CreateReconciliationPlan(instance *dsc.DataScienceCluster) *profiles.ReconciliationPlan {
+func (r *DataScienceClusterReconciler) CreateReconciliationPlan(instance *dsc.DataScienceCluster) *profiles.ReconciliationPlan {
 	plan := &profiles.ReconciliationPlan{Components: make(map[string]bool)}
 
 	profile := instance.Spec.Profile
@@ -184,6 +172,20 @@ func CreateReconciliationPlan(instance *dsc.DataScienceCluster) *profiles.Reconc
 	profiles.ProfileConfigs = profiles.SetDefaultProfiles()
 	// Create plan for component deployment
 	profiles.PopulatePlan(profiles.ProfileConfigs[profile], plan, instance)
-	// Similarly set other profiles
+
+	// warn of odd profile combinations
+	componentName := ""
+	switch profile {
+	case profiles.ProfileServing:
+		componentName = modelmeshserving.ComponentName
+	case profiles.ProfileTraining:
+		componentName = datasciencepipelines.ComponentName
+	case profiles.ProfileWorkbench:
+		componentName = workbenches.ComponentName
+	}
+	if componentName != "" && !plan.Components[componentName] {
+		r.Log.Info("warning: profile has been selected, but a key component has been explicitly disabled", "profile", profile, "component name", componentName)
+	}
+
 	return plan
 }
