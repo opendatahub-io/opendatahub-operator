@@ -3,7 +3,7 @@ kind: ClusterServiceVersion
 metadata:
   annotations:
     alm-examples: '[]'
-    capabilities: Basic Install
+    capabilities: Seamless Upgrades
     operatorframework.io/initialization-resource: "{ \n  \"apiVersion\": \"datasciencecluster.opendatahub.io/v1alpha1\",\n
       \ \"kind\": \"DataScienceCluster\", \n  \"metadata\":{ \n    \"name\": \"default\"\n
       \ },\n  \"spec\": {}\n}"

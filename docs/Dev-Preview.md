@@ -5,6 +5,8 @@ released in phases and will be made available before release in the form of a `c
 
 ## Deploying Custom Catalog
 
+### New Installation
+
 1. ODH Operator team will provide new catalogsource image with tag corresponding to latest `pre-release` in ODH [releases](https://github.com/opendatahub-io/opendatahub-operator/releases).
 
    Alternatively, you can directly get the preview version -
@@ -43,11 +45,24 @@ released in phases and will be made available before release in the form of a `c
      sourceNamespace: openshift-marketplace
    EOF
    ```
-4. Delete CatalogSource and Subscription after use.
-   ```console
-   oc delete subscription/opendatahub-dev-catalog -n openshift-operators
-   oc delete catalogsource/opendatahub-dev-catalog -n openshift-marketplace
-   ```
+
+### Upgrade to new Dev Preview Version
+
+1. Apply updated version of catalog
+```console
+   $ cat <<EOF | oc apply -f -
+   apiVersion: operators.coreos.com/v1alpha1
+   kind: CatalogSource
+   metadata:
+     name: opendatahub-dev-catalog
+     namespace: openshift-marketplace
+   spec:
+     sourceType: grpc
+     image: quay.io/opendatahub/opendatahub-operator-catalog:$NEW_RELEASE_TAG
+     displayName: Open Data Hub Operator (Preview)
+     publisher: ODH
+   EOF
+```
    
 ## Usage
 

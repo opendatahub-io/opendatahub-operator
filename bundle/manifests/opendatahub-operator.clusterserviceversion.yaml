@@ -151,7 +151,7 @@ metadata:
           }
         }
       ]
-    capabilities: Basic Install
+    capabilities: Seamless Upgrades
     operatorframework.io/initialization-resource: "{ \n  \"apiVersion\": \"datasciencecluster.opendatahub.io/v1alpha1\",\n
       \ \"kind\": \"DataScienceCluster\", \n  \"metadata\":{ \n    \"name\": \"default\"\n
       \ },\n  \"spec\": {}\n}"
@@ -159,7 +159,7 @@ metadata:
     operators.operatorframework.io/internal-objects: '[dscinitialization.opendatahub.io]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/opendatahub-io/opendatahub-operator
-  name: opendatahub-operator.v0.0.2
+  name: opendatahub-operator.v0.0.3
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -382,7 +382,7 @@ spec:
                 - --leader-elect
                 command:
                 - /manager
-                image: quay.io/opendatahub/opendatahub-operator:dev-0.0.2
+                image: quay.io/opendatahub/opendatahub-operator:dev-0.0.3
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:
@@ -470,4 +470,4 @@ spec:
   maturity: alpha
   provider:
     name: ODH
-  version: 0.0.2
+  version: 0.0.3
