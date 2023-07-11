@@ -12,5 +12,4 @@ spec:
   monitoring:
     enabled: false
     namespace: 'opendatahub'
-  applicationsNamespace:
-    - opendatahub
+  applicationsNamespace: 'opendatahub'
