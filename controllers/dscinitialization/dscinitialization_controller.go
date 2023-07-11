@@ -30,6 +30,9 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 
+	// "k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
@@ -37,11 +40,17 @@ import (
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/client-go/util/retry"
+
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+)
+
+const (
+	finalizerName = "dscinitialization.opendatahub.io/finalizer"
 )
 
 // DSCInitializationReconciler reconciles a DSCInitialization object.
@@ -79,11 +88,43 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return ctrl.Result{}, err
 	}
 
-	// Last check if multiple instances of DSCInitialization exist
+	// check if multiple instances of DSCInitialization exist
 	instanceList := &dsci.DSCInitializationList{}
 	err = r.Client.List(ctx, instanceList)
 	if err != nil {
 		return ctrl.Result{}, err
+	}
+
+	// Check if the instance is not called to delete then we add finalzier, otherwsie remove finalizer to proceed deletion
+	if instance.ObjectMeta.DeletionTimestamp.IsZero() {
+		// Add the finalizer if it is not in the CR yet
+		if !controllerutil.ContainsFinalizer(instance, finalizerName) {
+			r.Log.Info("Adding finalizer for DSCInitialization 'default'", "name", finalizerName)
+			controllerutil.AddFinalizer(instance, finalizerName)
+			// Update finalizer list
+			if err := r.Update(ctx, instance); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+	} else {
+		// TODO: remove external resource DSC
+		// check if finalizer is in CR's metadata
+		if controllerutil.ContainsFinalizer(instance, finalizerName) {
+			r.Log.Info("Finalization DSCInitialization start deleting instance 'default'", "name", finalizerName)
+			// Remove the finalizer
+			controllerutil.RemoveFinalizer(instance, finalizerName)
+			// Update CR
+			if err := r.Update(ctx, instance); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+		// no need to delete CR again after finalizer is removed, it is triggered by delete API
+		// if err := r.deleteResources(ctx, instance); err != nil {
+		// 	r.Log.Error(err, "Failed to delete DSCI instance 'default'")
+		// 	return ctrl.Result{}, err
+		// }
+		// no need reconcile, CR is already gone
+		return ctrl.Result{}, nil
 	}
 
 	if len(instanceList.Items) > 1 {
@@ -234,3 +275,4 @@ func (r *DSCInitializationReconciler) updateStatus(ctx context.Context, original
 
 	return saved, err
 }
+

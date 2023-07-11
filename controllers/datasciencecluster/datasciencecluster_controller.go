@@ -49,6 +49,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
@@ -66,6 +68,10 @@ type DataScienceClusterReconciler struct {
 type DataScienceClusterConfig struct {
 	DSCISpec *dsci.DSCInitializationSpec
 }
+
+const (
+	finalizerName = "datasciencecluster.opendatahub.io/finalizer"
+)
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -92,11 +98,60 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	instance := &instances.Items[0]
 
-	if instance.GetDeletionTimestamp() != nil {
+	// Second check if instance exists, return
+	err := r.Client.Get(ctx, req.NamespacedName, instance)
+	if err != nil {
+		if apierrs.IsNotFound(err) {
+			// DataScienceCluster instance not found
+			return ctrl.Result{}, nil
+		}
+		return ctrl.Result{}, err
+	}
+
+	instanceList := &dsc.DataScienceClusterList{}
+	err = r.Client.List(ctx, instanceList)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	// check if instance is being deleted, return
+	if instance.ObjectMeta.DeletionTimestamp.IsZero() {
+		// Add the finalizer if not presented yet
+		if !controllerutil.ContainsFinalizer(instance, finalizerName) {
+			r.Log.Info("Adding finalizer for DataScienceCluster 'default'", "name", finalizerName)
+			controllerutil.AddFinalizer(instance, finalizerName)
+			// Update finalizer list
+			if err := r.Update(ctx, instance); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+	} else {
+		r.Log.Info("Finalization DataScienceCluster start deleting instance 'default'", "name", finalizerName)
+		// TODO: remove external resource if any
+		//  check if finalizer is in CR's metadata
+		if controllerutil.ContainsFinalizer(instance, finalizerName) {
+			// Remove the finalizer
+			controllerutil.RemoveFinalizer(instance, finalizerName)
+			// Update CR
+			if err := r.Update(ctx, instance); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+		// no need to delete CR again after finalizer is removed, it is triggered by delete API
+		// if err := r.deleteResources(ctx, instance); err != nil {
+		// 	r.Log.Error(err, "Failed to delete DSC instance 'default'")
+		// 	return ctrl.Result{}, err
+		// }
 		return ctrl.Result{}, nil
 	}
 
-	var err error
+	// Last check if multiple instances of DataScienceCluster exist
+	if len(instanceList.Items) > 1 {
+		message := fmt.Sprintf("only one instance of DataScienceCluster object is allowed. Update existing instance on namespace %s and name %s", req.Namespace, req.Name)
+		_ = r.reportError(err, &instanceList.Items[0], message)
+		return ctrl.Result{}, fmt.Errorf(message)
+	}
+
 	// Start reconciling
 	if instance.Status.Conditions == nil {
 		reason := status.ReconcileInit
