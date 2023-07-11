@@ -79,6 +79,9 @@ type DataScienceClusterStatus struct {
 	// +optional
 	RelatedObjects []corev1.ObjectReference `json:"relatedObjects,omitempty"`
 	ErrorMessage   string                   `json:"errorMessage,omitempty"`
+
+	// List of components that are installed
+	InstalledComponents map[string]bool `json:"installedComponents,omitempty"`
 }
 
 //+kubebuilder:object:root=true

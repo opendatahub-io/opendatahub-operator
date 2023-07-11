@@ -26,6 +26,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	dsc "github.com/opendatahub-io/opendatahub-operator/apis/datasciencecluster/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/components"
 	"github.com/opendatahub-io/opendatahub-operator/components/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/components/modelmeshserving"
@@ -92,24 +93,35 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 			return ctrl.Result{}, err
 		}
 	}
+	if instance.Status.InstalledComponents == nil {
+		instance.Status.InstalledComponents = make(map[string]bool)
+	}
 
 	// Create reconciliation plan i.e identify which components need to be enabled
 	plan := r.CreateReconciliationPlan(instance)
-	if err = instance.Spec.Components.Dashboard.ReconcileComponent(instance, r.Client, r.Scheme, plan.Components[dashboard.ComponentName], r.ApplicationsNamespace); err != nil {
-		r.reportError(err, instance, ctx, "failed to reconcile Dashboard on DataScienceCluster")
-		return ctrl.Result{}, err
+
+	// reconcile dashboard component
+	if val, err := r.reconcileSubComponent(instance, plan, dashboard.ComponentName, &(instance.Spec.Components.Dashboard), ctx); err != nil {
+		// no need to log any errors as this is done in the reconcileSubComponent method
+		return val, err
 	}
-	if err = instance.Spec.Components.DataSciencePipelines.ReconcileComponent(instance, r.Client, r.Scheme, plan.Components[datasciencepipelines.ComponentName], r.ApplicationsNamespace); err != nil {
-		r.reportError(err, instance, ctx, "failed to reconcile DataSciencePipelines on DataScienceCluster")
-		return ctrl.Result{}, err
+
+	// reconcile DataSciencePipelines component
+	if val, err := r.reconcileSubComponent(instance, plan, datasciencepipelines.ComponentName, &(instance.Spec.Components.DataSciencePipelines), ctx); err != nil {
+		// no need to log any errors as this is done in the reconcileSubComponent method
+		return val, err
 	}
-	if err = instance.Spec.Components.ModelMeshServing.ReconcileComponent(instance, r.Client, r.Scheme, plan.Components[modelmeshserving.ComponentName], r.ApplicationsNamespace); err != nil {
-		r.reportError(err, instance, ctx, "failed to reconcile ModelMesh serving on DataScienceCluster")
-		return ctrl.Result{}, err
+
+	// reconcile ModelMesh component
+	if val, err := r.reconcileSubComponent(instance, plan, modelmeshserving.ComponentName, &(instance.Spec.Components.ModelMeshServing), ctx); err != nil {
+		// no need to log any errors as this is done in the reconcileSubComponent method
+		return val, err
 	}
-	if err = instance.Spec.Components.Workbenches.ReconcileComponent(instance, r.Client, r.Scheme, plan.Components[workbenches.ComponentName], r.ApplicationsNamespace); err != nil {
-		r.reportError(err, instance, ctx, "failed to reconcile Workbench on DataScienceCluster")
-		return ctrl.Result{}, err
+
+	// reconcile Workbench component
+	if val, err := r.reconcileSubComponent(instance, plan, workbenches.ComponentName, &(instance.Spec.Components.Workbenches), ctx); err != nil {
+		// no need to log any errors as this is done in the reconcileSubComponent method
+		return val, err
 	}
 
 	// finalize reconciliation
@@ -129,6 +141,20 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		r.Log.Error(err, "failed to update DataScienceCluster status after successfuly completed reconciliation")
 	}
 
+	return ctrl.Result{}, nil
+}
+
+func (r *DataScienceClusterReconciler) reconcileSubComponent(instance *dsc.DataScienceCluster, plan *profiles.ReconciliationPlan,
+	componentName string, component components.ComponentInterface, ctx context.Context) (ctrl.Result, error) {
+	if err := component.ReconcileComponent(instance, r.Client, r.Scheme, plan.Components[componentName], r.ApplicationsNamespace); err != nil {
+		r.reportError(err, instance, ctx, "failed to reconcile "+componentName+" on DataScienceCluster")
+		return ctrl.Result{}, err
+	}
+	instance.Status.InstalledComponents[componentName] = plan.Components[componentName]
+	if err := r.Client.Status().Update(ctx, instance); err != nil {
+		r.reportError(err, instance, ctx, "failed to update DataScienceCluster status after reconciling "+componentName)
+		return ctrl.Result{}, err
+	}
 	return ctrl.Result{}, nil
 }
 
