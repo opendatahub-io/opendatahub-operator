@@ -12,12 +12,6 @@ spec:
   profile: "none"
   components:
     dashboard: {}
-    workbenches: {
-      enabled: true
-    }
-    datasciencepipelines: {
-      enabled: true
-    }
-    modelmeshserving: {
-      enabled: false
-    }
+    workbenches: {}
+    datasciencepipelines: {}
+    modelmeshserving: {}
