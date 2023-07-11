@@ -80,6 +80,13 @@ func (r *DSCInitializationReconciler) createOdhNamespace(dscInit *dsci.DSCInitia
 		return err
 	}
 
+	// Create odh-common-config Configmap for the Namespace
+	err = r.createOdhCommonConfigMap(dscInit, name, ctx)
+	if err != nil {
+		r.Log.Error(err, "error creating configmap", "name", "odh-common-config")
+		return err
+	}
+
 	// Create default Rolebinding for the namespace
 	err = r.createDefaultRoleBinding(dscInit, name, ctx)
 	if err != nil {
@@ -272,5 +279,38 @@ func ReplaceStringsInFile(fileName string, replacements map[string]string) error
 		return fmt.Errorf("failed to write to file: %v", err)
 	}
 
+	return nil
+}
+
+func (r *DSCInitializationReconciler) createOdhCommonConfigMap(dscInit *dsci.DSCInitialization, name string, ctx context.Context) error {
+	// Expected configmap for the given namespace
+	desiredConfigMap := &corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "odh-common-config",
+			Namespace: name,
+		},
+		Data: map[string]string{"namespace": name},
+	}
+
+	// Create Configmap if doesnot exists
+	foundConfigMap := &corev1.ConfigMap{}
+	err := r.Client.Get(ctx, client.ObjectKey{Name: name, Namespace: name}, foundConfigMap)
+	if err != nil {
+		if apierrs.IsNotFound(err) {
+			// Set Controller reference
+			err = ctrl.SetControllerReference(dscInit, foundConfigMap, r.Scheme)
+			if err != nil {
+				r.Log.Error(err, "Unable to add OwnerReference to the odh-common-config ConfigMap")
+				return err
+			}
+			err = r.Client.Create(ctx, desiredConfigMap)
+			if err != nil && !apierrs.IsAlreadyExists(err) {
+				return err
+			}
+		} else {
+			return err
+		}
+	}
 	return nil
 }
