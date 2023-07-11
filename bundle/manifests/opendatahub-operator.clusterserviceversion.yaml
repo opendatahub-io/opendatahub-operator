@@ -122,9 +122,7 @@ metadata:
             "name": "dscinitialization-sample"
           },
           "spec": {
-            "applicationsNamespace": [
-              "opendatahub"
-            ],
+            "applicationsNamespace": "opendatahub",
             "monitoring": {
               "enabled": false,
               "namespace": "opendatahub"
