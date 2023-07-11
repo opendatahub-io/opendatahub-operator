@@ -95,15 +95,9 @@ metadata:
           "spec": {
             "components": {
               "dashboard": {},
-              "datasciencepipelines": {
-                "enabled": true
-              },
-              "modelmeshserving": {
-                "enabled": false
-              },
-              "workbenches": {
-                "enabled": true
-              }
+              "datasciencepipelines": {},
+              "modelmeshserving": {},
+              "workbenches": {}
             },
             "profile": "none"
           }
