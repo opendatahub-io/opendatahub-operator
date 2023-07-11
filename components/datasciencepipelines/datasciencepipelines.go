@@ -10,7 +10,7 @@ import (
 
 const (
 	ComponentName = "data-science-pipelines-operator"
-	Path          = "/opt/odh-manifests/data-science-pipelines-operator/base"
+	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
 )
 
 type DataSciencePipelines struct {

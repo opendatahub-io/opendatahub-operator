@@ -28,12 +28,12 @@ import (
 )
 
 const (
-	DefaultManifestPath = "/opt/odh-manifests"
+	DefaultManifestPath = "/opt/manifests"
 )
 
 // DownloadManifests function performs following tasks:
 // 1. Given remote URI, download manifests, else extract local bundle
-// 2. It saves the manifests in the odh-manifests/component-name/ folder
+// 2. It saves the manifests in the /opt/manifests/component-name/ folder
 func DownloadManifests(uri string) error {
 	// Get the component repo from the given url
 	// e.g  https://github.com/example/tarball/master\

@@ -11,7 +11,7 @@ import (
 
 const (
 	ComponentName = "model-mesh"
-	Path          = "/opt/odh-manifests/model-mesh/base"
+	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
 )
 
 type ModelMeshServing struct {
