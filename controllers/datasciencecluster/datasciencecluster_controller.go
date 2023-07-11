@@ -174,12 +174,17 @@ func (r *DataScienceClusterReconciler) CreateReconciliationPlan(instance *dsc.Da
 	profiles.PopulatePlan(profiles.ProfileConfigs[profile], plan, instance)
 
 	// warn of odd profile combinations
-	if profile == profiles.ProfileServing && !plan.Components[modelmeshserving.ComponentName] {
+	componentName := ""
+	switch profile {
+	case profiles.ProfileServing:
+		componentName = modelmeshserving.ComponentName
+	case profiles.ProfileTraining:
+		componentName = datasciencepipelines.ComponentName
+	case profiles.ProfileWorkbench:
+		componentName = workbenches.ComponentName
+	}
+	if componentName != "" && !plan.Components[componentName] {
 		r.Log.Info("warning: profile '%v' has been selected, but component %s has been explicitly disabled in the CR", profile, modelmeshserving.ComponentName)
-	} else if profile == profiles.ProfileTraining && !plan.Components[datasciencepipelines.ComponentName] {
-		r.Log.Info("warning: profile '%v' has been selected, but component %s has been explicitly disabled in the CR", profile, datasciencepipelines.ComponentName)
-	} else if profile == profiles.ProfileWorkbench && !plan.Components[workbenches.ComponentName] {
-		r.Log.Info("warning: profile '%v' has been selected, but component %s has been explicitly disabled in the CR", profile, workbenches.ComponentName)
 	}
 
 	return plan
