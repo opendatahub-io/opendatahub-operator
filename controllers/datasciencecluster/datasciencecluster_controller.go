@@ -184,7 +184,7 @@ func (r *DataScienceClusterReconciler) CreateReconciliationPlan(instance *dsc.Da
 		componentName = workbenches.ComponentName
 	}
 	if componentName != "" && !plan.Components[componentName] {
-		r.Log.Info("warning: profile '%v' has been selected, but component %s has been explicitly disabled in the CR", profile, modelmeshserving.ComponentName)
+		r.Log.Info("warning: profile '%v' has been selected, but component %s has been explicitly disabled in the CR", profile, componentName)
 	}
 
 	return plan
