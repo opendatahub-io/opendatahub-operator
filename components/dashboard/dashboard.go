@@ -11,7 +11,7 @@ import (
 
 const (
 	ComponentName = "odh-dashboard"
-	Path          = "/opt/odh-manifests/odh-dashboard/base"
+	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
 )
 
 type Dashboard struct {

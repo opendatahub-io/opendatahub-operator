@@ -88,7 +88,7 @@ func configurePrometheus(dsciInit *dsci.DSCInitialization, r *DSCInitializationR
 		deploy.DefaultManifestPath+"/monitoring/prometheus",
 		dsciInit.Spec.Monitoring.Namespace, r.Scheme, dsciInit.Spec.Monitoring.Enabled)
 	if err != nil {
-		r.Log.Error(err, "error to deploy manifests under /odh-manifests/monitoring/prometheus")
+		r.Log.Error(err, "error to deploy manifests under /opt/manifests/monitoring/prometheus")
 		return err
 	}
 
@@ -149,7 +149,7 @@ func configureAlertManager(dsciInit *dsci.DSCInitialization, r *DSCInitializatio
 		deploy.DefaultManifestPath+"/monitoring/alertmanager",
 		dsciInit.Spec.Monitoring.Namespace, r.Scheme, dsciInit.Spec.Monitoring.Enabled)
 	if err != nil {
-		r.Log.Error(err, "error to deploy manifests under /odh-manifests/monitoring/alertmanager")
+		r.Log.Error(err, "error to deploy manifests under /opt/manifests/monitoring/alertmanager")
 		return err
 	}
 

@@ -10,9 +10,9 @@ import (
 )
 
 const (
-	ComponentName      = "workbenches"
-	Path               = "/opt/odh-manifests/odh-notebook-controller/base"
-	notebookImagesPath = "/opt/odh-manifests/notebook-images/overlays/additional"
+	ComponentName          = "workbenches"
+	notebookControllerPath = deploy.DefaultManifestPath + "/odh-notebook-controller/base"
+	notebookImagesPath     = deploy.DefaultManifestPath + "/notebook-images/overlays/additional"
 )
 
 type Workbenches struct {
@@ -30,7 +30,7 @@ func (m *Workbenches) ReconcileComponent(owner metav1.Object, cli client.Client,
 	}
 
 	err = deploy.DeployManifestsFromPath(owner, cli,
-		Path,
+		notebookControllerPath,
 		namespace,
 		scheme, enabled)
 	if err != nil {
