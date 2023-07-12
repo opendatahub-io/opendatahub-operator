@@ -1,4 +1,7 @@
 ## Append samples you want in your CSV to this file as resources ##
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
 resources:
 - dscinitialization_v1alpha1_dscinitialization.yaml
 - datasciencecluster_v1alpha1_datasciencecluster.yaml
@@ -6,4 +9,3 @@ resources:
 - dashboard_v1_odhdocuments.yaml
 - dashboard_v1_odhapplications.yaml
 - console_v1_odhquickstarts.yaml
-#+kubebuilder:scaffold:manifestskustomizesamples
