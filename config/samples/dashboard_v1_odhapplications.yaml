@@ -10,14 +10,12 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/created-by: odh-dashboard
 spec:
-  getStartedLink: 'https://jupyterhub.readthedocs.io/en/stable/getting-started/index.html'
-  route: jupyterhub
-  displayName: JupyterHub
-  kfdefApplications:
-    - jupyterhub
-    - notebook-images
-  provider: Jupyter
-  docsLink: 'https://jupyter.org/hub'
-  quickStart: create-jupyter-notebook
+  getStartedLink: 'https://example.company.com/en/sample.html'
+  displayName: ExampleName
+  img: encoded-data-of-images
+  support: support-example
+  descripiton: some description of application
+  provider: provider-example
+  docsLink: 'https://example.org/example/app'
   getStartedMarkDown: >-
     # MarkDown Description

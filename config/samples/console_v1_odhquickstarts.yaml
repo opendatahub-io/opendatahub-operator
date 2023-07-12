@@ -16,5 +16,8 @@ metadata:
     app.kubernetes.io/created-by: odh-dashboard
 spec:
   durationMinutes: 5
-  appName: jupyterhub
-  displayName: Creating a Jupyter notebook
+  appName: exampleAppName
+  displayName: exampleName
+  tasks: taskName
+  introduction: some introduction
+  description: some description of quick start

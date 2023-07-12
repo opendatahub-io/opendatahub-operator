@@ -25,9 +25,12 @@ metadata:
             "namespace": "opendatahub"
           },
           "spec": {
-            "appName": "jupyterhub",
-            "displayName": "Creating a Jupyter notebook",
-            "durationMinutes": 5
+            "appName": "exampleAppName",
+            "description": "some description of quick start",
+            "displayName": "exampleName",
+            "durationMinutes": 5,
+            "introduction": "some introduction",
+            "tasks": "taskName"
           }
         },
         {
@@ -45,17 +48,14 @@ metadata:
             "namespace": "opendatahub"
           },
           "spec": {
-            "displayName": "JupyterHub",
-            "docsLink": "https://jupyter.org/hub",
-            "getStartedLink": "https://jupyterhub.readthedocs.io/en/stable/getting-started/index.html",
+            "descripiton": "some description of application",
+            "displayName": "ExampleName",
+            "docsLink": "https://example.org/example/app",
+            "getStartedLink": "https://example.company.com/en/sample.html",
             "getStartedMarkDown": "# MarkDown Description",
-            "kfdefApplications": [
-              "jupyterhub",
-              "notebook-images"
-            ],
-            "provider": "Jupyter",
-            "quickStart": "create-jupyter-notebook",
-            "route": "jupyterhub"
+            "img": "encoded-data-of-images",
+            "provider": "provider-example",
+            "support": "support-example"
           }
         },
         {
@@ -74,6 +74,8 @@ metadata:
           },
           "spec": {
             "appName": "jupyter",
+            "descripiton": "some description of document",
+            "displayName": "Document Name",
             "durationMinutes": 15,
             "type": "how-to",
             "url": "https://url.sample.com"
@@ -90,7 +92,9 @@ metadata:
               "app.kubernetes.io/name": "datasciencecluster",
               "app.kubernetes.io/part-of": "opendatahub-operator"
             },
-            "name": "datasciencecluster-sample"
+            "name": "datasciencecluster-sample",
+            "sample-disable-dashboard": "- profile: \"core\"\n  components:\n    dashboard: {\n      enabled: false\n    }\n    workbenches: {}\n    datasciencepipelines: {}\n    modelmeshserving: {}\n",
+            "sample-enable-workbench-modelserving": "- profile: \"none\"\n  components:\n    dashboard: {}\n    workbenches: {\n      enabled: true\n    }\n    datasciencepipelines: {}\n    modelmeshserving: {\n      enabled: true\n    }\n"
           },
           "spec": {
             "components": {

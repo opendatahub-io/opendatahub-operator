@@ -14,3 +14,5 @@ spec:
   durationMinutes: 15
   type: how-to
   url: "https://url.sample.com"
+  descripiton: some description of document
+  displayName: Document Name

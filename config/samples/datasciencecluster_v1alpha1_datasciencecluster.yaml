@@ -8,6 +8,26 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/created-by: opendatahub-operator
   name: datasciencecluster-sample
+  sample-enable-workbench-modelserving: |
+    - profile: "none"
+      components:
+        dashboard: {}
+        workbenches: {
+          enabled: true
+        }
+        datasciencepipelines: {}
+        modelmeshserving: {
+          enabled: true
+        }
+  sample-disable-dashboard: |
+    - profile: "core"
+      components:
+        dashboard: {
+          enabled: false
+        }
+        workbenches: {}
+        datasciencepipelines: {}
+        modelmeshserving: {}
 spec:
   profile: "none"
   components:
