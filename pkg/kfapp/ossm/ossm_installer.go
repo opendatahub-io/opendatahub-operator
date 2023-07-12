@@ -33,12 +33,17 @@ type Ossm struct {
 	manifests  []manifest
 }
 
-// GetPlatform returns the ossm kfapp. It's called by coordinator.GetPlatform
-func GetPlatform(kfConfig *kfconfig.KfConfig) (kftypesv3.Platform, error) {
+func NewOssm(kfConfig *kfconfig.KfConfig, restConfig *rest.Config) *Ossm {
 	return &Ossm{
 		KfConfig: kfConfig,
-		config:   kftypesv3.GetConfig(),
-	}, nil
+		config:   restConfig,
+	}
+
+}
+
+// GetPlatform returns the ossm kfapp. It's called by coordinator.GetPlatform
+func GetPlatform(kfConfig *kfconfig.KfConfig) (kftypesv3.Platform, error) {
+	return NewOssm(kfConfig, kftypesv3.GetConfig()), nil
 }
 
 // GetPluginSpec gets the plugin spec.
@@ -53,12 +58,12 @@ func (ossm *Ossm) GetPluginSpec() (*ossmplugin.OssmPluginSpec, error) {
 	return ossm.pluginSpec, err
 }
 
-func (ossm *Ossm) Init(resources kftypesv3.ResourceEnum) error {
+func (ossm *Ossm) Init(_ kftypesv3.ResourceEnum) error {
 	if ossm.KfConfig.Spec.SkipInitProject {
 		log.Info("Skipping init phase")
 	}
 
-	log.Info("Initializing")
+	log.Info("Initializing " + PluginName)
 	pluginSpec, err := ossm.GetPluginSpec()
 	if err != nil {
 		return internalError(errors.WithStack(err))
@@ -87,7 +92,7 @@ func (ossm *Ossm) Init(resources kftypesv3.ResourceEnum) error {
 		return internalError(err)
 	}
 
-	if err := ossm.migrateDSProjects(); err != nil {
+	if err := ossm.MigrateDSProjects(); err != nil {
 		log.Error(err, "failed migrating Data Science Projects")
 	}
 
@@ -158,7 +163,7 @@ func (ossm *Ossm) createConfigMap(cfgMapName string, data map[string]string) err
 	return nil
 }
 
-func (ossm *Ossm) migrateDSProjects() error {
+func (ossm *Ossm) MigrateDSProjects() error {
 
 	client, err := clientset.NewForConfig(ossm.config)
 	if err != nil {

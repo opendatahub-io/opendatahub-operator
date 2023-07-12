@@ -52,6 +52,15 @@ components/gcp-click-to-deploy/src/user_config/**
 **/reg_tmp
 scripts/gke/build/**
 
+# test artifacts
+**/ginkgo-test-results.xml
+
+## test binary, build with `go test -c`
+*.test
+
+## output of the go coverage tools
+*.out
+
 # test data
 tests/data/test-data.tar.gz
 # Ignore downloaded odh manifests
