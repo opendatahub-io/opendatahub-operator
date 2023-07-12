@@ -252,7 +252,7 @@ endif
 
 # A comma-separated list of bundle images (e.g. make catalog-build BUNDLE_IMGS=example.com/operator-bundle:v0.1.0,example.com/operator-bundle:v0.2.0).
 # These images MUST exist in a registry and be pull-able.
-BUNDLE_IMGS=quay.io/$(IMAGE_OWNER)/opendatahub-operator-bundle:v0.0.2,quay.io/$(IMAGE_OWNER)/opendatahub-operator-bundle:v0.0.3
+BUNDLE_IMGS ?= $(IMAGE_TAG_BASE)-bundle:v0.0.2,$(IMAGE_TAG_BASE)-bundle:v0.0.3,$(BUNDLE_IMG)
 
 # The image tag given to the resulting catalog image (e.g. make catalog-build CATALOG_IMG=example.com/operator-catalog:v0.2.0).
 CATALOG_IMG ?= $(IMAGE_TAG_BASE)-catalog:v$(VERSION)
