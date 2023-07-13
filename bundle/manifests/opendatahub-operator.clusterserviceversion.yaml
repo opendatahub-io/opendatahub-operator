@@ -152,6 +152,7 @@ metadata:
         }
       ]
     capabilities: Seamless Upgrades
+    olm.skipRange: '>=1.0.0 <2.0.0'
     operatorframework.io/initialization-resource: "{ \n  \"apiVersion\": \"datasciencecluster.opendatahub.io/v1alpha1\",\n
       \ \"kind\": \"DataScienceCluster\", \n  \"metadata\":{ \n    \"name\": \"default\"\n
       \ },\n  \"spec\": {}\n}"

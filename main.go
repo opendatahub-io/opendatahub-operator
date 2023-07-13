@@ -26,6 +26,7 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
 	addonv1alpha1 "github.com/openshift/addon-operator/apis/addons/v1alpha1"
 	ocv1 "github.com/openshift/api/oauth/v1"
 	routev1 "github.com/openshift/api/route/v1"
@@ -45,11 +46,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	datascienceclusterv1alpha1 "github.com/opendatahub-io/opendatahub-operator/apis/datasciencecluster/v1alpha1"
-	dsci "github.com/opendatahub-io/opendatahub-operator/apis/dscinitialization/v1alpha1"
-	datascienceclustercontrollers "github.com/opendatahub-io/opendatahub-operator/controllers/datasciencecluster"
-	dscicontr "github.com/opendatahub-io/opendatahub-operator/controllers/dscinitialization"
-	"github.com/opendatahub-io/opendatahub-operator/controllers/secretgenerator"
+	datascienceclusterv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1alpha1"
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1alpha1"
+	datascienceclustercontrollers "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
+	dscicontr "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -60,7 +61,6 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-
 	utilruntime.Must(dsci.AddToScheme(scheme))
 	utilruntime.Must(datascienceclusterv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(netv1.AddToScheme(scheme))
@@ -71,6 +71,7 @@ func init() {
 	utilruntime.Must(routev1.AddToScheme(scheme))
 	utilruntime.Must(appsv1.AddToScheme(scheme))
 	utilruntime.Must(ocv1.AddToScheme(scheme))
+	utilruntime.Must(kfdefv1.AddToScheme(scheme))
 
 	//+kubebuilder:scaffold:scheme
 }

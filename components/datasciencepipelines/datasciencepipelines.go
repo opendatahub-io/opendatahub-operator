@@ -1,8 +1,8 @@
 package datasciencepipelines
 
 import (
-	"github.com/opendatahub-io/opendatahub-operator/components"
-	"github.com/opendatahub-io/opendatahub-operator/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"

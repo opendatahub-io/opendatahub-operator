@@ -18,7 +18,6 @@ package dscinitialization
 
 import (
 	"context"
-
 	"errors"
 
 	logr "github.com/go-logr/logr"
@@ -39,9 +38,9 @@ import (
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	dsci "github.com/opendatahub-io/opendatahub-operator/apis/dscinitialization/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/controllers/status"
-	"github.com/opendatahub-io/opendatahub-operator/pkg/deploy"
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 // DSCInitializationReconciler reconciles a DSCInitialization object
@@ -109,6 +108,12 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	platform, err := deploy.GetPlatform(r.Client)
 	if err != nil {
 		r.Log.Error(err, "Failed to determine platform (managed vs self-managed)")
+		return reconcile.Result{}, err
+	}
+
+	// Apply update from legacy operator
+	if err = updatefromLegacyVersion(r.Client); err != nil {
+		r.Log.Error(err, "unable to update from legacy operator version")
 		return reconcile.Result{}, err
 	}
 

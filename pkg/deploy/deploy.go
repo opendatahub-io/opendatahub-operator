@@ -24,7 +24,7 @@ import (
 	"sigs.k8s.io/kustomize/api/krusty"
 	"sigs.k8s.io/kustomize/api/resmap"
 
-	"github.com/opendatahub-io/opendatahub-operator/pkg/plugins"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins"
 )
 
 const (
