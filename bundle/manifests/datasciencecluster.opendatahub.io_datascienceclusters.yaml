@@ -119,6 +119,11 @@ spec:
                 type: array
               errorMessage:
                 type: string
+              installedComponents:
+                additionalProperties:
+                  type: boolean
+                description: List of components that are installed
+                type: object
               phase:
                 description: Phase describes the Phase of DataScienceCluster reconciliation
                   state This is used by OLM UI to provide status information to the
