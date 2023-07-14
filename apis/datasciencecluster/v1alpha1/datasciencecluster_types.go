@@ -19,6 +19,7 @@ package v1alpha1
 import (
 	"github.com/opendatahub-io/opendatahub-operator/components/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/components/datasciencepipelines"
+	"github.com/opendatahub-io/opendatahub-operator/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/components/modelmeshserving"
 	"github.com/opendatahub-io/opendatahub-operator/components/workbenches"
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
@@ -60,6 +61,9 @@ type Components struct {
 
 	// DataServicePipeline component configuration
 	DataSciencePipelines datasciencepipelines.DataSciencePipelines `json:"datasciencepipelines,omitempty"`
+
+	// Kserve component configuration
+	Kserve kserve.Kserve `json:"kserve,omitempty"`
 }
 
 // DataScienceClusterStatus defines the observed state of DataScienceCluster
