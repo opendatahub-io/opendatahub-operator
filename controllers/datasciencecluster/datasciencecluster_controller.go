@@ -19,6 +19,7 @@ package datasciencecluster
 import (
 	"context"
 	"fmt"
+	"github.com/opendatahub-io/opendatahub-operator/components/kserve"
 
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
@@ -120,6 +121,12 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	// reconcile Workbench component
 	if val, err := r.reconcileSubComponent(instance, plan, workbenches.ComponentName, &(instance.Spec.Components.Workbenches), ctx); err != nil {
+		// no need to log any errors as this is done in the reconcileSubComponent method
+		return val, err
+	}
+
+	// reconcile Kserve component
+	if val, err := r.reconcileSubComponent(instance, plan, kserve.ComponentName, &(instance.Spec.Components.Kserve), ctx); err != nil {
 		// no need to log any errors as this is done in the reconcileSubComponent method
 		return val, err
 	}

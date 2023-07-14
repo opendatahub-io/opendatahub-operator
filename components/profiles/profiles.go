@@ -4,6 +4,7 @@ import (
 	dsc "github.com/opendatahub-io/opendatahub-operator/apis/datasciencecluster/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/components/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/components/datasciencepipelines"
+	"github.com/opendatahub-io/opendatahub-operator/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/components/modelmeshserving"
 	"github.com/opendatahub-io/opendatahub-operator/components/workbenches"
 )
@@ -30,6 +31,7 @@ func SetDefaultProfiles() map[dsc.ProfileValue]ProfileConfig {
 				datasciencepipelines.ComponentName: false,
 				workbenches.ComponentName:          false,
 				dashboard.ComponentName:            false,
+				kserve.ComponentName:               false,
 			},
 		},
 		ProfileServing: {
@@ -38,6 +40,7 @@ func SetDefaultProfiles() map[dsc.ProfileValue]ProfileConfig {
 				datasciencepipelines.ComponentName: false,
 				workbenches.ComponentName:          false,
 				dashboard.ComponentName:            true,
+				kserve.ComponentName:               true,
 			},
 		},
 		ProfileTraining: {
@@ -46,6 +49,7 @@ func SetDefaultProfiles() map[dsc.ProfileValue]ProfileConfig {
 				datasciencepipelines.ComponentName: true,
 				workbenches.ComponentName:          false,
 				dashboard.ComponentName:            true,
+				kserve.ComponentName:               false,
 			},
 		},
 		ProfileWorkbench: {
@@ -54,6 +58,7 @@ func SetDefaultProfiles() map[dsc.ProfileValue]ProfileConfig {
 				datasciencepipelines.ComponentName: false,
 				workbenches.ComponentName:          true,
 				dashboard.ComponentName:            true,
+				kserve.ComponentName:               false,
 			},
 		},
 		ProfileCore: {
@@ -62,6 +67,7 @@ func SetDefaultProfiles() map[dsc.ProfileValue]ProfileConfig {
 				datasciencepipelines.ComponentName: true,
 				workbenches.ComponentName:          true,
 				dashboard.ComponentName:            true,
+				kserve.ComponentName:               true,
 			},
 		},
 		// Add more profiles and their component defaults as needed
@@ -76,12 +82,12 @@ type ReconciliationPlan struct {
 
 func PopulatePlan(profiledefaults ProfileConfig, plan *ReconciliationPlan, instance *dsc.DataScienceCluster) {
 
-	// serving is set to the default value, unless explicitly overriden
+	// modelmeshserving is set to the default value, unless explicitly overriden
 	plan.Components[modelmeshserving.ComponentName] = profiledefaults.ComponentDefaults[modelmeshserving.ComponentName]
 	if instance.Spec.Components.ModelMeshServing.Enabled != nil {
 		plan.Components[modelmeshserving.ComponentName] = *instance.Spec.Components.ModelMeshServing.Enabled
 	}
-	// training is set to the default value, unless explicitly overriden
+	// datasciencepipelines is set to the default value, unless explicitly overriden
 	plan.Components[datasciencepipelines.ComponentName] = profiledefaults.ComponentDefaults[datasciencepipelines.ComponentName]
 	if instance.Spec.Components.DataSciencePipelines.Enabled != nil {
 		plan.Components[datasciencepipelines.ComponentName] = *instance.Spec.Components.DataSciencePipelines.Enabled
@@ -95,5 +101,10 @@ func PopulatePlan(profiledefaults ProfileConfig, plan *ReconciliationPlan, insta
 	plan.Components[dashboard.ComponentName] = profiledefaults.ComponentDefaults[dashboard.ComponentName]
 	if instance.Spec.Components.Dashboard.Enabled != nil {
 		plan.Components[dashboard.ComponentName] = *instance.Spec.Components.Dashboard.Enabled
+	}
+	// kserve is set to the default value, unless explicitly overriden
+	plan.Components[kserve.ComponentName] = profiledefaults.ComponentDefaults[kserve.ComponentName]
+	if instance.Spec.Components.Dashboard.Enabled != nil {
+		plan.Components[kserve.ComponentName] = *instance.Spec.Components.Kserve.Enabled
 	}
 }

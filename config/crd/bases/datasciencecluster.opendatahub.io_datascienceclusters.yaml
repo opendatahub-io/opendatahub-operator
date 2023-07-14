@@ -56,6 +56,14 @@ spec:
                           component will not be installed.
                         type: boolean
                     type: object
+                  kserve:
+                    description: Kserve component configuration
+                    properties:
+                      enabled:
+                        description: enables or disables the component. A disabled
+                          component will not be installed.
+                        type: boolean
+                    type: object
                   modelmeshserving:
                     description: ModelMeshServing component configuration
                     properties:
