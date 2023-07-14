@@ -19,7 +19,7 @@ package datasciencecluster
 import (
 	"context"
 	"fmt"
-	"github.com/opendatahub-io/opendatahub-operator/components/kserve"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
 
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
