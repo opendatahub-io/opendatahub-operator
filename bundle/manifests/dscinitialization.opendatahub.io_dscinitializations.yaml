@@ -46,7 +46,7 @@ spec:
             description: DSCInitializationSpec defines the desired state of DSCInitialization
             properties:
               applicationsNamespace:
-                default: opendatahub
+                default: opendatahub-system
                 type: string
               manifestsUri:
                 description: Internal development useful field

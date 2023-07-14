@@ -87,9 +87,9 @@ func main() {
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
-	flag.StringVar(&dscApplicationsNamespace, "dsc-applications-namespace", "opendatahub", "The namespace where data science cluster"+
+	flag.StringVar(&dscApplicationsNamespace, "dsc-applications-namespace", "opendatahub-system", "The namespace where data science cluster"+
 		"applications will be deployed")
-	flag.StringVar(&dscMonitoringNamespace, "dsc-monitoring-namespace", "opendatahub", "The namespace where data science cluster"+
+	flag.StringVar(&dscMonitoringNamespace, "dsc-monitoring-namespace", "opendatahub-system", "The namespace where data science cluster"+
 		"monitoring stack will be deployed")
 	opts := zap.Options{
 		Development: true,

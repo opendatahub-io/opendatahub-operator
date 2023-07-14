@@ -32,7 +32,7 @@ const (
 
 // DSCInitializationSpec defines the desired state of DSCInitialization
 type DSCInitializationSpec struct {
-	// +kubebuilder:default:=opendatahub
+	// +kubebuilder:default:=opendatahub-system
 	ApplicationsNamespace string     `json:"applicationsNamespace"`
 	Monitoring            Monitoring `json:"monitoring,omitempty"`
 	// Internal development useful field
@@ -42,7 +42,7 @@ type DSCInitializationSpec struct {
 type Monitoring struct {
 	// +kubebuilder:default=false
 	Enabled bool `json:"enabled,omitempty"`
-	// +kubebuilder:default=opendatahub
+	// +kubebuilder:default=opendatahub-system
 	Namespace string `json:"namespace,omitempty"`
 }
 
