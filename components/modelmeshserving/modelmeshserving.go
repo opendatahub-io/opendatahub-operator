@@ -10,8 +10,9 @@ import (
 )
 
 const (
-	ComponentName = "model-mesh"
-	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
+	ComponentName  = "model-mesh"
+	Path           = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
+	monitoringPath = deploy.DefaultManifestPath + "/" + "modelmesh-monitoring/base"
 )
 
 type ModelMeshServing struct {
@@ -24,7 +25,7 @@ var _ components.ComponentInterface = (*ModelMeshServing)(nil)
 func (m *ModelMeshServing) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, enabled bool, namespace string) error {
 
 	// Update Default rolebinding
-	err := common.UpdatePodSecurityRolebinding(cli, []string{"modelmesh", "modelmesh-controller", "odh-model-controller"}, namespace)
+	err := common.UpdatePodSecurityRolebinding(cli, []string{"modelmesh", "modelmesh-controller", "odh-model-controller", "odh-prometheus-operator", "prometheus-custom"}, namespace)
 	if err != nil {
 		return err
 	}
@@ -32,6 +33,17 @@ func (m *ModelMeshServing) ReconcileComponent(owner metav1.Object, cli client.Cl
 		Path,
 		namespace,
 		scheme, enabled)
+
+	if err != nil {
+		return err
+	}
+
+	// If modelmesh is deployed successfully, deploy modelmesh-monitoring
+	err = deploy.DeployManifestsFromPath(owner, cli,
+		monitoringPath,
+		namespace,
+		scheme, enabled)
+
 	return err
 }
 
