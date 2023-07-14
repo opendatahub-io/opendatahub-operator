@@ -190,14 +190,9 @@ func (r *DataScienceClusterReconciler) SetupWithManager(mgr ctrl.Manager) error 
 }
 
 func (r *DataScienceClusterReconciler) CreateReconciliationPlan(instance *dsc.DataScienceCluster) *profiles.ReconciliationPlan {
-	plan := &profiles.ReconciliationPlan{Components: make(map[string]bool)}
-
-	profile := instance.Spec.Profile
-
-	// Set profile defaults
-	profiles.ProfileConfigs = profiles.SetDefaultProfiles()
 	// Create plan for component deployment
-	profiles.PopulatePlan(profiles.ProfileConfigs[profile], plan, instance)
+	profile := instance.Spec.Profile
+	plan := profiles.CreateReconciliationPlan(instance)
 
 	// warn of odd profile combinations
 	componentName := ""

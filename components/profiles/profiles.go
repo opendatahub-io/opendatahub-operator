@@ -74,26 +74,34 @@ type ReconciliationPlan struct {
 	Components map[string]bool
 }
 
-func PopulatePlan(profiledefaults ProfileConfig, plan *ReconciliationPlan, instance *dsc.DataScienceCluster) {
+func CreateReconciliationPlan(instance *dsc.DataScienceCluster) *ReconciliationPlan {
+	plan := &ReconciliationPlan{Components: make(map[string]bool)}
+	profile := instance.Spec.Profile
+	if profile == "" {
+		profile = ProfileCore
+	}
+	cfg := SetDefaultProfiles()[profile]
 
 	// serving is set to the default value, unless explicitly overriden
-	plan.Components[modelmeshserving.ComponentName] = profiledefaults.ComponentDefaults[modelmeshserving.ComponentName]
+	plan.Components[modelmeshserving.ComponentName] = cfg.ComponentDefaults[modelmeshserving.ComponentName]
 	if instance.Spec.Components.ModelMeshServing.Enabled != nil {
 		plan.Components[modelmeshserving.ComponentName] = *instance.Spec.Components.ModelMeshServing.Enabled
 	}
 	// training is set to the default value, unless explicitly overriden
-	plan.Components[datasciencepipelines.ComponentName] = profiledefaults.ComponentDefaults[datasciencepipelines.ComponentName]
+	plan.Components[datasciencepipelines.ComponentName] = cfg.ComponentDefaults[datasciencepipelines.ComponentName]
 	if instance.Spec.Components.DataSciencePipelines.Enabled != nil {
 		plan.Components[datasciencepipelines.ComponentName] = *instance.Spec.Components.DataSciencePipelines.Enabled
 	}
 	// workbenches is set to the default value, unless explicitly overriden
-	plan.Components[workbenches.ComponentName] = profiledefaults.ComponentDefaults[workbenches.ComponentName]
+	plan.Components[workbenches.ComponentName] = cfg.ComponentDefaults[workbenches.ComponentName]
 	if instance.Spec.Components.Workbenches.Enabled != nil {
 		plan.Components[workbenches.ComponentName] = *instance.Spec.Components.Workbenches.Enabled
 	}
 	// dashboard is set to the default value, unless explicitly overriden
-	plan.Components[dashboard.ComponentName] = profiledefaults.ComponentDefaults[dashboard.ComponentName]
+	plan.Components[dashboard.ComponentName] = cfg.ComponentDefaults[dashboard.ComponentName]
 	if instance.Spec.Components.Dashboard.Enabled != nil {
 		plan.Components[dashboard.ComponentName] = *instance.Spec.Components.Dashboard.Enabled
 	}
+
+	return plan
 }
