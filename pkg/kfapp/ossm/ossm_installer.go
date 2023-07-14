@@ -6,6 +6,7 @@ import (
 	multierror "github.com/hashicorp/go-multierror"
 	kfapisv3 "github.com/opendatahub-io/opendatahub-operator/apis"
 	kftypesv3 "github.com/opendatahub-io/opendatahub-operator/apis/apps"
+	"github.com/opendatahub-io/opendatahub-operator/apis/ossm.plugins.kubeflow.org/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/pkg/kfconfig"
 	"github.com/opendatahub-io/opendatahub-operator/pkg/kfconfig/ossmplugin"
 	"github.com/pkg/errors"
@@ -26,15 +27,17 @@ const (
 
 var log = ctrlLog.Log.WithName(PluginName)
 
-type Ossm struct {
+type OssmInstaller struct {
 	*kfconfig.KfConfig
-	pluginSpec *ossmplugin.OssmPluginSpec
-	config     *rest.Config
-	manifests  []manifest
+	pluginSpec   *ossmplugin.OssmPluginSpec
+	config       *rest.Config
+	manifests    []manifest
+	tracker      *v1alpha1.OssmResourceTracker
+	cleanupFuncs []cleanup
 }
 
-func NewOssm(kfConfig *kfconfig.KfConfig, restConfig *rest.Config) *Ossm {
-	return &Ossm{
+func NewOssmInstaller(kfConfig *kfconfig.KfConfig, restConfig *rest.Config) *OssmInstaller {
+	return &OssmInstaller{
 		KfConfig: kfConfig,
 		config:   restConfig,
 	}
@@ -43,28 +46,28 @@ func NewOssm(kfConfig *kfconfig.KfConfig, restConfig *rest.Config) *Ossm {
 
 // GetPlatform returns the ossm kfapp. It's called by coordinator.GetPlatform
 func GetPlatform(kfConfig *kfconfig.KfConfig) (kftypesv3.Platform, error) {
-	return NewOssm(kfConfig, kftypesv3.GetConfig()), nil
+	return NewOssmInstaller(kfConfig, kftypesv3.GetConfig()), nil
 }
 
 // GetPluginSpec gets the plugin spec.
-func (ossm *Ossm) GetPluginSpec() (*ossmplugin.OssmPluginSpec, error) {
-	if ossm.pluginSpec != nil {
-		return ossm.pluginSpec, nil
+func (o *OssmInstaller) GetPluginSpec() (*ossmplugin.OssmPluginSpec, error) {
+	if o.pluginSpec != nil {
+		return o.pluginSpec, nil
 	}
 
-	ossm.pluginSpec = &ossmplugin.OssmPluginSpec{}
-	err := ossm.KfConfig.GetPluginSpec(PluginName, ossm.pluginSpec)
+	o.pluginSpec = &ossmplugin.OssmPluginSpec{}
+	err := o.KfConfig.GetPluginSpec(PluginName, o.pluginSpec)
 
-	return ossm.pluginSpec, err
+	return o.pluginSpec, err
 }
 
-func (ossm *Ossm) Init(_ kftypesv3.ResourceEnum) error {
-	if ossm.KfConfig.Spec.SkipInitProject {
-		log.Info("Skipping init phase")
+func (o *OssmInstaller) Init(_ kftypesv3.ResourceEnum) error {
+	if o.KfConfig.Spec.SkipInitProject {
+		log.Info("Skipping init phase", "plugin", PluginName)
 	}
 
-	log.Info("Initializing " + PluginName)
-	pluginSpec, err := ossm.GetPluginSpec()
+	log.Info("Initializing", "plugin", PluginName)
+	pluginSpec, err := o.GetPluginSpec()
 	if err != nil {
 		return internalError(errors.WithStack(err))
 	}
@@ -77,7 +80,11 @@ func (ossm *Ossm) Init(_ kftypesv3.ResourceEnum) error {
 
 	// TODO ensure operators are installed
 
-	if err := ossm.createConfigMap("service-mesh-refs",
+	if err := o.createResourceTracker(); err != nil {
+		return internalError(err)
+	}
+
+	if err := o.createConfigMap("service-mesh-refs",
 		map[string]string{
 			"CONTROL_PLANE_NAME": pluginSpec.Mesh.Name,
 			"MESH_NAMESPACE":     pluginSpec.Mesh.Namespace,
@@ -85,29 +92,35 @@ func (ossm *Ossm) Init(_ kftypesv3.ResourceEnum) error {
 		return internalError(err)
 	}
 
-	if err := ossm.createConfigMap("auth-refs",
+	if err := o.createConfigMap("auth-refs",
 		map[string]string{
 			"AUTHORINO_LABEL": pluginSpec.Auth.Authorino.Label,
 		}); err != nil {
 		return internalError(err)
 	}
 
-	if err := ossm.MigrateDSProjects(); err != nil {
+	if err := o.MigrateDSProjects(); err != nil {
 		log.Error(err, "failed migrating Data Science Projects")
 	}
 
-	if err := ossm.processManifests(); err != nil {
+	if err := o.processManifests(); err != nil {
 		return internalError(err)
 	}
 
 	return nil
 }
 
-func (ossm *Ossm) Generate(resources kftypesv3.ResourceEnum) error {
+func (o *OssmInstaller) Generate(resources kftypesv3.ResourceEnum) error {
 	// TODO sort by Kind as .Apply does
-	if err := ossm.applyManifests(); err != nil {
+	if err := o.applyManifests(); err != nil {
 		return internalError(errors.WithStack(err))
 	}
+
+	o.onCleanup(
+		o.oauthClientRemoval(),
+		o.ingressVolumesRemoval(),
+		o.externalAuthzProviderRemoval(),
+	)
 
 	return nil
 }
@@ -128,17 +141,25 @@ func ExtractHostName(s string) string {
 	return withoutProtocol[:index]
 }
 
-func (ossm *Ossm) createConfigMap(cfgMapName string, data map[string]string) error {
+func (o *OssmInstaller) createConfigMap(cfgMapName string, data map[string]string) error {
 
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      cfgMapName,
-			Namespace: ossm.KfConfig.Namespace,
+			Namespace: o.KfConfig.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: o.tracker.APIVersion,
+					Kind:       o.tracker.Kind,
+					Name:       o.tracker.Name,
+					UID:        o.tracker.UID,
+				},
+			},
 		},
 		Data: data,
 	}
 
-	client, err := clientset.NewForConfig(ossm.config)
+	client, err := clientset.NewForConfig(o.config)
 	if err != nil {
 		return err
 	}
@@ -163,9 +184,9 @@ func (ossm *Ossm) createConfigMap(cfgMapName string, data map[string]string) err
 	return nil
 }
 
-func (ossm *Ossm) MigrateDSProjects() error {
+func (o *OssmInstaller) MigrateDSProjects() error {
 
-	client, err := clientset.NewForConfig(ossm.config)
+	client, err := clientset.NewForConfig(o.config)
 	if err != nil {
 		return err
 	}
@@ -194,8 +215,6 @@ func (ossm *Ossm) MigrateDSProjects() error {
 
 	return result.ErrorOrNil()
 }
-
-// TODO handle delete
 
 func internalError(err error) error {
 	return &kfapisv3.KfError{

@@ -22,24 +22,24 @@ var _ = When("Migrating Data Science Projects", func() {
 
 	var (
 		objectCleaner *testenv.Cleaner
-		ossmPlugin    *ossm.Ossm
+		ossmInstaller *ossm.OssmInstaller
 	)
 
 	BeforeEach(func() {
-		ossmPlugin = ossm.NewOssm(&kfconfig.KfConfig{}, envTest.Config)
+		ossmInstaller = ossm.NewOssmInstaller(&kfconfig.KfConfig{}, envTest.Config)
 		objectCleaner = testenv.CreateCleaner(cli, envTest.Config, timeout, interval)
 	})
 
 	It("should find one namespace to migrate", func() {
 		// given
-		dataSciencNs := createDSProject("dsp-01")
+		dataScienceNs := createDSProject("dsp-01")
 		regularNs := createNs("non-dsp")
-		Expect(cli.Create(context.Background(), dataSciencNs)).To(Succeed())
+		Expect(cli.Create(context.Background(), dataScienceNs)).To(Succeed())
 		Expect(cli.Create(context.Background(), regularNs)).To(Succeed())
-		defer objectCleaner.DeleteAll(dataSciencNs, regularNs)
+		defer objectCleaner.DeleteAll(dataScienceNs, regularNs)
 
 		// when
-		Expect(ossmPlugin.MigrateDSProjects()).ToNot(HaveOccurred())
+		Expect(ossmInstaller.MigrateDSProjects()).ToNot(HaveOccurred())
 
 		// then
 		Eventually(func() []v1.Namespace {

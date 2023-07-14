@@ -32,8 +32,8 @@ spec:
           metadata:
             type: object
           spec:
-            description: OssmPluginSpec defines the extra data provided by the Openshift
-              Service Mesh Plugin in KfDef spec.
+            description: OssmPluginSpec defines configuration needed for Openshift
+              Service Mesh for integration with Opendatahub.
             properties:
               auth:
                 properties:
@@ -52,6 +52,8 @@ spec:
                     type: string
                 type: object
               mesh:
+                description: MeshSpec holds information on how Service Mesh should
+                  be configured.
                 properties:
                   certificate:
                     properties:

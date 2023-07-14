@@ -471,6 +471,22 @@ func (kfapp *coordinator) Delete(resources kftypesv3.ResourceEnum) error {
 		return nil
 	}
 
+	ossmCleanup := func() error {
+		if kfapp.KfDef.Spec.Platform != kftypesv3.OSSM {
+			return nil
+		}
+
+		if p, ok := kfapp.Platforms[kfapp.KfDef.Spec.Platform]; !ok {
+			return &kfapis.KfError{
+				Code:    int(kfapis.INTERNAL_ERROR),
+				Message: "Platform OSSM specified but not loaded.",
+			}
+		} else {
+			ossmInstaller := p.(*ossm.OssmInstaller)
+			return ossmInstaller.CleanupOwnedResources()
+		}
+	}
+
 	if err := kfapp.KfDef.SyncCache(); err != nil {
 		return &kfapis.KfError{
 			Code:    int(kfapis.INTERNAL_ERROR),
@@ -499,6 +515,7 @@ func (kfapp *coordinator) Delete(resources kftypesv3.ResourceEnum) error {
 		if err := k8s(); err != nil {
 			return err
 		}
+		return ossmCleanup()
 	}
 	return nil
 }

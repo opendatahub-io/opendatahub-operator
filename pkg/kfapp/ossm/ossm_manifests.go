@@ -6,7 +6,6 @@ import (
 	configtypes "github.com/opendatahub-io/opendatahub-operator/apis/config"
 	"github.com/opendatahub-io/opendatahub-operator/pkg/kfconfig/ossmplugin"
 	"github.com/opendatahub-io/opendatahub-operator/pkg/secret"
-	"github.com/opendatahub-io/opendatahub-operator/pkg/utils"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
@@ -18,24 +17,24 @@ import (
 
 type applier func(config *rest.Config, filename string, elems ...configtypes.NameValue) error
 
-func (ossm *Ossm) applyManifests() error {
+func (o *OssmInstaller) applyManifests() error {
 	var apply applier
 
-	for _, m := range ossm.manifests {
+	for _, m := range o.manifests {
 		if m.patch {
 			apply = func(config *rest.Config, filename string, elems ...configtypes.NameValue) error {
 				log.Info("patching using manifest", "name", m.name, "path", m.targetPath())
-				return utils.PatchResourceFromFile(config, filename, elems...)
+				return o.PatchResourceFromFile(filename, elems...)
 			}
 		} else {
 			apply = func(config *rest.Config, filename string, elems ...configtypes.NameValue) error {
 				log.Info("applying manifest", "name", m.name, "path", m.targetPath())
-				return utils.CreateResourceFromFile(config, filename, elems...)
+				return o.CreateResourceFromFile(filename, elems...)
 			}
 		}
 
 		err := apply(
-			ossm.config,
+			o.config,
 			m.targetPath(),
 		)
 		if err != nil {
@@ -47,14 +46,14 @@ func (ossm *Ossm) applyManifests() error {
 	return nil
 }
 
-func (ossm *Ossm) processManifests() error {
-	if err := ossm.SyncCache(); err != nil {
+func (o *OssmInstaller) processManifests() error {
+	if err := o.SyncCache(); err != nil {
 		return internalError(err)
 	}
 
 	// TODO warn when file is not present instead of throwing an error
 	// IMPORTANT: Order of locations from where we load manifests/templates to process is significant
-	err := ossm.loadManifestsFrom(
+	err := o.loadManifestsFrom(
 		path.Join("control-plane", "base"),
 		path.Join("control-plane", "filters"),
 		path.Join("control-plane", "oauth"),
@@ -71,12 +70,12 @@ func (ossm *Ossm) processManifests() error {
 		return internalError(errors.WithStack(err))
 	}
 
-	data, err := ossm.prepareTemplateData()
+	data, err := o.prepareTemplateData()
 	if err != nil {
 		return internalError(errors.WithStack(err))
 	}
 
-	for i, m := range ossm.manifests {
+	for i, m := range o.manifests {
 		if err := m.processTemplate(data); err != nil {
 			return internalError(errors.WithStack(err))
 		}
@@ -87,8 +86,8 @@ func (ossm *Ossm) processManifests() error {
 	return nil
 }
 
-func (ossm *Ossm) loadManifestsFrom(paths ...string) error {
-	manifestRepo, ok := ossm.GetRepoCache(kftypesv3.ManifestsRepoName)
+func (o *OssmInstaller) loadManifestsFrom(paths ...string) error {
+	manifestRepo, ok := o.GetRepoCache(kftypesv3.ManifestsRepoName)
 	if !ok {
 		return internalError(errors.New("manifests repo is not defined."))
 	}
@@ -102,7 +101,7 @@ func (ossm *Ossm) loadManifestsFrom(paths ...string) error {
 		}
 	}
 
-	ossm.manifests = manifests
+	o.manifests = manifests
 
 	return nil
 }
@@ -134,23 +133,23 @@ func loadManifestsFrom(manifests []manifest, dir string) ([]manifest, error) {
 // TODO(smell) this is now holding two responsibilities:
 // - creates data structure to be fed to templates
 // - creates secrets using k8s API calls
-func (ossm *Ossm) prepareTemplateData() (interface{}, error) {
+func (o *OssmInstaller) prepareTemplateData() (interface{}, error) {
 	data := struct {
 		*ossmplugin.OssmPluginSpec
 		OAuth oAuth
 		Domain,
 		AppNamespace string
 	}{
-		AppNamespace: ossm.KfConfig.Namespace,
+		AppNamespace: o.KfConfig.Namespace,
 	}
 
-	spec, err := ossm.GetPluginSpec()
+	spec, err := o.GetPluginSpec()
 	if err != nil {
 		return nil, internalError(errors.WithStack(err))
 	}
 	data.OssmPluginSpec = spec
 
-	if domain, err := GetDomain(ossm.config); err == nil {
+	if domain, err := GetDomain(o.config); err == nil {
 		data.Domain = domain
 	} else {
 		return nil, internalError(errors.WithStack(err))
@@ -178,7 +177,7 @@ func (ossm *Ossm) prepareTemplateData() (interface{}, error) {
 	}
 
 	if spec.Mesh.Certificate.Generate {
-		if err := createSelfSignedCerts(ossm.config, data.Domain, metav1.ObjectMeta{
+		if err := o.createSelfSignedCerts(data.Domain, metav1.ObjectMeta{
 			Name:      spec.Mesh.Certificate.Name,
 			Namespace: spec.Mesh.Namespace,
 		}); err != nil {
@@ -186,7 +185,7 @@ func (ossm *Ossm) prepareTemplateData() (interface{}, error) {
 		}
 	}
 
-	if err := createEnvoySecret(ossm.config, data.OAuth, metav1.ObjectMeta{
+	if err := o.createEnvoySecret(data.OAuth, metav1.ObjectMeta{
 		Name:      data.AppNamespace + "-oauth2-tokens",
 		Namespace: data.Mesh.Namespace,
 	}); err != nil {

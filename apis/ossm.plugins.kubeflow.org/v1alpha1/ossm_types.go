@@ -17,12 +17,14 @@ type OssmPlugin struct {
 	Status OssmPluginStatus `json:"status,omitempty"`
 }
 
-// OssmPluginSpec defines the extra data provided by the Openshift Service Mesh Plugin in KfDef spec.
+// OssmPluginSpec defines configuration needed for Openshift Service Mesh
+// for integration with Opendatahub.
 type OssmPluginSpec struct {
 	Mesh MeshSpec `json:"mesh,omitempty"`
 	Auth AuthSpec `json:"auth,omitempty"`
 }
 
+// MeshSpec holds information on how Service Mesh should be configured.
 type MeshSpec struct {
 	Name        string   `json:"name,omitempty"`
 	Namespace   string   `json:"namespace,omitempty"`
@@ -30,7 +32,7 @@ type MeshSpec struct {
 }
 
 type CertSpec struct {
-	Name     string `json:"name,omitempty" default:"opendatahub-self-signed-cert"`
+	Name     string `json:"name,omitempty"`
 	Generate bool   `json:"generate,omitempty"`
 }
 
@@ -55,13 +57,49 @@ type OssmPluginStatus struct {
 
 //+kubebuilder:object:root=true
 
-// OssmPluginList contains a list of GcpPlugin
+// OssmPluginList contains a list of OssmPlugins
 type OssmPluginList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []OssmPlugin `json:"items"`
 }
 
+// OssmResourceTracker is a cluster-scoped resource for tracking objects
+// created by Ossm plugin. It's primarily used as owner reference
+// for resources created across namespaces so that they can be
+// garbage collected by Kubernetes when they're not needed anymore.
+// +kubebuilder:object:root=true
+// +kubebuilder:resource:scope=Cluster
+type OssmResourceTracker struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   OssmResourceTrackerSpec   `json:"spec,omitempty"`
+	Status OssmResourceTrackerStatus `json:"status,omitempty"`
+}
+
+// OssmResourceTrackerSpec defines the desired state of OssmResourceTracker
+type OssmResourceTrackerSpec struct {
+}
+
+// OssmResourceTrackerStatus defines the observed state of OssmResourceTracker
+type OssmResourceTrackerStatus struct {
+}
+
+// +kubebuilder:object:root=true
+
+// OssmResourceTrackerList contains a list of OssmResourceTracker
+type OssmResourceTrackerList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []OssmResourceTracker `json:"items"`
+}
+
 func init() {
-	SchemeBuilder.Register(&OssmPlugin{}, &OssmPluginList{})
+	SchemeBuilder.Register(
+		&OssmPlugin{},
+		&OssmPluginList{},
+		&OssmResourceTracker{},
+		&OssmResourceTrackerList{},
+	)
 }

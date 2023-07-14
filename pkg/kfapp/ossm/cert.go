@@ -13,7 +13,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 	"math/big"
 	"math/rand"
 	"net"
@@ -22,12 +21,21 @@ import (
 
 var seededRand = rand.New(rand.NewSource(time.Now().UnixNano()))
 
-func createSelfSignedCerts(config *rest.Config, addr string, objectMeta metav1.ObjectMeta) error {
+func (o *OssmInstaller) createSelfSignedCerts(addr string, objectMeta metav1.ObjectMeta) error {
 
 	cert, key, err := generateCertificate(addr)
 	if err != nil {
 		return errors.WithStack(err)
 	}
+
+	objectMeta.SetOwnerReferences([]metav1.OwnerReference{
+		{
+			APIVersion: o.tracker.APIVersion,
+			Kind:       o.tracker.Kind,
+			Name:       o.tracker.Name,
+			UID:        o.tracker.UID,
+		},
+	})
 
 	secret := &corev1.Secret{
 		ObjectMeta: objectMeta,
@@ -37,7 +45,7 @@ func createSelfSignedCerts(config *rest.Config, addr string, objectMeta metav1.O
 		},
 	}
 
-	clientset, err := kubernetes.NewForConfig(config)
+	clientset, err := kubernetes.NewForConfig(o.config)
 	if err != nil {
 		return errors.WithStack(err)
 	}

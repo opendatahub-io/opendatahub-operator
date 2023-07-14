@@ -4,6 +4,7 @@
 resources:
   - bases/kfdef.apps.kubeflow.org_kfdefs.yaml
   - bases/ossm.plugins.kubeflow.org_ossmplugins.yaml
+  - bases/ossm.plugins.kubeflow.org_ossmresourcetrackers.yaml
   - dashboard-crds/odhapplications.dashboard.opendatahub.io.crd.yaml
   - dashboard-crds/odhdashboardconfigs.opendatahub.io.crd.yaml
   - dashboard-crds/odhdocuments.dashboard.opendatahub.io.crd.yaml
