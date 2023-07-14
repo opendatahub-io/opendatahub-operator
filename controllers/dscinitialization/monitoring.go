@@ -15,8 +15,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	dsci "github.com/opendatahub-io/opendatahub-operator/apis/dscinitialization/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/pkg/deploy"
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 func configurePrometheus(dsciInit *dsci.DSCInitialization, r *DSCInitializationReconciler) error {

@@ -17,14 +17,15 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"github.com/opendatahub-io/opendatahub-operator/components/dashboard"
-	"github.com/opendatahub-io/opendatahub-operator/components/datasciencepipelines"
-	"github.com/opendatahub-io/opendatahub-operator/components/kserve"
-	"github.com/opendatahub-io/opendatahub-operator/components/modelmeshserving"
-	"github.com/opendatahub-io/opendatahub-operator/components/workbenches"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/dashboard"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 )
 
 // DataScienceClusterSpec defines the desired state of DataScienceCluster

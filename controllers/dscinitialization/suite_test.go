@@ -30,7 +30,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	dscinitializationv1alpha1 "github.com/opendatahub-io/opendatahub-operator/apis/dscinitialization/v1alpha1"
+	dscinitializationv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1alpha1"
 	//+kubebuilder:scaffold:imports
 )
 
