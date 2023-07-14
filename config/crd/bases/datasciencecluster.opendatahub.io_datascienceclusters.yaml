@@ -81,19 +81,6 @@ spec:
                         type: boolean
                     type: object
                 type: object
-              profile:
-                default: none
-                description: A profile sets the default components and configuration
-                  to install for a given use case. The profile configuration can still
-                  be overriden by the user on a per component basis. If not defined,
-                  the 'none' profile is used to enable explicit component selection.
-                enum:
-                - none
-                - core
-                - serving
-                - training
-                - workbench
-                type: string
             type: object
           status:
             description: DataScienceClusterStatus defines the observed state of DataScienceCluster

@@ -30,25 +30,9 @@ import (
 
 // DataScienceClusterSpec defines the desired state of DataScienceCluster
 type DataScienceClusterSpec struct {
-	// A profile sets the default components and configuration to install for a given
-	// use case. The profile configuration can still be overriden by the user on a per
-	// component basis. If not defined, the 'none' profile is used to enable explicit
-	// component selection.
-	// +kubebuilder:default:=none
-	Profile ProfileValue `json:"profile,omitempty"`
-
 	// Components are used to override and fine tune specific component configurations.
 	Components Components `json:"components,omitempty"`
 }
-
-// Valid values for the Profile in the DataScienceCluster are as follows:
-// - none: no components are selected by the profile
-// - core: all core components are installed
-// - serving: only serving components are installed
-// - training: only training components are installed
-// - workbench: only workbench components are installed
-// +kubebuilder:validation:Enum=none;core;serving;training;workbench
-type ProfileValue string
 
 type Components struct {
 	// Dashboard component configuration
