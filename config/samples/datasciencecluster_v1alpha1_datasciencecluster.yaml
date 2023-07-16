@@ -1,17 +1,18 @@
 apiVersion: datasciencecluster.opendatahub.io/v1alpha1
 kind: DataScienceCluster
 metadata:
+  name: default
   labels:
     app.kubernetes.io/name: datasciencecluster
-    app.kubernetes.io/instance: datasciencecluster-sample
+    app.kubernetes.io/instance: default
     app.kubernetes.io/part-of: opendatahub-operator
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/created-by: opendatahub-operator
-  name: datasciencecluster-sample
 spec:
-  profile: "none"
   components:
     dashboard: {}
     workbenches: {}
     datasciencepipelines: {}
     modelmeshserving: {}
+    kserve: {}
+    codeflare: {}
