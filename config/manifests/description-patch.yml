@@ -15,17 +15,3 @@ spec:
     * Jupyter Notebooks - JupyterLab notebook that provide Python support for GPU workloads
     * Data Science Pipelines - Pipeline solution for end to end MLOps workflows that support the Kubeflow Pipelines SDK and Tekton
     * Model Mesh - ModelMesh Serving is the Controller for managing ModelMesh, a general-purpose model serving management/routing layer
-    
-    ### Profiles
-    
-    Users can directly enable sets of ODH components according to profiles:
-    - **core**
-      * Enabled Components: All core components enabled
-    - **serving**
-      * Enabled Components: Modelmesh Serving, Dashboard
-    - **training**
-      * Enabled Components: Data Science Pipelines, Dashboard
-    - **workbenches**
-      * Enabled Components: Notebook Controller, Jupyter Notebook Images, ODH Notebook Controller, Dashboard
-    - **none**
-      * Enabled Components: No components are enabled, allowing explicit component selection

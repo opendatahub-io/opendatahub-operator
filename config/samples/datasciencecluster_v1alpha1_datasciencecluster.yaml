@@ -10,9 +10,14 @@ metadata:
     app.kubernetes.io/created-by: opendatahub-operator
 spec:
   components:
-    dashboard: {}
-    workbenches: {}
-    datasciencepipelines: {}
-    modelmeshserving: {}
-    kserve: {}
-    codeflare: {}
+    dashboard:
+      component: true
+    workbenches:
+      component: true
+    datasciencepipelines:
+      component: true
+    modelmeshserving:
+      component: true
+    kserve:
+      component: true
+

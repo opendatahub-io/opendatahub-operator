@@ -6,7 +6,6 @@ kind: Kustomization
 resources:
 - bases/opendatahub-operator.clusterserviceversion.yaml
 - ../default
-- ../samples
 - ../scorecard
 
 patches:
