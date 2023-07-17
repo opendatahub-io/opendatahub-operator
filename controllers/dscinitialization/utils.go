@@ -22,9 +22,14 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	datascienceclusterv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1alpha1"
+	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1alpha1"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/profiles"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/dashboard"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 )
 
 var (
@@ -357,8 +362,9 @@ func updatefromLegacyVersion(cli client.Client) error {
 			}
 		}
 
-		// Create DataScienceCluster with profile `none` to cleanup all previous controllers
-		defaultDataScienceCluster := &datascienceclusterv1alpha1.DataScienceCluster{
+		// Create DataScienceCluster with no components enabled to cleanup all previous controllers
+		f := false
+		defaultDataScienceCluster := &dsc.DataScienceCluster{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "DataScienceCluster",
 				APIVersion: "datasciencecluster.opendatahub.io/v1alpha1",
@@ -366,8 +372,24 @@ func updatefromLegacyVersion(cli client.Client) error {
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "default",
 			},
-			Spec: datascienceclusterv1alpha1.DataScienceClusterSpec{
-				Profile: profiles.ProfileNone,
+			Spec: dsc.DataScienceClusterSpec{
+				Components: dsc.Components{
+					ModelMeshServing: modelmeshserving.ModelMeshServing{
+						Component: components.Component{Enabled: &f},
+					},
+					DataSciencePipelines: datasciencepipelines.DataSciencePipelines{
+						Component: components.Component{Enabled: &f},
+					},
+					Workbenches: workbenches.Workbenches{
+						Component: components.Component{Enabled: &f},
+					},
+					Dashboard: dashboard.Dashboard{
+						Component: components.Component{Enabled: &f},
+					},
+					Kserve: kserve.Kserve{
+						Component: components.Component{Enabled: &f},
+					},
+				},
 			},
 		}
 

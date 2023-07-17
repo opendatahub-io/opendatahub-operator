@@ -68,7 +68,7 @@ released in phases and will be made available before release in the form of a `c
 
 1. When Operator is installed it creates a namespace called `opendatahub`.
 2. Users need to create required `DataScienceCluster` resource by going to the `Installed Operators` tab in the OpenShift Cluster.
-3. Install components by setting up `profile` field or setting individual components as `enabled`.
+3. Unless explicitly setting components with `enabled: false`, all components are enabled and installed.
 
 ### Integrated Components
 

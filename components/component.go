@@ -15,4 +15,7 @@ type Component struct {
 type ComponentInterface interface {
 	ReconcileComponent(owner metav1.Object, client client.Client, scheme *runtime.Scheme,
 		enabled bool, namespace string) error
+
+	IsEnabled() *bool
+	SetEnabled(enabled bool)
 }
