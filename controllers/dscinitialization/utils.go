@@ -60,11 +60,11 @@ func (r *DSCInitializationReconciler) createOdhNamespace(dscInit *dsci.DSCInitia
 		if apierrs.IsNotFound(err) {
 			r.Log.Info("Creating namespace", "name", name)
 			// Set Controller reference
-			err = ctrl.SetControllerReference(dscInit, desiredNamespace, r.Scheme)
-			if err != nil {
-				r.Log.Error(err, "Unable to add OwnerReference to the Namespace")
-				return err
-			}
+			//err = ctrl.SetControllerReference(dscInit, desiredNamespace, r.Scheme)
+			//if err != nil {
+			//	r.Log.Error(err, "Unable to add OwnerReference to the Namespace")
+			//	return err
+			//}
 			err = r.Create(ctx, desiredNamespace)
 			if err != nil && !apierrs.IsAlreadyExists(err) {
 				r.Log.Error(err, "Unable to create namespace", "name", name)
