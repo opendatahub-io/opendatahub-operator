@@ -13,9 +13,6 @@ spec:
   getStartedLink: 'https://jupyterhub.readthedocs.io/en/stable/getting-started/index.html'
   route: jupyterhub
   displayName: JupyterHub
-  kfdefApplications:
-    - jupyterhub
-    - notebook-images
   provider: Jupyter
   docsLink: 'https://jupyter.org/hub'
   quickStart: create-jupyter-notebook

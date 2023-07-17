@@ -16,11 +16,6 @@ spec:
   apiservicedefinitions: {}
   customresourcedefinitions:
     owned:
-    - description: KfDef is the Schema for the kfdefs API
-      displayName: Kf Def
-      kind: KfDef
-      name: kfdefs.kfdef.apps.kubeflow.org
-      version: v1
     - description: DataScienceCluster is the Schema for the datascienceclusters API
       displayName: Data Science Cluster
       kind: DataScienceCluster

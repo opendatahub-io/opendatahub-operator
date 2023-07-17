@@ -9,9 +9,6 @@ metadata:
           "kind": "OdhQuickStart",
           "metadata": {
             "annotations": {
-              "internal.config.kubernetes.io/previousKinds": "OdhQuickStart",
-              "internal.config.kubernetes.io/previousNames": "create-jupyter-notebook",
-              "internal.config.kubernetes.io/previousNamespaces": "default",
               "opendatahub.io/categories": "Getting started,Notebook environments"
             },
             "labels": {
@@ -49,10 +46,6 @@ metadata:
             "docsLink": "https://jupyter.org/hub",
             "getStartedLink": "https://jupyterhub.readthedocs.io/en/stable/getting-started/index.html",
             "getStartedMarkDown": "# MarkDown Description",
-            "kfdefApplications": [
-              "jupyterhub",
-              "notebook-images"
-            ],
             "provider": "Jupyter",
             "quickStart": "create-jupyter-notebook",
             "route": "jupyterhub"
@@ -176,11 +169,6 @@ spec:
       kind: DSCInitialization
       name: dscinitializations.dscinitialization.opendatahub.io
       version: v1alpha1
-    - description: KfDef is the Schema for the kfdefs API
-      displayName: Kf Def
-      kind: KfDef
-      name: kfdefs.kfdef.apps.kubeflow.org
-      version: v1
     - kind: OdhApplication
       name: odhapplications.dashboard.opendatahub.io
       version: v1
