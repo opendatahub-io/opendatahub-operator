@@ -46,10 +46,6 @@ metadata:
             "docsLink": "https://jupyter.org/hub",
             "getStartedLink": "https://jupyterhub.readthedocs.io/en/stable/getting-started/index.html",
             "getStartedMarkDown": "# MarkDown Description",
-            "kfdefApplications": [
-              "jupyterhub",
-              "notebook-images"
-            ],
             "provider": "Jupyter",
             "quickStart": "create-jupyter-notebook",
             "route": "jupyterhub"
@@ -158,7 +154,7 @@ metadata:
     operators.operatorframework.io/internal-objects: '[dscinitialization.opendatahub.io]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/opendatahub-io/opendatahub-operator
-  name: opendatahub-operator.v0.0.4
+  name: opendatahub-operator.v0.286.4
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -381,7 +377,7 @@ spec:
                 - --leader-elect
                 command:
                 - /manager
-                image: quay.io/opendatahub/opendatahub-operator:dev-0.0.4
+                image: quay.io/wenzhou/opendatahub-operator:dev-0.286.4
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:
@@ -469,4 +465,4 @@ spec:
   maturity: alpha
   provider:
     name: ODH
-  version: 0.0.4
+  version: 0.286.4
