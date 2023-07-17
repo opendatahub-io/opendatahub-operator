@@ -157,7 +157,7 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(dscInit *dsc
 			Name:      name,
 			Namespace: name,
 		},
-		Spec: netv1.NetworkPolicySpec{ 
+		Spec: netv1.NetworkPolicySpec{
 			// open ingress for all port for now, TODO: add explicit port per component
 			Ingress: []netv1.NetworkPolicyIngressRule{{}},
 			PolicyTypes: []netv1.PolicyType{

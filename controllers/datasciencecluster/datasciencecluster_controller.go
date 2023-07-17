@@ -74,13 +74,22 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	} else if err != nil {
 		return ctrl.Result{}, err
 	}
+
 	if len(instanceList.Items) > 1 {
 		message := fmt.Sprintf("only one instance of DataScienceCluster object is allowed. Update existing instance on namespace %s and name %s", req.Namespace, req.Name)
 		r.reportError(err, &instanceList.Items[0], ctx, message)
 		return ctrl.Result{}, fmt.Errorf(message)
 	}
 
-	instance := &instanceList.Items[0]
+	var instance *dsc.DataScienceCluster
+	if len(instanceList.Items) != 0 {
+		instance = &instanceList.Items[0]
+	}
+
+	// If instance is being deleted, return
+	if instance.GetDeletionTimestamp() != nil {
+		return ctrl.Result{}, err
+	}
 
 	// Start reconciling
 	if instance.Status.Conditions == nil {
