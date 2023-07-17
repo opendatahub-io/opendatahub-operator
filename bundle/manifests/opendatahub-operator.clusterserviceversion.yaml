@@ -9,9 +9,6 @@ metadata:
           "kind": "OdhQuickStart",
           "metadata": {
             "annotations": {
-              "internal.config.kubernetes.io/previousKinds": "OdhQuickStart",
-              "internal.config.kubernetes.io/previousNames": "create-jupyter-notebook",
-              "internal.config.kubernetes.io/previousNamespaces": "default",
               "opendatahub.io/categories": "Getting started,Notebook environments"
             },
             "labels": {
@@ -85,21 +82,22 @@ metadata:
           "metadata": {
             "labels": {
               "app.kubernetes.io/created-by": "opendatahub-operator",
-              "app.kubernetes.io/instance": "datasciencecluster-sample",
+              "app.kubernetes.io/instance": "default",
               "app.kubernetes.io/managed-by": "kustomize",
               "app.kubernetes.io/name": "datasciencecluster",
               "app.kubernetes.io/part-of": "opendatahub-operator"
             },
-            "name": "datasciencecluster-sample"
+            "name": "default"
           },
           "spec": {
             "components": {
+              "codeflare": {},
               "dashboard": {},
               "datasciencepipelines": {},
+              "kserve": {},
               "modelmeshserving": {},
               "workbenches": {}
-            },
-            "profile": "none"
+            }
           }
         },
         {
@@ -108,18 +106,18 @@ metadata:
           "metadata": {
             "labels": {
               "app.kubernetes.io/created-by": "opendatahub-operator",
-              "app.kubernetes.io/instance": "dscinitialization-sample",
+              "app.kubernetes.io/instance": "default",
               "app.kubernetes.io/managed-by": "kustomize",
               "app.kubernetes.io/name": "dscinitialization",
               "app.kubernetes.io/part-of": "opendatahub-operator"
             },
-            "name": "dscinitialization-sample"
+            "name": "default"
           },
           "spec": {
-            "applicationsNamespace": "opendatahub",
+            "applicationsNamespace": "opendatahub-system",
             "monitoring": {
               "enabled": false,
-              "namespace": "opendatahub"
+              "namespace": "opendatahub-system"
             }
           }
         },
