@@ -13,4 +13,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: quay.io/opendatahub/opendatahub-operator
-  newTag: dev-0.0.4
+  newTag: dev-0.0.5

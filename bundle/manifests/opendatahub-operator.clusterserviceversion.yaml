@@ -12,7 +12,7 @@ metadata:
     operators.operatorframework.io/internal-objects: '[dscinitialization.opendatahub.io]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/opendatahub-io/opendatahub-operator
-  name: opendatahub-operator.v0.0.4
+  name: opendatahub-operator.v0.0.5
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -28,6 +28,9 @@ spec:
       kind: DSCInitialization
       name: dscinitializations.dscinitialization.opendatahub.io
       version: v1alpha1
+    - kind: KfDef
+      name: kfdefs.kfdef.apps.kubeflow.org
+      version: v1
     - kind: OdhApplication
       name: odhapplications.dashboard.opendatahub.io
       version: v1
@@ -233,7 +236,7 @@ spec:
                 - --leader-elect
                 command:
                 - /manager
-                image: quay.io/opendatahub/opendatahub-operator:dev-0.0.4
+                image: quay.io/opendatahub/opendatahub-operator:dev-0.0.5
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:
@@ -321,4 +324,4 @@ spec:
   maturity: alpha
   provider:
     name: ODH
-  version: 0.0.4
+  version: 0.0.5
