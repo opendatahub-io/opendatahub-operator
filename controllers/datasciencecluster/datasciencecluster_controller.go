@@ -163,7 +163,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 }
 
 func (r *DataScienceClusterReconciler) isComponentEnabled(instance *dsc.DataScienceCluster, componentName string, component components.ComponentInterface, ctx context.Context) bool {
-	if component.IsEnabled() == nil {
+	if component.IsEnabled() == nil || !*component.IsEnabled() {
 		component.SetEnabled(false)
 		err := r.Client.Update(ctx, instance)
 		if err != nil {

@@ -63,6 +63,8 @@ released in phases and will be made available before release in the form of a `c
      publisher: ODH
    EOF
 ```
+
+2. Select `fast` channel to update
    
 ## Usage
 
