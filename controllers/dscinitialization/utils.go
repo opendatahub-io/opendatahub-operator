@@ -157,18 +157,9 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(dscInit *dsc
 			Name:      name,
 			Namespace: name,
 		},
-		Spec: netv1.NetworkPolicySpec{
-			Ingress: []netv1.NetworkPolicyIngressRule{{
-				From: []netv1.NetworkPolicyPeer{
-					{
-						NamespaceSelector: &metav1.LabelSelector{
-							MatchLabels: map[string]string{
-								"opendatahub.io/generated-namespace": "true",
-							},
-						},
-					},
-				},
-			}},
+		Spec: netv1.NetworkPolicySpec{ 
+			// open ingress for all port for now, TODO: add explicit port per component
+			Ingress: []netv1.NetworkPolicyIngressRule{{}},
 			PolicyTypes: []netv1.PolicyType{
 				netv1.PolicyTypeIngress,
 			},
