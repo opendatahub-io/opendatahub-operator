@@ -155,10 +155,10 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 func (r *DataScienceClusterReconciler) isComponentEnabled(instance *dsc.DataScienceCluster, componentName string, component components.ComponentInterface, ctx context.Context) bool {
 	if component.IsEnabled() == nil {
-		component.SetEnabled(true)
+		component.SetEnabled(false)
 		err := r.Client.Update(ctx, instance)
 		if err != nil {
-			r.reportError(err, instance, ctx, fmt.Sprintf("failed to set DataScienceCluster component %s to enabled: true", componentName))
+			r.reportError(err, instance, ctx, fmt.Sprintf("failed to set DataScienceCluster component %s to enabled: false", componentName))
 			// no need to return error as this is not critical and will be reconciled in the next update or reconcile loop
 		}
 	}
