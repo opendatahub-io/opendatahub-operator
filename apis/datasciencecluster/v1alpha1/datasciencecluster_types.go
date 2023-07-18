@@ -29,9 +29,10 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 )
 
-// DataScienceClusterSpec defines the desired state of DataScienceCluster
+// Defines the desired state of DataScienceCluster
 type DataScienceClusterSpec struct {
-	// Components are used to override and fine tune specific component configurations.
+	// Override and fine tune specific component configurations.
+	// +operator-sdk:csv:customresourcedefinitions:type=spec
 	Components Components `json:"components,omitempty"`
 }
 
@@ -73,7 +74,7 @@ type DataScienceClusterStatus struct {
 	RelatedObjects []corev1.ObjectReference `json:"relatedObjects,omitempty"`
 	ErrorMessage   string                   `json:"errorMessage,omitempty"`
 
-	// List of components that are installed
+	// List of components with status if installed or not
 	InstalledComponents map[string]bool `json:"installedComponents,omitempty"`
 }
 

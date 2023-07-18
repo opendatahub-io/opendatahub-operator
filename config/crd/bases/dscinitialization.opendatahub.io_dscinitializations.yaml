@@ -48,17 +48,22 @@ spec:
             properties:
               applicationsNamespace:
                 default: opendatahub
+                description: Namespace for applications to be installed, non-configurable,
+                  default to "opendatahub"
                 type: string
               manifestsUri:
                 description: Internal development useful field
                 type: string
               monitoring:
+                description: Enable monitoring on specified namespace
                 properties:
                   enabled:
                     default: false
+                    description: If enabled monitoring, default 'false'
                     type: boolean
                   namespace:
                     default: opendatahub
+                    description: Namespace for monitoring if it is enabled
                     type: string
                 type: object
             required:
