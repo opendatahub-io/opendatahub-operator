@@ -75,6 +75,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return ctrl.Result{}, err
 	}
 
+<<<<<<< HEAD
 	// If instance is being deleted, return
 	if instance.GetDeletionTimestamp() != nil {
 		return ctrl.Result{}, nil
@@ -87,10 +88,26 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return ctrl.Result{}, err
 	}
 
+=======
+	var instance *dsc.DataScienceCluster
+>>>>>>> 16be06a (Adding retry on failure capability)
 	if len(instanceList.Items) > 1 {
 		message := fmt.Sprintf("only one instance of DataScienceCluster object is allowed. Update existing instance on namespace %s and name %s", req.Namespace, req.Name)
-		r.reportError(err, &instanceList.Items[0], ctx, message)
+		_ = r.reportError(err, &instanceList.Items[0], message)
 		return ctrl.Result{}, fmt.Errorf(message)
+<<<<<<< HEAD
+=======
+	} else if len(instanceList.Items) != 0 {
+		instance = &instanceList.Items[0]
+	} else {
+		// this should never happen
+		return ctrl.Result{}, nil
+	}
+
+	// If instance is being deleted, return
+	if instance.GetDeletionTimestamp() != nil {
+		return ctrl.Result{}, err
+>>>>>>> 16be06a (Adding retry on failure capability)
 	}
 
 	// Start reconciling
@@ -101,7 +118,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		instance.Status.Phase = status.PhaseProgressing
 		instance, err = r.updateStatus(instance)
 		if err != nil {
-			r.reportError(err, instance, ctx, fmt.Sprintf("failed to add conditions to status of DataScienceCluster resource on namespace %s and name %s", req.Namespace, req.Name))
+			_ = r.reportError(err, instance, fmt.Sprintf("failed to add conditions to status of DataScienceCluster resource on namespace %s and name %s", req.Namespace, req.Name))
 			return ctrl.Result{}, err
 		}
 	}
@@ -163,27 +180,28 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(instance *dsc.DataS
 	component components.ComponentInterface, ctx context.Context) (*dsc.DataScienceCluster, ctrl.Result, error) {
 	err := component.ReconcileComponent(instance, r.Client, r.Scheme, enabled, r.ApplicationsNamespace)
 	if err != nil {
-		r.reportError(err, instance, ctx, "failed to reconcile "+componentName+" on DataScienceCluster")
+		instance = r.reportError(err, instance, "failed to reconcile "+componentName+" on DataScienceCluster")
 		return instance, ctrl.Result{}, err
 	}
 	instance.Status.InstalledComponents[componentName] = enabled
 
 	if instance, err = r.updateStatus(instance); err != nil {
-		r.reportError(err, instance, ctx, "failed to update DataScienceCluster status after reconciling "+componentName)
+		instance = r.reportError(err, instance, "failed to update DataScienceCluster status after reconciling "+componentName)
 		return instance, ctrl.Result{}, err
 	}
 	return instance, ctrl.Result{}, nil
 }
 
-func (r *DataScienceClusterReconciler) reportError(err error, instance *dsc.DataScienceCluster, ctx context.Context, message string) {
+func (r *DataScienceClusterReconciler) reportError(err error, instance *dsc.DataScienceCluster, message string) *dsc.DataScienceCluster {
 	r.Log.Error(err, message, "instance.Name", instance.Name)
 	r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DataScienceClusterReconcileError",
 		"%s for instance %s", message, instance.Name)
 	status.SetErrorCondition(&instance.Status.Conditions, status.ReconcileFailed, fmt.Sprintf("%s : %v", message, err))
 	instance.Status.Phase = status.PhaseError
-	if err = r.Client.Status().Update(ctx, instance); err != nil {
+	if instance, err = r.updateStatus(instance); err != nil {
 		r.Log.Error(err, "failed to update DataScienceCluster status after error", "instance.Name", instance.Name)
 	}
+	return instance
 }
 
 // SetupWithManager sets up the controller with the Manager.
