@@ -110,7 +110,7 @@ func DeployManifestsFromPath(owner metav1.Object, cli client.Client, manifestPat
 	// Render the Kustomize manifests
 	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
 	fs := filesys.MakeFsOnDisk()
-	fmt.Printf("Updating manifests : %v", manifestPath)
+	fmt.Printf("Updating manifests : %v \n", manifestPath)
 	// Create resmap
 	// Use kustomization file under manifestPath or use `default` overlay
 	var resMap resmap.ResMap
@@ -139,7 +139,7 @@ func DeployManifestsFromPath(owner metav1.Object, cli client.Client, manifestPat
 
 	// Create / apply / delete resources in the cluster
 	for _, obj := range objs {
-		err = manageResource(owner, context.TODO(), cli, obj, s, componentEnabled)
+		err = manageResource(owner, context.TODO(), cli, obj, s, componentEnabled, namespace)
 		if err != nil {
 			return err
 		}
@@ -163,7 +163,7 @@ func getResources(resMap resmap.ResMap) ([]*unstructured.Unstructured, error) {
 	return resources, nil
 }
 
-func manageResource(owner metav1.Object, ctx context.Context, cli client.Client, obj *unstructured.Unstructured, s *runtime.Scheme, enabled bool) error {
+func manageResource(owner metav1.Object, ctx context.Context, cli client.Client, obj *unstructured.Unstructured, s *runtime.Scheme, enabled bool, applicationNamespace string) error {
 	resourceName := obj.GetName()
 	namespace := obj.GetNamespace()
 
@@ -172,6 +172,11 @@ func manageResource(owner metav1.Object, ctx context.Context, cli client.Client,
 	err := cli.Get(ctx, types.NamespacedName{Name: resourceName, Namespace: namespace}, found)
 	if err != nil && !errors.IsNotFound(err) {
 		return err
+	}
+
+	// Return if resource is of Kind: Namespace and Name: odhApplicationsNamespace
+	if obj.GetKind() == "Namespace" && obj.GetName() == applicationNamespace {
+		return nil
 	}
 
 	// Resource exists but component is disabled
