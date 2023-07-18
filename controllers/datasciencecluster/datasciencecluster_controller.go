@@ -75,7 +75,6 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return ctrl.Result{}, err
 	}
 
-<<<<<<< HEAD
 	// If instance is being deleted, return
 	if instance.GetDeletionTimestamp() != nil {
 		return ctrl.Result{}, nil
@@ -88,26 +87,10 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return ctrl.Result{}, err
 	}
 
-=======
-	var instance *dsc.DataScienceCluster
->>>>>>> 16be06a (Adding retry on failure capability)
 	if len(instanceList.Items) > 1 {
 		message := fmt.Sprintf("only one instance of DataScienceCluster object is allowed. Update existing instance on namespace %s and name %s", req.Namespace, req.Name)
 		_ = r.reportError(err, &instanceList.Items[0], message)
 		return ctrl.Result{}, fmt.Errorf(message)
-<<<<<<< HEAD
-=======
-	} else if len(instanceList.Items) != 0 {
-		instance = &instanceList.Items[0]
-	} else {
-		// this should never happen
-		return ctrl.Result{}, nil
-	}
-
-	// If instance is being deleted, return
-	if instance.GetDeletionTimestamp() != nil {
-		return ctrl.Result{}, err
->>>>>>> 16be06a (Adding retry on failure capability)
 	}
 
 	// Start reconciling
@@ -228,21 +211,22 @@ func (r *DataScienceClusterReconciler) updateStatus(original *dsc.DataScienceClu
 	var saved *dsc.DataScienceCluster
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 
+		r.Log.Info("--DEBUG--1. Retrieving DataScienceCluster", "instance.Name", client.ObjectKeyFromObject(original))
 		err := r.Client.Get(context.TODO(), client.ObjectKeyFromObject(original), saved)
 		if err != nil {
+			r.Log.Info("--DEBUG--2. Retrieving DataScienceCluster ERROR", "err", err)
 			return err
 		}
 		// update status here
 		saved.Status = original.Status
 
 		// Try to update
+		r.Log.Info("--DEBUG--3. Updating DataScienceCluster status", "instance", saved)
 		err = r.Client.Status().Update(context.TODO(), saved)
+		r.Log.Info("--DEBUG--4. Result", "error", err)
 		// Return err itself here (not wrapped inside another error)
 		// so that RetryOnConflict can identify it correctly.
 		return err
 	})
-	if saved == nil {
-		saved = original
-	}
 	return saved, err
 }

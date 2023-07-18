@@ -147,6 +147,13 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 
 	// Finish reconciling
+
+	// refresh the instance in case it was updated during the reconcile
+	err = r.Client.Get(ctx, types.NamespacedName{Name: "default"}, instance)
+	if err != nil {
+		r.Log.Error(err, "failed to retrieve DSCInitialization instance for status update after successfuly completed reconciliation")
+		return ctrl.Result{}, err
+	}
 	reason := status.ReconcileCompleted
 	message := status.ReconcileCompletedMessage
 	status.SetCompleteCondition(&instance.Status.Conditions, reason, message)
