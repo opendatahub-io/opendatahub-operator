@@ -24,6 +24,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/types"
 
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -147,19 +148,26 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 
 	// Finish reconciling
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		// refresh the instance in case it was updated during the reconcile
+		err = r.Client.Get(ctx, types.NamespacedName{Name: "default"}, instance)
+		if err != nil {
+			r.Log.Error(err, "failed to retrieve DSCInitialization instance for status update after successfuly completed reconciliation")
+			return err
+		}
+		reason := status.ReconcileCompleted
+		message := status.ReconcileCompletedMessage
+		status.SetCompleteCondition(&instance.Status.Conditions, reason, message)
 
-	// refresh the instance in case it was updated during the reconcile
-	err = r.Client.Get(ctx, types.NamespacedName{Name: "default"}, instance)
+		instance.Status.Phase = status.PhaseReady
+
+		// Try to update
+		err = r.Client.Status().Update(context.TODO(), instance)
+		// Return err itself here (not wrapped inside another error)
+		// so that RetryOnConflict can identify it correctly.
+		return err
+	})
 	if err != nil {
-		r.Log.Error(err, "failed to retrieve DSCInitialization instance for status update after successfuly completed reconciliation")
-		return ctrl.Result{}, err
-	}
-	reason := status.ReconcileCompleted
-	message := status.ReconcileCompletedMessage
-	status.SetCompleteCondition(&instance.Status.Conditions, reason, message)
-
-	instance.Status.Phase = status.PhaseReady
-	if err = r.Client.Status().Update(ctx, instance); err != nil {
 		r.Log.Error(err, "failed to update DSCInitialization status after successfuly completed reconciliation")
 	}
 	return ctrl.Result{}, nil
