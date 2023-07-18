@@ -185,12 +185,14 @@ var singletonPredicate = predicate.Funcs{
 		if e.Object.GetObjectKind().GroupVersionKind().Kind == "DSCInitialization" {
 			if e.Object.GetName() == "default" {
 				return true
+			} else {
+				// Set to error level since it causes Panic
+				setupLog := ctrl.Log.WithName("dscinitialization")
+				setupLog.Error(errors.New("only single DSCInitialization instance can be created. Mismatch CreateEvent Object.GetName not to 'default'"), "Wrong name", "object", e.Object.GetName())
 			}
 		}
-		// Set to error level since it causes Panic
-		setupLog := ctrl.Log.WithName("dscinitialization")
-		setupLog.Error(errors.New("only single DSCInitialization instance can be created. Mismatch CreateEvent Object.GetName not to 'default'"), "Wrong name", "object", e.Object.GetName())
-		return false
+
+		return true
 	},
 
 	UpdateFunc: func(e event.UpdateEvent) bool {
@@ -198,10 +200,12 @@ var singletonPredicate = predicate.Funcs{
 		if e.ObjectNew.GetObjectKind().GroupVersionKind().Kind == "DSCInitialization" {
 			if e.ObjectNew.GetName() == "default" {
 				return true
+			} else {
+				setupLog := ctrl.Log.WithName("dscinitialization")
+				setupLog.Error(errors.New("only single DSCInitialization instance can be updated. Mismatch UpdateEvent Object.GetName not to 'default'"), "Wrong name", "object", e.ObjectNew.GetName())
+				return false
 			}
 		}
-		setupLog := ctrl.Log.WithName("dscinitialization")
-		setupLog.Error(errors.New("only single DSCInitialization instance can be updated. Mismatch UpdateEvent Object.GetName not to 'default'"), "Wrong name", "object", e.ObjectNew.GetName())
-		return false
+		return true
 	},
 }
