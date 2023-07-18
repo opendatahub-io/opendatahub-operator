@@ -241,5 +241,8 @@ func (r *DataScienceClusterReconciler) updateStatus(original *dsc.DataScienceClu
 		// so that RetryOnConflict can identify it correctly.
 		return err
 	})
+	if saved == nil {
+		saved = original
+	}
 	return saved, err
 }
