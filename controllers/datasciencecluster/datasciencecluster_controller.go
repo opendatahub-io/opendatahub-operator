@@ -109,75 +109,39 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	// reconcile dashboard component
-	enabled := r.isComponentEnabled(&(instance.Spec.Components.Dashboard))
-	if val, err := r.reconcileSubComponent(instance, dashboard.ComponentName, enabled, &(instance.Spec.Components.Dashboard), ctx); err != nil {
-		// Update immediately only when error occurs, else skip to end
-		err := r.Client.Update(ctx, instance)
-		if err != nil {
-			r.Log.Info(fmt.Sprintf("failed to set DataScienceCluster component %s to enabled: false", dashboard.ComponentName), "error", err)
-			// no need to return error as this is not critical and will be reconciled in the next update or reconcile loop
-		}
+	if val, err := r.reconcileSubComponent(instance, dashboard.ComponentName, instance.Spec.Components.Dashboard.Enabled,
+		&(instance.Spec.Components.Dashboard), ctx); err != nil {
 		// no need to log any errors as this is done in the reconcileSubComponent method
 		return val, err
 	}
 
 	// reconcile DataSciencePipelines component
-	enabled = r.isComponentEnabled(&(instance.Spec.Components.DataSciencePipelines))
-	if val, err := r.reconcileSubComponent(instance, datasciencepipelines.ComponentName, enabled, &(instance.Spec.Components.DataSciencePipelines), ctx); err != nil {
-		// Update immediately only when error occurs, else skip to end
-		err := r.Client.Update(ctx, instance)
-		if err != nil {
-			r.Log.Info(fmt.Sprintf("failed to set DataScienceCluster component %s to enabled: false", datasciencepipelines.ComponentName), "error", err)
-			// no need to return error as this is not critical and will be reconciled in the next update or reconcile loop
-		}
+	if val, err := r.reconcileSubComponent(instance, datasciencepipelines.ComponentName, instance.Spec.Components.DataSciencePipelines.Enabled,
+		&(instance.Spec.Components.DataSciencePipelines), ctx); err != nil {
 		// no need to log any errors as this is done in the reconcileSubComponent method
 		return val, err
 	}
 
 	// reconcile ModelMesh component
-	enabled = r.isComponentEnabled(&(instance.Spec.Components.ModelMeshServing))
-	if val, err := r.reconcileSubComponent(instance, modelmeshserving.ComponentName, enabled, &(instance.Spec.Components.ModelMeshServing), ctx); err != nil {
-		// Update immediately only when error occurs, else skip to end
-		err := r.Client.Update(ctx, instance)
-		if err != nil {
-			r.Log.Info(fmt.Sprintf("failed to set DataScienceCluster component %s to enabled: false", modelmeshserving.ComponentName), "error", err)
-			// no need to return error as this is not critical and will be reconciled in the next update or reconcile loop
-		}
+	if val, err := r.reconcileSubComponent(instance, modelmeshserving.ComponentName, instance.Spec.Components.ModelMeshServing.Enabled,
+		&(instance.Spec.Components.ModelMeshServing), ctx); err != nil {
 		// no need to log any errors as this is done in the reconcileSubComponent method
 		return val, err
 	}
 
 	// reconcile Workbench component
-	enabled = r.isComponentEnabled(&(instance.Spec.Components.Workbenches))
-	if val, err := r.reconcileSubComponent(instance, workbenches.ComponentName, enabled, &(instance.Spec.Components.Workbenches), ctx); err != nil {
-		// Update immediately only when error occurs, else skip to end
-		err := r.Client.Update(ctx, instance)
-		if err != nil {
-			r.Log.Info(fmt.Sprintf("failed to set DataScienceCluster component %s to enabled: false", workbenches.ComponentName), "error", err)
-			// no need to return error as this is not critical and will be reconciled in the next update or reconcile loop
-		}
+	if val, err := r.reconcileSubComponent(instance, workbenches.ComponentName, instance.Spec.Components.Workbenches.Enabled,
+		&(instance.Spec.Components.Workbenches), ctx); err != nil {
 		// no need to log any errors as this is done in the reconcileSubComponent method
 		return val, err
 	}
 
 	// reconcile Kserve component
-	enabled = r.isComponentEnabled(&(instance.Spec.Components.Kserve))
-	if val, err := r.reconcileSubComponent(instance, kserve.ComponentName, enabled, &(instance.Spec.Components.Kserve), ctx); err != nil {
-		err := r.Client.Update(ctx, instance)
-		if err != nil {
-			r.Log.Info(fmt.Sprintf("failed to set DataScienceCluster component %s to enabled: false", kserve.ComponentName), "error", err)
-			// no need to return error as this is not critical and will be reconciled in the next update or reconcile loop
-		}
+	if val, err := r.reconcileSubComponent(instance, kserve.ComponentName, instance.Spec.Components.Kserve.Enabled, &(instance.Spec.Components.Kserve), ctx); err != nil {
 		// no need to log any errors as this is done in the reconcileSubComponent method
 		return val, err
 	}
 
-	// Update final state of spec
-	err = r.Client.Update(ctx, instance)
-	if err != nil {
-		r.Log.Info(fmt.Sprintf("failed to set DataScienceCluster CR :%v", instance.Name), "error", err)
-		// no need to return error as this is not critical and will be reconciled in the next update or reconcile loop
-	}
 	// finalize reconciliation
 	status.SetCompleteCondition(&instance.Status.Conditions, status.ReconcileCompleted, "DataScienceCluster resource reconciled successfully.")
 	err = r.Client.Status().Update(ctx, instance)
@@ -196,13 +160,6 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	return ctrl.Result{}, nil
-}
-
-func (r *DataScienceClusterReconciler) isComponentEnabled(component components.ComponentInterface) bool {
-	if component.IsEnabled() == nil {
-		component.SetEnabled(false)
-	}
-	return *component.IsEnabled()
 }
 
 func (r *DataScienceClusterReconciler) reconcileSubComponent(instance *dsc.DataScienceCluster, componentName string, enabled bool,

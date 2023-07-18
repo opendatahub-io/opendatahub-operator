@@ -22,12 +22,12 @@ type Workbenches struct {
 // Verifies that Dashboard implements ComponentInterface
 var _ components.ComponentInterface = (*Workbenches)(nil)
 
-func (d *Workbenches) IsEnabled() *bool {
+func (d *Workbenches) IsEnabled() bool {
 	return d.Enabled
 }
 
 func (d *Workbenches) SetEnabled(enabled bool) {
-	d.Enabled = &enabled
+	d.Enabled = enabled
 }
 
 func (m *Workbenches) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, enabled bool, namespace string) error {

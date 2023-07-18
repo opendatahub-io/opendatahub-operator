@@ -21,12 +21,12 @@ type Dashboard struct {
 // Verifies that Dashboard implements ComponentInterface
 var _ components.ComponentInterface = (*Dashboard)(nil)
 
-func (d *Dashboard) IsEnabled() *bool {
+func (d *Dashboard) IsEnabled() bool {
 	return d.Enabled
 }
 
 func (d *Dashboard) SetEnabled(enabled bool) {
-	d.Enabled = &enabled
+	d.Enabled = enabled
 }
 
 func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, enabled bool, namespace string) error {
