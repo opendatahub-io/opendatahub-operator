@@ -66,12 +66,23 @@ type DataScienceClusterReconciler struct {
 func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.Log.Info("Reconciling DataScienceCluster resources", "Request.Namespace", req.Namespace, "Request.Name", req.Name)
 
-	// Return if multiple instances of DataScienceCluster exist
-	instanceList := &dsc.DataScienceClusterList{}
-	err := r.Client.List(context.TODO(), instanceList)
+	instance := &dsc.DataScienceCluster{}
+	err := r.Client.Get(context.TODO(), req.NamespacedName, instance)
 	if err != nil && apierrs.IsNotFound(err) {
 		return ctrl.Result{}, nil
 	} else if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	// If instance is being deleted, return
+	if instance.GetDeletionTimestamp() != nil {
+		return ctrl.Result{}, nil
+	}
+
+	// Return if multiple instances of DataScienceCluster exist
+	instanceList := &dsc.DataScienceClusterList{}
+	err = r.Client.List(context.TODO(), instanceList)
+	if err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -79,16 +90,6 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		message := fmt.Sprintf("only one instance of DataScienceCluster object is allowed. Update existing instance on namespace %s and name %s", req.Namespace, req.Name)
 		r.reportError(err, &instanceList.Items[0], ctx, message)
 		return ctrl.Result{}, fmt.Errorf(message)
-	}
-
-	var instance *dsc.DataScienceCluster
-	if len(instanceList.Items) != 0 {
-		instance = &instanceList.Items[0]
-	}
-
-	// If instance is being deleted, return
-	if instance.GetDeletionTimestamp() != nil {
-		return ctrl.Result{}, err
 	}
 
 	// Start reconciling
