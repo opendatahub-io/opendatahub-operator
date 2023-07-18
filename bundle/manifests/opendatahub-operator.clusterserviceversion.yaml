@@ -2,7 +2,164 @@ apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
   annotations:
-    alm-examples: '[]'
+    alm-examples: |-
+      [
+        {
+          "apiVersion": "console.openshift.io/v1",
+          "kind": "OdhQuickStart",
+          "metadata": {
+            "annotations": {
+              "internal.config.kubernetes.io/previousKinds": "OdhQuickStart",
+              "internal.config.kubernetes.io/previousNames": "create-jupyter-notebook",
+              "internal.config.kubernetes.io/previousNamespaces": "default",
+              "opendatahub.io/categories": "Getting started,Notebook environments"
+            },
+            "labels": {
+              "app.kubernetes.io/created-by": "odh-dashboard",
+              "app.kubernetes.io/instance": "odh-dashboard-sample",
+              "app.kubernetes.io/managed-by": "kustomize",
+              "app.kubernetes.io/name": "odh-dashboard",
+              "app.kubernetes.io/part-of": "odh-dashboard"
+            },
+            "name": "create-jupyter-notebook-sample",
+            "namespace": "opendatahub"
+          },
+          "spec": {
+            "appName": "jupyterhub",
+            "displayName": "Creating a Jupyter notebook",
+            "durationMinutes": 5
+          }
+        },
+        {
+          "apiVersion": "dashboard.opendatahub.io/v1",
+          "kind": "OdhApplication",
+          "metadata": {
+            "labels": {
+              "app.kubernetes.io/created-by": "odh-dashboard",
+              "app.kubernetes.io/instance": "odh-dashboard-sample",
+              "app.kubernetes.io/managed-by": "kustomize",
+              "app.kubernetes.io/name": "odh-dashboard",
+              "app.kubernetes.io/part-of": "odh-dashboard"
+            },
+            "name": "jupyterhub-sample",
+            "namespace": "opendatahub"
+          },
+          "spec": {
+            "displayName": "JupyterHub",
+            "docsLink": "https://jupyter.org/hub",
+            "getStartedLink": "https://jupyterhub.readthedocs.io/en/stable/getting-started/index.html",
+            "getStartedMarkDown": "# MarkDown Description",
+            "provider": "Jupyter",
+            "quickStart": "create-jupyter-notebook",
+            "route": "jupyterhub"
+          }
+        },
+        {
+          "apiVersion": "dashboard.opendatahub.io/v1",
+          "kind": "OdhDocument",
+          "metadata": {
+            "labels": {
+              "app.kubernetes.io/created-by": "odh-dashboard",
+              "app.kubernetes.io/instance": "odh-dashboard-sample",
+              "app.kubernetes.io/managed-by": "kustomize",
+              "app.kubernetes.io/name": "odh-dashboard",
+              "app.kubernetes.io/part-of": "odh-dashboard"
+            },
+            "name": "jupyterhub-view-installed-packages-sample",
+            "namespace": "opendatahub"
+          },
+          "spec": {
+            "appName": "jupyter",
+            "durationMinutes": 15,
+            "type": "how-to",
+            "url": "https://url.sample.com"
+          }
+        },
+        {
+          "apiVersion": "datasciencecluster.opendatahub.io/v1alpha1",
+          "kind": "DataScienceCluster",
+          "metadata": {
+            "labels": {
+              "app.kubernetes.io/created-by": "opendatahub-operator",
+              "app.kubernetes.io/instance": "default",
+              "app.kubernetes.io/managed-by": "kustomize",
+              "app.kubernetes.io/name": "datasciencecluster",
+              "app.kubernetes.io/part-of": "opendatahub-operator"
+            },
+            "name": "default"
+          },
+          "spec": {
+            "components": {
+              "dashboard": {
+                "enabled": false
+              },
+              "datasciencepipelines": {
+                "enabled": false
+              },
+              "distributedworkloads": {
+                "enabled": false
+              },
+              "kserve": {
+                "enabled": false
+              },
+              "modelmeshserving": {
+                "enabled": false
+              },
+              "workbenches": {
+                "enabled": false
+              }
+            }
+          }
+        },
+        {
+          "apiVersion": "dscinitialization.opendatahub.io/v1alpha1",
+          "kind": "DSCInitialization",
+          "metadata": {
+            "labels": {
+              "app.kubernetes.io/created-by": "opendatahub-operator",
+              "app.kubernetes.io/instance": "default",
+              "app.kubernetes.io/managed-by": "kustomize",
+              "app.kubernetes.io/name": "dscinitialization",
+              "app.kubernetes.io/part-of": "opendatahub-operator"
+            },
+            "name": "default"
+          },
+          "spec": {
+            "applicationsNamespace": "opendatahub-system",
+            "monitoring": {
+              "enabled": false,
+              "namespace": "opendatahub-system"
+            }
+          }
+        },
+        {
+          "apiVersion": "opendatahub.io/v1alpha",
+          "kind": "OdhDashboardConfig",
+          "metadata": {
+            "labels": {
+              "app.kubernetes.io/created-by": "odh-dashboard",
+              "app.kubernetes.io/instance": "odh-dashboard-sample",
+              "app.kubernetes.io/managed-by": "kustomize",
+              "app.kubernetes.io/name": "odh-dashboard",
+              "app.kubernetes.io/part-of": "odh-dashboard",
+              "opendatahub.io/dashboard": "true"
+            },
+            "name": "odh-dashboard-config-sample",
+            "namespace": "opendatahub"
+          },
+          "spec": {
+            "dashboardConfig": null,
+            "groupsConfig": {
+              "adminGroups": "odh-admins",
+              "allowedGroups": "system:authenticated"
+            },
+            "notebookController": {
+              "enabled": true
+            },
+            "templateOrder": []
+          }
+        }
+      ]
     capabilities: Seamless Upgrades
     olm.skipRange: '>=1.0.0 <2.0.0'
     operatorframework.io/initialization-resource: "{ \n  \"apiVersion\": \"datasciencecluster.opendatahub.io/v1alpha1\",\n
@@ -28,9 +185,6 @@ spec:
       kind: DSCInitialization
       name: dscinitializations.dscinitialization.opendatahub.io
       version: v1alpha1
-    - kind: KfDef
-      name: kfdefs.kfdef.apps.kubeflow.org
-      version: v1
     - kind: OdhApplication
       name: odhapplications.dashboard.opendatahub.io
       version: v1
