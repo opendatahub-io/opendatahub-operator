@@ -170,9 +170,6 @@ func manageResource(owner metav1.Object, ctx context.Context, cli client.Client,
 	found := obj.DeepCopy()
 
 	err := cli.Get(ctx, types.NamespacedName{Name: resourceName, Namespace: namespace}, found)
-	if err != nil && !errors.IsNotFound(err) {
-		return err
-	}
 
 	// Return if resource is of Kind: Namespace and Name: odhApplicationsNamespace
 	if obj.GetKind() == "Namespace" && obj.GetName() == applicationNamespace {
@@ -181,7 +178,8 @@ func manageResource(owner metav1.Object, ctx context.Context, cli client.Client,
 
 	// Resource exists but component is disabled
 	if !enabled {
-		if errors.IsNotFound(err) {
+		// Return nil for any errors getting the resource, since the component itself is disabled
+		if err != nil {
 			return nil
 		}
 
@@ -203,7 +201,7 @@ func manageResource(owner metav1.Object, ctx context.Context, cli client.Client,
 		return cli.Delete(ctx, found)
 	}
 
-	// Create the resource if it doesn't exist
+	// Create the resource if it doesn't exist and component is enabled
 	if errors.IsNotFound(err) {
 		// Set the owner reference for garbage collection
 		if err = ctrl.SetControllerReference(owner, metav1.Object(obj), s); err != nil {
