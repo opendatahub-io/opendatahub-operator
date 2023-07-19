@@ -22,12 +22,12 @@ type Kserve struct {
 // Verifies that Kserve implements ComponentInterface
 var _ components.ComponentInterface = (*Kserve)(nil)
 
-func (d *Kserve) IsEnabled() *bool {
+func (d *Kserve) IsEnabled() bool {
 	return d.Enabled
 }
 
 func (d *Kserve) SetEnabled(enabled bool) {
-	d.Enabled = &enabled
+	d.Enabled = enabled
 }
 
 func (m *Kserve) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, enabled bool, namespace string) error {

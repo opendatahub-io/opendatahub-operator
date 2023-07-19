@@ -20,12 +20,12 @@ type DataSciencePipelines struct {
 // Verifies that Dashboard implements ComponentInterface
 var _ components.ComponentInterface = (*DataSciencePipelines)(nil)
 
-func (d *DataSciencePipelines) IsEnabled() *bool {
+func (d *DataSciencePipelines) IsEnabled() bool {
 	return d.Enabled
 }
 
 func (d *DataSciencePipelines) SetEnabled(enabled bool) {
-	d.Enabled = &enabled
+	d.Enabled = enabled
 }
 
 func (d *DataSciencePipelines) ReconcileComponent(owner metav1.Object, client client.Client, scheme *runtime.Scheme, enabled bool, namespace string) error {
