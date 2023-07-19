@@ -110,10 +110,10 @@ metadata:
                 "kustomizeConfig": {
                   "repoRef": {
                     "name": "manifests",
-                    "path": "trustyai-service"
+                    "path": "trustyai-service-operator"
                   }
                 },
-                "name": "trustyai"
+                "name": "trustyai-service-operator"
               }
             ],
             "repos": [
