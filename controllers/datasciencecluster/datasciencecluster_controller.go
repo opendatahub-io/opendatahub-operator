@@ -132,13 +132,6 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return val, err
 	}
 
-	// reconcile ModelMesh component
-	if instance, val, err = r.reconcileSubComponent(instance, modelmeshserving.ComponentName, instance.Spec.Components.ModelMeshServing.Enabled,
-		&(instance.Spec.Components.ModelMeshServing), ctx); err != nil {
-		// no need to log any errors as this is done in the reconcileSubComponent method
-		return val, err
-	}
-
 	// reconcile Workbench component
 	if instance, val, err = r.reconcileSubComponent(instance, workbenches.ComponentName, instance.Spec.Components.Workbenches.Enabled,
 		&(instance.Spec.Components.Workbenches), ctx); err != nil {
@@ -148,6 +141,13 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	// reconcile Kserve component
 	if instance, val, err = r.reconcileSubComponent(instance, kserve.ComponentName, instance.Spec.Components.Kserve.Enabled, &(instance.Spec.Components.Kserve), ctx); err != nil {
+		// no need to log any errors as this is done in the reconcileSubComponent method
+		return val, err
+	}
+
+	// reconcile ModelMesh component
+	if instance, val, err = r.reconcileSubComponent(instance, modelmeshserving.ComponentName, instance.Spec.Components.ModelMeshServing.Enabled,
+		&(instance.Spec.Components.ModelMeshServing), ctx); err != nil {
 		// no need to log any errors as this is done in the reconcileSubComponent method
 		return val, err
 	}
