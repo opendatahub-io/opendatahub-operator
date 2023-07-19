@@ -110,13 +110,6 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 	}
 
-	// Ensure all ommited components are disabled explicitly
-	instance, err = r.updateComponents(instance)
-	if err != nil {
-		_ = r.reportError(err, instance, "error updating list of components in the CR")
-		return ctrl.Result{}, err
-	}
-
 	// reconcile dashboard component
 	var val ctrl.Result
 	if instance, val, err = r.reconcileSubComponent(instance, dashboard.ComponentName, instance.Spec.Components.Dashboard.Enabled,
@@ -249,30 +242,6 @@ func (r *DataScienceClusterReconciler) updateStatus(original *dsc.DataScienceClu
 
 		// Try to update
 		err = r.Client.Status().Update(context.TODO(), saved)
-		// Return err itself here (not wrapped inside another error)
-		// so that RetryOnConflict can identify it correctly.
-		return err
-	})
-	return saved, err
-}
-
-func (r *DataScienceClusterReconciler) updateComponents(original *dsc.DataScienceCluster) (*dsc.DataScienceCluster, error) {
-	saved := &dsc.DataScienceCluster{}
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-
-		err := r.Client.Get(context.TODO(), client.ObjectKeyFromObject(original), saved)
-		if err != nil {
-			return err
-		}
-		// enforce all components enabled configuration is explicitly set
-		saved.Spec.Components.Dashboard.Enabled = original.Spec.Components.Dashboard.Enabled
-		saved.Spec.Components.DataSciencePipelines = datasciencepipelines.DataSciencePipelines{Component: components.Component{Enabled: original.Spec.Components.DataSciencePipelines.Enabled}}
-		saved.Spec.Components.ModelMeshServing = modelmeshserving.ModelMeshServing{Component: components.Component{Enabled: original.Spec.Components.ModelMeshServing.Enabled}}
-		saved.Spec.Components.Workbenches = workbenches.Workbenches{Component: components.Component{Enabled: original.Spec.Components.Workbenches.Enabled}}
-		saved.Spec.Components.Kserve = kserve.Kserve{Component: components.Component{Enabled: original.Spec.Components.Kserve.Enabled}}
-
-		// Try to update
-		err = r.Client.Update(context.TODO(), saved)
 		// Return err itself here (not wrapped inside another error)
 		// so that RetryOnConflict can identify it correctly.
 		return err
