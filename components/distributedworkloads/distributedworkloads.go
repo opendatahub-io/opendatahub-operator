@@ -18,6 +18,10 @@ type DistributedWorkloads struct {
 	components.Component `json:""`
 }
 
+func (d *DistributedWorkloads) GetComponentName() string {
+	return ComponentName
+}
+
 // Verifies that Distributed Workloads implements ComponentInterface
 var _ components.ComponentInterface = (*DistributedWorkloads)(nil)
 

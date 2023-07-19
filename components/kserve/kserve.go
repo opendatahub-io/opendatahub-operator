@@ -19,6 +19,10 @@ type Kserve struct {
 	components.Component `json:""`
 }
 
+func (d *Kserve) GetComponentName() string {
+	return ComponentName
+}
+
 // Verifies that Kserve implements ComponentInterface
 var _ components.ComponentInterface = (*Kserve)(nil)
 

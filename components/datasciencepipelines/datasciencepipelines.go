@@ -17,6 +17,10 @@ type DataSciencePipelines struct {
 	components.Component `json:""`
 }
 
+func (d *DataSciencePipelines) GetComponentName() string {
+	return ComponentName
+}
+
 // Verifies that Dashboard implements ComponentInterface
 var _ components.ComponentInterface = (*DataSciencePipelines)(nil)
 

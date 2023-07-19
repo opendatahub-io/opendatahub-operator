@@ -19,6 +19,10 @@ type Workbenches struct {
 	components.Component `json:""`
 }
 
+func (d *Workbenches) GetComponentName() string {
+	return ComponentName
+}
+
 // Verifies that Dashboard implements ComponentInterface
 var _ components.ComponentInterface = (*Workbenches)(nil)
 

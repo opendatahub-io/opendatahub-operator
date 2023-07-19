@@ -19,6 +19,10 @@ type ModelMeshServing struct {
 	components.Component `json:""`
 }
 
+func (d *ModelMeshServing) GetComponentName() string {
+	return ComponentName
+}
+
 // Verifies that Dashboard implements ComponentInterface
 var _ components.ComponentInterface = (*ModelMeshServing)(nil)
 
