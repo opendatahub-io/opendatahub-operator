@@ -1,6 +1,7 @@
 package datasciencepipelines
 
 import (
+	"fmt"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -57,8 +58,7 @@ func (d *DataSciencePipelines) ReconcileComponent(owner metav1.Object, client cl
 		Path,
 		namespace,
 		scheme, enabled)
-	return err
-
+	return fmt.Errorf(err.Error())
 }
 
 func (in *DataSciencePipelines) DeepCopyInto(out *DataSciencePipelines) {

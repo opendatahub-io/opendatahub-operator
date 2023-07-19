@@ -2,7 +2,6 @@ package dashboard
 
 import (
 	"fmt"
-
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -45,17 +44,17 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 	// Update Default rolebinding
 	platform, err := deploy.GetPlatform(cli)
 	if err != nil {
-		return err
+		return fmt.Errorf(err.Error())
 	}
 	if platform == deploy.OpenDataHub {
 		err := common.UpdatePodSecurityRolebinding(cli, []string{"odh-dashboard"}, namespace)
 		if err != nil {
-			return err
+			return fmt.Errorf(err.Error())
 		}
 	} else {
 		err := common.UpdatePodSecurityRolebinding(cli, []string{"rhods-dashboard"}, namespace)
 		if err != nil {
-			return err
+			return fmt.Errorf(err.Error())
 		}
 	}
 

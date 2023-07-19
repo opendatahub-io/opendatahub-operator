@@ -1,6 +1,7 @@
 package modelmeshserving
 
 import (
+	"fmt"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -52,7 +53,7 @@ func (m *ModelMeshServing) ReconcileComponent(owner metav1.Object, cli client.Cl
 	// Update Default rolebinding
 	err := common.UpdatePodSecurityRolebinding(cli, []string{"modelmesh", "modelmesh-controller", "odh-model-controller", "odh-prometheus-operator", "prometheus-custom"}, namespace)
 	if err != nil {
-		return err
+		return fmt.Errorf(err.Error())
 	}
 
 	// Update image parameters
@@ -66,7 +67,7 @@ func (m *ModelMeshServing) ReconcileComponent(owner metav1.Object, cli client.Cl
 		scheme, enabled)
 
 	if err != nil {
-		return err
+		return fmt.Errorf(err.Error())
 	}
 
 	// If modelmesh is deployed successfully, deploy modelmesh-monitoring
@@ -75,7 +76,7 @@ func (m *ModelMeshServing) ReconcileComponent(owner metav1.Object, cli client.Cl
 		namespace,
 		scheme, enabled)
 
-	return err
+	return fmt.Errorf(err.Error())
 }
 
 func (in *ModelMeshServing) DeepCopyInto(out *ModelMeshServing) {

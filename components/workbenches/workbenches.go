@@ -1,6 +1,7 @@
 package workbenches
 
 import (
+	"fmt"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -48,7 +49,7 @@ func (w *Workbenches) ReconcileComponent(owner metav1.Object, cli client.Client,
 	// Update Default rolebinding
 	err := common.UpdatePodSecurityRolebinding(cli, []string{"notebook-controller-service-account"}, namespace)
 	if err != nil {
-		return err
+		return fmt.Errorf(err.Error())
 	}
 
 	// Update image parameters
@@ -61,7 +62,7 @@ func (w *Workbenches) ReconcileComponent(owner metav1.Object, cli client.Client,
 		namespace,
 		scheme, enabled)
 	if err != nil {
-		return err
+		return fmt.Errorf(err.Error())
 	}
 
 	// Update image parameters
@@ -72,7 +73,7 @@ func (w *Workbenches) ReconcileComponent(owner metav1.Object, cli client.Client,
 		notebookImagesPath,
 		namespace,
 		scheme, enabled)
-	return err
+	return fmt.Errorf(err.Error())
 
 }
 
