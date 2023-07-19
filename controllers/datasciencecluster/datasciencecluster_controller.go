@@ -19,19 +19,19 @@ package datasciencecluster
 import (
 	"context"
 	"fmt"
-
 	"github.com/go-logr/logr"
-	appsv1 "k8s.io/api/apps/v1"
-	netv1 "k8s.io/api/networking/v1"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
-
 	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/distributedworkloads"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
+	appsv1 "k8s.io/api/apps/v1"
+	netv1 "k8s.io/api/networking/v1"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"time"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	corev1 "k8s.io/api/core/v1"
@@ -172,6 +172,18 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return val, err
 	}
 
+	// reconcile DistributedWorkloads component
+	enabled = r.isComponentEnabled(&(instance.Spec.Components.DistributeWorkloads))
+	if val, err := r.reconcileSubComponent(instance, distributedworkloads.ComponentName, enabled, &(instance.Spec.Components.DistributeWorkloads), ctx); err != nil {
+		err := r.Client.Update(ctx, instance)
+		if err != nil {
+			r.Log.Info(fmt.Sprintf("failed to set DataScienceCluster component %s to enabled: false", distributedworkloads.ComponentName), "error", err)
+			// no need to return error as this is not critical and will be reconciled in the next update or reconcile loop
+		}
+		// no need to log any errors as this is done in the reconcileSubComponent method
+		return val, err
+	}
+
 	// Update final state of spec
 	err = r.Client.Update(ctx, instance)
 	if err != nil {
@@ -209,7 +221,10 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(instance *dsc.DataS
 	component components.ComponentInterface, ctx context.Context) (ctrl.Result, error) {
 	if err := component.ReconcileComponent(instance, r.Client, r.Scheme, enabled, r.ApplicationsNamespace); err != nil {
 		r.reportError(err, instance, ctx, "failed to reconcile "+componentName+" on DataScienceCluster")
-		return ctrl.Result{}, err
+		return ctrl.Result{
+			// Retry after failure until success.
+			RequeueAfter: time.Second * 10,
+		}, err
 	}
 	instance.Status.InstalledComponents[componentName] = enabled
 	if err := r.Client.Status().Update(ctx, instance); err != nil {
