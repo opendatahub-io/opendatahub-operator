@@ -74,11 +74,40 @@ func (r *DSCInitializationReconciler) createOdhNamespace(dscInit *dsci.DSCInitia
 			r.Log.Error(err, "Unable to fetch namespace", "name", name)
 			return err
 		}
-	} else if dscInit.Spec.Monitoring.Enabled {
+	} else if dscInit.Spec.Monitoring.Enabled && dscInit.Spec.Monitoring.Namespace == name {
 		err = r.Patch(ctx, foundNamespace, client.RawPatch(types.MergePatchType,
 			[]byte(`{"metadata": {"labels": {"openshift.io/cluster-monitoring": "true"}}}`)))
 		if err != nil {
 			return err
+		}
+	}
+	// Create Monitoring Namespace if it is enabled and not exists
+	if dscInit.Spec.Monitoring.Enabled {
+		foundMonitoringNamespace := &corev1.Namespace{}
+		monitoringName := dscInit.Spec.Monitoring.Namespace
+		err := r.Get(ctx, client.ObjectKey{Name: monitoringName}, foundMonitoringNamespace)
+		if err != nil {
+			if apierrs.IsNotFound(err) {
+				r.Log.Info("Not found monitoring namespace", "name", monitoringName)
+				desiredMonitoringNamespace := &corev1.Namespace{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: monitoringName,
+						Labels: map[string]string{
+							"opendatahub.io/generated-namespace": "true",
+							"pod-security.kubernetes.io/enforce": "baseline",
+							"openshift.io/cluster-monitoring":    "true",
+						},
+					},
+				}
+				err = r.Create(ctx, desiredMonitoringNamespace)
+				if err != nil && !apierrs.IsAlreadyExists(err) {
+					r.Log.Error(err, "Unable to create namespace", "name", monitoringName)
+					return err
+				}
+			} else {
+				r.Log.Error(err, "Unable to fetch monitoring namespace", "name", monitoringName)
+				return err
+			}
 		}
 	}
 
