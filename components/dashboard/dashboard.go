@@ -1,6 +1,8 @@
 package dashboard
 
 import (
+	"fmt"
+
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -12,6 +14,9 @@ import (
 const (
 	ComponentName = "odh-dashboard"
 	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
+	PathISVCommon = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps"
+	PathISVSM     = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps-onpre"
+	PathISVAddOn  = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps-addon"
 )
 
 type Dashboard struct {
@@ -49,7 +54,47 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 		Path,
 		namespace,
 		scheme, enabled)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// ISV handling
+	switch platform {
+	case deploy.SelfManagedRhods:
+		err := deploy.DeployManifestsFromPath(owner, cli, ComponentName,
+			PathISVCommon,
+			namespace,
+			scheme, enabled)
+		if err != nil {
+			return fmt.Errorf("failed to set dashboard ISV from %s", PathISVCommon)
+		}
+		err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
+			PathISVSM,
+			namespace,
+			scheme, enabled)
+		if err != nil {
+			return fmt.Errorf("failed to set dashboard ISV from %s", PathISVSM)
+		}
+		return err
+	case deploy.ManagedRhods:
+		err := deploy.DeployManifestsFromPath(owner, cli, ComponentName,
+			PathISVCommon,
+			namespace,
+			scheme, enabled)
+		if err != nil {
+			return fmt.Errorf("failed to set dashboard ISV from %s", PathISVCommon)
+		}
+		err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
+			PathISVAddOn,
+			namespace,
+			scheme, enabled)
+		if err != nil {
+			return fmt.Errorf("failed to set dashboard ISV from %s", PathISVAddOn)
+		}
+		return err
+	default:
+		return nil
+	}
 
 }
 
