@@ -47,6 +47,8 @@ spec:
                         description: enables or disables the component. A disabled
                           component will not be installed.
                         type: boolean
+                    required:
+                    - enabled
                     type: object
                   datasciencepipelines:
                     description: DataServicePipeline component configuration
@@ -55,6 +57,8 @@ spec:
                         description: enables or disables the component. A disabled
                           component will not be installed.
                         type: boolean
+                    required:
+                    - enabled
                     type: object
                   distributedWorkloads:
                     description: DistributeWorkloads component configuration
@@ -63,6 +67,8 @@ spec:
                         description: enables or disables the component. A disabled
                           component will not be installed.
                         type: boolean
+                    required:
+                    - enabled
                     type: object
                   kserve:
                     description: Kserve component configuration
@@ -71,6 +77,8 @@ spec:
                         description: enables or disables the component. A disabled
                           component will not be installed.
                         type: boolean
+                    required:
+                    - enabled
                     type: object
                   modelmeshserving:
                     description: ModelMeshServing component configuration
@@ -79,6 +87,8 @@ spec:
                         description: enables or disables the component. A disabled
                           component will not be installed.
                         type: boolean
+                    required:
+                    - enabled
                     type: object
                   workbenches:
                     description: Workbenches component configuration
@@ -87,6 +97,8 @@ spec:
                         description: enables or disables the component. A disabled
                           component will not be installed.
                         type: boolean
+                    required:
+                    - enabled
                     type: object
                 type: object
             type: object
