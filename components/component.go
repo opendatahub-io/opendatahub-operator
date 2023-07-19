@@ -8,14 +8,11 @@ import (
 
 type Component struct {
 	// enables or disables the component. A disabled component will not be installed.
-	Enabled *bool `json:"enabled,omitempty"`
+	Enabled bool `json:"enabled"`
 	// Add any other common fields across components below
 }
 
 type ComponentInterface interface {
 	ReconcileComponent(owner metav1.Object, client client.Client, scheme *runtime.Scheme,
 		enabled bool, namespace string) error
-
-	IsEnabled() *bool
-	SetEnabled(enabled bool)
 }

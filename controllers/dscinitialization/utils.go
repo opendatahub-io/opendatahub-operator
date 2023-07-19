@@ -354,7 +354,6 @@ func updatefromLegacyVersion(cli client.Client) error {
 		}
 
 		// Create DataScienceCluster with no components enabled to cleanup all previous controllers
-		f := false
 		defaultDataScienceCluster := &dsc.DataScienceCluster{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "DataScienceCluster",
@@ -366,19 +365,19 @@ func updatefromLegacyVersion(cli client.Client) error {
 			Spec: dsc.DataScienceClusterSpec{
 				Components: dsc.Components{
 					ModelMeshServing: modelmeshserving.ModelMeshServing{
-						Component: components.Component{Enabled: &f},
+						Component: components.Component{Enabled: false},
 					},
 					DataSciencePipelines: datasciencepipelines.DataSciencePipelines{
-						Component: components.Component{Enabled: &f},
+						Component: components.Component{Enabled: false},
 					},
 					Workbenches: workbenches.Workbenches{
-						Component: components.Component{Enabled: &f},
+						Component: components.Component{Enabled: false},
 					},
 					Dashboard: dashboard.Dashboard{
-						Component: components.Component{Enabled: &f},
+						Component: components.Component{Enabled: false},
 					},
 					Kserve: kserve.Kserve{
-						Component: components.Component{Enabled: &f},
+						Component: components.Component{Enabled: false},
 					},
 				},
 			},

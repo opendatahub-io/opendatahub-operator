@@ -22,12 +22,12 @@ type ModelMeshServing struct {
 // Verifies that Dashboard implements ComponentInterface
 var _ components.ComponentInterface = (*ModelMeshServing)(nil)
 
-func (d *ModelMeshServing) IsEnabled() *bool {
+func (d *ModelMeshServing) IsEnabled() bool {
 	return d.Enabled
 }
 
 func (d *ModelMeshServing) SetEnabled(enabled bool) {
-	d.Enabled = &enabled
+	d.Enabled = enabled
 }
 
 func (m *ModelMeshServing) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, enabled bool, namespace string) error {

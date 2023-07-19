@@ -21,14 +21,6 @@ type DistributedWorkloads struct {
 // Verifies that Distributed Workloads implements ComponentInterface
 var _ components.ComponentInterface = (*DistributedWorkloads)(nil)
 
-func (d *DistributedWorkloads) IsEnabled() *bool {
-	return d.Enabled
-}
-
-func (d *DistributedWorkloads) SetEnabled(enabled bool) {
-	d.Enabled = &enabled
-}
-
 func (d *DistributedWorkloads) ReconcileComponent(owner metav1.Object, client client.Client, scheme *runtime.Scheme, enabled bool, namespace string) error {
 
 	// Deploy Codeflare
