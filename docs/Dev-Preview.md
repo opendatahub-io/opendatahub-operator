@@ -84,6 +84,8 @@ $ cat <<EOF | oc apply -f -
         enabled: true
       datasciencepipelines:
         enabled: true
+      distributedworkloads:
+        enabled: true
       kserve:
         enabled: true
       modelmeshserving:

@@ -62,7 +62,7 @@ OPERATOR_SDK ?= $(LOCALBIN)/operator-sdk
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v3.8.7
-CONTROLLER_GEN_VERSION ?= v0.12.0
+CONTROLLER_GEN_VERSION ?= v0.9.2
 OPERATOR_SDK_VERSION ?= v1.24.1
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.24.2

@@ -11,13 +11,14 @@ metadata:
 spec:
   components:
     dashboard:
-      component: true
-    workbenches:
-      component: true
+      enabled: false
     datasciencepipelines:
-      component: true
-    modelmeshserving:
-      component: true
+      enabled: false
+    distributedworkloads:
+      enabled: false
     kserve:
-      component: true
-
+      enabled: false
+    modelmeshserving:
+      enabled: false
+    workbenches:
+      enabled: false
