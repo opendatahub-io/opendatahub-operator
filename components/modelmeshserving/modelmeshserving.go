@@ -41,7 +41,7 @@ func (m *ModelMeshServing) ReconcileComponent(owner metav1.Object, cli client.Cl
 	if err != nil {
 		return err
 	}
-	err = deploy.DeployManifestsFromPath(owner, cli,
+	err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 		Path,
 		namespace,
 		scheme, enabled)
@@ -51,7 +51,7 @@ func (m *ModelMeshServing) ReconcileComponent(owner metav1.Object, cli client.Cl
 	}
 
 	// If modelmesh is deployed successfully, deploy modelmesh-monitoring
-	err = deploy.DeployManifestsFromPath(owner, cli,
+	err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 		monitoringPath,
 		namespace,
 		scheme, enabled)

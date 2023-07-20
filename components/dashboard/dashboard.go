@@ -45,7 +45,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 		}
 	}
 
-	err = deploy.DeployManifestsFromPath(owner, cli,
+	err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 		Path,
 		namespace,
 		scheme, enabled)

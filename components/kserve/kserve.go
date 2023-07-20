@@ -41,7 +41,7 @@ func (m *Kserve) ReconcileComponent(owner metav1.Object, cli client.Client, sche
 	if err != nil {
 		return err
 	}
-	err = deploy.DeployManifestsFromPath(owner, cli,
+	err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 		Path,
 		namespace,
 		scheme, enabled)

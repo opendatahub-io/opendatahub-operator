@@ -28,7 +28,7 @@ var _ components.ComponentInterface = (*DistributedWorkloads)(nil)
 func (d *DistributedWorkloads) ReconcileComponent(owner metav1.Object, client client.Client, scheme *runtime.Scheme, enabled bool, namespace string) error {
 
 	// Deploy Codeflare
-	err := deploy.DeployManifestsFromPath(owner, client,
+	err := deploy.DeployManifestsFromPath(owner, client, ComponentName,
 		CodeflarePath,
 		namespace,
 		scheme, enabled)
@@ -38,7 +38,7 @@ func (d *DistributedWorkloads) ReconcileComponent(owner metav1.Object, client cl
 	}
 
 	// Deploy Ray Operator
-	err = deploy.DeployManifestsFromPath(owner, client,
+	err = deploy.DeployManifestsFromPath(owner, client, ComponentName,
 		RayPath,
 		namespace,
 		scheme, enabled)
