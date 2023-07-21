@@ -80,10 +80,10 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	if instance.Status.Conditions == nil {
 		reason := status.ReconcileInit
 		message := "Initializing DSCInitialization resource"
-		status.SetProgressingCondition(&instance.Status.Conditions, reason, message)
-
-		instance.Status.Phase = status.PhaseProgressing
-		err = r.Client.Status().Update(ctx, instance)
+		instance, err = r.updateStatus(instance, func(saved *dsci.DSCInitialization) {
+			status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
+			saved.Status.Phase = status.PhaseProgressing
+		})
 		if err != nil {
 			r.Log.Error(err, "Failed to add conditions to status of DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
 			return reconcile.Result{}, err
@@ -148,24 +148,9 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 
 	// Finish reconciling
-	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		// refresh the instance in case it was updated during the reconcile
-		err = r.Client.Get(ctx, types.NamespacedName{Name: "default"}, instance)
-		if err != nil {
-			r.Log.Error(err, "failed to retrieve DSCInitialization instance for status update after successfuly completed reconciliation")
-			return err
-		}
-		reason := status.ReconcileCompleted
-		message := status.ReconcileCompletedMessage
-		status.SetCompleteCondition(&instance.Status.Conditions, reason, message)
-
-		instance.Status.Phase = status.PhaseReady
-
-		// Try to update
-		err = r.Client.Status().Update(context.TODO(), instance)
-		// Return err itself here (not wrapped inside another error)
-		// so that RetryOnConflict can identify it correctly.
-		return err
+	_, err = r.updateStatus(instance, func(saved *dsci.DSCInitialization) {
+		status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, status.ReconcileCompletedMessage)
+		saved.Status.Phase = status.PhaseReady
 	})
 	if err != nil {
 		r.Log.Error(err, "failed to update DSCInitialization status after successfuly completed reconciliation")
@@ -223,4 +208,24 @@ var singletonPredicate = predicate.Funcs{
 		}
 		return true
 	},
+}
+
+func (r *DSCInitializationReconciler) updateStatus(original *dsci.DSCInitialization, update func(saved *dsci.DSCInitialization)) (*dsci.DSCInitialization, error) {
+	saved := &dsci.DSCInitialization{}
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+
+		err := r.Client.Get(context.TODO(), client.ObjectKeyFromObject(original), saved)
+		if err != nil {
+			return err
+		}
+		// update status here
+		update(saved)
+
+		// Try to update
+		err = r.Client.Status().Update(context.TODO(), saved)
+		// Return err itself here (not wrapped inside another error)
+		// so that RetryOnConflict can identify it correctly.
+		return err
+	})
+	return saved, err
 }
