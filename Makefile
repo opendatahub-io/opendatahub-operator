@@ -21,7 +21,7 @@ IMAGE_BUILDER ?= podman
 OPERATOR_NAMESPACE ?= opendatahub-operator-system
 
 MANIFEST_REPO ?= opendatahub-io
-MANIFEST_RELEASE ?= feature-rearchitecture
+MANIFEST_RELEASE ?= master
 
 CHANNELS="fast"
 # CHANNELS define the bundle channels used in the bundle.

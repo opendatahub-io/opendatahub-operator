@@ -25,7 +25,7 @@ To deploy ODH components seamlessly, ODH operator will watch two CRDS:
 - Some examples of initial setup include creating namespaces, network policies, SCCs, common configmaps and secrets.
 - This will be a singleton CR i.e 1 instance of this CR will always be present in the cluster.
 - DSCInitialization CR can be deleted to re-run initial setup without requiring re-build of the operator.
-
+- **This CR is not configurable for end users**
 
 ### DataScienceCluster
 
@@ -36,5 +36,52 @@ To deploy ODH components seamlessly, ODH operator will watch two CRDS:
 
 ## Examples
 
-- TBD
 
+1. Enable all components
+    ```console
+      apiVersion: datasciencecluster.opendatahub.io/v1alpha1
+      kind: DataScienceCluster
+      metadata:
+        name: example
+      spec:
+        components:
+          dashboard:
+            enabled: true
+          datasciencepipelines:
+            enabled: true
+          distributedworkloads:
+            enabled: true
+          kserve:
+            enabled: true
+          modelmeshserving:
+            enabled: true
+          workbenches:
+            enabled: true 
+    ```
+2. Enable only Dashboard and Workbenches(Jupyter Notebooks)
+
+    ```console
+      apiVersion: datasciencecluster.opendatahub.io/v1alpha1
+      kind: DataScienceCluster
+      metadata:
+        name: example
+      spec:
+        components:
+          dashboard:
+            enabled: true
+          workbenches:
+            enabled: true 
+    ```
+
+3. Enable Data Science Pipelines 
+
+    ```console
+      apiVersion: datasciencecluster.opendatahub.io/v1alpha1
+      kind: DataScienceCluster
+      metadata:
+        name: example
+      spec:
+        components:
+          datasciencepipelines:
+            enabled: true
+    ```
