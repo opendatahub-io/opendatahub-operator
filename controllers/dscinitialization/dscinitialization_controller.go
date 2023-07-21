@@ -194,7 +194,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			}
 		default:
 			// TODO: ODH specific monitoring logic
-			r.Log.Info("Monitoring enabled, won't apply changes", "cluster", "ODH Mode")
+			r.Log.Info("Monitoring enabled, won't apply changes", "cluster", "Self-Managed Mode")
 		}
 	}
 
@@ -237,10 +237,7 @@ var singletonPredicate = predicate.Funcs{
 
 	CreateFunc: func(e event.CreateEvent) bool {
 		if e.Object.GetObjectKind().GroupVersionKind().Kind == "DSCInitialization" {
-			if e.Object.GetName() == "default" {
-				return true
-			} else {
-				// Set to error level since it causes Panic
+			if e.Object.GetName() != "default" {
 				setupLog := ctrl.Log.WithName("dscinitialization")
 				setupLog.Error(errors.New("only single DSCInitialization instance can be created. Mismatch CreateEvent Object.GetName not to 'default'"), "Wrong name", "object", e.Object.GetName())
 				return false
@@ -253,9 +250,7 @@ var singletonPredicate = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
 		// handle update events
 		if e.ObjectNew.GetObjectKind().GroupVersionKind().Kind == "DSCInitialization" {
-			if e.ObjectNew.GetName() == "default" {
-				return true
-			} else {
+			if e.ObjectNew.GetName() != "default" {
 				setupLog := ctrl.Log.WithName("dscinitialization")
 				setupLog.Error(errors.New("only single DSCInitialization instance can be updated. Mismatch UpdateEvent Object.GetName not to 'default'"), "Wrong name", "object", e.ObjectNew.GetName())
 				return false

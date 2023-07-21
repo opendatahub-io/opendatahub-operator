@@ -4,10 +4,16 @@ metadata:
   name: replace-description-patch
 spec:
   description: |-
-    The Open Data Hub is a machine-learning-as-a-service platform built on Red Hat's Kubernetes-based OpenShift® Container Platform. Open Data Hub integrates multiple AI/ML open source components into one operator that can easily be downloaded and installed by OpenShift users.
+    Red Hat OpenShift Data Science (RHODS) is a machine-learning-as-a-service
+    platform built on Red Hat's Kubernetes-based OpenShift Container Platform,
+    Ceph Object Storage, and integrating a collection of open source projects.
+
+    The RHODS operator allows users to install and manage RHODS components.
+    Users can mix and match tools from each project to fulfill the needs of
+    their use case. Each of the projects share some components, but can be
+    mostly seen as an extension of each other to provide as complete a solution
+    as possible for enterprise users.
     
-    Open Data Hub operator allows users to install and manage components of the Open Data Hub. Users can mix and match tools from each project to fulfill the needs of their use case. Each of the projects share some components, but can be mostly seen as an extension of each other to provide a complete solution for both novice and skilled enterprise users.
-        
     ### Components
     
     * Open Data Hub Dashboard - A web dashboard that displays installed Open Data Hub components with easy access to component UIs and documentation

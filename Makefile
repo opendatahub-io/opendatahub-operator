@@ -18,10 +18,10 @@ IMG ?= REPLACE_IMAGE
 BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
 
 IMAGE_BUILDER ?= podman
-OPERATOR_NAMESPACE ?= opendatahub-operator-system
+OPERATOR_NAMESPACE ?= rhods-ods-operator
 
-MANIFEST_REPO ?= opendatahub-io
-MANIFEST_RELEASE ?= master
+MANIFEST_REPO ?= red-hat-data-services
+MANIFEST_RELEASE ?= main
 
 CHANNELS="fast"
 # CHANNELS define the bundle channels used in the bundle.

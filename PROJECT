@@ -9,8 +9,8 @@ multigroup: true
 plugins:
   manifests.sdk.operatorframework.io/v2: {}
   scorecard.sdk.operatorframework.io/v2: {}
-projectName: opendatahub-operator
-repo: github.com/opendatahub-io/opendatahub-operator
+projectName: rhods-operator
+repo: github.com/red-hat-data-services/rhods-operator
 resources:
 - api:
     crdVersion: v1
