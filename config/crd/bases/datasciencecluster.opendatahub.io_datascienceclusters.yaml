@@ -34,18 +34,17 @@ spec:
           metadata:
             type: object
           spec:
-            description: DataScienceClusterSpec defines the desired state of DataScienceCluster
+            description: Defines the desired state of DataScienceCluster
             properties:
               components:
-                description: Components are used to override and fine tune specific
-                  component configurations.
+                description: Override and fine tune specific component configurations.
                 properties:
                   dashboard:
                     description: Dashboard component configuration
                     properties:
                       enabled:
-                        description: enables or disables the component. A disabled
-                          component will not be installed.
+                        description: Set to "true" to enable component, "false" to
+                          disable component. A disabled component will not be installed.
                         type: boolean
                     required:
                     - enabled
@@ -54,8 +53,8 @@ spec:
                     description: DataServicePipeline component configuration
                     properties:
                       enabled:
-                        description: enables or disables the component. A disabled
-                          component will not be installed.
+                        description: Set to "true" to enable component, "false" to
+                          disable component. A disabled component will not be installed.
                         type: boolean
                     required:
                     - enabled
@@ -64,8 +63,8 @@ spec:
                     description: DistributeWorkloads component configuration
                     properties:
                       enabled:
-                        description: enables or disables the component. A disabled
-                          component will not be installed.
+                        description: Set to "true" to enable component, "false" to
+                          disable component. A disabled component will not be installed.
                         type: boolean
                     required:
                     - enabled
@@ -74,8 +73,8 @@ spec:
                     description: Kserve component configuration
                     properties:
                       enabled:
-                        description: enables or disables the component. A disabled
-                          component will not be installed.
+                        description: Set to "true" to enable component, "false" to
+                          disable component. A disabled component will not be installed.
                         type: boolean
                     required:
                     - enabled
@@ -84,8 +83,8 @@ spec:
                     description: ModelMeshServing component configuration
                     properties:
                       enabled:
-                        description: enables or disables the component. A disabled
-                          component will not be installed.
+                        description: Set to "true" to enable component, "false" to
+                          disable component. A disabled component will not be installed.
                         type: boolean
                     required:
                     - enabled
@@ -94,8 +93,8 @@ spec:
                     description: Workbenches component configuration
                     properties:
                       enabled:
-                        description: enables or disables the component. A disabled
-                          component will not be installed.
+                        description: Set to "true" to enable component, "false" to
+                          disable component. A disabled component will not be installed.
                         type: boolean
                     required:
                     - enabled
@@ -138,7 +137,7 @@ spec:
               installedComponents:
                 additionalProperties:
                   type: boolean
-                description: List of components that are installed
+                description: List of components with status if installed or not
                 type: object
               phase:
                 description: Phase describes the Phase of DataScienceCluster reconciliation

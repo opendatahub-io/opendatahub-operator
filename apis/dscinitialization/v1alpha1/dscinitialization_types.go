@@ -33,16 +33,23 @@ const (
 // DSCInitializationSpec defines the desired state of DSCInitialization
 type DSCInitializationSpec struct {
 	// +kubebuilder:default:=opendatahub
+	// Namespace for applications to be installed, non-configurable, default to "opendatahub"
+	// +operator-sdk:csv:customresourcedefinitions:type=spec
 	ApplicationsNamespace string     `json:"applicationsNamespace"`
+	// Enable monitoring on specified namespace
+	// +operator-sdk:csv:customresourcedefinitions:type=spec
 	Monitoring            Monitoring `json:"monitoring,omitempty"`
 	// Internal development useful field
+	// +operator-sdk:csv:customresourcedefinitions:type=spec
 	ManifestsUri string `json:"manifestsUri,omitempty"`
 }
 
 type Monitoring struct {
 	// +kubebuilder:default=false
+	// If enabled monitoring, default 'false'
 	Enabled bool `json:"enabled,omitempty"`
 	// +kubebuilder:default=opendatahub
+	// Namespace for monitoring if it is enabled
 	Namespace string `json:"namespace,omitempty"`
 }
 
@@ -55,6 +62,7 @@ type DSCInitializationStatus struct {
 
 	// Conditions describes the state of the DSCInitializationStatus resource.
 	// +optional
+	// +operator-sdk:csv:customresourcedefinitions:type=status
 	Conditions []conditionsv1.Condition `json:"conditions,omitempty"`
 
 	// RelatedObjects is a list of objects created and maintained by this

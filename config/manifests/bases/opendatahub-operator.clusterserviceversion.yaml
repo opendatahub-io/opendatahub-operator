@@ -20,11 +20,31 @@ spec:
       displayName: Data Science Cluster
       kind: DataScienceCluster
       name: datascienceclusters.datasciencecluster.opendatahub.io
+      specDescriptors:
+      - description: Override and fine tune specific component configurations.
+        displayName: Components
+        path: components
       version: v1alpha1
     - description: DSCInitialization is the Schema for the dscinitializations API
       displayName: DSC Initialization
       kind: DSCInitialization
       name: dscinitializations.dscinitialization.opendatahub.io
+      specDescriptors:
+      - description: Namespace for applications to be installed, non-configurable,
+          default to "opendatahub"
+        displayName: Applications Namespace
+        path: applicationsNamespace
+      - description: Internal development useful field
+        displayName: Manifests Uri
+        path: manifestsUri
+      - description: Enable monitoring on specified namespace
+        displayName: Monitoring
+        path: monitoring
+      statusDescriptors:
+      - description: Conditions describes the state of the DSCInitializationStatus
+          resource.
+        displayName: Conditions
+        path: conditions
       version: v1alpha1
     required:
     - kind: KfDef

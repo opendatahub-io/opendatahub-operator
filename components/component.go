@@ -7,7 +7,7 @@ import (
 )
 
 type Component struct {
-	// enables or disables the component. A disabled component will not be installed.
+	// Set to "true" to enable component, "false" to disable component. A disabled component will not be installed.
 	Enabled bool `json:"enabled"`
 	// Add any other common fields across components below
 }
