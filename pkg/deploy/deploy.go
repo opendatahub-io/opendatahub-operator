@@ -105,7 +105,7 @@ func DownloadManifests(uri string) error {
 	return nil
 }
 
-func DeployManifestsFromPath(owner metav1.Object, cli client.Client, manifestPath, namespace string, s *runtime.Scheme, componentEnabled bool) error {
+func DeployManifestsFromPath(owner metav1.Object, cli client.Client, componentName, manifestPath, namespace string, s *runtime.Scheme, componentEnabled bool) error {
 
 	// Render the Kustomize manifests
 	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
@@ -129,6 +129,11 @@ func DeployManifestsFromPath(owner metav1.Object, cli client.Client, manifestPat
 
 	// Apply NamespaceTransformer Plugin
 	if err := plugins.ApplyNamespacePlugin(namespace, resMap); err != nil {
+		return err
+	}
+
+	// Apply LabelTransformer Plugin
+	if err := plugins.ApplyAddLabelsPlugin(componentName, resMap); err != nil {
 		return err
 	}
 

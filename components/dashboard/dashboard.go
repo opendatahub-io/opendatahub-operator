@@ -18,6 +18,10 @@ type Dashboard struct {
 	components.Component `json:""`
 }
 
+func (d *Dashboard) GetComponentName() string {
+	return ComponentName
+}
+
 // Verifies that Dashboard implements ComponentInterface
 var _ components.ComponentInterface = (*Dashboard)(nil)
 
@@ -41,7 +45,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 		}
 	}
 
-	err = deploy.DeployManifestsFromPath(owner, cli,
+	err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 		Path,
 		namespace,
 		scheme, enabled)

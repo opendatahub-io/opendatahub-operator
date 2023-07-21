@@ -17,6 +17,10 @@ type DataSciencePipelines struct {
 	components.Component `json:""`
 }
 
+func (d *DataSciencePipelines) GetComponentName() string {
+	return ComponentName
+}
+
 // Verifies that Dashboard implements ComponentInterface
 var _ components.ComponentInterface = (*DataSciencePipelines)(nil)
 
@@ -30,7 +34,7 @@ func (d *DataSciencePipelines) SetEnabled(enabled bool) {
 
 func (d *DataSciencePipelines) ReconcileComponent(owner metav1.Object, client client.Client, scheme *runtime.Scheme, enabled bool, namespace string) error {
 
-	err := deploy.DeployManifestsFromPath(owner, client,
+	err := deploy.DeployManifestsFromPath(owner, client, ComponentName,
 		Path,
 		namespace,
 		scheme, enabled)

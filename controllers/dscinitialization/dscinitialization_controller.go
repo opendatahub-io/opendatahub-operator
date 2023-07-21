@@ -122,7 +122,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	// Apply Rhods specific configs
 	if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
 		//Apply osd specific permissions
-		err = deploy.DeployManifestsFromPath(instance, r.Client,
+		err = deploy.DeployManifestsFromPath(instance, r.Client, "osd",
 			deploy.DefaultManifestPath+"/osd-configs",
 			r.ApplicationsNamespace, r.Scheme, true)
 		if err != nil {

@@ -58,7 +58,7 @@ and installed from source manually, see the Developer guide for further instruct
 - Deploy the created image in your cluster using following command:
 
   ```commandline
-  make deploy -e IMG=quay.io/<username>/opendatahub-operator:<custom-tag> [-e OPERATOR_NAMESPACE=<namespace-to-install-operator>]
+  make deploy -e IMG=quay.io/<username>/opendatahub-operator:<custom-tag> -e OPERATOR_NAMESPACE=<namespace-to-install-operator>
   ```
 
 - To remove resources created during installation use:
@@ -90,3 +90,78 @@ and installed from source manually, see the Developer guide for further instruct
   operator-sdk run bundle quay.io/<username>/opendatahub-operator-bundle:<VERSION> --namespace $OPERATOR_NAMESPACE
   ```
 
+### Example DataScienceCluster 
+
+When the operator is installed successfully in the cluster, a user can create a `DataScienceCluster` CR to enable ODH 
+components. At a given time, ODH supports only **one** instance of the CR, which can be updated to get custom list of components.
+
+1. Enable all components
+    ```console
+      apiVersion: datasciencecluster.opendatahub.io/v1alpha1
+      kind: DataScienceCluster
+      metadata:
+        name: example
+      spec:
+        components:
+          dashboard:
+            enabled: true
+          datasciencepipelines:
+            enabled: true
+          distributedworkloads:
+            enabled: true
+          kserve:
+            enabled: true
+          modelmeshserving:
+            enabled: true
+          workbenches:
+            enabled: true 
+    ```
+2. Enable only Dashboard and Workbenches
+
+    ```console
+      apiVersion: datasciencecluster.opendatahub.io/v1alpha1
+      kind: DataScienceCluster
+      metadata:
+        name: example
+      spec:
+        components:
+          dashboard:
+            enabled: true
+          workbenches:
+            enabled: true 
+    ```
+
+**Note:** Default value for a component is `false`.
+
+
+### Run e2e Tests
+
+A user can run the e2e tests in the same namespace as the operator. To deploy
+opendatahub-operator refer to [this](#deployment) section. The
+following environment variables must be set when running locally:
+
+```shell
+export KUBECONFIG=/path/to/kubeconfig
+```
+
+Once the above variables are set, run the following:
+
+```shell
+make e2e-test
+```
+
+Additional flags that can be passed to e2e-tests by setting up `E2E_TEST_FLAGS`
+variable. Following table lists all the available flags to run the tests:
+
+| Flag            | Description                                                                                                                                                        | Default value |
+|-----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------|
+| --skip-deletion | To skip running  of `dsc-deletion` test that includes deleting `DataScienceCluster` resources. Assign this variable to `true` to skip DataScienceCluster deletion. | false         |
+
+
+
+Example command to run full test suite skipping the test
+for DataScienceCluster deletion.
+
+```shell
+make e2e-test -e OPERATOR_NAMESPACE=<namespace> -e E2E_TEST_FLAGS="--skip-deletion=true"
+```

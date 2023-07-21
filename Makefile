@@ -11,7 +11,8 @@ VERSION ?= 0.0.7
 # For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
 # opendatahub.io/opendatahub-operator-bundle:$VERSION and opendatahub.io/opendatahub-operator-catalog:$VERSION.
 IMAGE_TAG_BASE ?= quay.io/$(IMAGE_OWNER)/opendatahub-operator
-IMG ?= $(IMAGE_TAG_BASE):dev-$(VERSION)
+# Update IMG to a variable, to keep it consistent across versions for OpenShift CI
+IMG ?= REPLACE_IMAGE
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
 BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
@@ -121,7 +122,10 @@ vet: ## Run go vet against code.
 
 .PHONY: test
 test: manifests generate fmt vet envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test ./... -coverprofile cover.out
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test ./controllers/... -coverprofile cover.out
+
+# E2E tests additional flags
+E2E_TEST_FLAGS = "--skip-deletion=true" # See README.md
 
 ##@ Build
 
@@ -287,3 +291,7 @@ toolbox: ## Create a toolbox instance with the proper Golang and Operator SDK ve
 	$(IMAGE_BUILDER) stop opendatahub-toolbox ||:
 	toolbox rm opendatahub-toolbox ||:
 	toolbox create opendatahub-toolbox --image localhost/opendatahub-toolbox:latest
+
+.PHONY: e2e-test
+e2e-test: ## Run e2e tests for the controller
+	go test ./tests/e2e/ -run ^TestOdhOperator -v --operator-namespace=${OPERATOR_NAMESPACE} ${E2E_TEST_FLAGS}

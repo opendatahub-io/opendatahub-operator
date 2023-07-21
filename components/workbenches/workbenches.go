@@ -19,6 +19,10 @@ type Workbenches struct {
 	components.Component `json:""`
 }
 
+func (d *Workbenches) GetComponentName() string {
+	return ComponentName
+}
+
 // Verifies that Dashboard implements ComponentInterface
 var _ components.ComponentInterface = (*Workbenches)(nil)
 
@@ -37,14 +41,14 @@ func (m *Workbenches) ReconcileComponent(owner metav1.Object, cli client.Client,
 		return err
 	}
 
-	err = deploy.DeployManifestsFromPath(owner, cli,
+	err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 		notebookControllerPath,
 		namespace,
 		scheme, enabled)
 	if err != nil {
 		return err
 	}
-	err = deploy.DeployManifestsFromPath(owner, cli,
+	err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 		notebookImagesPath,
 		namespace,
 		scheme, enabled)
