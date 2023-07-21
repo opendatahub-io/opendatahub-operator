@@ -9,63 +9,68 @@ released in phases and will be made available before release in the form of a `c
 
 1. ODH Operator team will provide new catalogsource image with tag corresponding to latest `pre-release` in ODH [releases](https://github.com/opendatahub-io/opendatahub-operator/releases).
 
-   Alternatively, you can directly get the preview version -
-   ```console
-   export RELEASE_TAG=$( curl https://api.github.com/repos/opendatahub-io/opendatahub-operator/releases | jq -r 'map(select(.prerelease)) | first | .tag_name')
-   ```
+Alternatively, you can directly get the preview version
+
+```console
+export RELEASE_TAG=$( curl https://api.github.com/repos/opendatahub-io/opendatahub-operator/releases | jq -r 'map(select(.prerelease)) | first | .tag_name')
+```
+
 2. Deploy CatalogSource
 
-   ```console
-   $ cat <<EOF | oc create -f -
-   apiVersion: operators.coreos.com/v1alpha1
-   kind: CatalogSource
-   metadata:
-     name: opendatahub-dev-catalog
-     namespace: openshift-marketplace
-   spec:
-     sourceType: grpc
-     image: quay.io/opendatahub/opendatahub-operator-catalog:$RELEASE_TAG
-     displayName: Open Data Hub Operator (Preview)
-     publisher: ODH
-   EOF
+```console
+cat <<EOF | oc create -f -
+apiVersion: operators.coreos.com/v1alpha1
+kind: CatalogSource
+metadata:
+  name: opendatahub-dev-catalog
+  namespace: openshift-marketplace
+spec:
+  sourceType: grpc
+  image: quay.io/opendatahub/opendatahub-operator-catalog:$RELEASE_TAG
+  displayName: Open Data Hub Operator (Preview)
+  publisher: ODH
+EOF
+```
 
-   ```
 3. Subscribe to the ODH custom catalog
-   ```console
-   $ cat <<EOF | oc create -f -
-   apiVersion: operators.coreos.com/v1alpha1
-   kind: Subscription
-   metadata:
-     name: opendatahub-operator
-     namespace: openshift-operators
-   spec:
-     channel: fast
-     name: opendatahub-operator
-     source: opendatahub-dev-catalog
-     sourceNamespace: openshift-marketplace
-   EOF
-   ```
+
+```console
+cat <<EOF | oc create -f -
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: opendatahub-operator
+  namespace: openshift-operators
+spec:
+  channel: fast
+  name: opendatahub-operator
+  source: opendatahub-dev-catalog
+  sourceNamespace: openshift-marketplace
+EOF
+```
 
 ### Upgrade to new Dev Preview Version
 
 1. Apply updated version of catalog
+
 ```console
-   $ cat <<EOF | oc apply -f -
-   apiVersion: operators.coreos.com/v1alpha1
-   kind: CatalogSource
-   metadata:
-     name: opendatahub-dev-catalog
-     namespace: openshift-marketplace
-   spec:
-     sourceType: grpc
-     image: quay.io/opendatahub/opendatahub-operator-catalog:$NEW_RELEASE_TAG
-     displayName: Open Data Hub Operator (Preview)
-     publisher: ODH
-   EOF
+export NEW_RELEASE_TAG=$( curl https://api.github.com/repos/opendatahub-io/opendatahub-operator/releases | jq -r 'map(select(.prerelease)) | first | .tag_name')
+cat <<EOF | oc apply -f -
+apiVersion: operators.coreos.com/v1alpha1
+kind: CatalogSource
+metadata:
+  name: opendatahub-dev-catalog
+  namespace: openshift-marketplace
+spec:
+  sourceType: grpc
+  image: quay.io/opendatahub/opendatahub-operator-catalog:$NEW_RELEASE_TAG
+  displayName: Open Data Hub Operator (Preview)
+  publisher: ODH
+EOF
 ```
 
 2. Select `fast` channel to update
-   
+
 ## Usage
 
 1. When Operator is installed it creates a namespace called `opendatahub`.
@@ -73,26 +78,26 @@ released in phases and will be made available before release in the form of a `c
 3. Users should explicitly set components with `enabled: true` in order for components to be installed.
 
 ```console
-$ cat <<EOF | oc apply -f -
-  apiVersion: datasciencecluster.opendatahub.io/v1alpha1
-  kind: DataScienceCluster
-  metadata:
-    name: example
-  spec:
-    components:
-      dashboard:
-        enabled: true
-      datasciencepipelines:
-        enabled: true
-      distributedworkloads:
-        enabled: true
-      kserve:
-        enabled: true
-      modelmeshserving:
-        enabled: true
-      workbenches:
-        enabled: true
-   EOF
+cat <<EOF | oc apply -f -
+apiVersion: datasciencecluster.opendatahub.io/v1alpha1
+kind: DataScienceCluster
+metadata:
+  name: example
+spec:
+  components:
+    dashboard:
+      enabled: true
+    datasciencepipelines:
+      enabled: true
+    distributedworkloads:
+      enabled: true
+    kserve:
+      enabled: true
+    modelmeshserving:
+      enabled: true
+    workbenches:
+      enabled: true
+EOF
 ```
 
 
