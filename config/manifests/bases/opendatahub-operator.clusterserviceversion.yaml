@@ -75,6 +75,10 @@ spec:
   - training
   - pipelines
   - modelmesh
+  - workbenches
+  - dashboard
+  - kserve
+  - distributed-workloads
   links:
   - name: Opendatahub Operator
     url: https://opendatahub.io/
