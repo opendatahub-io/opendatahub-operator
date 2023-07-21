@@ -85,3 +85,19 @@ To deploy ODH components seamlessly, ODH operator will watch two CRDS:
           datasciencepipelines:
             enabled: true
     ```
+4. Disable Data Science Pipelines
+
+    ```console
+      apiVersion: datasciencecluster.opendatahub.io/v1alpha1
+      kind: DataScienceCluster
+      metadata:
+        name: example
+      spec:
+        components:
+          datasciencepipelines:
+            enabled: false
+          dashboard:
+            enabled: true
+          workbenches:
+            enabled: true 
+    ```
