@@ -169,7 +169,7 @@ metadata:
     operators.operatorframework.io/internal-objects: '[dscinitialization.opendatahub.io]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/opendatahub-io/opendatahub-operator
-  name: opendatahub-operator.v0.0.7
+  name: opendatahub-operator.v2.0.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -205,6 +205,9 @@ spec:
         displayName: Conditions
         path: conditions
       version: v1alpha1
+    - kind: KfDef
+      name: kfdefs.kfdef.apps.kubeflow.org
+      version: v1
     - kind: OdhApplication
       name: odhapplications.dashboard.opendatahub.io
       version: v1
@@ -495,10 +498,14 @@ spec:
   - training
   - pipelines
   - modelmesh
+  - workbenches
+  - dashboard
+  - kserve
+  - distributed-workloads
   links:
   - name: Opendatahub Operator
     url: https://opendatahub.io/
   maturity: alpha
   provider:
     name: ODH
-  version: 0.0.7
+  version: 2.0.0
