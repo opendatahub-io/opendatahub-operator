@@ -48,7 +48,7 @@ spec:
               applicationsNamespace:
                 default: redhat-ods-applications
                 description: Namespace for applications to be installed, non-configurable,
-                  default to "opendatahub"
+                  default to "redhat-ods-applications"
                 type: string
               devFlags:
                 description: Internal development useful field to test customizations.

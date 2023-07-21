@@ -39,11 +39,11 @@ cat <<EOF | oc create -f -
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
 metadata:
-  name: opendatahub-operator
+  name: rhods-operator
   namespace: openshift-operators
 spec:
   channel: fast
-  name: opendatahub-operator
+  name: rhods-operator
   source: opendatahub-dev-catalog
   sourceNamespace: openshift-marketplace
 EOF
