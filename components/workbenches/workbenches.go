@@ -19,22 +19,22 @@ type Workbenches struct {
 	components.Component `json:""`
 }
 
-func (d *Workbenches) GetComponentName() string {
+func (w *Workbenches) GetComponentName() string {
 	return ComponentName
 }
 
 // Verifies that Dashboard implements ComponentInterface
 var _ components.ComponentInterface = (*Workbenches)(nil)
 
-func (d *Workbenches) IsEnabled() bool {
-	return d.Enabled
+func (w *Workbenches) IsEnabled() bool {
+	return w.Enabled
 }
 
-func (d *Workbenches) SetEnabled(enabled bool) {
-	d.Enabled = enabled
+func (w *Workbenches) SetEnabled(enabled bool) {
+	w.Enabled = enabled
 }
 
-func (m *Workbenches) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, enabled bool, namespace string) error {
+func (w *Workbenches) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, enabled bool, namespace string) error {
 	// Update Default rolebinding
 	err := common.UpdatePodSecurityRolebinding(cli, []string{"notebook-controller-service-account"}, namespace)
 	if err != nil {

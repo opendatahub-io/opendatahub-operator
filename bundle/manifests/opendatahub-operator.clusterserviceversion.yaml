@@ -9,9 +9,6 @@ metadata:
           "kind": "OdhQuickStart",
           "metadata": {
             "annotations": {
-              "internal.config.kubernetes.io/previousKinds": "OdhQuickStart",
-              "internal.config.kubernetes.io/previousNames": "create-jupyter-notebook",
-              "internal.config.kubernetes.io/previousNamespaces": "default",
               "opendatahub.io/categories": "Getting started,Notebook environments"
             },
             "labels": {
@@ -253,6 +250,28 @@ spec:
       clusterPermissions:
       - rules:
         - apiGroups:
+          - '*'
+          resources:
+          - '*'
+          verbs:
+          - '*'
+        - apiGroups:
+          - addons.managed.openshift.io
+          resources:
+          - addons
+          verbs:
+          - get
+          - list
+        - apiGroups:
+          - apps
+          resources:
+          - daemonsets
+          - deployments
+          - replicasets
+          - statefulsets
+          verbs:
+          - '*'
+        - apiGroups:
           - ""
           resources:
           - configmaps
@@ -280,28 +299,6 @@ spec:
           - patch
           - update
           - watch
-        - apiGroups:
-          - '*'
-          resources:
-          - '*'
-          verbs:
-          - '*'
-        - apiGroups:
-          - addons.managed.openshift.io
-          resources:
-          - addons
-          verbs:
-          - get
-          - list
-        - apiGroups:
-          - apps
-          resources:
-          - daemonsets
-          - deployments
-          - replicasets
-          - statefulsets
-          verbs:
-          - '*'
         - apiGroups:
           - datasciencecluster.opendatahub.io
           resources:

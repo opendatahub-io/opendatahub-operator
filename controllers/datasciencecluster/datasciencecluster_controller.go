@@ -42,6 +42,7 @@ import (
 	authv1 "k8s.io/api/rbac/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -63,7 +64,7 @@ type DataScienceClusterReconciler struct {
 //+kubebuilder:rbac:groups=addons.managed.openshift.io,resources=addons,verbs=get;list
 //+kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=rolebindings;roles;clusterrolebindings;clusterroles,verbs=get;list;watch;create;update;patch
 //+kubebuilder:rbac:groups=apps,resources=deployments;daemonsets;replicasets;statefulsets,verbs=*
-//+kubebuilder:rbac:groups="",resources=pods;services;services/finalizers;endpoints;persistentvolumeclaims;events;configmaps;secrets,verbs="*"
+//+kubebuilder:rbac:groups="core",resources=pods;services;services/finalizers;endpoints;persistentvolumeclaims;events;configmaps;secrets,verbs="*"
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -71,19 +72,23 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	r.Log.Info("Reconciling DataScienceCluster resources", "Request.Namespace", req.Namespace, "Request.Name", req.Name)
 
 	instance := &dsc.DataScienceCluster{}
-	err := r.Client.Get(context.TODO(), req.NamespacedName, instance)
-	if err != nil && apierrs.IsNotFound(err) {
-		return ctrl.Result{}, nil
-	} else if err != nil {
-		return ctrl.Result{}, err
-	}
 
-	// If instance is being deleted, return
+	// First check if instance is being deleted, return
 	if instance.GetDeletionTimestamp() != nil {
 		return ctrl.Result{}, nil
 	}
 
-	// Return if multiple instances of DataScienceCluster exist
+	// Second check if instance exists, return
+	err := r.Client.Get(context.TODO(), types.NamespacedName{Name: req.Name}, instance)
+	if err != nil {
+		if apierrs.IsNotFound(err) {
+			// DataScienceCluster instance not found
+			return ctrl.Result{}, nil
+		}
+		return ctrl.Result{}, err
+	}
+
+	// Last check if multiple instances of DataScienceCluster exist
 	instanceList := &dsc.DataScienceClusterList{}
 	err = r.Client.List(context.TODO(), instanceList)
 	if err != nil {
@@ -213,6 +218,7 @@ func (r *DataScienceClusterReconciler) reportError(err error, instance *dsc.Data
 func (r *DataScienceClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&dsc.DataScienceCluster{}).
+		Owns(&corev1.Namespace{}).
 		Owns(&corev1.Secret{}).
 		Owns(&corev1.ConfigMap{}).
 		Owns(&netv1.NetworkPolicy{}).
@@ -220,10 +226,9 @@ func (r *DataScienceClusterReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		Owns(&authv1.RoleBinding{}).
 		Owns(&authv1.ClusterRole{}).
 		Owns(&authv1.ClusterRoleBinding{}).
-		Owns(&corev1.Namespace{}).
-		Owns(&corev1.Pod{}).
 		Owns(&appsv1.Deployment{}).
 		Owns(&appsv1.ReplicaSet{}).
+		Owns(&corev1.Pod{}).
 		// this predicates prevents meaningless reconciliations from being triggered
 		WithEventFilter(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{})).
 		Complete(r)

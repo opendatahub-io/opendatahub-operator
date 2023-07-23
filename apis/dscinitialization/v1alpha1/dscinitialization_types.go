@@ -35,12 +35,14 @@ type DSCInitializationSpec struct {
 	// +kubebuilder:default:=opendatahub
 	// Namespace for applications to be installed, non-configurable, default to "opendatahub"
 	// +operator-sdk:csv:customresourcedefinitions:type=spec
-	ApplicationsNamespace string     `json:"applicationsNamespace"`
+	ApplicationsNamespace string `json:"applicationsNamespace"`
 	// Enable monitoring on specified namespace
 	// +operator-sdk:csv:customresourcedefinitions:type=spec
-	Monitoring            Monitoring `json:"monitoring,omitempty"`
+	// +optional
+	Monitoring Monitoring `json:"monitoring,omitempty"`
 	// Internal development useful field
 	// +operator-sdk:csv:customresourcedefinitions:type=spec
+	// +optional
 	ManifestsUri string `json:"manifestsUri,omitempty"`
 }
 
