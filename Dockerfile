@@ -3,7 +3,7 @@ ARG GOLANG_VERSION=1.18.4
 ARG LOCAL_BUNDLE=odh-manifests.tar.gz
 
 FROM registry.access.redhat.com/ubi8/go-toolset:$GOLANG_VERSION as builder
-ARG ODH_MANIFESTS_REF=master
+ARG ODH_MANIFESTS_REF=v1.8.0
 ARG ODH_MANIFESTS_URL=https://github.com/opendatahub-io/odh-manifests/tarball/$ODH_MANIFESTS_REF
 ARG LOCAL_BUNDLE
 
