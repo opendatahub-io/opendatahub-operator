@@ -1,0 +1,453 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  annotations:
+    alm-examples: |-
+      [
+        {
+          "apiVersion": "console.openshift.io/v1",
+          "kind": "OdhQuickStart",
+          "metadata": {
+            "annotations": {
+              "internal.config.kubernetes.io/previousKinds": "OdhQuickStart",
+              "internal.config.kubernetes.io/previousNames": "create-jupyter-notebook",
+              "internal.config.kubernetes.io/previousNamespaces": "default",
+              "opendatahub.io/categories": "Getting started,Notebook environments"
+            },
+            "labels": {
+              "app.kubernetes.io/created-by": "odh-dashboard",
+              "app.kubernetes.io/instance": "odh-dashboard-sample",
+              "app.kubernetes.io/managed-by": "kustomize",
+              "app.kubernetes.io/name": "odh-dashboard",
+              "app.kubernetes.io/part-of": "odh-dashboard"
+            },
+            "name": "create-jupyter-notebook-sample",
+            "namespace": "opendatahub"
+          },
+          "spec": {
+            "appName": "jupyterhub",
+            "displayName": "Creating a Jupyter notebook",
+            "durationMinutes": 5
+          }
+        },
+        {
+          "apiVersion": "dashboard.opendatahub.io/v1",
+          "kind": "OdhApplication",
+          "metadata": {
+            "labels": {
+              "app.kubernetes.io/created-by": "odh-dashboard",
+              "app.kubernetes.io/instance": "odh-dashboard-sample",
+              "app.kubernetes.io/managed-by": "kustomize",
+              "app.kubernetes.io/name": "odh-dashboard",
+              "app.kubernetes.io/part-of": "odh-dashboard"
+            },
+            "name": "jupyterhub-sample",
+            "namespace": "opendatahub"
+          },
+          "spec": {
+            "displayName": "JupyterHub",
+            "docsLink": "https://jupyter.org/hub",
+            "getStartedLink": "https://jupyterhub.readthedocs.io/en/stable/getting-started/index.html",
+            "getStartedMarkDown": "# MarkDown Description",
+            "provider": "Jupyter",
+            "quickStart": "create-jupyter-notebook",
+            "route": "jupyterhub"
+          }
+        },
+        {
+          "apiVersion": "dashboard.opendatahub.io/v1",
+          "kind": "OdhDocument",
+          "metadata": {
+            "labels": {
+              "app.kubernetes.io/created-by": "odh-dashboard",
+              "app.kubernetes.io/instance": "odh-dashboard-sample",
+              "app.kubernetes.io/managed-by": "kustomize",
+              "app.kubernetes.io/name": "odh-dashboard",
+              "app.kubernetes.io/part-of": "odh-dashboard"
+            },
+            "name": "jupyterhub-view-installed-packages-sample",
+            "namespace": "opendatahub"
+          },
+          "spec": {
+            "appName": "jupyter",
+            "durationMinutes": 15,
+            "type": "how-to",
+            "url": "https://url.sample.com"
+          }
+        },
+        {
+          "apiVersion": "datasciencecluster.opendatahub.io/v1alpha1",
+          "kind": "DataScienceCluster",
+          "metadata": {
+            "labels": {
+              "app.kubernetes.io/created-by": "rhods-operator",
+              "app.kubernetes.io/instance": "default",
+              "app.kubernetes.io/managed-by": "kustomize",
+              "app.kubernetes.io/name": "datasciencecluster",
+              "app.kubernetes.io/part-of": "rhods-operator"
+            },
+            "name": "default"
+          },
+          "spec": {
+            "components": {
+              "dashboard": {
+                "enabled": false
+              },
+              "datasciencepipelines": {
+                "enabled": false
+              },
+              "distributedworkloads": {
+                "enabled": false
+              },
+              "kserve": {
+                "enabled": false
+              },
+              "modelmeshserving": {
+                "enabled": false
+              },
+              "workbenches": {
+                "enabled": false
+              }
+            }
+          }
+        },
+        {
+          "apiVersion": "dscinitialization.opendatahub.io/v1alpha1",
+          "kind": "DSCInitialization",
+          "metadata": {
+            "labels": {
+              "app.kubernetes.io/created-by": "rhods-operator",
+              "app.kubernetes.io/instance": "default",
+              "app.kubernetes.io/managed-by": "kustomize",
+              "app.kubernetes.io/name": "dscinitialization",
+              "app.kubernetes.io/part-of": "rhods-operator"
+            },
+            "name": "default"
+          },
+          "spec": {
+            "applicationsNamespace": "redhat-ods-applications",
+            "monitoring": {
+              "enabled": false,
+              "namespace": "redhat-ods-monitoring"
+            }
+          }
+        },
+        {
+          "apiVersion": "opendatahub.io/v1alpha",
+          "kind": "OdhDashboardConfig",
+          "metadata": {
+            "labels": {
+              "app.kubernetes.io/created-by": "odh-dashboard",
+              "app.kubernetes.io/instance": "odh-dashboard-sample",
+              "app.kubernetes.io/managed-by": "kustomize",
+              "app.kubernetes.io/name": "odh-dashboard",
+              "app.kubernetes.io/part-of": "odh-dashboard",
+              "opendatahub.io/dashboard": "true"
+            },
+            "name": "odh-dashboard-config-sample",
+            "namespace": "opendatahub"
+          },
+          "spec": {
+            "dashboardConfig": null,
+            "groupsConfig": {
+              "adminGroups": "odh-admins",
+              "allowedGroups": "system:authenticated"
+            },
+            "notebookController": {
+              "enabled": true
+            },
+            "templateOrder": []
+          }
+        }
+      ]
+    capabilities: Basic Install
+    operators.operatorframework.io/builder: operator-sdk-v1.24.1
+    operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
+  name: rhods-operator.v2.0.0
+  namespace: placeholder
+spec:
+  apiservicedefinitions: {}
+  customresourcedefinitions:
+    owned:
+    - kind: DataScienceCluster
+      name: datascienceclusters.datasciencecluster.opendatahub.io
+      version: v1alpha1
+    - kind: DSCInitialization
+      name: dscinitializations.dscinitialization.opendatahub.io
+      version: v1alpha1
+    - kind: KfDef
+      name: kfdefs.kfdef.apps.kubeflow.org
+      version: v1
+    - kind: OdhApplication
+      name: odhapplications.dashboard.opendatahub.io
+      version: v1
+    - kind: OdhDashboardConfig
+      name: odhdashboardconfigs.opendatahub.io
+      version: v1alpha
+    - kind: OdhDocument
+      name: odhdocuments.dashboard.opendatahub.io
+      version: v1
+    - kind: OdhQuickStart
+      name: odhquickstarts.console.openshift.io
+      version: v1
+  description: Rhods Operator description. TODO.
+  displayName: Rhods Operator
+  icon:
+  - base64data: ""
+    mediatype: ""
+  install:
+    spec:
+      clusterPermissions:
+      - rules:
+        - apiGroups:
+          - ""
+          resources:
+          - configmaps
+          - endpoints
+          - events
+          - persistentvolumeclaims
+          - pods
+          - secrets
+          - services
+          - services/finalizers
+          verbs:
+          - '*'
+        - apiGroups:
+          - ""
+          resources:
+          - configmaps
+          - namespaces
+          - secrets
+          - serviceaccounts
+          - services
+          verbs:
+          - create
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - '*'
+          resources:
+          - '*'
+          verbs:
+          - '*'
+        - apiGroups:
+          - addons.managed.openshift.io
+          resources:
+          - addons
+          verbs:
+          - get
+          - list
+        - apiGroups:
+          - apps
+          resources:
+          - daemonsets
+          - deployments
+          - replicasets
+          - statefulsets
+          verbs:
+          - '*'
+        - apiGroups:
+          - datasciencecluster.opendatahub.io
+          resources:
+          - datascienceclusters
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - datasciencecluster.opendatahub.io
+          resources:
+          - datascienceclusters/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - datasciencecluster.opendatahub.io
+          resources:
+          - datascienceclusters/status
+          verbs:
+          - get
+          - patch
+          - update
+        - apiGroups:
+          - dscinitialization.opendatahub.io
+          resources:
+          - dscinitializations
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - dscinitialization.opendatahub.io
+          resources:
+          - dscinitializations/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - dscinitialization.opendatahub.io
+          resources:
+          - dscinitializations/status
+          verbs:
+          - get
+          - patch
+          - update
+        - apiGroups:
+          - networking.k8s.io
+          resources:
+          - networkpolicies
+          verbs:
+          - create
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - rbac.authorization.k8s.io
+          resources:
+          - clusterrolebindings
+          - clusterroles
+          - rolebindings
+          - roles
+          verbs:
+          - create
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - authentication.k8s.io
+          resources:
+          - tokenreviews
+          verbs:
+          - create
+        - apiGroups:
+          - authorization.k8s.io
+          resources:
+          - subjectaccessreviews
+          verbs:
+          - create
+        serviceAccountName: redhat-ods-operator-controller-manager
+      deployments:
+      - label:
+          control-plane: controller-manager
+        name: redhat-ods-operator-controller-manager
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              control-plane: controller-manager
+          strategy: {}
+          template:
+            metadata:
+              annotations:
+                kubectl.kubernetes.io/default-container: manager
+              labels:
+                control-plane: controller-manager
+            spec:
+              containers:
+              - args:
+                - --health-probe-bind-address=:8081
+                - --metrics-bind-address=127.0.0.1:8080
+                - --leader-elect
+                command:
+                - /manager
+                image: REPLACE_IMAGE:latest
+                imagePullPolicy: Always
+                livenessProbe:
+                  httpGet:
+                    path: /healthz
+                    port: 8081
+                  initialDelaySeconds: 15
+                  periodSeconds: 20
+                name: manager
+                readinessProbe:
+                  httpGet:
+                    path: /readyz
+                    port: 8081
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+                resources:
+                  limits:
+                    cpu: 500m
+                    memory: 4Gi
+                  requests:
+                    cpu: 500m
+                    memory: 256Mi
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  capabilities:
+                    drop:
+                    - ALL
+              securityContext:
+                runAsNonRoot: true
+              serviceAccountName: redhat-ods-operator-controller-manager
+              terminationGracePeriodSeconds: 10
+      permissions:
+      - rules:
+        - apiGroups:
+          - ""
+          resources:
+          - configmaps
+          verbs:
+          - get
+          - list
+          - watch
+          - create
+          - update
+          - patch
+          - delete
+        - apiGroups:
+          - coordination.k8s.io
+          resources:
+          - leases
+          verbs:
+          - get
+          - list
+          - watch
+          - create
+          - update
+          - patch
+          - delete
+        - apiGroups:
+          - ""
+          resources:
+          - events
+          verbs:
+          - create
+          - patch
+        serviceAccountName: redhat-ods-operator-controller-manager
+    strategy: deployment
+  installModes:
+  - supported: false
+    type: OwnNamespace
+  - supported: false
+    type: SingleNamespace
+  - supported: false
+    type: MultiNamespace
+  - supported: true
+    type: AllNamespaces
+  keywords:
+  - rhods-operator
+  links:
+  - name: Rhods Operator
+    url: https://rhods-operator.domain
+  maintainers:
+  - email: your@email.com
+    name: Maintainer Name
+  maturity: alpha
+  provider:
+    name: Provider Name
+    url: https://your.domain
+  version: 2.0.0
