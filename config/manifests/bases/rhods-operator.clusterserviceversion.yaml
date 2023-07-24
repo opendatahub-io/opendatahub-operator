@@ -50,8 +50,8 @@ metadata:
         }
       }
     operators.operatorframework.io/internal-objects: '[dscinitialization.opendatahub.io]'
-    repository: https://github.com/opendatahub-io/opendatahub-operator
-  name: opendatahub-operator.v0.0.0
+    repository: https://github.com/red-hat-data-services/rhods-operator
+  name: rhods-operator.v2.0.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -117,18 +117,10 @@ spec:
   - kserve
   - distributed-workloads
   links:
-  - name: Open Data Hub
-    url: https://opendatahub.io
-  - name: Open Data Hub Community
-    url: https://github.com/opendatahub-io/opendatahub-community
-  maintainers:
-  - email: opendatahub@redhat.com
-    name: Open Data Hub Maintainers
+  - name: Red Hat OpenShift Data Science
+    url: https://www.redhat.com/en/technologies/cloud-computing/openshift/openshift-data-science
   maturity: alpha
   minKubeVersion: 1.22.0
   provider:
-    name: ODH
-  selector:
-    matchLabels:
-      component: opendatahub-operator
-  version: 0.0.1
+    name: Red Hat
+  version: 2.0.0
