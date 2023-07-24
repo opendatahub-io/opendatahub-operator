@@ -23,7 +23,7 @@ OPERATOR_NAMESPACE ?= rhods-ods-operator
 MANIFEST_REPO ?= red-hat-data-services
 MANIFEST_RELEASE ?= main
 
-CHANNELS="fast"
+CHANNELS="alpha"
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
 # To re-generate a bundle for other specific channels without changing the standard setup, you can:
@@ -33,7 +33,7 @@ ifneq ($(origin CHANNELS), undefined)
 BUNDLE_CHANNELS := --channels=$(CHANNELS)
 endif
 
-DEFAULT_CHANNEL="fast"
+DEFAULT_CHANNEL="alpha"
 # DEFAULT_CHANNEL defines the default channel used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g DEFAULT_CHANNEL = "stable")
 # To re-generate a bundle for any other default channel without changing the default setup, you can:
