@@ -187,7 +187,9 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(instance *dsc.DataS
 	})
 	if err != nil {
 		instance = r.reportError(err, instance, "failed to update DataScienceCluster conditions before reconciling "+componentName)
-		// try to continue reconciliation
+		return instance, ctrl.Result{
+			// Retry after failure until success.
+			RequeueAfter: time.Second * 10}, err
 	}
 
 	// Reconcile component
