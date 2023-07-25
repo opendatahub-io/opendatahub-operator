@@ -56,8 +56,7 @@ const (
 )
 
 const (
-	ReconcileInitiatedReason = "ReconcileInitiated"
-	ReadySuffix              = "Ready"
+	ReadySuffix = "Ready"
 )
 
 // SetProgressingCondition sets the ProgressingCondition to True and other conditions to
