@@ -138,6 +138,10 @@ spec:
                   - resources
                   type: object
                 type: array
+              templateDisablement:
+                items:
+                  type: string
+                type: array
               templateOrder:
                 items:
                   type: string

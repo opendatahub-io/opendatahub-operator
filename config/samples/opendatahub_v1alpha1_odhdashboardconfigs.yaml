@@ -18,3 +18,4 @@ spec:
   notebookController:
     enabled: true
   templateOrder: []
+  templateDisablement: []
