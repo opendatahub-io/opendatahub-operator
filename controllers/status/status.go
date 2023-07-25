@@ -56,10 +56,7 @@ const (
 )
 
 const (
-	// TODO: update this list of constants with proper reasons for conditions
-	ReconcileInitiatedReason = "ReconcileInitiated"
-	AReason                  = "AReason"
-	AnotherReason            = "AnotherReason"
+	ReadySuffix = "Ready"
 )
 
 // SetProgressingCondition sets the ProgressingCondition to True and other conditions to
@@ -107,6 +104,45 @@ func SetErrorCondition(conditions *[]conditionsv1.Condition, reason string, mess
 		Reason:  reason,
 		Message: message,
 	})
+	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
+		Type:    conditionsv1.ConditionAvailable,
+		Status:  corev1.ConditionFalse,
+		Reason:  reason,
+		Message: message,
+	})
+	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
+		Type:    conditionsv1.ConditionProgressing,
+		Status:  corev1.ConditionFalse,
+		Reason:  reason,
+		Message: message,
+	})
+	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
+		Type:    conditionsv1.ConditionDegraded,
+		Status:  corev1.ConditionTrue,
+		Reason:  reason,
+		Message: message,
+	})
+	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
+		Type:    conditionsv1.ConditionUpgradeable,
+		Status:  corev1.ConditionUnknown,
+		Reason:  reason,
+		Message: message,
+	})
+}
+
+func SetComponentCondition(conditions *[]conditionsv1.Condition, component string, reason string, message string, status corev1.ConditionStatus) {
+	condtype := component + ReadySuffix
+	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
+		Type:    conditionsv1.ConditionType(condtype),
+		Status:  status,
+		Reason:  reason,
+		Message: message,
+	})
+}
+
+func RemoveComponentCondition(conditions *[]conditionsv1.Condition, component string) {
+	condtype := component + ReadySuffix
+	conditionsv1.RemoveStatusCondition(conditions, conditionsv1.ConditionType(condtype))
 }
 
 // SetCompleteCondition sets the ConditionReconcileComplete to True and other Conditions
