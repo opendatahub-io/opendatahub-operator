@@ -22,23 +22,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// List of constants to show different  reconciliation messages and statuses.
-const (
-	ReconcileFailed           = "ReconcileFailed"
-	ReconcileInit             = "ReconcileInit"
-	ReconcileCompleted        = "ReconcileCompleted"
-	ReconcileCompletedMessage = "Reconcile completed successfully"
-)
-
 // DSCInitializationSpec defines the desired state of DSCInitialization
 type DSCInitializationSpec struct {
 	// +kubebuilder:default:=opendatahub
 	// Namespace for applications to be installed, non-configurable, default to "opendatahub"
 	// +operator-sdk:csv:customresourcedefinitions:type=spec
-	ApplicationsNamespace string     `json:"applicationsNamespace"`
+	ApplicationsNamespace string `json:"applicationsNamespace"`
 	// Enable monitoring on specified namespace
 	// +operator-sdk:csv:customresourcedefinitions:type=spec
-	Monitoring            Monitoring `json:"monitoring,omitempty"`
+	Monitoring Monitoring `json:"monitoring,omitempty"`
 	// Internal development useful field
 	// +operator-sdk:csv:customresourcedefinitions:type=spec
 	ManifestsUri string `json:"manifestsUri,omitempty"`
