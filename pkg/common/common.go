@@ -33,7 +33,7 @@ func UpdatePodSecurityRolebinding(cli client.Client, serviceAccountsList []strin
 	return cli.Update(context.TODO(), foundRoleBinding)
 }
 
-func subjectExistInRoleBinding(subjectList []authv1.Subject, serviceAccountName, namespace string) bool {
+func subjectExistInRoleBinding(subjectList []authv1.Subject, serviceAccountName string, namespace string) bool {
 	for _, subject := range subjectList {
 		if subject.Name == serviceAccountName && subject.Namespace == namespace {
 			return true

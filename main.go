@@ -84,6 +84,8 @@ func main() {
 	var probeAddr string
 	var dscApplicationsNamespace string
 	var dscMonitoringNamespace string
+	var logLevel int
+	var development bool
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
@@ -93,8 +95,10 @@ func main() {
 		"applications will be deployed")
 	flag.StringVar(&dscMonitoringNamespace, "dsc-monitoring-namespace", "opendatahub", "The namespace where data science cluster"+
 		"monitoring stack will be deployed")
+	flag.BoolVar(&development, "development", false, "set to true to enable Debug as default logger; set to false to have Info as default logger")
+	flag.IntVar(&logLevel, "logLevel", 2, "Log level: 0 info; 1 debug; 2 only error as default")
 	opts := zap.Options{
-		Development: true,
+		Development: development, // Defaults to Debug when Development is true and Info otherwise.
 	}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
@@ -128,7 +132,7 @@ func main() {
 	if err = (&dscicontr.DSCInitializationReconciler{
 		Client:                mgr.GetClient(),
 		Scheme:                mgr.GetScheme(),
-		Log:                   ctrl.Log.WithName("controllers").WithName("DSCInitialization"),
+		Log:                   ctrl.Log.WithName("controllers").WithName("DSCInitialization").V(logLevel),
 		Recorder:              mgr.GetEventRecorderFor("dscinitialization-controller"),
 		ApplicationsNamespace: dscApplicationsNamespace,
 	}).SetupWithManager(mgr); err != nil {
@@ -139,7 +143,7 @@ func main() {
 	if err = (&datascienceclustercontrollers.DataScienceClusterReconciler{
 		Client:                mgr.GetClient(),
 		Scheme:                mgr.GetScheme(),
-		Log:                   ctrl.Log.WithName("controllers").WithName("DataScienceCluster"),
+		Log:                   ctrl.Log.WithName("controllers").WithName("DataScienceCluster").V(logLevel),
 		ApplicationsNamespace: dscApplicationsNamespace,
 		Recorder:              mgr.GetEventRecorderFor("datasciencecluster-controller"),
 	}).SetupWithManager(mgr); err != nil {
@@ -150,6 +154,7 @@ func main() {
 	if err = (&secretgenerator.SecretGeneratorReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		Log:    ctrl.Log.WithName("controllers").WithName("SecretGenerator").V(logLevel),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "SecretGenerator")
 		os.Exit(1)

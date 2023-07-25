@@ -59,6 +59,7 @@ type DSCInitializationReconciler struct {
 // Reconcile contains controller logic specific to DSCInitialization instance updates
 func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.Log.Info("Reconciling DSCInitialization.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
+	//logLevel := 5
 
 	instance := &dsci.DSCInitialization{}
 	// First check if instance is being deleted, return
@@ -74,7 +75,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			return ctrl.Result{}, nil
 		}
 		r.Log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
-		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to retrieve DSCInitialization instance")
+		r.Recorder.Event(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to retrieve DSCInitialization instance")
 		return ctrl.Result{}, err
 	}
 
@@ -100,8 +101,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		})
 		if err != nil {
 			r.Log.Error(err, "Failed to add conditions to status of DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
-			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError",
-				"%s for instance %s", message, instance.Name)
+			r.Recorder.Event(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", message+" for instance "+instance.Name)
 			return reconcile.Result{}, err
 		}
 	}
@@ -142,10 +142,10 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		if platform == deploy.ManagedRhods {
 			err = deploy.DeployManifestsFromPath(instance, r.Client, "osd",
 				deploy.DefaultManifestPath+"/osd-configs",
-				r.ApplicationsNamespace, r.Scheme, true)
+				r.ApplicationsNamespace, r.Scheme, true, r.Log)
 			if err != nil {
 				r.Log.Error(err, "Failed to apply osd specific configs from manifests", "Manifests path", deploy.DefaultManifestPath+"/osd-configs")
-				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to apply "+deploy.DefaultManifestPath+"/osd-configs")
+				r.Recorder.Event(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to apply "+deploy.DefaultManifestPath+"/osd-configs")
 				return reconcile.Result{}, err
 			}
 		} else {
@@ -205,7 +205,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	})
 	if err != nil {
 		r.Log.Error(err, "failed to update DSCInitialization status after successfuly completed reconciliation")
-		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to update DSCInitialization status")
+		r.Recorder.Event(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to update DSCInitialization status")
 	}
 	return ctrl.Result{}, nil
 }

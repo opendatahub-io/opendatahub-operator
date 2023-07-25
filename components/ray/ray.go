@@ -1,6 +1,7 @@
 package ray
 
 import (
+	"github.com/go-logr/logr"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,17 +34,28 @@ func (d *Ray) GetComponentName() string {
 // Verifies that Ray implements ComponentInterface
 var _ components.ComponentInterface = (*Ray)(nil)
 
-func (d *Ray) ReconcileComponent(owner metav1.Object, client client.Client, scheme *runtime.Scheme, enabled bool, namespace string) error {
+func (d *Ray) ReconcileComponent(
+	owner metav1.Object,
+	client client.Client,
+	scheme *runtime.Scheme,
+	enabled bool,
+	namespace string,
+	logger logr.Logger,
+) error {
 
 	// Update image parameters
 	if err := deploy.ApplyImageParams(RayPath, imageParamMap); err != nil {
+		logger.Error(err, "Failed to replace image from params.env", "error", err.Error())
 		return err
 	}
 	// Deploy Ray Operator
 	err := deploy.DeployManifestsFromPath(owner, client, ComponentName,
 		RayPath,
 		namespace,
-		scheme, enabled)
+		scheme, enabled, logger)
+	if err != nil {
+		logger.Error(err, "Failed to set KubeRay config", "location", RayPath)
+	}
 	return err
 
 }

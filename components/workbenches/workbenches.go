@@ -1,6 +1,7 @@
 package workbenches
 
 import (
+	"github.com/go-logr/logr"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -44,7 +45,14 @@ func (w *Workbenches) SetEnabled(enabled bool) {
 	w.Enabled = enabled
 }
 
-func (w *Workbenches) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, enabled bool, namespace string) error {
+func (w *Workbenches) ReconcileComponent(
+	owner metav1.Object,
+	cli client.Client,
+	scheme *runtime.Scheme,
+	enabled bool,
+	namespace string,
+	logger logr.Logger,
+) error {
 	// Set default notebooks namespace
 	// Create rhods-notebooks namespace in managed platforms
 	platform, err := deploy.GetPlatform(cli)
@@ -66,25 +74,31 @@ func (w *Workbenches) ReconcileComponent(owner metav1.Object, cli client.Client,
 
 	// Update image parameters
 	if err := deploy.ApplyImageParams(notebookControllerPath, imageParamMap); err != nil {
+		logger.Error(err, "Failed to replace image from params.env", "path", notebookControllerPath)
 		return err
 	}
 
 	err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 		notebookControllerPath,
 		namespace,
-		scheme, enabled)
+		scheme, enabled, logger)
 	if err != nil {
+		logger.Error(err, "Failed to set Workbench config", "location", notebookControllerPath)
 		return err
 	}
 
 	// Update image parameters
 	if err := deploy.ApplyImageParams(notebookImagesPath, imageParamMap); err != nil {
+		logger.Error(err, "Failed to replace image from params.env", "path", notebookImagesPath)
 		return err
 	}
 	err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 		notebookImagesPath,
 		namespace,
-		scheme, enabled)
+		scheme, enabled, logger)
+	if err != nil {
+		logger.Error(err, "Failed to set Workbench config", "location", notebookImagesPath)
+	}
 	return err
 
 }

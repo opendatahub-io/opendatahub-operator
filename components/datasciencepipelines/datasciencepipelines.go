@@ -1,6 +1,7 @@
 package datasciencepipelines
 
 import (
+	"github.com/go-logr/logr"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -10,7 +11,7 @@ import (
 
 const (
 	ComponentName = "data-science-pipelines-operator"
-	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
+	DSPPath       = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
 )
 
 var imageParamMap = map[string]string{
@@ -46,17 +47,28 @@ func (d *DataSciencePipelines) SetEnabled(enabled bool) {
 	d.Enabled = enabled
 }
 
-func (d *DataSciencePipelines) ReconcileComponent(owner metav1.Object, client client.Client, scheme *runtime.Scheme, enabled bool, namespace string) error {
+func (d *DataSciencePipelines) ReconcileComponent(
+	owner metav1.Object,
+	client client.Client,
+	scheme *runtime.Scheme,
+	enabled bool,
+	namespace string,
+	logger logr.Logger,
+) error {
 
 	// Update image parameters
-	if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
+	if err := deploy.ApplyImageParams(DSPPath, imageParamMap); err != nil {
+		logger.Error(err, "Failed to replace image from params.env", "path", DSPPath)
 		return err
 	}
 
 	err := deploy.DeployManifestsFromPath(owner, client, ComponentName,
-		Path,
+		DSPPath,
 		namespace,
-		scheme, enabled)
+		scheme, enabled, logger)
+	if err != nil {
+		logger.Error(err, "Failed to set DataSciencePipeline config", "path", DSPPath)
+	}
 	return err
 
 }

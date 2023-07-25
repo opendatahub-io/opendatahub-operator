@@ -5,6 +5,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/go-logr/logr"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -12,7 +13,7 @@ import (
 
 const (
 	ComponentName          = "kserve"
-	Path                   = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
+	KServePath             = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
 	DependentComponentName = "odh-model-controller"
 	DependentPath          = deploy.DefaultManifestPath + "/" + DependentComponentName + "/base"
 )
@@ -52,17 +53,26 @@ func (d *Kserve) SetEnabled(enabled bool) {
 	d.Enabled = enabled
 }
 
-func (d *Kserve) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, enabled bool, namespace string) error {
+func (d *Kserve) ReconcileComponent(
+	owner metav1.Object,
+	cli client.Client,
+	scheme *runtime.Scheme,
+	enabled bool,
+	namespace string,
+	logger logr.Logger,
+) error {
 
 	// Update image parameters
-	if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
+	if err := deploy.ApplyImageParams(KServePath, imageParamMap); err != nil {
+		logger.Error(err, "Failed to replace image from params.env", "path", KServePath)
 		return err
 	}
 
 	if err := deploy.DeployManifestsFromPath(owner, cli, ComponentName,
-		Path,
+		KServePath,
 		namespace,
-		scheme, enabled); err != nil {
+		scheme, enabled, logger); err != nil {
+		logger.Error(err, "Failed to set KServe config", "path", KServePath)
 		return err
 	}
 
@@ -72,18 +82,17 @@ func (d *Kserve) ReconcileComponent(owner metav1.Object, cli client.Client, sche
 	}
 
 	// Update image parameters
-	if err := deploy.ApplyImageParams(Path, dependentImageParamMap); err != nil {
+	if err := deploy.ApplyImageParams(KServePath, dependentImageParamMap); err != nil {
 		return err
 	}
 
 	if err := deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 		DependentPath,
 		namespace,
-		scheme, enabled); err != nil {
+		scheme, enabled, logger); err != nil {
 		return err
 	}
 	return nil
-
 }
 
 func (in *Kserve) DeepCopyInto(out *Kserve) {

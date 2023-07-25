@@ -22,7 +22,7 @@ const (
 
 type Platform string
 
-func isSelfManaged(cli client.Client) (Platform, error) {
+func checkSelfManaged(cli client.Client) (Platform, error) {
 	clusterCsvs := &ofapi.ClusterServiceVersionList{}
 	err := cli.List(context.TODO(), clusterCsvs)
 	if err != nil {
@@ -41,7 +41,8 @@ func isSelfManaged(cli client.Client) (Platform, error) {
 	}
 	return "", err
 }
-func isManagedRHODS(cli client.Client) (Platform, error) {
+
+func checkManagedRHODS(cli client.Client) (Platform, error) {
 	addonCRD := &apiextv1.CustomResourceDefinition{}
 
 	err := cli.Get(context.TODO(), client.ObjectKey{Name: "addons.managed.openshift.io"}, addonCRD)
@@ -66,11 +67,11 @@ func isManagedRHODS(cli client.Client) (Platform, error) {
 
 func GetPlatform(cli client.Client) (Platform, error) {
 	// First check if its addon installation
-	platform, err := isManagedRHODS(cli)
+	platform, err := checkManagedRHODS(cli)
 	if err == nil && platform == ManagedRhods {
 		return platform, nil
 	}
 
 	// return self-managed platform
-	return isSelfManaged(cli)
+	return checkSelfManaged(cli)
 }

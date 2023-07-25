@@ -349,47 +349,52 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	componentErrorList := make(map[string]error)
 
 	// reconcile dashboard component
+	//r.Log.V(3)
+	//logLevel := 4
 	if instance, err = r.reconcileSubComponent(instance, dashboard.ComponentName, instance.Spec.Components.Dashboard.Enabled,
-		&(instance.Spec.Components.Dashboard)); err != nil {
+		&(instance.Spec.Components.Dashboard), r.Log); err != nil {
 		// no need to log any errors as this is done in the reconcileSubComponent method
 		componentErrorList[dashboard.ComponentName] = err
 	}
 
 	// reconcile DataSciencePipelines component
 	if instance, err = r.reconcileSubComponent(instance, datasciencepipelines.ComponentName, instance.Spec.Components.DataSciencePipelines.Enabled,
-		&(instance.Spec.Components.DataSciencePipelines)); err != nil {
+		&(instance.Spec.Components.DataSciencePipelines), r.Log); err != nil {
 		// no need to log any errors as this is done in the reconcileSubComponent method
 		componentErrorList[datasciencepipelines.ComponentName] = err
 	}
 
 	// reconcile Workbench component
 	if instance, err = r.reconcileSubComponent(instance, workbenches.ComponentName, instance.Spec.Components.Workbenches.Enabled,
-		&(instance.Spec.Components.Workbenches)); err != nil {
+		&(instance.Spec.Components.Workbenches), r.Log); err != nil {
 		// no need to log any errors as this is done in the reconcileSubComponent method
 		componentErrorList[workbenches.ComponentName] = err
 	}
 
 	// reconcile Kserve component
-	if instance, err = r.reconcileSubComponent(instance, kserve.ComponentName, instance.Spec.Components.Kserve.Enabled, &(instance.Spec.Components.Kserve)); err != nil {
+	if instance, err = r.reconcileSubComponent(instance, kserve.ComponentName, instance.Spec.Components.Kserve.Enabled,
+		&(instance.Spec.Components.Kserve), r.Log); err != nil {
 		// no need to log any errors as this is done in the reconcileSubComponent method
 		componentErrorList[kserve.ComponentName] = err
 	}
 
 	// reconcile ModelMesh component
 	if instance, err = r.reconcileSubComponent(instance, modelmeshserving.ComponentName, instance.Spec.Components.ModelMeshServing.Enabled,
-		&(instance.Spec.Components.ModelMeshServing)); err != nil {
+		&(instance.Spec.Components.ModelMeshServing), r.Log); err != nil {
 		// no need to log any errors as this is done in the reconcileSubComponent method
 		componentErrorList[modelmeshserving.ComponentName] = err
 	}
 
 	// reconcile CodeFlare component
-	if instance, err = r.reconcileSubComponent(instance, codeflare.ComponentName, instance.Spec.Components.CodeFlare.Enabled, &(instance.Spec.Components.CodeFlare)); err != nil {
+	if instance, err = r.reconcileSubComponent(instance, codeflare.ComponentName, instance.Spec.Components.CodeFlare.Enabled,
+		&(instance.Spec.Components.CodeFlare), r.Log); err != nil {
 		// no need to log any errors as this is done in the reconcileSubComponent method
 		componentErrorList[codeflare.ComponentName] = err
 	}
 
 	// reconcile Ray component
-	if instance, err = r.reconcileSubComponent(instance, ray.ComponentName, instance.Spec.Components.Ray.Enabled, &(instance.Spec.Components.Ray)); err != nil {
+	if instance, err = r.reconcileSubComponent(instance, ray.ComponentName, instance.Spec.Components.Ray.Enabled,
+		&(instance.Spec.Components.Ray), r.Log); err != nil {
 		// no need to log any errors as this is done in the reconcileSubComponent method
 		componentErrorList[ray.ComponentName] = err
 	}
@@ -402,8 +407,8 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 				fmt.Sprintf("DataScienceCluster resource reconciled with component errors: %v", fmt.Sprint(componentErrorList)))
 			saved.Status.Phase = status.PhaseReady
 		})
-		r.Recorder.Eventf(instance, corev1.EventTypeNormal, "DataScienceClusterComponentFailures",
-			"DataScienceCluster instance %s created, but have some failures in component %v", instance.Name, fmt.Sprint(componentErrorList))
+		r.Recorder.Event(instance, corev1.EventTypeWarning, "DataScienceClusterComponentFailures",
+			"DataScienceCluster instance "+instance.Name+" created, but have some failures in component"+fmt.Sprint(componentErrorList))
 		return ctrl.Result{RequeueAfter: time.Second * 10}, fmt.Errorf(fmt.Sprint(componentErrorList))
 	}
 
@@ -418,15 +423,23 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	r.Log.Info("DataScienceCluster Deployment Completed.")
-	r.Recorder.Eventf(instance, corev1.EventTypeNormal, "DataScienceClusterCreationSuccessful",
-		"DataScienceCluster instance %s created and deployed successfully", instance.Name)
+	r.Recorder.Event(instance, corev1.EventTypeNormal, "DataScienceClusterCreationSuccessful",
+		"DataScienceCluster instance "+instance.Name+" created and deployed successfully")
 
 	return ctrl.Result{}, nil
 }
 
-func (r *DataScienceClusterReconciler) reconcileSubComponent(instance *dsc.DataScienceCluster, componentName string, enabled bool,
-	component components.ComponentInterface) (*dsc.DataScienceCluster, error) {
+func (r *DataScienceClusterReconciler) reconcileSubComponent(
+	instance *dsc.DataScienceCluster,
+	componentName string,
+	enabled bool,
+	component components.ComponentInterface,
+	logger logr.Logger) (*dsc.DataScienceCluster, error) {
 
+	// if not set in main.go, below print
+	logger.Info("Reconcile " + componentName)
+
+	//r.Log = ctrl.Log.WithName("controllers").WithName("DataScienceCluster").V(4)
 	// First set contidions to reflect a component is about to be reconciled
 	instance, err := r.updateStatus(instance, func(saved *dsc.DataScienceCluster) {
 		if enabled {
@@ -441,7 +454,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(instance *dsc.DataS
 	}
 
 	// Reconcile component
-	err = component.ReconcileComponent(instance, r.Client, r.Scheme, enabled, r.ApplicationsNamespace)
+	err = component.ReconcileComponent(instance, r.Client, r.Scheme, enabled, r.ApplicationsNamespace, logger)
 
 	if err != nil {
 		// reconciliation failed: log errors, raise event and update status accordingly
@@ -475,10 +488,13 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(instance *dsc.DataS
 	return instance, nil
 }
 
-func (r *DataScienceClusterReconciler) reportError(err error, instance *dsc.DataScienceCluster, message string) *dsc.DataScienceCluster {
+func (r *DataScienceClusterReconciler) reportError(
+	err error,
+	instance *dsc.DataScienceCluster,
+	message string,
+) *dsc.DataScienceCluster {
 	r.Log.Error(err, message, "instance.Name", instance.Name)
-	r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DataScienceClusterReconcileError",
-		"%s for instance %s", message, instance.Name)
+	r.Recorder.Event(instance, corev1.EventTypeWarning, "DataScienceClusterReconcileError", message+" for instance "+instance.Name)
 	// TODO:Set error phase only for creation/deletion errors of DSC CR
 	//instance, err = r.updateStatus(instance, func(saved *dsc.DataScienceCluster) {
 	//	status.SetErrorCondition(&saved.Status.Conditions, status.ReconcileFailed, fmt.Sprintf("%s : %v", message, err))

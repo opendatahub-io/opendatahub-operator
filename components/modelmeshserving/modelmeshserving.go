@@ -2,6 +2,7 @@ package modelmeshserving
 
 import (
 	"context"
+	"github.com/go-logr/logr"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
@@ -49,7 +50,14 @@ func (m *ModelMeshServing) SetEnabled(enabled bool) {
 	m.Enabled = enabled
 }
 
-func (m *ModelMeshServing) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, enabled bool, namespace string) error {
+func (m *ModelMeshServing) ReconcileComponent(
+	owner metav1.Object,
+	cli client.Client,
+	scheme *runtime.Scheme,
+	enabled bool,
+	namespace string,
+	logger logr.Logger,
+) error {
 
 	// Update Default rolebinding
 	err := common.UpdatePodSecurityRolebinding(cli, []string{"modelmesh", "modelmesh-controller", "odh-model-controller", "odh-prometheus-operator", "prometheus-custom"}, namespace)
@@ -59,15 +67,16 @@ func (m *ModelMeshServing) ReconcileComponent(owner metav1.Object, cli client.Cl
 
 	// Update image parameters
 	if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
+		logger.Error(err, "Failed to replace image from params.env", "path", Path)
 		return err
 	}
 
 	err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 		Path,
 		namespace,
-		scheme, enabled)
-
+		scheme, enabled, logger)
 	if err != nil {
+		logger.Error(err, "Failed to set ModelMesh config", "path", Path)
 		return err
 	}
 
@@ -90,8 +99,10 @@ func (m *ModelMeshServing) ReconcileComponent(owner metav1.Object, cli client.Cl
 	err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 		monitoringPath,
 		monitoringNamespace,
-		scheme, enabled)
-
+		scheme, enabled, logger)
+	if err != nil {
+		logger.Error(err, "Failed to set ModelMesh monitoring config", "location", monitoringPath)
+	}
 	return err
 }
 

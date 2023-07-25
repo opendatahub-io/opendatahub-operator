@@ -29,11 +29,11 @@ var (
 // - Odh specific labels
 // - Pod security labels for baseline permissions
 // - Network Policies that allow traffic between the ODH namespaces
-func (r *DSCInitializationReconciler) createOdhNamespace(dscInit *dsci.DSCInitialization, name string, ctx context.Context) error {
+func (r *DSCInitializationReconciler) createOdhNamespace(dscInit *dsci.DSCInitialization, namespace string, ctx context.Context) error {
 	// Expected namespace for the given name
 	desiredNamespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
+			Name: namespace,
 			Labels: map[string]string{
 				"opendatahub.io/generated-namespace": "true",
 				"pod-security.kubernetes.io/enforce": "baseline",
@@ -43,10 +43,10 @@ func (r *DSCInitializationReconciler) createOdhNamespace(dscInit *dsci.DSCInitia
 
 	// Create Namespace if doesnot exists
 	foundNamespace := &corev1.Namespace{}
-	err := r.Get(ctx, client.ObjectKey{Name: name}, foundNamespace)
+	err := r.Get(ctx, client.ObjectKey{Name: namespace}, foundNamespace)
 	if err != nil {
 		if apierrs.IsNotFound(err) {
-			r.Log.Info("Creating namespace", "name", name)
+			r.Log.Info("Creating namespace", "name", namespace)
 			// Set Controller reference
 			//err = ctrl.SetControllerReference(dscInit, desiredNamespace, r.Scheme)
 			//if err != nil {
@@ -55,14 +55,14 @@ func (r *DSCInitializationReconciler) createOdhNamespace(dscInit *dsci.DSCInitia
 			//}
 			err = r.Create(ctx, desiredNamespace)
 			if err != nil && !apierrs.IsAlreadyExists(err) {
-				r.Log.Error(err, "Unable to create namespace", "name", name)
+				r.Log.Error(err, "Unable to create namespace", "name", namespace)
 				return err
 			}
 		} else {
-			r.Log.Error(err, "Unable to fetch namespace", "name", name)
+			r.Log.Error(err, "Unable to fetch namespace", "name", namespace)
 			return err
 		}
-	} else if dscInit.Spec.Monitoring.Enabled && dscInit.Spec.Monitoring.Namespace == name {
+	} else if dscInit.Spec.Monitoring.Enabled && dscInit.Spec.Monitoring.Namespace == namespace {
 		err = r.Patch(ctx, foundNamespace, client.RawPatch(types.MergePatchType,
 			[]byte(`{"metadata": {"labels": {"openshift.io/cluster-monitoring": "true"}}}`)))
 		if err != nil {
@@ -100,23 +100,23 @@ func (r *DSCInitializationReconciler) createOdhNamespace(dscInit *dsci.DSCInitia
 	}
 
 	// Create default NetworkPolicy for the namespace
-	err = r.reconcileDefaultNetworkPolicy(dscInit, name, ctx)
+	err = r.reconcileDefaultNetworkPolicy(dscInit, namespace, ctx)
 	if err != nil {
-		r.Log.Error(err, "error reconciling network policy ", "name", name)
+		r.Log.Error(err, "Error to reconcile network policy ", "name", namespace)
 		return err
 	}
 
 	// Create odh-common-config Configmap for the Namespace
-	err = r.createOdhCommonConfigMap(dscInit, name, ctx)
+	err = r.createOdhCommonConfigMap(dscInit, namespace, ctx)
 	if err != nil {
-		r.Log.Error(err, "error creating configmap", "name", "odh-common-config")
+		r.Log.Error(err, "Error to create configmap", "name", "odh-common-config")
 		return err
 	}
 
 	// Create default Rolebinding for the namespace
-	err = r.createDefaultRoleBinding(dscInit, name, ctx)
+	err = r.createDefaultRoleBinding(dscInit, namespace, ctx)
 	if err != nil {
-		r.Log.Error(err, "error creating rolebinding", "name", name)
+		r.Log.Error(err, "Error to create rolebinding", "name", namespace)
 		return err
 	}
 	return nil

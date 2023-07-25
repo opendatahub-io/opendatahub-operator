@@ -3,9 +3,11 @@ package secretgenerator
 import (
 	"context"
 	"fmt"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"time"
 
+	"sigs.k8s.io/controller-runtime/pkg/builder"
+
+	"github.com/go-logr/logr"
 	ocv1 "github.com/openshift/api/oauth/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	v1 "k8s.io/api/core/v1"
@@ -18,7 +20,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
@@ -29,8 +30,6 @@ const (
 	resourceRetryTimeout  = 1 * time.Minute
 )
 
-var secGenLog = log.Log.WithName("secret-generator")
-
 // +kubebuilder:rbac:groups="oauth.openshift.io",resources=oauthclients,verbs=create;delete;get
 // +kubebuilder:rbac:groups="core",resources=secrets,verbs=watch;get;create
 // +kubebuilder:rbac:groups="route.openshift.io",resources=routes,verbs=get
@@ -40,10 +39,11 @@ var secGenLog = log.Log.WithName("secret-generator")
 type SecretGeneratorReconciler struct {
 	Client client.Client
 	Scheme *runtime.Scheme
+	Log    logr.Logger
 }
 
 func (r *SecretGeneratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	secGenLog.Info("Adding controller for Secret Generation.")
+	r.Log.Info("Adding controller for Secret Generation.")
 
 	// Watch only new secrets with the corresponding annotation
 	predicates := predicate.Funcs{
@@ -67,7 +67,7 @@ func (r *SecretGeneratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		},
 	}
 
-	secretBuilder := ctrl.NewControllerManagedBy(mgr).Named("secret-generator-controller")
+	secretBuilder := ctrl.NewControllerManagedBy(mgr).Named("SecretGenerator")
 	err := secretBuilder.For(&v1.Secret{}).
 		Watches(&source.Kind{Type: &v1.Secret{}}, handler.EnqueueRequestsFromMapFunc(
 			func(a client.Object) []reconcile.Request {
@@ -112,12 +112,12 @@ func (r *SecretGeneratorReconciler) Reconcile(ctx context.Context, request ctrl.
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
 			// Generate secret random value
-			secGenLog.Info("Generating a random value for a secret in a namespace",
+			r.Log.Info("Generating a random value for a secret in a namespace",
 				"secret", generatedSecret.Name, "namespace", generatedSecret.Namespace)
 
 			secret, err := newSecret(foundSecret.GetAnnotations())
 			if err != nil {
-				secGenLog.Error(err, "error creating secret")
+				r.Log.Error(err, "error creating secret")
 				return ctrl.Result{}, err
 			}
 
@@ -133,14 +133,14 @@ func (r *SecretGeneratorReconciler) Reconcile(ctx context.Context, request ctrl.
 				// Get OauthClient Route
 				oauthClientRoute, err := r.getRoute(secret.OAuthClientRoute, request.Namespace)
 				if err != nil {
-					secGenLog.Error(err, "Unable to retrieve route", "route-name", secret.OAuthClientRoute)
+					r.Log.Error(err, "Unable to retrieve route", "route-name", secret.OAuthClientRoute)
 					return ctrl.Result{}, err
 				}
 				// Generate OAuthClient for the generated secret
-				secGenLog.Info("Generating an oauth client resource for route", "route-name", oauthClientRoute.Name)
+				r.Log.Info("Generating an oauth client resource for route", "route-name", oauthClientRoute.Name)
 				err = r.createOAuthClient(foundSecret.Name, secret.Value, oauthClientRoute.Spec.Host)
 				if err != nil {
-					secGenLog.Error(err, "error creating oauth client resource. Recreate the Secret", "secret-name",
+					r.Log.Error(err, "error creating oauth client resource. Recreate the Secret", "secret-name",
 						foundSecret.Name)
 					return ctrl.Result{}, err
 				}
@@ -194,7 +194,7 @@ func (r *SecretGeneratorReconciler) createOAuthClient(name string, secretName st
 	err := r.Client.Create(context.TODO(), oauthClient)
 	if err != nil {
 		if k8serrors.IsAlreadyExists(err) {
-			secGenLog.Info("OAuth client resource already exists", "name", oauthClient.Name)
+			r.Log.Info("OAuth client resource already exists", "name", oauthClient.Name)
 			return nil
 		}
 	}

@@ -2,7 +2,7 @@ package codeflare
 
 import (
 	"fmt"
-
+	"github.com/go-logr/logr"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,7 +38,14 @@ func (d *CodeFlare) GetComponentName() string {
 // Verifies that CodeFlare implements ComponentInterface
 var _ components.ComponentInterface = (*CodeFlare)(nil)
 
-func (d *CodeFlare) ReconcileComponent(owner metav1.Object, client client.Client, scheme *runtime.Scheme, enabled bool, namespace string) error {
+func (d *CodeFlare) ReconcileComponent(
+	owner metav1.Object,
+	client client.Client,
+	scheme *runtime.Scheme,
+	enabled bool,
+	namespace string,
+	logger logr.Logger,
+) error {
 
 	if enabled {
 		// check if the CodeFlare operator is installed
@@ -56,6 +63,7 @@ func (d *CodeFlare) ReconcileComponent(owner metav1.Object, client client.Client
 
 	// Update image parameters
 	if err := deploy.ApplyImageParams(CodeflarePath, imageParamMap); err != nil {
+		logger.Error(err, "Failed to replace image from params.env", "path", CodeflarePath)
 		return err
 	}
 
@@ -63,8 +71,10 @@ func (d *CodeFlare) ReconcileComponent(owner metav1.Object, client client.Client
 	err := deploy.DeployManifestsFromPath(owner, client, ComponentName,
 		CodeflarePath,
 		namespace,
-		scheme, enabled)
-
+		scheme, enabled, logger)
+	if err != nil {
+		logger.Error(err, "Failed to set Codeflare config", "path", CodeflarePath)
+	}
 	return err
 
 }

@@ -6,7 +6,6 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
-	"fmt"
 	"golang.org/x/exp/maps"
 	"io"
 	"net/http"
@@ -28,9 +27,10 @@ import (
 	"sigs.k8s.io/kustomize/api/krusty"
 	"sigs.k8s.io/kustomize/api/resmap"
 
-	operators "github.com/operator-framework/api/pkg/operators/v1alpha1"
-
+	"fmt"
+	"github.com/go-logr/logr"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins"
+	operators "github.com/operator-framework/api/pkg/operators/v1alpha1"
 )
 
 const (
@@ -47,19 +47,22 @@ func DownloadManifests(uri string) error {
 	if uri != "" {
 		resp, err := http.Get(uri)
 		if err != nil {
-			return fmt.Errorf("error downloading manifests: %v", err)
+			ctrl.Log.Error(err, "error downloading manifest: "+err.Error())
+			return err
 		}
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("error downloading manifests: %v HTTP status", resp.StatusCode)
+			ctrl.Log.Error(err, "error downloading manifest", "HTTP status", resp.StatusCode)
+			return err
 		}
 		reader = resp.Body
 
 		// Create a new gzip reader
 		gzipReader, err := gzip.NewReader(reader)
 		if err != nil {
-			return fmt.Errorf("error creating gzip reader: %v", err)
+			ctrl.Log.Error(err, "error creating gzip reader: "+err.Error())
+			return err
 		}
 		defer gzipReader.Close()
 
@@ -70,7 +73,8 @@ func DownloadManifests(uri string) error {
 		mode := os.ModePerm
 		err = os.MkdirAll(DefaultManifestPath, mode)
 		if err != nil {
-			return fmt.Errorf("error creating manifests directory : %v", err)
+			ctrl.Log.Error(err, "error creating manifests directory "+err.Error())
+			return err
 		}
 
 		for {
@@ -111,12 +115,22 @@ func DownloadManifests(uri string) error {
 	return nil
 }
 
-func DeployManifestsFromPath(owner metav1.Object, cli client.Client, componentName, manifestPath, namespace string, s *runtime.Scheme, componentEnabled bool) error {
+func DeployManifestsFromPath(
+	owner metav1.Object,
+	cli client.Client,
+	componentName string,
+	manifestPath string,
+	namespace string,
+	s *runtime.Scheme,
+	componentEnabled bool,
+	logger logr.Logger,
+) error {
 
 	// Render the Kustomize manifests
 	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
 	fs := filesys.MakeFsOnDisk()
-	fmt.Printf("Updating manifests : %v \n", manifestPath)
+	logger.Info("Reconciling " + componentName + " from manifests: " + manifestPath)
+
 	// Create resmap
 	// Use kustomization file under manifestPath or use `default` overlay
 	var resMap resmap.ResMap
@@ -130,16 +144,19 @@ func DeployManifestsFromPath(owner metav1.Object, cli client.Client, componentNa
 	}
 
 	if err != nil {
-		return fmt.Errorf("error during resmap resources: %v", err)
+		logger.Error(err, "Error during resmap resources:", "path", manifestPath)
+		return err
 	}
 
 	// Apply NamespaceTransformer Plugin
 	if err := plugins.ApplyNamespacePlugin(namespace, resMap); err != nil {
+		logger.Error(err, "Error apply namespace plugin", "error", err.Error())
 		return err
 	}
 
 	// Apply LabelTransformer Plugin
 	if err := plugins.ApplyAddLabelsPlugin(componentName, resMap); err != nil {
+		logger.Error(err, "Error apply label plugin", "error", err.Error())
 		return err
 	}
 
@@ -174,7 +191,16 @@ func getResources(resMap resmap.ResMap) ([]*unstructured.Unstructured, error) {
 	return resources, nil
 }
 
-func manageResource(owner metav1.Object, ctx context.Context, cli client.Client, obj *unstructured.Unstructured, s *runtime.Scheme, enabled bool, applicationNamespace, componentName string) error {
+func manageResource(
+	owner metav1.Object,
+	ctx context.Context,
+	cli client.Client,
+	obj *unstructured.Unstructured,
+	s *runtime.Scheme,
+	enabled bool,
+	applicationNamespace string,
+	componentName string,
+) error {
 	resourceName := obj.GetName()
 	namespace := obj.GetNamespace()
 
