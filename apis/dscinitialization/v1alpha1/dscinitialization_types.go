@@ -22,14 +22,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// List of constants to show different  reconciliation messages and statuses.
-const (
-	ReconcileFailed           = "ReconcileFailed"
-	ReconcileInit             = "ReconcileInit"
-	ReconcileCompleted        = "ReconcileCompleted"
-	ReconcileCompletedMessage = "Reconcile completed successfully"
-)
-
 // DSCInitializationSpec defines the desired state of DSCInitialization
 type DSCInitializationSpec struct {
 	// +kubebuilder:default:=opendatahub
