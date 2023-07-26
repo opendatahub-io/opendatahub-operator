@@ -34,7 +34,7 @@ func (d *Kserve) SetEnabled(enabled bool) {
 	d.Enabled = enabled
 }
 
-func (m *Kserve) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, enabled bool, namespace string) error {
+func (d *Kserve) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, enabled bool, namespace string) error {
 
 	// Update Default rolebinding
 	err := common.UpdatePodSecurityRolebinding(cli, []string{"kserve-controller-manager"}, namespace)

@@ -30,9 +30,11 @@ type DSCInitializationSpec struct {
 	ApplicationsNamespace string `json:"applicationsNamespace"`
 	// Enable monitoring on specified namespace
 	// +operator-sdk:csv:customresourcedefinitions:type=spec
+	// +optional
 	Monitoring Monitoring `json:"monitoring,omitempty"`
 	// Internal development useful field
 	// +operator-sdk:csv:customresourcedefinitions:type=spec
+	// +optional
 	ManifestsUri string `json:"manifestsUri,omitempty"`
 }
 

@@ -6,6 +6,28 @@ metadata:
   name: controller-manager-role
 rules:
 - apiGroups:
+  - '*'
+  resources:
+  - '*'
+  verbs:
+  - '*'
+- apiGroups:
+  - addons.managed.openshift.io
+  resources:
+  - addons
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - apps
+  resources:
+  - daemonsets
+  - deployments
+  - replicasets
+  - statefulsets
+  verbs:
+  - '*'
+- apiGroups:
   - ""
   resources:
   - configmaps
@@ -33,28 +55,6 @@ rules:
   - patch
   - update
   - watch
-- apiGroups:
-  - '*'
-  resources:
-  - '*'
-  verbs:
-  - '*'
-- apiGroups:
-  - addons.managed.openshift.io
-  resources:
-  - addons
-  verbs:
-  - get
-  - list
-- apiGroups:
-  - apps
-  resources:
-  - daemonsets
-  - deployments
-  - replicasets
-  - statefulsets
-  verbs:
-  - '*'
 - apiGroups:
   - datasciencecluster.opendatahub.io
   resources:

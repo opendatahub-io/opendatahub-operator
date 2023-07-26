@@ -42,6 +42,7 @@ import (
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"k8s.io/client-go/tools/record"
 )
 
 // DSCInitializationReconciler reconciles a DSCInitialization object
@@ -49,6 +50,7 @@ type DSCInitializationReconciler struct {
 	client.Client
 	Scheme                *runtime.Scheme
 	Log                   logr.Logger
+	Recorder              record.EventRecorder
 	ApplicationsNamespace string
 }
 
@@ -59,7 +61,7 @@ type DSCInitializationReconciler struct {
 // +kubebuilder:rbac:groups=dscinitialization.opendatahub.io,resources=dscinitializations/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=dscinitialization.opendatahub.io,resources=dscinitializations/finalizers,verbs=update
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch;create;update;patch
-// +kubebuilder:rbac:groups="",resources=services;namespaces;serviceaccounts;secrets;configmaps,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups="core",resources=services;namespaces;serviceaccounts;secrets;configmaps,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups=addons.managed.openshift.io,resources=addons,verbs=get;list
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=rolebindings;roles;clusterrolebindings;clusterroles,verbs=get;list;watch;create;update;patch
 
@@ -69,10 +71,13 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	instance := &dsci.DSCInitialization{}
 	// Only apply reconcile logic to 'default' instance of DataScienceInitialization
 	err := r.Client.Get(ctx, types.NamespacedName{Name: "default"}, instance)
-	if err != nil && apierrs.IsNotFound(err) {
-		return ctrl.Result{}, nil
-	} else if err != nil {
+	if err != nil {
+		if apierrs.IsNotFound(err) {
+			// DataScienceInitialization instance not found.
+			return ctrl.Result{}, nil
+		}
 		r.Log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
+		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to retrieve DSCInitialization instance")
 		return ctrl.Result{}, err
 	}
 
@@ -86,6 +91,8 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		})
 		if err != nil {
 			r.Log.Error(err, "Failed to add conditions to status of DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
+			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError",
+				"%s for instance %s", message, instance.Name)
 			return reconcile.Result{}, err
 		}
 	}
@@ -102,6 +109,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	err = deploy.DownloadManifests(instance.Spec.ManifestsUri)
 	if err != nil {
 		r.Log.Error(err, "Failed to download and unpack manifests.", "ManifestsURI", instance.Spec.ManifestsUri)
+		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to download and unpack manifests")
 		return reconcile.Result{}, err
 	}
 
@@ -127,6 +135,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			r.ApplicationsNamespace, r.Scheme, true)
 		if err != nil {
 			r.Log.Error(err, "Failed to apply osd specific configs from manifests", "Manifests path", deploy.DefaultManifestPath+"/osd-configs")
+			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to apply "+deploy.DefaultManifestPath+"/osd-configs")
 			return reconcile.Result{}, err
 		}
 	}
@@ -140,7 +149,6 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 				// no need to log error as it was already logged in configureManagedMonitoring
 				return reconcile.Result{}, err
 			}
-
 		} else {
 			// TODO: ODH specific monitoring logic
 			r.Log.Info("Monitoring enabled, won't apply changes", "cluster", "Self-Managed  Mode")
@@ -154,6 +162,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	})
 	if err != nil {
 		r.Log.Error(err, "failed to update DSCInitialization status after successfuly completed reconciliation")
+		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to update DSCInitialization status")
 	}
 	return ctrl.Result{}, nil
 }
@@ -162,6 +171,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 func (r *DSCInitializationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&dsci.DSCInitialization{}, builder.WithPredicates(singletonPredicate)).
+		Owns(&corev1.Namespace{}).
 		Owns(&corev1.Secret{}).
 		Owns(&corev1.ConfigMap{}).
 		Owns(&netv1.NetworkPolicy{}).
@@ -169,10 +179,11 @@ func (r *DSCInitializationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&authv1.RoleBinding{}).
 		Owns(&authv1.ClusterRole{}).
 		Owns(&authv1.ClusterRoleBinding{}).
-		Owns(&corev1.Namespace{}).
-		Owns(&corev1.Pod{}).
 		Owns(&appsv1.Deployment{}).
 		Owns(&appsv1.ReplicaSet{}).
+		Owns(&corev1.Pod{}).
+		Owns(&corev1.ServiceAccount{}).
+		Owns(&corev1.Service{}).
 		// this predicates prevents meaningless reconciliations from being triggered
 		WithEventFilter(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{})).
 		Complete(r)

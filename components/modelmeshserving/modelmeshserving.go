@@ -19,19 +19,19 @@ type ModelMeshServing struct {
 	components.Component `json:""`
 }
 
-func (d *ModelMeshServing) GetComponentName() string {
+func (m *ModelMeshServing) GetComponentName() string {
 	return ComponentName
 }
 
 // Verifies that Dashboard implements ComponentInterface
 var _ components.ComponentInterface = (*ModelMeshServing)(nil)
 
-func (d *ModelMeshServing) IsEnabled() bool {
-	return d.Enabled
+func (m *ModelMeshServing) IsEnabled() bool {
+	return m.Enabled
 }
 
-func (d *ModelMeshServing) SetEnabled(enabled bool) {
-	d.Enabled = enabled
+func (m *ModelMeshServing) SetEnabled(enabled bool) {
+	m.Enabled = enabled
 }
 
 func (m *ModelMeshServing) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, enabled bool, namespace string) error {

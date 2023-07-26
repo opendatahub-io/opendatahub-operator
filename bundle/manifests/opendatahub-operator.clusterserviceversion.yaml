@@ -251,6 +251,28 @@ spec:
       clusterPermissions:
       - rules:
         - apiGroups:
+          - '*'
+          resources:
+          - '*'
+          verbs:
+          - '*'
+        - apiGroups:
+          - addons.managed.openshift.io
+          resources:
+          - addons
+          verbs:
+          - get
+          - list
+        - apiGroups:
+          - apps
+          resources:
+          - daemonsets
+          - deployments
+          - replicasets
+          - statefulsets
+          verbs:
+          - '*'
+        - apiGroups:
           - ""
           resources:
           - configmaps
@@ -278,28 +300,6 @@ spec:
           - patch
           - update
           - watch
-        - apiGroups:
-          - '*'
-          resources:
-          - '*'
-          verbs:
-          - '*'
-        - apiGroups:
-          - addons.managed.openshift.io
-          resources:
-          - addons
-          verbs:
-          - get
-          - list
-        - apiGroups:
-          - apps
-          resources:
-          - daemonsets
-          - deployments
-          - replicasets
-          - statefulsets
-          verbs:
-          - '*'
         - apiGroups:
           - datasciencecluster.opendatahub.io
           resources:
