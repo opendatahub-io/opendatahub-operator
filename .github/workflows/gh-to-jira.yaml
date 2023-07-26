@@ -1,0 +1,80 @@
+name: Create Jira Issue from GH Release
+run-name: GH Release to Jira.
+on:
+  workflow_dispatch:
+    inputs:
+      component:
+        default: 'Data Science Pipelines'
+        description: 'ODH Component'
+        required: true
+      target_release:
+        description: 'Target Downstream Release'
+        required: true
+      gh_org:
+        default: 'opendatahub-io'
+        description: 'Upstream GH Org'
+        required: true
+      repos:
+        default: |
+          [
+            {"repo_name":"opendatahub-operator","target_release":"UPDATE","previous_release":"UPDATE"},
+            {"repo_name":"odh-manifests","target_release":"UPDATE","previous_release":"UPDATE"}
+          ]
+        description: 'Upstream Source Repos & Tags'
+        required: true
+      labels:
+        default: 'qe/verify'
+        required: true
+        description: ""
+      jira_server:
+        default: 'https://issues.redhat.com'
+        required: true
+        description: "Jira Server"
+      jira_project:
+        default: "RHODS"
+        required: true
+        description: "Jira Project"
+      jira_labels:
+        default: "Platform"
+        required: true
+        description: "Jira Labels to Add"
+      jira_issue_type:
+        default: "Story"
+        required: true
+        description: "Jira Issue Type"
+      jira_priority:
+        default: 'Normal'
+        required: true
+        description: "Jira Priority to Set"
+
+jobs:
+  gh-to-jira:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v3
+        with:
+          repository: HumairAK/gh-to-jira
+          fetch-depth: '0'
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v1
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+      - name: Submit Jira
+        env:
+          GITHUB_TOKEN: ${{ secrets.GTJ_GH_TOKEN }}
+          JIRA_TOKEN: ${{ secrets.GTJ_JIRA_TOKEN }}
+          REPOS: ${{ inputs.repos }}
+        run: |
+          python src --component="${{ inputs.component }}" \
+            --target_release="${{ inputs.target_release }}" \
+            --org="${{ inputs.gh_org }}" \
+            --labels="${{ inputs.labels }}" \
+            --jira_server="${{ inputs.jira_server }}" \
+            --jira_project="${{ inputs.jira_project }}" \
+            --jira_labels="${{ inputs.jira_labels }}" \
+            --jira_issue_type="${{ inputs.jira_issue_type }}" \
+            --jira_priority="${{ inputs.jira_priority }}"
