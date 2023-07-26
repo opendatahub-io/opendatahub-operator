@@ -39,8 +39,9 @@ func isValidUrl(toTest string) bool {
 // LoadConfigFromURI reads the kfdef from a remote URI or local file,
 // and returns the kfconfig.
 // It will set the AppDir and ConfigFilename in kfconfig:
-//   AppDir = cwd if configFile is remote, or it will be the dir of configFile.
-//   ConfigFilename = the file name of configFile.
+//
+//	AppDir = cwd if configFile is remote, or it will be the dir of configFile.
+//	ConfigFilename = the file name of configFile.
 func LoadConfigFromURI(configFile string) (*kfconfig.KfConfig, error) {
 	if configFile == "" {
 		return nil, fmt.Errorf("config file must be the URI of a KfDef spec")

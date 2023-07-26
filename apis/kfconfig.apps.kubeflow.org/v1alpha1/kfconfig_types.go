@@ -408,13 +408,16 @@ func (c *KfConfig) SetPluginFailed(pluginKind PluginKindType, msg string) {
 // I don't think the code is currently setting the local directory for the cache correctly in
 // that case.
 //
-//
 // Using tarball vs. archive in github links affects the download path
 // e.g.
 // https://github.com/kubeflow/manifests/tarball/master?archive=tar.gz
-//    unpacks to  kubeflow-manifests-${COMMIT}
+//
+//	unpacks to  kubeflow-manifests-${COMMIT}
+//
 // https://github.com/kubeflow/manifests/archive/master.tar.gz
-//    unpacks to manifests-master
+//
+//	unpacks to manifests-master
+//
 // Always use archive format so that the path is predetermined.
 //
 // Instructions: https://github.com/hashicorp/go-getter#protocol-specific-options
@@ -422,13 +425,12 @@ func (c *KfConfig) SetPluginFailed(pluginKind PluginKindType, msg string) {
 // What is the correct syntax for downloading pull requests?
 // The following doesn't seem to work
 // https://github.com/kubeflow/manifests/archive/master.tar.gz?ref=pull/188
-//   * Appears to download master
+//   - Appears to download master
 //
 // This appears to work
 // https://github.com/kubeflow/manifests/tarball/pull/188/head?archive=tar.gz
 // But unpacks it into
 // kubeflow-manifests-${COMMIT}
-//
 func (c *KfConfig) SyncCache() error {
 	if c.Spec.AppDir == "" {
 		return fmt.Errorf("AppDir must be specified")

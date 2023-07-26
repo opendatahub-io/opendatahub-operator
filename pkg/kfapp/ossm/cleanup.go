@@ -28,7 +28,7 @@ func (o *OssmInstaller) onCleanup(cleanupFunc ...cleanup) {
 	o.cleanupFuncs = append(o.cleanupFuncs, cleanupFunc...)
 }
 
-// createResourceTracker instantiates OssmResourceTracker for given KfDef application in a namespce.
+// createResourceTracker instantiates OssmResourceTracker for given KfDef application in a namespace.
 // This cluster-scoped resource is used as OwnerReference in all objects OssmInstaller is created across the cluster.
 // Once created, there's a cleanup function added which will be invoked on deletion of the KfDef.
 func (o *OssmInstaller) createResourceTracker() error {

@@ -165,10 +165,16 @@ func (o *OssmInstaller) prepareTemplateData() (interface{}, error) {
 	}
 
 	if oauthServerDetailsJson, err := GetOAuthServerDetails(); err == nil {
+		hostName, port, errUrlParsing := ExtractHostNameAndPort(oauthServerDetailsJson.Get("issuer").MustString("issuer"))
+		if errUrlParsing != nil {
+			return nil, internalError(errUrlParsing)
+		}
+
 		data.OAuth = oAuth{
 			AuthzEndpoint: oauthServerDetailsJson.Get("authorization_endpoint").MustString("authorization_endpoint"),
 			TokenEndpoint: oauthServerDetailsJson.Get("token_endpoint").MustString("token_endpoint"),
-			Route:         ExtractHostName(oauthServerDetailsJson.Get("issuer").MustString("issuer")),
+			Route:         hostName,
+			Port:          port,
 			ClientSecret:  clientSecret.Value,
 			Hmac:          hmac.Value,
 		}

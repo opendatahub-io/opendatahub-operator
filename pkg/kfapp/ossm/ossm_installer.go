@@ -3,7 +3,7 @@ package ossm
 import (
 	"context"
 	"fmt"
-	multierror "github.com/hashicorp/go-multierror"
+	"github.com/hashicorp/go-multierror"
 	kfapisv3 "github.com/opendatahub-io/opendatahub-operator/apis"
 	kftypesv3 "github.com/opendatahub-io/opendatahub-operator/apis/apps"
 	"github.com/opendatahub-io/opendatahub-operator/apis/ossm.plugins.kubeflow.org/v1alpha1"
@@ -16,9 +16,9 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"regexp"
+	"net/url"
 	ctrlLog "sigs.k8s.io/controller-runtime/pkg/log"
-	"strings"
+	"strconv"
 )
 
 const (
@@ -125,20 +125,37 @@ func (o *OssmInstaller) Generate(resources kftypesv3.ResourceEnum) error {
 	return nil
 }
 
-// ExtractHostName strips given URL in string from http(s):// prefix and subsequent path.
+// ExtractHostNameAndPort strips given URL in string from http(s):// prefix and subsequent path,
+// returning host name and port if defined (otherwise defaults to 443).
+//
 // This is useful when getting value from http headers (such as origin).
 // If given string does not start with http(s) prefix it will be returned as is.
-func ExtractHostName(s string) string {
-	r := regexp.MustCompile(`^(https?://)`)
-	withoutProtocol := r.ReplaceAllString(s, "")
-	if s == withoutProtocol {
-		return s
+func ExtractHostNameAndPort(s string) (string, string, error) {
+	u, err := url.Parse(s)
+	if err != nil {
+		return "", "", err
 	}
-	index := strings.Index(withoutProtocol, "/")
-	if index == -1 {
-		return withoutProtocol
+
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return s, "", nil
 	}
-	return withoutProtocol[:index]
+
+	hostname := u.Hostname()
+
+	port := "443" // default for https
+	if u.Scheme == "http" {
+		port = "80"
+	}
+
+	if u.Port() != "" {
+		port = u.Port()
+		_, err := strconv.Atoi(port)
+		if err != nil {
+			return "", "", errors.New("invalid port number: " + port)
+		}
+	}
+
+	return hostname, port, nil
 }
 
 func (o *OssmInstaller) createConfigMap(cfgMapName string, data map[string]string) error {

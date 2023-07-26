@@ -16,6 +16,7 @@ type oAuth struct {
 	AuthzEndpoint,
 	TokenEndpoint,
 	Route,
+	Port,
 	ClientSecret,
 	Hmac string
 }
