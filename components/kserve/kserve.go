@@ -15,8 +15,15 @@ const (
 	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
 )
 
+var imageParamMap = map[string]string{}
+
 type Kserve struct {
 	components.Component `json:""`
+}
+
+func (d *Kserve) SetImageParamsMap(imageMap map[string]string) map[string]string {
+	imageParamMap = imageMap
+	return imageParamMap
 }
 
 func (d *Kserve) GetComponentName() string {
@@ -41,6 +48,12 @@ func (d *Kserve) ReconcileComponent(owner metav1.Object, cli client.Client, sche
 	if err != nil {
 		return err
 	}
+
+	// Update image parameters
+	if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
+		return err
+	}
+
 	err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 		Path,
 		namespace,

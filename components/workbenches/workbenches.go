@@ -15,12 +15,22 @@ const (
 	notebookImagesPath     = deploy.DefaultManifestPath + "/notebook-images/overlays/additional"
 )
 
+var imageParamMap = map[string]string{
+	"odh-notebook-controller-image":    "RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE",
+	"odh-kf-notebook-controller-image": "RELATED_IMAGE_ODH_KF_NOTEBOOK_CONTROLLER_IMAGE",
+}
+
 type Workbenches struct {
 	components.Component `json:""`
 }
 
 func (w *Workbenches) GetComponentName() string {
 	return ComponentName
+}
+
+func (w *Workbenches) SetImageParamsMap(imageMap map[string]string) map[string]string {
+	imageParamMap = imageMap
+	return imageParamMap
 }
 
 // Verifies that Dashboard implements ComponentInterface
@@ -41,11 +51,21 @@ func (w *Workbenches) ReconcileComponent(owner metav1.Object, cli client.Client,
 		return err
 	}
 
+	// Update image parameters
+	if err := deploy.ApplyImageParams(notebookControllerPath, imageParamMap); err != nil {
+		return err
+	}
+
 	err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 		notebookControllerPath,
 		namespace,
 		scheme, enabled)
 	if err != nil {
+		return err
+	}
+
+	// Update image parameters
+	if err := deploy.ApplyImageParams(notebookImagesPath, imageParamMap); err != nil {
 		return err
 	}
 	err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
