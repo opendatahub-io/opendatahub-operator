@@ -14,8 +14,15 @@ const (
 	RayPath       = deploy.DefaultManifestPath + "/" + "ray/operator" + "/base"
 )
 
+var imageParamMap = map[string]string{}
+
 type DistributedWorkloads struct {
 	components.Component `json:""`
+}
+
+func (d *DistributedWorkloads) SetImageParamsMap(imageMap map[string]string) map[string]string {
+	imageParamMap = imageMap
+	return imageParamMap
 }
 
 func (d *DistributedWorkloads) GetComponentName() string {
@@ -27,6 +34,11 @@ var _ components.ComponentInterface = (*DistributedWorkloads)(nil)
 
 func (d *DistributedWorkloads) ReconcileComponent(owner metav1.Object, client client.Client, scheme *runtime.Scheme, enabled bool, namespace string) error {
 
+	// Update image parameters
+	if err := deploy.ApplyImageParams(CodeflarePath, imageParamMap); err != nil {
+		return err
+	}
+
 	// Deploy Codeflare
 	err := deploy.DeployManifestsFromPath(owner, client, ComponentName,
 		CodeflarePath,
@@ -37,6 +49,10 @@ func (d *DistributedWorkloads) ReconcileComponent(owner metav1.Object, client cl
 		return err
 	}
 
+	// Update image parameters
+	if err := deploy.ApplyImageParams(RayPath, imageParamMap); err != nil {
+		return err
+	}
 	// Deploy Ray Operator
 	err = deploy.DeployManifestsFromPath(owner, client, ComponentName,
 		RayPath,

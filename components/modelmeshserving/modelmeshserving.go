@@ -15,12 +15,25 @@ const (
 	monitoringPath = deploy.DefaultManifestPath + "/" + "modelmesh-monitoring/base"
 )
 
+var imageParamMap = map[string]string{
+	"odh-mm-rest-proxy":             "RELATED_IMAGE_ODH_MM_REST_PROXY_IMAGE",
+	"odh-modelmesh-runtime-adapter": "RELATED_IMAGE_ODH_MODELMESH_RUNTIME_ADAPTER_IMAGE",
+	"odh-modelmesh":                 "RELATED_IMAGE_ODH_MODELMESH_IMAGE",
+	"odh-modelmesh-controller":      "RELATED_IMAGE_ODH_MODELMESH_CONTROLLER_IMAGE",
+	"odh-model-controller":          "RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
+}
+
 type ModelMeshServing struct {
 	components.Component `json:""`
 }
 
 func (m *ModelMeshServing) GetComponentName() string {
 	return ComponentName
+}
+
+func (m *ModelMeshServing) SetImageParamsMap(imageMap map[string]string) map[string]string {
+	imageParamMap = imageMap
+	return imageParamMap
 }
 
 // Verifies that Dashboard implements ComponentInterface
@@ -41,6 +54,12 @@ func (m *ModelMeshServing) ReconcileComponent(owner metav1.Object, cli client.Cl
 	if err != nil {
 		return err
 	}
+
+	// Update image parameters
+	if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
+		return err
+	}
+
 	err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 		Path,
 		namespace,

@@ -2,6 +2,7 @@ package deploy
 
 import (
 	"archive/tar"
+	"bufio"
 	"compress/gzip"
 	"context"
 	"encoding/json"
@@ -222,6 +223,76 @@ func manageResource(owner metav1.Object, ctx context.Context, cli client.Client,
 	}
 
 	return cli.Patch(ctx, found, client.RawPatch(types.ApplyPatchType, data), client.ForceOwnership, client.FieldOwner(owner.GetName()))
+}
+
+func ApplyImageParams(componentPath string, imageParamsMap map[string]string) error {
+	envFilePath := componentPath + "/params.env"
+	// Require params.env at the root folder
+	file, err := os.Open(envFilePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// params.env doesn't exist, do not apply any changes
+			return nil
+		}
+		return err
+	}
+	backupPath := envFilePath + ".bak"
+	defer file.Close()
+
+	envMap := make(map[string]string)
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			envMap[parts[0]] = parts[1]
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+
+	// Update images with env variables
+	for key, _ := range envMap {
+		relatedImageValue := os.Getenv(imageParamsMap[key])
+		if relatedImageValue != "" {
+			envMap[key] = relatedImageValue
+		}
+	}
+
+	// Move the existing file to a backup file
+	os.Rename(envFilePath, backupPath)
+
+	// Now, write the map back to the file
+	file, err = os.Create(envFilePath)
+	if err != nil {
+		// If create fails, restore the backup file
+		os.Rename(backupPath, envFilePath)
+		return err
+	}
+	defer file.Close()
+
+	writer := bufio.NewWriter(file)
+	for key, value := range envMap {
+		fmt.Fprintf(writer, "%s=%s\n", key, value)
+	}
+	if err := writer.Flush(); err != nil {
+		if removeErr := os.Remove(envFilePath); removeErr != nil {
+			fmt.Printf("Failed to remove file: %v", removeErr)
+		}
+		if renameErr := os.Rename(backupPath, envFilePath); renameErr != nil {
+			fmt.Printf("Failed to restore file from backup: %v", renameErr)
+		}
+		fmt.Printf("Failed to write to file: %v", err)
+		return err
+	}
+
+	if err := os.Remove(backupPath); err != nil {
+		fmt.Printf("Failed to remove backup file: %v", err)
+		return err
+	}
+	return nil
 }
 
 // TODO : Add function to cleanup code created as part of pre install and post intall task of a component

@@ -19,8 +19,17 @@ const (
 	PathISVAddOn  = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps-addon"
 )
 
+var imageParamMap = map[string]string{
+	"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
+}
+
 type Dashboard struct {
 	components.Component `json:""`
+}
+
+func (d *Dashboard) SetImageParamsMap(imageMap map[string]string) map[string]string {
+	imageParamMap = imageMap
+	return imageParamMap
 }
 
 func (d *Dashboard) GetComponentName() string {
@@ -48,6 +57,11 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 		if err != nil {
 			return err
 		}
+	}
+
+	// Update image parameters
+	if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
+		return err
 	}
 
 	err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,

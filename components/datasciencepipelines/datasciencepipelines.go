@@ -13,8 +13,22 @@ const (
 	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
 )
 
+var imageParamMap = map[string]string{
+	"IMAGES_APISERVER":         "RELATED_IMAGE_ODH_ML_PIPELINES_API_SERVER_IMAGE",
+	"IMAGES_ARTIFACT":          "RELATED_IMAGE_ODH_ML_PIPELINES_ARTIFACT_MANAGER_IMAGE",
+	"IMAGES_PERSISTENTAGENT":   "RELATED_IMAGE_ODH_ML_PIPELINES_PERSISTENCEAGENT_IMAGE",
+	"IMAGES_SCHEDULEDWORKFLOW": "RELATED_IMAGE_ODH_ML_PIPELINES_SCHEDULEDWORKFLOW_IMAGE",
+	"IMAGES_CACHE":             "RELATED_IMAGE_ODH_ML_PIPELINES_CACHE_IMAGE",
+	"IMAGES_DSPO":              "RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_OPERATOR_CONTROLLER_IMAGE",
+}
+
 type DataSciencePipelines struct {
 	components.Component `json:""`
+}
+
+func (d *DataSciencePipelines) SetImageParamsMap(imageMap map[string]string) map[string]string {
+	imageParamMap = imageMap
+	return imageParamMap
 }
 
 func (d *DataSciencePipelines) GetComponentName() string {
@@ -33,6 +47,11 @@ func (d *DataSciencePipelines) SetEnabled(enabled bool) {
 }
 
 func (d *DataSciencePipelines) ReconcileComponent(owner metav1.Object, client client.Client, scheme *runtime.Scheme, enabled bool, namespace string) error {
+
+	// Update image parameters
+	if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
+		return err
+	}
 
 	err := deploy.DeployManifestsFromPath(owner, client, ComponentName,
 		Path,
