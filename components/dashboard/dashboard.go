@@ -14,7 +14,6 @@ import (
 const (
 	ComponentName = "odh-dashboard"
 	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
-	PathISVCommon = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps"
 	PathISVSM     = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps-onpre"
 	PathISVAddOn  = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps-addon"
 )
@@ -75,35 +74,21 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 	// ISV handling
 	switch platform {
 	case deploy.SelfManagedRhods:
-		err := deploy.DeployManifestsFromPath(owner, cli, ComponentName,
-			PathISVCommon,
-			namespace,
-			scheme, enabled)
-		if err != nil {
-			return fmt.Errorf("failed to set dashboard ISV from %s", PathISVCommon)
-		}
 		err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 			PathISVSM,
 			namespace,
 			scheme, enabled)
 		if err != nil {
-			return fmt.Errorf("failed to set dashboard ISV from %s", PathISVSM)
+			return fmt.Errorf("failed to set dashboard ISV from %s: %v", PathISVSM, err)
 		}
 		return err
 	case deploy.ManagedRhods:
-		err := deploy.DeployManifestsFromPath(owner, cli, ComponentName,
-			PathISVCommon,
-			namespace,
-			scheme, enabled)
-		if err != nil {
-			return fmt.Errorf("failed to set dashboard ISV from %s", PathISVCommon)
-		}
 		err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 			PathISVAddOn,
 			namespace,
 			scheme, enabled)
 		if err != nil {
-			return fmt.Errorf("failed to set dashboard ISV from %s", PathISVAddOn)
+			return fmt.Errorf("failed to set dashboard ISV from %s: %v", PathISVAddOn, err)
 		}
 		return err
 	default:
