@@ -2,16 +2,17 @@ package e2e
 
 import (
 	"context"
+	"log"
+
 	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/distributedworkloads"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 	corev1 "k8s.io/api/core/v1"
-	"log"
 
 	appsv1 "k8s.io/api/apps/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -81,7 +82,7 @@ func setupDSCInstance() *dsc.DataScienceCluster {
 						Enabled: false,
 					},
 				},
-				DistributeWorkloads: distributedworkloads.DistributedWorkloads{
+				CodeFlare: codeflare.CodeFlare{
 					Component: components.Component{
 						Enabled: false,
 					},

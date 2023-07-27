@@ -103,15 +103,17 @@ components. At a given time, ODH supports only **one** instance of the CR, which
         name: example
       spec:
         components:
+          codeflare:
+            enabled: true
           dashboard:
             enabled: true
           datasciencepipelines:
             enabled: true
-          distributedworkloads:
-            enabled: true
           kserve:
             enabled: true
           modelmeshserving:
+            enabled: true
+          ray:
             enabled: true
           workbenches:
             enabled: true 

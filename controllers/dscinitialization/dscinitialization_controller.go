@@ -221,6 +221,7 @@ var singletonPredicate = predicate.Funcs{
 				// Set to error level since it causes Panic
 				setupLog := ctrl.Log.WithName("dscinitialization")
 				setupLog.Error(errors.New("only single DSCInitialization instance can be created. Mismatch CreateEvent Object.GetName not to 'default'"), "Wrong name", "object", e.Object.GetName())
+				return false
 			}
 		}
 

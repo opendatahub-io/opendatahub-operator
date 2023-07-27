@@ -45,15 +45,17 @@ To deploy ODH components seamlessly, ODH operator will watch two CRDS:
         name: example
       spec:
         components:
+          codeflare:
+            enabled: true
           dashboard:
             enabled: true
           datasciencepipelines:
             enabled: true
-          distributedworkloads:
-            enabled: true
           kserve:
             enabled: true
           modelmeshserving:
+            enabled: true
+          ray:
             enabled: true
           workbenches:
             enabled: true 

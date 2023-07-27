@@ -10,15 +10,17 @@ metadata:
     app.kubernetes.io/created-by: opendatahub-operator
 spec:
   components:
+    codeflare:
+      enabled: false
     dashboard:
       enabled: false
     datasciencepipelines:
       enabled: false
-    distributedworkloads:
-      enabled: false
     kserve:
       enabled: false
     modelmeshserving:
+      enabled: false
+    ray:
       enabled: false
     workbenches:
       enabled: false
