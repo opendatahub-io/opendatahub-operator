@@ -2,6 +2,7 @@ package deploy
 
 import (
 	"context"
+	"strings"
 
 	addonv1alpha1 "github.com/openshift/addon-operator/apis/addons/v1alpha1"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -25,17 +26,13 @@ func isSelfManaged(cli client.Client) (Platform, error) {
 	clusterCsvs := &ofapi.ClusterServiceVersionList{}
 	err := cli.List(context.TODO(), clusterCsvs)
 	if err != nil {
-		if apierrs.IsNotFound(err) {
-			return "", nil
-		} else {
-			return "", err
-		}
+		return "", err
 	} else {
 		for _, csv := range clusterCsvs.Items {
-			if csv.Spec.DisplayName == string(OpenDataHub) {
+			if strings.Contains(csv.Spec.DisplayName, string(OpenDataHub)) {
 				return OpenDataHub, nil
 			}
-			if csv.Spec.DisplayName == string(SelfManagedRhods) {
+			if strings.Contains(csv.Spec.DisplayName, string(SelfManagedRhods)) {
 				return SelfManagedRhods, nil
 
 			}
@@ -50,11 +47,9 @@ func isManagedRHODS(cli client.Client) (Platform, error) {
 	err := cli.Get(context.TODO(), client.ObjectKey{Name: "addons.managed.openshift.io"}, addonCRD)
 	if err != nil {
 		if apierrs.IsNotFound(err) {
-			// self managed service
 			return "", nil
-		} else {
-			return "", err
 		}
+		return "", err
 	} else {
 		expectedAddon := &addonv1alpha1.Addon{}
 		err := cli.Get(context.TODO(), client.ObjectKey{Name: string(ManagedRhods)}, expectedAddon)
@@ -71,7 +66,8 @@ func isManagedRHODS(cli client.Client) (Platform, error) {
 
 func GetPlatform(cli client.Client) (Platform, error) {
 	// First check if its addon installation
-	if platform, err := isManagedRHODS(cli); err == nil {
+	platform, err := isManagedRHODS(cli)
+	if err == nil && platform == ManagedRhods {
 		return platform, nil
 	}
 

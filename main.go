@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"os"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -72,6 +73,7 @@ func init() {
 	utilruntime.Must(appsv1.AddToScheme(scheme))
 	utilruntime.Must(ocv1.AddToScheme(scheme))
 	utilruntime.Must(kfdefv1.AddToScheme(scheme))
+	utilruntime.Must(ofapi.AddToScheme(scheme))
 
 	//+kubebuilder:scaffold:scheme
 }
