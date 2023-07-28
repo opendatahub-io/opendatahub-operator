@@ -9,6 +9,9 @@ metadata:
           "kind": "OdhQuickStart",
           "metadata": {
             "annotations": {
+              "internal.config.kubernetes.io/previousKinds": "OdhQuickStart",
+              "internal.config.kubernetes.io/previousNames": "create-jupyter-notebook",
+              "internal.config.kubernetes.io/previousNamespaces": "default",
               "opendatahub.io/categories": "Getting started,Notebook environments"
             },
             "labels": {
@@ -87,19 +90,22 @@ metadata:
           },
           "spec": {
             "components": {
+              "codeflare": {
+                "enabled": false
+              },
               "dashboard": {
                 "enabled": false
               },
               "datasciencepipelines": {
                 "enabled": false
               },
-              "distributedworkloads": {
-                "enabled": false
-              },
               "kserve": {
                 "enabled": false
               },
               "modelmeshserving": {
+                "enabled": false
+              },
+              "ray": {
                 "enabled": false
               },
               "workbenches": {
@@ -167,7 +173,7 @@ metadata:
     operators.operatorframework.io/internal-objects: '[dscinitialization.opendatahub.io]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/opendatahub-io/opendatahub-operator
-  name: opendatahub-operator.v2.0.0
+  name: opendatahub-operator.v0.0.6
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -414,7 +420,7 @@ spec:
                 - --leader-elect
                 command:
                 - /manager
-                image: REPLACE_IMAGE:latest
+                image: quay.io/etirelli/opendatahub-operator:dev-0.0.6
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:
@@ -506,4 +512,4 @@ spec:
   maturity: alpha
   provider:
     name: ODH
-  version: 2.0.0
+  version: 0.0.6

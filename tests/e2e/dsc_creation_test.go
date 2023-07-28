@@ -3,10 +3,11 @@ package e2e
 import (
 	"context"
 	"fmt"
-	"k8s.io/client-go/util/retry"
 	"log"
 	"testing"
 	"time"
+
+	"k8s.io/client-go/util/retry"
 
 	"github.com/stretchr/testify/require"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
@@ -165,14 +166,14 @@ func (tc *testContext) testAllDSCApplications() error {
 		}
 	}
 
-	err = tc.testDSCApplication(&(tc.testDsc.Spec.Components.DistributeWorkloads))
-	if tc.testDsc.Spec.Components.DistributeWorkloads.Enabled {
+	err = tc.testDSCApplication(&(tc.testDsc.Spec.Components.CodeFlare))
+	if tc.testDsc.Spec.Components.CodeFlare.Enabled {
 		if err != nil {
-			return fmt.Errorf("error validating application %v", tc.testDsc.Spec.Components.DistributeWorkloads)
+			return fmt.Errorf("error validating application %v", tc.testDsc.Spec.Components.CodeFlare)
 		}
 	} else {
 		if err == nil {
-			return fmt.Errorf("error validating application %v", tc.testDsc.Spec.Components.DistributeWorkloads)
+			return fmt.Errorf("error validating application %v", tc.testDsc.Spec.Components.CodeFlare)
 		}
 	}
 	return nil

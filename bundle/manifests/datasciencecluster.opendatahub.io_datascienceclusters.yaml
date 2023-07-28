@@ -38,6 +38,16 @@ spec:
               components:
                 description: Override and fine tune specific component configurations.
                 properties:
+                  codeflare:
+                    description: CodeFlare component configuration
+                    properties:
+                      enabled:
+                        description: Set to "true" to enable component, "false" to
+                          disable component. A disabled component will not be installed.
+                        type: boolean
+                    required:
+                    - enabled
+                    type: object
                   dashboard:
                     description: Dashboard component configuration
                     properties:
@@ -58,16 +68,6 @@ spec:
                     required:
                     - enabled
                     type: object
-                  distributedWorkloads:
-                    description: DistributeWorkloads component configuration
-                    properties:
-                      enabled:
-                        description: Set to "true" to enable component, "false" to
-                          disable component. A disabled component will not be installed.
-                        type: boolean
-                    required:
-                    - enabled
-                    type: object
                   kserve:
                     description: Kserve component configuration
                     properties:
@@ -80,6 +80,16 @@ spec:
                     type: object
                   modelmeshserving:
                     description: ModelMeshServing component configuration
+                    properties:
+                      enabled:
+                        description: Set to "true" to enable component, "false" to
+                          disable component. A disabled component will not be installed.
+                        type: boolean
+                    required:
+                    - enabled
+                    type: object
+                  ray:
+                    description: Ray component configuration
                     properties:
                       enabled:
                         description: Set to "true" to enable component, "false" to

@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"log"
 
+	"testing"
+
 	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
-	"testing"
 
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -103,9 +104,9 @@ func (tc *testContext) testAllApplicationDeletion() error {
 		return fmt.Errorf("error deleting application %v", tc.testDsc.Spec.Components.DataSciencePipelines)
 	}
 
-	err = tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.DistributeWorkloads))
+	err = tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.CodeFlare))
 	if err != nil {
-		return fmt.Errorf("error deleting application %v", tc.testDsc.Spec.Components.DistributeWorkloads)
+		return fmt.Errorf("error deleting application %v", tc.testDsc.Spec.Components.CodeFlare)
 	}
 	return nil
 }
