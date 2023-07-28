@@ -16,6 +16,7 @@ const (
 	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
 	PathISVSM     = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps-onpre"
 	PathISVAddOn  = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps-addon"
+	PathOVMS      = deploy.DefaultManifestPath + "/" + ComponentName + "/modelserving"
 )
 
 var imageParamMap = map[string]string{
@@ -69,6 +70,17 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 		scheme, enabled)
 	if err != nil {
 		return err
+	}
+
+	// OVMS
+	if platform, _ := deploy.GetPlatform(cli); platform != deploy.OpenDataHub {
+		err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
+			PathOVMS,
+			namespace,
+			scheme, enabled)
+		if err != nil {
+			return fmt.Errorf("failed to set dashboard OVMS from %s: %v", PathOVMS, err)
+		}
 	}
 
 	// ISV handling
