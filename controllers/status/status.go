@@ -43,12 +43,13 @@ const (
 	PhaseOnboarding = "Onboarding"
 )
 
-// List of constants to show different different reconciliation messages and statuses.
+// List of constants to show different  reconciliation messages and statuses.
 const (
-	ReconcileFailed           = "ReconcileFailed"
-	ReconcileInit             = "ReconcileInit"
-	ReconcileCompleted        = "ReconcileCompleted"
-	ReconcileCompletedMessage = "Reconcile completed successfully"
+	ReconcileFailed                       = "ReconcileFailed"
+	ReconcileInit                         = "ReconcileInit"
+	ReconcileCompleted                    = "ReconcileCompleted"
+	ReconcileCompletedWithComponentErrors = "ReconcileCompletedWithComponentErrors"
+	ReconcileCompletedMessage             = "Reconcile completed successfully"
 )
 
 const (
