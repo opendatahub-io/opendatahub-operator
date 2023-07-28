@@ -152,16 +152,27 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	// If monitoring enabled
 	if instance.Spec.Monitoring.Enabled {
-		if platform == deploy.ManagedRhods {
+		switch platform {
+		case deploy.SelfManagedRhods:
+			r.Log.Info("Monitoring enabled, won't apply changes", "cluster", "Self-Managed RHODS Mode")
+			err := r.configureCommonMonitoring(instance)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+		case deploy.ManagedRhods:
 			r.Log.Info("Monitoring enabled", "cluster", "Managed Service Mode")
 			err := r.configureManagedMonitoring(instance)
 			if err != nil {
 				// no need to log error as it was already logged in configureManagedMonitoring
 				return reconcile.Result{}, err
 			}
-		} else {
-			// TODO: ODH specific or RHODS self-managed specific monitoring logic
-			r.Log.Info("Monitoring enabled, won't apply changes", "cluster", "Self-Managed Mode")
+			err = r.configureCommonMonitoring(instance)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+		default:
+			// TODO: ODH specific monitoring logic
+			r.Log.Info("Monitoring enabled, won't apply changes", "cluster", "ODH Mode")
 		}
 	}
 

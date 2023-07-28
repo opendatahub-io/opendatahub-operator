@@ -279,3 +279,15 @@ func getMonitoringData(data string) (string, error) {
 
 	return encodedData, nil
 }
+
+func (r *DSCInitializationReconciler) configureCommonMonitoring(dsciInit *dsci.DSCInitialization) error {
+	// configure segment.io
+	err := deploy.DeployManifestsFromPath(dsciInit, r.Client, "segment-io",
+		deploy.DefaultManifestPath+"/monitoring/segment",
+		dsciInit.Spec.Monitoring.Namespace, r.Scheme, dsciInit.Spec.Monitoring.Enabled)
+	if err != nil {
+		r.Log.Error(err, "error to deploy manifests under /opt/manifests/monitoring/segment")
+		return err
+	}
+	return nil
+}
