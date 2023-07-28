@@ -130,12 +130,22 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	// Apply Rhods specific configs
 	if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
 		//Apply osd specific permissions
-		err = deploy.DeployManifestsFromPath(instance, r.Client, "osd",
-			deploy.DefaultManifestPath+"/osd-configs",
-			r.ApplicationsNamespace, r.Scheme, true)
+		if platform == deploy.ManagedRhods {
+			err = deploy.DeployManifestsFromPath(instance, r.Client, "osd",
+				deploy.DefaultManifestPath+"/osd-configs",
+				r.ApplicationsNamespace, r.Scheme, true)
+			if err != nil {
+				r.Log.Error(err, "Failed to apply osd specific configs from manifests", "Manifests path", deploy.DefaultManifestPath+"/osd-configs")
+				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to apply "+deploy.DefaultManifestPath+"/osd-configs")
+				return reconcile.Result{}, err
+			}
+		}
+
+		// Apply rhods-specific config
+		// Create rhods-notebooks namespace
+		err = r.createOdhNamespace(instance, "rhods-notebooks", ctx)
 		if err != nil {
-			r.Log.Error(err, "Failed to apply osd specific configs from manifests", "Manifests path", deploy.DefaultManifestPath+"/osd-configs")
-			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to apply "+deploy.DefaultManifestPath+"/osd-configs")
+			// no need to log error as it was already logged in createOdhNamespace
 			return reconcile.Result{}, err
 		}
 	}
@@ -150,8 +160,8 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 				return reconcile.Result{}, err
 			}
 		} else {
-			// TODO: ODH specific monitoring logic
-			r.Log.Info("Monitoring enabled, won't apply changes", "cluster", "Self-Managed  Mode")
+			// TODO: ODH specific or RHODS self-managed specific monitoring logic
+			r.Log.Info("Monitoring enabled, won't apply changes", "cluster", "Self-Managed Mode")
 		}
 	}
 
