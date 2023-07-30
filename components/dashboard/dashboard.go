@@ -2,7 +2,6 @@ package dashboard
 
 import (
 	"fmt"
-
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -12,11 +11,12 @@ import (
 )
 
 const (
-	ComponentName = "odh-dashboard"
-	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
-	PathISVSM     = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps-onpre"
-	PathISVAddOn  = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps-addon"
-	PathOVMS      = deploy.DefaultManifestPath + "/" + ComponentName + "/modelserving"
+	ComponentName          = "odh-dashboard"
+	Path                   = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
+	PathISVSM              = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps-onpre"
+	PathISVAddOn           = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps-addon"
+	PathOVMS               = deploy.DefaultManifestPath + "/" + ComponentName + "/modelserving"
+	PathODHDashboardConfig = deploy.DefaultManifestPath + "/" + ComponentName + "/odhdashboardconfig"
 )
 
 var imageParamMap = map[string]string{
@@ -59,21 +59,34 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 		}
 	}
 
-	// Update image parameters
-	if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
-		return err
-	}
+	// Apply RHODS specific configs
+	if platform != deploy.OpenDataHub {
+		// Replace admin group
+		if platform == deploy.SelfManagedRhods {
+			err = common.ReplaceStringsInFile(PathODHDashboardConfig+"/odhdashboardconfig.yaml", map[string]string{
+				"<admin_groups>": "rhods-admins",
+			})
+			if err != nil {
+				return err
+			}
+		} else {
+			err = common.ReplaceStringsInFile(PathODHDashboardConfig+"/odhdashboardconfig.yaml", map[string]string{
+				"<admin_groups>": "dedicated-admins",
+			})
+			if err != nil {
+				return err
+			}
+		}
+		// Create ODHDashboardConfig if it doesn't exist already
+		err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
+			PathODHDashboardConfig,
+			namespace,
+			scheme, enabled)
+		if err != nil {
+			return fmt.Errorf("failed to set dashboard config from %s: %v", PathODHDashboardConfig, err)
+		}
 
-	err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
-		Path,
-		namespace,
-		scheme, enabled)
-	if err != nil {
-		return err
-	}
-
-	// OVMS
-	if platform, _ := deploy.GetPlatform(cli); platform != deploy.OpenDataHub {
+		// Apply modelserving config
 		err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 			PathOVMS,
 			namespace,
@@ -81,6 +94,20 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 		if err != nil {
 			return fmt.Errorf("failed to set dashboard OVMS from %s: %v", PathOVMS, err)
 		}
+	}
+
+	// Update image parameters
+	if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
+		return err
+	}
+
+	// Deploy odh-dashboard manifests
+	err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
+		Path,
+		namespace,
+		scheme, enabled)
+	if err != nil {
+		return err
 	}
 
 	// ISV handling

@@ -217,6 +217,12 @@ func manageResource(owner metav1.Object, ctx context.Context, cli client.Client,
 		return cli.Create(ctx, obj)
 	}
 
+	// Exception: ODHDashboardConfig should not be updated even with upgrades
+	// TODO: Move this out when we have dashboard-controller
+	if found.GetKind() == "OdhDashboardConfig" {
+		// Do nothing, return
+		return nil
+	}
 	// Perform server-side apply
 	data, err := json.Marshal(obj)
 	if err != nil {
