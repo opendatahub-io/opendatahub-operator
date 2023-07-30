@@ -115,7 +115,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 	}
 
-	// // Ensure all ommited components show up as explicitly disabled
+	// // Ensure all omitted components show up as explicitly disabled
 	// instance, err = r.updateComponents(instance)
 	// if err != nil {
 	// 	_ = r.reportError(err, instance, "error updating list of components in the CR")
