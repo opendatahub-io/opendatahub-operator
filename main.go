@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"os"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -31,6 +30,8 @@ import (
 	addonv1alpha1 "github.com/openshift/addon-operator/apis/addons/v1alpha1"
 	ocv1 "github.com/openshift/api/oauth/v1"
 	routev1 "github.com/openshift/api/route/v1"
+	ocuserv1 "github.com/openshift/api/user/v1"
+	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
@@ -74,6 +75,7 @@ func init() {
 	utilruntime.Must(ocv1.AddToScheme(scheme))
 	utilruntime.Must(kfdefv1.AddToScheme(scheme))
 	utilruntime.Must(ofapi.AddToScheme(scheme))
+	utilruntime.Must(ocuserv1.AddToScheme(scheme))
 
 	//+kubebuilder:scaffold:scheme
 }

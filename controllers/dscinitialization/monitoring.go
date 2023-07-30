@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	b64 "encoding/base64"
 	"fmt"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"strings"
 
 	routev1 "github.com/openshift/api/route/v1"
@@ -65,7 +66,7 @@ func configurePrometheus(dsciInit *dsci.DSCInitialization, r *DSCInitializationR
 	}
 
 	// Update prometheus manifests
-	err = ReplaceStringsInFile(deploy.DefaultManifestPath+"/monitoring/prometheus/prometheus.yaml", map[string]string{
+	err = common.ReplaceStringsInFile(deploy.DefaultManifestPath+"/monitoring/prometheus/prometheus.yaml", map[string]string{
 		"<set_alertmanager_host>":    alertmanagerRoute.Spec.Host,
 		"<alertmanager_config_hash>": alertmanagerData,
 		"<prometheus_config_hash>":   prometheusData,
@@ -75,7 +76,7 @@ func configurePrometheus(dsciInit *dsci.DSCInitialization, r *DSCInitializationR
 		return err
 	}
 
-	err = ReplaceStringsInFile(deploy.DefaultManifestPath+"/monitoring/prometheus/prometheus-viewer-rolebinding.yaml", map[string]string{
+	err = common.ReplaceStringsInFile(deploy.DefaultManifestPath+"/monitoring/prometheus/prometheus-viewer-rolebinding.yaml", map[string]string{
 		"<odh_monitoring_project>": dsciInit.Spec.Monitoring.Namespace,
 	})
 	if err != nil {
@@ -129,7 +130,7 @@ func configureAlertManager(dsciInit *dsci.DSCInitialization, r *DSCInitializatio
 
 	// Replace variables in alertmanager configmap
 	// TODO: Following variables can later be exposed by the API
-	err = ReplaceStringsInFile(deploy.DefaultManifestPath+"/monitoring/alertmanager/monitoring-configs.yaml",
+	err = common.ReplaceStringsInFile(deploy.DefaultManifestPath+"/monitoring/alertmanager/monitoring-configs.yaml",
 		map[string]string{
 			"<snitch_url>":      b64.StdEncoding.EncodeToString(deadmansnitchSecret.Data["SNITCH_URL"]),
 			"<pagerduty_token>": b64.StdEncoding.EncodeToString(pagerDutySecret.Data["PAGERDUTY_KEY"]),

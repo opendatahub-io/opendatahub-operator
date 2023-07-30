@@ -4,9 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
-	"io/ioutil"
 	"reflect"
-	"strings"
 	"time"
 
 	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
@@ -287,28 +285,6 @@ func GenerateRandomHex(length int) ([]byte, error) {
 	}
 
 	return randomBytes, nil
-}
-
-func ReplaceStringsInFile(fileName string, replacements map[string]string) error {
-	// Read the contents of the file
-	fileContent, err := ioutil.ReadFile(fileName)
-	if err != nil {
-		return fmt.Errorf("failed to read file: %v", err)
-	}
-
-	// Replace all occurrences of the strings in the map
-	newContent := string(fileContent)
-	for string1, string2 := range replacements {
-		newContent = strings.ReplaceAll(newContent, string1, string2)
-	}
-
-	// Write the modified content back to the file
-	err = ioutil.WriteFile(fileName, []byte(newContent), 0)
-	if err != nil {
-		return fmt.Errorf("failed to write to file: %v", err)
-	}
-
-	return nil
 }
 
 func (r *DSCInitializationReconciler) createOdhCommonConfigMap(dscInit *dsci.DSCInitialization, name string, ctx context.Context) error {
