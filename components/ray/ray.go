@@ -10,10 +10,12 @@ import (
 
 const (
 	ComponentName = "ray"
-	RayPath       = deploy.DefaultManifestPath + "/" + "ray/operator" + "/base"
+	RayPath       = deploy.DefaultManifestPath + "/" + "ray/operator/base"
 )
 
-var imageParamMap = map[string]string{}
+var imageParamMap = map[string]string{
+	"odh-kuberay-operator-controller-image": "RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE",
+}
 
 type Ray struct {
 	components.Component `json:""`

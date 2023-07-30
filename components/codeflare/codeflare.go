@@ -10,10 +10,13 @@ import (
 
 const (
 	ComponentName = "codeflare"
-	CodeflarePath = deploy.DefaultManifestPath + "/" + "codeflare-stack" + "/base"
+	CodeflarePath = deploy.DefaultManifestPath + "/" + "codeflare-stack/base"
 )
 
-var imageParamMap = map[string]string{}
+var imageParamMap = map[string]string{
+	"odh-codeflare-operator-image": "RELATED_IMAGE_ODH_CODEFLARE_OPERATOR_IMAGE",
+	"odh-mcad-controller-image":    "RELATED_IMAGE_ODH_MCAD_CONTROLLER_IMAGE",
+}
 
 type CodeFlare struct {
 	components.Component `json:""`
