@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"golang.org/x/exp/maps"
 	"io"
 	"net/http"
 	"os"
@@ -146,7 +147,7 @@ func DeployManifestsFromPath(owner metav1.Object, cli client.Client, componentNa
 
 	// Create / apply / delete resources in the cluster
 	for _, obj := range objs {
-		err = manageResource(owner, context.TODO(), cli, obj, s, componentEnabled, namespace)
+		err = manageResource(owner, context.TODO(), cli, obj, s, componentEnabled, namespace, componentName)
 		if err != nil {
 			return err
 		}
@@ -170,7 +171,7 @@ func getResources(resMap resmap.ResMap) ([]*unstructured.Unstructured, error) {
 	return resources, nil
 }
 
-func manageResource(owner metav1.Object, ctx context.Context, cli client.Client, obj *unstructured.Unstructured, s *runtime.Scheme, enabled bool, applicationNamespace string) error {
+func manageResource(owner metav1.Object, ctx context.Context, cli client.Client, obj *unstructured.Unstructured, s *runtime.Scheme, enabled bool, applicationNamespace, componentName string) error {
 	resourceName := obj.GetName()
 	namespace := obj.GetNamespace()
 
@@ -188,6 +189,23 @@ func manageResource(owner metav1.Object, ctx context.Context, cli client.Client,
 		// Return nil for any errors getting the resource, since the component itself is disabled
 		if err != nil {
 			return nil
+		}
+
+		// Check for shared resources before deletion
+		resourceLabels := found.GetLabels()
+		componentCounter := 0
+		if resourceLabels != nil {
+			for key, _ := range resourceLabels {
+				if strings.Contains(key, "app.opendatahub.io") {
+					componentCounter = componentCounter + 1
+				}
+			}
+			// Shared resource , do not delete. Remove label from disabled component
+			if componentCounter > 1 {
+				found.SetLabels(resourceLabels)
+				// return, do not delete the shared resource
+				return nil
+			}
 		}
 
 		if obj.GetOwnerReferences() == nil {
@@ -223,6 +241,18 @@ func manageResource(owner metav1.Object, ctx context.Context, cli client.Client,
 		// Do nothing, return
 		return nil
 	}
+
+	// Preserve app.opendatahub.io/<component> labels of previous versions of existing objects
+	foundLabels := make(map[string]string)
+	for k, v := range found.GetLabels() {
+		if strings.Contains(k, "app.opendatahub.io") {
+			foundLabels[k] = v
+		}
+	}
+	newLabels := obj.GetLabels()
+	maps.Copy(foundLabels, newLabels)
+	obj.SetLabels(foundLabels)
+
 	// Perform server-side apply
 	data, err := json.Marshal(obj)
 	if err != nil {
