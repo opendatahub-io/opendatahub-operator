@@ -117,10 +117,6 @@ spec:
                   type: string
                 isEnabled:
                   type: boolean
-                kfdefApplications:
-                  items:
-                    type: string
-                  type: array
                 link:
                   type: string
                 provider:

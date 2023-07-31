@@ -1,3 +1,0 @@
-resources:
-# additional kfdef, remove from owned in CSV
-- kfdef.apps.kubeflow.org_kfdefs.yaml
