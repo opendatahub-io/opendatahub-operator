@@ -1,0 +1,21 @@
+kind: Route
+apiVersion: route.openshift.io/v1
+metadata:
+  name: {{ .AppNamespace }}-odh-gateway
+  namespace: {{ .Mesh.Namespace }}
+  labels:
+    app: odh-dashboard
+    app.kubernetes.io/part-of: odh-dashboard
+    maistra.io/gateway-name: {{ .AppNamespace }}-odh-gateway # TODO: set to env var?
+    maistra.io/gateway-namespace: {{ .AppNamespace }} # TODO: set to env var?
+spec:
+  host: {{ .AppNamespace }}.{{ .Domain }} 
+  to:
+    kind: Service
+    name: istio-ingressgateway
+    weight: 100
+  port:
+    targetPort: https
+  tls:
+    termination: passthrough
+  wildcardPolicy: None

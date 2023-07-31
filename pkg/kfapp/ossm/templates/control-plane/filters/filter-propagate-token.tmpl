@@ -1,0 +1,53 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: propagate-token
+  namespace: {{ .Mesh.Namespace }}
+  labels:
+    name: oauth2-envoy
+    app: odh
+spec:
+  workloadSelector:
+    labels:
+      istio: ingressgateway
+  priority: 20 # after oauth2 filter
+  configPatches:
+  - applyTo: HTTP_FILTER
+    match:
+      context: GATEWAY
+      listener:
+        filterChain:
+          filter:
+            name: envoy.filters.network.http_connection_manager
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: envoy.filters.http.lua
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+          inlineCode: |
+           function envoy_on_request(request_handle)       
+              local headers = request_handle:headers()
+              if not headers then
+                return
+              end
+
+              local bearer_token = nil
+              local cookies = headers:get("cookie")
+              -- Extracting token value from the header which is in form of 
+              -- cookie: OauthHMAC=HMAC_VALUE;OauthExpires=1679994106; BearerToken=TOKEN_VALUE`
+              if cookies then
+                for cookie in cookies:gmatch("([^;]+)") do
+                  local name, value = cookie:match("^%s*([^=]+)=(.*)$")
+                  if name and value and name:lower() == "bearertoken" then
+                    bearer_token = value
+                    break
+                  end
+                end
+              end
+              
+              -- Set the "x-forwarded-access-token" header if the bearer token was found
+              if bearer_token then
+                headers:add("x-forwarded-access-token", bearer_token)
+              end
+            end

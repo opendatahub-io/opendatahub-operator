@@ -1,0 +1,44 @@
+apiVersion: authorino.kuadrant.io/v1beta1
+kind: AuthConfig
+metadata:
+  name: odh-dashboard-protection
+  namespace: {{ .AppNamespace }}
+  labels:
+    {{ ReplaceChar .Auth.Authorino.Label "=" ": " }}
+spec:
+  hosts:
+  - {{.AppNamespace}}.{{ .Domain }}
+  identity:
+  - name: kubernetes-users
+    kubernetes:
+      audiences: 
+      - "https://kubernetes.default.svc"
+  authorization:
+  - name: k8s-rbac-only-service-viewers
+    kubernetes:
+      user:
+        valueFrom: { authJSON: auth.identity.username }
+      resourceAttributes:
+        namespace:
+          value: {{ .AppNamespace }}
+        group:
+          value: ""
+        resource:
+          value: services
+        name:
+          value: odh-dashboard
+        verb:
+          value: get
+  response:
+  - name: x-auth-data
+    json:
+      properties:
+      - name: username
+        valueFrom: { authJSON: auth.identity.username }
+  denyWith:
+    unauthenticated:      
+      message:
+        value: "Access denied"
+    unauthorized:
+      message:
+        value: "Unauthorized"

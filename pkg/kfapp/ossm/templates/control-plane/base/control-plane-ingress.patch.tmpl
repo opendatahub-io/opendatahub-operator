@@ -1,0 +1,23 @@
+apiVersion: maistra.io/v2
+kind: ServiceMeshControlPlane
+metadata:
+  name: {{ .Mesh.Name }}
+  namespace: {{ .Mesh.Namespace }}
+spec:
+  proxy:
+    injection:
+      autoInject: true
+  gateways:
+    openshiftRoute:
+      enabled: false
+    ingress:
+      volumes:
+        - volume:
+            secret:
+              secretName: {{ .AppNamespace }}-oauth2-tokens
+              optional: true
+          volumeMount:
+            name: {{ .AppNamespace }}-oauth2-tokens
+            mountPath: "/etc/istio/{{ .AppNamespace }}-oauth2-tokens"
+            readOnly: true
+

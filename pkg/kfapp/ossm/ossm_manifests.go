@@ -1,8 +1,8 @@
 package ossm
 
 import (
+	"embed"
 	"fmt"
-	kftypesv3 "github.com/opendatahub-io/opendatahub-operator/apis/apps"
 	configtypes "github.com/opendatahub-io/opendatahub-operator/apis/config"
 	"github.com/opendatahub-io/opendatahub-operator/pkg/kfconfig/ossmplugin"
 	"github.com/opendatahub-io/opendatahub-operator/pkg/secret"
@@ -15,30 +15,35 @@ import (
 	"strings"
 )
 
+//go:embed templates
+var embeddedFiles embed.FS
+
 type applier func(config *rest.Config, filename string, elems ...configtypes.NameValue) error
 
 func (o *OssmInstaller) applyManifests() error {
 	var apply applier
 
 	for _, m := range o.manifests {
+		targetPath := m.targetPath()
 		if m.patch {
 			apply = func(config *rest.Config, filename string, elems ...configtypes.NameValue) error {
-				log.Info("patching using manifest", "name", m.name, "path", m.targetPath())
+				log.Info("patching using manifest", "name", m.name, "path", targetPath)
 				return o.PatchResourceFromFile(filename, elems...)
 			}
 		} else {
 			apply = func(config *rest.Config, filename string, elems ...configtypes.NameValue) error {
-				log.Info("applying manifest", "name", m.name, "path", m.targetPath())
+				log.Info("applying manifest", "name", m.name, "path", targetPath)
 				return o.CreateResourceFromFile(filename, elems...)
 			}
 		}
 
 		err := apply(
 			o.config,
-			m.targetPath(),
+			targetPath,
 		)
+
 		if err != nil {
-			log.Error(err, "failed to create resource", "name", m.name, "path", m.targetPath())
+			log.Error(err, "failed to create resource", "name", m.name, "path", targetPath)
 			return err
 		}
 	}
@@ -51,20 +56,26 @@ func (o *OssmInstaller) processManifests() error {
 		return internalError(err)
 	}
 
-	// TODO warn when file is not present instead of throwing an error
+	var rootDir = filepath.Join(baseOutputDir, o.Namespace, o.Name)
+	// We copy the embedded template files into /tmp/
+	// As embedded files are read-only, and we need write to templates
+	if copyFsErr := copyEmbeddedFS(embeddedFiles, "templates", rootDir); copyFsErr != nil {
+		return internalError(errors.WithStack(copyFsErr))
+	}
+
 	// IMPORTANT: Order of locations from where we load manifests/templates to process is significant
 	err := o.loadManifestsFrom(
-		path.Join("control-plane", "base"),
-		path.Join("control-plane", "filters"),
-		path.Join("control-plane", "oauth"),
-		path.Join("control-plane", "smm.tmpl"),
-		path.Join("control-plane", "namespace.patch.tmpl"),
+		path.Join(rootDir, ControlPlaneDir, "base"),
+		path.Join(rootDir, ControlPlaneDir, "filters"),
+		path.Join(rootDir, ControlPlaneDir, "oauth"),
+		path.Join(rootDir, ControlPlaneDir, "smm.tmpl"),
+		path.Join(rootDir, ControlPlaneDir, "namespace.patch.tmpl"),
 
-		path.Join("authorino", "namespace.tmpl"),
-		path.Join("authorino", "smm.tmpl"),
-		path.Join("authorino", "base"),
-		path.Join("authorino", "rbac"),
-		path.Join("authorino", "mesh-authz-ext-provider.patch.tmpl"),
+		path.Join(rootDir, AuthDir, "namespace.tmpl"),
+		path.Join(rootDir, AuthDir, "auth-smm.tmpl"),
+		path.Join(rootDir, AuthDir, "base"),
+		path.Join(rootDir, AuthDir, "rbac"),
+		path.Join(rootDir, AuthDir, "mesh-authz-ext-provider.patch.tmpl"),
 	)
 	if err != nil {
 		return internalError(errors.WithStack(err))
@@ -87,15 +98,11 @@ func (o *OssmInstaller) processManifests() error {
 }
 
 func (o *OssmInstaller) loadManifestsFrom(paths ...string) error {
-	manifestRepo, ok := o.GetRepoCache(kftypesv3.ManifestsRepoName)
-	if !ok {
-		return internalError(errors.New("manifests repo is not defined."))
-	}
-
 	var err error
 	var manifests []manifest
-	for i := range paths {
-		manifests, err = loadManifestsFrom(manifests, path.Join(manifestRepo.LocalPath, TMPL_LOCAL_PATH, paths[i]))
+
+	for _, p := range paths {
+		manifests, err = loadManifestsFrom(manifests, p)
 		if err != nil {
 			return internalError(errors.WithStack(err))
 		}
@@ -106,9 +113,8 @@ func (o *OssmInstaller) loadManifestsFrom(paths ...string) error {
 	return nil
 }
 
-func loadManifestsFrom(manifests []manifest, dir string) ([]manifest, error) {
-
-	if err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+func loadManifestsFrom(manifests []manifest, path string) ([]manifest, error) {
+	if err := filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
