@@ -13,6 +13,7 @@ require (
 	github.com/operator-framework/api v0.17.6
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.8.3
+	golang.org/x/exp v0.0.0-20230728194245-b0cb94b80691
 	k8s.io/api v0.27.2
 	k8s.io/apiextensions-apiserver v0.27.2
 	k8s.io/apimachinery v0.27.2
