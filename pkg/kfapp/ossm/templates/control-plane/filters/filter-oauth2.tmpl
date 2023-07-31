@@ -37,7 +37,7 @@ spec:
                 address:
                   socket_address:
                     address: {{ .OAuth.Route }}
-                    port_value: 443
+                    port_value: {{ .OAuth.Port }}
   - applyTo: HTTP_FILTER
     match:
       context: GATEWAY
