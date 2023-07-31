@@ -1,6 +1,8 @@
 package modelmeshserving
 
 import (
+	"context"
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -69,10 +71,25 @@ func (m *ModelMeshServing) ReconcileComponent(owner metav1.Object, cli client.Cl
 		return err
 	}
 
+	// Get monitoring namespace
+	dscInit := &dsci.DSCInitialization{}
+	err = cli.Get(context.TODO(), client.ObjectKey{
+		Name: "default",
+	}, dscInit)
+	if err != nil {
+		return err
+	}
+	var monitoringNamespace string
+	if dscInit.Spec.Monitoring.Namespace != "" {
+		monitoringNamespace = dscInit.Spec.Monitoring.Namespace
+	} else {
+		monitoringNamespace = namespace
+	}
+
 	// If modelmesh is deployed successfully, deploy modelmesh-monitoring
 	err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 		monitoringPath,
-		namespace,
+		monitoringNamespace,
 		scheme, enabled)
 
 	return err
