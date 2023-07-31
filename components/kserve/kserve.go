@@ -15,7 +15,12 @@ const (
 	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
 )
 
-var imageParamMap = map[string]string{}
+var imageParamMap = map[string]string{
+	"kserve-router":              "RELATED_IMAGE_ODH_KSERVE_ROUTE_IMAGE",
+	"kserve-agent":               "RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE",
+	"kserve-controller":          "RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE",
+	"kserve-storage-initializer": "RELATED_IMAGE_ODH_KSERVE_STORAGE_INITIALIZER_IMAGE",
+}
 
 type Kserve struct {
 	components.Component `json:""`
