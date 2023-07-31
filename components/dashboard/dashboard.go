@@ -2,12 +2,17 @@ package dashboard
 
 import (
 	"fmt"
+
+	"context"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	routev1 "github.com/openshift/api/route/v1"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"strings"
 )
 
 const (
@@ -17,6 +22,7 @@ const (
 	PathISVAddOn           = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps-addon"
 	PathOVMS               = deploy.DefaultManifestPath + "/" + ComponentName + "/modelserving"
 	PathODHDashboardConfig = deploy.DefaultManifestPath + "/" + ComponentName + "/odhdashboardconfig"
+	PathConsoleLink        = deploy.DefaultManifestPath + "/" + ComponentName + "/consolelink"
 )
 
 var imageParamMap = map[string]string{
@@ -129,11 +135,38 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 		if err != nil {
 			return fmt.Errorf("failed to set dashboard ISV from %s: %v", PathISVAddOn, err)
 		}
+		// ConsoleLink handling
+		consoleRoute := &routev1.Route{}
+		err = cli.Get(context.TODO(), client.ObjectKey{Name: "console", Namespace: "openshift-console"}, consoleRoute)
+		if err != nil && !apierrs.IsNotFound(err) {
+			return fmt.Errorf("Error getting console route URL : %v", err)
+		}
+		domainIndex := strings.Index(consoleRoute.Spec.Host, ".")
+		consolelinkDomain := consoleRoute.Spec.Host[domainIndex+1:]
+		err = common.ReplaceStringsInFile(PathConsoleLink, map[string]string{
+			"<rhods-dashboard-url>": "https://rhods-dashboard-" + namespace + consolelinkDomain,
+		})
+		if err != nil {
+			return fmt.Errorf("Error replacing with correct dashboard url for ConsoleLink: %v", err)
+		}
+		err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
+			PathConsoleLink,
+			namespace,
+			scheme, enabled)
+		if err != nil {
+			return fmt.Errorf("failed to set dashboard consolelink from %s", PathConsoleLink)
+		}
+		err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
+			PathConsoleLink,
+			namespace,
+			scheme, enabled)
+		if err != nil {
+			return fmt.Errorf("failed to set dashboard consolelink from %s", PathConsoleLink)
+		}
 		return err
 	default:
 		return nil
 	}
-
 }
 
 func (in *Dashboard) DeepCopyInto(out *Dashboard) {
