@@ -19,12 +19,21 @@ package dscinitialization
 import (
 	"context"
 	"errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	logr "github.com/go-logr/logr"
 
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 
+	ocuserv1 "github.com/openshift/api/user/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	netv1 "k8s.io/api/networking/v1"
+	authv1 "k8s.io/api/rbac/v1"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -32,17 +41,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
-	netv1 "k8s.io/api/networking/v1"
-	authv1 "k8s.io/api/rbac/v1"
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime"
-
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	"k8s.io/client-go/tools/record"
 )
 
 // DSCInitializationReconciler reconciles a DSCInitialization object
@@ -139,9 +140,28 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to apply "+deploy.DefaultManifestPath+"/osd-configs")
 				return reconcile.Result{}, err
 			}
+		} else {
+			// Apply self-managed rhods config
+			// Create rhods-admins Group if it doesn't exist
+			rhodsuserGroup := &ocuserv1.Group{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "rhods-admins",
+				},
+			}
+			err := r.Client.Get(ctx, client.ObjectKey{Name: rhodsuserGroup.Name}, rhodsuserGroup)
+			if err != nil {
+				if apierrs.IsNotFound(err) {
+					err = r.Client.Create(ctx, rhodsuserGroup)
+					if err != nil && !apierrs.IsAlreadyExists(err) {
+						return reconcile.Result{}, err
+					}
+				} else {
+					return reconcile.Result{}, err
+				}
+			}
 		}
 
-		// Apply rhods-specific config
+		// Apply common rhods-specific config
 		// Create rhods-notebooks namespace
 		err = r.createOdhNamespace(instance, "rhods-notebooks", ctx)
 		if err != nil {
