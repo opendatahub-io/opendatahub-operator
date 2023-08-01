@@ -3,15 +3,12 @@ package dscinitialization
 import (
 	"context"
 	"crypto/rand"
-	"fmt"
 	"reflect"
 	"time"
 
-	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	authv1 "k8s.io/api/rbac/v1"
-	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -20,14 +17,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1alpha1"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/dashboard"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 )
 
 var (
@@ -318,84 +308,4 @@ func (r *DSCInitializationReconciler) createOdhCommonConfigMap(dscInit *dsci.DSC
 		}
 	}
 	return nil
-}
-
-func updatefromLegacyVersion(cli client.Client) error {
-	// Check if kfdef are deployed
-	kfdefCrd := &apiextv1.CustomResourceDefinition{}
-
-	err := cli.Get(context.TODO(), client.ObjectKey{Name: "kfdefs.kfdef.apps.kubeflow.org"}, kfdefCrd)
-	if err != nil {
-		if apierrs.IsNotFound(err) {
-			// If no Crd found, return, since its a new Installation
-			return nil
-		} else {
-			return fmt.Errorf("error retrieving kfdef CRD : %v", err)
-		}
-	} else {
-		expectedKfDefList := &kfdefv1.KfDefList{}
-		err := cli.List(context.TODO(), expectedKfDefList)
-		if err != nil {
-			if apierrs.IsNotFound(err) {
-				// If no KfDefs, do nothing and return
-				return nil
-			} else {
-				return fmt.Errorf("error getting list of kfdefs: %v", err)
-			}
-		}
-		// Delete kfdefs
-		for _, kfdef := range expectedKfDefList.Items {
-			// Remove finalizer
-			updatedKfDef := &kfdef
-			updatedKfDef.Finalizers = []string{}
-			err = cli.Update(context.TODO(), updatedKfDef)
-			if err != nil {
-				return fmt.Errorf("error removing finalizers from kfdef %v : %v", kfdef.Name, err)
-			}
-			err = cli.Delete(context.TODO(), updatedKfDef)
-			if err != nil {
-				return fmt.Errorf("error deleting kfdef %v : %v", kfdef.Name, err)
-			}
-		}
-
-		// Create DataScienceCluster with no components enabled to cleanup all previous controllers
-		defaultDataScienceCluster := &dsc.DataScienceCluster{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "DataScienceCluster",
-				APIVersion: "datasciencecluster.opendatahub.io/v1alpha1",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "default",
-			},
-			Spec: dsc.DataScienceClusterSpec{
-				Components: dsc.Components{
-					ModelMeshServing: modelmeshserving.ModelMeshServing{
-						Component: components.Component{Enabled: false},
-					},
-					DataSciencePipelines: datasciencepipelines.DataSciencePipelines{
-						Component: components.Component{Enabled: false},
-					},
-					Workbenches: workbenches.Workbenches{
-						Component: components.Component{Enabled: false},
-					},
-					Dashboard: dashboard.Dashboard{
-						Component: components.Component{Enabled: false},
-					},
-					Kserve: kserve.Kserve{
-						Component: components.Component{Enabled: false},
-					},
-				},
-			},
-		}
-
-		err = cli.Create(context.TODO(), defaultDataScienceCluster)
-		if err != nil {
-			if apierrs.IsAlreadyExists(err) {
-				return nil
-			}
-			return fmt.Errorf("error creating DatascienceCluster instance %v : %v", defaultDataScienceCluster.Name, err)
-		}
-		return nil
-	}
-
 }

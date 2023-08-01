@@ -206,9 +206,6 @@ spec:
         displayName: Conditions
         path: conditions
       version: v1alpha1
-    - kind: KfDef
-      name: kfdefs.kfdef.apps.kubeflow.org
-      version: v1
     - kind: OdhApplication
       name: odhapplications.dashboard.opendatahub.io
       version: v1
@@ -220,10 +217,6 @@ spec:
       version: v1
     - kind: OdhQuickStart
       name: odhquickstarts.console.openshift.io
-      version: v1
-    required:
-    - kind: KfDef
-      name: kfdefs.kfdef.apps.kubeflow.org
       version: v1
   description: "The Open Data Hub is a machine-learning-as-a-service platform built
     on Red Hat's Kubernetes-based OpenShift® Container Platform. Open Data Hub integrates

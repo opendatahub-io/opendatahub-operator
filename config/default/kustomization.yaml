@@ -16,7 +16,6 @@ namePrefix: opendatahub-operator-
 #  someName: someValue
 
 resources:
-- ../additional
 - ../crd
 - ../rbac
 - ../manager

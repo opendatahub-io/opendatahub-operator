@@ -40,7 +40,7 @@ spec:
                 description: Override and fine tune specific component configurations.
                 properties:
                   codeflare:
-                    description: CodeFlare component configuration Require CodeFlare
+                    description: CodeFlare component configuration. Require CodeFlare
                       operator to be installed before enable component
                     properties:
                       enabled:
@@ -91,7 +91,7 @@ spec:
                     - enabled
                     type: object
                   ray:
-                    description: Ray component configuration Require CodeFlare operator
+                    description: Ray component configuration. Require CodeFlare operator
                       to be installed before enable component
                     properties:
                       enabled:
