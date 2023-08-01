@@ -17,6 +17,7 @@ import (
 
 const (
 	ComponentName          = "odh-dashboard"
+	ComponentNameSupported = "rhods-dashboard"
 	Path                   = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
 	PathSupported          = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/authentication"
 	PathISVSM              = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps-onprem"
@@ -85,7 +86,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 			}
 		}
 		// Create ODHDashboardConfig if it doesn't exist already
-		err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
+		err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
 			PathODHDashboardConfig,
 			namespace,
 			scheme, enabled)
@@ -94,7 +95,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 		}
 
 		// Apply modelserving config
-		err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
+		err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
 			PathOVMS,
 			namespace,
 			scheme, enabled)
@@ -119,7 +120,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 		}
 	} else {
 		// Apply authentication overlay
-		err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
+		err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
 			PathSupported,
 			namespace,
 			scheme, enabled)
@@ -131,7 +132,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 	// ISV handling
 	switch platform {
 	case deploy.SelfManagedRhods:
-		err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
+		err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
 			PathISVSM,
 			namespace,
 			scheme, enabled)
@@ -140,7 +141,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 		}
 		return err
 	case deploy.ManagedRhods:
-		err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
+		err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
 			PathISVAddOn,
 			namespace,
 			scheme, enabled)
@@ -161,14 +162,14 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 		if err != nil {
 			return fmt.Errorf("Error replacing with correct dashboard url for ConsoleLink: %v", err)
 		}
-		err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
+		err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
 			PathConsoleLink,
 			namespace,
 			scheme, enabled)
 		if err != nil {
 			return fmt.Errorf("failed to set dashboard consolelink from %s", PathConsoleLink)
 		}
-		err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
+		err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
 			PathConsoleLink,
 			namespace,
 			scheme, enabled)
