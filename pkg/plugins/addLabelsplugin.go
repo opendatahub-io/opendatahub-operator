@@ -20,6 +20,13 @@ func ApplyAddLabelsPlugin(componentName string, resMap resmap.ResMap) error {
 				CreateIfNotPresent: true,
 			},
 			{
+				Gvk: resid.Gvk{
+					Kind: "Deployment",
+				},
+				Path:               "spec/selector/matchLabels",
+				CreateIfNotPresent: true,
+			},
+			{
 				Gvk:                resid.Gvk{},
 				Path:               "metadata/labels",
 				CreateIfNotPresent: true,

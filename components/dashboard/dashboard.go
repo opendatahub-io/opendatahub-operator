@@ -18,6 +18,7 @@ import (
 const (
 	ComponentName          = "odh-dashboard"
 	Path                   = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
+	PathSupported          = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/authentication"
 	PathISVSM              = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps-onprem"
 	PathISVAddOn           = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps-addon"
 	PathOVMS               = deploy.DefaultManifestPath + "/" + ComponentName + "/modelserving"
@@ -108,12 +109,23 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 	}
 
 	// Deploy odh-dashboard manifests
-	err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
-		Path,
-		namespace,
-		scheme, enabled)
-	if err != nil {
-		return err
+	if platform == deploy.OpenDataHub {
+		err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
+			Path,
+			namespace,
+			scheme, enabled)
+		if err != nil {
+			return err
+		}
+	} else {
+		// Apply authentication overlay
+		err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
+			PathSupported,
+			namespace,
+			scheme, enabled)
+		if err != nil {
+			return err
+		}
 	}
 
 	// ISV handling
