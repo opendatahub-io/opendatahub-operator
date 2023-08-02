@@ -6,6 +6,7 @@ FROM registry.access.redhat.com/ubi8/go-toolset:$GOLANG_VERSION as builder
 ARG ODH_MANIFESTS_REF=master
 ARG ODH_MANIFESTS_URL=https://github.com/opendatahub-io/odh-manifests/tarball/$ODH_MANIFESTS_REF
 ARG LOCAL_BUNDLE
+ARG TARGETARCH
 
 WORKDIR /workspace
 USER root
@@ -26,8 +27,7 @@ COPY pkg/ pkg/
 ADD $ODH_MANIFESTS_URL $LOCAL_BUNDLE
 RUN echo "$ODH_MANIFESTS_REF" > MANIFEST_VERSION && chmod g+r $LOCAL_BUNDLE
 # Build
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o manager main.go
-
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -a -o manager main.go
 
 FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
 ARG LOCAL_BUNDLE
