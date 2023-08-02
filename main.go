@@ -180,16 +180,16 @@ func main() {
 		setupLog.Info("created DscInitialization resource")
 	case errors.IsAlreadyExists(err):
 		// Update if already exists
+		setupLog.Info("DscInitialization resource already exists. Updating it.")
 		data, err := json.Marshal(releaseDscInitialization)
 		if err != nil {
 			setupLog.Error(err, "failed to get DscInitialization custom resource data")
 		}
-		err = client.Patch(context.TODO(), releaseDscInitialization, client2.RawPatch(types.ApplyPatchType, data), client2.FieldOwner("opendatahub-operator"))
+		err = client.Patch(context.TODO(), releaseDscInitialization, client2.RawPatch(types.ApplyPatchType, data),
+			client2.ForceOwnership, client2.FieldOwner("opendatahub-operator"))
 		if err != nil {
 			setupLog.Error(err, "failed to update DscInitialization custom resource")
-			os.Exit(1)
 		}
-		setupLog.Info("DscInitialization resource already exists. Updating it.")
 	default:
 		setupLog.Error(err, "failed to create DscInitialization custom resource")
 		os.Exit(1)
