@@ -193,15 +193,16 @@ func manageResource(owner metav1.Object, ctx context.Context, cli client.Client,
 
 		// Check for shared resources before deletion
 		resourceLabels := found.GetLabels()
-		componentCounter := 0
+		var componentCounter []string
 		if resourceLabels != nil {
 			for key, _ := range resourceLabels {
 				if strings.Contains(key, "app.opendatahub.io") {
-					componentCounter = componentCounter + 1
+					compFound := strings.Split(key, "/")[1]
+					componentCounter = append(componentCounter, compFound)
 				}
 			}
 			// Shared resource , do not delete. Remove label from disabled component
-			if componentCounter > 1 {
+			if len(componentCounter) > 1 || (len(componentCounter) == 1 && componentCounter[0] != componentName) {
 				found.SetLabels(resourceLabels)
 				// return, do not delete the shared resource
 				return nil
