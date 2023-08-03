@@ -31,6 +31,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 	appsv1 "k8s.io/api/apps/v1"
 	netv1 "k8s.io/api/networking/v1"
@@ -164,6 +165,12 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		componentErrorList[codeflare.ComponentName] = err
 	}
 
+	// reconcile Ray component
+	if instance, err = r.reconcileSubComponent(instance, ray.ComponentName, instance.Spec.Components.Ray.Enabled, &(instance.Spec.Components.Ray), ctx); err != nil {
+		// no need to log any errors as this is done in the reconcileSubComponent method
+		componentErrorList[ray.ComponentName] = err
+	}
+
 	// Process errors for components
 	if componentErrorList != nil && len(componentErrorList) != 0 {
 		r.Log.Info("DataScienceCluster Deployment Incomplete.")
@@ -176,12 +183,6 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 			"DataScienceCluster instance %s created, but have some failures in component %v", instance.Name, fmt.Sprint(componentErrorList))
 		return ctrl.Result{RequeueAfter: time.Second * 10}, fmt.Errorf(fmt.Sprint(componentErrorList))
 	}
-
-	// reconcile Ray component
-	// if instance, val, err = r.reconcileSubComponent(instance, ray.ComponentName, instance.Spec.Components.Ray.Enabled, &(instance.Spec.Components.Ray), ctx); err != nil {
-	// 	// no need to log any errors as this is done in the reconcileSubComponent method
-	// 	return val, err
-	// }
 
 	// finalize reconciliation
 	instance, err = r.updateStatus(instance, func(saved *dsc.DataScienceCluster) {
