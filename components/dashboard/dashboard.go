@@ -26,6 +26,7 @@ const (
 	PathConsoleLink        = deploy.DefaultManifestPath + "/" + ComponentName + "/consolelink"
 	NameConsoleLink        = "console"
 	NamespaceConsoleLink   = "openshift-console"
+	PathAnaconda           = deploy.DefaultManifestPath + "/partners/anaconda/base/"
 )
 
 var imageParamMap = map[string]string{
@@ -102,6 +103,19 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 			scheme, enabled)
 		if err != nil {
 			return fmt.Errorf("failed to set dashboard OVMS from %s: %v", PathOVMS, err)
+		}
+
+		// Apply anaconda config
+		err = common.CreateSecret(cli, "anaconda-ce-access", namespace)
+		if err != nil {
+			return fmt.Errorf("failed to create access-secret for anaconda: %v", err)
+		}
+		err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
+			PathAnaconda,
+			namespace,
+			scheme, enabled)
+		if err != nil {
+			return fmt.Errorf("failed to deploy anaconda resources from %s: %v", PathAnaconda, err)
 		}
 	}
 
