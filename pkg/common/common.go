@@ -87,3 +87,28 @@ func CreateSecret(cli client.Client, name, namespace string) error {
 	}
 	return nil
 }
+
+func CreateNamespace(cli client.Client, namespace string) error {
+	desiredNamespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: namespace,
+			Labels: map[string]string{
+				"opendatahub.io/generated-namespace": "true",
+			},
+		},
+	}
+
+	foundNamespace := &corev1.Namespace{}
+	err := cli.Get(context.TODO(), client.ObjectKey{Name: namespace}, foundNamespace)
+	if err != nil {
+		if apierrs.IsNotFound(err) {
+			err = cli.Create(context.TODO(), desiredNamespace)
+			if err != nil && !apierrs.IsAlreadyExists(err) {
+				return err
+			}
+		} else {
+			return err
+		}
+	}
+	return nil
+}
