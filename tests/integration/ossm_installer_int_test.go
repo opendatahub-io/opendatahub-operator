@@ -45,8 +45,8 @@ var _ = When("Migrating Data Science Projects", func() {
 		Eventually(findMigratedNamespaces, timeout, interval).Should(
 			And(
 				HaveLen(1),
-				ContainElement("dsp-01")
-		),
+				ContainElement("dsp-01"),
+			),
 		)
 	})
 
@@ -82,8 +82,8 @@ var _ = When("Migrating Data Science Projects", func() {
 		Eventually(findMigratedNamespaces, timeout, interval).Should(
 			And(
 				HaveLen(3),
-				ContainElements("dsp-01", "dsp-02", "dsp-03")
-		),
+				ContainElements("dsp-01", "dsp-02", "dsp-03"),
+			),
 		)
 	})
 
