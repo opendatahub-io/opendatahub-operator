@@ -78,7 +78,6 @@ func (r *SecretGeneratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // based on the specified type and complexity. This will avoid possible race
 // conditions when a deployment mounts the secret before it is reconciled
 func (r *SecretGeneratorReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
 	foundSecret := &v1.Secret{}
 	err := r.Client.Get(context.TODO(), request.NamespacedName, foundSecret)
 	if err != nil {

@@ -194,12 +194,12 @@ spec:
           default to "opendatahub"
         displayName: Applications Namespace
         path: applicationsNamespace
-      - description: Internal development useful field
-        displayName: Manifests Uri
-        path: manifestsUri
       - description: Enable monitoring on specified namespace
         displayName: Monitoring
         path: monitoring
+      - description: Internal development useful field
+        displayName: Manifests Uri
+        path: manifestsUri
       statusDescriptors:
       - description: Conditions describes the state of the DSCInitializationStatus
           resource.
