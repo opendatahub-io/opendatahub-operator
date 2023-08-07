@@ -99,7 +99,7 @@ func (o *OssmInstaller) Init(_ kftypesv3.ResourceEnum) error {
 		return internalError(err)
 	}
 
-	if err := o.MigrateDSProjects(); err != nil {
+	if err := o.MigrateDataScienceProjects(); err != nil {
 		log.Error(err, "failed migrating Data Science Projects")
 	}
 
@@ -201,7 +201,7 @@ func (o *OssmInstaller) createConfigMap(cfgMapName string, data map[string]strin
 	return nil
 }
 
-func (o *OssmInstaller) MigrateDSProjects() error {
+func (o *OssmInstaller) MigrateDataScienceProjects() error {
 
 	client, err := clientset.NewForConfig(o.config)
 	if err != nil {
@@ -217,15 +217,15 @@ func (o *OssmInstaller) MigrateDSProjects() error {
 
 	var result *multierror.Error
 
-	for _, ns := range namespaces.Items {
-		annotations := ns.GetAnnotations()
+	for _, namespace := range namespaces.Items {
+		annotations := namespace.GetAnnotations()
 		if annotations == nil {
 			annotations = map[string]string{}
 		}
 		annotations["opendatahub.io/service-mesh"] = "true"
-		ns.SetAnnotations(annotations)
+		namespace.SetAnnotations(annotations)
 
-		if _, err := client.CoreV1().Namespaces().Update(context.TODO(), &ns, metav1.UpdateOptions{}); err != nil {
+		if _, err := client.CoreV1().Namespaces().Update(context.TODO(), &namespace, metav1.UpdateOptions{}); err != nil {
 			result = multierror.Append(result, err)
 		}
 	}

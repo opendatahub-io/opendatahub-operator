@@ -39,7 +39,7 @@ var _ = When("Migrating Data Science Projects", func() {
 		defer objectCleaner.DeleteAll(dataScienceNs, regularNs)
 
 		// when
-		Expect(ossmInstaller.MigrateDSProjects()).ToNot(HaveOccurred())
+		Expect(ossmInstaller.MigrateDataScienceProjects()).ToNot(HaveOccurred())
 
 		// then
 		Eventually(findMigratedNamespaces, timeout, interval).Should(
@@ -57,7 +57,7 @@ var _ = When("Migrating Data Science Projects", func() {
 		defer objectCleaner.DeleteAll(regularNs)
 
 		// when
-		Expect(ossmInstaller.MigrateDSProjects()).ToNot(HaveOccurred())
+		Expect(ossmInstaller.MigrateDataScienceProjects()).ToNot(HaveOccurred())
 
 		// then
 		Consistently(findMigratedNamespaces, timeout, interval).Should(BeEmpty()) // we can't wait forever, but this should be good enough
@@ -76,7 +76,7 @@ var _ = When("Migrating Data Science Projects", func() {
 		defer objectCleaner.DeleteAll(dataScienceNs01, dataScienceNs02, dataScienceNs03, regularNs)
 
 		// when
-		Expect(ossmInstaller.MigrateDSProjects()).ToNot(HaveOccurred())
+		Expect(ossmInstaller.MigrateDataScienceProjects()).ToNot(HaveOccurred())
 
 		// then
 		Eventually(findMigratedNamespaces, timeout, interval).Should(
