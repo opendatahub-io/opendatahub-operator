@@ -122,6 +122,8 @@ func (o *OssmInstaller) Generate(resources kftypesv3.ResourceEnum) error {
 		return internalError(errors.WithStack(err))
 	}
 
+	o.PatchODHDashboardConfig(o.Namespace)
+
 	o.onCleanup(
 		o.oauthClientRemoval(),
 		o.ingressVolumesRemoval(),

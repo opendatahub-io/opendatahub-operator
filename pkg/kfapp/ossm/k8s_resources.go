@@ -215,3 +215,49 @@ func (o *OssmInstaller) CheckSMCPStatus(name, namespace string) (string, error) 
 
 	return status, nil
 }
+
+func (o *OssmInstaller) PatchODHDashboardConfig(namespace string) error {
+	dynamicClient, err := dynamic.NewForConfig(o.config)
+	if err != nil {
+		log.Info("Failed to initialize dynamic client")
+		return err
+	}
+
+	gvr := schema.GroupVersionResource{
+		Group:    "opendatahub.io",
+		Version:  "v1alpha",
+		Resource: "odhdashboardconfigs",
+	}
+
+	configs, err := dynamicClient.Resource(gvr).List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
+
+	if len(configs.Items) == 0 {
+		log.Info("No odhdashboardconfig found in namespace, doing nothing")
+		return nil
+	}
+
+	// Assuming there is only one odhdashboardconfig in the namespace, patching the first one
+	config := configs.Items[0]
+	if config.Object["spec"] == nil {
+		config.Object["spec"] = map[string]interface{}{}
+	}
+	spec := config.Object["spec"].(map[string]interface{})
+	if spec["dashboardConfig"] == nil {
+		spec["dashboardConfig"] = map[string]interface{}{}
+	}
+	dashboardConfig := spec["dashboardConfig"].(map[string]interface{})
+	dashboardConfig["disableServiceMesh"] = false
+
+	_, err = dynamicClient.Resource(gvr).Namespace(namespace).Update(context.Background(), &config, metav1.UpdateOptions{})
+	if err != nil {
+		log.Error(err, "Failed to update odhdashboardconfig")
+		return err
+	}
+
+	log.Info("Successfully patched odhdashboardconfig")
+	return nil
+
+}
