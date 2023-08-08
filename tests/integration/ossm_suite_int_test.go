@@ -55,6 +55,7 @@ var _ = BeforeSuite(func() {
 			Paths: []string{
 				filepath.Join(projectDir, "config", "crd", "bases"),
 				filepath.Join(projectDir, "config", "crd", "dashboard-crds"),
+				filepath.Join(projectDir, "pkg", "kfapp", "ossm", "test", "crd"),
 			},
 			ErrorIfPathMissing: true,
 			CleanUpAfterUse:    false,

@@ -78,7 +78,13 @@ func (o *OssmInstaller) Init(_ kftypesv3.ResourceEnum) error {
 		return internalError(errors.New(reason))
 	}
 
-	// TODO ensure operators are installed
+	if err := o.VerifyCRDInstalled("operator.authorino.kuadrant.io", "v1beta1", "authorinos"); err != nil {
+		log.Info("Failed to find the pre-requisite authorinos CRD, please ensure Authorino operator is installed.")
+		return internalError(err)
+	}
+	if err := o.ensureServiceMeshInstalled(pluginSpec); err != nil {
+		return internalError(err)
+	}
 
 	if err := o.createResourceTracker(); err != nil {
 		return internalError(err)
@@ -231,6 +237,26 @@ func (o *OssmInstaller) MigrateDataScienceProjects() error {
 	}
 
 	return result.ErrorOrNil()
+}
+
+func (o *OssmInstaller) ensureServiceMeshInstalled(pluginSpec *ossmplugin.OssmPluginSpec) error {
+	if err := o.VerifyCRDInstalled("maistra.io", "v2", "servicemeshcontrolplanes"); err != nil {
+		log.Info("Failed to find the pre-requisite SMCP CRD, please ensure OSSM operator is installed.")
+		return internalError(err)
+	}
+	smcp := pluginSpec.Mesh.Name
+	smcpNs := pluginSpec.Mesh.Namespace
+
+	status, err := o.CheckSMCPStatus(smcp, smcpNs)
+	if err != nil {
+		log.Info("An error occurred while checking SMCP status - ensure the SMCP referenced exists.")
+		return internalError(err)
+	}
+	if status != "Ready" {
+		log.Info("The referenced SMCP is not ready.", "SMCP name", smcp, "SMCP NS", smcpNs)
+		return internalError(errors.New("SMCP status is not ready"))
+	}
+	return nil
 }
 
 func internalError(err error) error {

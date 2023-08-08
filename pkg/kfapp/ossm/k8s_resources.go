@@ -168,3 +168,50 @@ func (o *OssmInstaller) PatchResourceFromFile(filename string, elems ...configty
 	}
 	return nil
 }
+
+func (o *OssmInstaller) VerifyCRDInstalled(group string, version string, resource string) error {
+	dynamicClient, err := dynamic.NewForConfig(o.config)
+	if err != nil {
+		log.Error(err, "Failed to initialize dynamic client")
+		return err
+	}
+
+	crdGVR := schema.GroupVersionResource{
+		Group:    group,
+		Version:  version,
+		Resource: resource,
+	}
+
+	_, err = dynamicClient.Resource(crdGVR).List(context.Background(), metav1.ListOptions{})
+	return err
+}
+
+func (o *OssmInstaller) CheckSMCPStatus(name, namespace string) (string, error) {
+	dynamicClient, err := dynamic.NewForConfig(o.config)
+	if err != nil {
+		log.Info("Failed to initialize dynamic client")
+		return "", err
+	}
+
+	gvr := schema.GroupVersionResource{
+		Group:    "maistra.io",
+		Version:  "v1",
+		Resource: "servicemeshcontrolplanes",
+	}
+
+	unstructObj, err := dynamicClient.Resource(gvr).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	if err != nil {
+		log.Info("Failed to find SMCP")
+		return "", err
+	}
+
+	conditions, found, err := unstructured.NestedSlice(unstructObj.Object, "status", "conditions")
+	if err != nil || !found {
+		log.Info("status conditions not found or error in parsing of SMCP")
+		return "", err
+	}
+	lastCondition := conditions[len(conditions)-1].(map[string]interface{})
+	status := lastCondition["type"].(string)
+
+	return status, nil
+}
