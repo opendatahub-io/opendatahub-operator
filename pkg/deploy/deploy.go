@@ -207,6 +207,12 @@ func manageResource(owner metav1.Object, ctx context.Context, cli client.Client,
 				// return, do not delete the shared resource
 				return nil
 			}
+
+			// Do not delete CRDs, as those can be used by non-odh components
+			if found.GetKind() == "CustomResourceDefinition" {
+				return nil
+			}
+
 		}
 
 		if obj.GetOwnerReferences() == nil {
