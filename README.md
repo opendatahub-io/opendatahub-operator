@@ -41,6 +41,42 @@ Refer [Dev-Preview.md](./docs/Dev-Preview.md) for testing preview features.
 - Go version **go1.18.9**
 - operator-sdk version can be updated to **v1.24.1**
 
+#### Download manifests
+
+`get_all_manifests.sh` is used to fetch manifests from remote git repos.
+
+It uses a local empty folder `odh-manifests` to host all manifests operator needs, either from `odh-manifests` git repo or from component's source repo.
+
+The way to config this is to update `get_all_manifests.sh` REPO_LIST variable.
+By adding new entity in variable `REPO_LIST` in the format of `<repo-name>:<branch-name>:<source-folder>:<target-folder>` this will:
+
+- git clone remote repo `opendatahub-io/<repo-name>` from its `<branch-name>` branch
+- copy content from its relative path `<source-folder>` into local `odh-manifests/<target-folder>` folder
+
+For those components cannot directly use manifests from `opendatahub-io/<repo-name>`, it falls back to use `opendatahub-io/odh-manifests` git repo. To control which version of `opendatahub-io/odh-manifests` to download, this is set in the `get_all_manifests.sh` variable `MANIFEST_RELEASE`.
+
+##### for local development
+
+```
+
+make get-manifests
+```
+
+This first cleanup your local `odh-manifests` folder.
+Ensure back up before run this command if you have local changes of manifests want to re-user later.
+
+##### for build operator image
+
+```
+
+make image-build
+```
+
+By default, building an image without any local changes(as a clean build)
+This is what the production build system does. Same for the "make image-build" does.
+
+In order to build an image with local `odh-manifests` folder, to set `--build-arg USE_LOCAL=true` in Makefile.
+
 #### Build Image
 
 - Custom operator image can be built using your local repository
