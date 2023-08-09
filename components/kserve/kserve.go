@@ -6,7 +6,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
@@ -48,18 +47,12 @@ func (d *Kserve) SetEnabled(enabled bool) {
 
 func (d *Kserve) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, enabled bool, namespace string) error {
 
-	// Update Default rolebinding
-	err := common.UpdatePodSecurityRolebinding(cli, []string{"kserve-controller-manager"}, namespace)
-	if err != nil {
-		return err
-	}
-
 	// Update image parameters
 	if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
 		return err
 	}
 
-	err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
+	err := deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 		Path,
 		namespace,
 		scheme, enabled)
