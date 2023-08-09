@@ -36,6 +36,22 @@ func ApplyNamespacePlugin(manifestNamespace string, resMap resmap.ResMap) error 
 				Path:               "subjects/namespace",
 				CreateIfNotPresent: true,
 			},
+			{
+				Gvk: resid.Gvk{
+					Group: "kustomize.config.k8s.io/v1beta1",
+					Kind:  "Kustomization",
+				},
+				Path:               "namespace",
+				CreateIfNotPresent: false,
+			},
+			{
+				Gvk: resid.Gvk{
+					Group: "admissionregistration.k8s.io",
+					Kind:  "MutatingWebhookConfiguration",
+				},
+				Path:               "webhooks/clientConfig/service/namespace",
+				CreateIfNotPresent: true,
+			},
 		},
 		UnsetOnly:              false,
 		SetRoleBindingSubjects: namespace.AllServiceAccountSubjects,

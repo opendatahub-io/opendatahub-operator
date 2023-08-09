@@ -3,17 +3,36 @@ This operator is the primary operator for Open Data Hub. It is responsible for e
 Jupyter Notebooks, Modelmesh serving, Datascience pipelines etc. The operator makes use of `DataScienceCluster` CRD to deploy
 and configure these applications.
 
-## Dev Preview
-
-Developer Preview of the new Open Data Hub operator codebase is now avaible.
-Refer [Dev-Preview.md](./docs/Dev-Preview.md) for testing preview features. 
-
 ## Usage
 
 ### Installation
 
-The latest version of operator can be installed from the community-operators catalog on OperatorHub. It can also be build
+The latest version of operator can be installed from the `community-operators` catalog on `OperatorHub`. It can also be build
 and installed from source manually, see the Developer guide for further instructions.
+
+1. Subscribe to operator by creating following subscription
+    ```console
+    cat <<EOF | oc create -f -
+    apiVersion: operators.coreos.com/v1alpha1
+    kind: Subscription
+    metadata:
+      name: opendatahub-operator
+      namespace: openshift-operators
+    spec:
+      channel: fast
+      name: opendatahub-operator
+      source: community-operators
+      sourceNamespace: openshift-marketplace
+    EOF
+    ```
+
+2. Create [DataScienceCluster](#example-datasciencecluster) CR to enable components
+
+## Dev Preview
+
+Developer Preview of the new Open Data Hub operator codebase is now avaible.
+Refer [Dev-Preview.md](./docs/Dev-Preview.md) for testing preview features.
+
 
 ### Developer Guide
 

@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	corev1 "k8s.io/api/core/v1"
 	authv1 "k8s.io/api/rbac/v1"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strings"
 )
@@ -58,5 +61,54 @@ func ReplaceStringsInFile(fileName string, replacements map[string]string) error
 		return fmt.Errorf("failed to write to file: %v", err)
 	}
 
+	return nil
+}
+
+func CreateSecret(cli client.Client, name, namespace string) error {
+	desiredSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Type: corev1.SecretTypeOpaque,
+	}
+
+	foundSecret := &corev1.Secret{}
+	err := cli.Get(context.TODO(), client.ObjectKey{Name: name, Namespace: namespace}, foundSecret)
+	if err != nil {
+		if apierrs.IsNotFound(err) {
+			err = cli.Create(context.TODO(), desiredSecret)
+			if err != nil && !apierrs.IsAlreadyExists(err) {
+				return err
+			}
+		} else {
+			return err
+		}
+	}
+	return nil
+}
+
+func CreateNamespace(cli client.Client, namespace string) error {
+	desiredNamespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: namespace,
+			Labels: map[string]string{
+				"opendatahub.io/generated-namespace": "true",
+			},
+		},
+	}
+
+	foundNamespace := &corev1.Namespace{}
+	err := cli.Get(context.TODO(), client.ObjectKey{Name: namespace}, foundNamespace)
+	if err != nil {
+		if apierrs.IsNotFound(err) {
+			err = cli.Create(context.TODO(), desiredNamespace)
+			if err != nil && !apierrs.IsAlreadyExists(err) {
+				return err
+			}
+		} else {
+			return err
+		}
+	}
 	return nil
 }

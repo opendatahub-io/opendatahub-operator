@@ -23,17 +23,18 @@ import (
 )
 
 // DSCInitializationSpec defines the desired state of DSCInitialization
+// +operator-sdk:csv:customresourcedefinitions:order=1
 type DSCInitializationSpec struct {
 	// +kubebuilder:default:=opendatahub
 	// Namespace for applications to be installed, non-configurable, default to "opendatahub"
-	// +operator-sdk:csv:customresourcedefinitions:type=spec
+	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=1
 	ApplicationsNamespace string `json:"applicationsNamespace"`
 	// Enable monitoring on specified namespace
-	// +operator-sdk:csv:customresourcedefinitions:type=spec
+	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=2
 	// +optional
 	Monitoring Monitoring `json:"monitoring,omitempty"`
 	// Internal development useful field
-	// +operator-sdk:csv:customresourcedefinitions:type=spec
+	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=3
 	// +optional
 	ManifestsUri string `json:"manifestsUri,omitempty"`
 }
