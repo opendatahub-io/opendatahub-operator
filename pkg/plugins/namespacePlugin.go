@@ -38,10 +38,10 @@ func ApplyNamespacePlugin(manifestNamespace string, resMap resmap.ResMap) error 
 			},
 			{
 				Gvk: resid.Gvk{
-					Group: "kustomize.config.k8s.io/v1beta1",
-					Kind:  "Kustomization",
+					Group: "admissionregistration.k8s.io",
+					Kind:  "ValidatingWebhookConfiguration",
 				},
-				Path:               "namespace",
+				Path:               "webhooks/clientConfig/service/namespace",
 				CreateIfNotPresent: false,
 			},
 			{
@@ -50,7 +50,15 @@ func ApplyNamespacePlugin(manifestNamespace string, resMap resmap.ResMap) error 
 					Kind:  "MutatingWebhookConfiguration",
 				},
 				Path:               "webhooks/clientConfig/service/namespace",
-				CreateIfNotPresent: true,
+				CreateIfNotPresent: false,
+			},
+			{
+				Gvk: resid.Gvk{
+					Group: "apiextensions.k8s.io",
+					Kind:  "CustomResourceDefinition",
+				},
+				Path:               "spec/conversion/webhook/clientConfig/service/namespace",
+				CreateIfNotPresent: false,
 			},
 		},
 		UnsetOnly:              false,
