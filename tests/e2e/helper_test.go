@@ -11,6 +11,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 	corev1 "k8s.io/api/core/v1"
 
@@ -57,6 +58,7 @@ func setupDSCInstance() *dsc.DataScienceCluster {
 		},
 		Spec: dsc.DataScienceClusterSpec{
 			Components: dsc.Components{
+				// keep dashboard as enabled, because other test is rely on this
 				Dashboard: dashboard.Dashboard{
 					Component: components.Component{
 						Enabled: true,
@@ -87,6 +89,11 @@ func setupDSCInstance() *dsc.DataScienceCluster {
 						Enabled: false,
 					},
 				},
+				Ray: ray.Ray{
+					Component: components.Component{
+						Enabled: true,
+					},
+				},
 			},
 		},
 	}
@@ -104,7 +111,7 @@ func (tc *testContext) validateCRD(crdName string) error {
 			if errors.IsNotFound(err) {
 				return false, nil
 			}
-			log.Printf("Failed to get %s crd", crdName)
+			log.Printf("Failed to get CRD %s", crdName)
 			return false, err
 		}
 
@@ -115,7 +122,7 @@ func (tc *testContext) validateCRD(crdName string) error {
 				}
 			}
 		}
-		log.Printf("Error in getting %s crd ", crdName)
+		log.Printf("Error to get CRD %s condition's matching", crdName)
 		return false, nil
 
 	})
