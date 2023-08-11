@@ -6,12 +6,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 const (
-	ComponentName = "kserve"
-	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
+	ComponentName          = "kserve"
+	Path                   = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
+	DependentComponentName = "odh-model-controller"
+	DependentPath          = deploy.DefaultManifestPath + "/" + DependentComponentName + "/base"
 )
 
 var imageParamMap = map[string]string{
@@ -19,6 +22,10 @@ var imageParamMap = map[string]string{
 	"kserve-agent":               "RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE",
 	"kserve-controller":          "RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE",
 	"kserve-storage-initializer": "RELATED_IMAGE_ODH_KSERVE_STORAGE_INITIALIZER_IMAGE",
+}
+
+var dependentImageParamMap = map[string]string{
+	"odh-model-controller": "RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
 }
 
 type Kserve struct {
@@ -52,11 +59,31 @@ func (d *Kserve) ReconcileComponent(owner metav1.Object, cli client.Client, sche
 		return err
 	}
 
-	err := deploy.DeployManifestsFromPath(owner, cli, ComponentName,
+	if err := deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 		Path,
 		namespace,
-		scheme, enabled)
-	return err
+		scheme, enabled); err != nil {
+		return err
+	}
+
+	err := common.UpdatePodSecurityRolebinding(cli, []string{"odh-model-controller"}, namespace)
+	if err != nil {
+		return err
+	}
+
+	// Update image parameters
+	if err := deploy.ApplyImageParams(Path, dependentImageParamMap); err != nil {
+		return err
+	}
+
+	if err := deploy.DeployManifestsFromPath(owner, cli, ComponentName,
+		DependentPath,
+		namespace,
+		scheme, enabled); err != nil {
+		return err
+	}
+	return nil
+
 }
 
 func (in *Kserve) DeepCopyInto(out *Kserve) {
