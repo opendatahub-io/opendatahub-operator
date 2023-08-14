@@ -19,6 +19,10 @@ package datasciencecluster
 import (
 	"context"
 	"fmt"
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1alpha1"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -113,6 +117,36 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 			_ = r.reportError(err, instance, fmt.Sprintf("failed to add conditions to status of DataScienceCluster resource on namespace %s and name %s", req.Namespace, req.Name))
 			return ctrl.Result{}, err
 		}
+	}
+
+	// Verify a valid DSCInitialization instance is created
+	dsciInstances := &dsci.DSCInitializationList{}
+	err = r.Client.List(ctx, dsciInstances)
+	if err != nil {
+		r.Log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
+		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to retrieve DSCInitialization instance")
+		return ctrl.Result{}, err
+	}
+
+	// Update phase to error state if DataScienceCluster is created without valid DSCInitialization
+	if len(dsciInstances.Items) == 0 {
+		reason := status.ReconcileFailed
+		message := "Failed to get a valid DSCInitialization instance"
+		instance, err = r.updateStatus(instance, func(saved *dsc.DataScienceCluster) {
+			status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
+			saved.Status.Phase = status.PhaseError
+		})
+		if err != nil {
+			r.Log.Error(err, "failed to update DataScienceCluster condition")
+			return ctrl.Result{}, err
+		} else {
+			return ctrl.Result{}, nil
+		}
+	} else if len(dsciInstances.Items) == 1 {
+		// Set Applications namespace defined in DSCInitialization
+		r.ApplicationsNamespace = dsciInstances.Items[0].Spec.ApplicationsNamespace
+	} else {
+		return ctrl.Result{}, fmt.Errorf(fmt.Sprintf("only one instance of DSCInitialization object is allowed."))
 	}
 
 	// Ensure all omitted components show up as explicitly disabled
@@ -282,6 +316,7 @@ func (r *DataScienceClusterReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		Owns(&appsv1.Deployment{}).
 		Owns(&appsv1.ReplicaSet{}).
 		Owns(&corev1.Pod{}).
+		Watches(&source.Kind{Type: &dsci.DSCInitialization{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources)).
 		// this predicates prevents meaningless reconciliations from being triggered
 		WithEventFilter(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{})).
 		Complete(r)
@@ -323,4 +358,18 @@ func (r *DataScienceClusterReconciler) updateComponents(original *dsc.DataScienc
 		return err
 	})
 	return saved, err
+}
+
+func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(a client.Object) (requests []reconcile.Request) {
+	instanceList := &dsc.DataScienceClusterList{}
+	err := r.Client.List(context.TODO(), instanceList)
+	if err != nil {
+		return nil
+	}
+	if len(instanceList.Items) == 1 {
+		return []reconcile.Request{{
+			NamespacedName: types.NamespacedName{Name: instanceList.Items[0].Name}}}
+	} else {
+		return nil
+	}
 }

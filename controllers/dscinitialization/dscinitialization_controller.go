@@ -19,6 +19,7 @@ package dscinitialization
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -71,16 +72,33 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	r.Log.Info("Reconciling DSCInitialization.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
 
 	instance := &dsci.DSCInitialization{}
-	// Only apply reconcile logic to 'default' instance of DataScienceInitialization
-	err := r.Client.Get(ctx, types.NamespacedName{Name: "default"}, instance)
+	// First check if instance is being deleted, return
+	if instance.GetDeletionTimestamp() != nil {
+		return ctrl.Result{}, nil
+	}
+
+	// Second check if instance exists, return
+	err := r.Client.Get(context.TODO(), types.NamespacedName{Name: req.Name}, instance)
 	if err != nil {
 		if apierrs.IsNotFound(err) {
-			// DataScienceInitialization instance not found.
+			// DSCInitialization instance not found
 			return ctrl.Result{}, nil
 		}
 		r.Log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
 		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to retrieve DSCInitialization instance")
 		return ctrl.Result{}, err
+	}
+
+	// Last check if multiple instances of DSCInitialization exist
+	instanceList := &dsci.DSCInitializationList{}
+	err = r.Client.List(context.TODO(), instanceList)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	if len(instanceList.Items) > 1 {
+		message := fmt.Sprintf("only one instance of DSCInitialization object is allowed. Update existing instance on namespace %s and name %s", req.Namespace, req.Name)
+		return ctrl.Result{}, fmt.Errorf(message)
 	}
 
 	// Start reconciling
