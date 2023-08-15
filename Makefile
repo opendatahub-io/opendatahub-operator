@@ -139,7 +139,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 
 .PHONY: image-build
 image-build: test ## Build image with the manager.
-	$(IMAGE_BUILDER) build -f Dockerfiles/Dockerfile -t $(IMG) .
+	$(IMAGE_BUILDER) build -f Dockerfiles/Dockerfile --build-arg MANIFEST_RELEASE=$(MANIFEST_RELEASE) -t $(IMG) .
 
 .PHONY: image-push
 image-push: ## Push image with the manager.
