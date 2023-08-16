@@ -11,5 +11,5 @@ metadata:
 spec:
   monitoring:
     enabled: false
-    namespace: 'opendatahub-system'
-  applicationsNamespace: 'opendatahub-system'
+    namespace: 'opendatahub'
+  applicationsNamespace: 'opendatahub'
