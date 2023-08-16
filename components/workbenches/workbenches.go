@@ -45,8 +45,21 @@ func (w *Workbenches) SetEnabled(enabled bool) {
 }
 
 func (w *Workbenches) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, enabled bool, namespace string) error {
+	// Set default notebooks namespace
+	// Create rhods-notebooks namespace in managed platforms
+	platform, err := deploy.GetPlatform(cli)
+	if err != nil {
+		return err
+	}
+	if platform != deploy.OpenDataHub {
+		err := common.CreateNamespace(cli, "rhods-notebooks")
+		if err != nil {
+			// no need to log error as it was already logged in createOdhNamespace
+			return err
+		}
+	}
 	// Update Default rolebinding
-	err := common.UpdatePodSecurityRolebinding(cli, []string{"notebook-controller-service-account"}, namespace)
+	err = common.UpdatePodSecurityRolebinding(cli, []string{"notebook-controller-service-account"}, namespace)
 	if err != nil {
 		return err
 	}
