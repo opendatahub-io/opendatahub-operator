@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	logr "github.com/go-logr/logr"
@@ -181,12 +180,6 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 
 		// Apply common rhods-specific config
-		// Create rhods-notebooks namespace
-		err = common.CreateNamespace(r.Client, "rhods-notebooks")
-		if err != nil {
-			// no need to log error as it was already logged in createOdhNamespace
-			return reconcile.Result{}, err
-		}
 	}
 
 	// If monitoring enabled
