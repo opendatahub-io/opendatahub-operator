@@ -9,6 +9,9 @@ metadata:
           "kind": "OdhQuickStart",
           "metadata": {
             "annotations": {
+              "internal.config.kubernetes.io/previousKinds": "OdhQuickStart",
+              "internal.config.kubernetes.io/previousNames": "create-jupyter-notebook",
+              "internal.config.kubernetes.io/previousNamespaces": "default",
               "opendatahub.io/categories": "Getting started,Notebook environments"
             },
             "labels": {
@@ -125,10 +128,10 @@ metadata:
             "name": "default"
           },
           "spec": {
-            "applicationsNamespace": "opendatahub-system",
+            "applicationsNamespace": "opendatahub",
             "monitoring": {
               "enabled": false,
-              "namespace": "opendatahub-system"
+              "namespace": "opendatahub"
             }
           }
         },
