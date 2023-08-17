@@ -31,6 +31,11 @@ const (
 
 var secGenLog = log.Log.WithName("secret-generator")
 
+// +kubebuilder:rbac:groups="oauth.openshift.io",resources=oauthclients,verbs=create;delete;get
+// +kubebuilder:rbac:groups="core",resources=secrets,verbs=watch;get;create
+// +kubebuilder:rbac:groups="route.openshift.io",resources=routes,verbs=get
+// +kubebuilder:rbac:groups="core",resources=secrets/finalizers,verbs=*
+
 // ReconcileSecretGenerator holds the controller configuration
 type SecretGeneratorReconciler struct {
 	Client client.Client
@@ -174,14 +179,14 @@ func (r *SecretGeneratorReconciler) getRoute(name string, namespace string) (*ro
 	return route, err
 }
 
-func (r *SecretGeneratorReconciler) createOAuthClient(name string, secret string, uri string) error {
+func (r *SecretGeneratorReconciler) createOAuthClient(name string, secretName string, uri string) error {
 	// Create OAuthClient resource
 	oauthClient := &ocv1.OAuthClient{
 		TypeMeta: metav1.TypeMeta{},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
-		Secret:       secret,
+		Secret:       secretName,
 		RedirectURIs: []string{"https://" + uri},
 		GrantMethod:  ocv1.GrantHandlerAuto,
 	}
