@@ -848,6 +848,7 @@ spec:
           - ingresses
           verbs:
           - delete
+          - get
           - list
           - patch
           - watch
@@ -916,6 +917,54 @@ spec:
           verbs:
           - '*'
         - apiGroups:
+          - maistra.io
+          resources:
+          - servicemeshcontrolplanes
+          verbs:
+          - create
+          - get
+          - list
+          - patch
+          - update
+          - use
+          - watch
+        - apiGroups:
+          - maistra.io
+          resources:
+          - servicemeshmemberrolls
+          verbs:
+          - create
+          - get
+          - list
+          - patch
+          - update
+          - use
+          - watch
+        - apiGroups:
+          - maistra.io
+          resources:
+          - servicemeshmembers
+          verbs:
+          - create
+          - get
+          - list
+          - patch
+          - update
+          - use
+          - watch
+        - apiGroups:
+          - maistra.io
+          resources:
+          - servicemeshmembers/finalizers
+          verbs:
+          - create
+          - get
+          - list
+          - patch
+          - update
+          - use
+          - watch
+        - apiGroups:
           - mcad.ibm.com
           resources:
           - appwrappers
@@ -924,6 +973,18 @@ spec:
           - delete
           - list
           - patch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
+          - podmonitors
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
         - apiGroups:
           - monitoring.coreos.com
           resources:
@@ -987,6 +1048,7 @@ spec:
           verbs:
           - create
           - delete
+          - get
           - list
           - patch
           - update
@@ -1126,6 +1188,18 @@ spec:
           - update
           - watch
         - apiGroups:
+          - security.istio.io
+          resources:
+          - peerauthentications
+          verbs:
+          - create
+          - get
+          - list
+          - patch
+          - update
+          - use
+          - watch
+        - apiGroups:
           - security.openshift.io
           resources:
           - securitycontextconstraints
@@ -1233,6 +1307,7 @@ spec:
           verbs:
           - create
           - delete
+          - get
           - list
           - patch
           - update
@@ -1244,6 +1319,7 @@ spec:
           verbs:
           - create
           - delete
+          - get
           - list
           - patch
           - update
@@ -1295,6 +1371,7 @@ spec:
           verbs:
           - create
           - delete
+          - get
           - list
           - patch
           - update
@@ -1339,6 +1416,18 @@ spec:
           - '*'
           verbs:
           - '*'
+        - apiGroups:
+          - telemetry.istio.io
+          resources:
+          - telemetries
+          verbs:
+          - create
+          - get
+          - list
+          - patch
+          - update
+          - use
+          - watch
         - apiGroups:
           - template.openshift.io
           resources:

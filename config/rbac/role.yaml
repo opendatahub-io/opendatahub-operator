@@ -607,6 +607,7 @@ rules:
   - ingresses
   verbs:
   - delete
+  - get
   - list
   - patch
   - watch
@@ -675,6 +676,54 @@ rules:
   verbs:
   - '*'
 - apiGroups:
+  - maistra.io
+  resources:
+  - servicemeshcontrolplanes
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - use
+  - watch
+- apiGroups:
+  - maistra.io
+  resources:
+  - servicemeshmemberrolls
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - use
+  - watch
+- apiGroups:
+  - maistra.io
+  resources:
+  - servicemeshmembers
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - use
+  - watch
+- apiGroups:
+  - maistra.io
+  resources:
+  - servicemeshmembers/finalizers
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - use
+  - watch
+- apiGroups:
   - mcad.ibm.com
   resources:
   - appwrappers
@@ -683,6 +732,18 @@ rules:
   - delete
   - list
   - patch
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - podmonitors
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - monitoring.coreos.com
   resources:
@@ -746,6 +807,7 @@ rules:
   verbs:
   - create
   - delete
+  - get
   - list
   - patch
   - update
@@ -885,6 +947,18 @@ rules:
   - update
   - watch
 - apiGroups:
+  - security.istio.io
+  resources:
+  - peerauthentications
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - use
+  - watch
+- apiGroups:
   - security.openshift.io
   resources:
   - securitycontextconstraints
@@ -992,6 +1066,7 @@ rules:
   verbs:
   - create
   - delete
+  - get
   - list
   - patch
   - update
@@ -1003,6 +1078,7 @@ rules:
   verbs:
   - create
   - delete
+  - get
   - list
   - patch
   - update
@@ -1054,6 +1130,7 @@ rules:
   verbs:
   - create
   - delete
+  - get
   - list
   - patch
   - update
@@ -1098,6 +1175,18 @@ rules:
   - '*'
   verbs:
   - '*'
+- apiGroups:
+  - telemetry.istio.io
+  resources:
+  - telemetries
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - use
+  - watch
 - apiGroups:
   - template.openshift.io
   resources:

@@ -93,14 +93,14 @@ type DataScienceClusterReconciler struct {
 // +kubebuilder:rbac:groups="serving.kserve.io",resources=trainedmodels/status,verbs=update;patch;delete
 // +kubebuilder:rbac:groups="serving.kserve.io",resources=trainedmodels,verbs=create;delete;list;update;watch;patch
 // +kubebuilder:rbac:groups="serving.kserve.io",resources=servingruntimes/status,verbs=update;patch
-// +kubebuilder:rbac:groups="serving.kserve.io",resources=servingruntimes/finalizers,verbs=create;delete;list;update;watch;patch
+// +kubebuilder:rbac:groups="serving.kserve.io",resources=servingruntimes/finalizers,verbs=create;delete;list;update;watch;patch;get
 // +kubebuilder:rbac:groups="serving.kserve.io",resources=servingruntimes,verbs=*
 // +kubebuilder:rbac:groups="serving.kserve.io",resources=predictors/status,verbs=update;patch;delete
 // +kubebuilder:rbac:groups="serving.kserve.io",resources=predictors/finalizers,verbs=update;patch
 // +kubebuilder:rbac:groups="serving.kserve.io",resources=predictors,verbs=create;delete;list;update;watch;patch
 // +kubebuilder:rbac:groups="serving.kserve.io",resources=inferenceservices/status,verbs=update;patch;delete
-// +kubebuilder:rbac:groups="serving.kserve.io",resources=inferenceservices/finalizers,verbs=create;delete;list;update;watch;patch
-// +kubebuilder:rbac:groups="serving.kserve.io",resources=inferenceservices,verbs=create;delete;list;update;watch;patch
+// +kubebuilder:rbac:groups="serving.kserve.io",resources=inferenceservices/finalizers,verbs=create;delete;list;update;watch;patch;get
+// +kubebuilder:rbac:groups="serving.kserve.io",resources=inferenceservices,verbs=create;delete;list;update;watch;patch;get
 // +kubebuilder:rbac:groups="serving.kserve.io",resources=inferencegraphs/status,verbs=update;patch;delete
 // +kubebuilder:rbac:groups="serving.kserve.io",resources=inferencegraphs,verbs=create;delete;list;update;watch;patch
 // +kubebuilder:rbac:groups="serving.kserve.io",resources=clusterservingruntimes/status,verbs=update;patch;delete
@@ -136,13 +136,14 @@ type DataScienceClusterReconciler struct {
 // +kubebuilder:rbac:groups="oauth.openshift.io",resources=oauthclients,verbs=*
 
 // +kubebuilder:rbac:groups="networking.k8s.io",resources=networkpolicies,verbs=get;create;list;watch;delete;update;patch
-// +kubebuilder:rbac:groups="networking.k8s.io",resources=ingresses,verbs=create;delete;list;update;watch;patch
+// +kubebuilder:rbac:groups="networking.k8s.io",resources=ingresses,verbs=create;delete;list;update;watch;patch;get
 
 // +kubebuilder:rbac:groups="networking.istio.io",resources=virtualservices/status,verbs=update;patch;delete
 // +kubebuilder:rbac:groups="networking.istio.io",resources=virtualservices/finalizers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="networking.istio.io",resources=virtualservices,verbs=*
 
 // +kubebuilder:rbac:groups="monitoring.coreos.com",resources=servicemonitors,verbs=get;create;delete;update;watch;list;patch
+// +kubebuilder:rbac:groups="monitoring.coreos.com",resources=podmonitors,verbs=get;create;delete;update;watch;list;patch
 // +kubebuilder:rbac:groups="monitoring.coreos.com",resources=prometheusrules,verbs=get;create;patch;delete
 // +kubebuilder:rbac:groups="monitoring.coreos.com",resources=prometheuses,verbs=get;create;patch;delete
 
@@ -162,7 +163,7 @@ type DataScienceClusterReconciler struct {
 // +kubebuilder:rbac:groups="image.openshift.io",resources=imagestreams,verbs=create;list;watch;patch;delete
 
 // +kubebuilder:rbac:groups="extensions",resources=replicasets,verbs=*
-// +kubebuilder:rbac:groups="extensions",resources=ingresses,verbs=list;watch;patch;delete
+// +kubebuilder:rbac:groups="extensions",resources=ingresses,verbs=list;watch;patch;delete;get
 
 // +kubebuilder:rbac:groups="dscinitialization.opendatahub.io",resources=dscinitializations/status,verbs=get;update;patch;delete
 // +kubebuilder:rbac:groups="dscinitialization.opendatahub.io",resources=dscinitializations/finalizers,verbs=get;update;patchdelete
@@ -258,6 +259,14 @@ type DataScienceClusterReconciler struct {
 // +kubebuilder:rbac:groups="*",resources=replicasets,verbs=*
 
 // +kubebuilder:rbac:groups="*",resources=customresourcedefinitions,verbs=get;list;watch
+
+// +kubebuilder:rbac:groups="maistra.io",resources=servicemeshcontrolplanes,verbs=create;get;list;patch;update;use;watch
+// +kubebuilder:rbac:groups="maistra.io",resources=servicemeshmemberrolls,verbs=create;get;list;patch;update;use;watch
+// +kubebuilder:rbac:groups="maistra.io",resources=servicemeshmembers,verbs=create;get;list;patch;update;use;watch
+// +kubebuilder:rbac:groups="maistra.io",resources=servicemeshmembers/finalizers,verbs=create;get;list;patch;update;use;watch
+
+// +kubebuilder:rbac:groups="security.istio.io",resources=peerauthentications,verbs=create;get;list;patch;update;use;watch
+// +kubebuilder:rbac:groups="telemetry.istio.io",resources=telemetries,verbs=create;get;list;patch;update;use;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
