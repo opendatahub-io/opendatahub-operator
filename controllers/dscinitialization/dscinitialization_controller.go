@@ -25,7 +25,6 @@ import (
 
 	logr "github.com/go-logr/logr"
 
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 
 	ocuserv1 "github.com/openshift/api/user/v1"
@@ -68,7 +67,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 
 	// Second check if instance exists, return
-	err := r.Client.Get(context.TODO(), types.NamespacedName{Name: req.Name}, instance)
+	err := r.Client.Get(ctx, req.NamespacedName, instance)
 	if err != nil {
 		if apierrs.IsNotFound(err) {
 			// DSCInitialization instance not found
@@ -81,7 +80,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	// Last check if multiple instances of DSCInitialization exist
 	instanceList := &dsci.DSCInitializationList{}
-	err = r.Client.List(context.TODO(), instanceList)
+	err = r.Client.List(ctx, instanceList)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -95,7 +94,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	if instance.Status.Conditions == nil {
 		reason := status.ReconcileInit
 		message := "Initializing DSCInitialization resource"
-		instance, err = r.updateStatus(instance, func(saved *dsci.DSCInitialization) {
+		instance, err = r.updateStatus(ctx, instance, func(saved *dsci.DSCInitialization) {
 			status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
 			saved.Status.Phase = status.PhaseProgressing
 		})
@@ -157,7 +156,9 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 					Name: "rhods-admins",
 				},
 			}
-			err := r.Client.Get(ctx, client.ObjectKey{Name: rhodsuserGroup.Name}, rhodsuserGroup)
+			err := r.Client.Get(ctx, client.ObjectKey{
+				Name: rhodsuserGroup.Name,
+			}, rhodsuserGroup)
 			if err != nil {
 				if apierrs.IsNotFound(err) {
 					err = r.Client.Create(ctx, rhodsuserGroup)
@@ -184,7 +185,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			}
 		case deploy.ManagedRhods:
 			r.Log.Info("Monitoring enabled", "cluster", "Managed Service Mode")
-			err := r.configureManagedMonitoring(instance)
+			err := r.configureManagedMonitoring(ctx, instance)
 			if err != nil {
 				// no need to log error as it was already logged in configureManagedMonitoring
 				return reconcile.Result{}, err
@@ -200,7 +201,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 
 	// Finish reconciling
-	_, err = r.updateStatus(instance, func(saved *dsci.DSCInitialization) {
+	_, err = r.updateStatus(ctx, instance, func(saved *dsci.DSCInitialization) {
 		status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, status.ReconcileCompletedMessage)
 		saved.Status.Phase = status.PhaseReady
 	})
@@ -266,11 +267,11 @@ var singletonPredicate = predicate.Funcs{
 	},
 }
 
-func (r *DSCInitializationReconciler) updateStatus(original *dsci.DSCInitialization, update func(saved *dsci.DSCInitialization)) (*dsci.DSCInitialization, error) {
+func (r *DSCInitializationReconciler) updateStatus(ctx context.Context, original *dsci.DSCInitialization, update func(saved *dsci.DSCInitialization)) (*dsci.DSCInitialization, error) {
 	saved := &dsci.DSCInitialization{}
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 
-		err := r.Client.Get(context.TODO(), client.ObjectKeyFromObject(original), saved)
+		err := r.Client.Get(ctx, client.ObjectKeyFromObject(original), saved)
 		if err != nil {
 			return err
 		}
@@ -278,7 +279,7 @@ func (r *DSCInitializationReconciler) updateStatus(original *dsci.DSCInitializat
 		update(saved)
 
 		// Try to update
-		err = r.Client.Status().Update(context.TODO(), saved)
+		err = r.Client.Status().Update(ctx, saved)
 		// Return err itself here (not wrapped inside another error)
 		// so that RetryOnConflict can identify it correctly.
 		return err

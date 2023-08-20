@@ -9,9 +9,6 @@ metadata:
           "kind": "OdhQuickStart",
           "metadata": {
             "annotations": {
-              "internal.config.kubernetes.io/previousKinds": "OdhQuickStart",
-              "internal.config.kubernetes.io/previousNames": "create-jupyter-notebook",
-              "internal.config.kubernetes.io/previousNamespaces": "default",
               "opendatahub.io/categories": "Getting started,Notebook environments"
             },
             "labels": {
@@ -531,7 +528,6 @@ spec:
           resources:
           - builds
           verbs:
-          - catch
           - create
           - delete
           - list
@@ -621,6 +617,7 @@ spec:
           - create
           - delete
           - get
+          - list
           - patch
           - watch
         - apiGroups:
@@ -665,6 +662,7 @@ spec:
           - create
           - delete
           - get
+          - list
           - patch
           - update
           - watch
@@ -861,8 +859,9 @@ spec:
           resources:
           - dscinitializations/finalizers
           verbs:
+          - delete
           - get
-          - patchdelete
+          - patch
           - update
         - apiGroups:
           - dscinitialization.opendatahub.io

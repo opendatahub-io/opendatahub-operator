@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	operatorv1 "github.com/openshift/api/operator/v1"
-	"strings"
-
 	routev1 "github.com/openshift/api/route/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
@@ -16,15 +14,16 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"strings"
 
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
-func configurePrometheus(dsciInit *dsci.DSCInitialization, r *DSCInitializationReconciler) error {
+func configurePrometheus(ctx context.Context, dsciInit *dsci.DSCInitialization, r *DSCInitializationReconciler) error {
 	// Get alertmanager host
 	alertmanagerRoute := &routev1.Route{}
-	err := r.Client.Get(context.TODO(), client.ObjectKey{
+	err := r.Client.Get(ctx, client.ObjectKey{
 		Namespace: dsciInit.Spec.Monitoring.Namespace,
 		Name:      "alertmanager",
 	}, alertmanagerRoute)
@@ -35,7 +34,7 @@ func configurePrometheus(dsciInit *dsci.DSCInitialization, r *DSCInitializationR
 
 	// Get alertmanager configmap
 	alertManagerConfigMap := &corev1.ConfigMap{}
-	err = r.Client.Get(context.TODO(), client.ObjectKey{
+	err = r.Client.Get(ctx, client.ObjectKey{
 		Namespace: dsciInit.Spec.Monitoring.Namespace,
 		Name:      "alertmanager",
 	}, alertManagerConfigMap)
@@ -51,7 +50,7 @@ func configurePrometheus(dsciInit *dsci.DSCInitialization, r *DSCInitializationR
 
 	// Get promethus configmap
 	prometheusConfigMap := &corev1.ConfigMap{}
-	err = r.Client.Get(context.TODO(), client.ObjectKey{
+	err = r.Client.Get(ctx, client.ObjectKey{
 		Namespace: dsciInit.Spec.Monitoring.Namespace,
 		Name:      "prometheus",
 	}, prometheusConfigMap)
@@ -101,30 +100,30 @@ func configurePrometheus(dsciInit *dsci.DSCInitialization, r *DSCInitializationR
 	return nil
 }
 
-func configureAlertManager(dsciInit *dsci.DSCInitialization, r *DSCInitializationReconciler) error {
+func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization, r *DSCInitializationReconciler) error {
 	// Get Deadmansnitch secret
-	deadmansnitchSecret, err := r.waitForManagedSecret("redhat-rhods-deadmanssnitch", dsciInit.Spec.Monitoring.Namespace)
+	deadmansnitchSecret, err := r.waitForManagedSecret(ctx, "redhat-rhods-deadmanssnitch", dsciInit.Spec.Monitoring.Namespace)
 	if err != nil {
 		r.Log.Error(err, "error getting deadmansnitch secret from namespace "+dsciInit.Spec.Monitoring.Namespace)
 		return err
 	}
 
 	// Get PagerDuty Secret
-	pagerDutySecret, err := r.waitForManagedSecret("redhat-rhods-pagerduty", dsciInit.Spec.Monitoring.Namespace)
+	pagerDutySecret, err := r.waitForManagedSecret(ctx, "redhat-rhods-pagerduty", dsciInit.Spec.Monitoring.Namespace)
 	if err != nil {
 		r.Log.Error(err, "error getting pagerduty secret from namespace "+dsciInit.Spec.Monitoring.Namespace)
 		return err
 	}
 
 	// Get Smtp Secret
-	smtpSecret, err := r.waitForManagedSecret("redhat-rhods-smtp", dsciInit.Spec.Monitoring.Namespace)
+	smtpSecret, err := r.waitForManagedSecret(ctx, "redhat-rhods-smtp", dsciInit.Spec.Monitoring.Namespace)
 	if err != nil {
 		r.Log.Error(err, "error getting smtp secret from namespace "+dsciInit.Spec.Monitoring.Namespace)
 		return err
 	}
 
 	// Get SMTP receiver email secret (assume operator namespace for managed service is not configable)
-	smtpEmailSecret, err := r.waitForManagedSecret("addon-managed-odh-parameters", "redhat-ods-operator")
+	smtpEmailSecret, err := r.waitForManagedSecret(ctx, "addon-managed-odh-parameters", "redhat-ods-operator")
 	if err != nil {
 		return fmt.Errorf("error getting smtp receiver email secret: %v", err)
 	}
@@ -191,14 +190,14 @@ func configureBlackboxExporter(dsciInit *dsci.DSCInitialization, cli client.Clie
 	return nil
 }
 
-func (r *DSCInitializationReconciler) configureManagedMonitoring(dscInit *dsci.DSCInitialization) error {
+func (r *DSCInitializationReconciler) configureManagedMonitoring(ctx context.Context, dscInit *dsci.DSCInitialization) error {
 	// configure Alertmanager
-	if err := configureAlertManager(dscInit, r); err != nil {
+	if err := configureAlertManager(ctx, dscInit, r); err != nil {
 		return fmt.Errorf("error in configureAlertManager: %v", err)
 	}
 
 	// configure Prometheus
-	if err := configurePrometheus(dscInit, r); err != nil {
+	if err := configurePrometheus(ctx, dscInit, r); err != nil {
 		return fmt.Errorf("error in configurePrometheus: %v", err)
 	}
 
