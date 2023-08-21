@@ -36,8 +36,10 @@ var _ components.ComponentInterface = (*Ray)(nil)
 func (d *Ray) ReconcileComponent(owner metav1.Object, client client.Client, scheme *runtime.Scheme, enabled bool, namespace string) error {
 
 	// Update image parameters
-	if err := deploy.ApplyImageParams(RayPath, imageParamMap); err != nil {
-		return err
+	if enabled {
+		if err := deploy.ApplyImageParams(RayPath, imageParamMap); err != nil {
+			return err
+		}
 	}
 	// Deploy Ray Operator
 	err := deploy.DeployManifestsFromPath(owner, client, ComponentName,

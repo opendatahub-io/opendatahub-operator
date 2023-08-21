@@ -51,19 +51,22 @@ func (w *Workbenches) ReconcileComponent(owner metav1.Object, cli client.Client,
 	if err != nil {
 		return err
 	}
-	if platform != deploy.OpenDataHub {
-		err := common.CreateNamespace(cli, "rhods-notebooks")
+
+	if enabled {
+		if platform != deploy.OpenDataHub {
+			err := common.CreateNamespace(cli, "rhods-notebooks")
+			if err != nil {
+				// no need to log error as it was already logged in createOdhNamespace
+				return err
+			}
+		}
+		// Update Default rolebinding
+		err = common.UpdatePodSecurityRolebinding(cli, []string{"notebook-controller-service-account"}, namespace)
 		if err != nil {
-			// no need to log error as it was already logged in createOdhNamespace
 			return err
 		}
-	}
-	// Update Default rolebinding
-	err = common.UpdatePodSecurityRolebinding(cli, []string{"notebook-controller-service-account"}, namespace)
-	if err != nil {
-		return err
-	}
 
+	}
 	// Update image parameters
 	if err := deploy.ApplyImageParams(notebookControllerPath, imageParamMap); err != nil {
 		return err

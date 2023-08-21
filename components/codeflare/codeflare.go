@@ -52,13 +52,13 @@ func (d *CodeFlare) ReconcileComponent(owner metav1.Object, client client.Client
 					CodeflareOperator, CodeflareOperatorNamespace, ComponentName)
 			}
 		}
-	}
 
-	// Update image parameters
-	if err := deploy.ApplyImageParams(CodeflarePath, imageParamMap); err != nil {
-		return err
-	}
+		// Update image parameters
+		if err := deploy.ApplyImageParams(CodeflarePath, imageParamMap); err != nil {
+			return err
+		}
 
+	}
 	// Deploy Codeflare
 	err := deploy.DeployManifestsFromPath(owner, client, ComponentName,
 		CodeflarePath,

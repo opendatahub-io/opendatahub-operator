@@ -52,17 +52,18 @@ func (m *ModelMeshServing) SetEnabled(enabled bool) {
 func (m *ModelMeshServing) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, enabled bool, namespace string) error {
 
 	// Update Default rolebinding
-	err := common.UpdatePodSecurityRolebinding(cli, []string{"modelmesh", "modelmesh-controller", "odh-model-controller", "odh-prometheus-operator", "prometheus-custom"}, namespace)
-	if err != nil {
-		return err
+	if enabled {
+		err := common.UpdatePodSecurityRolebinding(cli, []string{"modelmesh", "modelmesh-controller", "odh-model-controller", "odh-prometheus-operator", "prometheus-custom"}, namespace)
+		if err != nil {
+			return err
+		}
 	}
-
 	// Update image parameters
 	if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
 		return err
 	}
 
-	err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
+	err := deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 		Path,
 		namespace,
 		scheme, enabled)

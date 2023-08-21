@@ -52,71 +52,76 @@ var _ components.ComponentInterface = (*Dashboard)(nil)
 func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, enabled bool, namespace string) error {
 
 	// TODO: Add any additional tasks if required when reconciling component
+
 	// Update Default rolebinding
 	platform, err := deploy.GetPlatform(cli)
 	if err != nil {
 		return err
 	}
-	if platform == deploy.OpenDataHub {
-		err := common.UpdatePodSecurityRolebinding(cli, []string{"odh-dashboard"}, namespace)
-		if err != nil {
-			return err
-		}
-	} else {
-		err := common.UpdatePodSecurityRolebinding(cli, []string{"rhods-dashboard"}, namespace)
-		if err != nil {
-			return err
-		}
-	}
-
-	// Apply RHODS specific configs
-	if platform != deploy.OpenDataHub {
-		// Replace admin group
-		if platform == deploy.SelfManagedRhods {
-			err = common.ReplaceStringsInFile(PathODHDashboardConfig+"/odhdashboardconfig.yaml", map[string]string{
-				"<admin_groups>": "rhods-admins",
-			})
+	if enabled {
+		if platform == deploy.OpenDataHub {
+			err := common.UpdatePodSecurityRolebinding(cli, []string{"odh-dashboard"}, namespace)
 			if err != nil {
 				return err
 			}
 		} else {
-			err = common.ReplaceStringsInFile(PathODHDashboardConfig+"/odhdashboardconfig.yaml", map[string]string{
-				"<admin_groups>": "dedicated-admins",
-			})
+			err := common.UpdatePodSecurityRolebinding(cli, []string{"rhods-dashboard"}, namespace)
 			if err != nil {
 				return err
 			}
 		}
-		// Create ODHDashboardConfig if it doesn't exist already
-		err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
-			PathODHDashboardConfig,
-			namespace,
-			scheme, enabled)
-		if err != nil {
-			return fmt.Errorf("failed to set dashboard config from %s: %v", PathODHDashboardConfig, err)
-		}
 
-		// Apply modelserving config
-		err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
-			PathOVMS,
-			namespace,
-			scheme, enabled)
-		if err != nil {
-			return fmt.Errorf("failed to set dashboard OVMS from %s: %v", PathOVMS, err)
+		// Apply RHODS specific configs
+		if platform != deploy.OpenDataHub {
+			// Replace admin group
+			if platform == deploy.SelfManagedRhods {
+				err = common.ReplaceStringsInFile(PathODHDashboardConfig+"/odhdashboardconfig.yaml", map[string]string{
+					"<admin_groups>": "rhods-admins",
+				})
+				if err != nil {
+					return err
+				}
+			} else {
+				err = common.ReplaceStringsInFile(PathODHDashboardConfig+"/odhdashboardconfig.yaml", map[string]string{
+					"<admin_groups>": "dedicated-admins",
+				})
+				if err != nil {
+					return err
+				}
+			}
 		}
+	}
+	// Create ODHDashboardConfig if it doesn't exist already
+	err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
+		PathODHDashboardConfig,
+		namespace,
+		scheme, enabled)
+	if err != nil {
+		return fmt.Errorf("failed to set dashboard config from %s: %v", PathODHDashboardConfig, err)
+	}
 
+	// Apply modelserving config
+	err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
+		PathOVMS,
+		namespace,
+		scheme, enabled)
+	if err != nil {
+		return fmt.Errorf("failed to set dashboard OVMS from %s: %v", PathOVMS, err)
+	}
+
+	if enabled {
 		// Apply anaconda config
 		err = common.CreateSecret(cli, "anaconda-ce-access", namespace)
 		if err != nil {
 			return fmt.Errorf("failed to create access-secret for anaconda: %v", err)
 		}
-		err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
-			PathAnaconda,
-			namespace,
-			scheme, enabled)
-		if err != nil {
-			return fmt.Errorf("failed to deploy anaconda resources from %s: %v", PathAnaconda, err)
-		}
+	}
+	err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
+		PathAnaconda,
+		namespace,
+		scheme, enabled)
+	if err != nil {
+		return fmt.Errorf("failed to deploy anaconda resources from %s: %v", PathAnaconda, err)
 	}
 
 	// Update image parameters
