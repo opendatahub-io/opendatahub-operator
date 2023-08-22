@@ -1,26 +1,26 @@
 package datasciencecluster
 
-//+kubebuilder:rbac:groups="datasciencepipelinesapplications.opendatahub.io",resources=datasciencepipelinesapplications/status,verbs=update;patch
-//+kubebuilder:rbac:groups="datasciencepipelinesapplications.opendatahub.io",resources=datasciencepipelinesapplications/finalizers,verbs=update;patch
-//+kubebuilder:rbac:groups="datasciencepipelinesapplications.opendatahub.io",resources=datasciencepipelinesapplications,verbs=create;delete;list;update;watch;patch
-
 //+kubebuilder:rbac:groups="datasciencecluster.opendatahub.io",resources=datascienceclusters/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups="datasciencecluster.opendatahub.io",resources=datascienceclusters/finalizers,verbs=update;patch
 //+kubebuilder:rbac:groups="datasciencecluster.opendatahub.io",resources=datascienceclusters,verbs=get;list;watch;create;update;patch;delete
 
+/* This is for DSP */
+//+kubebuilder:rbac:groups="datasciencepipelinesapplications.opendatahub.io",resources=datasciencepipelinesapplications/status,verbs=update;patch
+//+kubebuilder:rbac:groups="datasciencepipelinesapplications.opendatahub.io",resources=datasciencepipelinesapplications/finalizers,verbs=update;patch
+//+kubebuilder:rbac:groups="datasciencepipelinesapplications.opendatahub.io",resources=datasciencepipelinesapplications,verbs=create;delete;list;update;watch;patch
+
+/* This is for dashboard */
 // +kubebuilder:rbac:groups="opendatahub.io",resources=odhdashboardconfigs,verbs=create;get;patch;watch;update;delete;list
 // +kubebuilder:rbac:groups="console.openshift.io",resources=odhquickstarts,verbs=create;get;patch;list;delete
 // +kubebuilder:rbac:groups="dashboard.opendatahub.io",resources=odhdocuments,verbs=create;get;patch;list;delete
 // +kubebuilder:rbac:groups="dashboard.opendatahub.io",resources=odhapplications,verbs=create;get;patch;list;delete
-// +kubebuilder:rbac:groups="console.openshift.io",resources=consolelinks,verbs=create;get;patch;delete
 
-// +kubebuilder:rbac:groups=operators.coreos.com,resources=clusterserviceversions,verbs=get;list;watch
-
-// +kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,verbs=get;list;watch
+// +kubebuilder:rbac:groups="operators.coreos.com",resources=clusterserviceversions,verbs=get;list;watch
 // +kubebuilder:rbac:groups="operators.coreos.com",resources=customresourcedefinitions,verbs=create;get;patch;delete
 
+// +kubebuilder:rbac:groups="apiextensions.k8s.io",resources=customresourcedefinitions,verbs=get;list;watch
+
 // +kubebuilder:rbac:groups="user.openshift.io",resources=users,verbs=list;watch;patch;delete
-// +kubebuilder:rbac:groups="user.openshift.io",resources=groups,verbs=get;create;list;watch;patch;delete
 
 // +kubebuilder:rbac:groups="template.openshift.io",resources=templates,verbs=*
 
@@ -92,6 +92,7 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="machine.openshift.io",resources=machinesets,verbs=list;patch;delete
 // +kubebuilder:rbac:groups="machine.openshift.io",resources=machineautoscalers,verbs=list;patch;delete
 
+/* TODO: cleanup once kfdef is not needed*/
 // +kubebuilder:rbac:groups="kubeflow.org",resources=*,verbs=*
 // +kubebuilder:rbac:groups="kfdef.apps.kubeflow.org",resources=kfdefs,verbs=get;list;watch;patch;delete
 
@@ -102,10 +103,6 @@ package datasciencecluster
 
 // +kubebuilder:rbac:groups="extensions",resources=replicasets,verbs=*
 // +kubebuilder:rbac:groups="extensions",resources=ingresses,verbs=list;watch;patch;delete;get
-
-// +kubebuilder:rbac:groups="dscinitialization.opendatahub.io",resources=dscinitializations/status,verbs=get;update;patch;delete
-// +kubebuilder:rbac:groups="dscinitialization.opendatahub.io",resources=dscinitializations/finalizers,verbs=get;update;patch;delete
-// +kubebuilder:rbac:groups="dscinitialization.opendatahub.io",resources=dscinitializations,verbs=get;list;watch;create;update;patch;delete
 
 // +kubebuilder:rbac:groups="custom.tekton.dev",resources=pipelineloops,verbs=*
 
@@ -128,8 +125,7 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="core",resources=persistentvolumeclaims,verbs=*
 
 // +kubebuilder:rbac:groups="core",resources=namespaces/finalizers,verbs=update;list;watch;patch;delete
-// +kubebuilder:rbac:groups="core",resources=namespaces,verbs=update;list;patch;delete
-// +kubebuilder:rbac:groups="core",resources=namespaces,verbs=get;create;patch;delete;watch
+// +kubebuilder:rbac:groups="core",resources=namespaces,verbs=get;create;patch;delete;watch;update;list
 
 // +kubebuilder:rbac:groups="core",resources=events,verbs=get;create;watch;update;list;patch;delete
 // +kubebuilder:rbac:groups="core",resources=events,verbs=delete
@@ -138,7 +134,7 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="core",resources=endpoints,verbs=watch;list
 
 // +kubebuilder:rbac:groups="core",resources=configmaps/status,verbs=get;update;patch;delete
-// +kubebuilder:rbac:groups="core",resources=configmaps,verbs=get;create;list;watch;patch;delete
+// +kubebuilder:rbac:groups="core",resources=configmaps,verbs=get;create;watch;patch;delete;list
 
 // +kubebuilder:rbac:groups="core",resources=clusterversions,verbs=watch;list
 // +kubebuilder:rbac:groups="config.openshift.io",resources=clusterversions,verbs=watch;list
@@ -190,6 +186,7 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=validatingwebhookconfigurations,verbs=get;list;watch;create;update;delete;patch
 // +kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=mutatingwebhookconfigurations,verbs=create;delete;list;update;watch;patch
 
+/* This is needed to derterminiate cluster type */
 // +kubebuilder:rbac:groups="addons.managed.openshift.io",resources=addons,verbs=get
 
 // +kubebuilder:rbac:groups="*",resources=statefulsets,verbs=create;update;get;list;watch;patch;delete
@@ -203,5 +200,6 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="maistra.io",resources=servicemeshmembers,verbs=create;get;list;patch;update;use;watch
 // +kubebuilder:rbac:groups="maistra.io",resources=servicemeshmembers/finalizers,verbs=create;get;list;patch;update;use;watch
 
-// +kubebuilder:rbac:groups="security.istio.io",resources=peerauthentications,verbs=create;get;list;patch;update;use;watch
-// +kubebuilder:rbac:groups="telemetry.istio.io",resources=telemetries,verbs=create;get;list;patch;update;use;watch
+/* Only for RHODS */
+/* +kubebuilder:rbac:groups="user.openshift.io",resources=groups,verbs=get;create;list;watch;patch;delete*/
+/* +kubebuilder:rbac:groups="console.openshift.io",resources=consolelinks,verbs=create;get;patch;delete */
