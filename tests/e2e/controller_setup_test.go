@@ -81,7 +81,7 @@ func NewTestContext() (*testContext, error) {
 	dscInit := &dsci.DSCInitialization{}
 	err = custClient.Get(context.TODO(), types.NamespacedName{Name: "default"}, dscInit)
 	if err != nil {
-		return nil, errors.Wrap(err, "error getting DSCInitialization instance")
+		return nil, errors.Wrap(err, "error getting DSCInitialization instance 'default'")
 	}
 
 	return &testContext{
@@ -108,13 +108,15 @@ func TestOdhOperator(t *testing.T) {
 	utilruntime.Must(dsc.AddToScheme(scheme))
 
 	// individual test suites after the operator is running
-	if !t.Run("validate operator pod", testODHOperatorValidation) {
+	if !t.Run("validate operator pod is running", testODHOperatorValidation) {
 		return
 	}
-	// Run create and delete tests for all the test KfDefs
-	t.Run("create", creationTestSuite)
+	// Run create and delete tests for all the components
+	t.Run("create Opendatahub components", creationTestSuite)
+
+	// Run deleteion if skipDeletion is not set
 	if !skipDeletion {
-		t.Run("delete", deletionTestSuite)
+		t.Run("delete components", deletionTestSuite)
 	}
 }
 

@@ -26,33 +26,31 @@ func creationTestSuite(t *testing.T) {
 	t.Run(testCtx.testDsc.Name, func(t *testing.T) {
 		t.Run("Creation of DataScienceCluster instance", func(t *testing.T) {
 			err = testCtx.testDSCCreation()
-			require.NoError(t, err, "error creating DataScienceCluster object ")
+			require.NoError(t, err, "error creating DataScienceCluster instance")
 		})
-		t.Run("Validate deployed applications", func(t *testing.T) {
-			err = testCtx.testAllDSCApplications()
-			require.NoError(t, err, "error testing deployments for application %v", testCtx.testDsc.Name)
-
+		t.Run("Validate all deployed components", func(t *testing.T) {
+			err = testCtx.testAllApplicationCreation(t)
+			require.NoError(t, err, "error testing deployments for DataScienceCluster: "+testCtx.testDsc.Name)
 		})
-		t.Run("Validate Ownerrefrences are added", func(t *testing.T) {
+		t.Run("Validate Ownerrefrences exist", func(t *testing.T) {
 			err = testCtx.testOwnerrefrences()
-			require.NoError(t, err, "error testing DSC Ownerrefrences ")
+			require.NoError(t, err, "error getting all DataScienceCluster's Ownerrefrences")
 		})
-		t.Run("Validate Controller Reverts Updates", func(t *testing.T) {
-			err = testCtx.testUpdateManagedResource()
-			require.NoError(t, err, "error testing updates for DSC managed resource ")
+		t.Run("Validate Controller reconcile", func(t *testing.T) {
+			// only test Dashboard component for now
+			err = testCtx.testUpdateComponentReconcile()
+			require.NoError(t, err, "error testing updates for DSC managed resource")
 		})
 		t.Run("Validate Component Enabled field", func(t *testing.T) {
-			err = testCtx.testUpdatingComponentEnabledField()
+			err = testCtx.testUpdateDSCComponentEnabled()
 			require.NoError(t, err, "error testing component enabled field")
 		})
-
 	})
-
 }
 
 func (tc *testContext) testDSCCreation() error {
-
 	// Create DataScienceCluster resource if not already created
+
 	dscLookupKey := types.NamespacedName{Name: tc.testDsc.Name}
 	createdDSC := &dsc.DataScienceCluster{}
 	existingDSCList := &dsc.DataScienceClusterList{}
@@ -72,7 +70,7 @@ func (tc *testContext) testDSCCreation() error {
 			nberr := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (done bool, err error) {
 				creationErr := tc.customClient.Create(tc.ctx, tc.testDsc)
 				if creationErr != nil {
-					log.Printf("Error creating DSC resource %v: %v, trying again",
+					log.Printf("error creating DSC resource %v: %v, trying again",
 						tc.testDsc.Name, creationErr)
 					return false, nil
 				} else {
@@ -80,17 +78,18 @@ func (tc *testContext) testDSCCreation() error {
 				}
 			})
 			if nberr != nil {
-				return fmt.Errorf("error creating test DSC %s: %v", tc.testDsc.Name, nberr)
+				return fmt.Errorf("error creating e2e-test DSC %s: %v", tc.testDsc.Name, nberr)
 			}
 		} else {
-			return fmt.Errorf("error getting test DSC %s: %v", tc.testDsc.Name, err)
+			return fmt.Errorf("error getting e2e-test DSC %s: %v", tc.testDsc.Name, err)
 		}
 	}
 	return nil
 }
 
-func (tc *testContext) testAllDSCApplications() error {
+func (tc *testContext) testAllApplicationCreation(t *testing.T) error {
 	// Validate test instance is in Ready state
+
 	dscLookupKey := types.NamespacedName{Name: tc.testDsc.Name}
 	createdDSC := &dsc.DataScienceCluster{}
 
@@ -106,80 +105,116 @@ func (tc *testContext) testAllDSCApplications() error {
 	// Verify DSC instance is in Ready phase
 	if tc.testDsc.Status.Phase != "Ready" {
 		return fmt.Errorf("DSC instance is not in Ready phase. Current phase: %v", tc.testDsc.Status.Phase)
-
-	}
-	// Verify every component status matches the given enable value
-
-	err = tc.testDSCApplication(&(tc.testDsc.Spec.Components.Dashboard))
-	// enabled applications should not have any error
-	if tc.testDsc.Spec.Components.Dashboard.Enabled {
-		if err != nil {
-			return fmt.Errorf("error validating application %v", tc.testDsc.Spec.Components.Dashboard)
-		}
-	} else {
-		if err == nil {
-			return fmt.Errorf("error validating application %v", tc.testDsc.Spec.Components.Dashboard)
-		}
 	}
 
-	err = tc.testDSCApplication(&(tc.testDsc.Spec.Components.ModelMeshServing))
-	if tc.testDsc.Spec.Components.ModelMeshServing.Enabled {
-		if err != nil {
-			return fmt.Errorf("error validating application %v", tc.testDsc.Spec.Components.ModelMeshServing)
+	t.Run("Validate Dashboard", func(t *testing.T) {
+		// speed testing in parallel
+		t.Parallel()
+		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.Dashboard))
+		if tc.testDsc.Spec.Components.Dashboard.Enabled {
+			if err != nil {
+				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Dashboard.GetComponentName())
+			}
+		} else {
+			if err == nil {
+				require.NoError(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.Dashboard.GetComponentName())
+			}
 		}
-	} else {
-		if err == nil {
-			return fmt.Errorf("error validating application %v", tc.testDsc.Spec.Components.ModelMeshServing)
-		}
-	}
+	})
 
-	err = tc.testDSCApplication(&(tc.testDsc.Spec.Components.Kserve))
-	if tc.testDsc.Spec.Components.Kserve.Enabled {
-		if err != nil {
-			return fmt.Errorf("error validating application %v", tc.testDsc.Spec.Components.Kserve)
+	t.Run("Validate ModelMeshServing", func(t *testing.T) {
+		// speed testing in parallel
+		t.Parallel()
+		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.ModelMeshServing))
+		if tc.testDsc.Spec.Components.ModelMeshServing.Enabled {
+			if err != nil {
+				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.ModelMeshServing.GetComponentName())
+			}
+		} else {
+			if err == nil {
+				require.NoError(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.ModelMeshServing.GetComponentName())
+			}
 		}
-	} else {
-		if err == nil {
-			return fmt.Errorf("error validating application %v", tc.testDsc.Spec.Components.Kserve)
-		}
-	}
+	})
 
-	err = tc.testDSCApplication(&(tc.testDsc.Spec.Components.Workbenches))
-	if tc.testDsc.Spec.Components.Workbenches.Enabled {
-		if err != nil {
-			return fmt.Errorf("error validating application %v", tc.testDsc.Spec.Components.Workbenches)
+	t.Run("Validate Kserve", func(t *testing.T) {
+		// speed testing in parallel
+		t.Parallel()
+		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.Kserve))
+		if tc.testDsc.Spec.Components.Kserve.Enabled {
+			if err != nil {
+				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Kserve.GetComponentName())
+			}
+		} else {
+			if err == nil {
+				require.NoError(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.Kserve.GetComponentName())
+			}
 		}
-	} else {
-		if err == nil {
-			return fmt.Errorf("error validating application %v", tc.testDsc.Spec.Components.Workbenches)
-		}
-	}
+	})
 
-	err = tc.testDSCApplication(&(tc.testDsc.Spec.Components.DataSciencePipelines))
-	if tc.testDsc.Spec.Components.DataSciencePipelines.Enabled {
-		if err != nil {
-			return fmt.Errorf("error validating application %v", tc.testDsc.Spec.Components.DataSciencePipelines)
+	t.Run("Validate Workbenches", func(t *testing.T) {
+		// speed testing in parallel
+		t.Parallel()
+		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.Workbenches))
+		if tc.testDsc.Spec.Components.Workbenches.Enabled {
+			if err != nil {
+				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Workbenches.GetComponentName())
+			}
+		} else {
+			if err == nil {
+				require.NoError(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.Workbenches.GetComponentName())
+			}
 		}
-	} else {
-		if err == nil {
-			return fmt.Errorf("error validating application %v", tc.testDsc.Spec.Components.DataSciencePipelines)
-		}
-	}
+	})
 
-	err = tc.testDSCApplication(&(tc.testDsc.Spec.Components.CodeFlare))
-	if tc.testDsc.Spec.Components.CodeFlare.Enabled {
-		if err != nil {
-			return fmt.Errorf("error validating application %v", tc.testDsc.Spec.Components.CodeFlare)
+	t.Run("Validate DataSciencePipelines", func(t *testing.T) {
+		// speed testing in parallel
+		t.Parallel()
+		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.DataSciencePipelines))
+		if tc.testDsc.Spec.Components.DataSciencePipelines.Enabled {
+			if err != nil {
+				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.DataSciencePipelines.GetComponentName())
+			}
+		} else {
+			if err == nil {
+				require.NoError(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.DataSciencePipelines.GetComponentName())
+			}
 		}
-	} else {
-		if err == nil {
-			return fmt.Errorf("error validating application %v", tc.testDsc.Spec.Components.CodeFlare)
+	})
+
+	t.Run("Validate CodeFlare", func(t *testing.T) {
+		// speed testing in parallel
+		t.Parallel()
+		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.CodeFlare))
+		if tc.testDsc.Spec.Components.CodeFlare.Enabled {
+			if err != nil {
+				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.CodeFlare.GetComponentName())
+			}
+		} else {
+			if err == nil {
+				require.NoError(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.CodeFlare.GetComponentName())
+			}
 		}
-	}
+	})
+
+	t.Run("Validate Ray", func(t *testing.T) {
+		// speed testing in parallel
+		t.Parallel()
+		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.Ray))
+		if tc.testDsc.Spec.Components.Ray.Enabled {
+			if err != nil {
+				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Ray.GetComponentName())
+			}
+		} else {
+			if err == nil {
+				require.NoError(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.Ray.GetComponentName())
+			}
+		}
+	})
 	return nil
 }
 
-func (tc *testContext) testDSCApplication(component components.ComponentInterface) error {
+func (tc *testContext) testApplicationCreation(component components.ComponentInterface) error {
 	err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (done bool, err error) {
 		appList, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(context.TODO(), metav1.ListOptions{
 			LabelSelector: "app.kubernetes.io/part-of=" + component.GetComponentName(),
@@ -232,7 +267,7 @@ func (tc *testContext) testOwnerrefrences() error {
 	return nil
 }
 
-func (tc *testContext) testUpdateManagedResource() error {
+func (tc *testContext) testUpdateComponentReconcile() error {
 	// Test Updating Dashboard Replicas
 
 	appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(context.TODO(), metav1.ListOptions{
@@ -257,30 +292,30 @@ func (tc *testContext) testUpdateManagedResource() error {
 		}
 		retrievedDep, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).UpdateScale(context.TODO(), testDeployment.Name, patchedReplica, metav1.UpdateOptions{})
 		if err != nil {
-
-			return fmt.Errorf("error patching application resources : %v", err)
+			return fmt.Errorf("error patching component resources : %v", err)
 		}
 		if retrievedDep.Spec.Replicas != patchedReplica.Spec.Replicas {
-			return fmt.Errorf("failed to patch replicas")
+			return fmt.Errorf("failed to patch replicas : expect to be %v but got %v", patchedReplica.Spec.Replicas, retrievedDep.Spec.Replicas)
 
 		}
+
 		// Sleep for 20 seconds to allow the operator to reconcile
 		time.Sleep(2 * tc.resourceRetryInterval)
 		revertedDep, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).Get(context.TODO(), testDeployment.Name, metav1.GetOptions{})
 		if err != nil {
-			return fmt.Errorf("error getting application resource : %v", err)
+			return fmt.Errorf("error getting component resource after reconcile: %v", err)
 		}
-
 		if *revertedDep.Spec.Replicas != *expectedReplica {
-			return fmt.Errorf("failed to revert updated resource")
+			return fmt.Errorf("failed to revert back replicas : expect to be %v but got %v", *expectedReplica, *revertedDep.Spec.Replicas)
 		}
 	}
 
 	return nil
 }
 
-func (tc *testContext) testUpdatingComponentEnabledField() error {
-	// Update any component to be disabled
+func (tc *testContext) testUpdateDSCComponentEnabled() error {
+	// Test Updating dashboard to be disabled
+
 	var dashboardDeploymentName string
 	if tc.testDsc.Spec.Components.Dashboard.Enabled {
 		appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(context.TODO(), metav1.ListOptions{
@@ -292,9 +327,11 @@ func (tc *testContext) testUpdatingComponentEnabledField() error {
 		if len(appDeployments.Items) > 0 {
 			dashboardDeploymentName = appDeployments.Items[0].Name
 			if appDeployments.Items[0].Status.ReadyReplicas == 0 {
-				return fmt.Errorf("error getting ready replicas of enabled component: %v", dashboardDeploymentName)
+				return fmt.Errorf("error getting enabled component: %s its deployment 'ReadyReplicas'", dashboardDeploymentName)
 			}
 		}
+	} else {
+		return fmt.Errorf("dashboard spec should be in 'enabled: true' state in order to perform test")
 	}
 
 	// Disable component Dashboard
@@ -302,7 +339,7 @@ func (tc *testContext) testUpdatingComponentEnabledField() error {
 		// refresh the instance in case it was updated during the reconcile
 		err := tc.customClient.Get(tc.ctx, types.NamespacedName{Name: tc.testDsc.Name}, tc.testDsc)
 		if err != nil {
-			return err
+			return fmt.Errorf("error getting resource %v", err)
 		}
 		// Disable the Component
 		tc.testDsc.Spec.Components.Dashboard.Enabled = false
@@ -311,21 +348,21 @@ func (tc *testContext) testUpdatingComponentEnabledField() error {
 		err = tc.customClient.Update(context.TODO(), tc.testDsc)
 		// Return err itself here (not wrapped inside another error)
 		// so that RetryOnConflict can identify it correctly.
-		return err
+		if err != nil {
+			return fmt.Errorf("error updating component from 'enabled: true' to 'enabled: false': %v", err)
+		}
+		return nil
 	})
-	if err != nil {
-		return fmt.Errorf("error updating component from enabled true to false %v", err)
-	}
 
 	// Sleep for 20 seconds to allow the operator to reconcile
 	time.Sleep(2 * tc.resourceRetryInterval)
 	_, err = tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).Get(context.TODO(), dashboardDeploymentName, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
-			return nil
+			return nil // correct result: should not find deployment after we disable it already
 		}
-		return err
+		return fmt.Errorf("error getting component resource after reconcile: %v", err)
 	} else {
-		return fmt.Errorf("component %v not disabled", tc.testDsc.Spec.Components.Dashboard.GetComponentName())
+		return fmt.Errorf("component %v is disabled, should not get its deployment %v from NS %v any more", tc.testDsc.Spec.Components.Dashboard.GetComponentName(), dashboardDeploymentName, tc.applicationsNamespace)
 	}
 }
