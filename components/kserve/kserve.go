@@ -66,9 +66,11 @@ func (d *Kserve) ReconcileComponent(owner metav1.Object, cli client.Client, sche
 		return err
 	}
 
-	err := common.UpdatePodSecurityRolebinding(cli, []string{"odh-model-controller"}, namespace)
-	if err != nil {
-		return err
+	if enabled {
+		err := common.UpdatePodSecurityRolebinding(cli, []string{"odh-model-controller"}, namespace)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Update image parameters
