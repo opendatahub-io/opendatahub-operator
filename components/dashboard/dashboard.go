@@ -53,11 +53,11 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 
 	// TODO: Add any additional tasks if required when reconciling component
 
-	// Update Default rolebinding
 	platform, err := deploy.GetPlatform(cli)
 	if err != nil {
 		return err
 	}
+	// Update Default rolebinding
 	if enabled {
 		if platform == deploy.OpenDataHub {
 			err := common.UpdatePodSecurityRolebinding(cli, []string{"odh-dashboard"}, namespace)
@@ -89,39 +89,40 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 					return err
 				}
 			}
-		}
-	}
-	// Create ODHDashboardConfig if it doesn't exist already
-	err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
-		PathODHDashboardConfig,
-		namespace,
-		scheme, enabled)
-	if err != nil {
-		return fmt.Errorf("failed to set dashboard config from %s: %v", PathODHDashboardConfig, err)
-	}
 
-	// Apply modelserving config
-	err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
-		PathOVMS,
-		namespace,
-		scheme, enabled)
-	if err != nil {
-		return fmt.Errorf("failed to set dashboard OVMS from %s: %v", PathOVMS, err)
-	}
+			// Create ODHDashboardConfig if it doesn't exist already
+			err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
+				PathODHDashboardConfig,
+				namespace,
+				scheme, enabled)
+			if err != nil {
+				return fmt.Errorf("failed to set dashboard config from %s: %v", PathODHDashboardConfig, err)
+			}
 
-	if enabled {
-		// Apply anaconda config
-		err = common.CreateSecret(cli, "anaconda-ce-access", namespace)
-		if err != nil {
-			return fmt.Errorf("failed to create access-secret for anaconda: %v", err)
+			// Apply modelserving config
+			err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
+				PathOVMS,
+				namespace,
+				scheme, enabled)
+			if err != nil {
+				return fmt.Errorf("failed to set dashboard OVMS from %s: %v", PathOVMS, err)
+			}
+
+			if enabled {
+				// Apply anaconda config
+				err = common.CreateSecret(cli, "anaconda-ce-access", namespace)
+				if err != nil {
+					return fmt.Errorf("failed to create access-secret for anaconda: %v", err)
+				}
+			}
+			err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
+				PathAnaconda,
+				namespace,
+				scheme, enabled)
+			if err != nil {
+				return fmt.Errorf("failed to deploy anaconda resources from %s: %v", PathAnaconda, err)
+			}
 		}
-	}
-	err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
-		PathAnaconda,
-		namespace,
-		scheme, enabled)
-	if err != nil {
-		return fmt.Errorf("failed to deploy anaconda resources from %s: %v", PathAnaconda, err)
 	}
 
 	// Update image parameters
