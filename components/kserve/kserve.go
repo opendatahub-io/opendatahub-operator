@@ -46,12 +46,14 @@ func (d *Kserve) GetComponentName() string {
 // Verifies that Kserve implements ComponentInterface
 var _ components.ComponentInterface = (*Kserve)(nil)
 
-func (d *Kserve) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, namespace string) error {
+func (d *Kserve) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, namespace string, manifestsUri string) error {
 	enabled := managementState == operatorv1.Managed
 
 	// Update image parameters
-	if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
-		return err
+	if manifestsUri == "" {
+		if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
+			return err
+		}
 	}
 
 	if err := deploy.DeployManifestsFromPath(owner, cli, ComponentName,
@@ -66,11 +68,12 @@ func (d *Kserve) ReconcileComponent(owner metav1.Object, cli client.Client, sche
 		if err != nil {
 			return err
 		}
-	}
-
-	// Update image parameters
-	if err := deploy.ApplyImageParams(Path, dependentImageParamMap); err != nil {
-		return err
+		// Update image parameters for keserve
+		if manifestsUri == "" {
+			if err := deploy.ApplyImageParams(Path, dependentImageParamMap); err != nil {
+				return err
+			}
+		}
 	}
 
 	if err := deploy.DeployManifestsFromPath(owner, cli, ComponentName,

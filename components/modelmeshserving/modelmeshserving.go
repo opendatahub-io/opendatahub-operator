@@ -44,7 +44,7 @@ func (m *ModelMeshServing) SetImageParamsMap(imageMap map[string]string) map[str
 // Verifies that Dashboard implements ComponentInterface
 var _ components.ComponentInterface = (*ModelMeshServing)(nil)
 
-func (m *ModelMeshServing) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, namespace string) error {
+func (m *ModelMeshServing) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, namespace string, manifestsUri string) error {
 	enabled := managementState == operatorv1.Managed
 
 	// Update Default rolebinding
@@ -53,10 +53,12 @@ func (m *ModelMeshServing) ReconcileComponent(owner metav1.Object, cli client.Cl
 		if err != nil {
 			return err
 		}
-	}
-	// Update image parameters
-	if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
-		return err
+		// Update image parameters
+		if manifestsUri == "" {
+			if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
+				return err
+			}
+		}
 	}
 
 	err := deploy.DeployManifestsFromPath(owner, cli, ComponentName,

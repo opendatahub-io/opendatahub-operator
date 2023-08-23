@@ -64,6 +64,7 @@ type DataScienceClusterReconciler struct {
 	// Recorder to generate events
 	Recorder              record.EventRecorder
 	ApplicationsNamespace string
+	ManifestsUri          string
 }
 
 //+kubebuilder:rbac:groups="datasciencepipelinesapplications.opendatahub.io",resources=datasciencepipelinesapplications/status,verbs=update;patch
@@ -347,6 +348,8 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	} else if len(dsciInstances.Items) == 1 {
 		// Set Applications namespace defined in DSCInitialization
 		r.ApplicationsNamespace = dsciInstances.Items[0].Spec.ApplicationsNamespace
+		r.ManifestsUri = dsciInstances.Items[0].Spec.DevFlags.ManifestsUri
+
 	} else {
 		return ctrl.Result{}, fmt.Errorf(fmt.Sprintf("only one instance of DSCInitialization object is allowed."))
 	}
@@ -455,7 +458,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(instance *dsc.DataS
 	}
 
 	// Reconcile component
-	err = component.ReconcileComponent(instance, r.Client, r.Scheme, mngmtState, r.ApplicationsNamespace)
+	err = component.ReconcileComponent(instance, r.Client, r.Scheme, mngmtState, r.ApplicationsNamespace, r.ManifestsUri)
 
 	if err != nil {
 		// reconciliation failed: log errors, raise event and update status accordingly
