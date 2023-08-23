@@ -9,9 +9,46 @@ metadata:
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.1.0
     createdAt: "2023-8-23T00:00:00Z"
     olm.skipRange: '>=1.0.0 <2.0.0'
-    operatorframework.io/initialization-resource: "{ \n  \"apiVersion\": \"datasciencecluster.opendatahub.io/v1alpha1\",\n
-      \ \"kind\": \"DataScienceCluster\", \n  \"metadata\":{ \n    \"name\": \"default\"\n
-      \ },\n  \"spec\": {}\n}"
+    operatorframework.io/initialization-resource: |-
+      {
+        "apiVersion": "datasciencecluster.opendatahub.io/v1alpha1",
+        "kind": "DataScienceCluster",
+        "metadata": {
+          "name": "default",
+          "labels": {
+            "app.kubernetes.io/name": "datasciencecluster",
+            "app.kubernetes.io/instance": "default",
+            "app.kubernetes.io/part-of": "opendatahub-operator",
+            "app.kubernetes.io/managed-by": "kustomize",
+            "app.kubernetes.io/created-by": "opendatahub-operator"
+          }
+        },
+        "spec": {
+          "components": {
+            "codeflare": {
+              "enabled": false
+            },
+            "dashboard": {
+              "enabled": true
+            },
+            "datasciencepipelines": {
+              "enabled": true
+            },
+            "kserve": {
+              "enabled": false
+            },
+            "modelmeshserving": {
+              "enabled": true
+            },
+            "ray": {
+              "enabled": false
+            },
+            "workbenches": {
+              "enabled": true
+            }
+          }
+        }
+      }
     operators.operatorframework.io/internal-objects: '[dscinitialization.opendatahub.io]'
     repository: https://github.com/opendatahub-io/opendatahub-operator
   name: opendatahub-operator.v0.0.0
