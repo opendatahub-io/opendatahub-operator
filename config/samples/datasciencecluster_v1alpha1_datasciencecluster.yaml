@@ -13,14 +13,14 @@ spec:
     codeflare:
       enabled: false
     dashboard:
-      enabled: false
+      enabled: true
     datasciencepipelines:
-      enabled: false
+      enabled: true
     kserve:
       enabled: false
     modelmeshserving:
-      enabled: false
+      enabled: true
     ray:
       enabled: false
     workbenches:
-      enabled: false
+      enabled: true
