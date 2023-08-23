@@ -15,5 +15,6 @@ spec:
     * Jupyter Notebooks - JupyterLab notebook that provide Python support for GPU workloads
     * Data Science Pipelines - Pipeline solution for end to end MLOps workflows that support the Kubeflow Pipelines SDK and Tekton
     * Model Mesh - ModelMesh Serving is the Controller for managing ModelMesh, a general-purpose model serving management/routing layer
-    * Distributed Workloads(Incubation) - Stack built to make managing distributed compute infrastructure in the cloud easy and intuitive for Data Scientists
+    * Distributed Workloads(Incubation) - Stack built to make managing distributed compute infrastructure in the cloud easy and intuitive for Data Scientists. This stack consists of two components 
+                                          Codeflare and KubeRay.
     * Kserve (Incubation) - Kserve is the Controller for for serving machine learning (ML) models on arbitrary frameworks
