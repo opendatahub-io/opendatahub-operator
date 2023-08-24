@@ -3,7 +3,7 @@ package modelmeshserving
 
 import (
 	"context"
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -14,18 +14,11 @@ import (
 )
 
 var (
-	ComponentName  = "model-mesh"
-	Path           = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
-	monitoringPath = deploy.DefaultManifestPath + "/" + "modelmesh-monitoring/base"
+	ComponentName          = "model-mesh"
+	Path                   = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
+	monitoringPath         = deploy.DefaultManifestPath + "/" + "modelmesh-monitoring/base"
+	DependentComponentName = "odh-model-controller"
 )
-
-var imageParamMap = map[string]string{
-	"odh-mm-rest-proxy":             "RELATED_IMAGE_ODH_MM_REST_PROXY_IMAGE",
-	"odh-modelmesh-runtime-adapter": "RELATED_IMAGE_ODH_MODELMESH_RUNTIME_ADAPTER_IMAGE",
-	"odh-modelmesh":                 "RELATED_IMAGE_ODH_MODELMESH_IMAGE",
-	"odh-modelmesh-controller":      "RELATED_IMAGE_ODH_MODELMESH_CONTROLLER_IMAGE",
-	"odh-model-controller":          "RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
-}
 
 type ModelMeshServing struct {
 	components.Component `json:""`
@@ -48,29 +41,28 @@ func (m *ModelMeshServing) OverrideManifests(_ string) error {
 	return nil
 }
 
-func (m *ModelMeshServing) GetComponentDevFlags() components.DevFlags {
-	return m.DevFlags
-}
-
 func (m *ModelMeshServing) GetComponentName() string {
 	return ComponentName
-}
-
-func (m *ModelMeshServing) SetImageParamsMap(imageMap map[string]string) map[string]string {
-	imageParamMap = imageMap
-	return imageParamMap
 }
 
 // Verifies that Dashboard implements ComponentInterface
 var _ components.ComponentInterface = (*ModelMeshServing)(nil)
 
-func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
+func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
+	var imageParamMap = map[string]string{
+		"odh-mm-rest-proxy":             "RELATED_IMAGE_ODH_MM_REST_PROXY_IMAGE",
+		"odh-modelmesh-runtime-adapter": "RELATED_IMAGE_ODH_MODELMESH_RUNTIME_ADAPTER_IMAGE",
+		"odh-modelmesh":                 "RELATED_IMAGE_ODH_MODELMESH_IMAGE",
+		"odh-modelmesh-controller":      "RELATED_IMAGE_ODH_MODELMESH_CONTROLLER_IMAGE",
+		"odh-model-controller":          "RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
+	}
+
 	enabled := m.GetManagementState() == operatorv1.Managed
+	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 	platform, err := deploy.GetPlatform(cli)
 	if err != nil {
 		return err
 	}
-
 	// Update Default rolebinding
 	if enabled {
 		// Download manifests and update paths
@@ -83,21 +75,20 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 			return err
 		}
 		// Update image parameters
-		if dscispec.DevFlags.ManifestsUri == "" {
-			if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
+		if dscispec.DevFlags.ManifestsUri == "" && len(m.DevFlags.Manifests) == 0 {
+			if err := deploy.ApplyParams(Path, m.SetImageParamsMap(imageParamMap), false); err != nil {
 				return err
 			}
 		}
 	}
 
 	err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled)
-
 	if err != nil {
 		return err
 	}
 
-	// Get monitoring namespace
-	dscInit := &dsci.DSCInitialization{}
+	// Get modelmesh monitoring namespace
+	dscInit := &dsciv1.DSCInitialization{}
 	err = cli.Get(context.TODO(), client.ObjectKey{
 		Name: "default",
 	}, dscInit)
@@ -112,9 +103,28 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 	}
 
 	// If modelmesh is deployed successfully, deploy modelmesh-monitoring
-	err = deploy.DeployManifestsFromPath(cli, owner, monitoringPath, monitoringNamespace, ComponentName, enabled)
+	if err = deploy.DeployManifestsFromPath(cli, owner, monitoringPath, monitoringNamespace, ComponentName, enabled); err != nil {
+		return err
+	}
 
-	return err
+	// CloudService Monitoring handling
+	if platform == deploy.ManagedRhods {
+		// first model-mesh rules
+		if err := m.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
+			return err
+		}
+		// then odh-model-controller rules
+		if err := m.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, DependentComponentName); err != nil {
+			return err
+		}
+		if err = deploy.DeployManifestsFromPath(cli, owner,
+			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
+			dscispec.Monitoring.Namespace,
+			ComponentName+"prometheus", true); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (m *ModelMeshServing) DeepCopyInto(target *ModelMeshServing) {

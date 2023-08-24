@@ -21,17 +21,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/hashicorp/go-multierror"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/source"
-	"time"
 
 	"github.com/go-logr/logr"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	appsv1 "k8s.io/api/apps/v1"
 	netv1 "k8s.io/api/networking/v1"
@@ -60,7 +61,7 @@ type DataScienceClusterReconciler struct {
 
 // DataScienceClusterConfig passing Spec of DSCI for reconcile DataScienceCluster
 type DataScienceClusterConfig struct {
-	DSCISpec *dsci.DSCInitializationSpec
+	DSCISpec *dsciv1.DSCInitializationSpec
 }
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
@@ -68,7 +69,7 @@ type DataScienceClusterConfig struct {
 func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.Log.Info("Reconciling DataScienceCluster resources", "Request.Namespace", req.Namespace, "Request.Name", req.Name)
 
-	instances := &dsc.DataScienceClusterList{}
+	instances := &dscv1.DataScienceClusterList{}
 	if err := r.Client.List(ctx, instances); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -97,7 +98,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	if instance.Status.Conditions == nil {
 		reason := status.ReconcileInit
 		message := "Initializing DataScienceCluster resource"
-		instance, err = r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
+		instance, err = r.updateStatus(ctx, instance, func(saved *dscv1.DataScienceCluster) {
 			status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
 			saved.Status.Phase = status.PhaseProgressing
 		})
@@ -108,7 +109,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	// Verify a valid DSCInitialization instance is created
-	dsciInstances := &dsci.DSCInitializationList{}
+	dsciInstances := &dsciv1.DSCInitializationList{}
 	err = r.Client.List(ctx, dsciInstances)
 	if err != nil {
 		r.Log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
@@ -120,7 +121,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	if len(dsciInstances.Items) == 0 {
 		reason := status.ReconcileFailed
 		message := "Failed to get a valid DSCInitialization instance"
-		instance, err = r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
+		instance, err = r.updateStatus(ctx, instance, func(saved *dscv1.DataScienceCluster) {
 			status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
 			saved.Status.Phase = status.PhaseError
 		})
@@ -132,8 +133,8 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 	} else if len(dsciInstances.Items) == 1 {
 		// Set Applications namespace defined in DSCInitialization
-		r.DataScienceCluster.DSCISpec.ApplicationsNamespace = dsciInstances.Items[0].Spec.ApplicationsNamespace
-		r.DataScienceCluster.DSCISpec.DevFlags.ManifestsUri = dsciInstances.Items[0].Spec.DevFlags.ManifestsUri
+		dscInitializationSpec := dsciInstances.Items[0].Spec
+		dscInitializationSpec.DeepCopyInto(r.DataScienceCluster.DSCISpec)
 	} else {
 		return ctrl.Result{}, errors.New("only one instance of DSCInitialization object is allowed")
 	}
@@ -193,7 +194,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	// Process errors for components
 	if componentErrors != nil {
 		r.Log.Info("DataScienceCluster Deployment Incomplete.")
-		instance, err = r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
+		instance, err = r.updateStatus(ctx, instance, func(saved *dscv1.DataScienceCluster) {
 			status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompletedWithComponentErrors,
 				fmt.Sprintf("DataScienceCluster resource reconciled with component errors: %v", componentErrors))
 			saved.Status.Phase = status.PhaseReady
@@ -204,7 +205,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	// finalize reconciliation
-	instance, err = r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
+	instance, err = r.updateStatus(ctx, instance, func(saved *dscv1.DataScienceCluster) {
 		status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, "DataScienceCluster resource reconciled successfully")
 		saved.Status.Phase = status.PhaseReady
 	})
@@ -220,12 +221,12 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	return ctrl.Result{}, nil
 }
 
-func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context, instance *dsc.DataScienceCluster,
-	component components.ComponentInterface) (*dsc.DataScienceCluster, error) {
+func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context, instance *dscv1.DataScienceCluster,
+	component components.ComponentInterface) (*dscv1.DataScienceCluster, error) {
 	componentName := component.GetComponentName()
 	enabled := component.GetManagementState() == v1.Managed
 	// First set conditions to reflect a component is about to be reconciled
-	instance, err := r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
+	instance, err := r.updateStatus(ctx, instance, func(saved *dscv1.DataScienceCluster) {
 		message := "Component is disabled"
 		if enabled {
 			message = "Component is enabled"
@@ -243,7 +244,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 	if err != nil {
 		// reconciliation failed: log errors, raise event and update status accordingly
 		instance = r.reportError(err, instance, "failed to reconcile "+componentName+" on DataScienceCluster")
-		instance, _ = r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
+		instance, _ = r.updateStatus(ctx, instance, func(saved *dscv1.DataScienceCluster) {
 			if enabled {
 				status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileFailed, fmt.Sprintf("Component reconciliation failed: %v", err), corev1.ConditionFalse)
 			} else {
@@ -253,7 +254,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 		return instance, err
 	} else {
 		// reconciliation succeeded: update status accordingly
-		instance, err = r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
+		instance, err = r.updateStatus(ctx, instance, func(saved *dscv1.DataScienceCluster) {
 			if saved.Status.InstalledComponents == nil {
 				saved.Status.InstalledComponents = make(map[string]bool)
 			}
@@ -272,12 +273,12 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 	return instance, nil
 }
 
-func (r *DataScienceClusterReconciler) reportError(err error, instance *dsc.DataScienceCluster, message string) *dsc.DataScienceCluster {
+func (r *DataScienceClusterReconciler) reportError(err error, instance *dscv1.DataScienceCluster, message string) *dscv1.DataScienceCluster {
 	r.Log.Error(err, message, "instance.Name", instance.Name)
 	r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DataScienceClusterReconcileError",
 		"%s for instance %s", message, instance.Name)
 	// TODO:Set error phase only for creation/deletion errors of DSC CR
-	//instance, err = r.updateStatus(instance, func(saved *dsc.DataScienceCluster) {
+	//instance, err = r.updateStatus(instance, func(saved *dscv1.DataScienceCluster) {
 	//	status.SetErrorCondition(&saved.Status.Conditions, status.ReconcileFailed, fmt.Sprintf("%s : %v", message, err))
 	//	saved.Status.Phase = status.PhaseError
 	//})
@@ -290,7 +291,7 @@ func (r *DataScienceClusterReconciler) reportError(err error, instance *dsc.Data
 // SetupWithManager sets up the controller with the Manager.
 func (r *DataScienceClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&dsc.DataScienceCluster{}).
+		For(&dscv1.DataScienceCluster{}).
 		Owns(&corev1.Namespace{}).
 		Owns(&corev1.Secret{}).
 		Owns(&corev1.ConfigMap{}).
@@ -302,14 +303,14 @@ func (r *DataScienceClusterReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		Owns(&appsv1.Deployment{}).
 		Owns(&appsv1.ReplicaSet{}).
 		Owns(&corev1.Pod{}).
-		Watches(&source.Kind{Type: &dsci.DSCInitialization{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources)).
+		Watches(&source.Kind{Type: &dsciv1.DSCInitialization{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources)).
 		// this predicates prevents meaningless reconciliations from being triggered
 		WithEventFilter(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{})).
 		Complete(r)
 }
 
-func (r *DataScienceClusterReconciler) updateStatus(ctx context.Context, original *dsc.DataScienceCluster, update func(saved *dsc.DataScienceCluster)) (*dsc.DataScienceCluster, error) {
-	saved := &dsc.DataScienceCluster{}
+func (r *DataScienceClusterReconciler) updateStatus(ctx context.Context, original *dscv1.DataScienceCluster, update func(saved *dscv1.DataScienceCluster)) (*dscv1.DataScienceCluster, error) {
+	saved := &dscv1.DataScienceCluster{}
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 
 		err := r.Client.Get(ctx, client.ObjectKeyFromObject(original), saved)
@@ -329,8 +330,8 @@ func (r *DataScienceClusterReconciler) updateStatus(ctx context.Context, origina
 	return saved, err
 }
 
-func (r *DataScienceClusterReconciler) updateComponents(ctx context.Context, original *dsc.DataScienceCluster) (*dsc.DataScienceCluster, error) {
-	saved := &dsc.DataScienceCluster{}
+func (r *DataScienceClusterReconciler) updateComponents(ctx context.Context, original *dscv1.DataScienceCluster) (*dscv1.DataScienceCluster, error) {
+	saved := &dscv1.DataScienceCluster{}
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		err := r.Client.Get(ctx, client.ObjectKeyFromObject(original), saved)
 		if err != nil {
@@ -347,7 +348,7 @@ func (r *DataScienceClusterReconciler) updateComponents(ctx context.Context, ori
 }
 
 func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(a client.Object) (requests []reconcile.Request) {
-	instanceList := &dsc.DataScienceClusterList{}
+	instanceList := &dscv1.DataScienceClusterList{}
 	err := r.Client.List(context.TODO(), instanceList)
 	if err != nil {
 		return nil

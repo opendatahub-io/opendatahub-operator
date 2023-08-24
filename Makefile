@@ -82,7 +82,7 @@ SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
 # E2E tests additional flags
-E2E_TEST_FLAGS = "--skip-deletion=true" # See README.md
+E2E_TEST_FLAGS = "--skip-deletion=false" -timeout 15m # See README.md, default go test timeout 10m
 
 # Default image-build is to not use local odh-manifests folder
 # set to "true" to use local instead
@@ -115,7 +115,7 @@ help: ## Display this help.
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 # TODO: enable below when we do webhook
 # $(CONTROLLER_GEN) rbac:roleName=controller-manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
-	$(CONTROLLER_GEN) rbac:roleName=controller-manager-role crd paths="./..." output:crd:artifacts:config=config/crd/bases
+	$(CONTROLLER_GEN) rbac:roleName=controller-manager-role crd:ignoreUnexportedFields=true paths="./..." output:crd:artifacts:config=config/crd/bases
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.

@@ -900,6 +900,14 @@ rules:
 - apiGroups:
   - operators.coreos.com
   resources:
+  - catalogsources
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - operators.coreos.com
+  resources:
   - clusterserviceversions
   verbs:
   - get

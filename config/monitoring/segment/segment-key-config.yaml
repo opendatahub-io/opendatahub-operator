@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: odh-segment-key-config
+  namespace: redhat-ods-applications
+data:
+  segmentKeyEnabled: "true"
