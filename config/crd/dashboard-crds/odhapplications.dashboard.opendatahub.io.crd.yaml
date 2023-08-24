@@ -116,6 +116,7 @@ spec:
                 isEnabled:
                   type: boolean
                 kfdefApplications:
+                  description: "(Deprecated) Apps do not rely on other deployments, they are deployed by those components."
                   items:
                     type: string
                   type: array
