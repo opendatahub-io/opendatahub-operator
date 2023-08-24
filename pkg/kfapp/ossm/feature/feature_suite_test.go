@@ -1,4 +1,4 @@
-package ossm_test
+package feature_test
 
 import (
 	"testing"
@@ -7,8 +7,8 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestOssmInstaller(t *testing.T) {
+func TestOssmFeatures(t *testing.T) {
 	RegisterFailHandler(Fail)
 	// for integration tests see tests/integration directory
-	RunSpecs(t, "Openshift Service Mesh installer unit tests")
+	RunSpecs(t, "Openshift Service Mesh features unit tests")
 }

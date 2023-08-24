@@ -1,8 +1,7 @@
-package ossm
+package feature
 
 import (
 	"bytes"
-	"context"
 	cryptorand "crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -10,9 +9,7 @@ import (
 	"encoding/pem"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 	"math/big"
 	"math/rand"
 	"net"
@@ -21,43 +18,20 @@ import (
 
 var seededRand = rand.New(rand.NewSource(time.Now().UnixNano()))
 
-func (o *OssmInstaller) createSelfSignedCerts(addr string, objectMeta metav1.ObjectMeta) error {
+func generateSelfSignedCertificateAsSecret(addr string, objectMeta metav1.ObjectMeta) (*corev1.Secret, error) {
 
 	cert, key, err := generateCertificate(addr)
 	if err != nil {
-		return errors.WithStack(err)
+		return nil, errors.WithStack(err)
 	}
 
-	objectMeta.SetOwnerReferences([]metav1.OwnerReference{
-		{
-			APIVersion: o.tracker.APIVersion,
-			Kind:       o.tracker.Kind,
-			Name:       o.tracker.Name,
-			UID:        o.tracker.UID,
-		},
-	})
-
-	secret := &corev1.Secret{
+	return &corev1.Secret{
 		ObjectMeta: objectMeta,
 		Data: map[string][]byte{
 			corev1.TLSCertKey:       cert,
 			corev1.TLSPrivateKeyKey: key,
 		},
-	}
-
-	clientset, err := kubernetes.NewForConfig(o.config)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	_, err = clientset.CoreV1().
-		Secrets(objectMeta.Namespace).
-		Create(context.TODO(), secret, metav1.CreateOptions{})
-	if err != nil && !apierrors.IsAlreadyExists(err) {
-		return errors.WithStack(err)
-	}
-
-	return nil
+	}, nil
 }
 
 func generateCertificate(addr string) ([]byte, []byte, error) {

@@ -78,6 +78,15 @@ type OssmResourceTracker struct {
 	Status OssmResourceTrackerStatus `json:"status,omitempty"`
 }
 
+func (o *OssmResourceTracker) ToOwnerReference() metav1.OwnerReference {
+	return metav1.OwnerReference{
+		APIVersion: o.APIVersion,
+		Kind:       o.Kind,
+		Name:       o.Name,
+		UID:        o.UID,
+	}
+}
+
 // OssmResourceTrackerSpec defines the desired state of OssmResourceTracker
 type OssmResourceTrackerSpec struct {
 }

@@ -11,7 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package ossm
+package feature
 
 import (
 	"context"
@@ -25,10 +25,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8stypes "k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/dynamic"
 	"os"
 	"regexp"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strings"
 )
 
@@ -36,14 +34,10 @@ const (
 	YamlSeparator = "(?m)^---[ \t]*$"
 )
 
-func (o *OssmInstaller) CreateResourceFromFile(filename string, elems ...configtypes.NameValue) error {
+func (f *Feature) createResourceFromFile(filename string, elems ...configtypes.NameValue) error {
 	elemsMap := make(map[string]configtypes.NameValue)
 	for _, nv := range elems {
 		elemsMap[nv.Name] = nv
-	}
-	c, err := client.New(o.config, client.Options{})
-	if err != nil {
-		return errors.WithStack(err)
 	}
 
 	data, err := os.ReadFile(filename)
@@ -72,17 +66,12 @@ func (o *OssmInstaller) CreateResourceFromFile(filename string, elems ...configt
 		}
 
 		u.SetOwnerReferences([]metav1.OwnerReference{
-			{
-				APIVersion: o.tracker.APIVersion,
-				Kind:       o.tracker.Kind,
-				Name:       o.tracker.Name,
-				UID:        o.tracker.UID,
-			},
+			f.OwnerReference(),
 		})
 
 		logrus.Infof("Creating %s", name)
 
-		err := c.Get(context.TODO(), k8stypes.NamespacedName{Name: name, Namespace: namespace}, u.DeepCopy())
+		err := f.client.Get(context.TODO(), k8stypes.NamespacedName{Name: name, Namespace: namespace}, u.DeepCopy())
 		if err == nil {
 			log.Info("Object already exists...")
 			continue
@@ -91,7 +80,7 @@ func (o *OssmInstaller) CreateResourceFromFile(filename string, elems ...configt
 			return errors.WithStack(err)
 		}
 
-		err = c.Create(context.TODO(), u)
+		err = f.client.Create(context.TODO(), u)
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -99,15 +88,10 @@ func (o *OssmInstaller) CreateResourceFromFile(filename string, elems ...configt
 	return nil
 }
 
-func (o *OssmInstaller) PatchResourceFromFile(filename string, elems ...configtypes.NameValue) error {
+func (f *Feature) patchResourceFromFile(filename string, elems ...configtypes.NameValue) error {
 	elemsMap := make(map[string]configtypes.NameValue)
 	for _, nv := range elems {
 		elemsMap[nv.Name] = nv
-	}
-
-	dynamicClient, err := dynamic.NewForConfig(o.config)
-	if err != nil {
-		return errors.WithStack(err)
 	}
 
 	data, err := os.ReadFile(filename)
@@ -151,7 +135,7 @@ func (o *OssmInstaller) PatchResourceFromFile(filename string, elems ...configty
 			return errors.WithStack(err)
 		}
 
-		_, err = dynamicClient.Resource(gvr).
+		_, err = f.dynamicClient.Resource(gvr).
 			Namespace(p.GetNamespace()).
 			Patch(context.Background(), p.GetName(), k8stypes.MergePatchType, patchAsJson, metav1.PatchOptions{})
 		if err != nil {
@@ -167,97 +151,4 @@ func (o *OssmInstaller) PatchResourceFromFile(filename string, elems ...configty
 		}
 	}
 	return nil
-}
-
-func (o *OssmInstaller) VerifyCRDInstalled(group string, version string, resource string) error {
-	dynamicClient, err := dynamic.NewForConfig(o.config)
-	if err != nil {
-		log.Error(err, "Failed to initialize dynamic client")
-		return err
-	}
-
-	crdGVR := schema.GroupVersionResource{
-		Group:    group,
-		Version:  version,
-		Resource: resource,
-	}
-
-	_, err = dynamicClient.Resource(crdGVR).List(context.Background(), metav1.ListOptions{})
-	return err
-}
-
-func (o *OssmInstaller) CheckSMCPStatus(name, namespace string) (string, error) {
-	dynamicClient, err := dynamic.NewForConfig(o.config)
-	if err != nil {
-		log.Info("Failed to initialize dynamic client")
-		return "", err
-	}
-
-	gvr := schema.GroupVersionResource{
-		Group:    "maistra.io",
-		Version:  "v1",
-		Resource: "servicemeshcontrolplanes",
-	}
-
-	unstructObj, err := dynamicClient.Resource(gvr).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
-	if err != nil {
-		log.Info("Failed to find SMCP")
-		return "", err
-	}
-
-	conditions, found, err := unstructured.NestedSlice(unstructObj.Object, "status", "conditions")
-	if err != nil || !found {
-		log.Info("status conditions not found or error in parsing of SMCP")
-		return "", err
-	}
-	lastCondition := conditions[len(conditions)-1].(map[string]interface{})
-	status := lastCondition["type"].(string)
-
-	return status, nil
-}
-
-func (o *OssmInstaller) PatchODHDashboardConfig(namespace string) error {
-	dynamicClient, err := dynamic.NewForConfig(o.config)
-	if err != nil {
-		log.Info("Failed to initialize dynamic client")
-		return err
-	}
-
-	gvr := schema.GroupVersionResource{
-		Group:    "opendatahub.io",
-		Version:  "v1alpha",
-		Resource: "odhdashboardconfigs",
-	}
-
-	configs, err := dynamicClient.Resource(gvr).List(context.Background(), metav1.ListOptions{})
-	if err != nil {
-		return err
-	}
-
-	if len(configs.Items) == 0 {
-		log.Info("No odhdashboardconfig found in namespace, doing nothing")
-		return nil
-	}
-
-	// Assuming there is only one odhdashboardconfig in the namespace, patching the first one
-	config := configs.Items[0]
-	if config.Object["spec"] == nil {
-		config.Object["spec"] = map[string]interface{}{}
-	}
-	spec := config.Object["spec"].(map[string]interface{})
-	if spec["dashboardConfig"] == nil {
-		spec["dashboardConfig"] = map[string]interface{}{}
-	}
-	dashboardConfig := spec["dashboardConfig"].(map[string]interface{})
-	dashboardConfig["disableServiceMesh"] = false
-
-	_, err = dynamicClient.Resource(gvr).Namespace(namespace).Update(context.Background(), &config, metav1.UpdateOptions{})
-	if err != nil {
-		log.Error(err, "Failed to update odhdashboardconfig")
-		return err
-	}
-
-	log.Info("Successfully patched odhdashboardconfig")
-	return nil
-
 }

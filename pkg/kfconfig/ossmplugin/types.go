@@ -20,6 +20,9 @@ type KfOssmPlugin struct {
 type OssmPluginSpec struct {
 	Mesh MeshSpec `json:"mesh,omitempty"`
 	Auth AuthSpec `json:"auth,omitempty"`
+
+	// Additional non-user facing fields (should not be copied to the CRD)
+	AppNamespace string `json:"appNamespace,omitempty"`
 }
 
 type MeshSpec struct {

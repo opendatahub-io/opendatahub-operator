@@ -483,7 +483,7 @@ func (kfapp *coordinator) Delete(resources kftypesv3.ResourceEnum) error {
 			}
 		} else {
 			ossmInstaller := p.(*ossm.OssmInstaller)
-			return ossmInstaller.CleanupOwnedResources()
+			return ossmInstaller.CleanupResources()
 		}
 	}
 

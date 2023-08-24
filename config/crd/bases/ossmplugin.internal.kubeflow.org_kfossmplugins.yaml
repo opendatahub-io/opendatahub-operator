@@ -36,6 +36,10 @@ spec:
             description: OssmPluginSpec defines the extra data provided by the Openshift
               Service Mesh Plugin in KfDef spec.
             properties:
+              appNamespace:
+                description: Additional non-user facing fields (should not be copied
+                  to the CRD)
+                type: string
               auth:
                 properties:
                   authorino:
