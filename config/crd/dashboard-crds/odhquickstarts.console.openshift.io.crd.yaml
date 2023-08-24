@@ -3,8 +3,7 @@ kind: CustomResourceDefinition
 metadata:
   name: odhquickstarts.console.openshift.io
   annotations:
-    description: Extension for guiding user through various workflows in the Red Hat
-      OpenShift Data Science dashboard.
+    description: Extension for guiding user through various workflows in the Open Data Hub dashboard.
     displayName: OdhQuickStart
     include.release.openshift.io/ibm-cloud-managed: "true"
     include.release.openshift.io/self-managed-high-availability: "true"
