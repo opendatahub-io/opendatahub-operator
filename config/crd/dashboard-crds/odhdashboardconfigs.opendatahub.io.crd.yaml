@@ -144,3 +144,7 @@ spec:
                   type: array
                   items:
                     type: string
+                templateDisablement:
+                  type: array
+                  items:
+                    type: string
