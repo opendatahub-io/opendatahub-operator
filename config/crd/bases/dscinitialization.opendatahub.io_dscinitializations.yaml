@@ -58,8 +58,8 @@ spec:
                 description: Enable monitoring on specified namespace
                 properties:
                   enabled:
-                    default: false
-                    description: If enabled monitoring, default 'false'
+                    default: true
+                    description: If enabled monitoring, default 'true'
                     type: boolean
                   namespace:
                     default: opendatahub
