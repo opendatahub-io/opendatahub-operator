@@ -190,7 +190,7 @@ type DataScienceClusterReconciler struct {
 // +kubebuilder:rbac:groups="core",resources=persistentvolumeclaims,verbs=*
 
 // +kubebuilder:rbac:groups="core",resources=namespaces/finalizers,verbs=update;list;watch;patch;delete
-// +kubebuilder:rbac:groups="core",resources=namespaces,verbs=update;patch;delete
+// +kubebuilder:rbac:groups="core",resources=namespaces,verbs=update;list;patch;delete
 // +kubebuilder:rbac:groups="core",resources=namespaces,verbs=get;create;patch;delete;watch
 
 // +kubebuilder:rbac:groups="core",resources=events,verbs=get;create;watch;update;list;patch;delete
@@ -200,7 +200,7 @@ type DataScienceClusterReconciler struct {
 // +kubebuilder:rbac:groups="core",resources=endpoints,verbs=watch;list
 
 // +kubebuilder:rbac:groups="core",resources=configmaps/status,verbs=get;update;patch;delete
-// +kubebuilder:rbac:groups="core",resources=configmaps,verbs=get;create;watch;patch;delete
+// +kubebuilder:rbac:groups="core",resources=configmaps,verbs=get;create;list;watch;patch;delete
 
 // +kubebuilder:rbac:groups="core",resources=clusterversions,verbs=watch;list
 // +kubebuilder:rbac:groups="config.openshift.io",resources=clusterversions,verbs=watch;list
