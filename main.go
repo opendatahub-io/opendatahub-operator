@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	"os"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -171,7 +172,8 @@ func main() {
 			Spec: dsci.DSCInitializationSpec{
 				ApplicationsNamespace: dscApplicationsNamespace,
 				Monitoring: dsci.Monitoring{
-					Enabled: false,
+					ManagementState: operatorv1.Managed,
+					Namespace:       dscMonitoringNamespace,
 				},
 			},
 		}

@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	logr "github.com/go-logr/logr"
@@ -173,7 +174,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 
 	// If monitoring enabled
-	if instance.Spec.Monitoring.Enabled {
+	if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
 		switch platform {
 		case deploy.SelfManagedRhods:
 			r.Log.Info("Monitoring enabled, won't apply changes", "cluster", "Self-Managed RHODS Mode")
