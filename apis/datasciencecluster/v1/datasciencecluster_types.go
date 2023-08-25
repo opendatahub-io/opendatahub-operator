@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1alpha1
+package v1
 
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
@@ -87,6 +87,7 @@ type DataScienceClusterStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:resource:scope=Cluster
+//+kubebuilder:storageversion
 
 // DataScienceCluster is the Schema for the datascienceclusters API
 type DataScienceCluster struct {

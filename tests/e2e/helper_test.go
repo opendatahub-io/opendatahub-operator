@@ -4,7 +4,7 @@ import (
 	"context"
 	"log"
 
-	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1alpha1"
+	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/dashboard"
@@ -13,6 +13,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -61,37 +62,37 @@ func setupDSCInstance() *dsc.DataScienceCluster {
 				// keep dashboard as enabled, because other test is rely on this
 				Dashboard: dashboard.Dashboard{
 					Component: components.Component{
-						Enabled: true,
+						ManagementState: operatorv1.Managed,
 					},
 				},
 				Workbenches: workbenches.Workbenches{
 					Component: components.Component{
-						Enabled: true,
+						ManagementState: operatorv1.Managed,
 					},
 				},
 				ModelMeshServing: modelmeshserving.ModelMeshServing{
 					Component: components.Component{
-						Enabled: false,
+						ManagementState: operatorv1.Removed,
 					},
 				},
 				DataSciencePipelines: datasciencepipelines.DataSciencePipelines{
 					Component: components.Component{
-						Enabled: true,
+						ManagementState: operatorv1.Managed,
 					},
 				},
 				Kserve: kserve.Kserve{
 					Component: components.Component{
-						Enabled: false,
+						ManagementState: operatorv1.Removed,
 					},
 				},
 				CodeFlare: codeflare.CodeFlare{
 					Component: components.Component{
-						Enabled: false,
+						ManagementState: operatorv1.Removed,
 					},
 				},
 				Ray: ray.Ray{
 					Component: components.Component{
-						Enabled: true,
+						ManagementState: operatorv1.Managed,
 					},
 				},
 			},

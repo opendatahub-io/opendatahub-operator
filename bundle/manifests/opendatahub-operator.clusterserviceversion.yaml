@@ -76,7 +76,7 @@ metadata:
           }
         },
         {
-          "apiVersion": "datasciencecluster.opendatahub.io/v1alpha1",
+          "apiVersion": "datasciencecluster.opendatahub.io/v1",
           "kind": "DataScienceCluster",
           "metadata": {
             "labels": {
@@ -91,25 +91,25 @@ metadata:
           "spec": {
             "components": {
               "codeflare": {
-                "enabled": false
+                "managementState": "Removed"
               },
               "dashboard": {
-                "enabled": true
+                "managementState": "Managed"
               },
               "datasciencepipelines": {
-                "enabled": true
+                "managementState": "Managed"
               },
               "kserve": {
-                "enabled": false
+                "managementState": "Removed"
               },
               "modelmeshserving": {
-                "enabled": true
+                "managementState": "Managed"
               },
               "ray": {
-                "enabled": false
+                "managementState": "Removed"
               },
               "workbenches": {
-                "enabled": true
+                "managementState": "Managed"
               }
             }
           }
@@ -172,7 +172,7 @@ metadata:
     olm.skipRange: '>=1.0.0 <2.0.0'
     operatorframework.io/initialization-resource: |-
       {
-        "apiVersion": "datasciencecluster.opendatahub.io/v1alpha1",
+        "apiVersion": "datasciencecluster.opendatahub.io/v1",
         "kind": "DataScienceCluster",
         "metadata": {
           "name": "default",
@@ -187,25 +187,25 @@ metadata:
         "spec": {
           "components": {
             "codeflare": {
-              "enabled": false
+              "managementState": "Removed"
             },
             "dashboard": {
-              "enabled": true
+              "managementState": "Managed"
             },
             "datasciencepipelines": {
-              "enabled": true
+              "managementState": "Managed"
             },
             "kserve": {
-              "enabled": false
+              "managementState": "Removed"
             },
             "modelmeshserving": {
-              "enabled": true
+              "managementState": "Managed"
             },
             "ray": {
-              "enabled": false
+              "managementState": "Removed"
             },
             "workbenches": {
-              "enabled": true
+              "managementState": "Managed"
             }
           }
         }
@@ -228,7 +228,7 @@ spec:
       - description: Override and fine tune specific component configurations.
         displayName: Components
         path: components
-      version: v1alpha1
+      version: v1
     - description: DSCInitialization is the Schema for the dscinitializations API
       displayName: DSC Initialization
       kind: DSCInitialization

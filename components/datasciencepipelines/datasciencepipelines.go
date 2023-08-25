@@ -3,6 +3,7 @@ package datasciencepipelines
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -38,15 +39,8 @@ func (d *DataSciencePipelines) GetComponentName() string {
 // Verifies that Dashboard implements ComponentInterface
 var _ components.ComponentInterface = (*DataSciencePipelines)(nil)
 
-func (d *DataSciencePipelines) IsEnabled() bool {
-	return d.Enabled
-}
-
-func (d *DataSciencePipelines) SetEnabled(enabled bool) {
-	d.Enabled = enabled
-}
-
-func (d *DataSciencePipelines) ReconcileComponent(owner metav1.Object, client client.Client, scheme *runtime.Scheme, enabled bool, namespace string) error {
+func (d *DataSciencePipelines) ReconcileComponent(owner metav1.Object, client client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, namespace string) error {
+	enabled := managementState == operatorv1.Managed
 
 	// Update image parameters
 	if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {

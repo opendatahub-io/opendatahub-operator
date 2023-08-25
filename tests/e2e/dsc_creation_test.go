@@ -16,8 +16,9 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 
-	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1alpha1"
+	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	operatorv1 "github.com/openshift/api/operator/v1"
 )
 
 func creationTestSuite(t *testing.T) {
@@ -111,7 +112,7 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error {
 		// speed testing in parallel
 		t.Parallel()
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.Dashboard))
-		if tc.testDsc.Spec.Components.Dashboard.Enabled {
+		if tc.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
 			if err != nil {
 				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Dashboard.GetComponentName())
 			}
@@ -126,7 +127,7 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error {
 		// speed testing in parallel
 		t.Parallel()
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.ModelMeshServing))
-		if tc.testDsc.Spec.Components.ModelMeshServing.Enabled {
+		if tc.testDsc.Spec.Components.ModelMeshServing.ManagementState == operatorv1.Managed {
 			if err != nil {
 				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.ModelMeshServing.GetComponentName())
 			}
@@ -141,7 +142,7 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error {
 		// speed testing in parallel
 		t.Parallel()
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.Kserve))
-		if tc.testDsc.Spec.Components.Kserve.Enabled {
+		if tc.testDsc.Spec.Components.Kserve.ManagementState == operatorv1.Managed {
 			if err != nil {
 				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Kserve.GetComponentName())
 			}
@@ -156,7 +157,7 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error {
 		// speed testing in parallel
 		t.Parallel()
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.Workbenches))
-		if tc.testDsc.Spec.Components.Workbenches.Enabled {
+		if tc.testDsc.Spec.Components.Workbenches.ManagementState == operatorv1.Managed {
 			if err != nil {
 				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Workbenches.GetComponentName())
 			}
@@ -171,7 +172,7 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error {
 		// speed testing in parallel
 		t.Parallel()
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.DataSciencePipelines))
-		if tc.testDsc.Spec.Components.DataSciencePipelines.Enabled {
+		if tc.testDsc.Spec.Components.DataSciencePipelines.ManagementState == operatorv1.Managed {
 			if err != nil {
 				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.DataSciencePipelines.GetComponentName())
 			}
@@ -186,7 +187,7 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error {
 		// speed testing in parallel
 		t.Parallel()
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.CodeFlare))
-		if tc.testDsc.Spec.Components.CodeFlare.Enabled {
+		if tc.testDsc.Spec.Components.CodeFlare.ManagementState == operatorv1.Managed {
 			if err != nil {
 				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.CodeFlare.GetComponentName())
 			}
@@ -201,7 +202,7 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error {
 		// speed testing in parallel
 		t.Parallel()
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.Ray))
-		if tc.testDsc.Spec.Components.Ray.Enabled {
+		if tc.testDsc.Spec.Components.Ray.ManagementState == operatorv1.Managed {
 			if err != nil {
 				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Ray.GetComponentName())
 			}
@@ -247,7 +248,7 @@ func (tc *testContext) testApplicationCreation(component components.ComponentInt
 
 func (tc *testContext) testOwnerrefrences() error {
 	// Test any one of the apps
-	if tc.testDsc.Spec.Components.Dashboard.Enabled {
+	if tc.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
 
 		appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(context.TODO(), metav1.ListOptions{
 			LabelSelector: "app.kubernetes.io/part-of=" + tc.testDsc.Spec.Components.Dashboard.GetComponentName(),
@@ -317,7 +318,7 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 	// Test Updating dashboard to be disabled
 
 	var dashboardDeploymentName string
-	if tc.testDsc.Spec.Components.Dashboard.Enabled {
+	if tc.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
 		appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(context.TODO(), metav1.ListOptions{
 			LabelSelector: "app.kubernetes.io/part-of=" + tc.testDsc.Spec.Components.Dashboard.GetComponentName(),
 		})
@@ -342,7 +343,7 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 			return fmt.Errorf("error getting resource %v", err)
 		}
 		// Disable the Component
-		tc.testDsc.Spec.Components.Dashboard.Enabled = false
+		tc.testDsc.Spec.Components.Dashboard.ManagementState = operatorv1.Removed
 
 		// Try to update
 		err = tc.customClient.Update(context.TODO(), tc.testDsc)
