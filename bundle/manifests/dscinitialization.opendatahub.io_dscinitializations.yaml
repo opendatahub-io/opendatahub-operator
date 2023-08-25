@@ -50,9 +50,14 @@ spec:
                 description: Namespace for applications to be installed, non-configurable,
                   default to "opendatahub"
                 type: string
-              manifestsUri:
-                description: Internal development useful field
-                type: string
+              devFlags:
+                description: Internal development useful field to test customizations.
+                  This is not recommended to be used in production environment.
+                properties:
+                  manifestsUri:
+                    description: Custom manifests uri for odh-manifests
+                    type: string
+                type: object
               monitoring:
                 description: Enable monitoring on specified namespace
                 properties:

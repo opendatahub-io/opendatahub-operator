@@ -116,9 +116,9 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 
 	// Extract latest Manifests
-	err = deploy.DownloadManifests(instance.Spec.ManifestsUri)
+	err = deploy.DownloadManifests(instance.Spec.DevFlags.ManifestsUri)
 	if err != nil {
-		r.Log.Error(err, "Failed to download and unpack manifests.", "ManifestsURI", instance.Spec.ManifestsUri)
+		r.Log.Error(err, "Failed to download and unpack manifests.", "ManifestsURI", instance.Spec.DevFlags.ManifestsUri)
 		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to download and unpack manifests")
 		return reconcile.Result{}, err
 	}

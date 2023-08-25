@@ -241,9 +241,10 @@ spec:
       - description: Enable monitoring on specified namespace
         displayName: Monitoring
         path: monitoring
-      - description: Internal development useful field
-        displayName: Manifests Uri
-        path: manifestsUri
+      - description: Internal development useful field to test customizations. This
+          is not recommended to be used in production environment.
+        displayName: Dev Flags
+        path: devFlags
       statusDescriptors:
       - description: Conditions describes the state of the DSCInitializationStatus
           resource.

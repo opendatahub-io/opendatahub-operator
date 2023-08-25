@@ -34,6 +34,11 @@ type DSCInitializationSpec struct {
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=2
 	// +optional
 	Monitoring Monitoring `json:"monitoring,omitempty"`
+	// Internal development useful field to test customizations.
+	// This is not recommended to be used in production environment.
+	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=3
+	// +optional
+	DevFlags DevFlags `json:"devFlags,omitempty"`
 }
 
 type Monitoring struct {
@@ -47,6 +52,14 @@ type Monitoring struct {
 	// +kubebuilder:default=opendatahub
 	// Namespace for monitoring if it is enabled
 	Namespace string `json:"namespace,omitempty"`
+}
+
+// DevFlags defines list of fields that can be used by developers to test customizations. This is not recommended
+// to be used in production environment.
+type DevFlags struct {
+	// Custom manifests uri for odh-manifests
+	// +optional
+	ManifestsUri string `json:"manifestsUri,omitempty"`
 }
 
 // DSCInitializationStatus defines the observed state of DSCInitialization
