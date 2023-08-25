@@ -9,10 +9,13 @@ import (
 
 type Component struct {
 	// Set to one of the following values:
+	//
 	// - "Managed" : the operator is actively managing the component and trying to keep it active.
 	//               It will only upgrade the component if it is safe to do so
+	//
 	// - "Removed" : the operator is actively managing the component and will not install it,
 	//               or if it is installed, the operator will try to remove it
+	//
 	// +kubebuilder:validation:Enum=Managed;Removed
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 	// Add any other common fields across components below

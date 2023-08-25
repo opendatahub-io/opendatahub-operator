@@ -43,8 +43,12 @@ spec:
                       operator to be installed before enable component
                     properties:
                       managementState:
-                        description: Set to "Managed" to enable the component, and
-                          to "Removed" to disable it.
+                        description: "Set to one of the following values: \n - \"Managed\"
+                          : the operator is actively managing the component and trying
+                          to keep it active. It will only upgrade the component if
+                          it is safe to do so \n - \"Removed\" : the operator is actively
+                          managing the component and will not install it, or if it
+                          is installed, the operator will try to remove it"
                         enum:
                         - Managed
                         - Removed
@@ -55,8 +59,12 @@ spec:
                     description: Dashboard component configuration
                     properties:
                       managementState:
-                        description: Set to "Managed" to enable the component, and
-                          to "Removed" to disable it.
+                        description: "Set to one of the following values: \n - \"Managed\"
+                          : the operator is actively managing the component and trying
+                          to keep it active. It will only upgrade the component if
+                          it is safe to do so \n - \"Removed\" : the operator is actively
+                          managing the component and will not install it, or if it
+                          is installed, the operator will try to remove it"
                         enum:
                         - Managed
                         - Removed
@@ -67,8 +75,12 @@ spec:
                     description: DataServicePipeline component configuration
                     properties:
                       managementState:
-                        description: Set to "Managed" to enable the component, and
-                          to "Removed" to disable it.
+                        description: "Set to one of the following values: \n - \"Managed\"
+                          : the operator is actively managing the component and trying
+                          to keep it active. It will only upgrade the component if
+                          it is safe to do so \n - \"Removed\" : the operator is actively
+                          managing the component and will not install it, or if it
+                          is installed, the operator will try to remove it"
                         enum:
                         - Managed
                         - Removed
@@ -79,8 +91,12 @@ spec:
                     description: Kserve component configuration
                     properties:
                       managementState:
-                        description: Set to "Managed" to enable the component, and
-                          to "Removed" to disable it.
+                        description: "Set to one of the following values: \n - \"Managed\"
+                          : the operator is actively managing the component and trying
+                          to keep it active. It will only upgrade the component if
+                          it is safe to do so \n - \"Removed\" : the operator is actively
+                          managing the component and will not install it, or if it
+                          is installed, the operator will try to remove it"
                         enum:
                         - Managed
                         - Removed
@@ -91,8 +107,12 @@ spec:
                     description: ModelMeshServing component configuration
                     properties:
                       managementState:
-                        description: Set to "Managed" to enable the component, and
-                          to "Removed" to disable it.
+                        description: "Set to one of the following values: \n - \"Managed\"
+                          : the operator is actively managing the component and trying
+                          to keep it active. It will only upgrade the component if
+                          it is safe to do so \n - \"Removed\" : the operator is actively
+                          managing the component and will not install it, or if it
+                          is installed, the operator will try to remove it"
                         enum:
                         - Managed
                         - Removed
@@ -104,8 +124,12 @@ spec:
                       to be installed before enable component
                     properties:
                       managementState:
-                        description: Set to "Managed" to enable the component, and
-                          to "Removed" to disable it.
+                        description: "Set to one of the following values: \n - \"Managed\"
+                          : the operator is actively managing the component and trying
+                          to keep it active. It will only upgrade the component if
+                          it is safe to do so \n - \"Removed\" : the operator is actively
+                          managing the component and will not install it, or if it
+                          is installed, the operator will try to remove it"
                         enum:
                         - Managed
                         - Removed
@@ -116,8 +140,12 @@ spec:
                     description: Workbenches component configuration
                     properties:
                       managementState:
-                        description: Set to "Managed" to enable the component, and
-                          to "Removed" to disable it.
+                        description: "Set to one of the following values: \n - \"Managed\"
+                          : the operator is actively managing the component and trying
+                          to keep it active. It will only upgrade the component if
+                          it is safe to do so \n - \"Removed\" : the operator is actively
+                          managing the component and will not install it, or if it
+                          is installed, the operator will try to remove it"
                         enum:
                         - Managed
                         - Removed
