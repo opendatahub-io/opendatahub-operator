@@ -3,14 +3,13 @@ package modelmeshserving
 
 import (
 	"context"
+	operatorv1 "github.com/openshift/api/operator/v1"
 
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -44,8 +43,8 @@ func (m *ModelMeshServing) SetImageParamsMap(imageMap map[string]string) map[str
 // Verifies that Dashboard implements ComponentInterface
 var _ components.ComponentInterface = (*ModelMeshServing)(nil)
 
-func (m *ModelMeshServing) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, dscispec *dsci.DSCInitializationSpec) error {
-	enabled := managementState == operatorv1.Managed
+func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
+	enabled := m.GetManagementState() == operatorv1.Managed
 
 	// Update Default rolebinding
 	if enabled {
@@ -64,7 +63,7 @@ func (m *ModelMeshServing) ReconcileComponent(owner metav1.Object, cli client.Cl
 	err := deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 		Path,
 		dscispec.ApplicationsNamespace,
-		scheme, enabled)
+		cli.Scheme(), enabled)
 
 	if err != nil {
 		return err
@@ -89,7 +88,7 @@ func (m *ModelMeshServing) ReconcileComponent(owner metav1.Object, cli client.Cl
 	err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 		monitoringPath,
 		monitoringNamespace,
-		scheme, enabled)
+		cli.Scheme(), enabled)
 
 	return err
 }

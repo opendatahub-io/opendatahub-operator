@@ -3,17 +3,16 @@ package codeflare
 
 import (
 	"fmt"
+	operatorv1 "github.com/openshift/api/operator/v1"
 
 	"context"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	imagev1 "github.com/openshift/api/image/v1"
-	operatorv1 "github.com/openshift/api/operator/v1"
 	codeflarev1alpha1 "github.com/project-codeflare/codeflare-operator/api/codeflare/v1alpha1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -30,20 +29,20 @@ type CodeFlare struct {
 	components.Component `json:""`
 }
 
-func (d *CodeFlare) SetImageParamsMap(imageMap map[string]string) map[string]string {
+func (c *CodeFlare) SetImageParamsMap(imageMap map[string]string) map[string]string {
 	imageParamMap = imageMap
 	return imageParamMap
 }
 
-func (d *CodeFlare) GetComponentName() string {
+func (c *CodeFlare) GetComponentName() string {
 	return ComponentName
 }
 
 // Verifies that CodeFlare implements ComponentInterface
 var _ components.ComponentInterface = (*CodeFlare)(nil)
 
-func (c *CodeFlare) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, dscispec *dsci.DSCInitializationSpec) error {
-	enabled := managementState == operatorv1.Managed
+func (d *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
+	enabled := d.GetManagementState() == operatorv1.Managed
 
 	if enabled {
 		// check if the CodeFlare operator is installed
@@ -57,15 +56,12 @@ func (c *CodeFlare) ReconcileComponent(owner metav1.Object, cli client.Client, s
 		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
 			dependentOperator = RHCodeflareOperator
 		}
-		found, err := deploy.OperatorExists(cli, dependentOperator)
 
-		if !found {
-			if err != nil {
-				return err
-			} else {
-				return fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
-					dependentOperator, ComponentName)
-			}
+		if found, err := deploy.OperatorExists(cli, dependentOperator); err != nil {
+			return err
+		} else if !found {
+			return fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
+				dependentOperator, ComponentName)
 		}
 
 		// Update image parameters only when we do not have customized manifests set
@@ -77,7 +73,7 @@ func (c *CodeFlare) ReconcileComponent(owner metav1.Object, cli client.Client, s
 	}
 
 	// Special handling to delete MCAD InstaScale ImageStream resources
-	if managementState == operatorv1.Removed {
+	if d.GetManagementState() == operatorv1.Removed {
 		// Fetch the MCAD resource based on the request
 		mcad := &codeflarev1alpha1.MCAD{}
 		err := cli.Get(context.TODO(), client.ObjectKey{
@@ -116,10 +112,10 @@ func (c *CodeFlare) ReconcileComponent(owner metav1.Object, cli client.Client, s
 	}
 
 	// Deploy Codeflare
-	err := deploy.DeployManifestsFromPath(owner, cli, ComponentName,
+	err := deploy.DeployManifestsFromPath(owner, cli, d.GetComponentName(),
 		CodeflarePath,
 		dscispec.ApplicationsNamespace,
-		scheme, enabled)
+		cli.Scheme(), enabled)
 
 	return err
 
