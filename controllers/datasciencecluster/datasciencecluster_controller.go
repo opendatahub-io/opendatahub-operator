@@ -21,9 +21,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
+	"time"
+
 	"github.com/hashicorp/go-multierror"
 	v1 "github.com/openshift/api/operator/v1"
-	"time"
 
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -147,49 +149,24 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return ctrl.Result{}, err
 	}
 
-	// Initialize error list, instead of returning errors after every component is deployed
 	var componentErrors *multierror.Error
 
-	// reconcile dashboard component
-	if instance, err = r.reconcileSubComponent(ctx, instance, &(instance.Spec.Components.Dashboard)); err != nil {
-		// no need to log any errors as this is done in the reconcileSubComponent method
-		componentErrors = multierror.Append(componentErrors, err)
-	}
+	componentsPtr := &instance.Spec.Components
+	definedComponents := reflect.ValueOf(componentsPtr).Elem()
+	for i := 0; i < definedComponents.NumField(); i++ {
+		c := definedComponents.Field(i)
 
-	// reconcile DataSciencePipelines component
-	if instance, err = r.reconcileSubComponent(ctx, instance, &(instance.Spec.Components.DataSciencePipelines)); err != nil {
-		// no need to log any errors as this is done in the reconcileSubComponent method
-		componentErrors = multierror.Append(componentErrors, err)
-	}
+		if c.CanAddr() {
+			component, ok := c.Addr().Interface().(components.ComponentInterface)
+			if !ok {
+				return ctrl.Result{}, errors.New(fmt.Sprintf("please check %s, as it does not conform to the ComponentInterface", c.String()))
+			}
 
-	// reconcile Workbench component
-	if instance, err = r.reconcileSubComponent(ctx, instance, &(instance.Spec.Components.Workbenches)); err != nil {
-		// no need to log any errors as this is done in the reconcileSubComponent method
-		componentErrors = multierror.Append(componentErrors, err)
-	}
-
-	// reconcile Kserve component
-	if instance, err = r.reconcileSubComponent(ctx, instance, &(instance.Spec.Components.Kserve)); err != nil {
-		// no need to log any errors as this is done in the reconcileSubComponent method
-		componentErrors = multierror.Append(componentErrors, err)
-	}
-
-	// reconcile ModelMesh component
-	if instance, err = r.reconcileSubComponent(ctx, instance, &(instance.Spec.Components.ModelMeshServing)); err != nil {
-		// no need to log any errors as this is done in the reconcileSubComponent method
-		componentErrors = multierror.Append(componentErrors, err)
-	}
-
-	// reconcile CodeFlare component
-	if instance, err = r.reconcileSubComponent(ctx, instance, &(instance.Spec.Components.CodeFlare)); err != nil {
-		// no need to log any errors as this is done in the reconcileSubComponent method
-		componentErrors = multierror.Append(componentErrors, err)
-	}
-
-	// reconcile Ray component
-	if instance, err = r.reconcileSubComponent(ctx, instance, &(instance.Spec.Components.Ray)); err != nil {
-		// no need to log any errors as this is done in the reconcileSubComponent method
-		componentErrors = multierror.Append(componentErrors, err)
+			if instance, err = r.reconcileSubComponent(ctx, instance, component); err != nil {
+				// no need to log any errors as this is done in the reconcileSubComponent method
+				componentErrors = multierror.Append(componentErrors, err)
+			}
+		}
 	}
 
 	// Process errors for components
