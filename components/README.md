@@ -28,12 +28,13 @@ can be found [here](https://github.com/opendatahub-io/opendatahub-operator/tree/
 
 - Define struct that includes a shared struct `Component` with common fields.
 - Implement [interface](https://github.com/opendatahub-io/opendatahub-operator/blob/main/components/component.go#L15) methods according to your component
+
     ```go
     type ComponentInterface interface {
-        ReconcileComponent(owner metav1.Object, client client.Client, scheme *runtime.Scheme,
-            enabled bool, namespace string, manifestsUri string) error
-        GetComponentName() string
-        SetImageParamsMap(imageMap map[string]string) map[string]string
+      ReconcileComponent(cli client.Client, owner metav1.Object, DSCISpec *dsci.DSCInitializationSpec) error
+      GetComponentName() string
+      GetManagementState() operatorv1.ManagementState
+      SetImageParamsMap(imageMap map[string]string) map[string]string
     }
     ```
 ### Add reconcile and Events

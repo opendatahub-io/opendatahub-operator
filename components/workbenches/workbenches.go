@@ -8,7 +8,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -40,15 +39,15 @@ func (w *Workbenches) SetImageParamsMap(imageMap map[string]string) map[string]s
 // Verifies that Dashboard implements ComponentInterface
 var _ components.ComponentInterface = (*Workbenches)(nil)
 
-func (w *Workbenches) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, dscispec *dsci.DSCInitializationSpec) error {
-	enabled := managementState == operatorv1.Managed
-
+func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
 	// Set default notebooks namespace
 	// Create rhods-notebooks namespace in managed platforms
 	platform, err := deploy.GetPlatform(cli)
 	if err != nil {
 		return err
 	}
+
+	enabled := w.GetManagementState() == operatorv1.Managed
 
 	if enabled {
 		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
@@ -74,7 +73,7 @@ func (w *Workbenches) ReconcileComponent(owner metav1.Object, cli client.Client,
 	err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 		notebookControllerPath,
 		dscispec.ApplicationsNamespace,
-		scheme, enabled)
+		cli.Scheme(), enabled)
 	if err != nil {
 		return err
 	}
@@ -98,13 +97,13 @@ func (w *Workbenches) ReconcileComponent(owner metav1.Object, cli client.Client,
 		err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 			notebookImagesPath,
 			dscispec.ApplicationsNamespace,
-			scheme, enabled)
+			cli.Scheme(), enabled)
 		return err
 	} else {
 		err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 			notebookImagesPathSupported,
 			dscispec.ApplicationsNamespace,
-			scheme, enabled)
+			cli.Scheme(), enabled)
 		return err
 	}
 

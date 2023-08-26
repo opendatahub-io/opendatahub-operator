@@ -7,7 +7,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -24,20 +23,20 @@ type Ray struct {
 	components.Component `json:""`
 }
 
-func (d *Ray) SetImageParamsMap(imageMap map[string]string) map[string]string {
+func (r *Ray) SetImageParamsMap(imageMap map[string]string) map[string]string {
 	imageParamMap = imageMap
 	return imageParamMap
 }
 
-func (d *Ray) GetComponentName() string {
+func (r *Ray) GetComponentName() string {
 	return ComponentName
 }
 
 // Verifies that Ray implements ComponentInterface
 var _ components.ComponentInterface = (*Ray)(nil)
 
-func (d *Ray) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, dscispec *dsci.DSCInitializationSpec) error {
-	enabled := managementState == operatorv1.Managed
+func (r *Ray) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
+	enabled := r.GetManagementState() == operatorv1.Managed
 
 	if enabled {
 		if dscispec.DevFlags.ManifestsUri == "" {
@@ -47,10 +46,10 @@ func (d *Ray) ReconcileComponent(owner metav1.Object, cli client.Client, scheme 
 		}
 	}
 	// Deploy Ray Operator
-	err := deploy.DeployManifestsFromPath(owner, cli, ComponentName,
+	err := deploy.DeployManifestsFromPath(owner, cli, r.GetComponentName(),
 		RayPath,
 		dscispec.ApplicationsNamespace,
-		scheme, enabled)
+		cli.Scheme(), enabled)
 	return err
 
 }

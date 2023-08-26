@@ -3,6 +3,7 @@ package dashboard
 
 import (
 	"fmt"
+	operatorv1 "github.com/openshift/api/operator/v1"
 
 	"context"
 	"strings"
@@ -11,10 +12,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -53,8 +52,7 @@ func (d *Dashboard) GetComponentName() string {
 // Verifies that Dashboard implements ComponentInterface
 var _ components.ComponentInterface = (*Dashboard)(nil)
 
-func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, dscispec *dsci.DSCInitializationSpec) error {
-	enabled := managementState == operatorv1.Managed
+func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
 
 	// TODO: Add any additional tasks if required when reconciling component
 
@@ -62,7 +60,8 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 	if err != nil {
 		return err
 	}
-
+	// Update Default rolebinding
+	enabled := d.GetManagementState() == operatorv1.Managed
 	if enabled {
 		if platform == deploy.OpenDataHub || platform == "" {
 			err := common.UpdatePodSecurityRolebinding(cli, []string{"odh-dashboard"}, dscispec.ApplicationsNamespace)
@@ -100,7 +99,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 			err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
 				PathODHDashboardConfig,
 				dscispec.ApplicationsNamespace,
-				scheme, enabled)
+				cli.Scheme(), enabled)
 			if err != nil {
 				return fmt.Errorf("failed to set dashboard config from %s: %v", PathODHDashboardConfig, err)
 			}
@@ -109,7 +108,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 			err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
 				PathOVMS,
 				dscispec.ApplicationsNamespace,
-				scheme, enabled)
+				cli.Scheme(), enabled)
 			if err != nil {
 				return fmt.Errorf("failed to set dashboard OVMS from %s: %v", PathOVMS, err)
 			}
@@ -122,7 +121,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 			err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
 				PathAnaconda,
 				dscispec.ApplicationsNamespace,
-				scheme, enabled)
+				cli.Scheme(), enabled)
 			if err != nil {
 				return fmt.Errorf("failed to deploy anaconda resources from %s: %v", PathAnaconda, err)
 			}
@@ -141,7 +140,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 		err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 			Path,
 			dscispec.ApplicationsNamespace,
-			scheme, enabled)
+			cli.Scheme(), enabled)
 		if err != nil {
 			return err
 		}
@@ -150,7 +149,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 		err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
 			PathSupported,
 			dscispec.ApplicationsNamespace,
-			scheme, enabled)
+			cli.Scheme(), enabled)
 		if err != nil {
 			return err
 		}
@@ -162,7 +161,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 		err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
 			PathISVSM,
 			dscispec.ApplicationsNamespace,
-			scheme, enabled)
+			cli.Scheme(), enabled)
 		if err != nil {
 			return fmt.Errorf("failed to set dashboard ISV from %s: %v", PathISVSM, err)
 		}
@@ -184,7 +183,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 		err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
 			PathConsoleLink,
 			dscispec.ApplicationsNamespace,
-			scheme, enabled)
+			cli.Scheme(), enabled)
 		if err != nil {
 			return fmt.Errorf("failed to set dashboard consolelink from %s: %v", PathConsoleLink, err)
 		}
@@ -193,7 +192,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 		err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
 			PathISVAddOn,
 			dscispec.ApplicationsNamespace,
-			scheme, enabled)
+			cli.Scheme(), enabled)
 		if err != nil {
 			return fmt.Errorf("failed to set dashboard ISV from %s: %v", PathISVAddOn, err)
 		}
@@ -215,7 +214,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 		err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
 			PathConsoleLink,
 			dscispec.ApplicationsNamespace,
-			scheme, enabled)
+			cli.Scheme(), enabled)
 		if err != nil {
 			return fmt.Errorf("failed to set dashboard consolelink from %s", PathConsoleLink)
 		}
