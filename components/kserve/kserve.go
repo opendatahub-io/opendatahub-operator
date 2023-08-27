@@ -1,3 +1,4 @@
+// Package kserve provides utility functions to config Kserve as the Controller for serving ML models on arbitrary frameworks
 package kserve
 
 import (

@@ -1,3 +1,4 @@
+// Package dashboard provides utility functions to config Open Data Hub Dashboard: A web dashboard that displays installed Open Data Hub components with easy access to component UIs and documentation
 package dashboard
 
 import (

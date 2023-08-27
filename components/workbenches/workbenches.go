@@ -1,3 +1,4 @@
+// Package workbenches provides utility functions to config Workbenches to secure Jupyter Notebook in Kubernetes environments with support for OAuth
 package workbenches
 
 import (
