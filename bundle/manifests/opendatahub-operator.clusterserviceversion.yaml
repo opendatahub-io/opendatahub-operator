@@ -115,7 +115,7 @@ metadata:
           }
         },
         {
-          "apiVersion": "dscinitialization.opendatahub.io/v1alpha1",
+          "apiVersion": "dscinitialization.opendatahub.io/v1",
           "kind": "DSCInitialization",
           "metadata": {
             "labels": {
@@ -249,7 +249,7 @@ spec:
           resource.
         displayName: Conditions
         path: conditions
-      version: v1alpha1
+      version: v1
     - kind: OdhApplication
       name: odhapplications.dashboard.opendatahub.io
       version: v1

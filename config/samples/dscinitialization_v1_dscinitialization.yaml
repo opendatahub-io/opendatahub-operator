@@ -1,4 +1,4 @@
-apiVersion: dscinitialization.opendatahub.io/v1alpha1
+apiVersion: dscinitialization.opendatahub.io/v1
 kind: DSCInitialization
 metadata:
   labels:
