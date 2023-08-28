@@ -18,10 +18,10 @@ IMG ?= REPLACE_IMAGE
 BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
 
 IMAGE_BUILDER ?= podman
-OPERATOR_NAMESPACE ?= rhods-ods-operator
+OPERATOR_NAMESPACE ?= redhat-ods-operator
 
 MANIFEST_REPO ?= red-hat-data-services
-MANIFEST_RELEASE ?= main
+MANIFEST_RELEASE ?= master
 
 CHANNELS="alpha"
 # CHANNELS define the bundle channels used in the bundle.
