@@ -47,7 +47,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	datascienceclusterv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1alpha1"
+	datascienceclusterv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1alpha1"
 	datascienceclustercontrollers "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
 	dscicontr "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
@@ -63,7 +63,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(dsci.AddToScheme(scheme))
-	utilruntime.Must(datascienceclusterv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(datascienceclusterv1.AddToScheme(scheme))
 	utilruntime.Must(netv1.AddToScheme(scheme))
 	utilruntime.Must(addonv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(authv1.AddToScheme(scheme))

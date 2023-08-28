@@ -8,6 +8,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	operatorv1 "github.com/openshift/api/operator/v1"
 )
 
 const (
@@ -44,15 +45,8 @@ func (d *Kserve) GetComponentName() string {
 // Verifies that Kserve implements ComponentInterface
 var _ components.ComponentInterface = (*Kserve)(nil)
 
-func (d *Kserve) IsEnabled() bool {
-	return d.Enabled
-}
-
-func (d *Kserve) SetEnabled(enabled bool) {
-	d.Enabled = enabled
-}
-
-func (d *Kserve) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, enabled bool, namespace string) error {
+func (d *Kserve) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, namespace string) error {
+	enabled := managementState == operatorv1.Managed
 
 	// Update image parameters
 	if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {

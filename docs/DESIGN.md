@@ -39,51 +39,51 @@ To deploy ODH components seamlessly, ODH operator will watch two CRDS:
 
 1. Enable all components
     ```console
-      apiVersion: datasciencecluster.opendatahub.io/v1alpha1
+      apiVersion: datasciencecluster.opendatahub.io/v1
       kind: DataScienceCluster
       metadata:
         name: example
       spec:
         components:
           codeflare:
-            enabled: true
+            managementState: Removed
           dashboard:
-            enabled: true
+            managementState: Managed
           datasciencepipelines:
-            enabled: true
+            managementState: Managed
           kserve:
-            enabled: true
+            managementState: Removed
           modelmeshserving:
-            enabled: true
+            managementState: Managed
           ray:
-            enabled: true
+            managementState: Removed
           workbenches:
-            enabled: true 
+            managementState: Managed
     ```
 2. Enable only Dashboard and Workbenches(Jupyter Notebooks)
 
     ```console
-      apiVersion: datasciencecluster.opendatahub.io/v1alpha1
+      apiVersion: datasciencecluster.opendatahub.io/v1
       kind: DataScienceCluster
       metadata:
         name: example
       spec:
         components:
           dashboard:
-            enabled: true
+            managementState: Managed
           workbenches:
-            enabled: true 
+            managementState: Managed 
     ```
 
 3. Enable Data Science Pipelines 
 
     ```console
-      apiVersion: datasciencecluster.opendatahub.io/v1alpha1
+      apiVersion: datasciencecluster.opendatahub.io/v1
       kind: DataScienceCluster
       metadata:
         name: example
       spec:
         components:
           datasciencepipelines:
-            enabled: true
+            managementState: Managed
     ```

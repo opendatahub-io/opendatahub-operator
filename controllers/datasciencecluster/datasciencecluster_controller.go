@@ -19,16 +19,17 @@ package datasciencecluster
 import (
 	"context"
 	"fmt"
+	"time"
+
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
-	"time"
 
 	"github.com/go-logr/logr"
 	"k8s.io/client-go/util/retry"
 
-	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1alpha1"
+	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/dashboard"
@@ -50,6 +51,8 @@ import (
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	operatorv1 "github.com/openshift/api/operator/v1"
 )
 
 // DataScienceClusterReconciler reconciles a DataScienceCluster object
@@ -358,47 +361,47 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	componentErrorList := make(map[string]error)
 
 	// reconcile dashboard component
-	if instance, err = r.reconcileSubComponent(instance, dashboard.ComponentName, instance.Spec.Components.Dashboard.Enabled,
+	if instance, err = r.reconcileSubComponent(instance, dashboard.ComponentName, instance.Spec.Components.Dashboard.ManagementState,
 		&(instance.Spec.Components.Dashboard)); err != nil {
 		// no need to log any errors as this is done in the reconcileSubComponent method
 		componentErrorList[dashboard.ComponentName] = err
 	}
 
 	// reconcile DataSciencePipelines component
-	if instance, err = r.reconcileSubComponent(instance, datasciencepipelines.ComponentName, instance.Spec.Components.DataSciencePipelines.Enabled,
+	if instance, err = r.reconcileSubComponent(instance, datasciencepipelines.ComponentName, instance.Spec.Components.DataSciencePipelines.ManagementState,
 		&(instance.Spec.Components.DataSciencePipelines)); err != nil {
 		// no need to log any errors as this is done in the reconcileSubComponent method
 		componentErrorList[datasciencepipelines.ComponentName] = err
 	}
 
 	// reconcile Workbench component
-	if instance, err = r.reconcileSubComponent(instance, workbenches.ComponentName, instance.Spec.Components.Workbenches.Enabled,
+	if instance, err = r.reconcileSubComponent(instance, workbenches.ComponentName, instance.Spec.Components.Workbenches.ManagementState,
 		&(instance.Spec.Components.Workbenches)); err != nil {
 		// no need to log any errors as this is done in the reconcileSubComponent method
 		componentErrorList[workbenches.ComponentName] = err
 	}
 
 	// reconcile Kserve component
-	if instance, err = r.reconcileSubComponent(instance, kserve.ComponentName, instance.Spec.Components.Kserve.Enabled, &(instance.Spec.Components.Kserve)); err != nil {
+	if instance, err = r.reconcileSubComponent(instance, kserve.ComponentName, instance.Spec.Components.Kserve.ManagementState, &(instance.Spec.Components.Kserve)); err != nil {
 		// no need to log any errors as this is done in the reconcileSubComponent method
 		componentErrorList[kserve.ComponentName] = err
 	}
 
 	// reconcile ModelMesh component
-	if instance, err = r.reconcileSubComponent(instance, modelmeshserving.ComponentName, instance.Spec.Components.ModelMeshServing.Enabled,
+	if instance, err = r.reconcileSubComponent(instance, modelmeshserving.ComponentName, instance.Spec.Components.ModelMeshServing.ManagementState,
 		&(instance.Spec.Components.ModelMeshServing)); err != nil {
 		// no need to log any errors as this is done in the reconcileSubComponent method
 		componentErrorList[modelmeshserving.ComponentName] = err
 	}
 
 	// reconcile CodeFlare component
-	if instance, err = r.reconcileSubComponent(instance, codeflare.ComponentName, instance.Spec.Components.CodeFlare.Enabled, &(instance.Spec.Components.CodeFlare)); err != nil {
+	if instance, err = r.reconcileSubComponent(instance, codeflare.ComponentName, instance.Spec.Components.CodeFlare.ManagementState, &(instance.Spec.Components.CodeFlare)); err != nil {
 		// no need to log any errors as this is done in the reconcileSubComponent method
 		componentErrorList[codeflare.ComponentName] = err
 	}
 
 	// reconcile Ray component
-	if instance, err = r.reconcileSubComponent(instance, ray.ComponentName, instance.Spec.Components.Ray.Enabled, &(instance.Spec.Components.Ray)); err != nil {
+	if instance, err = r.reconcileSubComponent(instance, ray.ComponentName, instance.Spec.Components.Ray.ManagementState, &(instance.Spec.Components.Ray)); err != nil {
 		// no need to log any errors as this is done in the reconcileSubComponent method
 		componentErrorList[ray.ComponentName] = err
 	}
@@ -433,8 +436,9 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	return ctrl.Result{}, nil
 }
 
-func (r *DataScienceClusterReconciler) reconcileSubComponent(instance *dsc.DataScienceCluster, componentName string, enabled bool,
+func (r *DataScienceClusterReconciler) reconcileSubComponent(instance *dsc.DataScienceCluster, componentName string, mngmtState operatorv1.ManagementState,
 	component components.ComponentInterface) (*dsc.DataScienceCluster, error) {
+	enabled := mngmtState == operatorv1.Managed
 
 	// First set contidions to reflect a component is about to be reconciled
 	instance, err := r.updateStatus(instance, func(saved *dsc.DataScienceCluster) {
@@ -450,7 +454,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(instance *dsc.DataS
 	}
 
 	// Reconcile component
-	err = component.ReconcileComponent(instance, r.Client, r.Scheme, enabled, r.ApplicationsNamespace)
+	err = component.ReconcileComponent(instance, r.Client, r.Scheme, mngmtState, r.ApplicationsNamespace)
 
 	if err != nil {
 		// reconciliation failed: log errors, raise event and update status accordingly
