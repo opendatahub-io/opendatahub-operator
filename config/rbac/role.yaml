@@ -244,7 +244,6 @@ rules:
   resources:
   - builds
   verbs:
-  - catch
   - create
   - delete
   - list
@@ -574,8 +573,9 @@ rules:
   resources:
   - dscinitializations/finalizers
   verbs:
+  - delete
   - get
-  - patchdelete
+  - patch
   - update
 - apiGroups:
   - dscinitialization.opendatahub.io
