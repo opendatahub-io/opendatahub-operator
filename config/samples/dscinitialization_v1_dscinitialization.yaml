@@ -11,5 +11,5 @@ metadata:
 spec:
   monitoring:
     managementState: "Managed"
-    namespace: 'opendatahub'
-  applicationsNamespace: 'opendatahub'
+    namespace: 'redhat-ods-monitoring'
+  applicationsNamespace: 'redhat-ods-applications'

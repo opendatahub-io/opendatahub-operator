@@ -27,8 +27,8 @@ import (
 
 // DSCInitializationSpec defines the desired state of DSCInitialization
 type DSCInitializationSpec struct {
-	// Namespace for applications to be installed, non-configurable, default to "opendatahub"
-	// +kubebuilder:default:=opendatahub
+	// +kubebuilder:default:=redhat-ods-applications
+	// Namespace for applications to be installed, non-configurable, default to "redhat-ods-applications"
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=1
 	ApplicationsNamespace string `json:"applicationsNamespace"`
 	// Enable monitoring on specified namespace
@@ -50,7 +50,7 @@ type Monitoring struct {
 	//               or if it is installed, the operator will try to remove it.
 	// +kubebuilder:validation:Enum=Managed;Removed
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
-	// +kubebuilder:default=opendatahub
+	// +kubebuilder:default=redhat-ods-monitoring
 	// Namespace for monitoring if it is enabled
 	Namespace string `json:"namespace,omitempty"`
 }
