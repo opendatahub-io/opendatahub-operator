@@ -60,14 +60,16 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 	if err != nil {
 		return err
 	}
-	// Update Default rolebinding
+
 	if enabled {
-		if platform == deploy.OpenDataHub {
+		// Update Default rolebinding
+		if platform == deploy.OpenDataHub || platform == "" {
 			err := common.UpdatePodSecurityRolebinding(cli, []string{"odh-dashboard"}, namespace)
 			if err != nil {
 				return err
 			}
-		} else {
+		}
+		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
 			err := common.UpdatePodSecurityRolebinding(cli, []string{"rhods-dashboard"}, namespace)
 			if err != nil {
 				return err
@@ -75,7 +77,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 		}
 
 		// Apply RHODS specific configs
-		if platform != deploy.OpenDataHub {
+		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
 			// Replace admin group
 			if platform == deploy.SelfManagedRhods {
 				err = common.ReplaceStringsInFile(PathODHDashboardConfig+"/odhdashboardconfig.yaml", map[string]string{
@@ -84,7 +86,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 				if err != nil {
 					return err
 				}
-			} else {
+			} else if platform == deploy.ManagedRhods {
 				err = common.ReplaceStringsInFile(PathODHDashboardConfig+"/odhdashboardconfig.yaml", map[string]string{
 					"<admin_groups>": "dedicated-admins",
 				})
@@ -111,12 +113,10 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 				return fmt.Errorf("failed to set dashboard OVMS from %s: %v", PathOVMS, err)
 			}
 
-			if enabled {
-				// Apply anaconda config
-				err = common.CreateSecret(cli, "anaconda-ce-access", namespace)
-				if err != nil {
-					return fmt.Errorf("failed to create access-secret for anaconda: %v", err)
-				}
+			// Apply anaconda config
+			err = common.CreateSecret(cli, "anaconda-ce-access", namespace)
+			if err != nil {
+				return fmt.Errorf("failed to create access-secret for anaconda: %v", err)
 			}
 			err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
 				PathAnaconda,
@@ -134,7 +134,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 	}
 
 	// Deploy odh-dashboard manifests
-	if platform == deploy.OpenDataHub {
+	if platform == deploy.OpenDataHub || platform == "" {
 		err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 			Path,
 			namespace,
@@ -142,7 +142,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 		if err != nil {
 			return err
 		}
-	} else {
+	} else if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
 		// Apply authentication overlay
 		err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
 			PathSupported,
