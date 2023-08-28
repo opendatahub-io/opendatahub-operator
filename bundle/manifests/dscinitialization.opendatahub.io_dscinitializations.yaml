@@ -25,7 +25,7 @@ spec:
     - jsonPath: .metadata.creationTimestamp
       name: Created At
       type: string
-    name: v1alpha1
+    name: v1
     schema:
       openAPIV3Schema:
         description: DSCInitialization is the Schema for the dscinitializations API
@@ -50,16 +50,29 @@ spec:
                 description: Namespace for applications to be installed, non-configurable,
                   default to "opendatahub"
                 type: string
-              manifestsUri:
-                description: Internal development useful field
-                type: string
+              devFlags:
+                description: Internal development useful field to test customizations.
+                  This is not recommended to be used in production environment.
+                properties:
+                  manifestsUri:
+                    description: Custom manifests uri for odh-manifests
+                    type: string
+                type: object
               monitoring:
                 description: Enable monitoring on specified namespace
                 properties:
-                  enabled:
-                    default: false
-                    description: If enabled monitoring, default 'false'
-                    type: boolean
+                  managementState:
+                    description: 'Set to one of the following values: - "Managed"
+                      : the operator is actively managing the component and trying
+                      to keep it active. It will only upgrade the component if it
+                      is safe to do so. - "Removed" : the operator is actively managing
+                      the component and will not install it, or if it is installed,
+                      the operator will try to remove it.'
+                    enum:
+                    - Managed
+                    - Removed
+                    pattern: ^(Managed|Unmanaged|Force|Removed)$
+                    type: string
                   namespace:
                     default: opendatahub
                     description: Namespace for monitoring if it is enabled

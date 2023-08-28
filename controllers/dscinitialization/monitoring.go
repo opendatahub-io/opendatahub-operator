@@ -6,6 +6,7 @@ import (
 	b64 "encoding/base64"
 	"fmt"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	"strings"
 
 	routev1 "github.com/openshift/api/route/v1"
@@ -16,7 +17,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1alpha1"
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
@@ -87,7 +88,7 @@ func configurePrometheus(dsciInit *dsci.DSCInitialization, r *DSCInitializationR
 	// Deploy manifests
 	err = deploy.DeployManifestsFromPath(dsciInit, r.Client, "prometheus",
 		deploy.DefaultManifestPath+"/monitoring/prometheus",
-		dsciInit.Spec.Monitoring.Namespace, r.Scheme, dsciInit.Spec.Monitoring.Enabled)
+		dsciInit.Spec.Monitoring.Namespace, r.Scheme, dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
 	if err != nil {
 		r.Log.Error(err, "error to deploy manifests under /opt/manifests/monitoring/prometheus")
 		return err
@@ -148,7 +149,7 @@ func configureAlertManager(dsciInit *dsci.DSCInitialization, r *DSCInitializatio
 
 	err = deploy.DeployManifestsFromPath(dsciInit, r.Client, "alertmanager",
 		deploy.DefaultManifestPath+"/monitoring/alertmanager",
-		dsciInit.Spec.Monitoring.Namespace, r.Scheme, dsciInit.Spec.Monitoring.Enabled)
+		dsciInit.Spec.Monitoring.Namespace, r.Scheme, dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
 	if err != nil {
 		r.Log.Error(err, "error to deploy manifests under /opt/manifests/monitoring/alertmanager")
 		return err
@@ -174,7 +175,7 @@ func configureBlackboxExporter(dsciInit *dsci.DSCInitialization, cli client.Clie
 	if apierrs.IsNotFound(err) || strings.Contains(consoleRoute.Spec.Host, "redhat.com") {
 		err := deploy.DeployManifestsFromPath(dsciInit, cli, "blackbox-exporter",
 			deploy.DefaultManifestPath+"/monitoring/blackbox-exporter/internal",
-			dsciInit.Spec.Monitoring.Namespace, s, dsciInit.Spec.Monitoring.Enabled)
+			dsciInit.Spec.Monitoring.Namespace, s, dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
 		if err != nil {
 			return fmt.Errorf("error to deploy manifests: %v", err)
 		}
@@ -182,7 +183,7 @@ func configureBlackboxExporter(dsciInit *dsci.DSCInitialization, cli client.Clie
 	} else {
 		err := deploy.DeployManifestsFromPath(dsciInit, cli, "blackbox-exporter",
 			deploy.DefaultManifestPath+"/monitoring/blackbox-exporter/external",
-			dsciInit.Spec.Monitoring.Namespace, s, dsciInit.Spec.Monitoring.Enabled)
+			dsciInit.Spec.Monitoring.Namespace, s, dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
 		if err != nil {
 			return fmt.Errorf("error to deploy manifests: %v", err)
 		}
@@ -285,7 +286,7 @@ func (r *DSCInitializationReconciler) configureCommonMonitoring(dsciInit *dsci.D
 	// configure segment.io
 	err := deploy.DeployManifestsFromPath(dsciInit, r.Client, "segment-io",
 		deploy.DefaultManifestPath+"/monitoring/segment",
-		dsciInit.Spec.Monitoring.Namespace, r.Scheme, dsciInit.Spec.Monitoring.Enabled)
+		dsciInit.Spec.Monitoring.Namespace, r.Scheme, dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
 	if err != nil {
 		r.Log.Error(err, "error to deploy manifests under /opt/manifests/monitoring/segment")
 		return err

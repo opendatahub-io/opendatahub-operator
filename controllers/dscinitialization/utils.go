@@ -3,6 +3,7 @@ package dscinitialization
 import (
 	"context"
 	"crypto/rand"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	"reflect"
 	"time"
 
@@ -17,7 +18,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1alpha1"
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 )
 
 var (
@@ -62,7 +63,7 @@ func (r *DSCInitializationReconciler) createOdhNamespace(dscInit *dsci.DSCInitia
 			r.Log.Error(err, "Unable to fetch namespace", "name", name)
 			return err
 		}
-	} else if dscInit.Spec.Monitoring.Enabled && dscInit.Spec.Monitoring.Namespace == name {
+	} else if (dscInit.Spec.Monitoring.ManagementState == operatorv1.Managed) && dscInit.Spec.Monitoring.Namespace == name {
 		err = r.Patch(ctx, foundNamespace, client.RawPatch(types.MergePatchType,
 			[]byte(`{"metadata": {"labels": {"openshift.io/cluster-monitoring": "true"}}}`)))
 		if err != nil {
@@ -70,7 +71,7 @@ func (r *DSCInitializationReconciler) createOdhNamespace(dscInit *dsci.DSCInitia
 		}
 	}
 	// Create Monitoring Namespace if it is enabled and not exists
-	if dscInit.Spec.Monitoring.Enabled {
+	if dscInit.Spec.Monitoring.ManagementState == operatorv1.Managed {
 		foundMonitoringNamespace := &corev1.Namespace{}
 		monitoringName := dscInit.Spec.Monitoring.Namespace
 		err := r.Get(ctx, client.ObjectKey{Name: monitoringName}, foundMonitoringNamespace)

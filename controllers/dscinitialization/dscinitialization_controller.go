@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	logr "github.com/go-logr/logr"
@@ -42,7 +43,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1alpha1"
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -115,9 +116,9 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 
 	// Extract latest Manifests
-	err = deploy.DownloadManifests(instance.Spec.ManifestsUri)
+	err = deploy.DownloadManifests(instance.Spec.DevFlags.ManifestsUri)
 	if err != nil {
-		r.Log.Error(err, "Failed to download and unpack manifests.", "ManifestsURI", instance.Spec.ManifestsUri)
+		r.Log.Error(err, "Failed to download and unpack manifests.", "ManifestsURI", instance.Spec.DevFlags.ManifestsUri)
 		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to download and unpack manifests")
 		return reconcile.Result{}, err
 	}
@@ -173,7 +174,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 
 	// If monitoring enabled
-	if instance.Spec.Monitoring.Enabled {
+	if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
 		switch platform {
 		case deploy.SelfManagedRhods:
 			r.Log.Info("Monitoring enabled, won't apply changes", "cluster", "Self-Managed RHODS Mode")

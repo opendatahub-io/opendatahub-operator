@@ -14,9 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1alpha1
+package v1
 
 import (
+	operatorv1 "github.com/openshift/api/operator/v1"
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,19 +34,32 @@ type DSCInitializationSpec struct {
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=2
 	// +optional
 	Monitoring Monitoring `json:"monitoring,omitempty"`
-	// Internal development useful field
+	// Internal development useful field to test customizations.
+	// This is not recommended to be used in production environment.
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=3
 	// +optional
-	ManifestsUri string `json:"manifestsUri,omitempty"`
+	DevFlags DevFlags `json:"devFlags,omitempty"`
 }
 
 type Monitoring struct {
-	// +kubebuilder:default=false
-	// If enabled monitoring, default 'false'
-	Enabled bool `json:"enabled,omitempty"`
+	// Set to one of the following values:
+	// - "Managed" : the operator is actively managing the component and trying to keep it active.
+	//               It will only upgrade the component if it is safe to do so.
+	// - "Removed" : the operator is actively managing the component and will not install it,
+	//               or if it is installed, the operator will try to remove it.
+	// +kubebuilder:validation:Enum=Managed;Removed
+	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 	// +kubebuilder:default=opendatahub
 	// Namespace for monitoring if it is enabled
 	Namespace string `json:"namespace,omitempty"`
+}
+
+// DevFlags defines list of fields that can be used by developers to test customizations. This is not recommended
+// to be used in production environment.
+type DevFlags struct {
+	// Custom manifests uri for odh-manifests
+	// +optional
+	ManifestsUri string `json:"manifestsUri,omitempty"`
 }
 
 // DSCInitializationStatus defines the observed state of DSCInitialization

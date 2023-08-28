@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	"os"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -48,7 +49,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	datascienceclusterv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1alpha1"
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	datascienceclustercontrollers "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
 	dscicontr "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
@@ -74,7 +75,6 @@ func init() {
 	utilruntime.Must(ocv1.AddToScheme(scheme))
 	utilruntime.Must(ofapi.AddToScheme(scheme))
 	utilruntime.Must(ocuserv1.AddToScheme(scheme))
-
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -172,7 +172,8 @@ func main() {
 			Spec: dsci.DSCInitializationSpec{
 				ApplicationsNamespace: dscApplicationsNamespace,
 				Monitoring: dsci.Monitoring{
-					Enabled: false,
+					ManagementState: operatorv1.Managed,
+					Namespace:       dscMonitoringNamespace,
 				},
 			},
 		}

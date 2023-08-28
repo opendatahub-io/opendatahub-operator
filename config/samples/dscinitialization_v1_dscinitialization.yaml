@@ -1,4 +1,4 @@
-apiVersion: dscinitialization.opendatahub.io/v1alpha1
+apiVersion: dscinitialization.opendatahub.io/v1
 kind: DSCInitialization
 metadata:
   labels:
@@ -10,6 +10,6 @@ metadata:
   name: default
 spec:
   monitoring:
-    enabled: false
+    managementState: "Managed"
     namespace: 'opendatahub'
   applicationsNamespace: 'opendatahub'

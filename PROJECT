@@ -19,8 +19,8 @@ resources:
   domain: opendatahub.io
   group: dscinitialization
   kind: DSCInitialization
-  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1alpha1
-  version: v1alpha1
+  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1
+  version: v1
 - api:
     crdVersion: v1
     namespaced: false

@@ -115,7 +115,7 @@ metadata:
           }
         },
         {
-          "apiVersion": "dscinitialization.opendatahub.io/v1alpha1",
+          "apiVersion": "dscinitialization.opendatahub.io/v1",
           "kind": "DSCInitialization",
           "metadata": {
             "labels": {
@@ -130,7 +130,7 @@ metadata:
           "spec": {
             "applicationsNamespace": "opendatahub",
             "monitoring": {
-              "enabled": false,
+              "managementState": "Managed",
               "namespace": "opendatahub"
             }
           }
@@ -241,15 +241,16 @@ spec:
       - description: Enable monitoring on specified namespace
         displayName: Monitoring
         path: monitoring
-      - description: Internal development useful field
-        displayName: Manifests Uri
-        path: manifestsUri
+      - description: Internal development useful field to test customizations. This
+          is not recommended to be used in production environment.
+        displayName: Dev Flags
+        path: devFlags
       statusDescriptors:
       - description: Conditions describes the state of the DSCInitializationStatus
           resource.
         displayName: Conditions
         path: conditions
-      version: v1alpha1
+      version: v1
     - kind: OdhApplication
       name: odhapplications.dashboard.opendatahub.io
       version: v1
