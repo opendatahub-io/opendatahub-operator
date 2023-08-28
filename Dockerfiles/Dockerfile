@@ -3,14 +3,9 @@ ARG GOLANG_VERSION=1.18.9
 
 FROM registry.access.redhat.com/ubi8/go-toolset:$GOLANG_VERSION as builder
 
-<<<<<<< HEAD
-ARG MANIFEST_REPO="https://github.com/opendatahub-io/odh-manifests"
-ARG MANIFEST_RELEASE="v1.9"
-
-=======
 ARG MANIFEST_REPO="https://github.com/red-hat-data-services/odh-manifests"
-ARG MANIFEST_RELEASE="main"
->>>>>>> dcf5d1fd (Adapt for RHODS)
+ARG MANIFEST_RELEASE="master"
+
 ARG MANIFEST_TARBALL="${MANIFEST_REPO}/tarball/${MANIFEST_RELEASE}"
 
 WORKDIR /workspace
