@@ -7,7 +7,7 @@ import (
 
 	"testing"
 
-	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1alpha1"
+	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 
 	"github.com/stretchr/testify/require"

@@ -76,7 +76,7 @@ metadata:
           }
         },
         {
-          "apiVersion": "datasciencecluster.opendatahub.io/v1alpha1",
+          "apiVersion": "datasciencecluster.opendatahub.io/v1",
           "kind": "DataScienceCluster",
           "metadata": {
             "labels": {
@@ -91,31 +91,31 @@ metadata:
           "spec": {
             "components": {
               "codeflare": {
-                "enabled": false
+                "managementState": "Removed"
               },
               "dashboard": {
-                "enabled": true
+                "managementState": "Managed"
               },
               "datasciencepipelines": {
-                "enabled": true
+                "managementState": "Managed"
               },
               "kserve": {
-                "enabled": false
+                "managementState": "Removed"
               },
               "modelmeshserving": {
-                "enabled": true
+                "managementState": "Managed"
               },
               "ray": {
-                "enabled": false
+                "managementState": "Removed"
               },
               "workbenches": {
-                "enabled": true
+                "managementState": "Managed"
               }
             }
           }
         },
         {
-          "apiVersion": "dscinitialization.opendatahub.io/v1alpha1",
+          "apiVersion": "dscinitialization.opendatahub.io/v1",
           "kind": "DSCInitialization",
           "metadata": {
             "labels": {
@@ -130,7 +130,7 @@ metadata:
           "spec": {
             "applicationsNamespace": "opendatahub",
             "monitoring": {
-              "enabled": false,
+              "managementState": "Managed",
               "namespace": "opendatahub"
             }
           }
@@ -172,7 +172,7 @@ metadata:
     olm.skipRange: '>=1.0.0 <2.0.0'
     operatorframework.io/initialization-resource: |-
       {
-        "apiVersion": "datasciencecluster.opendatahub.io/v1alpha1",
+        "apiVersion": "datasciencecluster.opendatahub.io/v1",
         "kind": "DataScienceCluster",
         "metadata": {
           "name": "default",
@@ -187,25 +187,25 @@ metadata:
         "spec": {
           "components": {
             "codeflare": {
-              "enabled": false
+              "managementState": "Removed"
             },
             "dashboard": {
-              "enabled": true
+              "managementState": "Managed"
             },
             "datasciencepipelines": {
-              "enabled": true
+              "managementState": "Managed"
             },
             "kserve": {
-              "enabled": false
+              "managementState": "Removed"
             },
             "modelmeshserving": {
-              "enabled": true
+              "managementState": "Managed"
             },
             "ray": {
-              "enabled": false
+              "managementState": "Removed"
             },
             "workbenches": {
-              "enabled": true
+              "managementState": "Managed"
             }
           }
         }
@@ -228,7 +228,7 @@ spec:
       - description: Override and fine tune specific component configurations.
         displayName: Components
         path: components
-      version: v1alpha1
+      version: v1
     - description: DSCInitialization is the Schema for the dscinitializations API
       displayName: DSC Initialization
       kind: DSCInitialization
@@ -241,15 +241,16 @@ spec:
       - description: Enable monitoring on specified namespace
         displayName: Monitoring
         path: monitoring
-      - description: Internal development useful field
-        displayName: Manifests Uri
-        path: manifestsUri
+      - description: Internal development useful field to test customizations. This
+          is not recommended to be used in production environment.
+        displayName: Dev Flags
+        path: devFlags
       statusDescriptors:
       - description: Conditions describes the state of the DSCInitializationStatus
           resource.
         displayName: Conditions
         path: conditions
-      version: v1alpha1
+      version: v1
     - kind: OdhApplication
       name: odhapplications.dashboard.opendatahub.io
       version: v1

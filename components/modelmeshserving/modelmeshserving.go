@@ -2,10 +2,12 @@ package modelmeshserving
 
 import (
 	"context"
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1alpha1"
+
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -41,15 +43,8 @@ func (m *ModelMeshServing) SetImageParamsMap(imageMap map[string]string) map[str
 // Verifies that Dashboard implements ComponentInterface
 var _ components.ComponentInterface = (*ModelMeshServing)(nil)
 
-func (m *ModelMeshServing) IsEnabled() bool {
-	return m.Enabled
-}
-
-func (m *ModelMeshServing) SetEnabled(enabled bool) {
-	m.Enabled = enabled
-}
-
-func (m *ModelMeshServing) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, enabled bool, namespace string) error {
+func (m *ModelMeshServing) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, namespace string) error {
+	enabled := managementState == operatorv1.Managed
 
 	// Update Default rolebinding
 	if enabled {

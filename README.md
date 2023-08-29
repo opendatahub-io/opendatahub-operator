@@ -116,40 +116,40 @@ components. At a given time, ODH supports only **one** instance of the CR, which
 
 1. Enable all components
     ```console
-      apiVersion: datasciencecluster.opendatahub.io/v1alpha1
+      apiVersion: datasciencecluster.opendatahub.io/v1
       kind: DataScienceCluster
       metadata:
         name: example
       spec:
         components:
           codeflare:
-            enabled: true
+            managementState: Managed
           dashboard:
-            enabled: true
+            managementState: Managed
           datasciencepipelines:
-            enabled: true
+            managementState: Managed
           kserve:
-            enabled: true
+            managementState: Managed
           modelmeshserving:
-            enabled: true
+            managementState: Managed
           ray:
-            enabled: true
+            managementState: Managed
           workbenches:
-            enabled: true 
+            managementState: Managed
     ```
 2. Enable only Dashboard and Workbenches
 
     ```console
-      apiVersion: datasciencecluster.opendatahub.io/v1alpha1
+      apiVersion: datasciencecluster.opendatahub.io/v1
       kind: DataScienceCluster
       metadata:
         name: example
       spec:
         components:
           dashboard:
-            enabled: true
+            managementState: Managed
           workbenches:
-            enabled: true 
+            managementState: Managed
     ```
 
 **Note:** Default value for a component is `false`.

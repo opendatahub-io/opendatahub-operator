@@ -79,26 +79,26 @@ EOF
 
 ```console
 cat <<EOF | oc apply -f -
-apiVersion: datasciencecluster.opendatahub.io/v1alpha1
+apiVersion: datasciencecluster.opendatahub.io/v1
 kind: DataScienceCluster
 metadata:
   name: example
 spec:
   components:
     codeflare:
-      enabled: true
+      managementState: Managed
     dashboard:
-      enabled: true
+      managementState: Managed
     datasciencepipelines:
-      enabled: true
+      managementState: Managed
     kserve:
-      enabled: true
+      managementState: Managed
     modelmeshserving:
-      enabled: true
+      managementState: Managed
     ray:
-      enabled: true
+      managementState: Managed
     workbenches:
-      enabled: true
+      managementState: Managed
 EOF
 ```
 
