@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package datasciencecluster contains controller logic of CRD DataScienceCluster
 package datasciencecluster
 
 import (

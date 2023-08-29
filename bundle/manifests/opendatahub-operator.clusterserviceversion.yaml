@@ -244,7 +244,7 @@ spec:
         path: devFlags
       statusDescriptors:
       - description: Conditions describes the state of the DSCInitializationStatus
-          resource.
+          resource
         displayName: Conditions
         path: conditions
       version: v1
