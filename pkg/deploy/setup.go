@@ -22,6 +22,11 @@ const (
 
 type Platform string
 
+// Function isSelfManaged to check if has CSV in cluster
+// when CSV displayname contains OpenDataHub, return 'OpenDataHub,nil' => high priority
+// when CSV displayname contains SelfManagedRhods, return 'SelfManagedRhods,nil'
+// when in dev mode, if could not find CSV (deploy by olm), return "", nil
+// otherwise return "",err
 func isSelfManaged(cli client.Client) (Platform, error) {
 	clusterCsvs := &ofapi.ClusterServiceVersionList{}
 	err := cli.List(context.TODO(), clusterCsvs)
@@ -37,10 +42,11 @@ func isSelfManaged(cli client.Client) (Platform, error) {
 
 			}
 		}
-
 	}
-	return "", err
+	return "", nil
 }
+
+// Funcion isManagedRHODS check if CRD adddons exists and contain string ManagedRhods
 func isManagedRHODS(cli client.Client) (Platform, error) {
 	addonCRD := &apiextv1.CustomResourceDefinition{}
 
@@ -65,12 +71,13 @@ func isManagedRHODS(cli client.Client) (Platform, error) {
 }
 
 func GetPlatform(cli client.Client) (Platform, error) {
-	// First check if its addon installation
+	// First check if its addon installation to return 'ManagedRhods, nil'
 	platform, err := isManagedRHODS(cli)
 	if err == nil && platform == ManagedRhods {
-		return platform, nil
+		// return managed RHODS platform
+		return ManagedRhods, nil
 	}
 
-	// return self-managed platform
+	// check and return whether ODH or self-managed platform
 	return isSelfManaged(cli)
 }
