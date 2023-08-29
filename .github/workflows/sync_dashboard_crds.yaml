@@ -26,6 +26,8 @@ jobs:
           cd ${{ github.workspace }}/config/crd/dashboard-crds
           svn export --force "https://github.com/opendatahub-io/odh-dashboard/tags/${{ github.event.inputs.dashboard_label }}/manifests/crd" .
           rm kustomization.yaml
+          sed -i "s# Red Hat##g" *odh*.yaml
+          sed -i "s#OpenShift Data Science#Open Data Hub#g" *odh*.yaml
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v4.2.3
         with:
