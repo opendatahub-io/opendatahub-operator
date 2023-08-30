@@ -109,6 +109,14 @@ Refer [Dev-Preview.md](./docs/Dev-Preview.md) for testing preview features.
   operator-sdk run bundle quay.io/<username>/opendatahub-operator-bundle:<VERSION> --namespace $OPERATOR_NAMESPACE
   ```
 
+### Test with customized manifests
+
+There are 2 ways to test your changes with modification:
+
+1. set `devFlags.ManifestsUri` field of DSCI instance during runtime: this will pull down manifests from remote git repo
+    by using this method, it overwrites manifests and component images if images are set in the params.env file
+2. [Under implementation] build operator image with local manifests   
+
 ### Example DataScienceCluster 
 
 When the operator is installed successfully in the cluster, a user can create a `DataScienceCluster` CR to enable ODH 

@@ -52,7 +52,7 @@ func (d *Dashboard) GetComponentName() string {
 // Verifies that Dashboard implements ComponentInterface
 var _ components.ComponentInterface = (*Dashboard)(nil)
 
-func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, namespace string) error {
+func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, namespace string, manifestsUri string) error {
 	enabled := managementState == operatorv1.Managed
 
 	// TODO: Add any additional tasks if required when reconciling component
@@ -63,7 +63,6 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 	}
 
 	if enabled {
-		// Update Default rolebinding
 		if platform == deploy.OpenDataHub || platform == "" {
 			err := common.UpdatePodSecurityRolebinding(cli, []string{"odh-dashboard"}, namespace)
 			if err != nil {
@@ -127,11 +126,13 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 				return fmt.Errorf("failed to deploy anaconda resources from %s: %v", PathAnaconda, err)
 			}
 		}
-	}
 
-	// Update image parameters
-	if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
-		return err
+		// Update image parameters
+		if manifestsUri == "" {
+			if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
+				return err
+			}
+		}
 	}
 
 	// Deploy odh-dashboard manifests

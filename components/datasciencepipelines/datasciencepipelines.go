@@ -40,20 +40,22 @@ func (d *DataSciencePipelines) GetComponentName() string {
 // Verifies that Dashboard implements ComponentInterface
 var _ components.ComponentInterface = (*DataSciencePipelines)(nil)
 
-func (d *DataSciencePipelines) ReconcileComponent(owner metav1.Object, client client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, namespace string) error {
+func (d *DataSciencePipelines) ReconcileComponent(owner metav1.Object, client client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, namespace string, manifestsUri string) error {
 	enabled := managementState == operatorv1.Managed
 
-	// Update image parameters
-	if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
-		return err
+	if enabled {
+		// Update image parameters
+		if manifestsUri == "" {
+			if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
+				return err
+			}
+		}
 	}
-
 	err := deploy.DeployManifestsFromPath(owner, client, ComponentName,
 		Path,
 		namespace,
 		scheme, enabled)
 	return err
-
 }
 
 func (in *DataSciencePipelines) DeepCopyInto(out *DataSciencePipelines) {

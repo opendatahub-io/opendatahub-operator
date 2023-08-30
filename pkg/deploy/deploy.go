@@ -289,6 +289,14 @@ func manageResource(owner metav1.Object, ctx context.Context, cli client.Client,
 	return cli.Patch(ctx, found, client.RawPatch(types.ApplyPatchType, data), client.ForceOwnership, client.FieldOwner(owner.GetName()))
 }
 
+/*
+User env variable passed from CSV (if it is set) to overwrite values from manifests' params.env file
+This is useful for air gapped cluster
+priority of image values (from high to low):
+- image values set in manifests params.env if manifestsURI is set
+- RELATED_IMAGE_* values from CSV
+- image values set in manifests params.env if manifestsURI is not set
+*/
 func ApplyImageParams(componentPath string, imageParamsMap map[string]string) error {
 	envFilePath := componentPath + "/params.env"
 	// Require params.env at the root folder
@@ -318,6 +326,7 @@ func ApplyImageParams(componentPath string, imageParamsMap map[string]string) er
 	}
 
 	// Update images with env variables
+	// e.g "odh-kuberay-operator-controller-image": "RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE",
 	for key, _ := range envMap {
 		relatedImageValue := os.Getenv(imageParamsMap[key])
 		if relatedImageValue != "" {
@@ -325,10 +334,8 @@ func ApplyImageParams(componentPath string, imageParamsMap map[string]string) er
 		}
 	}
 
-	// Move the existing file to a backup file
+	// Move the existing file to a backup file and create empty file
 	os.Rename(envFilePath, backupPath)
-
-	// Now, write the map back to the file
 	file, err = os.Create(envFilePath)
 	if err != nil {
 		// If create fails, restore the backup file
@@ -337,6 +344,7 @@ func ApplyImageParams(componentPath string, imageParamsMap map[string]string) er
 	}
 	defer file.Close()
 
+	// Now, write the map back to the file
 	writer := bufio.NewWriter(file)
 	for key, value := range envMap {
 		fmt.Fprintf(writer, "%s=%s\n", key, value)
@@ -352,6 +360,7 @@ func ApplyImageParams(componentPath string, imageParamsMap map[string]string) er
 		return err
 	}
 
+	// cleanup backup file
 	if err := os.Remove(backupPath); err != nil {
 		fmt.Printf("Failed to remove backup file: %v", err)
 		return err

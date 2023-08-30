@@ -37,7 +37,7 @@ func (d *CodeFlare) GetComponentName() string {
 // Verifies that CodeFlare implements ComponentInterface
 var _ components.ComponentInterface = (*CodeFlare)(nil)
 
-func (d *CodeFlare) ReconcileComponent(owner metav1.Object, client client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, namespace string) error {
+func (d *CodeFlare) ReconcileComponent(owner metav1.Object, client client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, namespace string, manifestsUri string) error {
 	enabled := managementState == operatorv1.Managed
 
 	if enabled {
@@ -53,12 +53,14 @@ func (d *CodeFlare) ReconcileComponent(owner metav1.Object, client client.Client
 			}
 		}
 
-		// Update image parameters
-		if err := deploy.ApplyImageParams(CodeflarePath, imageParamMap); err != nil {
-			return err
+		// Update image parameters only when we do not have customized manifests set
+		if manifestsUri == "" {
+			if err := deploy.ApplyImageParams(CodeflarePath, imageParamMap); err != nil {
+				return err
+			}
 		}
-
 	}
+
 	// Deploy Codeflare
 	err := deploy.DeployManifestsFromPath(owner, client, ComponentName,
 		CodeflarePath,
