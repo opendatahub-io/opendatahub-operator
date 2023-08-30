@@ -164,7 +164,7 @@ func main() {
 		releaseDscInitialization := &dsci.DSCInitialization{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "DSCInitialization",
-				APIVersion: "dscinitialization.opendatahub.io/v1alpha1",
+				APIVersion: "dscinitialization.opendatahub.io/v1",
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "default",
