@@ -80,7 +80,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	// Second check if instance exists, return
-	err := r.Client.Get(context.TODO(), types.NamespacedName{Name: req.Name}, instance)
+	err := r.Client.Get(ctx, req.NamespacedName, instance)
 	if err != nil {
 		if apierrs.IsNotFound(err) {
 			// DataScienceCluster instance not found
@@ -91,7 +91,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	// Last check if multiple instances of DataScienceCluster exist
 	instanceList := &dsc.DataScienceClusterList{}
-	err = r.Client.List(context.TODO(), instanceList)
+	err = r.Client.List(ctx, instanceList)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -106,7 +106,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	if instance.Status.Conditions == nil {
 		reason := status.ReconcileInit
 		message := "Initializing DataScienceCluster resource"
-		instance, err = r.updateStatus(instance, func(saved *dsc.DataScienceCluster) {
+		instance, err = r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
 			status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
 			saved.Status.Phase = status.PhaseProgressing
 		})
@@ -129,7 +129,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	if len(dsciInstances.Items) == 0 {
 		reason := status.ReconcileFailed
 		message := "Failed to get a valid DSCInitialization instance"
-		instance, err = r.updateStatus(instance, func(saved *dsc.DataScienceCluster) {
+		instance, err = r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
 			status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
 			saved.Status.Phase = status.PhaseError
 		})
@@ -149,7 +149,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	// Ensure all omitted components show up as explicitly disabled
-	instance, err = r.updateComponents(instance)
+	instance, err = r.updateComponents(ctx, instance)
 	if err != nil {
 		_ = r.reportError(err, instance, "error updating list of components in the CR")
 		return ctrl.Result{}, err
@@ -159,47 +159,47 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	componentErrorList := make(map[string]error)
 
 	// reconcile dashboard component
-	if instance, err = r.reconcileSubComponent(instance, dashboard.ComponentName, instance.Spec.Components.Dashboard.ManagementState,
+	if instance, err = r.reconcileSubComponent(ctx, instance, dashboard.ComponentName, instance.Spec.Components.Dashboard.ManagementState,
 		&(instance.Spec.Components.Dashboard)); err != nil {
 		// no need to log any errors as this is done in the reconcileSubComponent method
 		componentErrorList[dashboard.ComponentName] = err
 	}
 
 	// reconcile DataSciencePipelines component
-	if instance, err = r.reconcileSubComponent(instance, datasciencepipelines.ComponentName, instance.Spec.Components.DataSciencePipelines.ManagementState,
+	if instance, err = r.reconcileSubComponent(ctx, instance, datasciencepipelines.ComponentName, instance.Spec.Components.DataSciencePipelines.ManagementState,
 		&(instance.Spec.Components.DataSciencePipelines)); err != nil {
 		// no need to log any errors as this is done in the reconcileSubComponent method
 		componentErrorList[datasciencepipelines.ComponentName] = err
 	}
 
 	// reconcile Workbench component
-	if instance, err = r.reconcileSubComponent(instance, workbenches.ComponentName, instance.Spec.Components.Workbenches.ManagementState,
+	if instance, err = r.reconcileSubComponent(ctx, instance, workbenches.ComponentName, instance.Spec.Components.Workbenches.ManagementState,
 		&(instance.Spec.Components.Workbenches)); err != nil {
 		// no need to log any errors as this is done in the reconcileSubComponent method
 		componentErrorList[workbenches.ComponentName] = err
 	}
 
 	// reconcile Kserve component
-	if instance, err = r.reconcileSubComponent(instance, kserve.ComponentName, instance.Spec.Components.Kserve.ManagementState, &(instance.Spec.Components.Kserve)); err != nil {
+	if instance, err = r.reconcileSubComponent(ctx, instance, kserve.ComponentName, instance.Spec.Components.Kserve.ManagementState, &(instance.Spec.Components.Kserve)); err != nil {
 		// no need to log any errors as this is done in the reconcileSubComponent method
 		componentErrorList[kserve.ComponentName] = err
 	}
 
 	// reconcile ModelMesh component
-	if instance, err = r.reconcileSubComponent(instance, modelmeshserving.ComponentName, instance.Spec.Components.ModelMeshServing.ManagementState,
+	if instance, err = r.reconcileSubComponent(ctx, instance, modelmeshserving.ComponentName, instance.Spec.Components.ModelMeshServing.ManagementState,
 		&(instance.Spec.Components.ModelMeshServing)); err != nil {
 		// no need to log any errors as this is done in the reconcileSubComponent method
 		componentErrorList[modelmeshserving.ComponentName] = err
 	}
 
 	// reconcile CodeFlare component
-	if instance, err = r.reconcileSubComponent(instance, codeflare.ComponentName, instance.Spec.Components.CodeFlare.ManagementState, &(instance.Spec.Components.CodeFlare)); err != nil {
+	if instance, err = r.reconcileSubComponent(ctx, instance, codeflare.ComponentName, instance.Spec.Components.CodeFlare.ManagementState, &(instance.Spec.Components.CodeFlare)); err != nil {
 		// no need to log any errors as this is done in the reconcileSubComponent method
 		componentErrorList[codeflare.ComponentName] = err
 	}
 
 	// reconcile Ray component
-	if instance, err = r.reconcileSubComponent(instance, ray.ComponentName, instance.Spec.Components.Ray.ManagementState, &(instance.Spec.Components.Ray)); err != nil {
+	if instance, err = r.reconcileSubComponent(ctx, instance, ray.ComponentName, instance.Spec.Components.Ray.ManagementState, &(instance.Spec.Components.Ray)); err != nil {
 		// no need to log any errors as this is done in the reconcileSubComponent method
 		componentErrorList[ray.ComponentName] = err
 	}
@@ -207,7 +207,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	// Process errors for components
 	if componentErrorList != nil && len(componentErrorList) != 0 {
 		r.Log.Info("DataScienceCluster Deployment Incomplete.")
-		instance, err = r.updateStatus(instance, func(saved *dsc.DataScienceCluster) {
+		instance, err = r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
 			status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompletedWithComponentErrors,
 				fmt.Sprintf("DataScienceCluster resource reconciled with component errors: %v", fmt.Sprint(componentErrorList)))
 			saved.Status.Phase = status.PhaseReady
@@ -218,7 +218,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	// finalize reconciliation
-	instance, err = r.updateStatus(instance, func(saved *dsc.DataScienceCluster) {
+	instance, err = r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
 		status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, "DataScienceCluster resource reconciled successfully")
 		saved.Status.Phase = status.PhaseReady
 	})
@@ -234,12 +234,12 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	return ctrl.Result{}, nil
 }
 
-func (r *DataScienceClusterReconciler) reconcileSubComponent(instance *dsc.DataScienceCluster, componentName string, mngmtState operatorv1.ManagementState,
+func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context, instance *dsc.DataScienceCluster, componentName string, mngmtState operatorv1.ManagementState,
 	component components.ComponentInterface) (*dsc.DataScienceCluster, error) {
 	enabled := mngmtState == operatorv1.Managed
 
 	// First set contidions to reflect a component is about to be reconciled
-	instance, err := r.updateStatus(instance, func(saved *dsc.DataScienceCluster) {
+	instance, err := r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
 		if enabled {
 			status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileInit, "Component is enabled", corev1.ConditionUnknown)
 		} else {
@@ -257,7 +257,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(instance *dsc.DataS
 	if err != nil {
 		// reconciliation failed: log errors, raise event and update status accordingly
 		instance = r.reportError(err, instance, "failed to reconcile "+componentName+" on DataScienceCluster")
-		instance, _ = r.updateStatus(instance, func(saved *dsc.DataScienceCluster) {
+		instance, _ = r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
 			if enabled {
 				status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileFailed, fmt.Sprintf("Component reconciliation failed: %v", err), corev1.ConditionFalse)
 			} else {
@@ -267,7 +267,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(instance *dsc.DataS
 		return instance, err
 	} else {
 		// reconciliation succeeded: update status accordingly
-		instance, err = r.updateStatus(instance, func(saved *dsc.DataScienceCluster) {
+		instance, err = r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
 			if saved.Status.InstalledComponents == nil {
 				saved.Status.InstalledComponents = make(map[string]bool)
 			}
@@ -322,11 +322,11 @@ func (r *DataScienceClusterReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		Complete(r)
 }
 
-func (r *DataScienceClusterReconciler) updateStatus(original *dsc.DataScienceCluster, update func(saved *dsc.DataScienceCluster)) (*dsc.DataScienceCluster, error) {
+func (r *DataScienceClusterReconciler) updateStatus(ctx context.Context, original *dsc.DataScienceCluster, update func(saved *dsc.DataScienceCluster)) (*dsc.DataScienceCluster, error) {
 	saved := &dsc.DataScienceCluster{}
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 
-		err := r.Client.Get(context.TODO(), client.ObjectKeyFromObject(original), saved)
+		err := r.Client.Get(ctx, client.ObjectKeyFromObject(original), saved)
 		if err != nil {
 			return err
 		}
@@ -335,6 +335,7 @@ func (r *DataScienceClusterReconciler) updateStatus(original *dsc.DataScienceClu
 
 		// Try to update
 		err = r.Client.Status().Update(context.TODO(), saved)
+
 		// Return err itself here (not wrapped inside another error)
 		// so that RetryOnConflict can identify it correctly.
 		return err
@@ -342,11 +343,10 @@ func (r *DataScienceClusterReconciler) updateStatus(original *dsc.DataScienceClu
 	return saved, err
 }
 
-func (r *DataScienceClusterReconciler) updateComponents(original *dsc.DataScienceCluster) (*dsc.DataScienceCluster, error) {
+func (r *DataScienceClusterReconciler) updateComponents(ctx context.Context, original *dsc.DataScienceCluster) (*dsc.DataScienceCluster, error) {
 	saved := &dsc.DataScienceCluster{}
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-
-		err := r.Client.Get(context.TODO(), client.ObjectKeyFromObject(original), saved)
+		err := r.Client.Get(ctx, client.ObjectKeyFromObject(original), saved)
 		if err != nil {
 			return err
 		}

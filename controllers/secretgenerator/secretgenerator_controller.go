@@ -20,8 +20,9 @@ package secretgenerator
 import (
 	"context"
 	"fmt"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"time"
+
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 
 	ocv1 "github.com/openshift/api/oauth/v1"
 	routev1 "github.com/openshift/api/route/v1"
@@ -102,11 +103,11 @@ func (r *SecretGeneratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // conditions when a deployment mounts the secret before it is reconciled
 func (r *SecretGeneratorReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
 	foundSecret := &v1.Secret{}
-	err := r.Client.Get(context.TODO(), request.NamespacedName, foundSecret)
+	err := r.Client.Get(ctx, request.NamespacedName, foundSecret)
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
 			// If Secret is deleted, delete OAuthClient if exists
-			err = r.deleteOAuthClient(request.Name)
+			err = r.deleteOAuthClient(ctx, request.Name)
 		}
 		return ctrl.Result{}, err
 	}
@@ -126,7 +127,7 @@ func (r *SecretGeneratorReconciler) Reconcile(ctx context.Context, request ctrl.
 
 	generatedSecretKey := types.NamespacedName{
 		Name: generatedSecret.Name, Namespace: generatedSecret.Namespace}
-	err = r.Client.Get(context.TODO(), generatedSecretKey, generatedSecret)
+	err = r.Client.Get(ctx, generatedSecretKey, generatedSecret)
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
 			// Generate secret random value
@@ -143,20 +144,20 @@ func (r *SecretGeneratorReconciler) Reconcile(ctx context.Context, request ctrl.
 				secret.Name: secret.Value,
 			}
 
-			err = r.Client.Create(context.TODO(), generatedSecret)
+			err = r.Client.Create(ctx, generatedSecret)
 			if err != nil {
 				return ctrl.Result{}, err
 			}
 			if secret.OAuthClientRoute != "" {
 				// Get OauthClient Route
-				oauthClientRoute, err := r.getRoute(secret.OAuthClientRoute, request.Namespace)
+				oauthClientRoute, err := r.getRoute(ctx, secret.OAuthClientRoute, request.Namespace)
 				if err != nil {
 					secGenLog.Error(err, "Unable to retrieve route", "route-name", secret.OAuthClientRoute)
 					return ctrl.Result{}, err
 				}
 				// Generate OAuthClient for the generated secret
 				secGenLog.Info("Generating an oauth client resource for route", "route-name", oauthClientRoute.Name)
-				err = r.createOAuthClient(foundSecret.Name, secret.Value, oauthClientRoute.Spec.Host)
+				err = r.createOAuthClient(ctx, foundSecret.Name, secret.Value, oauthClientRoute.Spec.Host)
 				if err != nil {
 					secGenLog.Error(err, "error creating oauth client resource. Recreate the Secret", "secret-name",
 						foundSecret.Name)
@@ -173,12 +174,14 @@ func (r *SecretGeneratorReconciler) Reconcile(ctx context.Context, request ctrl.
 }
 
 // getRoute returns an OpenShift route object. It waits until the .spec.host value exists to avoid possible race conditions, fails otherwise.
-func (r *SecretGeneratorReconciler) getRoute(name string, namespace string) (*routev1.Route, error) {
+func (r *SecretGeneratorReconciler) getRoute(ctx context.Context, name string, namespace string) (*routev1.Route, error) {
 	route := &routev1.Route{}
 	// Get spec.host from route
 	err := wait.PollImmediate(resourceRetryInterval, resourceRetryTimeout, func() (done bool, err error) {
-		err = r.Client.Get(context.TODO(), types.NamespacedName{Name: name,
-			Namespace: namespace}, route)
+		err = r.Client.Get(ctx, client.ObjectKey{
+			Name:      name,
+			Namespace: namespace,
+		}, route)
 		if err != nil {
 			if k8serrors.IsNotFound(err) {
 				return false, nil
@@ -197,10 +200,13 @@ func (r *SecretGeneratorReconciler) getRoute(name string, namespace string) (*ro
 	return route, err
 }
 
-func (r *SecretGeneratorReconciler) createOAuthClient(name string, secretName string, uri string) error {
+func (r *SecretGeneratorReconciler) createOAuthClient(ctx context.Context, name string, secretName string, uri string) error {
 	// Create OAuthClient resource
 	oauthClient := &ocv1.OAuthClient{
-		TypeMeta: metav1.TypeMeta{},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "OAuthClient",
+			APIVersion: "v1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
@@ -209,7 +215,7 @@ func (r *SecretGeneratorReconciler) createOAuthClient(name string, secretName st
 		GrantMethod:  ocv1.GrantHandlerAuto,
 	}
 
-	err := r.Client.Create(context.TODO(), oauthClient)
+	err := r.Client.Create(ctx, oauthClient)
 	if err != nil {
 		if k8serrors.IsAlreadyExists(err) {
 			secGenLog.Info("OAuth client resource already exists", "name", oauthClient.Name)
@@ -219,10 +225,12 @@ func (r *SecretGeneratorReconciler) createOAuthClient(name string, secretName st
 	return err
 }
 
-func (r *SecretGeneratorReconciler) deleteOAuthClient(secretName string) error {
+func (r *SecretGeneratorReconciler) deleteOAuthClient(ctx context.Context, secretName string) error {
 	oauthClient := &ocv1.OAuthClient{}
 
-	err := r.Client.Get(context.TODO(), types.NamespacedName{Name: secretName}, oauthClient)
+	err := r.Client.Get(ctx, client.ObjectKey{
+		Name: secretName,
+	}, oauthClient)
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
 			return nil
@@ -230,10 +238,10 @@ func (r *SecretGeneratorReconciler) deleteOAuthClient(secretName string) error {
 		return err
 	}
 
-	err = r.Client.Delete(context.TODO(), oauthClient)
+	err = r.Client.Delete(ctx, oauthClient)
 	if err != nil {
 		return fmt.Errorf("error deleting OAuthClient %v", oauthClient.Name)
 	}
 
-	return err
+	return nil
 }
