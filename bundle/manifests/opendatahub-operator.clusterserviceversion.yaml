@@ -565,15 +565,6 @@ spec:
         - apiGroups:
           - console.openshift.io
           resources:
-          - consolelinks
-          verbs:
-          - create
-          - delete
-          - get
-          - patch
-        - apiGroups:
-          - console.openshift.io
-          resources:
           - odhquickstarts
           verbs:
           - create
@@ -1233,18 +1224,6 @@ spec:
           - update
           - watch
         - apiGroups:
-          - security.istio.io
-          resources:
-          - peerauthentications
-          verbs:
-          - create
-          - get
-          - list
-          - patch
-          - update
-          - use
-          - watch
-        - apiGroups:
           - security.openshift.io
           resources:
           - securitycontextconstraints
@@ -1462,34 +1441,11 @@ spec:
           verbs:
           - '*'
         - apiGroups:
-          - telemetry.istio.io
-          resources:
-          - telemetries
-          verbs:
-          - create
-          - get
-          - list
-          - patch
-          - update
-          - use
-          - watch
-        - apiGroups:
           - template.openshift.io
           resources:
           - templates
           verbs:
           - '*'
-        - apiGroups:
-          - user.openshift.io
-          resources:
-          - groups
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - watch
         - apiGroups:
           - user.openshift.io
           resources:
