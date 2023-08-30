@@ -79,7 +79,20 @@ type DSCInitializationStatus struct {
 	// +optional
 	RelatedObjects []corev1.ObjectReference `json:"relatedObjects,omitempty"`
 	ErrorMessage   string                   `json:"errorMessage,omitempty"`
+
+	// Collection of cluster related env variables
+	ClusterInfo ClusterInfo `json:"clusterInfo,omitempty"`
 }
+
+type ClusterInfo struct {
+	// Value of running platform
+	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=1
+	Platform Platform `json:"platform,omitempty"`
+
+	// TODO: add more when needed to config cluster during init stage
+}
+
+type Platform string
 
 //+kubebuilder:object:root=true
 //+kubebuilder:resource:scope=Cluster

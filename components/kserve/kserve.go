@@ -7,7 +7,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -46,8 +45,10 @@ func (k *Kserve) GetComponentName() string {
 // Verifies that Kserve implements ComponentInterface
 var _ components.ComponentInterface = (*Kserve)(nil)
 
-func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
+func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dsciInfo *components.DataScienceClusterConfig) error {
 	enabled := k.GetManagementState() == operatorv1.Managed
+	applicationsNamespace := dsciInfo.DSCISpec.ApplicationsNamespace
+	notOverrideManifestsUri := dsciInfo.DSCISpec.DevFlags.ManifestsUri == ""
 
 	if enabled {
 		// check on dependent operators
@@ -67,31 +68,31 @@ func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dsci
 		}
 
 		// Update image parameters only when we do not have customized manifests set
-		if dscispec.DevFlags.ManifestsUri == "" {
+		if notOverrideManifestsUri {
 			if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
 				return err
 			}
 		}
 	}
 
-	if err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+	if err := deploy.DeployManifestsFromPath(cli, owner, Path, applicationsNamespace, ComponentName, enabled); err != nil {
 		return err
 	}
 
 	// For odh-model-controller
 	if enabled {
-		err := common.UpdatePodSecurityRolebinding(cli, []string{"odh-model-controller"}, dscispec.ApplicationsNamespace)
+		err := common.UpdatePodSecurityRolebinding(cli, []string{"odh-model-controller"}, applicationsNamespace)
 		if err != nil {
 			return err
 		}
-		// Update image parameters for kserve
-		if dscispec.DevFlags.ManifestsUri == "" {
+		// Update image parameters for keserve
+		if notOverrideManifestsUri {
 			if err := deploy.ApplyImageParams(Path, dependentImageParamMap); err != nil {
 				return err
 			}
 		}
 	}
-	if err := deploy.DeployManifestsFromPath(cli, owner, DependentPath, dscispec.ApplicationsNamespace, k.GetComponentName(), enabled); err != nil {
+	if err := deploy.DeployManifestsFromPath(cli, owner, DependentPath, applicationsNamespace, k.GetComponentName(), enabled); err != nil {
 		return err
 	}
 

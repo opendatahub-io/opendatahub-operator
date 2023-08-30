@@ -18,16 +18,15 @@ package v1
 
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/dashboard"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/dashboard"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 )
 
 // DataScienceCluster defines the desired state of the cluster.

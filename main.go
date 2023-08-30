@@ -20,8 +20,9 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	operatorv1 "github.com/openshift/api/operator/v1"
 	"os"
+
+	operatorv1 "github.com/openshift/api/operator/v1"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -51,6 +52,7 @@ import (
 
 	datascienceclusterv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	datascienceclustercontrollers "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
 	dscicontr "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
@@ -143,7 +145,7 @@ func main() {
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 		Log:    ctrl.Log.WithName("controllers").WithName("DataScienceCluster"),
-		DataScienceCluster: &datascienceclustercontrollers.DataScienceClusterConfig{
+		DataScienceCluster: &components.DataScienceClusterConfig{
 			DSCISpec: &dsci.DSCInitializationSpec{
 				ApplicationsNamespace: dscApplicationsNamespace,
 			},

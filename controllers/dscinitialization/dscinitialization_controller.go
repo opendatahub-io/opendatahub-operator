@@ -124,12 +124,17 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return reconcile.Result{}, err
 	}
 
-	// Get platform
+	// Get and set platform value to DSCI status
 	platform, err := deploy.GetPlatform(r.Client)
 	if err != nil {
 		r.Log.Error(err, "Failed to determine platform (managed vs self-managed)")
 		return reconcile.Result{}, err
 	}
+	// Write platform back
+	instance, err = r.updateStatus(ctx, instance, func(saved *dsci.DSCInitialization) {
+		saved.Status.Phase = status.PhaseProgressing
+		saved.Status.ClusterInfo.Platform = platform
+	})
 
 	// Apply update from legacy operator
 	// TODO: Update upgrade logic to get components through KfDef
@@ -139,9 +144,9 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	//}
 
 	// Apply Rhods specific configs
-	if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
+	if instance.Status.ClusterInfo.Platform == deploy.ManagedRhods || instance.Status.ClusterInfo.Platform == deploy.SelfManagedRhods {
 		//Apply osd specific permissions
-		if platform == deploy.ManagedRhods {
+		if instance.Status.ClusterInfo.Platform == deploy.ManagedRhods {
 			osdConfigsPath := filepath.Join(deploy.DefaultManifestPath, "osd-configs")
 			err = deploy.DeployManifestsFromPath(r.Client, instance, osdConfigsPath, r.ApplicationsNamespace, "osd", true)
 			if err != nil {
@@ -168,7 +173,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	// If monitoring enabled
 	if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
-		switch platform {
+		switch instance.Status.ClusterInfo.Platform {
 		case deploy.SelfManagedRhods:
 			r.Log.Info("Monitoring enabled, won't apply changes", "cluster", "Self-Managed RHODS Mode")
 			err := r.configureCommonMonitoring(instance)

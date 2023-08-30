@@ -25,8 +25,14 @@ func (c *Component) GetManagementState() operatorv1.ManagementState {
 	return c.ManagementState
 }
 
+// DataScienceClusterConfig passing Spec of DSCI for reconcile DataScienceCluster
+type DataScienceClusterConfig struct {
+	DSCISpec *dsci.DSCInitializationSpec
+	Platform dsci.Platform
+}
+
 type ComponentInterface interface {
-	ReconcileComponent(cli client.Client, owner metav1.Object, DSCISpec *dsci.DSCInitializationSpec) error
+	ReconcileComponent(cli client.Client, owner metav1.Object, dsciInfo *DataScienceClusterConfig) error
 	GetComponentName() string
 	GetManagementState() operatorv1.ManagementState
 	SetImageParamsMap(imageMap map[string]string) map[string]string

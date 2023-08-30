@@ -3,7 +3,6 @@ package codeflare
 
 import (
 	"fmt"
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -36,17 +35,17 @@ func (c *CodeFlare) GetComponentName() string {
 // Verifies that CodeFlare implements ComponentInterface
 var _ components.ComponentInterface = (*CodeFlare)(nil)
 
-func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
+func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, dsciInfo *components.DataScienceClusterConfig) error {
 	enabled := c.GetManagementState() == operatorv1.Managed
+	platform := dsciInfo.Platform
+	applicationsNamespace := dsciInfo.DSCISpec.ApplicationsNamespace
+	notOverrideManifestsUri := dsciInfo.DSCISpec.DevFlags.ManifestsUri == ""
 
 	if enabled {
 		// check if the CodeFlare operator is installed
 		// codeflare operator not installed
 		dependentOperator := CodeflareOperator
-		platform, err := deploy.GetPlatform(cli)
-		if err != nil {
-			return err
-		}
+
 		// overwrite dependent operator if downstream not match upstream
 		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
 			dependentOperator = RHCodeflareOperator
@@ -60,7 +59,7 @@ func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, d
 		}
 
 		// Update image parameters only when we do not have customized manifests set
-		if dscispec.DevFlags.ManifestsUri == "" {
+		if notOverrideManifestsUri {
 			if err := deploy.ApplyImageParams(CodeflarePath, imageParamMap); err != nil {
 				return err
 			}
@@ -68,7 +67,7 @@ func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, d
 	}
 
 	// Deploy Codeflare
-	err := deploy.DeployManifestsFromPath(cli, owner, CodeflarePath, dscispec.ApplicationsNamespace, c.GetComponentName(), enabled)
+	err := deploy.DeployManifestsFromPath(cli, owner, CodeflarePath, applicationsNamespace, c.GetComponentName(), enabled)
 
 	return err
 

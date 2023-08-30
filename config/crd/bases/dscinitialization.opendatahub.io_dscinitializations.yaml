@@ -85,6 +85,13 @@ spec:
           status:
             description: DSCInitializationStatus defines the observed state of DSCInitialization
             properties:
+              clusterInfo:
+                description: Collection of cluster related env variables
+                properties:
+                  platform:
+                    description: Value of running platform
+                    type: string
+                type: object
               conditions:
                 description: Conditions describes the state of the DSCInitializationStatus
                   resource

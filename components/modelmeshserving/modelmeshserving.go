@@ -43,24 +43,26 @@ func (m *ModelMeshServing) SetImageParamsMap(imageMap map[string]string) map[str
 // Verifies that Dashboard implements ComponentInterface
 var _ components.ComponentInterface = (*ModelMeshServing)(nil)
 
-func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
+func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Object, dsciInfo *components.DataScienceClusterConfig) error {
 	enabled := m.GetManagementState() == operatorv1.Managed
+	applicationsNamespace := dsciInfo.DSCISpec.ApplicationsNamespace
+	notOverrideManifestsUri := dsciInfo.DSCISpec.DevFlags.ManifestsUri == ""
 
 	// Update Default rolebinding
 	if enabled {
-		err := common.UpdatePodSecurityRolebinding(cli, []string{"modelmesh", "modelmesh-controller", "odh-model-controller", "odh-prometheus-operator", "prometheus-custom"}, dscispec.ApplicationsNamespace)
+		err := common.UpdatePodSecurityRolebinding(cli, []string{"modelmesh", "modelmesh-controller", "odh-model-controller", "odh-prometheus-operator", "prometheus-custom"}, applicationsNamespace)
 		if err != nil {
 			return err
 		}
 		// Update image parameters
-		if dscispec.DevFlags.ManifestsUri == "" {
+		if notOverrideManifestsUri {
 			if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
 				return err
 			}
 		}
 	}
 
-	err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled)
+	err := deploy.DeployManifestsFromPath(cli, owner, Path, applicationsNamespace, ComponentName, enabled)
 
 	if err != nil {
 		return err
@@ -78,7 +80,7 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 	if dscInit.Spec.Monitoring.Namespace != "" {
 		monitoringNamespace = dscInit.Spec.Monitoring.Namespace
 	} else {
-		monitoringNamespace = dscispec.ApplicationsNamespace
+		monitoringNamespace = applicationsNamespace
 	}
 
 	// If modelmesh is deployed successfully, deploy modelmesh-monitoring

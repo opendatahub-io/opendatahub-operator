@@ -2,7 +2,6 @@
 package datasciencepipelines
 
 import (
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -40,21 +39,23 @@ func (d *DataSciencePipelines) GetComponentName() string {
 // Verifies that Dashboard implements ComponentInterface
 var _ components.ComponentInterface = (*DataSciencePipelines)(nil)
 
-func (d *DataSciencePipelines) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
+func (d *DataSciencePipelines) ReconcileComponent(cli client.Client, owner metav1.Object, dsciInfo *components.DataScienceClusterConfig) error {
 	enabled := d.GetManagementState() == operatorv1.Managed
+	applicationsNamespace := dsciInfo.DSCISpec.ApplicationsNamespace
+	notOverrideManifestsUri := dsciInfo.DSCISpec.DevFlags.ManifestsUri == ""
 
 	if enabled {
 		// check if the dependent operator installed is done in dashboard
 
 		// Update image parameters only when we do not have customized manifests set
-		if dscispec.DevFlags.ManifestsUri == "" {
+		if notOverrideManifestsUri {
 			if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
 				return err
 			}
 		}
 	}
 
-	err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, d.GetComponentName(), enabled)
+	err := deploy.DeployManifestsFromPath(cli, owner, Path, applicationsNamespace, d.GetComponentName(), enabled)
 	return err
 }
 
