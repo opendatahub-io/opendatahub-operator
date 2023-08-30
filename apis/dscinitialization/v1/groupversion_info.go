@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // +kubebuilder:object:generate=true
-// +groupName=datasciencecluster.opendatahub.io
+// +groupName=dscinitialization.opendatahub.io
 
 // Package v1 contains API Schema definitions for the dscinitialization v1 API group
 package v1
