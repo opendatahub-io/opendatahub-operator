@@ -165,6 +165,7 @@ following environment variables must be set when running locally:
 export KUBECONFIG=/path/to/kubeconfig
 ```
 
+Ensure when testing RHODS operator in dev mode, no ODH CSV exists
 Once the above variables are set, run the following:
 
 ```shell

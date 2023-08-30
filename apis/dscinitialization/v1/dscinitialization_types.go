@@ -23,11 +23,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// DSCInitializationSpec defines the desired state of DSCInitialization
 // +operator-sdk:csv:customresourcedefinitions:order=1
+
+// DSCInitializationSpec defines the desired state of DSCInitialization
 type DSCInitializationSpec struct {
-	// +kubebuilder:default:=opendatahub
 	// Namespace for applications to be installed, non-configurable, default to "opendatahub"
+	// +kubebuilder:default:=opendatahub
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=1
 	ApplicationsNamespace string `json:"applicationsNamespace"`
 	// Enable monitoring on specified namespace
@@ -65,18 +66,16 @@ type DevFlags struct {
 // DSCInitializationStatus defines the observed state of DSCInitialization
 type DSCInitializationStatus struct {
 	// Phase describes the Phase of DSCInitializationStatus
-	// This is used by OLM UI to provide status information
-	// to the user
+	// This is used by OLM UI to provide status information to the user
 	Phase string `json:"phase,omitempty"`
 
-	// Conditions describes the state of the DSCInitializationStatus resource.
-	// +optional
+	// Conditions describes the state of the DSCInitializationStatus resource
 	// +operator-sdk:csv:customresourcedefinitions:type=status
+	// +optional
 	Conditions []conditionsv1.Condition `json:"conditions,omitempty"`
 
-	// RelatedObjects is a list of objects created and maintained by this
-	// operator. Object references will be added to this list after they have
-	// been created AND found in the cluster.
+	// RelatedObjects is a list of objects created and maintained by this operator.
+	// Object references will be added to this list after they have been created AND found in the cluster
 	// +optional
 	RelatedObjects []corev1.ObjectReference `json:"relatedObjects,omitempty"`
 	ErrorMessage   string                   `json:"errorMessage,omitempty"`

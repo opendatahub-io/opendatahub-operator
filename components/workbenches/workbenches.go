@@ -1,3 +1,4 @@
+// Package workbenches provides utility functions to config Workbenches to secure Jupyter Notebook in Kubernetes environments with support for OAuth
 package workbenches
 
 import (
@@ -48,7 +49,7 @@ func (w *Workbenches) ReconcileComponent(owner metav1.Object, cli client.Client,
 	}
 
 	if enabled {
-		if platform != deploy.OpenDataHub {
+		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods{
 			err := common.CreateNamespace(cli, "rhods-notebooks")
 			if err != nil {
 				// no need to log error as it was already logged in createOdhNamespace

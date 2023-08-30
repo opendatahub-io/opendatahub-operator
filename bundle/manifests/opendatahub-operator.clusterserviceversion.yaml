@@ -244,7 +244,7 @@ spec:
         path: devFlags
       statusDescriptors:
       - description: Conditions describes the state of the DSCInitializationStatus
-          resource.
+          resource
         displayName: Conditions
         path: conditions
       version: v1
@@ -850,9 +850,9 @@ spec:
           resources:
           - dscinitializations/finalizers
           verbs:
+          - delete
           - get
           - patch
-          - delete
           - update
         - apiGroups:
           - dscinitialization.opendatahub.io
