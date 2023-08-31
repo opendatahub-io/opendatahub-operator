@@ -2,6 +2,7 @@
 package kserve
 
 import (
+	"fmt"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -18,6 +19,8 @@ const (
 	Path                   = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
 	DependentComponentName = "odh-model-controller"
 	DependentPath          = deploy.DefaultManifestPath + "/" + DependentComponentName + "/base"
+	ServiceMeshOperator    = "servicemeshoperator"
+	ServerlessOperator     = "serverless-operator"
 )
 
 // Kserve to use
@@ -44,15 +47,39 @@ func (d *Kserve) GetComponentName() string {
 // Verifies that Kserve implements ComponentInterface
 var _ components.ComponentInterface = (*Kserve)(nil)
 
-func (d *Kserve) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, dscispec *dsci.DSCInitializationSpec) error {
+func (k *Kserve) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, dscispec *dsci.DSCInitializationSpec) error {
 	enabled := managementState == operatorv1.Managed
 
-	// Update image parameters
-	if dscispec.DevFlags.ManifestsUri == "" {
-		if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
-			return err
+	if enabled {
+		// check on dependent operators
+		found, err := deploy.OperatorExists(cli, ServiceMeshOperator)
+		if !found {
+			if err != nil {
+				return err
+			} else {
+				return fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
+					ServiceMeshOperator, ComponentName)
+			}
+		}
+		// check on dependent operators might be in multiple namespaces
+		found, err = deploy.OperatorExists(cli, ServerlessOperator)
+		if !found {
+			if err != nil {
+				return err
+			} else {
+				return fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
+					ServerlessOperator, ComponentName)
+			}
+		}
+
+		// Update image parameters only when we do not have customized manifests set
+		if dscispec.DevFlags.ManifestsUri == "" {
+			if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
+				return err
+			}
 		}
 	}
+
 	if err := deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 		Path,
 		dscispec.ApplicationsNamespace,

@@ -45,9 +45,11 @@ import (
 	"sigs.k8s.io/kustomize/api/krusty"
 	"sigs.k8s.io/kustomize/api/resmap"
 
-	operators "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins"
+
+	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
 )
 
 const (
@@ -370,7 +372,7 @@ func ApplyImageParams(componentPath string, imageParamsMap map[string]string) er
 
 // Checks if a Subscription for the an operator exists in the given namespace
 func SubscriptionExists(cli client.Client, namespace string, name string) (bool, error) {
-	sub := &operators.Subscription{}
+	sub := &ofapiv1alpha1.Subscription{}
 	err := cli.Get(context.TODO(), client.ObjectKey{Namespace: namespace, Name: name}, sub)
 	if err != nil {
 		if apierrs.IsNotFound(err) {
@@ -380,6 +382,26 @@ func SubscriptionExists(cli client.Client, namespace string, name string) (bool,
 		}
 	}
 	return true, nil
+}
+
+// Checks if an Operator with operatorprefix is installed in the given namespace list
+// TODO: if we need to check exact verison of the operator installed, can append vX.Y.Z later
+// Return true if found it, false if not.
+func OperatorExists(cli client.Client, operatorprefix string) (bool, error) {
+	opConditionList := &ofapiv2.OperatorConditionList{}
+	err := cli.List(context.TODO(), opConditionList)
+	if err != nil {
+		if !apierrs.IsNotFound(err) { // real error to run List()
+			return false, err
+		}
+	} else {
+		for _, opCondition := range opConditionList.Items {
+			if strings.HasPrefix(string(opCondition.Name), operatorprefix) {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
 }
 
 // TODO : Add function to cleanup code created as part of pre install and post intall task of a component
