@@ -1,6 +1,7 @@
 package ossmplugin
 
 import (
+	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"reflect"
 )
@@ -25,10 +26,25 @@ type OssmPluginSpec struct {
 	AppNamespace string `json:"appNamespace,omitempty"`
 }
 
+// InstallationMode defines how the plugin should handle OpenShift Service Mesh installation.
+// If not specified `use-existing` is assumed.
+type InstallationMode string
+
+var (
+	// PreInstalled indicates that KfDef plugin for Openshift Service Mesh will use existing
+	// installation and patch Service Mesh Control Plane.
+	PreInstalled InstallationMode = "pre-installed"
+
+	// Minimal results in installing Openshift Service Mesh Control Plane
+	// in defined namespace with minimal required configuration.
+	Minimal InstallationMode = "minimal"
+)
+
 type MeshSpec struct {
-	Name        string   `json:"name,omitempty" default:"basic"`
-	Namespace   string   `json:"namespace,omitempty" default:"istio-system"`
-	Certificate CertSpec `json:"certificate,omitempty"`
+	Name             string           `json:"name,omitempty" default:"basic"`
+	Namespace        string           `json:"namespace,omitempty" default:"istio-system"`
+	InstallationMode InstallationMode `json:"installationMode,omitempty" default:"pre-installed"`
+	Certificate      CertSpec         `json:"certificate,omitempty"`
 }
 
 type CertSpec struct {
@@ -59,11 +75,11 @@ func (plugin *OssmPluginSpec) IsValid() (bool, string) {
 	return true, ""
 }
 
-func (plugin *OssmPluginSpec) SetDefaults() {
-	setDefaults(plugin)
+func (plugin *OssmPluginSpec) SetDefaults() error {
+	return setDefaults(plugin)
 }
 
-func setDefaults(obj interface{}) {
+func setDefaults(obj interface{}) error {
 	value := reflect.ValueOf(obj).Elem()
 	typ := value.Type()
 
@@ -71,15 +87,26 @@ func setDefaults(obj interface{}) {
 		field := value.Field(i)
 		tag := typ.Field(i).Tag.Get("default")
 
-		if tag != "" && field.CanSet() && isEmptyValue(field) {
-			defaultValue := reflect.ValueOf(tag)
-			field.Set(defaultValue)
+		if field.Kind() == reflect.Struct {
+			if err := setDefaults(field.Addr().Interface()); err != nil {
+				return err
+			}
 		}
 
-		if field.Kind() == reflect.Struct {
-			setDefaults(field.Addr().Interface())
+		if tag != "" && field.IsValid() && field.CanSet() && isEmptyValue(field) {
+			defaultValue := reflect.ValueOf(tag)
+			targetType := field.Type()
+			if defaultValue.Type().ConvertibleTo(targetType) {
+				convertedValue := defaultValue.Convert(targetType)
+				field.Set(convertedValue)
+			} else {
+				return errors.Errorf("unable to convert \"%s\" to %s\n", defaultValue, targetType.Name())
+			}
 		}
+
 	}
+
+	return nil
 }
 
 func isEmptyValue(value reflect.Value) bool {

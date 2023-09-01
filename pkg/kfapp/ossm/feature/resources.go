@@ -113,15 +113,16 @@ func ServiceMeshEnabledInDashboard(feature *Feature) error {
 	dashboardConfig := spec["dashboardConfig"].(map[string]interface{})
 	dashboardConfig["disableServiceMesh"] = false
 
-	_, err = feature.dynamicClient.Resource(gvr).
+	if _, err := feature.dynamicClient.Resource(gvr).
 		Namespace(feature.Spec.AppNamespace).
-		Update(context.Background(), &config, metav1.UpdateOptions{})
-	if err != nil {
+		Update(context.Background(), &config, metav1.UpdateOptions{}); err != nil {
 		log.Error(err, "Failed to update odhdashboardconfig")
+
 		return err
 	}
 
 	log.Info("Successfully patched odhdashboardconfig")
+
 	return nil
 }
 

@@ -1,0 +1,19 @@
+apiVersion: maistra.io/v2
+kind: ServiceMeshControlPlane
+metadata:
+  name: {{ .Mesh.Name }}
+  namespace: {{ .Mesh.Namespace }}
+spec:
+  version: v2.4
+  tracing:
+    type: None
+  addons:
+    prometheus:
+      enabled: false
+    grafana:
+      enabled: false
+    jaeger:
+      name: jaeger
+    kiali:
+      name: kiali
+      enabled: false

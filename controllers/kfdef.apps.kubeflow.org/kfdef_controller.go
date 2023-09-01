@@ -247,12 +247,11 @@ func (r *KfDefReconciler) Reconcile(ctx context.Context, request ctrl.Request) (
 	}
 
 	// set status of the KfDef resource
-	if err := r.reconcileStatus(instance); err != nil {
-		return ctrl.Result{}, err
+	if reconcileError := r.reconcileStatus(instance); reconcileError != nil {
+		return ctrl.Result{}, reconcileError
 	}
 
-	// If deployment created successfully - don't requeue
-	return ctrl.Result{}, nil
+	return ctrl.Result{}, err
 }
 
 // SetupWithManager sets up the controller with the Manager.

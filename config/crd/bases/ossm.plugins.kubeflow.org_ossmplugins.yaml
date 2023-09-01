@@ -62,6 +62,14 @@ spec:
                       name:
                         type: string
                     type: object
+                  installationMode:
+                    description: InstallationMode defines how the plugin should handle
+                      OpenShift Service Mesh installation. If not specified `use-existing`
+                      is assumed.
+                    enum:
+                    - minimal
+                    - pre-installed
+                    type: string
                   name:
                     type: string
                   namespace:

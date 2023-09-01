@@ -24,11 +24,27 @@ type OssmPluginSpec struct {
 	Auth AuthSpec `json:"auth,omitempty"`
 }
 
+// InstallationMode defines how the plugin should handle OpenShift Service Mesh installation.
+// If not specified `use-existing` is assumed.
+type InstallationMode string
+
+var (
+	// PreInstalled indicates that KfDef plugin for Openshift Service Mesh will use existing
+	// installation and patch Service Mesh Control Plane.
+	PreInstalled InstallationMode = "pre-installed"
+
+	// Minimal results in installing Openshift Service Mesh Control Plane
+	// in defined namespace with minimal required configuration.
+	Minimal InstallationMode = "minimal"
+)
+
 // MeshSpec holds information on how Service Mesh should be configured.
 type MeshSpec struct {
-	Name        string   `json:"name,omitempty"`
-	Namespace   string   `json:"namespace,omitempty"`
-	Certificate CertSpec `json:"certificate,omitempty"`
+	Name      string `json:"name,omitempty"`
+	Namespace string `json:"namespace,omitempty"`
+	// +kubebuilder:validation:Enum=minimal;pre-installed
+	InstallationMode InstallationMode `json:"installationMode,omitempty"`
+	Certificate      CertSpec         `json:"certificate,omitempty"`
 }
 
 type CertSpec struct {

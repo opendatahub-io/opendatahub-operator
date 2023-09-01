@@ -40,7 +40,11 @@ func (r *KfDefReconciler) reconcileStatus(cr *kfdefv1.KfDef) error {
 func getReconcileStatus(cr *kfdefv1.KfDef, err error) error {
 	conditions := []kfdefv1.KfDefCondition{}
 
+	availabilityStatus := corev1.ConditionTrue
+
 	if err != nil {
+		availabilityStatus = corev1.ConditionFalse
+
 		conditions = append(conditions, kfdefv1.KfDefCondition{
 			LastUpdateTime: cr.CreationTimestamp,
 			Status:         corev1.ConditionTrue,
@@ -51,7 +55,7 @@ func getReconcileStatus(cr *kfdefv1.KfDef, err error) error {
 
 	conditions = append(conditions, kfdefv1.KfDefCondition{
 		LastUpdateTime: cr.CreationTimestamp,
-		Status:         corev1.ConditionTrue,
+		Status:         availabilityStatus,
 		Reason:         DeploymentCompleted,
 		Type:           kfdefv1.KfAvailable,
 	})

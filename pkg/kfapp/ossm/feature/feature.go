@@ -23,8 +23,9 @@ import (
 var log = ctrlLog.Log.WithName("ossm-features")
 
 type Feature struct {
-	Name string
-	Spec *Spec
+	Name    string
+	Spec    *Spec
+	Enabled bool
 
 	clientset     *kubernetes.Clientset
 	dynamicClient dynamic.Interface
@@ -42,6 +43,13 @@ type Feature struct {
 type action func(feature *Feature) error
 
 func (f *Feature) Apply() error {
+
+	if !f.Enabled {
+		log.Info("feature is disabled, skipping.", "name", f.Name)
+
+		return nil
+	}
+
 	// Verify all precondition and collect errors
 	var multiErr *multierror.Error
 	for _, precondition := range f.preconditions {
@@ -80,12 +88,24 @@ func (f *Feature) Apply() error {
 		return err
 	}
 
-	// TODO postconditions
+	for _, postcondition := range f.postconditions {
+		multiErr = multierror.Append(multiErr, postcondition(f))
+	}
+
+	if multiErr.ErrorOrNil() != nil {
+		return multiErr.ErrorOrNil()
+	}
 
 	return nil
 }
 
 func (f *Feature) Cleanup() error {
+	if !f.Enabled {
+		log.Info("feature is disabled, skipping.", "name", f.Name)
+
+		return nil
+	}
+
 	var cleanupErrors *multierror.Error
 	for _, cleanupFunc := range f.cleanups {
 		cleanupErrors = multierror.Append(cleanupErrors, cleanupFunc(f))

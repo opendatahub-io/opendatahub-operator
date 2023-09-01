@@ -3,6 +3,7 @@ package feature
 import (
 	"github.com/opendatahub-io/opendatahub-operator/pkg/kfconfig/ossmplugin"
 	"github.com/pkg/errors"
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -53,6 +54,10 @@ func (fb *featureBuilder) UsingConfig(config *rest.Config) *featureBuilder {
 			return errors.WithStack(err)
 		}
 
+		if err := apiextv1.AddToScheme(f.client.Scheme()); err != nil {
+			return err
+		}
+
 		return nil
 	})
 
@@ -99,6 +104,16 @@ func (fb *featureBuilder) Preconditions(preconditions ...action) *featureBuilder
 	return fb
 }
 
+func (fb *featureBuilder) Postconditions(postconditions ...action) *featureBuilder {
+	fb.builders = append(fb.builders, func(f *Feature) error {
+		f.postconditions = append(f.postconditions, postconditions...)
+
+		return nil
+	})
+
+	return fb
+}
+
 func (fb *featureBuilder) OnDelete(cleanups ...action) *featureBuilder {
 	fb.builders = append(fb.builders, func(f *Feature) error {
 		f.addCleanup(cleanups...)
@@ -119,9 +134,20 @@ func (fb *featureBuilder) WithResources(resources ...action) *featureBuilder {
 	return fb
 }
 
+func (fb *featureBuilder) EnabledIf(enabled func(f *Feature) bool) *featureBuilder {
+	fb.builders = append(fb.builders, func(f *Feature) error {
+		f.Enabled = enabled(f)
+
+		return nil
+
+	})
+	return fb
+}
+
 func (fb *featureBuilder) Load() (*Feature, error) {
 	feature := &Feature{
-		Name: fb.name,
+		Name:    fb.name,
+		Enabled: true,
 	}
 
 	for i := range fb.builders {
@@ -130,8 +156,10 @@ func (fb *featureBuilder) Load() (*Feature, error) {
 		}
 	}
 
-	if err := feature.createResourceTracker(); err != nil {
-		return nil, err
+	if feature.Enabled {
+		if err := feature.createResourceTracker(); err != nil {
+			return feature, err
+		}
 	}
 
 	return feature, nil
