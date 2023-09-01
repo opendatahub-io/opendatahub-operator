@@ -20,13 +20,10 @@ const (
 	DependentPath          = deploy.DefaultManifestPath + "/" + DependentComponentName + "/base"
 )
 
-var imageParamMap = map[string]string{
-	"kserve-router":              "RELATED_IMAGE_ODH_KSERVE_ROUTE_IMAGE",
-	"kserve-agent":               "RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE",
-	"kserve-controller":          "RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE",
-	"kserve-storage-initializer": "RELATED_IMAGE_ODH_KSERVE_STORAGE_INITIALIZER_IMAGE",
-}
+// Kserve to use
+var imageParamMap = map[string]string{}
 
+// odh-model-controller to use
 var dependentImageParamMap = map[string]string{
 	"odh-model-controller": "RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
 }
@@ -56,7 +53,6 @@ func (d *Kserve) ReconcileComponent(owner metav1.Object, cli client.Client, sche
 			return err
 		}
 	}
-
 	if err := deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 		Path,
 		dscispec.ApplicationsNamespace,
@@ -64,6 +60,7 @@ func (d *Kserve) ReconcileComponent(owner metav1.Object, cli client.Client, sche
 		return err
 	}
 
+	// For odh-model-controller
 	if enabled {
 		err := common.UpdatePodSecurityRolebinding(cli, []string{"odh-model-controller"}, dscispec.ApplicationsNamespace)
 		if err != nil {
@@ -76,15 +73,14 @@ func (d *Kserve) ReconcileComponent(owner metav1.Object, cli client.Client, sche
 			}
 		}
 	}
-
 	if err := deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 		DependentPath,
 		dscispec.ApplicationsNamespace,
 		scheme, enabled); err != nil {
 		return err
 	}
-	return nil
 
+	return nil
 }
 
 func (in *Kserve) DeepCopyInto(out *Kserve) {

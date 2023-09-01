@@ -61,7 +61,7 @@ func (d *CodeFlare) ReconcileComponent(owner metav1.Object, client client.Client
 				return err
 			} else {
 				return fmt.Errorf("operator %s not found in namespace %s. Please install the operator before enabling %s component",
-				dependentOperator, dependentOperatorNamespace, ComponentName)
+					dependentOperator, dependentOperatorNamespace, ComponentName)
 			}
 		}
 

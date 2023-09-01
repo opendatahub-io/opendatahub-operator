@@ -90,7 +90,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	if len(instances.Items) == 0 {
-    // DataScienceCluster instance not found
+		// DataScienceCluster instance not found
 		return ctrl.Result{}, nil
 	}
 
