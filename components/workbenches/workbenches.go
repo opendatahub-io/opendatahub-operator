@@ -1,3 +1,4 @@
+// Package workbenches provides utility functions to config Workbenches to secure Jupyter Notebook in Kubernetes environments with support for OAuth
 package workbenches
 
 import (
@@ -37,7 +38,7 @@ func (w *Workbenches) SetImageParamsMap(imageMap map[string]string) map[string]s
 // Verifies that Dashboard implements ComponentInterface
 var _ components.ComponentInterface = (*Workbenches)(nil)
 
-func (w *Workbenches) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, namespace string) error {
+func (w *Workbenches) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, namespace string, manifestsUri string) error {
 	enabled := managementState == operatorv1.Managed
 
 	// Set default notebooks namespace
@@ -48,7 +49,7 @@ func (w *Workbenches) ReconcileComponent(owner metav1.Object, cli client.Client,
 	}
 
 	if enabled {
-		if platform != deploy.OpenDataHub {
+		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods{
 			err := common.CreateNamespace(cli, "rhods-notebooks")
 			if err != nil {
 				// no need to log error as it was already logged in createOdhNamespace
@@ -60,11 +61,12 @@ func (w *Workbenches) ReconcileComponent(owner metav1.Object, cli client.Client,
 		if err != nil {
 			return err
 		}
-
-	}
-	// Update image parameters
-	if err := deploy.ApplyImageParams(notebookControllerPath, imageParamMap); err != nil {
-		return err
+		// Update image parameters for notebook controller
+		if manifestsUri == "" {
+			if err := deploy.ApplyImageParams(notebookControllerPath, imageParamMap); err != nil {
+				return err
+			}
+		}
 	}
 
 	err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
@@ -75,9 +77,13 @@ func (w *Workbenches) ReconcileComponent(owner metav1.Object, cli client.Client,
 		return err
 	}
 
-	// Update image parameters
-	if err := deploy.ApplyImageParams(notebookImagesPath, imageParamMap); err != nil {
-		return err
+	// Update image parameters for notebook image
+	if enabled {
+		if manifestsUri == "" {
+			if err := deploy.ApplyImageParams(notebookImagesPath, imageParamMap); err != nil {
+				return err
+			}
+		}
 	}
 	err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 		notebookImagesPath,

@@ -1,3 +1,4 @@
+// Package ray provides utility functions to config Ray as part of the stack which makes managing distributed compute infrastructure in the cloud easy and intuitive for Data Scientists
 package ray
 
 import (
@@ -34,13 +35,15 @@ func (d *Ray) GetComponentName() string {
 // Verifies that Ray implements ComponentInterface
 var _ components.ComponentInterface = (*Ray)(nil)
 
-func (d *Ray) ReconcileComponent(owner metav1.Object, client client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, namespace string) error {
+func (d *Ray) ReconcileComponent(owner metav1.Object, client client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, namespace string, manifestsUri string) error {
 	enabled := managementState == operatorv1.Managed
 
 	// Update image parameters
 	if enabled {
-		if err := deploy.ApplyImageParams(RayPath, imageParamMap); err != nil {
-			return err
+		if manifestsUri == "" {
+			if err := deploy.ApplyImageParams(RayPath, imageParamMap); err != nil {
+				return err
+			}
 		}
 	}
 	// Deploy Ray Operator

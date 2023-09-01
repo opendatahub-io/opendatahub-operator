@@ -23,7 +23,7 @@ type Component struct {
 
 type ComponentInterface interface {
 	ReconcileComponent(owner metav1.Object, client client.Client, scheme *runtime.Scheme,
-		managementState operatorv1.ManagementState, namespace string) error
+		managementState operatorv1.ManagementState, namespace string, manifestsUri string) error
 	GetComponentName() string
 	SetImageParamsMap(imageMap map[string]string) map[string]string
 }

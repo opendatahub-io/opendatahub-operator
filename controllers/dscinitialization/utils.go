@@ -29,7 +29,9 @@ var (
 // createOdhNamespace creates a Namespace with given name and with ODH defaults. The defaults include:
 // - Odh specific labels
 // - Pod security labels for baseline permissions
-// - Network Policies that allow traffic between the ODH namespaces
+// - ConfigMap  'odh-common-config'
+// - Network Policies 'opendatahub' that allow traffic between the ODH namespaces
+// - RoleBinding 'opendatahub'
 func (r *DSCInitializationReconciler) createOdhNamespace(dscInit *dsci.DSCInitialization, name string, ctx context.Context) error {
 	// Expected namespace for the given name
 	desiredNamespace := &corev1.Namespace{
@@ -126,7 +128,10 @@ func (r *DSCInitializationReconciler) createOdhNamespace(dscInit *dsci.DSCInitia
 func (r *DSCInitializationReconciler) createDefaultRoleBinding(dscInit *dsci.DSCInitialization, name string, ctx context.Context) error {
 	// Expected namespace for the given name
 	desiredRoleBinding := &authv1.RoleBinding{
-		TypeMeta: metav1.TypeMeta{},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "RoleBinding",
+			APIVersion: "v1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: name,
@@ -147,7 +152,10 @@ func (r *DSCInitializationReconciler) createDefaultRoleBinding(dscInit *dsci.DSC
 
 	// Create RoleBinding if doesnot exists
 	foundRoleBinding := &authv1.RoleBinding{}
-	err := r.Client.Get(ctx, client.ObjectKey{Name: name, Namespace: name}, foundRoleBinding)
+	err := r.Client.Get(ctx, client.ObjectKey{
+		Name:      name,
+		Namespace: name,
+	}, foundRoleBinding)
 	if err != nil {
 		if apierrs.IsNotFound(err) {
 			// Set Controller reference
@@ -170,7 +178,10 @@ func (r *DSCInitializationReconciler) createDefaultRoleBinding(dscInit *dsci.DSC
 func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(dscInit *dsci.DSCInitialization, name string, ctx context.Context) error {
 	// Expected namespace for the given name
 	desiredNetworkPolicy := &netv1.NetworkPolicy{
-		TypeMeta: metav1.TypeMeta{},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "NetworkPolicy",
+			APIVersion: "v1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: name,
@@ -187,7 +198,10 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(dscInit *dsc
 	// Create NetworkPolicy if doesnot exists
 	foundNetworkPolicy := &netv1.NetworkPolicy{}
 	justCreated := false
-	err := r.Client.Get(ctx, client.ObjectKey{Name: name, Namespace: name}, foundNetworkPolicy)
+	err := r.Client.Get(ctx, client.ObjectKey{
+		Name:      name,
+		Namespace: name,
+	}, foundNetworkPolicy)
 	if err != nil {
 		if apierrs.IsNotFound(err) {
 			// Set Controller reference
@@ -240,11 +254,11 @@ func CompareNotebookNetworkPolicies(np1 netv1.NetworkPolicy, np2 netv1.NetworkPo
 		reflect.DeepEqual(np1.Spec, np2.Spec)
 }
 
-func (r *DSCInitializationReconciler) waitForManagedSecret(name, namespace string) (*corev1.Secret, error) {
+func (r *DSCInitializationReconciler) waitForManagedSecret(ctx context.Context, name, namespace string) (*corev1.Secret, error) {
 	managedSecret := &corev1.Secret{}
 	err := wait.Poll(resourceInterval, resourceTimeout, func() (done bool, err error) {
 
-		err = r.Client.Get(context.TODO(), client.ObjectKey{
+		err = r.Client.Get(ctx, client.ObjectKey{
 			Namespace: namespace,
 			Name:      name,
 		}, managedSecret)
@@ -281,7 +295,10 @@ func GenerateRandomHex(length int) ([]byte, error) {
 func (r *DSCInitializationReconciler) createOdhCommonConfigMap(dscInit *dsci.DSCInitialization, name string, ctx context.Context) error {
 	// Expected configmap for the given namespace
 	desiredConfigMap := &corev1.ConfigMap{
-		TypeMeta: metav1.TypeMeta{},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ConfigMap",
+			APIVersion: "v1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "odh-common-config",
 			Namespace: name,
@@ -291,7 +308,10 @@ func (r *DSCInitializationReconciler) createOdhCommonConfigMap(dscInit *dsci.DSC
 
 	// Create Configmap if doesnot exists
 	foundConfigMap := &corev1.ConfigMap{}
-	err := r.Client.Get(ctx, client.ObjectKey{Name: name, Namespace: name}, foundConfigMap)
+	err := r.Client.Get(ctx, client.ObjectKey{
+		Name:      name,
+		Namespace: name,
+	}, foundConfigMap)
 	if err != nil {
 		if apierrs.IsNotFound(err) {
 			// Set Controller reference

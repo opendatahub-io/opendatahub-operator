@@ -9,8 +9,8 @@ on:
   workflow_dispatch:
     inputs:
       dashboard_label:
-        default: "main"
-        description: "Label from odh-dashboard to sync CRD from, default to use main branch"
+        default: "trunk"
+        description: "default branch or label from odh-dashboard to sync CRD from, default to use 'trunk', optional use tags/vX.Y.Z"
       source_branch:
         default: "main"
         description: "branch of opendatahub-operator to checkout from"
@@ -28,8 +28,10 @@ jobs:
         shell: bash
         run: |
           cd ${{ github.workspace }}/bundle/manifests
-          svn export --force "https://github.com/opendatahub-io/odh-dashboard/tags/${{ github.event.inputs.dashboard_label }}/manifests/crd" .
+          svn export --force "https://github.com/opendatahub-io/odh-dashboard/${{ github.event.inputs.dashboard_label }}/manifests/crd" .
           rm kustomization.yaml
+          sed -i "s# Red Hat##g" *odh*.yaml
+          sed -i "s#OpenShift Data Science#Open Data Hub#g" *odh*.yaml
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v4.2.3
         with:

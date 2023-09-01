@@ -40,7 +40,7 @@ spec:
                 properties:
                   codeflare:
                     description: CodeFlare component configuration. Require CodeFlare
-                      operator to be installed before enable component
+                      Operator to be installed before enable component
                     properties:
                       managementState:
                         description: "Set to one of the following values: \n - \"Managed\"
@@ -56,7 +56,7 @@ spec:
                         type: string
                     type: object
                   dashboard:
-                    description: Dashboard component configuration
+                    description: Dashboard component configuration.
                     properties:
                       managementState:
                         description: "Set to one of the following values: \n - \"Managed\"
@@ -72,7 +72,8 @@ spec:
                         type: string
                     type: object
                   datasciencepipelines:
-                    description: DataServicePipeline component configuration
+                    description: DataServicePipeline component configuration. Require
+                      OpenShift Pipelines Operator to be installed before enable component
                     properties:
                       managementState:
                         description: "Set to one of the following values: \n - \"Managed\"
@@ -88,7 +89,10 @@ spec:
                         type: string
                     type: object
                   kserve:
-                    description: Kserve component configuration
+                    description: Kserve component configuration. Require OpenShift
+                      Serverless and OpenShift Service Mesh Operators to be installed
+                      before enable component Does not support enabled ModelMeshServing
+                      at the same time
                     properties:
                       managementState:
                         description: "Set to one of the following values: \n - \"Managed\"
@@ -104,7 +108,9 @@ spec:
                         type: string
                     type: object
                   modelmeshserving:
-                    description: ModelMeshServing component configuration
+                    description: ModelMeshServing component configuration. Require
+                      CodeFlare Operator to be installed before enable component Does
+                      not support enabled Kserve at the same time
                     properties:
                       managementState:
                         description: "Set to one of the following values: \n - \"Managed\"
@@ -120,7 +126,7 @@ spec:
                         type: string
                     type: object
                   ray:
-                    description: Ray component configuration. Require CodeFlare operator
+                    description: Ray component configuration. Require CodeFlare Operator
                       to be installed before enable component
                     properties:
                       managementState:
@@ -137,7 +143,7 @@ spec:
                         type: string
                     type: object
                   workbenches:
-                    description: Workbenches component configuration
+                    description: Workbenches component configuration.
                     properties:
                       managementState:
                         description: "Set to one of the following values: \n - \"Managed\"

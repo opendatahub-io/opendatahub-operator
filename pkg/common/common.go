@@ -1,3 +1,20 @@
+/*
+Copyright 2023.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package common contains utility functions used by differnt components
 package common
 
 import (
@@ -12,9 +29,10 @@ import (
 	"strings"
 )
 
+// Function UpdatePodSecurityRolebinding update default rolebinding which is created in applications namespace by manifests
+// being used by different components
 func UpdatePodSecurityRolebinding(cli client.Client, serviceAccountsList []string, namespace string) error {
 	foundRoleBinding := &authv1.RoleBinding{}
-	// update default rolebinding created in applications namespace
 	err := cli.Get(context.TODO(), client.ObjectKey{Name: namespace, Namespace: namespace}, foundRoleBinding)
 	if err != nil {
 		return err
@@ -33,6 +51,8 @@ func UpdatePodSecurityRolebinding(cli client.Client, serviceAccountsList []strin
 	return cli.Update(context.TODO(), foundRoleBinding)
 }
 
+// Internal function used by UpdatePodSecurityRolebinding()
+// Return whether Rolebinding matching service account and namespace exists or not
 func subjectExistInRoleBinding(subjectList []authv1.Subject, serviceAccountName, namespace string) bool {
 	for _, subject := range subjectList {
 		if subject.Name == serviceAccountName && subject.Namespace == namespace {
@@ -42,6 +62,7 @@ func subjectExistInRoleBinding(subjectList []authv1.Subject, serviceAccountName,
 	return false
 }
 
+// Function ReplaceStringsInFile replaces variable with value in manifests during runtime
 func ReplaceStringsInFile(fileName string, replacements map[string]string) error {
 	// Read the contents of the file
 	fileContent, err := ioutil.ReadFile(fileName)
@@ -64,6 +85,7 @@ func ReplaceStringsInFile(fileName string, replacements map[string]string) error
 	return nil
 }
 
+// Function CreateSecret creates scrects required by dasbhoard component in downstream
 func CreateSecret(cli client.Client, name, namespace string) error {
 	desiredSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -88,6 +110,7 @@ func CreateSecret(cli client.Client, name, namespace string) error {
 	return nil
 }
 
+// Function CreateNamespace creates namespace required by workbenches component in downstream
 func CreateNamespace(cli client.Client, namespace string) error {
 	desiredNamespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{

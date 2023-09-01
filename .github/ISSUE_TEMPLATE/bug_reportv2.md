@@ -1,11 +1,14 @@
 ---
-name: Bug report v1
-about: Create a report to help us improve v1 operator
-labels: bug, v1
+name: Bug report v2
+about: Create a report to help us improve v2 operator
+labels: bug, v2
 ---
 
 **Describe the bug**
 A clear and concise description of what the bug is.
+- on which branch, bug is observed:
+- has it worked before/ in which version it starts breaking:
+- etc
 
 **To Reproduce**
 Steps to reproduce the behavior:
