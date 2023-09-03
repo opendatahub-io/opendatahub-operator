@@ -3,6 +3,7 @@
 ## Motivation
 
 Following are the general goals for redesigning the existing ODH operator:
+
 - Create an opinionated deployment of ODH components.
 - Provide users / cluster administrators with ability to customize components
 - Provide ability to enable / disable individual components
@@ -13,7 +14,8 @@ Following are the general goals for redesigning the existing ODH operator:
 
 ## Proposed Design
 
-To deploy ODH components seamlessly, ODH operator will watch two CRDS:
+To deploy ODH components seamlessly, ODH operator will watch two CRDs:
+
 - DSCInitialization
 - DataScienceCluster
 
@@ -25,7 +27,6 @@ To deploy ODH components seamlessly, ODH operator will watch two CRDS:
 - Some examples of initial setup include creating namespaces, network policies, SCCs, common configmaps and secrets.
 - This will be a singleton CR i.e 1 instance of this CR will always be present in the cluster.
 - DSCInitialization CR can be deleted to re-run initial setup without requiring re-build of the operator.
-- **This CR is not configurable for end users**
 
 ### DataScienceCluster
 
@@ -36,8 +37,8 @@ To deploy ODH components seamlessly, ODH operator will watch two CRDS:
 
 ## Examples
 
-
 1. Enable all components
+
     ```console
       apiVersion: datasciencecluster.opendatahub.io/v1
       kind: DataScienceCluster
@@ -60,6 +61,7 @@ To deploy ODH components seamlessly, ODH operator will watch two CRDS:
           workbenches:
             managementState: Managed
     ```
+
 2. Enable only Dashboard and Workbenches(Jupyter Notebooks)
 
     ```console
@@ -75,7 +77,7 @@ To deploy ODH components seamlessly, ODH operator will watch two CRDS:
             managementState: Managed 
     ```
 
-3. Enable Data Science Pipelines 
+3. Enable Data Science Pipelines
 
     ```console
       apiVersion: datasciencecluster.opendatahub.io/v1
