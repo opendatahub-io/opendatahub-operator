@@ -6,6 +6,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -46,11 +47,11 @@ func (d *Kserve) GetComponentName() string {
 // Verifies that Kserve implements ComponentInterface
 var _ components.ComponentInterface = (*Kserve)(nil)
 
-func (d *Kserve) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, namespace string, manifestsUri string) error {
+func (d *Kserve) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, dscispec *dsci.DSCInitializationSpec) error {
 	enabled := managementState == operatorv1.Managed
 
 	// Update image parameters
-	if manifestsUri == "" {
+	if dscispec.DevFlags.ManifestsUri == "" {
 		if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
 			return err
 		}
@@ -58,18 +59,18 @@ func (d *Kserve) ReconcileComponent(owner metav1.Object, cli client.Client, sche
 
 	if err := deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 		Path,
-		namespace,
+		dscispec.ApplicationsNamespace,
 		scheme, enabled); err != nil {
 		return err
 	}
 
 	if enabled {
-		err := common.UpdatePodSecurityRolebinding(cli, []string{"odh-model-controller"}, namespace)
+		err := common.UpdatePodSecurityRolebinding(cli, []string{"odh-model-controller"}, dscispec.ApplicationsNamespace)
 		if err != nil {
 			return err
 		}
 		// Update image parameters for keserve
-		if manifestsUri == "" {
+		if dscispec.DevFlags.ManifestsUri == "" {
 			if err := deploy.ApplyImageParams(Path, dependentImageParamMap); err != nil {
 				return err
 			}
@@ -78,7 +79,7 @@ func (d *Kserve) ReconcileComponent(owner metav1.Object, cli client.Client, sche
 
 	if err := deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 		DependentPath,
-		namespace,
+		dscispec.ApplicationsNamespace,
 		scheme, enabled); err != nil {
 		return err
 	}

@@ -566,9 +566,9 @@ rules:
   resources:
   - dscinitializations/finalizers
   verbs:
+  - delete
   - get
   - patch
-  - delete
   - update
 - apiGroups:
   - dscinitialization.opendatahub.io

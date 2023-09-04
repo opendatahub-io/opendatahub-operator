@@ -4,6 +4,7 @@ package codeflare
 import (
 	"fmt"
 
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -38,7 +39,7 @@ func (d *CodeFlare) GetComponentName() string {
 // Verifies that CodeFlare implements ComponentInterface
 var _ components.ComponentInterface = (*CodeFlare)(nil)
 
-func (d *CodeFlare) ReconcileComponent(owner metav1.Object, client client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, namespace string, manifestsUri string) error {
+func (d *CodeFlare) ReconcileComponent(owner metav1.Object, client client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, dscispec *dsci.DSCInitializationSpec) error {
 	enabled := managementState == operatorv1.Managed
 
 	if enabled {
@@ -65,7 +66,7 @@ func (d *CodeFlare) ReconcileComponent(owner metav1.Object, client client.Client
 		}
 
 		// Update image parameters only when we do not have customized manifests set
-		if manifestsUri == "" {
+		if dscispec.DevFlags.ManifestsUri == "" {
 			if err := deploy.ApplyImageParams(CodeflarePath, imageParamMap); err != nil {
 				return err
 			}
@@ -75,7 +76,7 @@ func (d *CodeFlare) ReconcileComponent(owner metav1.Object, client client.Client
 	// Deploy Codeflare
 	err := deploy.DeployManifestsFromPath(owner, client, ComponentName,
 		CodeflarePath,
-		namespace,
+		dscispec.ApplicationsNamespace,
 		scheme, enabled)
 
 	return err

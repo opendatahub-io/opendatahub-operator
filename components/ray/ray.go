@@ -2,6 +2,7 @@
 package ray
 
 import (
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -35,12 +36,12 @@ func (d *Ray) GetComponentName() string {
 // Verifies that Ray implements ComponentInterface
 var _ components.ComponentInterface = (*Ray)(nil)
 
-func (d *Ray) ReconcileComponent(owner metav1.Object, client client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, namespace string, manifestsUri string) error {
+func (d *Ray) ReconcileComponent(owner metav1.Object, client client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, dscispec *dsci.DSCInitializationSpec) error {
 	enabled := managementState == operatorv1.Managed
 
 	// Update image parameters
 	if enabled {
-		if manifestsUri == "" {
+		if dscispec.DevFlags.ManifestsUri == "" {
 			if err := deploy.ApplyImageParams(RayPath, imageParamMap); err != nil {
 				return err
 			}
@@ -49,7 +50,7 @@ func (d *Ray) ReconcileComponent(owner metav1.Object, client client.Client, sche
 	// Deploy Ray Operator
 	err := deploy.DeployManifestsFromPath(owner, client, ComponentName,
 		RayPath,
-		namespace,
+		dscispec.ApplicationsNamespace,
 		scheme, enabled)
 	return err
 

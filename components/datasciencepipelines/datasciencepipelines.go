@@ -2,6 +2,7 @@
 package datasciencepipelines
 
 import (
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -40,12 +41,12 @@ func (d *DataSciencePipelines) GetComponentName() string {
 // Verifies that Dashboard implements ComponentInterface
 var _ components.ComponentInterface = (*DataSciencePipelines)(nil)
 
-func (d *DataSciencePipelines) ReconcileComponent(owner metav1.Object, client client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, namespace string, manifestsUri string) error {
+func (d *DataSciencePipelines) ReconcileComponent(owner metav1.Object, client client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, dscispec *dsci.DSCInitializationSpec) error {
 	enabled := managementState == operatorv1.Managed
 
 	if enabled {
 		// Update image parameters
-		if manifestsUri == "" {
+		if dscispec.DevFlags.ManifestsUri == "" {
 			if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
 				return err
 			}
@@ -53,7 +54,7 @@ func (d *DataSciencePipelines) ReconcileComponent(owner metav1.Object, client cl
 	}
 	err := deploy.DeployManifestsFromPath(owner, client, ComponentName,
 		Path,
-		namespace,
+		dscispec.ApplicationsNamespace,
 		scheme, enabled)
 	return err
 }
