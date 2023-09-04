@@ -4,7 +4,9 @@ import (
 	"context"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -12,6 +14,26 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"time"
 )
+
+func CreateNamespaceIfNotExists(name string) action {
+	return func(f *Feature) error {
+		nsClient := f.clientset.CoreV1().Namespaces()
+
+		_, err := nsClient.Get(context.Background(), name, metav1.GetOptions{})
+		if k8serrors.IsNotFound(err) {
+			_, err := nsClient.Create(context.Background(), &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+			}, metav1.CreateOptions{})
+
+			// return err regardless, as we terminate invocation here
+			return err
+		}
+
+		return err
+	}
+}
 
 func EnsureCRDIsInstalled(name string) action {
 	return func(f *Feature) error {
