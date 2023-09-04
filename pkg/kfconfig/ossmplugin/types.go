@@ -20,7 +20,10 @@ type KfOssmPlugin struct {
 
 // OssmPluginSpec defines the extra data provided by the Openshift Service Mesh Plugin in KfDef spec.
 type OssmPluginSpec struct {
+	// Mesh holds configuration of Service Mesh used by Opendatahub.
 	Mesh MeshSpec `json:"mesh,omitempty"`
+	// Auth holds configuration of authentication and authorization services
+	// used by Service Mesh in Opendatahub.
 	Auth AuthSpec `json:"auth,omitempty"`
 
 	// Additional non-user facing fields (should not be copied to the CRD)
@@ -28,7 +31,7 @@ type OssmPluginSpec struct {
 }
 
 // InstallationMode defines how the plugin should handle OpenShift Service Mesh installation.
-// If not specified `use-existing` is assumed.
+// If not specified `pre-installed` is assumed.
 type InstallationMode string
 
 var (
@@ -42,20 +45,32 @@ var (
 )
 
 type MeshSpec struct {
-	Name             string           `json:"name,omitempty" default:"basic"`
-	Namespace        string           `json:"namespace,omitempty" default:"istio-system"`
+	// Name is a name Service Mesh Control Plan. Defaults to "basic".
+	Name string `json:"name,omitempty" default:"basic"`
+	// Namespace is a namespace where Service Mesh is deployed. Defaults to "istio-system".
+	Namespace string `json:"namespace,omitempty" default:"istio-system"`
+	// InstallationMode defines how the plugin should handle OpenShift Service Mesh installation.
+	// If not specified `pre-installed` is assumed.
 	InstallationMode InstallationMode `json:"installationMode,omitempty" default:"pre-installed"`
-	Certificate      CertSpec         `json:"certificate,omitempty"`
+	// Certificate allows to define how to use certificates for the Service Mesh communication.
+	Certificate CertSpec `json:"certificate,omitempty"`
 }
 
 type CertSpec struct {
-	Name     string `json:"name,omitempty" default:"opendatahub-dashboard-cert"`
-	Generate bool   `json:"generate,omitempty"`
+	// Name of the certificate to be used by Service Mesh.
+	Name string `json:"name,omitempty" default:"opendatahub-dashboard-cert"`
+	// Generate indicates if the certificate should be generated. If set to false
+	// it will assume certificate with the given name is made available as a secret
+	// in Service Mesh namespace.
+	Generate bool `json:"generate,omitempty"`
 }
 
 type AuthSpec struct {
-	Name      string        `json:"name,omitempty" default:"authorino"`
-	Namespace string        `json:"namespace,omitempty" default:"auth-provider"`
+	// Name of the authorization provider used for Service Mesh.
+	Name string `json:"name,omitempty" default:"authorino"`
+	// Namespace where it is deployed.
+	Namespace string `json:"namespace,omitempty" default:"auth-provider"`
+	// Authorino holds configuration of Authorino service used as external authorization provider.
 	Authorino AuthorinoSpec `json:"authorino,omitempty"`
 }
 

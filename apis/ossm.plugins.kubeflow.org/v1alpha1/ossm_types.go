@@ -20,12 +20,15 @@ type OssmPlugin struct {
 // OssmPluginSpec defines configuration needed for Openshift Service Mesh
 // for integration with Opendatahub.
 type OssmPluginSpec struct {
+	// Mesh holds configuration of Service Mesh used by Opendatahub.
 	Mesh MeshSpec `json:"mesh,omitempty"`
+	// Auth holds configuration of authentication and authorization services
+	// used by Service Mesh in Opendatahub.
 	Auth AuthSpec `json:"auth,omitempty"`
 }
 
 // InstallationMode defines how the plugin should handle OpenShift Service Mesh installation.
-// If not specified `use-existing` is assumed.
+// If not specified `pre-installed` is assumed.
 type InstallationMode string
 
 var (
@@ -40,21 +43,33 @@ var (
 
 // MeshSpec holds information on how Service Mesh should be configured.
 type MeshSpec struct {
-	Name      string `json:"name,omitempty"`
+	// Name is a name Service Mesh Control Plan. Defaults to "basic".
+	Name string `json:"name,omitempty"`
+	// Namespace is a namespace where Service Mesh is deployed. Defaults to "istio-system".
 	Namespace string `json:"namespace,omitempty"`
+	// InstallationMode defines how the plugin should handle OpenShift Service Mesh installation.
+	// If not specified `pre-installed` is assumed.
 	// +kubebuilder:validation:Enum=minimal;pre-installed
 	InstallationMode InstallationMode `json:"installationMode,omitempty"`
-	Certificate      CertSpec         `json:"certificate,omitempty"`
+	// Certificate allows to define how to use certificates for the Service Mesh communication.
+	Certificate CertSpec `json:"certificate,omitempty"`
 }
 
 type CertSpec struct {
-	Name     string `json:"name,omitempty"`
-	Generate bool   `json:"generate,omitempty"`
+	// Name of the certificate to be used by Service Mesh.
+	Name string `json:"name,omitempty"`
+	// Generate indicates if the certificate should be generated. If set to false
+	// it will assume certificate with the given name is made available as a secret
+	// in Service Mesh namespace.
+	Generate bool `json:"generate,omitempty"`
 }
 
 type AuthSpec struct {
-	Name      string        `json:"name,omitempty"`
-	Namespace string        `json:"namespace,omitempty"`
+	// Name of the authorization provider used for Service Mesh.
+	Name string `json:"name,omitempty"`
+	// Namespace where it is deployed.
+	Namespace string `json:"namespace,omitempty"`
+	// Authorino holds configuration of Authorino service used as external authorization provider.
 	Authorino AuthorinoSpec `json:"authorino,omitempty"`
 }
 
