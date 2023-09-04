@@ -12,7 +12,9 @@ spec:
   - name: kubernetes-users
     kubernetes:
       audiences: 
-      - "https://kubernetes.default.svc"
+{{- range .Auth.Authorino.Audiences }}
+      - "{{ . }}"
+{{- end }}
   authorization:
   - name: k8s-rbac-only-service-viewers
     kubernetes:

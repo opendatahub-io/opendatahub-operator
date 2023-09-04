@@ -59,8 +59,17 @@ type AuthSpec struct {
 }
 
 type AuthorinoSpec struct {
-	Name  string `json:"name,omitempty"`
+	// Name specifies how external authorization provider should be called.
+	Name string `json:"name,omitempty"`
+	// Audiences is a list of the identifiers that the resource server presented
+	// with the token identifies as. Audience-aware token authenticators will verify
+	// that the token was intended for at least one of the audiences in this list.
+	// If no audiences are provided, the audience will default to the audience of the
+	// Kubernetes apiserver (kubernetes.default.svc).
+	Audiences []string `json:"audiences,omitempty"`
+	// Label narrows amount of AuthConfigs to process by Authorino service.
 	Label string `json:"label,omitempty"`
+	// Image allows to define a custom container image to be used when deploying Authorino's instance.
 	Image string `json:"image,omitempty"`
 }
 

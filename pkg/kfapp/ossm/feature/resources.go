@@ -9,6 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"strings"
 )
 
 func SelfSignedCertificate(feature *Feature) error {
@@ -66,17 +67,20 @@ func EnvoyOAuthSecrets(feature *Feature) error {
 }
 
 func ConfigMaps(feature *Feature) error {
+	meshConfig := feature.Spec.Mesh
 	if err := feature.createConfigMap("service-mesh-refs",
 		map[string]string{
-			"CONTROL_PLANE_NAME": feature.Spec.Mesh.Name,
-			"MESH_NAMESPACE":     feature.Spec.Mesh.Namespace,
+			"CONTROL_PLANE_NAME": meshConfig.Name,
+			"MESH_NAMESPACE":     meshConfig.Namespace,
 		}); err != nil {
 		return errors.WithStack(err)
 	}
 
+	authorinoConfig := feature.Spec.Auth.Authorino
 	if err := feature.createConfigMap("auth-refs",
 		map[string]string{
-			"AUTHORINO_LABEL": feature.Spec.Auth.Authorino.Label,
+			"AUTHORINO_LABEL": authorinoConfig.Label,
+			"AUTH_AUDIENCE":   strings.Join(authorinoConfig.Audiences, ","),
 		}); err != nil {
 		return errors.WithStack(err)
 	}

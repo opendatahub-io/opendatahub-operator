@@ -4,6 +4,7 @@ import (
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"reflect"
+	"strings"
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -59,8 +60,17 @@ type AuthSpec struct {
 }
 
 type AuthorinoSpec struct {
-	Name  string `json:"name,omitempty" default:"authorino-mesh-authz-provider"`
+	// Name specifies how external authorization provider should be called.
+	Name string `json:"name,omitempty" default:"authorino-mesh-authz-provider"`
+	// Audiences is a list of the identifiers that the resource server presented
+	// with the token identifies as. Audience-aware token authenticators will verify
+	// that the token was intended for at least one of the audiences in this list.
+	// If no audiences are provided, the audience will default to the audience of the
+	// Kubernetes apiserver (kubernetes.default.svc).
+	Audiences []string `json:"audiences,omitempty" default:"https://kubernetes.default.svc"`
+	// Label narrows amount of AuthConfigs to process by Authorino service.
 	Label string `json:"label,omitempty" default:"authorino/topic=odh"`
+	// Image allows to define a custom container image to be used when deploying Authorino's instance.
 	Image string `json:"image,omitempty" default:"quay.io/kuadrant/authorino:v0.13.0"`
 }
 
@@ -69,7 +79,7 @@ type AuthorinoSpec struct {
 func (plugin *OssmPluginSpec) IsValid() (bool, string) {
 
 	if plugin.Auth.Name != "authorino" {
-		return false, "only authorino is available as authorization layer"
+		return false, "currently only Authorino is available as authorization layer"
 	}
 
 	return true, ""
@@ -81,11 +91,11 @@ func (plugin *OssmPluginSpec) SetDefaults() error {
 
 func setDefaults(obj interface{}) error {
 	value := reflect.ValueOf(obj).Elem()
-	typ := value.Type()
+	t := value.Type()
 
-	for i := 0; i < typ.NumField(); i++ {
+	for i := 0; i < t.NumField(); i++ {
 		field := value.Field(i)
-		tag := typ.Field(i).Tag.Get("default")
+		tag := t.Field(i).Tag.Get("default")
 
 		if field.Kind() == reflect.Struct {
 			if err := setDefaults(field.Addr().Interface()); err != nil {
@@ -96,7 +106,16 @@ func setDefaults(obj interface{}) error {
 		if tag != "" && field.IsValid() && field.CanSet() && isEmptyValue(field) {
 			defaultValue := reflect.ValueOf(tag)
 			targetType := field.Type()
-			if defaultValue.Type().ConvertibleTo(targetType) {
+			if targetType.Kind() == reflect.Slice && defaultValue.Kind() == reflect.String {
+				defaultSlice := strings.Split(defaultValue.String(), ",")
+				convertedValue := reflect.MakeSlice(targetType, len(defaultSlice), len(defaultSlice))
+
+				for i := 0; i < len(defaultSlice); i++ {
+					convertedValue.Index(i).SetString(defaultSlice[i])
+				}
+
+				field.Set(convertedValue)
+			} else if defaultValue.Type().ConvertibleTo(targetType) {
 				convertedValue := defaultValue.Convert(targetType)
 				field.Set(convertedValue)
 			} else {

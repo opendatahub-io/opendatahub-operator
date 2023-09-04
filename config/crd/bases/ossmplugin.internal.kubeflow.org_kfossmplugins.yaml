@@ -44,11 +44,27 @@ spec:
                 properties:
                   authorino:
                     properties:
+                      audiences:
+                        description: Audiences is a list of the identifiers that the
+                          resource server presented with the token identifies as.
+                          Audience-aware token authenticators will verify that the
+                          token was intended for at least one of the audiences in
+                          this list. If no audiences are provided, the audience will
+                          default to the audience of the Kubernetes apiserver (kubernetes.default.svc).
+                        items:
+                          type: string
+                        type: array
                       image:
+                        description: Image allows to define a custom container image
+                          to be used when deploying Authorino's instance.
                         type: string
                       label:
+                        description: Label narrows amount of AuthConfigs to process
+                          by Authorino service.
                         type: string
                       name:
+                        description: Name specifies how external authorization provider
+                          should be called.
                         type: string
                     type: object
                   name:
