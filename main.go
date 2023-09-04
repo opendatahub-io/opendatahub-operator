@@ -63,6 +63,7 @@ var (
 )
 
 func init() {
+	//+kubebuilder:scaffold:scheme
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(dsci.AddToScheme(scheme))
 	utilruntime.Must(datascienceclusterv1.AddToScheme(scheme))
