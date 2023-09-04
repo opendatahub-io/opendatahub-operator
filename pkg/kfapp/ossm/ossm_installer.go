@@ -131,6 +131,9 @@ func (o *OssmInstaller) enableFeatures() error {
 		Preconditions(
 			feature.EnsureServiceMeshInstalled,
 		).
+		Postconditions(
+			feature.WaitForControlPlaneToBeReady,
+		).
 		OnDelete(
 			feature.RemoveOAuthClient,
 			feature.RemoveTokenVolumes,
