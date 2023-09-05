@@ -45,7 +45,7 @@ func EnsureCRDIsInstalled(name string) action {
 
 func EnsureServiceMeshInstalled(feature *Feature) error {
 	if err := EnsureCRDIsInstalled("servicemeshcontrolplanes.maistra.io")(feature); err != nil {
-		log.Info("Failed to find the pre-requisite Service Mesh Control Plane CRD, please ensure Service Mesh Operator is installed.")
+		log.Info("Failed to find the pre-requisite Service Mesh Control Plane CRD, please ensure Service Mesh Operator is installed.", "feature", feature.Name)
 
 		return err
 	}
@@ -53,9 +53,8 @@ func EnsureServiceMeshInstalled(feature *Feature) error {
 	smcp := feature.Spec.Mesh.Name
 	smcpNs := feature.Spec.Mesh.Namespace
 
-	ready, err := CheckControlPlaneComponentReadiness(feature.dynamicClient, smcp, smcpNs)
-	if err != nil || !ready {
-		log.Error(err, "failed waiting for control plane being ready", "name", smcp, "namespace", smcpNs)
+	if err := WaitForControlPlaneToBeReady(feature); err != nil {
+		log.Error(err, "failed waiting for control plane being ready", "feature", feature.Name, "control-plane", smcp, "namespace", smcpNs)
 
 		return multierror.Append(err, errors.New("service mesh control plane is not ready")).ErrorOrNil()
 	}
@@ -114,7 +113,7 @@ func WaitForControlPlaneToBeReady(feature *Feature) error {
 func CheckControlPlaneComponentReadiness(dynamicClient dynamic.Interface, smcp, smcpNs string) (bool, error) {
 	unstructObj, err := dynamicClient.Resource(smcpGVR).Namespace(smcpNs).Get(context.Background(), smcp, metav1.GetOptions{})
 	if err != nil {
-		log.Info("failed to find Service Mesh Control Plane", "name", smcp, "namespace", smcpNs)
+		log.Info("failed to find Service Mesh Control Plane", "control-plane", smcp, "namespace", smcpNs)
 
 		return false, err
 	}

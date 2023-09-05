@@ -30,14 +30,14 @@ func RemoveTokenVolumes(feature *Feature) error {
 		return err
 	}
 	if !found {
-		log.Info("no volumes found", "smcp", meshName, "istio-ns", meshNs)
+		log.Info("no volumes found", "feature", feature.Name, "control-plane", meshName, "istio-ns", meshNs)
 		return nil
 	}
 
 	for i, v := range volumes {
 		volume, ok := v.(map[string]interface{})
 		if !ok {
-			log.Info("unexpected type for volume", "type", fmt.Sprintf("%T", volume))
+			log.Info("unexpected type for volume", "feature", feature.Name, "type", fmt.Sprintf("%T", volume))
 			continue
 		}
 
@@ -46,7 +46,7 @@ func RemoveTokenVolumes(feature *Feature) error {
 			return err
 		}
 		if !found {
-			log.Info("no volumeMount found in the volume")
+			log.Info("no volumeMount found in the volume", "feature", feature.Name)
 			continue
 		}
 
@@ -82,7 +82,7 @@ func RemoveOAuthClient(feature *Feature) error {
 	}
 
 	if err := feature.dynamicClient.Resource(gvr).Delete(context.Background(), oauthClientName, metav1.DeleteOptions{}); err != nil {
-		log.Error(err, "failed deleting OAuthClient", "name", oauthClientName)
+		log.Error(err, "failed deleting OAuthClient", "feature", feature.Name, "name", oauthClientName)
 
 		return err
 	}
@@ -107,7 +107,7 @@ func RemoveExtensionProvider(feature *Feature) error {
 		return err
 	}
 	if !found {
-		log.Info("no extension providers found", "smcp", mesh.Name, "istio-ns", mesh.Namespace)
+		log.Info("no extension providers found", "feature", feature.Name, "control-plane", mesh.Name, "namespace", mesh.Namespace)
 		return nil
 	}
 
