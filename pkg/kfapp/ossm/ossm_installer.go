@@ -104,7 +104,7 @@ func (o *OssmInstaller) enableFeatures() error {
 		}).
 		Preconditions(
 			feature.EnsureCRDIsInstalled("servicemeshcontrolplanes.maistra.io"),
-			feature.CreateNamespaceIfNotExists(o.PluginSpec.Mesh.Namespace),
+			feature.CreateNamespace(o.PluginSpec.Mesh.Namespace),
 		).
 		Postconditions(
 			feature.WaitForControlPlaneToBeReady,
@@ -200,7 +200,7 @@ func (o *OssmInstaller) enableFeatures() error {
 		Preconditions(
 			feature.EnsureCRDIsInstalled("authconfigs.authorino.kuadrant.io"),
 			feature.EnsureServiceMeshInstalled,
-			feature.CreateNamespaceIfNotExists(o.PluginSpec.Auth.Namespace),
+			feature.CreateNamespace(o.PluginSpec.Auth.Namespace),
 		).
 		OnDelete(feature.RemoveExtensionProvider).
 		Load(); err != nil {

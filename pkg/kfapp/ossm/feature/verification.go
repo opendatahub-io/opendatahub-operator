@@ -15,19 +15,21 @@ import (
 	"time"
 )
 
-func CreateNamespaceIfNotExists(name string) action {
+// CreateNamespace will create namespace with the given name if it does not exist yet.
+func CreateNamespace(namespace string) action {
 	return func(f *Feature) error {
 		nsClient := f.clientset.CoreV1().Namespaces()
 
-		_, err := nsClient.Get(context.Background(), name, metav1.GetOptions{})
+		_, err := nsClient.Get(context.Background(), namespace, metav1.GetOptions{})
 		if k8serrors.IsNotFound(err) {
 			_, err := nsClient.Create(context.Background(), &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: name,
+					Name: namespace,
 				},
 			}, metav1.CreateOptions{})
 
-			// return err regardless, as we terminate invocation here
+			// we either successfully created new namespace or failed during the process
+			// returning err which indicates the state
 			return err
 		}
 

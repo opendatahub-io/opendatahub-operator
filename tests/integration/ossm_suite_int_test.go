@@ -5,12 +5,14 @@ import (
 	"fmt"
 	v1 "k8s.io/api/core/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"math/rand"
 	"os"
 	"path/filepath"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"strings"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -35,6 +37,8 @@ func TestOssmInstallerIntegration(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
+	rand.Seed(time.Now().UTC().UnixNano())
+
 	ctx, cancel = context.WithCancel(context.TODO())
 
 	opts := zap.Options{Development: true}

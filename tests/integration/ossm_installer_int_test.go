@@ -2,8 +2,6 @@ package ossm_test
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/opendatahub-io/opendatahub-operator/pkg/kfapp/ossm"
@@ -17,6 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 	"os"
@@ -30,58 +29,115 @@ const (
 	interval = 250 * time.Millisecond
 )
 
-var _ = Describe("CRD presence verification", func() {
-	var (
-		ossmInstaller       *ossm.OssmInstaller
-		ossmPluginSpec      *ossmplugin.OssmPluginSpec
-		verificationFeature *feature.Feature
-	)
+var _ = Describe("preconditions", func() {
 
-	BeforeEach(func() {
-		ossmInstaller = newOssmInstaller("default")
-		var err error
-		ossmPluginSpec, err = ossmInstaller.GetPluginSpec()
-		Expect(err).ToNot(HaveOccurred())
+	Context("namespace existence", func() {
+
+		var (
+			objectCleaner *testenv.Cleaner
+			testFeature   *feature.Feature
+			namespace     string
+		)
+
+		BeforeEach(func() {
+			objectCleaner = testenv.CreateCleaner(envTestClient, envTest.Config, timeout, interval)
+
+			testFeatureName := "test-ns-creation"
+			namespace = testenv.GenerateNamespaceName(testFeatureName)
+
+			ossmInstaller := newOssmInstaller(namespace)
+			ossmPluginSpec, err := ossmInstaller.GetPluginSpec()
+			Expect(err).ToNot(HaveOccurred())
+			testFeature, err = feature.CreateFeature(testFeatureName).
+				For(ossmPluginSpec).
+				UsingConfig(envTest.Config).
+				Load()
+			Expect(err).ToNot(HaveOccurred())
+
+		})
+
+		It("should create namespace if it does not exist", func() {
+			// given
+			_, err := getNamespace(namespace)
+			Expect(errors.IsNotFound(err)).To(BeTrue())
+			defer objectCleaner.DeleteAll(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
+
+			// when
+			err = feature.CreateNamespace(namespace)(testFeature)
+
+			// then
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("should not try to create namespace if it does already exist", func() {
+			// given
+			ns := createNamespace(namespace)
+			Expect(envTestClient.Create(context.Background(), ns)).To(Succeed())
+			defer objectCleaner.DeleteAll(ns)
+
+			// when
+			err := feature.CreateNamespace(namespace)(testFeature)
+
+			// then
+			Expect(err).ToNot(HaveOccurred())
+		})
 	})
 
-	It("should successfully check existing CRD", func() {
-		// given example CRD installed into env from /ossm/test/crd/
-		name := "test-resources.ossm.plugins.kubeflow.org"
+	Context("ensuring custom resource definitions are installed", func() {
 
-		var err error
-		verificationFeature, err = feature.CreateFeature("CRD verification").
-			For(ossmPluginSpec).
-			UsingConfig(envTest.Config).
-			Preconditions(feature.EnsureCRDIsInstalled(name)).
-			Load()
-		Expect(err).ToNot(HaveOccurred())
+		var (
+			ossmInstaller       *ossm.OssmInstaller
+			ossmPluginSpec      *ossmplugin.OssmPluginSpec
+			verificationFeature *feature.Feature
+		)
 
-		// when
-		err = verificationFeature.Apply()
+		BeforeEach(func() {
+			ossmInstaller = newOssmInstaller("default")
+			var err error
+			ossmPluginSpec, err = ossmInstaller.GetPluginSpec()
+			Expect(err).ToNot(HaveOccurred())
+		})
 
-		// then
-		Expect(err).ToNot(HaveOccurred())
+		It("should successfully check for existing CRD", func() {
+			// given example CRD installed into env from /ossm/test/crd/
+			name := "test-resources.ossm.plugins.kubeflow.org"
+
+			var err error
+			verificationFeature, err = feature.CreateFeature("CRD verification").
+				For(ossmPluginSpec).
+				UsingConfig(envTest.Config).
+				Preconditions(feature.EnsureCRDIsInstalled(name)).
+				Load()
+			Expect(err).ToNot(HaveOccurred())
+
+			// when
+			err = verificationFeature.Apply()
+
+			// then
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("should fail to check non-existing CRD", func() {
+			// given
+			name := "non-existing-resource.non-existing-group.io"
+
+			var err error
+			verificationFeature, err = feature.CreateFeature("CRD verification").
+				For(ossmPluginSpec).
+				UsingConfig(envTest.Config).
+				Preconditions(feature.EnsureCRDIsInstalled(name)).
+				Load()
+			Expect(err).ToNot(HaveOccurred())
+
+			// when
+			err = verificationFeature.Apply()
+
+			// then
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("\"non-existing-resource.non-existing-group.io\" not found"))
+		})
 	})
 
-	It("should fail to check non-existing CRD", func() {
-		// given
-		name := "non-existing-resource.non-existing-group.io"
-
-		var err error
-		verificationFeature, err = feature.CreateFeature("CRD verification").
-			For(ossmPluginSpec).
-			UsingConfig(envTest.Config).
-			Preconditions(feature.EnsureCRDIsInstalled(name)).
-			Load()
-		Expect(err).ToNot(HaveOccurred())
-
-		// when
-		err = verificationFeature.Apply()
-
-		// then
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("\"non-existing-resource.non-existing-group.io\" not found"))
-	})
 })
 
 var _ = Describe("Ensuring service mesh is set up correctly", func() {
@@ -563,11 +619,18 @@ func getServiceMeshControlPlane(cfg *rest.Config, namespace, name string) (*unst
 	return smcp, nil
 }
 
+func getNamespace(namespace string) (*v1.Namespace, error) {
+	ns := createNamespace(namespace)
+	err := envTestClient.Get(context.Background(), types.NamespacedName{Name: namespace}, ns)
+
+	return ns, err
+}
+
 func fromTestTmpDir(fileName string) string {
 	root, err := findProjectRoot()
 	Expect(err).ToNot(HaveOccurred())
 
-	tmpDir := filepath.Join(os.TempDir(), randomUUIDName(16))
+	tmpDir := filepath.Join(os.TempDir(), testenv.RandomUUIDName(16))
 	if err := os.Mkdir(tmpDir, os.ModePerm); err != nil {
 		Fail(err.Error())
 	}
@@ -600,10 +663,4 @@ func copyFile(src, dst string) error {
 
 	_, err = io.Copy(destination, source)
 	return err
-}
-
-func randomUUIDName(len int) string {
-	uuidBytes := make([]byte, len)
-	_, _ = rand.Read(uuidBytes)
-	return hex.EncodeToString(uuidBytes)[:len]
 }
