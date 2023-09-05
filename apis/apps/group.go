@@ -107,9 +107,11 @@ const (
 	DUMP                  CliOption = "dump"
 )
 
+//
 // KfApp provides a common
 // API for PackageManagers like ksonnet or kustomize
 // They all implement the API below
+//
 type KfApp interface {
 	Apply(resources ResourceEnum) error
 	Delete(resources ResourceEnum) error
@@ -118,14 +120,18 @@ type KfApp interface {
 	Init(resources ResourceEnum) error
 }
 
+//
 // Platform provides a common
 // API for platforms like gcp or minikube
 // They all implement the API below
+//
 type Platform interface {
 	KfApp
 }
 
+//
 // This is used in the ksonnet implementation for `ks show`
+//
 type KfShow interface {
 	Show(resources ResourceEnum) error
 }
@@ -190,11 +196,9 @@ func LoadKfApp(name string, kfdef *kfdefs.KfDef) (KfApp, error) {
 }
 
 // DownloadToCache will download a version of kubeflow github repo or the manifests repo where version can be
-//
-//	  master
-//		 tag
-//		 pull/<ID>[/head]
-//
+//   master
+//	 tag
+//	 pull/<ID>[/head]
 // It returns the local file path of where the repo was downloaded
 func DownloadToCache(appDir string, repo string, version string) (string, error) {
 	if _, err := os.Stat(appDir); os.IsNotExist(err) {

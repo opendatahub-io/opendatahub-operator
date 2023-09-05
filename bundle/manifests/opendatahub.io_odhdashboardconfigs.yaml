@@ -140,13 +140,10 @@ spec:
                   - resources
                   type: object
                 type: array
-<<<<<<< HEAD
               templateOrder:
                 items:
                   type: string
                 type: array
-=======
->>>>>>> 2e7d6ea (feat(kfdef): introduces OSSMPlugin to handle infra setup)
             type: object
         required:
         - spec

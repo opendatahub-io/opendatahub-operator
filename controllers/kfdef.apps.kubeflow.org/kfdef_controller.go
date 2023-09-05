@@ -356,7 +356,20 @@ func (r *KfDefReconciler) watchKubeflowResources(a client.Object) (requests []re
 
 }
 
-var kfdefPredicates = predicate.GenerationChangedPredicate{}
+var kfdefPredicates = predicate.Funcs{
+	CreateFunc: func(e event.CreateEvent) bool {
+		return true
+	},
+	GenericFunc: func(e event.GenericEvent) bool {
+		return true
+	},
+	DeleteFunc: func(e event.DeleteEvent) bool {
+		return false
+	},
+	UpdateFunc: func(e event.UpdateEvent) bool {
+		return true
+	},
+}
 
 var ownedResourcePredicates = predicate.Funcs{
 	CreateFunc: func(e event.CreateEvent) bool {
