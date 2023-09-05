@@ -18,3 +18,28 @@ If you have a proposed fix for an issue, or an enhancement you would like to mak
 Use a descriptive title, and if it relates to an issue in our tracker please reference which one.
 If the PR is not intended to be merged you should prefix the title with "[WIP]" which indicates it is still Work In Progress.
 PR's description should provide enough information for a reviewer to understand the changes and their relation to the rest of the code.
+
+## Setting up a Fedora-based development environment
+
+This is a loose list of tools to install on your linux box in order to compile, test and deploy the operator. 
+
+```bash
+ssh-keygen -t ed25519 -C "<email-registered-on-github-account>"
+# upload public key to github
+
+sudo dnf makecache --refresh
+sudo dnf install -y git-all
+sudo dnf install -y golang
+sudo dnf install -y podman
+sudo dnf install -y cri-o kubernetes-kubeadm kubernetes-node kubernetes-client cri-tools
+sudo dnf install -y operator-sdk
+sudo dnf install -y wget
+wget https://mirror.openshift.com/pub/openshift-v4/clients/oc/latest/linux/oc.tar.gz
+cd bin/; tar -xzvf ../oc.tar.gz ; cd .. ; rm oc.tar.gz
+sudo dnf install -y zsh
+
+# update PATH
+echo 'export PATH=${PATH}:~/bin' >> ~/.zshrc
+echo 'export GOPROXY=https://proxy.golang.org' >> ~/.zshrc
+```
+
