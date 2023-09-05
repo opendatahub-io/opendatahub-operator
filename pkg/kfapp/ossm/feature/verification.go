@@ -25,6 +25,9 @@ func CreateNamespace(namespace string) action {
 			_, err := nsClient.Create(context.Background(), &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: namespace,
+					OwnerReferences: []metav1.OwnerReference{
+						f.OwnerReference(),
+					},
 				},
 			}, metav1.CreateOptions{})
 
