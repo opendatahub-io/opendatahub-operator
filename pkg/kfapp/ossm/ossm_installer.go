@@ -160,7 +160,7 @@ func (o *OssmInstaller) enableFeatures() error {
 			feature.EnsureServiceMeshInstalled,
 		).
 		Postconditions(
-			feature.WaitForControlPlaneToBeReady,
+			feature.WaitForPodsToBeReady(o.PluginSpec.Mesh.Namespace),
 		).
 		OnDelete(
 			feature.RemoveOAuthClient,
@@ -198,7 +198,14 @@ func (o *OssmInstaller) enableFeatures() error {
 	if dashboard, err := feature.CreateFeature("app-enable-service-mesh-in-dashboard").
 		For(o.PluginSpec).
 		UsingConfig(o.config).
+		Manifests(
+			path.Join(rootDir, feature.ControlPlaneDir, "routing"),
+		).
 		WithResources(feature.ServiceMeshEnabledInDashboard).
+		WithData(feature.ClusterDetails).
+		Postconditions(
+			feature.WaitForPodsToBeReady(o.PluginSpec.Mesh.Namespace),
+		).
 		Load(); err != nil {
 		return err
 	} else {
@@ -226,9 +233,13 @@ func (o *OssmInstaller) enableFeatures() error {
 		).
 		WithData(feature.ClusterDetails).
 		Preconditions(
+			feature.CreateNamespace(o.PluginSpec.Auth.Namespace),
 			feature.EnsureCRDIsInstalled("authconfigs.authorino.kuadrant.io"),
 			feature.EnsureServiceMeshInstalled,
-			feature.CreateNamespace(o.PluginSpec.Auth.Namespace),
+		).
+		Postconditions(
+			feature.WaitForPodsToBeReady(o.PluginSpec.Mesh.Namespace),
+			feature.WaitForPodsToBeReady(o.PluginSpec.Auth.Namespace),
 		).
 		OnDelete(feature.RemoveExtensionProvider).
 		Load(); err != nil {

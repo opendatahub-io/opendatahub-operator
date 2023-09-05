@@ -64,16 +64,48 @@ func EnsureServiceMeshInstalled(feature *Feature) error {
 }
 
 const (
-	interval = 5 * time.Second
+	interval = 2 * time.Second
 	duration = 5 * time.Minute
 )
 
+func WaitForPodsToBeReady(namespace string) action {
+	return func(feature *Feature) error {
+		return wait.Poll(interval, duration, func() (done bool, err error) {
+			log.Info("waiting for control plane pods to become ready", "feature", feature.Name, "namespace", namespace, "duration (s)", duration.Seconds())
+			podList, err := feature.clientset.CoreV1().Pods(namespace).List(context.Background(), metav1.ListOptions{})
+			if err != nil {
+				return false, err
+			}
+
+			readyPods := 0
+			totalPods := len(podList.Items)
+
+			for _, pod := range podList.Items {
+				podReady := true
+				for _, condition := range pod.Status.Conditions {
+					if condition.Type == corev1.PodReady {
+						if condition.Status != corev1.ConditionTrue {
+							podReady = false
+							break
+						}
+					}
+				}
+				if podReady {
+					readyPods++
+				}
+			}
+
+			return readyPods == totalPods, nil
+		})
+	}
+}
+
 func WaitForControlPlaneToBeReady(feature *Feature) error {
-	return wait.PollImmediate(interval, duration, func() (done bool, err error) {
+	return wait.Poll(interval, duration, func() (done bool, err error) {
 		smcp := feature.Spec.Mesh.Name
 		smcpNs := feature.Spec.Mesh.Namespace
 
-		log.Info("waiting for control plane components to be ready", "name", smcp, "namespace", smcpNs, "duration (s)", duration.Seconds())
+		log.Info("waiting for control plane components to be ready", "feature", feature.Name, "control-plane", smcp, "namespace", smcpNs, "duration (s)", duration.Seconds())
 
 		return CheckControlPlaneComponentReadiness(feature.dynamicClient, smcp, smcpNs)
 	})
