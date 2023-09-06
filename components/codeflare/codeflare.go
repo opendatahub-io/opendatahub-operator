@@ -16,6 +16,7 @@ const (
 	ComponentName              = "codeflare"
 	CodeflarePath              = deploy.DefaultManifestPath + "/" + "codeflare-stack" + "/base"
 	CodeflareOperator          = "codeflare-operator"
+	RHCodeflareOperator        = "rhods-codeflare-operator"
 	CodeflareOperatorNamespace = "openshift-operators"
 )
 
@@ -43,13 +44,23 @@ func (d *CodeFlare) ReconcileComponent(owner metav1.Object, client client.Client
 	if enabled {
 		// check if the CodeFlare operator is installed
 		// codeflare operator not installed
-		found, err := deploy.SubscriptionExists(client, CodeflareOperatorNamespace, CodeflareOperator)
+		dependentOperator := CodeflareOperator
+		dependentOperatorNamespace := CodeflareOperatorNamespace
+		platform, err := deploy.GetPlatform(client)
+		if err != nil {
+			return err
+		}
+		// overwrite dependent operator if downstream not match upstream
+		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
+			dependentOperator = RHCodeflareOperator
+		}
+		found, err := deploy.SubscriptionExists(client, dependentOperatorNamespace, dependentOperator)
 		if !found {
 			if err != nil {
 				return err
 			} else {
 				return fmt.Errorf("operator %s not found in namespace %s. Please install the operator before enabling %s component",
-					CodeflareOperator, CodeflareOperatorNamespace, ComponentName)
+				dependentOperator, dependentOperatorNamespace, ComponentName)
 			}
 		}
 

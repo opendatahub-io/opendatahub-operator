@@ -175,7 +175,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 		consolelinkDomain := consoleRoute.Spec.Host[domainIndex+1:]
 		err = common.ReplaceStringsInFile(PathConsoleLink, map[string]string{
 			"<rhods-dashboard-url>": "https://rhods-dashboard-" + namespace + "." + consolelinkDomain,
-			"<section-title>": "OpenShift Self Managed Services",
+			"<section-title>":       "OpenShift Self Managed Services",
 		})
 		if err != nil {
 			return fmt.Errorf("error replacing with correct dashboard url for ConsoleLink: %v", err)
@@ -206,7 +206,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 		consolelinkDomain := consoleRoute.Spec.Host[domainIndex+1:]
 		err = common.ReplaceStringsInFile(PathConsoleLink, map[string]string{
 			"<rhods-dashboard-url>": "https://rhods-dashboard-" + namespace + "." + consolelinkDomain,
-			"<section-title>": "OpenShift Managed Services",
+			"<section-title>":       "OpenShift Managed Services",
 		})
 		if err != nil {
 			return fmt.Errorf("Error replacing with correct dashboard url for ConsoleLink: %v", err)
