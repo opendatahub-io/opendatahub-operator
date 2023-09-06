@@ -75,7 +75,7 @@ EOF
 
 1. When Operator is installed it creates a namespace called `opendatahub`.
 2. Users need to create required `DataScienceCluster` resource by going to the `Installed Operators` tab in the OpenShift Cluster.
-3. Users should explicitly set components with `enabled: true` in order for components to be installed.
+3. Users should explicitly set components with `managementState: Managed` in order for components to be installed.
 
 ```console
 cat <<EOF | oc apply -f -
@@ -102,8 +102,7 @@ spec:
 EOF
 ```
 
-
 ### Integrated Components
 
-- Currently on integration of ODH [core](https://opendatahub.io/docs/tiered-components/) components is available with the Operator. 
+- Currently on integration of ODH [core components](https://opendatahub.io/docs/tiered-components/) are available with the Operator.
 - Tier 1 and Tier 2 components can be deployed manually using [kustomize build](https://kubectl.docs.kubernetes.io/references/kustomize/cmd/build/)

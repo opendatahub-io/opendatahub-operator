@@ -11,6 +11,7 @@ The latest version of operator can be installed from the `community-operators` c
 and installed from source manually, see the Developer guide for further instructions.
 
 1. Subscribe to operator by creating following subscription
+
     ```console
     cat <<EOF | oc create -f -
     apiVersion: operators.coreos.com/v1alpha1
@@ -32,7 +33,6 @@ and installed from source manually, see the Developer guide for further instruct
 
 Developer Preview of the new Open Data Hub operator codebase is now avaible.
 Refer [Dev-Preview.md](./docs/Dev-Preview.md) for testing preview features.
-
 
 ### Developer Guide
 
@@ -117,12 +117,13 @@ There are 2 ways to test your changes with modification:
     by using this method, it overwrites manifests and component images if images are set in the params.env file
 2. [Under implementation] build operator image with local manifests   
 
-### Example DataScienceCluster 
+### Example DataScienceCluster
 
 When the operator is installed successfully in the cluster, a user can create a `DataScienceCluster` CR to enable ODH 
 components. At a given time, ODH supports only **one** instance of the CR, which can be updated to get custom list of components.
 
 1. Enable all components
+
     ```console
       apiVersion: datasciencecluster.opendatahub.io/v1
       kind: DataScienceCluster
@@ -145,6 +146,7 @@ components. At a given time, ODH supports only **one** instance of the CR, which
           workbenches:
             managementState: Managed
     ```
+
 2. Enable only Dashboard and Workbenches
 
     ```console
@@ -161,7 +163,6 @@ components. At a given time, ODH supports only **one** instance of the CR, which
     ```
 
 **Note:** Default value for a component is `false`.
-
 
 ### Run e2e Tests
 
@@ -187,11 +188,13 @@ variable. Following table lists all the available flags to run the tests:
 |-----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------|
 | --skip-deletion | To skip running  of `dsc-deletion` test that includes deleting `DataScienceCluster` resources. Assign this variable to `true` to skip DataScienceCluster deletion. | false         |
 
-
-
 Example command to run full test suite skipping the test
 for DataScienceCluster deletion.
 
 ```shell
 make e2e-test -e OPERATOR_NAMESPACE=<namespace> -e E2E_TEST_FLAGS="--skip-deletion=true"
 ```
+
+### Troubleshooting
+
+Please refer to [troubleshooting documentation](docs/troubleshooting.md)
