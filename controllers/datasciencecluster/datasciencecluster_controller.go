@@ -46,7 +46,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	corev1 "k8s.io/api/core/v1"
 	authv1 "k8s.io/api/rbac/v1"
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -72,36 +71,32 @@ type DataScienceClusterReconciler struct {
 func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.Log.Info("Reconciling DataScienceCluster resources", "Request.Namespace", req.Namespace, "Request.Name", req.Name)
 
-	instance := &dsc.DataScienceCluster{}
+	instances := &dsc.DataScienceClusterList{}
 
-	// First check if instance is being deleted, return
+	if err := r.Client.List(ctx, instances); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	if len(instances.Items) > 1 {
+		message := fmt.Sprintf("only one instance of DataScienceCluster object is allowed. Update existing instance on namespace %s and name %s", req.Namespace, req.Name)
+		err := fmt.Errorf(message)
+		_ = r.reportError(err, &instances.Items[0], message)
+
+		return ctrl.Result{}, err
+	}
+
+	if len(instances.Items) == 0 {
+    // DataScienceCluster instance not found
+		return ctrl.Result{}, nil
+	}
+
+	instance := &instances.Items[0]
+
 	if instance.GetDeletionTimestamp() != nil {
 		return ctrl.Result{}, nil
 	}
 
-	// Second check if instance exists, return
-	err := r.Client.Get(ctx, req.NamespacedName, instance)
-	if err != nil {
-		if apierrs.IsNotFound(err) {
-			// DataScienceCluster instance not found
-			return ctrl.Result{}, nil
-		}
-		return ctrl.Result{}, err
-	}
-
-	// Last check if multiple instances of DataScienceCluster exist
-	instanceList := &dsc.DataScienceClusterList{}
-	err = r.Client.List(ctx, instanceList)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-
-	if len(instanceList.Items) > 1 {
-		message := fmt.Sprintf("only one instance of DataScienceCluster object is allowed. Update existing instance on namespace %s and name %s", req.Namespace, req.Name)
-		_ = r.reportError(err, &instanceList.Items[0], message)
-		return ctrl.Result{}, fmt.Errorf(message)
-	}
-
+	var err error
 	// Start reconciling
 	if instance.Status.Conditions == nil {
 		reason := status.ReconcileInit
