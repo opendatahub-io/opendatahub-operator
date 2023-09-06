@@ -7,6 +7,7 @@ import (
 	"context"
 	"strings"
 
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -52,7 +53,7 @@ func (d *Dashboard) GetComponentName() string {
 // Verifies that Dashboard implements ComponentInterface
 var _ components.ComponentInterface = (*Dashboard)(nil)
 
-func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, namespace string, manifestsUri string) error {
+func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, dscispec *dsci.DSCInitializationSpec) error {
 	enabled := managementState == operatorv1.Managed
 
 	// TODO: Add any additional tasks if required when reconciling component
@@ -64,13 +65,13 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 
 	if enabled {
 		if platform == deploy.OpenDataHub || platform == "" {
-			err := common.UpdatePodSecurityRolebinding(cli, []string{"odh-dashboard"}, namespace)
+			err := common.UpdatePodSecurityRolebinding(cli, []string{"odh-dashboard"}, dscispec.ApplicationsNamespace)
 			if err != nil {
 				return err
 			}
 		}
 		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
-			err := common.UpdatePodSecurityRolebinding(cli, []string{"rhods-dashboard"}, namespace)
+			err := common.UpdatePodSecurityRolebinding(cli, []string{"rhods-dashboard"}, dscispec.DevFlags.ManifestsUri)
 			if err != nil {
 				return err
 			}
@@ -98,7 +99,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 			// Create ODHDashboardConfig if it doesn't exist already
 			err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
 				PathODHDashboardConfig,
-				namespace,
+				dscispec.ApplicationsNamespace,
 				scheme, enabled)
 			if err != nil {
 				return fmt.Errorf("failed to set dashboard config from %s: %v", PathODHDashboardConfig, err)
@@ -107,20 +108,20 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 			// Apply modelserving config
 			err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
 				PathOVMS,
-				namespace,
+				dscispec.ApplicationsNamespace,
 				scheme, enabled)
 			if err != nil {
 				return fmt.Errorf("failed to set dashboard OVMS from %s: %v", PathOVMS, err)
 			}
 
 			// Apply anaconda config
-			err = common.CreateSecret(cli, "anaconda-ce-access", namespace)
+			err = common.CreateSecret(cli, "anaconda-ce-access", dscispec.ApplicationsNamespace)
 			if err != nil {
 				return fmt.Errorf("failed to create access-secret for anaconda: %v", err)
 			}
 			err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
 				PathAnaconda,
-				namespace,
+				dscispec.ApplicationsNamespace,
 				scheme, enabled)
 			if err != nil {
 				return fmt.Errorf("failed to deploy anaconda resources from %s: %v", PathAnaconda, err)
@@ -128,7 +129,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 		}
 
 		// Update image parameters
-		if manifestsUri == "" {
+		if dscispec.DevFlags.ManifestsUri == "" {
 			if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
 				return err
 			}
@@ -139,7 +140,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 	if platform == deploy.OpenDataHub || platform == "" {
 		err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 			Path,
-			namespace,
+			dscispec.ApplicationsNamespace,
 			scheme, enabled)
 		if err != nil {
 			return err
@@ -148,7 +149,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 		// Apply authentication overlay
 		err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
 			PathSupported,
-			namespace,
+			dscispec.ApplicationsNamespace,
 			scheme, enabled)
 		if err != nil {
 			return err
@@ -160,7 +161,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 	case deploy.SelfManagedRhods:
 		err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
 			PathISVSM,
-			namespace,
+			dscispec.ApplicationsNamespace,
 			scheme, enabled)
 		if err != nil {
 			return fmt.Errorf("failed to set dashboard ISV from %s: %v", PathISVSM, err)
@@ -174,7 +175,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 		domainIndex := strings.Index(consoleRoute.Spec.Host, ".")
 		consolelinkDomain := consoleRoute.Spec.Host[domainIndex+1:]
 		err = common.ReplaceStringsInFile(PathConsoleLink, map[string]string{
-			"<rhods-dashboard-url>": "https://rhods-dashboard-" + namespace + "." + consolelinkDomain,
+			"<rhods-dashboard-url>": "https://rhods-dashboard-" + dscispec.ApplicationsNamespace + "." + consolelinkDomain,
 			"<section-title>":       "OpenShift Self Managed Services",
 		})
 		if err != nil {
@@ -182,7 +183,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 		}
 		err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
 			PathConsoleLink,
-			namespace,
+			dscispec.ApplicationsNamespace,
 			scheme, enabled)
 		if err != nil {
 			return fmt.Errorf("failed to set dashboard consolelink from %s", PathConsoleLink)
@@ -191,7 +192,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 	case deploy.ManagedRhods:
 		err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
 			PathISVAddOn,
-			namespace,
+			dscispec.ApplicationsNamespace,
 			scheme, enabled)
 		if err != nil {
 			return fmt.Errorf("failed to set dashboard ISV from %s: %v", PathISVAddOn, err)
@@ -205,7 +206,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 		domainIndex := strings.Index(consoleRoute.Spec.Host, ".")
 		consolelinkDomain := consoleRoute.Spec.Host[domainIndex+1:]
 		err = common.ReplaceStringsInFile(PathConsoleLink, map[string]string{
-			"<rhods-dashboard-url>": "https://rhods-dashboard-" + namespace + "." + consolelinkDomain,
+			"<rhods-dashboard-url>": "https://rhods-dashboard-" + dscispec.ApplicationsNamespace + "." + consolelinkDomain,
 			"<section-title>":       "OpenShift Managed Services",
 		})
 		if err != nil {
@@ -213,7 +214,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 		}
 		err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
 			PathConsoleLink,
-			namespace,
+			dscispec.ApplicationsNamespace,
 			scheme, enabled)
 		if err != nil {
 			return fmt.Errorf("failed to set dashboard consolelink from %s", PathConsoleLink)

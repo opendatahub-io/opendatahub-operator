@@ -61,9 +61,13 @@ type DataScienceClusterReconciler struct {
 	Scheme *runtime.Scheme
 	Log    logr.Logger
 	// Recorder to generate events
-	Recorder              record.EventRecorder
-	ApplicationsNamespace string
-	ManifestsUri          string
+	Recorder           record.EventRecorder
+	DataScienceCluster *DataScienceClusterConfig
+}
+
+// DataScienceClusterConfig passing Spec of DSCI for reconcile DataScienceCluster
+type DataScienceClusterConfig struct {
+	DSCISpec *dsci.DSCInitializationSpec
 }
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
@@ -136,9 +140,8 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 	} else if len(dsciInstances.Items) == 1 {
 		// Set Applications namespace defined in DSCInitialization
-		r.ApplicationsNamespace = dsciInstances.Items[0].Spec.ApplicationsNamespace
-		r.ManifestsUri = dsciInstances.Items[0].Spec.DevFlags.ManifestsUri
-
+		r.DataScienceCluster.DSCISpec.ApplicationsNamespace = dsciInstances.Items[0].Spec.ApplicationsNamespace
+		r.DataScienceCluster.DSCISpec.DevFlags.ManifestsUri = dsciInstances.Items[0].Spec.DevFlags.ManifestsUri
 	} else {
 		return ctrl.Result{}, fmt.Errorf(fmt.Sprintf("only one instance of DSCInitialization object is allowed."))
 	}
@@ -247,7 +250,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 	}
 
 	// Reconcile component
-	err = component.ReconcileComponent(instance, r.Client, r.Scheme, mngmtState, r.ApplicationsNamespace, r.ManifestsUri)
+	err = component.ReconcileComponent(instance, r.Client, r.Scheme, mngmtState, r.DataScienceCluster.DSCISpec)
 
 	if err != nil {
 		// reconciliation failed: log errors, raise event and update status accordingly

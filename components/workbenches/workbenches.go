@@ -2,6 +2,7 @@
 package workbenches
 
 import (
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -38,7 +39,7 @@ func (w *Workbenches) SetImageParamsMap(imageMap map[string]string) map[string]s
 // Verifies that Dashboard implements ComponentInterface
 var _ components.ComponentInterface = (*Workbenches)(nil)
 
-func (w *Workbenches) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, namespace string, manifestsUri string) error {
+func (w *Workbenches) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, dscispec *dsci.DSCInitializationSpec) error {
 	enabled := managementState == operatorv1.Managed
 
 	// Set default notebooks namespace
@@ -57,12 +58,12 @@ func (w *Workbenches) ReconcileComponent(owner metav1.Object, cli client.Client,
 			}
 		}
 		// Update Default rolebinding
-		err = common.UpdatePodSecurityRolebinding(cli, []string{"notebook-controller-service-account"}, namespace)
+		err = common.UpdatePodSecurityRolebinding(cli, []string{"notebook-controller-service-account"}, dscispec.ApplicationsNamespace)
 		if err != nil {
 			return err
 		}
 		// Update image parameters for notebook controller
-		if manifestsUri == "" {
+		if dscispec.DevFlags.ManifestsUri == "" {
 			if err := deploy.ApplyImageParams(notebookControllerPath, imageParamMap); err != nil {
 				return err
 			}
@@ -71,7 +72,7 @@ func (w *Workbenches) ReconcileComponent(owner metav1.Object, cli client.Client,
 
 	err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 		notebookControllerPath,
-		namespace,
+		dscispec.ApplicationsNamespace,
 		scheme, enabled)
 	if err != nil {
 		return err
@@ -79,7 +80,7 @@ func (w *Workbenches) ReconcileComponent(owner metav1.Object, cli client.Client,
 
 	// Update image parameters for notebook image
 	if enabled {
-		if manifestsUri == "" {
+		if dscispec.DevFlags.ManifestsUri == "" {
 			if err := deploy.ApplyImageParams(notebookImagesPath, imageParamMap); err != nil {
 				return err
 			}
@@ -87,7 +88,7 @@ func (w *Workbenches) ReconcileComponent(owner metav1.Object, cli client.Client,
 	}
 	err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 		notebookImagesPath,
-		namespace,
+		dscispec.ApplicationsNamespace,
 		scheme, enabled)
 	return err
 
