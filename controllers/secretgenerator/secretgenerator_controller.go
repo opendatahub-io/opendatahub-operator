@@ -3,6 +3,7 @@ package secretgenerator
 import (
 	"context"
 	"fmt"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/secret"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"time"
 
@@ -43,7 +44,7 @@ func (r *SecretGeneratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Watch only new secrets with the corresponding annotation
 	predicates := predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
-			if _, found := e.Object.GetAnnotations()[SECRET_NAME_ANNOTATION]; found {
+			if _, found := e.Object.GetAnnotations()[secret.SECRET_NAME_ANNOTATION]; found {
 				return true
 			}
 			return false
@@ -52,7 +53,7 @@ func (r *SecretGeneratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			return false
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
-			if _, found := e.Object.GetAnnotations()[SECRET_NAME_ANNOTATION]; found {
+			if _, found := e.Object.GetAnnotations()[secret.SECRET_NAME_ANNOTATION]; found {
 				return true
 			}
 			return false
@@ -111,30 +112,30 @@ func (r *SecretGeneratorReconciler) Reconcile(ctx context.Context, request ctrl.
 			secGenLog.Info("Generating a random value for a secret in a namespace",
 				"secret", generatedSecret.Name, "namespace", generatedSecret.Namespace)
 
-			secret, err := newSecret(foundSecret.GetAnnotations())
+			s, err := secret.NewSecret(foundSecret.GetAnnotations())
 			if err != nil {
 				secGenLog.Error(err, "error creating secret")
 				return ctrl.Result{}, err
 			}
 
 			generatedSecret.StringData = map[string]string{
-				secret.Name: secret.Value,
+				s.Name: s.Value,
 			}
 
 			err = r.Client.Create(context.TODO(), generatedSecret)
 			if err != nil {
 				return ctrl.Result{}, err
 			}
-			if secret.OAuthClientRoute != "" {
+			if s.OAuthClientRoute != "" {
 				// Get OauthClient Route
-				oauthClientRoute, err := r.getRoute(secret.OAuthClientRoute, request.Namespace)
+				oauthClientRoute, err := r.getRoute(s.OAuthClientRoute, request.Namespace)
 				if err != nil {
-					secGenLog.Error(err, "Unable to retrieve route", "route-name", secret.OAuthClientRoute)
+					secGenLog.Error(err, "Unable to retrieve route", "route-name", s.OAuthClientRoute)
 					return ctrl.Result{}, err
 				}
 				// Generate OAuthClient for the generated secret
 				secGenLog.Info("Generating an oauth client resource for route", "route-name", oauthClientRoute.Name)
-				err = r.createOAuthClient(foundSecret.Name, secret.Value, oauthClientRoute.Spec.Host)
+				err = r.createOAuthClient(foundSecret.Name, s.Value, oauthClientRoute.Spec.Host)
 				if err != nil {
 					secGenLog.Error(err, "error creating oauth client resource. Recreate the Secret", "secret-name",
 						foundSecret.Name)

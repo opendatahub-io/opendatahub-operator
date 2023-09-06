@@ -1,4 +1,4 @@
-package secretgenerator
+package secret
 
 import (
 	"crypto/rand"
@@ -31,7 +31,7 @@ type Secret struct {
 	OAuthClientRoute string
 }
 
-func newSecret(annotations map[string]string) (*Secret, error) {
+func NewSecret(annotations map[string]string) (*Secret, error) {
 	// Check if annotations is not empty
 	if len(annotations) == 0 {
 		return nil, errors.New(errEmptyAnnotation)
