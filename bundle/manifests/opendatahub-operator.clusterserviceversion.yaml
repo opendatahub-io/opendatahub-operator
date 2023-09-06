@@ -251,6 +251,9 @@ spec:
     - kind: OssmPlugin
       name: ossmplugins.ossm.plugins.kubeflow.org
       version: v1alpha1
+    - kind: OssmResourceTracker
+      name: ossmresourcetrackers.ossm.plugins.kubeflow.org
+      version: v1alpha1
   description: |
     The Open Data Hub is a machine-learning-as-a-service platform built on Red Hat's Kubernetes-based OpenShift® Container Platform. Open Data Hub integrates multiple AI/ML open source components into one operator that can easily be downloaded and installed by OpenShift users.
 

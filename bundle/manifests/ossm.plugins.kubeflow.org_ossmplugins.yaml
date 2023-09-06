@@ -31,37 +31,81 @@ spec:
           metadata:
             type: object
           spec:
-            description: OssmPluginSpec defines the extra data provided by the Openshift
-              Service Mesh Plugin in KfDef spec.
+            description: OssmPluginSpec defines configuration needed for Openshift
+              Service Mesh for integration with Opendatahub.
             properties:
               auth:
+                description: Auth holds configuration of authentication and authorization
+                  services used by Service Mesh in Opendatahub.
                 properties:
                   authorino:
+                    description: Authorino holds configuration of Authorino service
+                      used as external authorization provider.
                     properties:
+                      audiences:
+                        description: Audiences is a list of the identifiers that the
+                          resource server presented with the token identifies as.
+                          Audience-aware token authenticators will verify that the
+                          token was intended for at least one of the audiences in
+                          this list. If no audiences are provided, the audience will
+                          default to the audience of the Kubernetes apiserver (kubernetes.default.svc).
+                        items:
+                          type: string
+                        type: array
                       image:
+                        description: Image allows to define a custom container image
+                          to be used when deploying Authorino's instance.
                         type: string
                       label:
+                        description: Label narrows amount of AuthConfigs to process
+                          by Authorino service.
                         type: string
                       name:
+                        description: Name specifies how external authorization provider
+                          should be called.
                         type: string
                     type: object
                   name:
+                    description: Name of the authorization provider used for Service
+                      Mesh.
                     type: string
                   namespace:
+                    description: Namespace where it is deployed.
                     type: string
                 type: object
               mesh:
+                description: Mesh holds configuration of Service Mesh used by Opendatahub.
                 properties:
                   certificate:
+                    description: Certificate allows to define how to use certificates
+                      for the Service Mesh communication.
                     properties:
                       generate:
+                        description: Generate indicates if the certificate should
+                          be generated. If set to false it will assume certificate
+                          with the given name is made available as a secret in Service
+                          Mesh namespace.
                         type: boolean
                       name:
+                        description: Name of the certificate to be used by Service
+                          Mesh.
                         type: string
                     type: object
+                  installationMode:
+                    description: InstallationMode defines how the plugin should handle
+                      OpenShift Service Mesh installation. If not specified `pre-installed`
+                      is assumed.
+                    enum:
+                    - minimal
+                    - pre-installed
+                    type: string
                   name:
+                    description: Name is a name Service Mesh Control Plan. Defaults
+                      to "basic".
                     type: string
                   namespace:
+                    description: Namespace is a namespace where Service Mesh is deployed.
+                      Defaults to "istio-system".
                     type: string
                 type: object
             type: object
