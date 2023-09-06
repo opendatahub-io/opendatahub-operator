@@ -195,9 +195,10 @@ func (f *Feature) OwnerReference() metav1.OwnerReference {
 	return f.Spec.Tracker.ToOwnerReference()
 }
 
-// createResourceTracker instantiates OssmResourceTracker for given a Feature. All resources created when applying
-// it will have this object attached as OwnerReference. It's a cluster-scoped resource.
-// Once created, there's a cleanup hook added which will be invoked on deletion.
+// createResourceTracker instantiates OssmResourceTracker for a given Feature. All resources created when applying
+// it will have this object attached as an OwnerReference.
+// It's a cluster-scoped resource. Once created, there's a cleanup hook added which will be invoked on deletion, resulting
+// in removal of all owned resources which belong to this Feature.
 func (f *Feature) createResourceTracker() error {
 	tracker := &v1alpha1.OssmResourceTracker{
 		TypeMeta: metav1.TypeMeta{
