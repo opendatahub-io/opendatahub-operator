@@ -10,15 +10,13 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/pkg/kfconfig/ossmplugin"
 	"github.com/pkg/errors"
 	"k8s.io/client-go/rest"
-	"os"
 	"path"
 	"path/filepath"
 	ctrlLog "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 const (
-	PluginName         = "KfOssmPlugin"
-	serviceMeshOverlay = "service-mesh"
+	PluginName = "KfOssmPlugin"
 )
 
 var log = ctrlLog.Log.WithName(PluginName)
@@ -89,29 +87,11 @@ func (o *OssmInstaller) Init(_ kftypesv3.ResourceEnum) error {
 		return internalError(err)
 	}
 
+	if err := o.addOssmEnvFile("USE_ISTIO", "true", "ISTIO_GATEWAY", fmt.Sprintf("%s/%s", pluginSpec.AppNamespace, "odh-gateway")); err != nil {
+		return internalError(err)
+	}
+
 	return o.enableFeatures()
-}
-
-// addServiceMeshOverlays checks if applications have service-mesh overlay added in the manifest repository.
-// If that's the case it will be added to the app configuration and executed.
-// This way there's no need of adding it explicitly when Ossm Plugin is in use.
-func (o *OssmInstaller) addServiceMeshOverlays() error {
-	cachePerRepo := make(map[string]string, len(o.KfConfig.Status.Caches))
-	for _, cache := range o.KfConfig.Status.Caches {
-		cachePerRepo[cache.Name] = cache.LocalPath
-	}
-
-	for _, application := range o.KfConfig.Spec.Applications {
-		overlayDir := path.Join(cachePerRepo[application.KustomizeConfig.RepoRef.Name], application.KustomizeConfig.RepoRef.Path, "overlays", serviceMeshOverlay)
-		info, err := os.Stat(overlayDir)
-		if err == nil && info.IsDir() {
-			if overlayErr := o.KfConfig.AddApplicationOverlay(application.Name, serviceMeshOverlay); overlayErr != nil {
-				return internalError(overlayErr)
-			}
-		}
-	}
-
-	return nil
 }
 
 func (o *OssmInstaller) enableFeatures() error {
