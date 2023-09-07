@@ -198,7 +198,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			}
 		default:
 			// TODO: ODH specific monitoring logic
-			r.Log.Info("Monitoring enabled, won't apply changes", "cluster", "Self-Managed Mode")
+			r.Log.Info("Monitoring enabled, won't apply changes", "cluster", "ODH Mode")
 		}
 	}
 
