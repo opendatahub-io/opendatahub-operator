@@ -15,10 +15,10 @@ spec:
       mode: SIMPLE
       credentialName: {{ .Mesh.Certificate.Name }}
     hosts:
-    - "opendatahub.{{ .Domain }}"
+    - "{{ .AppNamespace }}.{{ .Domain }}"
   - port:
       number: 80
       name: http
       protocol: HTTP
     hosts:
-    - "opendatahub.{{ .Domain }}"
+    - "{{ .AppNamespace }}.{{ .Domain }}"

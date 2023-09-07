@@ -7,7 +7,7 @@ spec:
   gateways:
   - odh-gateway
   hosts:
-  - "opendatahub.{{ .Domain }}"
+  - "{{ .AppNamespace }}.{{ .Domain }}"
   http:
   - match:
     - uri:
