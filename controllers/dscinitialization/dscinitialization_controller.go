@@ -19,7 +19,6 @@ package dscinitialization
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,9 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -220,7 +217,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 // SetupWithManager sets up the controller with the Manager.
 func (r *DSCInitializationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&dsci.DSCInitialization{}, builder.WithPredicates(singletonPredicate)).
+		For(&dsci.DSCInitialization{}).
 		Owns(&corev1.Namespace{}).
 		Owns(&corev1.Secret{}).
 		Owns(&corev1.ConfigMap{}).
@@ -237,39 +234,6 @@ func (r *DSCInitializationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// this predicates prevents meaningless reconciliations from being triggered
 		WithEventFilter(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{})).
 		Complete(r)
-}
-
-var singletonPredicate = predicate.Funcs{
-	// Only reconcile on 'default' initialization
-
-	CreateFunc: func(e event.CreateEvent) bool {
-		if e.Object.GetObjectKind().GroupVersionKind().Kind == "DSCInitialization" {
-			if e.Object.GetName() == "default" {
-				return true
-			} else {
-				// Set to error level since it causes Panic
-				setupLog := ctrl.Log.WithName("dscinitialization")
-				setupLog.Error(errors.New("only single DSCInitialization instance can be created. Mismatch CreateEvent Object.GetName not to 'default'"), "Wrong name", "object", e.Object.GetName())
-				return false
-			}
-		}
-
-		return true
-	},
-
-	UpdateFunc: func(e event.UpdateEvent) bool {
-		// handle update events
-		if e.ObjectNew.GetObjectKind().GroupVersionKind().Kind == "DSCInitialization" {
-			if e.ObjectNew.GetName() == "default" {
-				return true
-			} else {
-				setupLog := ctrl.Log.WithName("dscinitialization")
-				setupLog.Error(errors.New("only single DSCInitialization instance can be updated. Mismatch UpdateEvent Object.GetName not to 'default'"), "Wrong name", "object", e.ObjectNew.GetName())
-				return false
-			}
-		}
-		return true
-	},
 }
 
 func (r *DSCInitializationReconciler) updateStatus(ctx context.Context, original *dsci.DSCInitialization, update func(saved *dsci.DSCInitialization)) (*dsci.DSCInitialization, error) {
