@@ -13,9 +13,10 @@ import (
 )
 
 const (
-	ComponentName          = "workbenches"
-	notebookControllerPath = deploy.DefaultManifestPath + "/odh-notebook-controller/base"
-	notebookImagesPath     = deploy.DefaultManifestPath + "/notebook-images/overlays/additional"
+	ComponentName               = "workbenches"
+	notebookControllerPath      = deploy.DefaultManifestPath + "/odh-notebook-controller/base"
+	notebookImagesPath          = deploy.DefaultManifestPath + "/notebook-images/overlays/additional"
+	notebookImagesPathSupported = deploy.DefaultManifestPath + "/jupyterhub/notebook-images/overlays/additional"
 )
 
 var imageParamMap = map[string]string{
@@ -86,11 +87,20 @@ func (w *Workbenches) ReconcileComponent(owner metav1.Object, cli client.Client,
 			}
 		}
 	}
-	err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
-		notebookImagesPath,
-		dscispec.ApplicationsNamespace,
-		scheme, enabled)
-	return err
+
+	if platform == deploy.OpenDataHub {
+		err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
+			notebookImagesPath,
+			dscispec.ApplicationsNamespace,
+			scheme, enabled)
+		return err
+	} else {
+		err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
+			notebookImagesPathSupported,
+			dscispec.ApplicationsNamespace,
+			scheme, enabled)
+		return err
+	}
 
 }
 
