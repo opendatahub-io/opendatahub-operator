@@ -95,7 +95,10 @@ func ServiceMeshEnabledInDashboard(feature *Feature) error {
 		Resource: "odhdashboardconfigs",
 	}
 
-	configs, err := feature.dynamicClient.Resource(gvr).List(context.Background(), metav1.ListOptions{})
+	configs, err := feature.dynamicClient.
+		Resource(gvr).
+		Namespace(feature.Spec.AppNamespace).
+		List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
