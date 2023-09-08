@@ -263,14 +263,24 @@ rules:
   - instascales
   verbs:
   - create
+  - delete
+  - get
+  - list
   - patch
+  - update
+  - watch
 - apiGroups:
   - codeflare.codeflare.dev
   resources:
   - mcads
   verbs:
   - create
+  - delete
+  - get
+  - list
   - patch
+  - update
+  - watch
 - apiGroups:
   - config.openshift.io
   resources:
@@ -278,6 +288,15 @@ rules:
   verbs:
   - list
   - watch
+- apiGroups:
+  - console.openshift.io
+  resources:
+  - consolelinks
+  verbs:
+  - create
+  - delete
+  - get
+  - patch
 - apiGroups:
   - console.openshift.io
   resources:
@@ -1170,6 +1189,17 @@ rules:
   - templates
   verbs:
   - '*'
+- apiGroups:
+  - user.openshift.io
+  resources:
+  - groups
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - watch
 - apiGroups:
   - user.openshift.io
   resources:
