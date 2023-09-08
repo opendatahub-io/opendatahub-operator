@@ -19,6 +19,7 @@ import (
 	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"strings"
 )
 
 func creationTestSuite(t *testing.T) {
@@ -144,7 +145,12 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error {
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.Kserve))
 		if tc.testDsc.Spec.Components.Kserve.ManagementState == operatorv1.Managed {
 			if err != nil {
-				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Kserve.GetComponentName())
+				// depedent operator error, as expected
+				if strings.Contains(err.Error(), "Please install the operator before enabling component") {
+					t.Logf("expected error: %v", err.Error())
+				} else {
+					require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Kserve.GetComponentName())
+				}
 			}
 		} else {
 			if err == nil {
@@ -189,7 +195,12 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error {
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.CodeFlare))
 		if tc.testDsc.Spec.Components.CodeFlare.ManagementState == operatorv1.Managed {
 			if err != nil {
-				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.CodeFlare.GetComponentName())
+				// depedent operator error, as expected
+				if strings.Contains(err.Error(), "Please install the operator before enabling component") {
+					t.Logf("expected error: %v", err.Error())
+				} else {
+					require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.CodeFlare.GetComponentName())
+				}
 			}
 		} else {
 			if err == nil {
@@ -217,6 +228,7 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error {
 
 func (tc *testContext) testApplicationCreation(component components.ComponentInterface) error {
 	err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (done bool, err error) {
+		// TODO: see if checking deployment is a good test, CF does not create deployment
 		appList, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(context.TODO(), metav1.ListOptions{
 			LabelSelector: "app.kubernetes.io/part-of=" + component.GetComponentName(),
 		})
@@ -237,8 +249,15 @@ func (tc *testContext) testApplicationCreation(component components.ComponentInt
 				log.Printf("waiting for application deployments to be in Ready state.")
 				return false, nil
 			}
+		} else { // when no deployment is found
+			// check Reconcile failed with missing depdent operator error
+			for _, Condition := range tc.testDsc.Status.Conditions {
+				if strings.Contains(Condition.Message, "Please install the operator before enabling "+component.GetComponentName()) {
+					return true, err
+				}
+			}
+			return false, nil
 		}
-		return false, nil
 	})
 	if err != nil {
 		return err

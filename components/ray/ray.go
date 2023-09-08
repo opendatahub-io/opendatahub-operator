@@ -36,10 +36,9 @@ func (d *Ray) GetComponentName() string {
 // Verifies that Ray implements ComponentInterface
 var _ components.ComponentInterface = (*Ray)(nil)
 
-func (d *Ray) ReconcileComponent(owner metav1.Object, client client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, dscispec *dsci.DSCInitializationSpec) error {
+func (d *Ray) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, dscispec *dsci.DSCInitializationSpec) error {
 	enabled := managementState == operatorv1.Managed
 
-	// Update image parameters
 	if enabled {
 		if dscispec.DevFlags.ManifestsUri == "" {
 			if err := deploy.ApplyImageParams(RayPath, imageParamMap); err != nil {
@@ -48,7 +47,7 @@ func (d *Ray) ReconcileComponent(owner metav1.Object, client client.Client, sche
 		}
 	}
 	// Deploy Ray Operator
-	err := deploy.DeployManifestsFromPath(owner, client, ComponentName,
+	err := deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 		RayPath,
 		dscispec.ApplicationsNamespace,
 		scheme, enabled)

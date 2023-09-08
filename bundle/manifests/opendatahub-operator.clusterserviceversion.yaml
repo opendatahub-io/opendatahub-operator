@@ -9,6 +9,9 @@ metadata:
           "kind": "OdhQuickStart",
           "metadata": {
             "annotations": {
+              "internal.config.kubernetes.io/previousKinds": "OdhQuickStart",
+              "internal.config.kubernetes.io/previousNames": "create-jupyter-notebook",
+              "internal.config.kubernetes.io/previousNamespaces": "default",
               "opendatahub.io/categories": "Getting started,Notebook environments"
             },
             "labels": {
@@ -1148,6 +1151,14 @@ spec:
           - delete
           - get
           - patch
+        - apiGroups:
+          - operators.coreos.com
+          resources:
+          - operatorconditions
+          verbs:
+          - get
+          - list
+          - watch
         - apiGroups:
           - operators.coreos.com
           resources:

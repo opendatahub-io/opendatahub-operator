@@ -82,7 +82,7 @@ func setupDSCInstance() *dsc.DataScienceCluster {
 				},
 				Kserve: kserve.Kserve{
 					Component: components.Component{
-						ManagementState: operatorv1.Removed,
+						ManagementState: operatorv1.Managed,
 					},
 				},
 				CodeFlare: codeflare.CodeFlare{
