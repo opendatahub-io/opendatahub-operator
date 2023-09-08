@@ -82,8 +82,14 @@ func (w *Workbenches) ReconcileComponent(owner metav1.Object, cli client.Client,
 	// Update image parameters for notebook image
 	if enabled {
 		if dscispec.DevFlags.ManifestsUri == "" {
-			if err := deploy.ApplyImageParams(notebookImagesPath, imageParamMap); err != nil {
-				return err
+			if platform == deploy.OpenDataHub || platform == "" {
+				if err := deploy.ApplyImageParams(notebookImagesPath, imageParamMap); err != nil {
+					return err
+				}
+			} else {
+				if err := deploy.ApplyImageParams(notebookImagesPathSupported, imageParamMap); err != nil {
+					return err
+				}
 			}
 		}
 	}
