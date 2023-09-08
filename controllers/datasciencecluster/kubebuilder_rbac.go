@@ -143,8 +143,8 @@ package datasciencecluster
 
 // +kubebuilder:rbac:groups="controller-runtime.sigs.k8s.io",resources=controllermanagerconfigs,verbs=get;create;patch;delete
 
-// +kubebuilder:rbac:groups="codeflare.codeflare.dev",resources=mcads,verbs=create;patch
-// +kubebuilder:rbac:groups="codeflare.codeflare.dev",resources=instascales,verbs=create;patch
+// +kubebuilder:rbac:groups="codeflare.codeflare.dev",resources=mcads,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="codeflare.codeflare.dev",resources=instascales,verbs=get;list;watch;create;update;patch;delete
 
 // +kubebuilder:rbac:groups="cert-manager.io",resources=certificates;issuers,verbs=create;patch
 
@@ -201,5 +201,5 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="maistra.io",resources=servicemeshmembers/finalizers,verbs=create;get;list;patch;update;use;watch
 
 /* Only for RHODS */
-/* +kubebuilder:rbac:groups="user.openshift.io",resources=groups,verbs=get;create;list;watch;patch;delete*/
-/* +kubebuilder:rbac:groups="console.openshift.io",resources=consolelinks,verbs=create;get;patch;delete */
+// +kubebuilder:rbac:groups="user.openshift.io",resources=groups,verbs=get;create;list;watch;patch;delete
+// +kubebuilder:rbac:groups="console.openshift.io",resources=consolelinks,verbs=create;get;patch;delete

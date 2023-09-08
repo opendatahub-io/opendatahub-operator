@@ -4,7 +4,7 @@ metadata:
   creationTimestamp: null
   labels:
     control-plane: controller-manager
-  name: opendatahub-operator-controller-manager-metrics-service
+  name: redhat-ods-operator-controller-manager-metrics-service
 spec:
   ports:
   - name: https

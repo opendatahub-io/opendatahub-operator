@@ -46,9 +46,9 @@ spec:
             description: DSCInitializationSpec defines the desired state of DSCInitialization
             properties:
               applicationsNamespace:
-                default: opendatahub
+                default: redhat-ods-applications
                 description: Namespace for applications to be installed, non-configurable,
-                  default to "opendatahub"
+                  default to "redhat-ods-applications"
                 type: string
               devFlags:
                 description: Internal development useful field to test customizations.
@@ -74,7 +74,7 @@ spec:
                     pattern: ^(Managed|Unmanaged|Force|Removed)$
                     type: string
                   namespace:
-                    default: opendatahub
+                    default: redhat-ods-monitoring
                     description: Namespace for monitoring if it is enabled
                     type: string
                 type: object

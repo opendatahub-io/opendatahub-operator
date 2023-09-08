@@ -14,7 +14,6 @@ spec:
     
     Finally, thanks to the operator-driven deployment and updates, the administrative load of the platform is very light, leaving everyone more time to focus on the work that makes a difference.
 
-
     ### Components
     * RHODS dashboard
     * Curated Notebook Images (incl CUDA, PyTorch, Tensorflow)

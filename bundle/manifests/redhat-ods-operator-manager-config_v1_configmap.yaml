@@ -24,4 +24,4 @@ data:
     # leaderElectionReleaseOnCancel: true
 kind: ConfigMap
 metadata:
-  name: opendatahub-operator-manager-config
+  name: redhat-ods-operator-manager-config

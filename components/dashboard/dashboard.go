@@ -71,7 +71,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 			}
 		}
 		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
-			err := common.UpdatePodSecurityRolebinding(cli, []string{"rhods-dashboard"}, dscispec.DevFlags.ManifestsUri)
+			err := common.UpdatePodSecurityRolebinding(cli, []string{"rhods-dashboard"}, dscispec.ApplicationsNamespace)
 			if err != nil {
 				return err
 			}
@@ -174,7 +174,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 		}
 		domainIndex := strings.Index(consoleRoute.Spec.Host, ".")
 		consolelinkDomain := consoleRoute.Spec.Host[domainIndex+1:]
-		err = common.ReplaceStringsInFile(PathConsoleLink, map[string]string{
+		err = common.ReplaceStringsInFile(PathConsoleLink+"/consolelink.yaml", map[string]string{
 			"<rhods-dashboard-url>": "https://rhods-dashboard-" + dscispec.ApplicationsNamespace + "." + consolelinkDomain,
 			"<section-title>":       "OpenShift Self Managed Services",
 		})
@@ -186,7 +186,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 			dscispec.ApplicationsNamespace,
 			scheme, enabled)
 		if err != nil {
-			return fmt.Errorf("failed to set dashboard consolelink from %s", PathConsoleLink)
+			return fmt.Errorf("failed to set dashboard consolelink from %s: %v", PathConsoleLink, err)
 		}
 		return err
 	case deploy.ManagedRhods:
@@ -205,7 +205,7 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 		}
 		domainIndex := strings.Index(consoleRoute.Spec.Host, ".")
 		consolelinkDomain := consoleRoute.Spec.Host[domainIndex+1:]
-		err = common.ReplaceStringsInFile(PathConsoleLink, map[string]string{
+		err = common.ReplaceStringsInFile(PathConsoleLink+"/consolelink.yaml", map[string]string{
 			"<rhods-dashboard-url>": "https://rhods-dashboard-" + dscispec.ApplicationsNamespace + "." + consolelinkDomain,
 			"<section-title>":       "OpenShift Managed Services",
 		})
