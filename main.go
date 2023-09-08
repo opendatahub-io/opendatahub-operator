@@ -31,7 +31,8 @@ import (
 	ocv1 "github.com/openshift/api/oauth/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	ocuserv1 "github.com/openshift/api/user/v1"
-	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
@@ -73,8 +74,9 @@ func init() {
 	utilruntime.Must(routev1.AddToScheme(scheme))
 	utilruntime.Must(appsv1.AddToScheme(scheme))
 	utilruntime.Must(ocv1.AddToScheme(scheme))
-	utilruntime.Must(ofapi.AddToScheme(scheme))
+	utilruntime.Must(ofapiv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(ocuserv1.AddToScheme(scheme))
+	utilruntime.Must(ofapiv2.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
