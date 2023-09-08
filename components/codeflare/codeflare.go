@@ -4,10 +4,14 @@ package codeflare
 import (
 	"fmt"
 
+	"context"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	imagev1 "github.com/openshift/api/image/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	codeflarev1alpha1 "github.com/project-codeflare/codeflare-operator/api/codeflare/v1alpha1"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -38,7 +42,7 @@ func (d *CodeFlare) GetComponentName() string {
 // Verifies that CodeFlare implements ComponentInterface
 var _ components.ComponentInterface = (*CodeFlare)(nil)
 
-func (d *CodeFlare) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, dscispec *dsci.DSCInitializationSpec) error {
+func (c *CodeFlare) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, dscispec *dsci.DSCInitializationSpec) error {
 	enabled := managementState == operatorv1.Managed
 
 	if enabled {
@@ -70,6 +74,45 @@ func (d *CodeFlare) ReconcileComponent(owner metav1.Object, cli client.Client, s
 				return err
 			}
 		}
+	}
+
+	// Special handling to delete MCAD InstaScale ImageStream resources
+	if managementState == operatorv1.Removed {
+		// Fetch the MCAD resource based on the request
+		mcad := &codeflarev1alpha1.MCAD{}
+		err := cli.Get(context.TODO(), client.ObjectKey{
+			Name: "mcad",
+		}, mcad)
+		if err != nil {
+			if apierrs.IsNotFound(err) {
+				return fmt.Errorf("failed to get MCAD instance mcad: %v", err)
+			}
+		}
+		err = cli.Delete(context.TODO(), mcad)
+
+		// Fetch InstaScale based on the request
+		instascale := &codeflarev1alpha1.InstaScale{}
+		err = cli.Get(context.TODO(), client.ObjectKey{
+			Name: "instascale",
+		}, instascale)
+		if err != nil {
+			if apierrs.IsNotFound(err) {
+				return fmt.Errorf("failed to get InstaScale instance instascale: %v", err)
+			}
+		}
+		err = cli.Delete(context.TODO(), instascale)
+
+		// Fetch Imagestream based on the request
+		imagestream := &imagev1.ImageStream{}
+		err = cli.Get(context.TODO(), client.ObjectKey{
+			Name: "codeflare-notebook",
+		}, imagestream)
+		if err != nil {
+			if apierrs.IsNotFound(err) {
+				return fmt.Errorf("failed to get Imagestream instance codeflare-notebook: %v", err)
+			}
+		}
+		err = cli.Delete(context.TODO(), imagestream)
 	}
 
 	// Deploy Codeflare
