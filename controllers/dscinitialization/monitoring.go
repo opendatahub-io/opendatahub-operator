@@ -309,7 +309,7 @@ func (r *DSCInitializationReconciler) configureCommonMonitoring(dsciInit *dsci.D
 	// configure segment.io
 	err := deploy.DeployManifestsFromPath(dsciInit, r.Client, "segment-io",
 		deploy.DefaultManifestPath+"/monitoring/segment",
-		dsciInit.Spec.Monitoring.Namespace, r.Scheme, dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
+		dsciInit.Spec.ApplicationsNamespace, r.Scheme, dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
 	if err != nil {
 		r.Log.Error(err, "error to deploy manifests under /opt/manifests/monitoring/segment")
 		return err
