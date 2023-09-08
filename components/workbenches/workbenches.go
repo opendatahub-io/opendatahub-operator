@@ -88,7 +88,7 @@ func (w *Workbenches) ReconcileComponent(owner metav1.Object, cli client.Client,
 		}
 	}
 
-	if platform == deploy.OpenDataHub {
+	if platform == deploy.OpenDataHub || platform == "" {
 		err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 			notebookImagesPath,
 			dscispec.ApplicationsNamespace,
