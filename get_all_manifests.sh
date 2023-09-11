@@ -7,7 +7,7 @@ REPO_LIST=(
     "distributed-workloads:main:codeflare-stack:codeflare-stack"
     "distributed-workloads:main:ray:ray"
     "data-science-pipelines-operator:main:config:data-science-pipelines-operator"
-    "kserve:master:config:kserve"
+    "kserve:release-v0.11:config:kserve"
     "odh-dashboard:main:manifests:odh-dashboard"
 )
 
