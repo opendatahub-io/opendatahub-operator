@@ -128,9 +128,9 @@ func (d *Dashboard) ReconcileComponent(owner metav1.Object, cli client.Client, s
 			}
 		}
 
-		// Update image parameters
+		// Update image parameters (ODH does not use this solution, only downstream)
 		if dscispec.DevFlags.ManifestsUri == "" {
-			if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
+			if err := deploy.ApplyImageParams(PathSupported, imageParamMap); err != nil {
 				return err
 			}
 		}
