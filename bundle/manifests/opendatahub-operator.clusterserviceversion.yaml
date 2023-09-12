@@ -9,9 +9,6 @@ metadata:
           "kind": "OdhQuickStart",
           "metadata": {
             "annotations": {
-              "internal.config.kubernetes.io/previousKinds": "OdhQuickStart",
-              "internal.config.kubernetes.io/previousNames": "create-jupyter-notebook",
-              "internal.config.kubernetes.io/previousNamespaces": "default",
               "opendatahub.io/categories": "Getting started,Notebook environments"
             },
             "labels": {
@@ -425,6 +422,18 @@ spec:
           verbs:
           - '*'
         - apiGroups:
+          - authentication.k8s.io
+          resources:
+          - tokenreviews
+          verbs:
+          - create
+        - apiGroups:
+          - authorization.k8s.io
+          resources:
+          - subjectaccessreviews
+          verbs:
+          - create
+        - apiGroups:
           - authorization.openshift.io
           resources:
           - clusterrolebindings
@@ -565,6 +574,15 @@ spec:
           verbs:
           - list
           - watch
+        - apiGroups:
+          - console.openshift.io
+          resources:
+          - consolelinks
+          verbs:
+          - create
+          - delete
+          - get
+          - patch
         - apiGroups:
           - console.openshift.io
           resources:
@@ -818,6 +836,7 @@ spec:
           verbs:
           - create
           - delete
+          - get
           - list
           - patch
           - update
@@ -834,6 +853,7 @@ spec:
           resources:
           - datasciencepipelinesapplications/status
           verbs:
+          - get
           - patch
           - update
         - apiGroups:
@@ -908,6 +928,12 @@ spec:
           - patch
           - update
           - watch
+        - apiGroups:
+          - image.openshift.io
+          resources:
+          - imagestreamtags
+          verbs:
+          - get
         - apiGroups:
           - integreatly.org
           resources:
@@ -1010,6 +1036,7 @@ spec:
           verbs:
           - create
           - delete
+          - get
           - list
           - patch
         - apiGroups:
@@ -1174,6 +1201,7 @@ spec:
           verbs:
           - create
           - delete
+          - get
           - list
           - patch
         - apiGroups:
@@ -1183,6 +1211,7 @@ spec:
           verbs:
           - create
           - delete
+          - get
           - list
           - patch
           - update
@@ -1194,6 +1223,7 @@ spec:
           verbs:
           - create
           - delete
+          - get
           - list
           - patch
           - update
@@ -1444,6 +1474,7 @@ spec:
           verbs:
           - create
           - delete
+          - get
           - patch
         - apiGroups:
           - tekton.dev
@@ -1457,6 +1488,17 @@ spec:
           - templates
           verbs:
           - '*'
+        - apiGroups:
+          - user.openshift.io
+          resources:
+          - groups
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - watch
         - apiGroups:
           - user.openshift.io
           resources:

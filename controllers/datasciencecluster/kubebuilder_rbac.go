@@ -5,9 +5,12 @@ package datasciencecluster
 //+kubebuilder:rbac:groups="datasciencecluster.opendatahub.io",resources=datascienceclusters,verbs=get;list;watch;create;update;patch;delete
 
 /* This is for DSP */
-//+kubebuilder:rbac:groups="datasciencepipelinesapplications.opendatahub.io",resources=datasciencepipelinesapplications/status,verbs=update;patch
+//+kubebuilder:rbac:groups="datasciencepipelinesapplications.opendatahub.io",resources=datasciencepipelinesapplications/status,verbs=update;patch;get
 //+kubebuilder:rbac:groups="datasciencepipelinesapplications.opendatahub.io",resources=datasciencepipelinesapplications/finalizers,verbs=update;patch
-//+kubebuilder:rbac:groups="datasciencepipelinesapplications.opendatahub.io",resources=datasciencepipelinesapplications,verbs=create;delete;list;update;watch;patch
+//+kubebuilder:rbac:groups="datasciencepipelinesapplications.opendatahub.io",resources=datasciencepipelinesapplications,verbs=create;delete;list;update;watch;patch;get
+//+kubebuilder:rbac:groups="image.openshift.io",resources=imagestreamtags,verbs=get
+//+kubebuilder:rbac:groups="authentication.k8s.io",resources=tokenreviews,verbs=create
+//+kubebuilder:rbac:groups="authorization.k8s.io",resources=subjectaccessreviews,verbs=create
 
 /* This is for dashboard */
 // +kubebuilder:rbac:groups="opendatahub.io",resources=odhdashboardconfigs,verbs=create;get;patch;watch;update;delete;list
@@ -28,7 +31,7 @@ package datasciencecluster
 
 // +kubebuilder:rbac:groups="tekton.dev",resources=*,verbs=*
 
-// +kubebuilder:rbac:groups="snapshot.storage.k8s.io",resources=volumesnapshots,verbs=create;delete;patch
+// +kubebuilder:rbac:groups="snapshot.storage.k8s.io",resources=volumesnapshots,verbs=create;delete;patch;get
 
 // +kubebuilder:rbac:groups="serving.kserve.io",resources=trainedmodels/status,verbs=update;patch;delete
 // +kubebuilder:rbac:groups="serving.kserve.io",resources=trainedmodels,verbs=create;delete;list;update;watch;patch
@@ -65,9 +68,9 @@ package datasciencecluster
 
 // +kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources=clusterrolebindings,verbs=*
 
-// +kubebuilder:rbac:groups="ray.io",resources=rayservices,verbs=create;delete;list;watch;update;patch
-// +kubebuilder:rbac:groups="ray.io",resources=rayjobs,verbs=create;delete;list;update;watch;patch
-// +kubebuilder:rbac:groups="ray.io",resources=rayclusters,verbs=create;delete;list;patch
+// +kubebuilder:rbac:groups="ray.io",resources=rayservices,verbs=create;delete;list;watch;update;patch;get
+// +kubebuilder:rbac:groups="ray.io",resources=rayjobs,verbs=create;delete;list;update;watch;patch;get
+// +kubebuilder:rbac:groups="ray.io",resources=rayclusters,verbs=create;delete;list;patch;get
 
 // +kubebuilder:rbac:groups="operator.openshift.io",resources=consoles,verbs=list;watch;patch;delete
 
@@ -85,7 +88,7 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="monitoring.coreos.com",resources=prometheusrules,verbs=get;create;patch;delete
 // +kubebuilder:rbac:groups="monitoring.coreos.com",resources=prometheuses,verbs=get;create;patch;delete
 
-// +kubebuilder:rbac:groups="mcad.ibm.com",resources=appwrappers,verbs=create;delete;list;patch
+// +kubebuilder:rbac:groups="mcad.ibm.com",resources=appwrappers,verbs=create;delete;list;patch;get
 
 // +kubebuilder:rbac:groups="machinelearning.seldon.io",resources=seldondeployments,verbs=*
 
@@ -128,7 +131,6 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="core",resources=namespaces,verbs=get;create;patch;delete;watch;update;list
 
 // +kubebuilder:rbac:groups="core",resources=events,verbs=get;create;watch;update;list;patch;delete
-// +kubebuilder:rbac:groups="core",resources=events,verbs=delete
 // +kubebuilder:rbac:groups="events.k8s.io",resources=events,verbs=list;watch;patch;delete
 
 // +kubebuilder:rbac:groups="core",resources=endpoints,verbs=watch;list

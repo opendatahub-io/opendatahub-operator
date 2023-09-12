@@ -138,6 +138,18 @@ rules:
   verbs:
   - '*'
 - apiGroups:
+  - authentication.k8s.io
+  resources:
+  - tokenreviews
+  verbs:
+  - create
+- apiGroups:
+  - authorization.k8s.io
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
+- apiGroups:
   - authorization.openshift.io
   resources:
   - clusterrolebindings
@@ -550,6 +562,7 @@ rules:
   verbs:
   - create
   - delete
+  - get
   - list
   - patch
   - update
@@ -566,6 +579,7 @@ rules:
   resources:
   - datasciencepipelinesapplications/status
   verbs:
+  - get
   - patch
   - update
 - apiGroups:
@@ -640,6 +654,12 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - image.openshift.io
+  resources:
+  - imagestreamtags
+  verbs:
+  - get
 - apiGroups:
   - integreatly.org
   resources:
@@ -742,6 +762,7 @@ rules:
   verbs:
   - create
   - delete
+  - get
   - list
   - patch
 - apiGroups:
@@ -906,6 +927,7 @@ rules:
   verbs:
   - create
   - delete
+  - get
   - list
   - patch
 - apiGroups:
@@ -915,6 +937,7 @@ rules:
   verbs:
   - create
   - delete
+  - get
   - list
   - patch
   - update
@@ -926,6 +949,7 @@ rules:
   verbs:
   - create
   - delete
+  - get
   - list
   - patch
   - update
@@ -1176,6 +1200,7 @@ rules:
   verbs:
   - create
   - delete
+  - get
   - patch
 - apiGroups:
   - tekton.dev
