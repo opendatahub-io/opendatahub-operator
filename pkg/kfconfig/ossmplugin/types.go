@@ -4,6 +4,7 @@ import (
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"reflect"
+	"strconv"
 	"strings"
 )
 
@@ -62,7 +63,7 @@ type CertSpec struct {
 	// Generate indicates if the certificate should be generated. If set to false
 	// it will assume certificate with the given name is made available as a secret
 	// in Service Mesh namespace.
-	Generate bool `json:"generate,omitempty"`
+	Generate bool `json:"generate,omitempty" default:"true"`
 }
 
 type AuthSpec struct {
@@ -124,17 +125,32 @@ func setDefaults(obj interface{}) error {
 			if targetType.Kind() == reflect.Slice && defaultValue.Kind() == reflect.String {
 				defaultSlice := strings.Split(defaultValue.String(), ",")
 				convertedValue := reflect.MakeSlice(targetType, len(defaultSlice), len(defaultSlice))
-
 				for i := 0; i < len(defaultSlice); i++ {
 					convertedValue.Index(i).SetString(defaultSlice[i])
 				}
-
 				field.Set(convertedValue)
 			} else if defaultValue.Type().ConvertibleTo(targetType) {
 				convertedValue := defaultValue.Convert(targetType)
 				field.Set(convertedValue)
 			} else {
-				return errors.Errorf("unable to convert \"%s\" to %s\n", defaultValue, targetType.Name())
+				switch targetType.Kind() {
+				case reflect.Bool:
+					b, err := strconv.ParseBool(tag)
+					if err != nil {
+						return errors.New("invalid boolean default value")
+					}
+					defaultValue = reflect.ValueOf(b)
+				case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+					n, err := strconv.ParseInt(tag, 10, 64)
+					if err != nil {
+						return errors.New("invalid integer default value")
+					}
+					defaultValue = reflect.ValueOf(n).Convert(targetType)
+				default:
+					return errors.Errorf("unable to convert \"%s\" to %s\n", defaultValue, targetType.Name())
+				}
+
+				field.Set(defaultValue)
 			}
 		}
 
