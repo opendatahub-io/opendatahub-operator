@@ -9,6 +9,7 @@ REPO_LIST=(
     "data-science-pipelines-operator:main:config:data-science-pipelines-operator"
     "kserve:release-v0.11:config:kserve"
     "odh-dashboard:main:manifests:odh-dashboard"
+    "notebooks:main:manifests:notebook-images"
 )
 
 # pre-cleanup local env
@@ -21,12 +22,11 @@ MANIFEST_ORG="opendatahub-io"
 # comment out below logic once we have all component manifests ready to get from source git repo
 MANIFEST_RELEASE="master"
 MANIFESTS_TARBALL_URL="${GITHUB_URL}/${MANIFEST_ORG}/odh-manifests/tarball/${MANIFEST_RELEASE}"
-mkdir ./.odh-manifests-tmp/ ./odh-manifests/
+mkdir -p ./.odh-manifests-tmp/ ./odh-manifests/
 wget -q -c ${MANIFESTS_TARBALL_URL} -O - | tar -zxv -C ./.odh-manifests-tmp/ --strip-components 1 > /dev/null
 cp -r ./.odh-manifests-tmp/model-mesh/ ./odh-manifests
 cp -r ./.odh-manifests-tmp/odh-model-controller/ ./odh-manifests
 cp -r ./.odh-manifests-tmp/modelmesh-monitoring/ ./odh-manifests
-cp -r ./.odh-manifests-tmp/notebook-images/ ./odh-manifests
 cp -r ./.odh-manifests-tmp/odh-notebook-controller/ ./odh-manifests
 ls -lat ./odh-manifests/
 rm -rf ${MANIFEST_RELEASE}.tar.gz ./.odh-manifests-tmp/
