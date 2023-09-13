@@ -12,6 +12,7 @@ REPO_LIST=(
     "notebooks:main:manifests:notebook"
     "kubeflow:v1.7-branch:components/notebook-controller/config:odh-notebook-controller/kf-notebook-controller"
     "kubeflow:v1.7-branch:components/odh-notebook-controller/config:odh-notebook-controller/odh-notebook-controller"
+    "notebooks:main:manifests:notebooks"
 )
 
 # pre-cleanup local env

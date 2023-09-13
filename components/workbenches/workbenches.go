@@ -8,18 +8,19 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"path/filepath"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"strings"
 )
 
-const (
-	ComponentName = "workbenches"
+var (
+	ComponentName          = "workbenches"
+	DependentComponentName = "notebooks"
 	// manifests for nbc in ODH and downstream + downstream use it for imageparams
 	notebookControllerPath = deploy.DefaultManifestPath + "/odh-notebook-controller/odh-notebook-controller/base"
 	// manifests for ODH nbc
-	kfnotebookControllerPath = deploy.DefaultManifestPath + "/odh-notebook-controller/kf-notebook-controller/overlays/openshift"
-	// ODH image
-	notebookImagesPath = deploy.DefaultManifestPath + "/notebook/overlays/additional"
-	// downstream image
+	kfnotebookControllerPath    = deploy.DefaultManifestPath + "/odh-notebook-controller/kf-notebook-controller/overlays/openshift"
+	notebookImagesPath          = deploy.DefaultManifestPath + "/notebooks/overlays/additional"
 	notebookImagesPathSupported = deploy.DefaultManifestPath + "/jupyterhub/notebook-images/overlays/additional"
 )
 
@@ -30,6 +31,64 @@ var imageParamMap = map[string]string{
 
 type Workbenches struct {
 	components.Component `json:""`
+}
+
+func (w *Workbenches) OverrideManifests(platform string) error {
+	//Download manifests if defined by devflags
+	if len(w.DevFlags.Manifests) != 0 {
+		// Go through each manifests and set the overlays if defined
+		for _, subcomponent := range w.DevFlags.Manifests {
+			if strings.Contains(subcomponent.URI, DependentComponentName) {
+				// Download subcomponent
+				if err := deploy.DownloadManifests(DependentComponentName, subcomponent); err != nil {
+					return err
+				}
+				// If overlay is defined, update paths
+				defaultKustomizePath := "overlays/additional"
+				defaultKustomizePathSupported := "notebook-images/overlays/additional"
+				if subcomponent.Overlay != "" {
+					defaultKustomizePath = subcomponent.Overlay
+					defaultKustomizePathSupported = subcomponent.Overlay
+				}
+				if platform == string(deploy.ManagedRhods) || platform == string(deploy.SelfManagedRhods) {
+					notebookImagesPathSupported = filepath.Join(deploy.DefaultManifestPath, "jupyterhub", defaultKustomizePathSupported)
+				} else {
+					notebookImagesPath = filepath.Join(deploy.DefaultManifestPath, DependentComponentName, defaultKustomizePath)
+				}
+			}
+
+			if strings.Contains(subcomponent.ManifestsFolder, "components/odh-notebook-controller") {
+				// Download subcomponent
+				if err := deploy.DownloadManifests("odh-notebook-controller/odh-notebook-controller", subcomponent); err != nil {
+					return err
+				}
+				// If overlay is defined, update paths
+				defaultKustomizePathNbc := "base"
+				if subcomponent.Overlay != "" {
+					defaultKustomizePathNbc = subcomponent.Overlay
+				}
+				notebookControllerPath = filepath.Join(deploy.DefaultManifestPath, "odh-notebook-controller/odh-notebook-controller", defaultKustomizePathNbc)
+			}
+
+			if strings.Contains(subcomponent.ManifestsFolder, "components/notebook-controller") {
+				// Download subcomponent
+				if err := deploy.DownloadManifests("odh-notebook-controller/kf-notebook-controller", subcomponent); err != nil {
+					return err
+				}
+				// If overlay is defined, update paths
+				defaultKustomizePathKfNbc := "overlays/openshift"
+				if subcomponent.Overlay != "" {
+					defaultKustomizePathKfNbc = subcomponent.Overlay
+				}
+				kfnotebookControllerPath = filepath.Join(deploy.DefaultManifestPath, "odh-notebook-controller/kf-notebook-controller", defaultKustomizePathKfNbc)
+			}
+		}
+	}
+	return nil
+}
+
+func (w *Workbenches) GetComponentDevFlags() components.DevFlags {
+	return w.DevFlags
 }
 
 func (w *Workbenches) GetComponentName() string {
@@ -51,10 +110,14 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 	if err != nil {
 		return err
 	}
-
 	enabled := w.GetManagementState() == operatorv1.Managed
 
 	if enabled {
+		// Download manifests and update paths
+		if err = w.OverrideManifests(string(platform)); err != nil {
+			return err
+		}
+
 		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
 			err := common.CreateNamespace(cli, "rhods-notebooks")
 			if err != nil {

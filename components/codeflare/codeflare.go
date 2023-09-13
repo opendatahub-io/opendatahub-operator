@@ -8,12 +8,13 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"path/filepath"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const (
+var (
 	ComponentName       = "codeflare"
-	CodeflarePath       = deploy.DefaultManifestPath + "/codeflare/base"
+	CodeflarePath       = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
 	CodeflareOperator   = "codeflare-operator"
 	RHCodeflareOperator = "rhods-codeflare-operator"
 )
@@ -22,6 +23,28 @@ var imageParamMap = map[string]string{}
 
 type CodeFlare struct {
 	components.Component `json:""`
+}
+
+func (c *CodeFlare) OverrideManifests(_ string) error {
+	// If devflags are set, update default manifests path
+	if len(c.DevFlags.Manifests) != 0 {
+		manifestConfig := c.DevFlags.Manifests[0]
+		if err := deploy.DownloadManifests(ComponentName, manifestConfig); err != nil {
+			return err
+		}
+		// If overlay is defined, update paths
+		defaultKustomizePath := "base"
+		if manifestConfig.Overlay != "" {
+			defaultKustomizePath = manifestConfig.Overlay
+		}
+		CodeflarePath = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
+
+	}
+	return nil
+}
+
+func (c *CodeFlare) GetComponentDevFlags() components.DevFlags {
+	return c.DevFlags
 }
 
 func (c *CodeFlare) SetImageParamsMap(imageMap map[string]string) map[string]string {
@@ -38,15 +61,19 @@ var _ components.ComponentInterface = (*CodeFlare)(nil)
 
 func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
 	enabled := c.GetManagementState() == operatorv1.Managed
+	platform, err := deploy.GetPlatform(cli)
+	if err != nil {
+		return err
+	}
 
 	if enabled {
+		// Download manifests and update paths
+		if err = c.OverrideManifests(string(platform)); err != nil {
+			return err
+		}
 		// check if the CodeFlare operator is installed
 		// codeflare operator not installed
 		dependentOperator := CodeflareOperator
-		platform, err := deploy.GetPlatform(cli)
-		if err != nil {
-			return err
-		}
 		// overwrite dependent operator if downstream not match upstream
 		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
 			dependentOperator = RHCodeflareOperator
@@ -68,8 +95,7 @@ func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, d
 	}
 
 	// Deploy Codeflare
-	err := deploy.DeployManifestsFromPath(cli, owner, CodeflarePath, dscispec.ApplicationsNamespace, c.GetComponentName(), enabled)
-
+	err = deploy.DeployManifestsFromPath(cli, owner, CodeflarePath, dscispec.ApplicationsNamespace, c.GetComponentName(), enabled)
 	return err
 
 }

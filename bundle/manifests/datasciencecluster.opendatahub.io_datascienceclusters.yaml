@@ -42,6 +42,31 @@ spec:
                     description: CodeFlare component configuration. Require CodeFlare
                       Operator to be installed before enable component
                     properties:
+                      devFlags:
+                        description: Add developer fields
+                        properties:
+                          manifests:
+                            description: List of custom manifests for the given component
+                            items:
+                              properties:
+                                manifestsFolder:
+                                  default: ""
+                                  description: manifestsFolder is the relative path
+                                    to the folder containing manifests in a repository
+                                  type: string
+                                overlay:
+                                  default: ""
+                                  description: overlay is the subpath within manifestsFolder
+                                    where kustomize builds start.
+                                  type: string
+                                uri:
+                                  default: ""
+                                  description: uri is the URI point to a git repo
+                                    with tag/branch. e.g  https://github.com/org/repo/tarball/tag
+                                  type: string
+                              type: object
+                            type: array
+                        type: object
                       managementState:
                         description: "Set to one of the following values: \n - \"Managed\"
                           : the operator is actively managing the component and trying
@@ -58,6 +83,31 @@ spec:
                   dashboard:
                     description: Dashboard component configuration.
                     properties:
+                      devFlags:
+                        description: Add developer fields
+                        properties:
+                          manifests:
+                            description: List of custom manifests for the given component
+                            items:
+                              properties:
+                                manifestsFolder:
+                                  default: ""
+                                  description: manifestsFolder is the relative path
+                                    to the folder containing manifests in a repository
+                                  type: string
+                                overlay:
+                                  default: ""
+                                  description: overlay is the subpath within manifestsFolder
+                                    where kustomize builds start.
+                                  type: string
+                                uri:
+                                  default: ""
+                                  description: uri is the URI point to a git repo
+                                    with tag/branch. e.g  https://github.com/org/repo/tarball/tag
+                                  type: string
+                              type: object
+                            type: array
+                        type: object
                       managementState:
                         description: "Set to one of the following values: \n - \"Managed\"
                           : the operator is actively managing the component and trying
@@ -75,6 +125,31 @@ spec:
                     description: DataServicePipeline component configuration. Require
                       OpenShift Pipelines Operator to be installed before enable component
                     properties:
+                      devFlags:
+                        description: Add developer fields
+                        properties:
+                          manifests:
+                            description: List of custom manifests for the given component
+                            items:
+                              properties:
+                                manifestsFolder:
+                                  default: ""
+                                  description: manifestsFolder is the relative path
+                                    to the folder containing manifests in a repository
+                                  type: string
+                                overlay:
+                                  default: ""
+                                  description: overlay is the subpath within manifestsFolder
+                                    where kustomize builds start.
+                                  type: string
+                                uri:
+                                  default: ""
+                                  description: uri is the URI point to a git repo
+                                    with tag/branch. e.g  https://github.com/org/repo/tarball/tag
+                                  type: string
+                              type: object
+                            type: array
+                        type: object
                       managementState:
                         description: "Set to one of the following values: \n - \"Managed\"
                           : the operator is actively managing the component and trying
@@ -94,6 +169,31 @@ spec:
                       before enable component Does not support enabled ModelMeshServing
                       at the same time
                     properties:
+                      devFlags:
+                        description: Add developer fields
+                        properties:
+                          manifests:
+                            description: List of custom manifests for the given component
+                            items:
+                              properties:
+                                manifestsFolder:
+                                  default: ""
+                                  description: manifestsFolder is the relative path
+                                    to the folder containing manifests in a repository
+                                  type: string
+                                overlay:
+                                  default: ""
+                                  description: overlay is the subpath within manifestsFolder
+                                    where kustomize builds start.
+                                  type: string
+                                uri:
+                                  default: ""
+                                  description: uri is the URI point to a git repo
+                                    with tag/branch. e.g  https://github.com/org/repo/tarball/tag
+                                  type: string
+                              type: object
+                            type: array
+                        type: object
                       managementState:
                         description: "Set to one of the following values: \n - \"Managed\"
                           : the operator is actively managing the component and trying
@@ -112,6 +212,31 @@ spec:
                       CodeFlare Operator to be installed before enable component Does
                       not support enabled Kserve at the same time
                     properties:
+                      devFlags:
+                        description: Add developer fields
+                        properties:
+                          manifests:
+                            description: List of custom manifests for the given component
+                            items:
+                              properties:
+                                manifestsFolder:
+                                  default: ""
+                                  description: manifestsFolder is the relative path
+                                    to the folder containing manifests in a repository
+                                  type: string
+                                overlay:
+                                  default: ""
+                                  description: overlay is the subpath within manifestsFolder
+                                    where kustomize builds start.
+                                  type: string
+                                uri:
+                                  default: ""
+                                  description: uri is the URI point to a git repo
+                                    with tag/branch. e.g  https://github.com/org/repo/tarball/tag
+                                  type: string
+                              type: object
+                            type: array
+                        type: object
                       managementState:
                         description: "Set to one of the following values: \n - \"Managed\"
                           : the operator is actively managing the component and trying
@@ -129,6 +254,31 @@ spec:
                     description: Ray component configuration. Require CodeFlare Operator
                       to be installed before enable component
                     properties:
+                      devFlags:
+                        description: Add developer fields
+                        properties:
+                          manifests:
+                            description: List of custom manifests for the given component
+                            items:
+                              properties:
+                                manifestsFolder:
+                                  default: ""
+                                  description: manifestsFolder is the relative path
+                                    to the folder containing manifests in a repository
+                                  type: string
+                                overlay:
+                                  default: ""
+                                  description: overlay is the subpath within manifestsFolder
+                                    where kustomize builds start.
+                                  type: string
+                                uri:
+                                  default: ""
+                                  description: uri is the URI point to a git repo
+                                    with tag/branch. e.g  https://github.com/org/repo/tarball/tag
+                                  type: string
+                              type: object
+                            type: array
+                        type: object
                       managementState:
                         description: "Set to one of the following values: \n - \"Managed\"
                           : the operator is actively managing the component and trying
@@ -145,6 +295,31 @@ spec:
                   workbenches:
                     description: Workbenches component configuration.
                     properties:
+                      devFlags:
+                        description: Add developer fields
+                        properties:
+                          manifests:
+                            description: List of custom manifests for the given component
+                            items:
+                              properties:
+                                manifestsFolder:
+                                  default: ""
+                                  description: manifestsFolder is the relative path
+                                    to the folder containing manifests in a repository
+                                  type: string
+                                overlay:
+                                  default: ""
+                                  description: overlay is the subpath within manifestsFolder
+                                    where kustomize builds start.
+                                  type: string
+                                uri:
+                                  default: ""
+                                  description: uri is the URI point to a git repo
+                                    with tag/branch. e.g  https://github.com/org/repo/tarball/tag
+                                  type: string
+                              type: object
+                            type: array
+                        type: object
                       managementState:
                         description: "Set to one of the following values: \n - \"Managed\"
                           : the operator is actively managing the component and trying
