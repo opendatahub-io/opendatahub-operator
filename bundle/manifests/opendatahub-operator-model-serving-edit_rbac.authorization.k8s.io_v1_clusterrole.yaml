@@ -1,0 +1,22 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  labels:
+    rbac.authorization.k8s.io/aggregate-to-edit: "true"
+    rbac.authorization.k8s.io/aggregate-to-model-serving-admin: "true"
+  name: opendatahub-operator-model-serving-edit
+rules:
+- apiGroups:
+  - serving.kserve.io
+  resources:
+  - inferenceservices
+  - servingruntimes
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch

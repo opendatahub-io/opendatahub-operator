@@ -559,14 +559,24 @@ spec:
           - instascales
           verbs:
           - create
+          - delete
+          - get
+          - list
           - patch
+          - update
+          - watch
         - apiGroups:
           - codeflare.codeflare.dev
           resources:
           - mcads
           verbs:
           - create
+          - delete
+          - get
+          - list
           - patch
+          - update
+          - watch
         - apiGroups:
           - config.openshift.io
           resources:

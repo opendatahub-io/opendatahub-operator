@@ -1,0 +1,23 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  labels:
+    rbac.authorization.k8s.io/aggregate-to-edit: "true"
+    rbac.authorization.k8s.io/aggregate-to-notebooks-admin: "true"
+  name: opendatahub-operator-notebooks-edit
+rules:
+- apiGroups:
+  - kubeflow.org
+  resources:
+  - notebooks
+  - notebooks/status
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - delete
+  - deletecollection
+  - patch
+  - update
