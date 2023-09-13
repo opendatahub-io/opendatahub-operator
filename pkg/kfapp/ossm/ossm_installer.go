@@ -178,6 +178,9 @@ func (o *OssmInstaller) enableFeatures() error {
 	if dashboard, err := feature.CreateFeature("app-enable-service-mesh-in-dashboard").
 		For(o.PluginSpec).
 		UsingConfig(o.config).
+		EnabledIf(func(f *feature.Feature) bool {
+			return o.hasDefinedApplication("odh-dashboard")
+		}).
 		Manifests(
 			path.Join(rootDir, feature.ControlPlaneDir, "routing"),
 		).

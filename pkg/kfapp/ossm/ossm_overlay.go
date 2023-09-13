@@ -20,6 +20,18 @@ type appOverlay struct {
 	cachedPath string
 }
 
+func (o *OssmInstaller) hasDefinedApplication(name string) bool {
+	applications := o.KfConfig.Spec.Applications
+	for i := range applications {
+		// Application's .Name can be anything, but the path in the repo indicate app we want to check the presence of.
+		if applications[i].KustomizeConfig.RepoRef.Path == name {
+			return true
+		}
+	}
+
+	return false
+}
+
 // forEachExistingOverlay applies custom logic for each application which has service mesh overlay present on its path.
 func (o *OssmInstaller) forEachExistingOverlay(apply func(overlay *appOverlay) error) error {
 	cachePathsPerRepo := make(map[string]string, len(o.KfConfig.Status.Caches))
