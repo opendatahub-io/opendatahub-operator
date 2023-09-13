@@ -27,6 +27,7 @@ const (
 	PathOVMS               = deploy.DefaultManifestPath + "/" + ComponentName + "/modelserving"
 	PathODHDashboardConfig = deploy.DefaultManifestPath + "/" + ComponentName + "/odhdashboardconfig"
 	PathConsoleLink        = deploy.DefaultManifestPath + "/" + ComponentName + "/consolelink"
+	PathCRDs               = deploy.DefaultManifestPath + "/" + ComponentName + "/crd"
 	NameConsoleLink        = "console"
 	NamespaceConsoleLink   = "openshift-console"
 	PathAnaconda           = deploy.DefaultManifestPath + "/partners/anaconda/base/"
@@ -68,11 +69,30 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 			if err != nil {
 				return err
 			}
+
+			// Deploy CRDs for odh-dashboard
+			err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
+				PathCRDs,
+				dscispec.ApplicationsNamespace,
+				cli.Scheme(), enabled)
+			if err != nil {
+				return fmt.Errorf("failed to deploy dashboard crds %s: %v", PathCRDs, err)
+			}
+
 		}
 		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
 			err := common.UpdatePodSecurityRolebinding(cli, []string{"rhods-dashboard"}, dscispec.ApplicationsNamespace)
 			if err != nil {
 				return err
+			}
+
+			// Deploy CRDs for odh-dashboard
+			err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
+				PathCRDs,
+				dscispec.ApplicationsNamespace,
+				cli.Scheme(), enabled)
+			if err != nil {
+				return fmt.Errorf("failed to deploy dashboard crds %s: %v", PathCRDs, err)
 			}
 		}
 
