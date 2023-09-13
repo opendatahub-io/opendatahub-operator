@@ -7,7 +7,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -41,8 +40,8 @@ func (d *DataSciencePipelines) GetComponentName() string {
 // Verifies that Dashboard implements ComponentInterface
 var _ components.ComponentInterface = (*DataSciencePipelines)(nil)
 
-func (d *DataSciencePipelines) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, dscispec *dsci.DSCInitializationSpec) error {
-	enabled := managementState == operatorv1.Managed
+func (d *DataSciencePipelines) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
+	enabled := d.GetManagementState() == operatorv1.Managed
 
 	if enabled {
 		// check if the dependent operator installed is done in dashboard
@@ -54,10 +53,11 @@ func (d *DataSciencePipelines) ReconcileComponent(owner metav1.Object, cli clien
 			}
 		}
 	}
-	err := deploy.DeployManifestsFromPath(owner, cli, ComponentName,
+
+	err := deploy.DeployManifestsFromPath(owner, cli, d.GetComponentName(),
 		Path,
 		dscispec.ApplicationsNamespace,
-		scheme, enabled)
+		cli.Scheme(), enabled)
 	return err
 }
 

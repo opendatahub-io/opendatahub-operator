@@ -3,15 +3,14 @@ package kserve
 
 import (
 	"fmt"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	operatorv1 "github.com/openshift/api/operator/v1"
 )
 
 const (
@@ -35,41 +34,36 @@ type Kserve struct {
 	components.Component `json:""`
 }
 
-func (d *Kserve) SetImageParamsMap(imageMap map[string]string) map[string]string {
+func (k *Kserve) SetImageParamsMap(imageMap map[string]string) map[string]string {
 	imageParamMap = imageMap
 	return imageParamMap
 }
 
-func (d *Kserve) GetComponentName() string {
+func (k *Kserve) GetComponentName() string {
 	return ComponentName
 }
 
 // Verifies that Kserve implements ComponentInterface
 var _ components.ComponentInterface = (*Kserve)(nil)
 
-func (k *Kserve) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, dscispec *dsci.DSCInitializationSpec) error {
-	enabled := managementState == operatorv1.Managed
+func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
+	enabled := k.GetManagementState() == operatorv1.Managed
 
 	if enabled {
 		// check on dependent operators
-		found, err := deploy.OperatorExists(cli, ServiceMeshOperator)
-		if !found {
-			if err != nil {
-				return err
-			} else {
-				return fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
-					ServiceMeshOperator, ComponentName)
-			}
+		if found, err := deploy.OperatorExists(cli, ServiceMeshOperator); err != nil {
+			return err
+		} else if !found {
+			return fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
+				ServiceMeshOperator, ComponentName)
 		}
+
 		// check on dependent operators might be in multiple namespaces
-		found, err = deploy.OperatorExists(cli, ServerlessOperator)
-		if !found {
-			if err != nil {
-				return err
-			} else {
-				return fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
-					ServerlessOperator, ComponentName)
-			}
+		if found, err := deploy.OperatorExists(cli, ServerlessOperator); err != nil {
+			return err
+		} else if !found {
+			return fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
+				ServerlessOperator, ComponentName)
 		}
 
 		// Update image parameters only when we do not have customized manifests set
@@ -83,7 +77,7 @@ func (k *Kserve) ReconcileComponent(owner metav1.Object, cli client.Client, sche
 	if err := deploy.DeployManifestsFromPath(owner, cli, ComponentName,
 		Path,
 		dscispec.ApplicationsNamespace,
-		scheme, enabled); err != nil {
+		cli.Scheme(), enabled); err != nil {
 		return err
 	}
 
@@ -100,10 +94,10 @@ func (k *Kserve) ReconcileComponent(owner metav1.Object, cli client.Client, sche
 			}
 		}
 	}
-	if err := deploy.DeployManifestsFromPath(owner, cli, ComponentName,
+	if err := deploy.DeployManifestsFromPath(owner, cli, k.GetComponentName(),
 		DependentPath,
 		dscispec.ApplicationsNamespace,
-		scheme, enabled); err != nil {
+		cli.Scheme(), enabled); err != nil {
 		return err
 	}
 
