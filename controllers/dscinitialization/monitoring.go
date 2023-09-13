@@ -314,5 +314,14 @@ func (r *DSCInitializationReconciler) configureCommonMonitoring(dsciInit *dsci.D
 		r.Log.Error(err, "error to deploy manifests under /opt/manifests/monitoring/segment")
 		return err
 	}
+
+	// configure monitoring base
+	err = deploy.DeployManifestsFromPath(dsciInit, r.Client, "monitoring-base",
+		deploy.DefaultManifestPath+"/monitoring/base",
+		dsciInit.Spec.Monitoring.Namespace, r.Scheme, dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
+	if err != nil {
+		r.Log.Error(err, "error to deploy manifests under /opt/manifests/monitoring/base")
+		return err
+	}
 	return nil
 }
