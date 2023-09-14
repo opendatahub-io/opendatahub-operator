@@ -23,7 +23,7 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	logr "github.com/go-logr/logr"
+	"github.com/go-logr/logr"
 
 	"k8s.io/client-go/util/retry"
 
