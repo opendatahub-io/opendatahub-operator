@@ -337,11 +337,14 @@ func ApplyImageParams(componentPath string, imageParamsMap map[string]string) er
 	}
 
 	// Move the existing file to a backup file and create empty file
-	os.Rename(envFilePath, backupPath)
+	if err := os.Rename(envFilePath, backupPath); err != nil {
+		return err
+	}
+
 	file, err = os.Create(envFilePath)
 	if err != nil {
-		// If create fails, restore the backup file
-		os.Rename(backupPath, envFilePath)
+		// If create fails, try to restore the backup file
+		_ = os.Rename(backupPath, envFilePath)
 		return err
 	}
 	defer file.Close()
@@ -349,7 +352,9 @@ func ApplyImageParams(componentPath string, imageParamsMap map[string]string) er
 	// Now, write the map back to the file
 	writer := bufio.NewWriter(file)
 	for key, value := range envMap {
-		fmt.Fprintf(writer, "%s=%s\n", key, value)
+		if _, fErr := fmt.Fprintf(writer, "%s=%s\n", key, value); fErr != nil {
+			return fErr
+		}
 	}
 	if err := writer.Flush(); err != nil {
 		if removeErr := os.Remove(envFilePath); removeErr != nil {

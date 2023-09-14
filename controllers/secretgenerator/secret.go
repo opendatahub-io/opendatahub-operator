@@ -78,7 +78,9 @@ func newSecret(annotations map[string]string) (*Secret, error) {
 		secret.Value = string(randomValue)
 	case "oauth":
 		randomValue := make([]byte, secret.Complexity)
-		rand.Read(randomValue)
+		if _, err := rand.Read(randomValue); err != nil {
+			return nil, err
+		}
 		secret.Value = base64.StdEncoding.EncodeToString(
 			[]byte(base64.StdEncoding.EncodeToString(randomValue)))
 	default:
