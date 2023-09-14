@@ -217,9 +217,9 @@ func manageResource(owner metav1.Object, ctx context.Context, cli client.Client,
 		resourceLabels := found.GetLabels()
 		var componentCounter []string
 		if resourceLabels != nil {
-			for key, _ := range resourceLabels {
-				if strings.Contains(key, "app.opendatahub.io") {
-					compFound := strings.Split(key, "/")[1]
+			for i := range resourceLabels {
+				if strings.Contains(i, "app.opendatahub.io") {
+					compFound := strings.Split(i, "/")[1]
 					componentCounter = append(componentCounter, compFound)
 				}
 			}
@@ -329,10 +329,10 @@ func ApplyImageParams(componentPath string, imageParamsMap map[string]string) er
 
 	// Update images with env variables
 	// e.g "odh-kuberay-operator-controller-image": "RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE",
-	for key, _ := range envMap {
-		relatedImageValue := os.Getenv(imageParamsMap[key])
+	for i := range envMap {
+		relatedImageValue := os.Getenv(imageParamsMap[i])
 		if relatedImageValue != "" {
-			envMap[key] = relatedImageValue
+			envMap[i] = relatedImageValue
 		}
 	}
 
