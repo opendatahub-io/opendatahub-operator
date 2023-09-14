@@ -93,7 +93,7 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 	return err
 }
 
-func (in *ModelMeshServing) DeepCopyInto(out *ModelMeshServing) {
-	*out = *in
-	out.Component = in.Component
+func (m *ModelMeshServing) DeepCopyInto(target *ModelMeshServing) {
+	*target = *m
+	target.Component = m.Component
 }

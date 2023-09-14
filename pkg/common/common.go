@@ -14,23 +14,24 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package common contains utility functions used by differnt components
+// Package common contains utility functions used by different components
 package common
 
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"os"
+	"strings"
+
 	corev1 "k8s.io/api/core/v1"
 	authv1 "k8s.io/api/rbac/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"strings"
 )
 
-// Function UpdatePodSecurityRolebinding update default rolebinding which is created in applications namespace by manifests
-// being used by different components
+// UpdatePodSecurityRolebinding update default rolebinding which is created in applications namespace by manifests
+// being used by different components.
 func UpdatePodSecurityRolebinding(cli client.Client, serviceAccountsList []string, namespace string) error {
 	foundRoleBinding := &authv1.RoleBinding{}
 	err := cli.Get(context.TODO(), client.ObjectKey{Name: namespace, Namespace: namespace}, foundRoleBinding)
@@ -62,12 +63,12 @@ func subjectExistInRoleBinding(subjectList []authv1.Subject, serviceAccountName,
 	return false
 }
 
-// Function ReplaceStringsInFile replaces variable with value in manifests during runtime
+// ReplaceStringsInFile replaces variable with value in manifests during runtime.
 func ReplaceStringsInFile(fileName string, replacements map[string]string) error {
 	// Read the contents of the file
-	fileContent, err := ioutil.ReadFile(fileName)
+	fileContent, err := os.ReadFile(fileName)
 	if err != nil {
-		return fmt.Errorf("failed to read file: %v", err)
+		return fmt.Errorf("failed to read file: %w", err)
 	}
 
 	// Replace all occurrences of the strings in the map
@@ -77,15 +78,15 @@ func ReplaceStringsInFile(fileName string, replacements map[string]string) error
 	}
 
 	// Write the modified content back to the file
-	err = ioutil.WriteFile(fileName, []byte(newContent), 0)
+	err = os.WriteFile(fileName, []byte(newContent), 0)
 	if err != nil {
-		return fmt.Errorf("failed to write to file: %v", err)
+		return fmt.Errorf("failed to write to file: %w", err)
 	}
 
 	return nil
 }
 
-// Function CreateSecret creates scrects required by dasbhoard component in downstream
+// CreateSecret creates secrets required by dashboard component in downstream.
 func CreateSecret(cli client.Client, name, namespace string) error {
 	desiredSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -110,7 +111,7 @@ func CreateSecret(cli client.Client, name, namespace string) error {
 	return nil
 }
 
-// Function CreateNamespace creates namespace required by workbenches component in downstream
+// CreateNamespace creates namespace required by workbenches component in downstream.
 func CreateNamespace(cli client.Client, namespace string) error {
 	desiredNamespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{

@@ -54,7 +54,7 @@ func (r *Ray) ReconcileComponent(cli client.Client, owner metav1.Object, dscispe
 
 }
 
-func (in *Ray) DeepCopyInto(out *Ray) {
-	*out = *in
-	out.Component = in.Component
+func (r *Ray) DeepCopyInto(target *Ray) {
+	*target = *r
+	target.Component = r.Component
 }

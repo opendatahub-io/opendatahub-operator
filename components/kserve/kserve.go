@@ -87,7 +87,7 @@ func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dsci
 		if err != nil {
 			return err
 		}
-		// Update image parameters for keserve
+		// Update image parameters for kserve
 		if dscispec.DevFlags.ManifestsUri == "" {
 			if err := deploy.ApplyImageParams(Path, dependentImageParamMap); err != nil {
 				return err
@@ -104,7 +104,7 @@ func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dsci
 	return nil
 }
 
-func (in *Kserve) DeepCopyInto(out *Kserve) {
-	*out = *in
-	out.Component = in.Component
+func (k *Kserve) DeepCopyInto(target *Kserve) {
+	*target = *k
+	target.Component = k.Component
 }

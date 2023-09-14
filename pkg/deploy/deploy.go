@@ -61,12 +61,12 @@ const (
 // 2. It saves the manifests in the /opt/manifests/component-name/ folder
 func DownloadManifests(uri string) error {
 	// Get the component repo from the given url
-	// e.g  https://github.com/example/tarball/master\
+	// e.g.  https://github.com/example/tarball/master\
 	var reader io.Reader
 	if uri != "" {
 		resp, err := http.Get(uri)
 		if err != nil {
-			return fmt.Errorf("error downloading manifests: %v", err)
+			return fmt.Errorf("error downloading manifests: %w", err)
 		}
 		defer resp.Body.Close()
 
@@ -78,7 +78,7 @@ func DownloadManifests(uri string) error {
 		// Create a new gzip reader
 		gzipReader, err := gzip.NewReader(reader)
 		if err != nil {
-			return fmt.Errorf("error creating gzip reader: %v", err)
+			return fmt.Errorf("error creating gzip reader: %w", err)
 		}
 		defer gzipReader.Close()
 
@@ -89,7 +89,7 @@ func DownloadManifests(uri string) error {
 		mode := os.ModePerm
 		err = os.MkdirAll(DefaultManifestPath, mode)
 		if err != nil {
-			return fmt.Errorf("error creating manifests directory : %v", err)
+			return fmt.Errorf("error creating manifests directory : %w", err)
 		}
 
 		for {
@@ -149,7 +149,7 @@ func DeployManifestsFromPath(owner metav1.Object, cli client.Client, componentNa
 	}
 
 	if err != nil {
-		return fmt.Errorf("error during resmap resources: %v", err)
+		return fmt.Errorf("error during resmap resources: %w", err)
 	}
 
 	// Apply NamespaceTransformer Plugin
@@ -217,9 +217,9 @@ func manageResource(owner metav1.Object, ctx context.Context, cli client.Client,
 		resourceLabels := found.GetLabels()
 		var componentCounter []string
 		if resourceLabels != nil {
-			for key, _ := range resourceLabels {
-				if strings.Contains(key, "app.opendatahub.io") {
-					compFound := strings.Split(key, "/")[1]
+			for i := range resourceLabels {
+				if strings.Contains(i, "app.opendatahub.io") {
+					compFound := strings.Split(i, "/")[1]
 					componentCounter = append(componentCounter, compFound)
 				}
 			}
@@ -329,19 +329,22 @@ func ApplyImageParams(componentPath string, imageParamsMap map[string]string) er
 
 	// Update images with env variables
 	// e.g "odh-kuberay-operator-controller-image": "RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE",
-	for key, _ := range envMap {
-		relatedImageValue := os.Getenv(imageParamsMap[key])
+	for i := range envMap {
+		relatedImageValue := os.Getenv(imageParamsMap[i])
 		if relatedImageValue != "" {
-			envMap[key] = relatedImageValue
+			envMap[i] = relatedImageValue
 		}
 	}
 
 	// Move the existing file to a backup file and create empty file
-	os.Rename(envFilePath, backupPath)
+	if err := os.Rename(envFilePath, backupPath); err != nil {
+		return err
+	}
+
 	file, err = os.Create(envFilePath)
 	if err != nil {
-		// If create fails, restore the backup file
-		os.Rename(backupPath, envFilePath)
+		// If create fails, try to restore the backup file
+		_ = os.Rename(backupPath, envFilePath)
 		return err
 	}
 	defer file.Close()
@@ -349,7 +352,9 @@ func ApplyImageParams(componentPath string, imageParamsMap map[string]string) er
 	// Now, write the map back to the file
 	writer := bufio.NewWriter(file)
 	for key, value := range envMap {
-		fmt.Fprintf(writer, "%s=%s\n", key, value)
+		if _, fErr := fmt.Fprintf(writer, "%s=%s\n", key, value); fErr != nil {
+			return fErr
+		}
 	}
 	if err := writer.Flush(); err != nil {
 		if removeErr := os.Remove(envFilePath); removeErr != nil {
@@ -370,7 +375,7 @@ func ApplyImageParams(componentPath string, imageParamsMap map[string]string) er
 	return nil
 }
 
-// Checks if a Subscription for the an operator exists in the given namespace
+// SubscriptionExists checks if a Subscription for the an operator exists in the given namespace.
 func SubscriptionExists(cli client.Client, namespace string, name string) (bool, error) {
 	sub := &ofapiv1alpha1.Subscription{}
 	err := cli.Get(context.TODO(), client.ObjectKey{Namespace: namespace, Name: name}, sub)
@@ -384,9 +389,9 @@ func SubscriptionExists(cli client.Client, namespace string, name string) (bool,
 	return true, nil
 }
 
-// Checks if an Operator with operatorprefix is installed in the given namespace list
-// TODO: if we need to check exact verison of the operator installed, can append vX.Y.Z later
+// OperatorExists checks if an Operator with 'operatorprefix' is installed.
 // Return true if found it, false if not.
+// TODO: if we need to check exact version of the operator installed, can append vX.Y.Z later
 func OperatorExists(cli client.Client, operatorprefix string) (bool, error) {
 	opConditionList := &ofapiv2.OperatorConditionList{}
 	err := cli.List(context.TODO(), opConditionList)
@@ -396,7 +401,7 @@ func OperatorExists(cli client.Client, operatorprefix string) (bool, error) {
 		}
 	} else {
 		for _, opCondition := range opConditionList.Items {
-			if strings.HasPrefix(string(opCondition.Name), operatorprefix) {
+			if strings.HasPrefix(opCondition.Name, operatorprefix) {
 				return true, nil
 			}
 		}
@@ -404,4 +409,4 @@ func OperatorExists(cli client.Client, operatorprefix string) (bool, error) {
 	return false, nil
 }
 
-// TODO : Add function to cleanup code created as part of pre install and post intall task of a component
+// TODO : Add function to cleanup code created as part of pre install and post install task of a component

@@ -37,13 +37,13 @@ type testContext struct {
 	cfg *rest.Config
 	// client for k8s resources
 	kubeClient *k8sclient.Clientset
-	// custom client for managing cutom resources
+	// custom client for managing custom resources
 	customClient client.Client
 	// namespace of the operator
 	operatorNamespace string
 	// namespace of the deployed applications
 	applicationsNamespace string
-	// time rquired to create a resource
+	// time required to create a resource
 	resourceCreationTimeout time.Duration
 	// test DataScienceCluster instance
 	testDsc *dsc.DataScienceCluster
@@ -60,7 +60,7 @@ func NewTestContext() (*testContext, error) {
 	// Lastly if none of them are set, it uses  $HOME/.kube/config to create the client.
 	config, err := ctrlruntime.GetConfig()
 	if err != nil {
-		return nil, fmt.Errorf("error creating the config object %v", err)
+		return nil, fmt.Errorf("error creating the config object %w", err)
 	}
 
 	kc, err := k8sclient.NewForConfig(config)
@@ -114,7 +114,7 @@ func TestOdhOperator(t *testing.T) {
 	// Run create and delete tests for all the components
 	t.Run("create Opendatahub components", creationTestSuite)
 
-	// Run deleteion if skipDeletion is not set
+	// Run deletion if skipDeletion is not set
 	if !skipDeletion {
 		t.Run("delete components", deletionTestSuite)
 	}
