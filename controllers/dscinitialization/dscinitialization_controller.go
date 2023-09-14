@@ -208,7 +208,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		saved.Status.Phase = status.PhaseReady
 	})
 	if err != nil {
-		r.Log.Error(err, "failed to update DSCInitialization status after successfuly completed reconciliation")
+		r.Log.Error(err, "failed to update DSCInitialization status after successfully completed reconciliation")
 		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to update DSCInitialization status")
 	}
 	return ctrl.Result{}, nil

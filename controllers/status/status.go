@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package status contains different conditons, prhases and progresses,
+// Package status contains different conditions, phases and progresses,
 // being used by DataScienceCluster and DSCInitialization's controller
 package status
 
@@ -174,8 +174,8 @@ func SetCompleteCondition(conditions *[]conditionsv1.Condition, reason string, m
 	})
 }
 
-// Function SetComponentCondition append Condition Type with const ReadySuffix for giving component
-// when component finshed reconcile
+// SetComponentCondition appends Condition Type with const ReadySuffix for given component
+// when component finished reconcile.
 func SetComponentCondition(conditions *[]conditionsv1.Condition, component string, reason string, message string, status corev1.ConditionStatus) {
 	condtype := component + ReadySuffix
 	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{

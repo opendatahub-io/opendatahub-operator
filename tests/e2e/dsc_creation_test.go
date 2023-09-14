@@ -195,7 +195,7 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error {
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.CodeFlare))
 		if tc.testDsc.Spec.Components.CodeFlare.ManagementState == operatorv1.Managed {
 			if err != nil {
-				// depedent operator error, as expected
+				// dependent operator error, as expected
 				if strings.Contains(err.Error(), "Please install the operator before enabling component") {
 					t.Logf("expected error: %v", err.Error())
 				} else {
@@ -250,7 +250,7 @@ func (tc *testContext) testApplicationCreation(component components.ComponentInt
 				return false, nil
 			}
 		} else { // when no deployment is found
-			// check Reconcile failed with missing depdent operator error
+			// check Reconcile failed with missing dependent operator error
 			for _, Condition := range tc.testDsc.Status.Conditions {
 				if strings.Contains(Condition.Message, "Please install the operator before enabling "+component.GetComponentName()) {
 					return true, err

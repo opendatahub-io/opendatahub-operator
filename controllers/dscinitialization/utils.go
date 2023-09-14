@@ -44,7 +44,7 @@ func (r *DSCInitializationReconciler) createOdhNamespace(dscInit *dsci.DSCInitia
 		},
 	}
 
-	// Create Namespace if doesnot exists
+	// Create Namespace if it doesn't exist
 	foundNamespace := &corev1.Namespace{}
 	err := r.Get(ctx, client.ObjectKey{Name: name}, foundNamespace)
 	if err != nil {
@@ -150,7 +150,7 @@ func (r *DSCInitializationReconciler) createDefaultRoleBinding(dscInit *dsci.DSC
 		},
 	}
 
-	// Create RoleBinding if doesnot exists
+	// Create RoleBinding if doesn't exists
 	foundRoleBinding := &authv1.RoleBinding{}
 	err := r.Client.Get(ctx, client.ObjectKey{
 		Name:      name,
@@ -195,7 +195,7 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(dscInit *dsc
 		},
 	}
 
-	// Create NetworkPolicy if doesnot exists
+	// Create NetworkPolicy if it doesn't exist
 	foundNetworkPolicy := &netv1.NetworkPolicy{}
 	justCreated := false
 	err := r.Client.Get(ctx, client.ObjectKey{
@@ -306,7 +306,7 @@ func (r *DSCInitializationReconciler) createOdhCommonConfigMap(dscInit *dsci.DSC
 		Data: map[string]string{"namespace": name},
 	}
 
-	// Create Configmap if doesnot exists
+	// Create Configmap if doesn't exists
 	foundConfigMap := &corev1.ConfigMap{}
 	err := r.Client.Get(ctx, client.ObjectKey{
 		Name:      name,

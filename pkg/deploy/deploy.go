@@ -61,7 +61,7 @@ const (
 // 2. It saves the manifests in the /opt/manifests/component-name/ folder
 func DownloadManifests(uri string) error {
 	// Get the component repo from the given url
-	// e.g  https://github.com/example/tarball/master\
+	// e.g.  https://github.com/example/tarball/master\
 	var reader io.Reader
 	if uri != "" {
 		resp, err := http.Get(uri)
@@ -370,7 +370,7 @@ func ApplyImageParams(componentPath string, imageParamsMap map[string]string) er
 	return nil
 }
 
-// Checks if a Subscription for the an operator exists in the given namespace
+// SubscriptionExists checks if a Subscription for the an operator exists in the given namespace.
 func SubscriptionExists(cli client.Client, namespace string, name string) (bool, error) {
 	sub := &ofapiv1alpha1.Subscription{}
 	err := cli.Get(context.TODO(), client.ObjectKey{Namespace: namespace, Name: name}, sub)
@@ -384,9 +384,9 @@ func SubscriptionExists(cli client.Client, namespace string, name string) (bool,
 	return true, nil
 }
 
-// Checks if an Operator with operatorprefix is installed in the given namespace list
-// TODO: if we need to check exact verison of the operator installed, can append vX.Y.Z later
+// OperatorExists checks if an Operator with 'operatorprefix' is installed in the given namespace.
 // Return true if found it, false if not.
+// TODO: if we need to check exact version of the operator installed, can append vX.Y.Z later
 func OperatorExists(cli client.Client, operatorprefix string) (bool, error) {
 	opConditionList := &ofapiv2.OperatorConditionList{}
 	err := cli.List(context.TODO(), opConditionList)
@@ -404,4 +404,4 @@ func OperatorExists(cli client.Client, operatorprefix string) (bool, error) {
 	return false, nil
 }
 
-// TODO : Add function to cleanup code created as part of pre install and post intall task of a component
+// TODO : Add function to cleanup code created as part of pre install and post install task of a component

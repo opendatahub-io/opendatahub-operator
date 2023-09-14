@@ -142,7 +142,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 	}
 	r.Log.Info("Success: got smtp secret")
 
-	// Get SMTP receiver email secret (assume operator namespace for managed service is not configable)
+	// Get SMTP receiver email secret (assume operator namespace for managed service is not configurable)
 	smtpEmailSecret, err := r.waitForManagedSecret(ctx, "addon-managed-odh-parameters", "redhat-ods-operator")
 	if err != nil {
 		return fmt.Errorf("error getting smtp receiver email secret: %v", err)

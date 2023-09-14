@@ -31,7 +31,7 @@ and installed from source manually, see the Developer guide for further instruct
 
 ## Dev Preview
 
-Developer Preview of the new Open Data Hub operator codebase is now avaible.
+Developer Preview of the new Open Data Hub operator codebase is now available.
 Refer [Dev-Preview.md](./docs/Dev-Preview.md) for testing preview features.
 
 ### Developer Guide

@@ -39,7 +39,7 @@ can be found [here](https://github.com/opendatahub-io/opendatahub-operator/tree/
     ```
 ### Add reconcile and Events
 
-- Once you setup the new component module, add the component to [Reconcile](https://github.com/opendatahub-io/opendatahub-operator/blob/acaaf31f43e371456363f3fd272aec91ba413482/controllers/datasciencecluster/datasciencecluster_controller.go#L135) 
+- Once you set up the new component module, add the component to [Reconcile](https://github.com/opendatahub-io/opendatahub-operator/blob/acaaf31f43e371456363f3fd272aec91ba413482/controllers/datasciencecluster/datasciencecluster_controller.go#L135) 
   function in order to deploy manifests.
 - This will also enable/add status updates of the component in the operator.
 
