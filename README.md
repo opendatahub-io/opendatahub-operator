@@ -63,7 +63,7 @@ make get-manifests
 ```
 
 This first cleanup your local `odh-manifests` folder.
-Ensure back up before run this command if you have local changes of manifests want to re-user later.
+Ensure back up before run this command if you have local changes of manifests want to reuse later.
 
 ##### for build operator image
 
@@ -73,9 +73,10 @@ make image-build
 ```
 
 By default, building an image without any local changes(as a clean build)
-This is what the production build system does. Same for the "make image-build" does.
+This is what the production build system is doing.
 
-In order to build an image with local `odh-manifests` folder, to set `--build-arg USE_LOCAL=true` in Makefile.
+In order to build an image with local `odh-manifests` folder, to set `IMAGE_BUILD_FLAGS ="--build-arg USE_LOCAL=true"` in make.
+e.g `make image-build -e IMAGE_BUILD_FLAGS="--build-arg USE_LOCAL=true"`
 
 #### Build Image
 
