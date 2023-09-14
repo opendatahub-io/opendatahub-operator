@@ -72,9 +72,9 @@ func isManagedRHODS(cli client.Client) (Platform, error) {
 
 func GetPlatform(cli client.Client) (Platform, error) {
 	// First check if its addon installation to return 'ManagedRhods, nil'
-	platform, err := isManagedRHODS(cli)
-	if err == nil && platform == ManagedRhods {
-		// return managed RHODS platform
+	if platform, err := isManagedRHODS(cli); err != nil {
+		return "", err
+	} else if platform == ManagedRhods {
 		return ManagedRhods, nil
 	}
 
