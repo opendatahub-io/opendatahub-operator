@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"time"
 
+	ocuserv1 "github.com/openshift/api/user/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	authv1 "k8s.io/api/rbac/v1"
@@ -321,6 +322,28 @@ func (r *DSCInitializationReconciler) createOdhCommonConfigMap(dscInit *dsci.DSC
 				return err
 			}
 			err = r.Client.Create(ctx, desiredConfigMap)
+			if err != nil && !apierrs.IsAlreadyExists(err) {
+				return err
+			}
+		} else {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *DSCInitializationReconciler) createUserGroup(dscInit *dsci.DSCInitialization, userGroupName string, ctx context.Context) error {
+	userGroup := &ocuserv1.Group{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: userGroupName,
+		},
+	}
+	err := r.Client.Get(ctx, client.ObjectKey{
+		Name: userGroup.Name,
+	}, userGroup)
+	if err != nil {
+		if apierrs.IsNotFound(err) {
+			err = r.Client.Create(ctx, userGroup)
 			if err != nil && !apierrs.IsAlreadyExists(err) {
 				return err
 			}
