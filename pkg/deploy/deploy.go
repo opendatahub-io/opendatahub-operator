@@ -66,7 +66,7 @@ func DownloadManifests(uri string) error {
 	if uri != "" {
 		resp, err := http.Get(uri)
 		if err != nil {
-			return fmt.Errorf("error downloading manifests: %v", err)
+			return fmt.Errorf("error downloading manifests: %w", err)
 		}
 		defer resp.Body.Close()
 
@@ -78,7 +78,7 @@ func DownloadManifests(uri string) error {
 		// Create a new gzip reader
 		gzipReader, err := gzip.NewReader(reader)
 		if err != nil {
-			return fmt.Errorf("error creating gzip reader: %v", err)
+			return fmt.Errorf("error creating gzip reader: %w", err)
 		}
 		defer gzipReader.Close()
 
@@ -89,7 +89,7 @@ func DownloadManifests(uri string) error {
 		mode := os.ModePerm
 		err = os.MkdirAll(DefaultManifestPath, mode)
 		if err != nil {
-			return fmt.Errorf("error creating manifests directory : %v", err)
+			return fmt.Errorf("error creating manifests directory : %w", err)
 		}
 
 		for {
@@ -149,7 +149,7 @@ func DeployManifestsFromPath(owner metav1.Object, cli client.Client, componentNa
 	}
 
 	if err != nil {
-		return fmt.Errorf("error during resmap resources: %v", err)
+		return fmt.Errorf("error during resmap resources: %w", err)
 	}
 
 	// Apply NamespaceTransformer Plugin

@@ -19,6 +19,7 @@ package datasciencecluster
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	v1 "github.com/openshift/api/operator/v1"
 	"time"
@@ -82,7 +83,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	if len(instances.Items) > 1 {
 		message := fmt.Sprintf("only one instance of DataScienceCluster object is allowed. Update existing instance on namespace %s and name %s", req.Namespace, req.Name)
-		err := fmt.Errorf(message)
+		err := errors.New(message)
 		_ = r.reportError(err, &instances.Items[0], message)
 
 		return ctrl.Result{}, err
@@ -142,7 +143,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		r.DataScienceCluster.DSCISpec.ApplicationsNamespace = dsciInstances.Items[0].Spec.ApplicationsNamespace
 		r.DataScienceCluster.DSCISpec.DevFlags.ManifestsUri = dsciInstances.Items[0].Spec.DevFlags.ManifestsUri
 	} else {
-		return ctrl.Result{}, fmt.Errorf(fmt.Sprintf("only one instance of DSCInitialization object is allowed."))
+		return ctrl.Result{}, errors.New("only one instance of DSCInitialization object is allowed")
 	}
 
 	// Ensure all omitted components show up as explicitly disabled
@@ -216,7 +217,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		saved.Status.Phase = status.PhaseReady
 	})
 	if err != nil {
-		r.Log.Error(err, "failed to update DataScienceCluster conditions after successfuly completed reconciliation")
+		r.Log.Error(err, "failed to update DataScienceCluster conditions after successfully completed reconciliation")
 		return ctrl.Result{}, err
 	}
 

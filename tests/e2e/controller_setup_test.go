@@ -60,7 +60,7 @@ func NewTestContext() (*testContext, error) {
 	// Lastly if none of them are set, it uses  $HOME/.kube/config to create the client.
 	config, err := ctrlruntime.GetConfig()
 	if err != nil {
-		return nil, fmt.Errorf("error creating the config object %v", err)
+		return nil, fmt.Errorf("error creating the config object %w", err)
 	}
 
 	kc, err := k8sclient.NewForConfig(config)

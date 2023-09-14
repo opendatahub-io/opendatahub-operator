@@ -81,7 +81,7 @@ func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, d
 		}, mcad)
 		if err != nil {
 			if apierrs.IsNotFound(err) {
-				return fmt.Errorf("failed to get MCAD instance mcad: %v", err)
+				return fmt.Errorf("failed to get MCAD instance mcad: %w", err)
 			}
 		}
 		err = cli.Delete(context.TODO(), mcad)
@@ -93,7 +93,7 @@ func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, d
 		}, instascale)
 		if err != nil {
 			if apierrs.IsNotFound(err) {
-				return fmt.Errorf("failed to get InstaScale instance instascale: %v", err)
+				return fmt.Errorf("failed to get InstaScale instance instascale: %w", err)
 			}
 		}
 		err = cli.Delete(context.TODO(), instascale)
@@ -105,7 +105,7 @@ func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, d
 		}, imagestream)
 		if err != nil {
 			if apierrs.IsNotFound(err) {
-				return fmt.Errorf("failed to get Imagestream instance codeflare-notebook: %v", err)
+				return fmt.Errorf("failed to get Imagestream instance codeflare-notebook: %w", err)
 			}
 		}
 		err = cli.Delete(context.TODO(), imagestream)

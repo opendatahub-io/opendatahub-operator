@@ -19,6 +19,7 @@ package dscinitialization
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -89,7 +90,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	if len(instanceList.Items) > 1 {
 		message := fmt.Sprintf("only one instance of DSCInitialization object is allowed. Update existing instance on namespace %s and name %s", req.Namespace, req.Name)
-		return ctrl.Result{}, fmt.Errorf(message)
+		return ctrl.Result{}, errors.New(message)
 	}
 
 	// Start reconciling

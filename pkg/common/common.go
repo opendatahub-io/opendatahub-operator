@@ -67,7 +67,7 @@ func ReplaceStringsInFile(fileName string, replacements map[string]string) error
 	// Read the contents of the file
 	fileContent, err := os.ReadFile(fileName)
 	if err != nil {
-		return fmt.Errorf("failed to read file: %v", err)
+		return fmt.Errorf("failed to read file: %w", err)
 	}
 
 	// Replace all occurrences of the strings in the map
@@ -79,7 +79,7 @@ func ReplaceStringsInFile(fileName string, replacements map[string]string) error
 	// Write the modified content back to the file
 	err = os.WriteFile(fileName, []byte(newContent), 0)
 	if err != nil {
-		return fmt.Errorf("failed to write to file: %v", err)
+		return fmt.Errorf("failed to write to file: %w", err)
 	}
 
 	return nil

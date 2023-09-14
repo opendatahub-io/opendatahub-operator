@@ -145,7 +145,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 	// Get SMTP receiver email secret (assume operator namespace for managed service is not configurable)
 	smtpEmailSecret, err := r.waitForManagedSecret(ctx, "addon-managed-odh-parameters", "redhat-ods-operator")
 	if err != nil {
-		return fmt.Errorf("error getting smtp receiver email secret: %v", err)
+		return fmt.Errorf("error getting smtp receiver email secret: %w", err)
 	}
 	r.Log.Info("Success: got smpt email secret")
 
@@ -200,7 +200,7 @@ func configureBlackboxExporter(dsciInit *dsci.DSCInitialization, cli client.Clie
 			deploy.DefaultManifestPath+"/monitoring/blackbox-exporter/internal",
 			dsciInit.Spec.Monitoring.Namespace, s, dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
 		if err != nil {
-			return fmt.Errorf("error to deploy manifests: %v", err)
+			return fmt.Errorf("error to deploy manifests: %w", err)
 		}
 
 	} else {
@@ -208,7 +208,7 @@ func configureBlackboxExporter(dsciInit *dsci.DSCInitialization, cli client.Clie
 			deploy.DefaultManifestPath+"/monitoring/blackbox-exporter/external",
 			dsciInit.Spec.Monitoring.Namespace, s, dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
 		if err != nil {
-			return fmt.Errorf("error to deploy manifests: %v", err)
+			return fmt.Errorf("error to deploy manifests: %w", err)
 		}
 	}
 	return nil
@@ -217,17 +217,17 @@ func configureBlackboxExporter(dsciInit *dsci.DSCInitialization, cli client.Clie
 func (r *DSCInitializationReconciler) configureManagedMonitoring(ctx context.Context, dscInit *dsci.DSCInitialization) error {
 	// configure Alertmanager
 	if err := configureAlertManager(ctx, dscInit, r); err != nil {
-		return fmt.Errorf("error in configureAlertManager: %v", err)
+		return fmt.Errorf("error in configureAlertManager: %w", err)
 	}
 
 	// configure Prometheus
 	if err := configurePrometheus(ctx, dscInit, r); err != nil {
-		return fmt.Errorf("error in configurePrometheus: %v", err)
+		return fmt.Errorf("error in configurePrometheus: %w", err)
 	}
 
 	// configure Blackbox exporter
 	if err := configureBlackboxExporter(dscInit, r.Client, r.Scheme); err != nil {
-		return fmt.Errorf("error in configureBlackboxExporter: %v", err)
+		return fmt.Errorf("error in configureBlackboxExporter: %w", err)
 	}
 	return nil
 }
