@@ -186,21 +186,8 @@ func SetComponentCondition(conditions *[]conditionsv1.Condition, component strin
 	})
 }
 
-// Function RemoveComponentCondition remove Condition of giving component
+// RemoveComponentCondition remove Condition of giving component.
 func RemoveComponentCondition(conditions *[]conditionsv1.Condition, component string) {
-	condtype := component + ReadySuffix
-	conditionsv1.RemoveStatusCondition(conditions, conditionsv1.ConditionType(condtype))
-}
-
-// Function setStatusConditionIfNotPresent is an example of a function that is not used anywhere in the code
-// won't override a status condition of the same type and status
-func setStatusConditionIfNotPresent(conditions *[]conditionsv1.Condition, condition conditionsv1.Condition) {
-
-	foundCondition := conditionsv1.FindStatusCondition(*conditions, condition.Type)
-	if foundCondition != nil && foundCondition.Status == condition.Status {
-		// already exists
-		return
-	}
-
-	conditionsv1.SetStatusCondition(conditions, condition)
+	condType := component + ReadySuffix
+	conditionsv1.RemoveStatusCondition(conditions, conditionsv1.ConditionType(condType))
 }
