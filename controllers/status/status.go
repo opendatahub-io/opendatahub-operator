@@ -54,14 +54,14 @@ const (
 
 // List of constants to show different reconciliation messages and statuses.
 const (
-	// Used when multiple DSCI instance exists or DSC reconcile failed/removal failed
+	// ReconcileFailed is used when multiple DSCI instance exists or DSC reconcile failed/removal failed
 	ReconcileFailed                       = "ReconcileFailed"
 	ReconcileInit                         = "ReconcileInit"
 	ReconcileCompleted                    = "ReconcileCompleted"
 	ReconcileCompletedWithComponentErrors = "ReconcileCompletedWithComponentErrors"
 	ReconcileCompletedMessage             = "Reconcile completed successfully"
 
-	// Defined constants represent extra Condition Type, used by .Condition.Type
+	// ConditionReconcileComplete represents extra Condition Type, used by .Condition.Type
 	ConditionReconcileComplete conditionsv1.ConditionType = "ReconcileComplete"
 )
 
@@ -69,7 +69,7 @@ const (
 	ReadySuffix = "Ready"
 )
 
-// Function SetProgressingCondition sets the ProgressingCondition to True and other conditions to false or
+// SetProgressingCondition sets the ProgressingCondition to True and other conditions to false or
 // Unknown. Used when we are just starting to reconcile, and there are no existing conditions.
 func SetProgressingCondition(conditions *[]conditionsv1.Condition, reason string, message string) {
 	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
@@ -104,7 +104,7 @@ func SetProgressingCondition(conditions *[]conditionsv1.Condition, reason string
 	})
 }
 
-// Function SetErrorCondition sets the ConditionReconcileComplete to False in case of any errors
+// SetErrorCondition sets the ConditionReconcileComplete to False in case of any errors
 // during the reconciliation process.
 func SetErrorCondition(conditions *[]conditionsv1.Condition, reason string, message string) {
 	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
@@ -139,7 +139,7 @@ func SetErrorCondition(conditions *[]conditionsv1.Condition, reason string, mess
 	})
 }
 
-// Function SetCompleteCondition sets the ConditionReconcileComplete to True and other Conditions
+// SetCompleteCondition sets the ConditionReconcileComplete to True and other Conditions
 // to indicate that the reconciliation process has completed successfully.
 func SetCompleteCondition(conditions *[]conditionsv1.Condition, reason string, message string) {
 	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{

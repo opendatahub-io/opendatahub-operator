@@ -30,7 +30,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 )
 
-// Defines the desired state of DataScienceCluster
+// DataScienceCluster defines the desired state of the cluster.
 type DataScienceClusterSpec struct {
 	// Override and fine tune specific component configurations.
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=1
