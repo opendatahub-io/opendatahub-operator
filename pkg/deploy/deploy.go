@@ -396,7 +396,7 @@ func OperatorExists(cli client.Client, operatorprefix string) (bool, error) {
 		}
 	} else {
 		for _, opCondition := range opConditionList.Items {
-			if strings.HasPrefix(string(opCondition.Name), operatorprefix) {
+			if strings.HasPrefix(opCondition.Name, operatorprefix) {
 				return true, nil
 			}
 		}
