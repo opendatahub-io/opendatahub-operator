@@ -54,7 +54,7 @@ var secGenLog = log.Log.WithName("secret-generator")
 // +kubebuilder:rbac:groups="route.openshift.io",resources=routes,verbs=get
 // +kubebuilder:rbac:groups="core",resources=secrets/finalizers,verbs=*
 
-// ReconcileSecretGenerator holds the controller configuration
+// SecretGeneratorReconciler holds the controller configuration.
 type SecretGeneratorReconciler struct {
 	Client client.Client
 	Scheme *runtime.Scheme

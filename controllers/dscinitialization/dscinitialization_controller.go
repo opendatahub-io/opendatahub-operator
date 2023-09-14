@@ -14,15 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package datasciencecluster contains controller logic of CRD DSCInitialization
+// Package dscinitialization contains controller logic of CRD DSCInitialization.
 package dscinitialization
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	operatorv1 "github.com/openshift/api/operator/v1"
 
-	logr "github.com/go-logr/logr"
+	"github.com/go-logr/logr"
 
 	"k8s.io/client-go/util/retry"
 
@@ -87,7 +88,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	if len(instanceList.Items) > 1 {
 		message := fmt.Sprintf("only one instance of DSCInitialization object is allowed. Update existing instance on namespace %s and name %s", req.Namespace, req.Name)
-		return ctrl.Result{}, fmt.Errorf(message)
+		return ctrl.Result{}, errors.New(message)
 	}
 
 	// Start reconciling
@@ -197,7 +198,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		saved.Status.Phase = status.PhaseReady
 	})
 	if err != nil {
-		r.Log.Error(err, "failed to update DSCInitialization status after successfuly completed reconciliation")
+		r.Log.Error(err, "failed to update DSCInitialization status after successfully completed reconciliation")
 		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to update DSCInitialization status")
 	}
 	return ctrl.Result{}, nil
