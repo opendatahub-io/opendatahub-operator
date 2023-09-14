@@ -389,7 +389,7 @@ func SubscriptionExists(cli client.Client, namespace string, name string) (bool,
 	return true, nil
 }
 
-// OperatorExists checks if an Operator with 'operatorprefix' is installed in the given namespace.
+// OperatorExists checks if an Operator with 'operatorprefix' is installed.
 // Return true if found it, false if not.
 // TODO: if we need to check exact version of the operator installed, can append vX.Y.Z later
 func OperatorExists(cli client.Client, operatorprefix string) (bool, error) {
