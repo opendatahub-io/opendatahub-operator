@@ -23,7 +23,7 @@ OPERATOR_NAMESPACE ?= redhat-ods-operator
 MANIFEST_REPO ?= red-hat-data-services
 MANIFEST_RELEASE ?= master
 
-CHANNELS="alpha,embedded"
+CHANNELS="alpha"
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
 # To re-generate a bundle for other specific channels without changing the standard setup, you can:
