@@ -22,13 +22,11 @@ import (
 	"errors"
 	"fmt"
 	operatorv1 "github.com/openshift/api/operator/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/go-logr/logr"
 
 	"k8s.io/client-go/util/retry"
 
-	ocuserv1 "github.com/openshift/api/user/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
@@ -154,27 +152,18 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		} else {
 			// Apply self-managed rhods config
 			// Create rhods-admins Group if it doesn't exist
-			rhodsuserGroup := &ocuserv1.Group{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "rhods-admins",
-				},
-			}
-			err := r.Client.Get(ctx, client.ObjectKey{
-				Name: rhodsuserGroup.Name,
-			}, rhodsuserGroup)
+			err := r.createUserGroup(instance, "rhods-admins", ctx)
 			if err != nil {
-				if apierrs.IsNotFound(err) {
-					err = r.Client.Create(ctx, rhodsuserGroup)
-					if err != nil && !apierrs.IsAlreadyExists(err) {
-						return reconcile.Result{}, err
-					}
-				} else {
-					return reconcile.Result{}, err
-				}
+				return reconcile.Result{}, err
 			}
 		}
-
 		// Apply common rhods-specific config
+	} else { // ODH case
+		// Create odh-admins Group if it doesn't exist
+		err := r.createUserGroup(instance, "odh-admins", ctx)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
 	}
 
 	// If monitoring enabled
