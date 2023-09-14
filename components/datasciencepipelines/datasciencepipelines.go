@@ -61,7 +61,7 @@ func (d *DataSciencePipelines) ReconcileComponent(cli client.Client, owner metav
 	return err
 }
 
-func (in *DataSciencePipelines) DeepCopyInto(out *DataSciencePipelines) {
-	*out = *in
-	out.Component = in.Component
+func (d *DataSciencePipelines) DeepCopyInto(target *DataSciencePipelines) {
+	*target = *d
+	target.Component = d.Component
 }

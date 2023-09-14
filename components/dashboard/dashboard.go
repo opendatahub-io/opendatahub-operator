@@ -4,6 +4,7 @@ package dashboard
 import (
 	"fmt"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"github.com/pkg/errors"
 
 	"context"
 	"strings"

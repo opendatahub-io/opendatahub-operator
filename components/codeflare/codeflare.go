@@ -41,8 +41,8 @@ func (c *CodeFlare) GetComponentName() string {
 // Verifies that CodeFlare implements ComponentInterface
 var _ components.ComponentInterface = (*CodeFlare)(nil)
 
-func (d *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
-	enabled := d.GetManagementState() == operatorv1.Managed
+func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
+	enabled := c.GetManagementState() == operatorv1.Managed
 
 	if enabled {
 		// check if the CodeFlare operator is installed
@@ -73,7 +73,7 @@ func (d *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, d
 	}
 
 	// Special handling to delete MCAD InstaScale ImageStream resources
-	if d.GetManagementState() == operatorv1.Removed {
+	if c.GetManagementState() == operatorv1.Removed {
 		// Fetch the MCAD resource based on the request
 		mcad := &codeflarev1alpha1.MCAD{}
 		err := cli.Get(context.TODO(), client.ObjectKey{
@@ -112,7 +112,7 @@ func (d *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, d
 	}
 
 	// Deploy Codeflare
-	err := deploy.DeployManifestsFromPath(owner, cli, d.GetComponentName(),
+	err := deploy.DeployManifestsFromPath(owner, cli, c.GetComponentName(),
 		CodeflarePath,
 		dscispec.ApplicationsNamespace,
 		cli.Scheme(), enabled)
@@ -121,7 +121,7 @@ func (d *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, d
 
 }
 
-func (in *CodeFlare) DeepCopyInto(out *CodeFlare) {
-	*out = *in
-	out.Component = in.Component
+func (c *CodeFlare) DeepCopyInto(target *CodeFlare) {
+	*target = *c
+	target.Component = c.Component
 }

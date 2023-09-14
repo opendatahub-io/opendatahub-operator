@@ -109,7 +109,7 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 
 }
 
-func (in *Workbenches) DeepCopyInto(out *Workbenches) {
-	*out = *in
-	out.Component = in.Component
+func (w *Workbenches) DeepCopyInto(target *Workbenches) {
+	*target = *w
+	target.Component = w.Component
 }
