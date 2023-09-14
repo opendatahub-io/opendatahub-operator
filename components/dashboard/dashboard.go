@@ -210,7 +210,7 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 			"<section-title>":       "OpenShift Managed Services",
 		})
 		if err != nil {
-			return fmt.Errorf("Error replacing with correct dashboard url for ConsoleLink: %v", err)
+			return errors.Wrap(err, "failed replacing with correct dashboard url for ConsoleLink: %v")
 		}
 		err = deploy.DeployManifestsFromPath(owner, cli, ComponentNameSupported,
 			PathConsoleLink,
