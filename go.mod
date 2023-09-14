@@ -95,7 +95,6 @@ require (
 
 replace (
 	//github.com/go-openapi/spec => github.com/go-openapi/spec v0.19.3
-	github.com/tektoncd/pipeline => github.com/tektoncd/pipeline v0.12.0
 	k8s.io/api => k8s.io/api v0.26.0
 	//k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.24.9
 	//k8s.io/apimachinery => k8s.io/apimachinery v0.24.15
