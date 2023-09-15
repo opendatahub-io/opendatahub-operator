@@ -102,7 +102,7 @@ func DownloadManifests(uri string) error {
 			manifestsPath := strings.Split(header.Name, string(os.PathSeparator))
 
 			// Determine the file or directory path to extract to
-			target := filepath.Join(DefaultManifestPath, strings.Join(manifestsPath[1:], "/"))
+			target := filepath.Join(DefaultManifestPath, strings.Join(manifestsPath[1:], string(os.PathSeparator)))
 
 			if header.Typeflag == tar.TypeDir {
 				// Create directories
