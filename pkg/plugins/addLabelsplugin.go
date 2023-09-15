@@ -33,10 +33,6 @@ func ApplyAddLabelsPlugin(componentName string, resMap resmap.ResMap) error {
 			},
 		},
 	}
-	// Add labels plugin
-	err := nsplug.Transform(resMap)
-	if err != nil {
-		return err
-	}
-	return nil
+
+	return nsplug.Transform(resMap)
 }
