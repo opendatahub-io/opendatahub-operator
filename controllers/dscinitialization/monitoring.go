@@ -112,7 +112,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsci.DSCInitialization, 
 	}
 
 	// Create proxy secret
-	if err := createMonitoringProxySecret("prometheus-proxy", dsciInit, r.Client); err != nil {
+	if err := createMonitoringProxySecret(r.Client, "prometheus-proxy", dsciInit); err != nil {
 		return err
 	}
 	return nil
@@ -178,7 +178,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 	r.Log.Info("Success: deploy alertmanager manifests")
 
 	// Create proxy secret
-	if err := createMonitoringProxySecret("alertmanager-proxy", dsciInit, r.Client); err != nil {
+	if err := createMonitoringProxySecret(r.Client, "alertmanager-proxy", dsciInit); err != nil {
 		r.Log.Error(err, "error to create secret alertmanager-proxy")
 		return err
 	}
@@ -186,7 +186,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 	return nil
 }
 
-func configureBlackboxExporter(dsciInit *dsci.DSCInitialization, cli client.Client) error {
+func configureBlackboxExporter(cli client.Client, dsciInit *dsci.DSCInitialization) error {
 	consoleRoute := &routev1.Route{}
 	err := cli.Get(context.TODO(), client.ObjectKey{Name: "console", Namespace: "openshift-console"}, consoleRoute)
 	if err != nil {
@@ -223,13 +223,13 @@ func (r *DSCInitializationReconciler) configureManagedMonitoring(ctx context.Con
 	}
 
 	// configure Blackbox exporter
-	if err := configureBlackboxExporter(dscInit, r.Client); err != nil {
+	if err := configureBlackboxExporter(r.Client, dscInit); err != nil {
 		return fmt.Errorf("error in configureBlackboxExporter: %w", err)
 	}
 	return nil
 }
 
-func createMonitoringProxySecret(name string, dsciInit *dsci.DSCInitialization, cli client.Client) error {
+func createMonitoringProxySecret(cli client.Client, name string, dsciInit *dsci.DSCInitialization) error {
 
 	sessionSecret, err := GenerateRandomHex(32)
 	if err != nil {

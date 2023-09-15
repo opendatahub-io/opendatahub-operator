@@ -229,19 +229,16 @@ func (r *DSCInitializationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 func (r *DSCInitializationReconciler) updateStatus(ctx context.Context, original *dsci.DSCInitialization, update func(saved *dsci.DSCInitialization)) (*dsci.DSCInitialization, error) {
 	saved := &dsci.DSCInitialization{}
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-
-		err := r.Client.Get(ctx, client.ObjectKeyFromObject(original), saved)
-		if err != nil {
+		if err := r.Client.Get(ctx, client.ObjectKeyFromObject(original), saved); err != nil {
 			return err
 		}
-		// update status here
+
 		update(saved)
 
-		// Try to update
-		err = r.Client.Status().Update(ctx, saved)
 		// Return err itself here (not wrapped inside another error)
 		// so that RetryOnConflict can identify it correctly.
-		return err
+		return r.Client.Status().Update(ctx, saved)
 	})
+
 	return saved, err
 }
