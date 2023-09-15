@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"path/filepath"
 
 	"github.com/go-logr/logr"
 
@@ -141,12 +142,11 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
 		//Apply osd specific permissions
 		if platform == deploy.ManagedRhods {
-			err = deploy.DeployManifestsFromPath(instance, r.Client, "osd",
-				deploy.DefaultManifestPath+"/osd-configs",
-				r.ApplicationsNamespace, r.Scheme, true)
+			osdConfigsPath := filepath.Join(deploy.DefaultManifestPath, "osd-configs")
+			err = deploy.DeployManifestsFromPath(r.Client, instance, osdConfigsPath, r.ApplicationsNamespace, "osd", true)
 			if err != nil {
-				r.Log.Error(err, "Failed to apply osd specific configs from manifests", "Manifests path", deploy.DefaultManifestPath+"/osd-configs")
-				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to apply "+deploy.DefaultManifestPath+"/osd-configs")
+				r.Log.Error(err, "Failed to apply osd specific configs from manifests", "Manifests path", osdConfigsPath)
+				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to apply "+osdConfigsPath)
 				return reconcile.Result{}, err
 			}
 		} else {

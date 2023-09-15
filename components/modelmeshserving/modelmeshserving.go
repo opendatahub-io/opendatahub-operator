@@ -60,10 +60,7 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 		}
 	}
 
-	err := deploy.DeployManifestsFromPath(owner, cli, ComponentName,
-		Path,
-		dscispec.ApplicationsNamespace,
-		cli.Scheme(), enabled)
+	err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled)
 
 	if err != nil {
 		return err
@@ -85,10 +82,7 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 	}
 
 	// If modelmesh is deployed successfully, deploy modelmesh-monitoring
-	err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
-		monitoringPath,
-		monitoringNamespace,
-		cli.Scheme(), enabled)
+	err = deploy.DeployManifestsFromPath(cli, owner, monitoringPath, monitoringNamespace, ComponentName, enabled)
 
 	return err
 }
