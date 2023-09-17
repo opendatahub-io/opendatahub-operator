@@ -24,39 +24,35 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components"
-	"golang.org/x/exp/maps"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/api/errors"
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
-	ctrl "sigs.k8s.io/controller-runtime"
+	"golang.org/x/exp/maps"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins"
+	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/yaml"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/kustomize/api/filesys"
 	"sigs.k8s.io/kustomize/api/krusty"
 	"sigs.k8s.io/kustomize/api/resmap"
-
-	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
-
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins"
-
-	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
+	"sigs.k8s.io/kustomize/kyaml/filesys"
 )
 
 const (
 	DefaultManifestPath = "/opt/manifests"
 )
 
-// downloadManifests function performs following tasks:
+// DownloadManifests function performs following tasks:
 // 1. It takes component URI and only downloads folder specified by component.ContextDir field
 // 2. It saves the manifests in the odh-manifests/component-name/ folder
 func DownloadManifests(componentName string, manifestConfig components.ManifestsConfig) error {
@@ -110,7 +106,6 @@ func DownloadManifests(componentName string, manifestConfig components.Manifests
 			componentFileRelativePathFound := strings.Join(componentFoldersList[len(strings.Split(componentManifestPath, "/")):], "/")
 
 			if header.Typeflag == tar.TypeDir {
-
 				err = os.MkdirAll(DefaultManifestPath+"/"+componentName+"/"+componentFileRelativePathFound, mode)
 				if err != nil {
 					return fmt.Errorf("error creating directory:%v", err)
@@ -130,7 +125,6 @@ func DownloadManifests(componentName string, manifestConfig components.Manifests
 				file.Close()
 				continue
 			}
-
 		}
 	}
 	return err
@@ -180,7 +174,6 @@ func DeployManifestsFromPath(cli client.Client, owner metav1.Object, manifestPat
 	}
 
 	return nil
-
 }
 
 func getResources(resMap resmap.ResMap) ([]*unstructured.Unstructured, error) {
@@ -238,7 +231,6 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 			if found.GetKind() == "CustomResourceDefinition" {
 				return nil
 			}
-
 		}
 
 		if obj.GetOwnerReferences() == nil {
@@ -260,7 +252,7 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 	}
 
 	// Create the resource if it doesn't exist and component is enabled
-	if errors.IsNotFound(err) {
+	if apierrs.IsNotFound(err) {
 		// Set the owner reference for garbage collection
 		if err = ctrl.SetControllerReference(owner, metav1.Object(obj), cli.Scheme()); err != nil {
 			return err
@@ -301,7 +293,7 @@ This is useful for air gapped cluster
 priority of image values (from high to low):
 - image values set in manifests params.env if manifestsURI is set
 - RELATED_IMAGE_* values from CSV
-- image values set in manifests params.env if manifestsURI is not set
+- image values set in manifests params.env if manifestsURI is not set.
 */
 func ApplyImageParams(componentPath string, imageParamsMap map[string]string) error {
 	envFilePath := filepath.Join(componentPath, "params.env")
@@ -396,7 +388,7 @@ func SubscriptionExists(cli client.Client, namespace string, name string) (bool,
 
 // OperatorExists checks if an Operator with 'operatorPrefix' is installed.
 // Return true if found it, false if not.
-// TODO: if we need to check exact version of the operator installed, can append vX.Y.Z later
+// TODO: if we need to check exact version of the operator installed, can append vX.Y.Z later.
 func OperatorExists(cli client.Client, operatorPrefix string) (bool, error) {
 	opConditionList := &ofapiv2.OperatorConditionList{}
 	if err := cli.List(context.TODO(), opConditionList); err != nil {

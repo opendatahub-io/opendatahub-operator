@@ -18,16 +18,15 @@ package v1
 
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/dashboard"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/dashboard"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 )
 
 // DataScienceCluster defines the desired state of the cluster.
@@ -67,7 +66,7 @@ type Components struct {
 	Ray ray.Ray `json:"ray,omitempty"`
 }
 
-// DataScienceClusterStatus defines the observed state of DataScienceCluster
+// DataScienceClusterStatus defines the observed state of DataScienceCluster.
 type DataScienceClusterStatus struct {
 	// Phase describes the Phase of DataScienceCluster reconciliation state
 	// This is used by OLM UI to provide status information to the user
@@ -92,7 +91,7 @@ type DataScienceClusterStatus struct {
 //+kubebuilder:resource:scope=Cluster
 //+kubebuilder:storageversion
 
-// DataScienceCluster is the Schema for the datascienceclusters API
+// DataScienceCluster is the Schema for the datascienceclusters API.
 type DataScienceCluster struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -103,7 +102,7 @@ type DataScienceCluster struct {
 
 //+kubebuilder:object:root=true
 
-// DataScienceClusterList contains a list of DataScienceCluster
+// DataScienceClusterList contains a list of DataScienceCluster.
 type DataScienceClusterList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
