@@ -48,7 +48,6 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			Expect(foundMonitoringNamespace.Name).Should(Equal(monitoringNamespace))
 		})
 
-		// Currently commented out in the DSCI reconcile - setting test to Pending
 		It("Should create default network policy", func() {
 			// then
 			foundNetworkPolicy := &netv1.NetworkPolicy{}
