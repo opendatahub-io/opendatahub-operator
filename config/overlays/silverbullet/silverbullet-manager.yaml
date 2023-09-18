@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controller-manager
+  namespace: system
+spec:
+  template:
+    spec:
+      containers:
+      - name: manager
+        args:
+        - exec
+        - --listen=:8384
+        - --headless
+        - --api-version=2
+        - --log=true
+        - --continue=true
+        - --accept-multiclient
+        - --health-probe-bind-address=:8081
+        - --metrics-bind-address=0.0.0.0:8080
+        - --leader-elect
+        - /manager
+        command:
+        - /dlv

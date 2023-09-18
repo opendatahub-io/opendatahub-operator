@@ -76,3 +76,7 @@ resources:
 
 patches:
 - path: manager_auth_proxy_patch.yaml
+
+images:
+- name: controller
+  newName: REPLACE_IMAGE

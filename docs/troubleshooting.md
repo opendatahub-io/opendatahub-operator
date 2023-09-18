@@ -17,3 +17,17 @@ To upgrade, follow these steps:
 
 All of the above steps can be performed either through the console UI or via the `oc`/`kubectl` CLI.
 After completing these steps, please refer to the installation guide to proceed with a clean installation of the v2.2+ operator.
+
+### How build troubleshooting my operator with debug mode
+
+In order to have step by step debug mode on, these need to be followed:
+
+- ensure manifests exists locally if not run `make get-manifests`
+
+- build a silverbullet image and push it to quay.io
+  `make silverbullet-image`
+
+- deploy silverbullet image into your cluster
+  `make silverbullet-deploy`
+
+- enable breakpoint in your IDE(i.e VSCode)

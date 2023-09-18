@@ -33,7 +33,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: Defines the desired state of DataScienceCluster
+            description: DataScienceCluster defines the desired state of the cluster.
             properties:
               components:
                 description: Override and fine tune specific component configurations.

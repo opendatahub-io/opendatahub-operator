@@ -34,11 +34,7 @@ spec:
         # seccompProfile:
         #   type: RuntimeDefault
       containers:
-      - command:
-        - /manager
-        args:
-        - --leader-elect
-        image: controller:latest
+      - image: controller:latest
         imagePullPolicy: Always
         name: manager
         securityContext:

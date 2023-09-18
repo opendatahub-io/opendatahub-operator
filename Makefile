@@ -12,10 +12,11 @@ VERSION ?= 2.1.0
 # opendatahub.io/opendatahub-operator-bundle:$VERSION and opendatahub.io/opendatahub-operator-catalog:$VERSION.
 IMAGE_TAG_BASE ?= quay.io/$(IMAGE_OWNER)/opendatahub-operator
 # Update IMG to a variable, to keep it consistent across versions for OpenShift CI
-IMG ?= REPLACE_IMAGE 
+IMG ?= REPLACE_IMAGE
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
 BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
+SILVERBULLET_IMG ?=  $(IMAGE_TAG_BASE):remote-$(VERSION)
 
 IMAGE_BUILDER ?= podman
 OPERATOR_NAMESPACE ?= opendatahub-operator-system
@@ -149,7 +150,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 
 .PHONY: image-build
 image-build: test ## Build image with the manager.
-	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/Dockerfile  ${IMAGE_BUILD_FLAGS} -t $(IMG) .
+	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/Dockerfile ${IMAGE_BUILD_FLAGS} -t $(IMG) .
 
 .PHONY: image-push
 image-push: ## Push image with the manager.
@@ -174,12 +175,22 @@ uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified 
 
 .PHONY: deploy
 deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
+	cd config/default && $(KUSTOMIZE) edit set image controller=$(IMG)
 	$(KUSTOMIZE) build config/default | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
+
+.PHONY: silverbullet-deploy
+silverbullet-deploy: manifests kustomize
+	cd config/overlays/silverbullet && $(KUSTOMIZE) edit set image controller=${SILVERBULLET_IMG}
+	$(KUSTOMIZE) build config/overlays/silverbullet | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
 
 .PHONY: undeploy
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+
+.PHONY: silverbullet-undeploy
+undeploy:
+	$(KUSTOMIZE) build config/overlays/silverbullet | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+
 
 ## Location to install dependencies to
 LOCALBIN ?= $(shell pwd)/bin
@@ -278,6 +289,14 @@ catalog-build: opm ## Build a catalog image.
 .PHONY: catalog-push
 catalog-push: ## Push a catalog image.
 	$(MAKE) image-push IMG=$(CATALOG_IMG)
+
+
+# build remote debug image and push to quay
+.PHONY: silverbullet-image
+silverbullet-image:
+	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/silverbullet.Dockerfile -t $(SILVERBULLET_IMG) .
+	$(IMAGE_BUILDER) push $(SILVERBULLET_IMG)
+
 
 TOOLBOX_GOLANG_VERSION := 1.18.9
 TOOLBOX_OPERATOR_SDK_VERSION := 1.24.1
