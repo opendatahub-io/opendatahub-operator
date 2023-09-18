@@ -4,12 +4,14 @@ set -e
 # component: dsp, kserve, dashbaord, cf/ray. in the format of "repo-name:branch-name:source-folder:target-folder"
 # TODO: workbench, modelmesh, monitoring, etc
 REPO_LIST=(
-    "distributed-workloads:main:codeflare-stack:codeflare-stack"
+    "distributed-workloads:main:codeflare-stack:codeflare"
     "distributed-workloads:main:ray:ray"
     "data-science-pipelines-operator:main:config:data-science-pipelines-operator"
     "kserve:release-v0.11:config:kserve"
     "odh-dashboard:main:manifests:odh-dashboard"
-    "notebooks:main:manifests:notebook-images"
+    "notebooks:main:manifests:notebook"
+    "kubeflow:v1.7-branch:components/notebook-controller/config:odh-notebook-controller/kf-notebook-controller"
+    "kubeflow:v1.7-branch:components/odh-notebook-controller/config:odh-notebook-controller/odh-notebook-controller"
 )
 
 # pre-cleanup local env
@@ -27,8 +29,6 @@ wget -q -c ${MANIFESTS_TARBALL_URL} -O - | tar -zxv -C ./.odh-manifests-tmp/ --s
 cp -r ./.odh-manifests-tmp/model-mesh/ ./odh-manifests
 cp -r ./.odh-manifests-tmp/odh-model-controller/ ./odh-manifests
 cp -r ./.odh-manifests-tmp/modelmesh-monitoring/ ./odh-manifests
-cp -r ./.odh-manifests-tmp/odh-notebook-controller/ ./odh-manifests
-ls -lat ./odh-manifests/
 rm -rf ${MANIFEST_RELEASE}.tar.gz ./.odh-manifests-tmp/
 
 for repo_info in ${REPO_LIST[@]}; do
