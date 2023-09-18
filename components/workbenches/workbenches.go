@@ -12,9 +12,14 @@ import (
 )
 
 const (
-	ComponentName               = "workbenches"
-	notebookControllerPath      = deploy.DefaultManifestPath + "/odh-notebook-controller/base"
-	notebookImagesPath          = deploy.DefaultManifestPath + "/notebook-images/overlays/additional"
+	ComponentName = "workbenches"
+	// manifests for nbc in ODH and downstream + downstream use it for imageparams
+	notebookControllerPath = deploy.DefaultManifestPath + "/odh-notebook-controller/odh-notebook-controller/base"
+	// manifests for ODH nbc
+	kfnotebookControllerPath = deploy.DefaultManifestPath + "/odh-notebook-controller/kf-notebook-controller/overlays/openshift"
+	// ODH image
+	notebookImagesPath = deploy.DefaultManifestPath + "/notebook/overlays/additional"
+	// downstream image
 	notebookImagesPathSupported = deploy.DefaultManifestPath + "/jupyterhub/notebook-images/overlays/additional"
 )
 
@@ -62,12 +67,6 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 		if err != nil {
 			return err
 		}
-		// Update image parameters for notebook controller
-		if dscispec.DevFlags.ManifestsUri == "" {
-			if err := deploy.ApplyImageParams(notebookControllerPath, imageParamMap); err != nil {
-				return err
-			}
-		}
 	}
 
 	err = deploy.DeployManifestsFromPath(cli, owner, notebookControllerPath, dscispec.ApplicationsNamespace, ComponentName, enabled)
@@ -75,15 +74,11 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 		return err
 	}
 
-	// Update image parameters for notebook image
+	// Update image parameters for nbc in downstream
 	if enabled {
 		if dscispec.DevFlags.ManifestsUri == "" {
-			if platform == deploy.OpenDataHub || platform == "" {
-				if err := deploy.ApplyImageParams(notebookImagesPath, imageParamMap); err != nil {
-					return err
-				}
-			} else {
-				if err := deploy.ApplyImageParams(notebookImagesPathSupported, imageParamMap); err != nil {
+			if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
+				if err := deploy.ApplyImageParams(notebookControllerPath, imageParamMap); err != nil {
 					return err
 				}
 			}
@@ -91,7 +86,20 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 	}
 
 	if platform == deploy.OpenDataHub || platform == "" {
-		err = deploy.DeployManifestsFromPath(cli, owner, notebookImagesPath, dscispec.ApplicationsNamespace, ComponentName, enabled)
+		// only for ODH after transit to kubeflow repo
+		err = deploy.DeployManifestsFromPath(cli, owner,
+			kfnotebookControllerPath,
+			dscispec.ApplicationsNamespace,
+			ComponentName, enabled)
+		if err != nil {
+			return err
+		}
+
+		err = deploy.DeployManifestsFromPath(cli, owner,
+			notebookImagesPath,
+			dscispec.ApplicationsNamespace,
+			ComponentName,
+			enabled)
 		return err
 	} else {
 		err = deploy.DeployManifestsFromPath(cli, owner, notebookImagesPathSupported, dscispec.ApplicationsNamespace, ComponentName, enabled)
