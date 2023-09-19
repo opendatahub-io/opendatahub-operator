@@ -64,10 +64,6 @@ func ApplyNamespacePlugin(manifestNamespace string, resMap resmap.ResMap) error 
 		UnsetOnly:              false,
 		SetRoleBindingSubjects: namespace.AllServiceAccountSubjects,
 	}
-	// Add namespace plugin
-	err := nsplug.Transform(resMap)
-	if err != nil {
-		return err
-	}
-	return nil
+
+	return nsplug.Transform(resMap)
 }

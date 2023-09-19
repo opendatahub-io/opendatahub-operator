@@ -74,10 +74,7 @@ func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dsci
 		}
 	}
 
-	if err := deploy.DeployManifestsFromPath(owner, cli, ComponentName,
-		Path,
-		dscispec.ApplicationsNamespace,
-		cli.Scheme(), enabled); err != nil {
+	if err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 		return err
 	}
 
@@ -94,10 +91,7 @@ func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dsci
 			}
 		}
 	}
-	if err := deploy.DeployManifestsFromPath(owner, cli, k.GetComponentName(),
-		DependentPath,
-		dscispec.ApplicationsNamespace,
-		cli.Scheme(), enabled); err != nil {
+	if err := deploy.DeployManifestsFromPath(cli, owner, DependentPath, dscispec.ApplicationsNamespace, k.GetComponentName(), enabled); err != nil {
 		return err
 	}
 
