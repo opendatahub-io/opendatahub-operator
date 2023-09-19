@@ -1,12 +1,8 @@
 # Build the manager binary
 ARG GOLANG_VERSION=1.18.4
-ARG LOCAL_BUNDLE=odh-manifests.tar.gz
 
+################################################################################
 FROM registry.access.redhat.com/ubi8/go-toolset:$GOLANG_VERSION as builder
-ARG ODH_MANIFESTS_REF=master
-ARG ODH_MANIFESTS_URL=https://github.com/opendatahub-io/odh-manifests/tarball/$ODH_MANIFESTS_REF
-ARG LOCAL_BUNDLE
-
 WORKDIR /workspace
 USER root
 # Copy the Go Modules manifests
@@ -21,20 +17,19 @@ COPY main.go main.go
 COPY apis/ apis/
 COPY controllers/ controllers/
 COPY pkg/ pkg/
-
-# Add the local bundle and add a marker file so we know the ref this image was built from
-ADD $ODH_MANIFESTS_URL $LOCAL_BUNDLE
-RUN echo "$ODH_MANIFESTS_REF" > MANIFEST_VERSION && chmod g+r $LOCAL_BUNDLE
 # Build
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o manager main.go
 
+# Get all manifests from remote git repo to builder_local_false by script
+COPY get_all_manifests.sh get_all_manifests.sh
+RUN ./get_all_manifests.sh
+RUN tar -czvf odh-manifests.tar.gz odh-manifests
 
+################################################################################
 FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
-ARG LOCAL_BUNDLE
 WORKDIR /
 COPY --from=builder /workspace/manager .
-COPY tests/data/test-data.tar.gz /opt/test-data/
-COPY --from=builder /workspace/MANIFEST_VERSION /workspace/$LOCAL_BUNDLE /opt/manifests/
+COPY --from=builder /workspace/odh-manifests.tar.gz /opt/manifests/odh-manifests.tar.gz
 USER 65532:65532  
 
 ENTRYPOINT ["/manager"]
