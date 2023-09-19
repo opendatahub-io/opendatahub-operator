@@ -38,7 +38,6 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/kustomize/api/filesys"
@@ -100,10 +99,10 @@ func DownloadManifests(uri string) error {
 			if err != nil {
 				return err
 			}
-			manifestsPath := strings.Split(header.Name, "/")
+			manifestsPath := strings.Split(header.Name, string(os.PathSeparator))
 
 			// Determine the file or directory path to extract to
-			target := filepath.Join(DefaultManifestPath, strings.Join(manifestsPath[1:], "/"))
+			target := filepath.Join(DefaultManifestPath, strings.Join(manifestsPath[1:], string(os.PathSeparator)))
 
 			if header.Typeflag == tar.TypeDir {
 				// Create directories
@@ -130,7 +129,7 @@ func DownloadManifests(uri string) error {
 	return nil
 }
 
-func DeployManifestsFromPath(owner metav1.Object, cli client.Client, componentName, manifestPath, namespace string, s *runtime.Scheme, componentEnabled bool) error {
+func DeployManifestsFromPath(cli client.Client, owner metav1.Object, manifestPath string, namespace string, componentName string, componentEnabled bool) error {
 
 	// Render the Kustomize manifests
 	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
@@ -139,10 +138,10 @@ func DeployManifestsFromPath(owner metav1.Object, cli client.Client, componentNa
 	// Create resmap
 	// Use kustomization file under manifestPath or use `default` overlay
 	var resMap resmap.ResMap
-	_, err := os.Stat(manifestPath + "/kustomization.yaml")
+	_, err := os.Stat(filepath.Join(manifestPath, "kustomization.yaml"))
 	if err != nil {
 		if os.IsNotExist(err) {
-			resMap, err = k.Run(fs, manifestPath+"/default")
+			resMap, err = k.Run(fs, filepath.Join(manifestPath, "default"))
 		}
 	} else {
 		resMap, err = k.Run(fs, manifestPath)
@@ -169,7 +168,7 @@ func DeployManifestsFromPath(owner metav1.Object, cli client.Client, componentNa
 
 	// Create / apply / delete resources in the cluster
 	for _, obj := range objs {
-		err = manageResource(owner, context.TODO(), cli, obj, s, componentEnabled, namespace, componentName)
+		err = manageResource(context.TODO(), cli, obj, owner, namespace, componentName, componentEnabled)
 		if err != nil {
 			return err
 		}
@@ -193,7 +192,7 @@ func getResources(resMap resmap.ResMap) ([]*unstructured.Unstructured, error) {
 	return resources, nil
 }
 
-func manageResource(owner metav1.Object, ctx context.Context, cli client.Client, obj *unstructured.Unstructured, s *runtime.Scheme, enabled bool, applicationNamespace, componentName string) error {
+func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Unstructured, owner metav1.Object, applicationNamespace, componentName string, enabled bool) error {
 	resourceName := obj.GetName()
 	namespace := obj.GetNamespace()
 
@@ -258,7 +257,7 @@ func manageResource(owner metav1.Object, ctx context.Context, cli client.Client,
 	// Create the resource if it doesn't exist and component is enabled
 	if errors.IsNotFound(err) {
 		// Set the owner reference for garbage collection
-		if err = ctrl.SetControllerReference(owner, metav1.Object(obj), s); err != nil {
+		if err = ctrl.SetControllerReference(owner, metav1.Object(obj), cli.Scheme()); err != nil {
 			return err
 		}
 		return cli.Create(ctx, obj)
@@ -300,7 +299,7 @@ priority of image values (from high to low):
 - image values set in manifests params.env if manifestsURI is not set
 */
 func ApplyImageParams(componentPath string, imageParamsMap map[string]string) error {
-	envFilePath := componentPath + "/params.env"
+	envFilePath := filepath.Join(componentPath, "params.env")
 	// Require params.env at the root folder
 	file, err := os.Open(envFilePath)
 	if err != nil {
@@ -372,40 +371,41 @@ func ApplyImageParams(componentPath string, imageParamsMap map[string]string) er
 		fmt.Printf("Failed to remove backup file: %v", err)
 		return err
 	}
+
 	return nil
 }
 
-// SubscriptionExists checks if a Subscription for the an operator exists in the given namespace.
+// SubscriptionExists checks if a Subscription for the operator exists in the given namespace.
 func SubscriptionExists(cli client.Client, namespace string, name string) (bool, error) {
 	sub := &ofapiv1alpha1.Subscription{}
-	err := cli.Get(context.TODO(), client.ObjectKey{Namespace: namespace, Name: name}, sub)
-	if err != nil {
+	if err := cli.Get(context.TODO(), client.ObjectKey{Namespace: namespace, Name: name}, sub); err != nil {
 		if apierrs.IsNotFound(err) {
 			return false, nil
 		} else {
 			return false, err
 		}
 	}
+
 	return true, nil
 }
 
-// OperatorExists checks if an Operator with 'operatorprefix' is installed.
+// OperatorExists checks if an Operator with 'operatorPrefix' is installed.
 // Return true if found it, false if not.
 // TODO: if we need to check exact version of the operator installed, can append vX.Y.Z later
-func OperatorExists(cli client.Client, operatorprefix string) (bool, error) {
+func OperatorExists(cli client.Client, operatorPrefix string) (bool, error) {
 	opConditionList := &ofapiv2.OperatorConditionList{}
-	err := cli.List(context.TODO(), opConditionList)
-	if err != nil {
+	if err := cli.List(context.TODO(), opConditionList); err != nil {
 		if !apierrs.IsNotFound(err) { // real error to run List()
 			return false, err
 		}
 	} else {
 		for _, opCondition := range opConditionList.Items {
-			if strings.HasPrefix(opCondition.Name, operatorprefix) {
+			if strings.HasPrefix(opCondition.Name, operatorPrefix) {
 				return true, nil
 			}
 		}
 	}
+
 	return false, nil
 }
 

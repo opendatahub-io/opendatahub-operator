@@ -70,10 +70,7 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 		}
 	}
 
-	err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
-		notebookControllerPath,
-		dscispec.ApplicationsNamespace,
-		cli.Scheme(), enabled)
+	err = deploy.DeployManifestsFromPath(cli, owner, notebookControllerPath, dscispec.ApplicationsNamespace, ComponentName, enabled)
 	if err != nil {
 		return err
 	}
@@ -94,16 +91,10 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 	}
 
 	if platform == deploy.OpenDataHub || platform == "" {
-		err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
-			notebookImagesPath,
-			dscispec.ApplicationsNamespace,
-			cli.Scheme(), enabled)
+		err = deploy.DeployManifestsFromPath(cli, owner, notebookImagesPath, dscispec.ApplicationsNamespace, ComponentName, enabled)
 		return err
 	} else {
-		err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
-			notebookImagesPathSupported,
-			dscispec.ApplicationsNamespace,
-			cli.Scheme(), enabled)
+		err = deploy.DeployManifestsFromPath(cli, owner, notebookImagesPathSupported, dscispec.ApplicationsNamespace, ComponentName, enabled)
 		return err
 	}
 

@@ -2,14 +2,13 @@
 package codeflare
 
 import (
-	"fmt"
-	operatorv1 "github.com/openshift/api/operator/v1"
-
 	"context"
+	"fmt"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	imagev1 "github.com/openshift/api/image/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	codeflarev1alpha1 "github.com/project-codeflare/codeflare-operator/api/codeflare/v1alpha1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,7 +17,7 @@ import (
 
 const (
 	ComponentName       = "codeflare"
-	CodeflarePath       = deploy.DefaultManifestPath + "/" + "codeflare-stack" + "/base"
+	CodeflarePath       = deploy.DefaultManifestPath + "/codeflare-stack/base"
 	CodeflareOperator   = "codeflare-operator"
 	RHCodeflareOperator = "rhods-codeflare-operator"
 )
@@ -112,10 +111,7 @@ func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, d
 	}
 
 	// Deploy Codeflare
-	err := deploy.DeployManifestsFromPath(owner, cli, c.GetComponentName(),
-		CodeflarePath,
-		dscispec.ApplicationsNamespace,
-		cli.Scheme(), enabled)
+	err := deploy.DeployManifestsFromPath(cli, owner, CodeflarePath, dscispec.ApplicationsNamespace, c.GetComponentName(), enabled)
 
 	return err
 
