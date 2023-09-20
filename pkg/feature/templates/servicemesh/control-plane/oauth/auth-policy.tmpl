@@ -1,0 +1,26 @@
+kind: AuthorizationPolicy
+apiVersion: security.istio.io/v1beta1
+metadata:
+  name: {{ .AppNamespace }}-odh-auth-policy
+  namespace: {{ .Mesh.Namespace }}
+spec:
+  selector:
+    matchLabels:
+      app: istio-ingressgateway
+  action: CUSTOM
+  provider:
+    name: {{ .AppNamespace }}-odh-auth-provider
+  rules:
+  - to:
+    - operation:
+        notPaths: # todo: see if this is necessary
+        - "/auth/*"
+        - "/metrics/*"
+        # FIXME: This always bypasses authZ for ModelMesh. It should not if
+        # the model is flagged to be auth-protected.
+        - "/modelmesh/*"
+        - "/vmodel-route/*"
+    when:
+    - key: request.headers[Content-Type]
+      notValues:
+      - "application/grpc*"

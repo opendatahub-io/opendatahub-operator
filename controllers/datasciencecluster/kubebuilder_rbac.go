@@ -4,6 +4,20 @@ package datasciencecluster
 //+kubebuilder:rbac:groups="datasciencecluster.opendatahub.io",resources=datascienceclusters/finalizers,verbs=update;patch
 //+kubebuilder:rbac:groups="datasciencecluster.opendatahub.io",resources=datascienceclusters,verbs=get;list;watch;create;update;patch;delete
 
+/* Service Mesh Integration */
+// +kubebuilder:rbac:groups="maistra.io",resources=servicemeshcontrolplanes,verbs=create;get;list;patch;update;use;watch
+// +kubebuilder:rbac:groups="maistra.io",resources=servicemeshmemberrolls,verbs=create;get;list;patch;update;use;watch
+// +kubebuilder:rbac:groups="maistra.io",resources=servicemeshmembers,verbs=create;get;list;patch;update;use;watch
+// +kubebuilder:rbac:groups="maistra.io",resources=servicemeshmembers/finalizers,verbs=create;get;list;patch;update;use;watch
+// +kubebuilder:rbac:groups="networking.istio.io",resources=virtualservices/status,verbs=update;patch;delete
+// +kubebuilder:rbac:groups="networking.istio.io",resources=virtualservices/finalizers,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="networking.istio.io",resources=virtualservices,verbs=*
+// +kubebuilder:rbac:groups="networking.istio.io",resources=gateways,verbs=*
+// +kubebuilder:rbac:groups="networking.istio.io",resources=envoyfilters,verbs=*
+// +kubebuilder:rbac:groups="security.istio.io",resources=authorizationpolicies,verbs=*
+// +kubebuilder:rbac:groups="authorino.kuadrant.io",resources=authconfigs,verbs=*
+// +kubebuilder:rbac:groups="operator.authorino.kuadrant.io",resources=authorinos,verbs=*
+
 /* This is for DSP */
 //+kubebuilder:rbac:groups="datasciencepipelinesapplications.opendatahub.io",resources=datasciencepipelinesapplications/status,verbs=update;patch;get
 //+kubebuilder:rbac:groups="datasciencepipelinesapplications.opendatahub.io",resources=datasciencepipelinesapplications/finalizers,verbs=update;patch
@@ -62,7 +76,8 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="security.openshift.io",resources=securitycontextconstraints,verbs=*,resourceNames=anyuid
 // +kubebuilder:rbac:groups="security.openshift.io",resources=securitycontextconstraints,verbs=*
 
-// +kubebuilder:rbac:groups="route.openshift.io",resources=routes,verbs=get;list;watch;create;delete;update;patch
+// +kubebuilder:rbac:groups="route.openshift.io",resources=routes,verbs=create;delete;list;update;watch;patch;get
+// +kubebuilder:rbac:groups="route.openshift.io",resources=routes/custom-host,verbs=create;get
 
 // +kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources=roles,verbs=*
 
@@ -82,10 +97,6 @@ package datasciencecluster
 
 // +kubebuilder:rbac:groups="networking.k8s.io",resources=networkpolicies,verbs=get;create;list;watch;delete;update;patch
 // +kubebuilder:rbac:groups="networking.k8s.io",resources=ingresses,verbs=create;delete;list;update;watch;patch;get
-
-// +kubebuilder:rbac:groups="networking.istio.io",resources=virtualservices/status,verbs=update;patch;delete
-// +kubebuilder:rbac:groups="networking.istio.io",resources=virtualservices/finalizers,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="networking.istio.io",resources=virtualservices,verbs=*
 
 // +kubebuilder:rbac:groups="monitoring.coreos.com",resources=servicemonitors,verbs=get;create;delete;update;watch;list;patch
 // +kubebuilder:rbac:groups="monitoring.coreos.com",resources=podmonitors,verbs=get;create;delete;update;watch;list;patch
@@ -210,11 +221,6 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="*",resources=replicasets,verbs=*
 
 // +kubebuilder:rbac:groups="*",resources=customresourcedefinitions,verbs=get;list;watch
-
-// +kubebuilder:rbac:groups="maistra.io",resources=servicemeshcontrolplanes,verbs=create;get;list;patch;update;use;watch
-// +kubebuilder:rbac:groups="maistra.io",resources=servicemeshmemberrolls,verbs=create;get;list;patch;update;use;watch
-// +kubebuilder:rbac:groups="maistra.io",resources=servicemeshmembers,verbs=create;get;list;patch;update;use;watch
-// +kubebuilder:rbac:groups="maistra.io",resources=servicemeshmembers/finalizers,verbs=create;get;list;patch;update;use;watch
 
 /* Only for RHODS */
 // +kubebuilder:rbac:groups="user.openshift.io",resources=groups,verbs=get;create;list;watch;patch;delete

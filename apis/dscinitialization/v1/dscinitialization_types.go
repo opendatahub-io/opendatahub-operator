@@ -35,9 +35,13 @@ type DSCInitializationSpec struct {
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=2
 	// +optional
 	Monitoring Monitoring `json:"monitoring,omitempty"`
+	// Enable Service Mesh for Data Science Clusters
+	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=3
+	// +optional
+	ServiceMesh ServiceMeshSpec `json:"serviceMesh,omitempty"`
 	// Internal development useful field to test customizations.
 	// This is not recommended to be used in production environment.
-	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=3
+	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=4
 	// +optional
 	DevFlags DevFlags `json:"devFlags,omitempty"`
 }
@@ -108,5 +112,10 @@ type DSCInitializationList struct {
 }
 
 func init() {
-	SchemeBuilder.Register(&DSCInitialization{}, &DSCInitializationList{})
+	SchemeBuilder.Register(
+		&DSCInitialization{},
+		&DSCInitializationList{},
+		&FeatureTracker{},
+		&FeatureTrackerList{},
+	)
 }

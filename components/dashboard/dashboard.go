@@ -5,6 +5,8 @@ package dashboard
 import (
 	"context"
 	"fmt"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -12,29 +14,37 @@ import (
 
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 	routev1 "github.com/openshift/api/route/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var (
-	ComponentName          = "dashboard"
-	ComponentNameSupported = "rhods-dashboard"
-	Path                   = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
-	PathSupported          = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/rhods"
-	PathISVSM              = deploy.DefaultManifestPath + "/" + ComponentName + "/apps/apps-onprem"
-	PathISVAddOn           = deploy.DefaultManifestPath + "/" + ComponentName + "/apps/apps-addon"
-	PathOVMS               = deploy.DefaultManifestPath + "/" + ComponentName + "/modelserving"
-	PathODHDashboardConfig = deploy.DefaultManifestPath + "/" + ComponentName + "/odhdashboardconfig"
-	PathConsoleLink        = deploy.DefaultManifestPath + "/" + ComponentName + "/consolelink"
-	PathCRDs               = deploy.DefaultManifestPath + "/" + ComponentName + "/crd"
-	NameConsoleLink        = "console"
-	NamespaceConsoleLink   = "openshift-console"
-	PathAnaconda           = deploy.DefaultManifestPath + "/partners/anaconda/base/"
+	ComponentName            = "dashboard"
+	ComponentNameSupported   = "rhods-dashboard"
+	Path                     = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
+	PathServiceMesh          = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/service-mesh"
+	PathSupported            = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/rhods"
+	PathISVSM                = deploy.DefaultManifestPath + "/" + ComponentName + "/apps/apps-onprem"
+	PathISVAddOn             = deploy.DefaultManifestPath + "/" + ComponentName + "/apps/apps-addon"
+	PathOVMS                 = deploy.DefaultManifestPath + "/" + ComponentName + "/modelserving"
+	PathODHDashboardConfig   = deploy.DefaultManifestPath + "/" + ComponentName + "/odhdashboardconfig"
+	PathODHProjectController = deploy.DefaultManifestPath + "/" + ProjectController + "/base"
+	PathConsoleLink          = deploy.DefaultManifestPath + "/" + ComponentName + "/consolelink"
+	PathCRDs                 = deploy.DefaultManifestPath + "/" + ComponentName + "/crd"
+	NameConsoleLink          = "console"
+	NamespaceConsoleLink     = "openshift-console"
+	PathAnaconda             = deploy.DefaultManifestPath + "/partners/anaconda/base/"
+	ProjectController        = "odh-project-controller"
 )
+
+// Verifies that Dashboard implements ComponentInterface
+var _ components.ComponentInterface = (*Dashboard)(nil)
 
 type Dashboard struct {
 	components.Component `json:""`
@@ -69,9 +79,6 @@ func (d *Dashboard) GetComponentName() string {
 	return ComponentName
 }
 
-// Verifies that Dashboard implements ComponentInterface.
-var _ components.ComponentInterface = (*Dashboard)(nil)
-
 func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
 	var imageParamMap = map[string]string{
 		"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
@@ -87,9 +94,8 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 			return err
 		}
 
-		if platform == deploy.OpenDataHub || platform == "" {
-			err := common.UpdatePodSecurityRolebinding(cli, []string{"odh-dashboard"}, dscispec.ApplicationsNamespace)
-			if err != nil {
+		if platform == deploy.OpenDataHub || platform == deploy.Unknown {
+			if err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "odh-dashboard"); err != nil {
 				return err
 			}
 
@@ -99,8 +105,7 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 		}
 
 		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
-			err := common.UpdatePodSecurityRolebinding(cli, []string{"rhods-dashboard"}, dscispec.ApplicationsNamespace)
-			if err != nil {
+			if err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "rhods-dashboard"); err != nil {
 				return err
 			}
 
@@ -122,11 +127,17 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 	}
 
 	// Deploy odh-dashboard manifests
-	if platform == deploy.OpenDataHub || platform == "" {
-		if err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+	switch {
+	case platform == deploy.OpenDataHub, platform == deploy.Unknown:
+		base := Path
+		if dscispec.ServiceMesh.ManagementState == operatorv1.Managed {
+			base = PathServiceMesh
+		}
+		if err = deploy.DeployManifestsFromPath(cli, owner, base, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 			return err
 		}
-	} else if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
+
+	case platform == deploy.SelfManagedRhods, platform == deploy.ManagedRhods:
 		// Apply authentication overlay
 		if err := deploy.DeployManifestsFromPath(cli, owner, PathSupported, dscispec.ApplicationsNamespace, ComponentNameSupported, enabled); err != nil {
 			return err
@@ -145,6 +156,33 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 		}
 
 		if err := d.deployConsoleLink(cli, owner, dscispec.ApplicationsNamespace, ComponentNameSupported, sectionTitle); err != nil {
+			return err
+		}
+	}
+
+	if enabled {
+		if err := d.configureServiceMesh(cli, owner, dscispec); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (d *Dashboard) Cleanup(cli client.Client, dscispec *dsci.DSCInitializationSpec) error {
+	shouldConfigureServiceMesh, err := deploy.ShouldConfigureServiceMesh(cli, dscispec)
+	if err != nil {
+		return err
+	}
+
+	if shouldConfigureServiceMesh {
+		serviceMeshInitializer := servicemesh.NewServiceMeshInitializer(dscispec, d.defineServiceMeshFeatures(dscispec))
+
+		if err := serviceMeshInitializer.Prepare(); err != nil {
+			return err
+		}
+
+		if err := serviceMeshInitializer.Delete(); err != nil {
 			return err
 		}
 	}
@@ -187,7 +225,7 @@ func (d *Dashboard) applyRhodsSpecificConfigs(cli client.Client, owner metav1.Ob
 		return fmt.Errorf("failed to set dashboard OVMS from %s: %w", PathOVMS, err)
 	}
 
-	if err := common.CreateSecret(cli, "anaconda-ce-access", namespace); err != nil {
+	if err := cluster.CreateSecret(cli, "anaconda-ce-access", namespace); err != nil {
 		return fmt.Errorf("failed to create access-secret for anaconda: %w", err)
 	}
 
@@ -238,4 +276,63 @@ func (d *Dashboard) deployConsoleLink(cli client.Client, owner metav1.Object, na
 	}
 
 	return nil
+}
+
+func (d *Dashboard) configureServiceMesh(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
+	shouldConfigureServiceMesh, err := deploy.ShouldConfigureServiceMesh(cli, dscispec)
+	if err != nil {
+		return err
+	}
+
+	if shouldConfigureServiceMesh {
+		serviceMeshInitializer := servicemesh.NewServiceMeshInitializer(dscispec, d.defineServiceMeshFeatures(dscispec))
+
+		if err := serviceMeshInitializer.Prepare(); err != nil {
+			return err
+		}
+
+		if err := serviceMeshInitializer.Apply(); err != nil {
+			return err
+		}
+
+		enabled := d.GetManagementState() == operatorv1.Managed
+		if err := deploy.DeployManifestsFromPath(cli, owner, PathODHProjectController, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (d *Dashboard) defineServiceMeshFeatures(dscispec *dsci.DSCInitializationSpec) servicemesh.DefineFeatures {
+	return func(s *servicemesh.ServiceMeshInitializer) error {
+		var rootDir = filepath.Join(feature.BaseOutputDir, dscispec.ApplicationsNamespace)
+		if err := feature.CopyEmbeddedFiles("templates", rootDir); err != nil {
+			return err
+		}
+
+		createMeshResources, err := feature.CreateFeature("create-service-mesh-routing-resources-for-dashboard").
+			For(dscispec).
+			Manifests(
+				path.Join(rootDir, feature.ControlPlaneDir, "components", d.GetComponentName()),
+			).
+			WithResources(servicemesh.EnabledInDashboard).
+			WithData(servicemesh.ClusterDetails).
+			PreConditions(
+				feature.WaitForResourceToBeCreated(dscispec.ApplicationsNamespace, gvr.ODHDashboardConfigGVR),
+			).
+			PostConditions(
+				feature.WaitForPodsToBeReady(dscispec.ServiceMesh.Mesh.Namespace),
+			).
+			OnDelete(servicemesh.DisabledInDashboard).
+			Load()
+
+		if err != nil {
+			return err
+		}
+
+		s.Features = append(s.Features, createMeshResources)
+
+		return nil
+	}
 }

@@ -18,8 +18,7 @@ package dscinitialization_test
 
 import (
 	"context"
-	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
-	"k8s.io/apimachinery/pkg/runtime"
+
 	"path/filepath"
 	"testing"
 	"time"
@@ -27,18 +26,21 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	util "github.com/opendatahub-io/opendatahub-operator/v2/controllers/test"
-
+	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
 	dscinitializationv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
+	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
+
 	routev1 "github.com/openshift/api/route/v1"
 	userv1 "github.com/openshift/api/user/v1"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	authv1 "k8s.io/api/rbac/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -78,7 +80,7 @@ var _ = BeforeSuite(func() {
 	ctx, cancel = context.WithCancel(context.TODO())
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 	By("bootstrapping test environment")
-	rootPath, pathErr := util.FindProjectRoot()
+	rootPath, pathErr := envtestutil.FindProjectRoot()
 	Expect(pathErr).ToNot(HaveOccurred(), pathErr)
 
 	testEnv = &envtest.Environment{

@@ -2,6 +2,8 @@ package deploy
 
 import (
 	"context"
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	"strings"
 
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -17,6 +19,8 @@ const (
 	SelfManagedRhods Platform = "Red Hat OpenShift Data Science"
 	// OpenDataHub defines display name in csv.
 	OpenDataHub Platform = "Open Data Hub Operator"
+	// Unknown indicates that operator is not deployed using OLM
+	Unknown Platform = ""
 )
 
 type Platform string
@@ -41,7 +45,7 @@ func isSelfManaged(cli client.Client) (Platform, error) {
 			}
 		}
 	}
-	return "", nil
+	return Unknown, nil
 }
 
 // isManagedRHODS checks if CRD add-on exists and contains string ManagedRhods.
@@ -59,9 +63,9 @@ func isManagedRHODS(cli client.Client) (Platform, error) {
 		err := cli.List(context.TODO(), expectedCatlogSource)
 		if err != nil {
 			if apierrs.IsNotFound(err) {
-				return "", nil
+				return Unknown, nil
 			} else {
-				return "", err
+				return Unknown, err
 			}
 		}
 		if len(expectedCatlogSource.Items) > 0 {
@@ -78,11 +82,22 @@ func isManagedRHODS(cli client.Client) (Platform, error) {
 func GetPlatform(cli client.Client) (Platform, error) {
 	// First check if its addon installation to return 'ManagedRhods, nil'
 	if platform, err := isManagedRHODS(cli); err != nil {
-		return "", err
+		return Unknown, err
 	} else if platform == ManagedRhods {
 		return ManagedRhods, nil
 	}
 
 	// check and return whether ODH or self-managed platform
 	return isSelfManaged(cli)
+}
+
+// ShouldConfigureServiceMesh determines if the operator should invoke service-mesh specific setup.
+func ShouldConfigureServiceMesh(cli client.Client, dscispec *dsci.DSCInitializationSpec) (bool, error) {
+	platform, err := GetPlatform(cli)
+	if err != nil {
+		return false, err
+	}
+
+	supportedPlatforms := platform == OpenDataHub || platform == Unknown
+	return dscispec.ServiceMesh.ManagementState == operatorv1.Managed && supportedPlatforms, nil
 }

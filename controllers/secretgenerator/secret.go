@@ -31,7 +31,7 @@ type Secret struct {
 	OAuthClientRoute string
 }
 
-func newSecret(annotations map[string]string) (*Secret, error) {
+func NewSecretFrom(annotations map[string]string) (*Secret, error) {
 	// Check if annotations is not empty
 	if len(annotations) == 0 {
 		return nil, errors.New(errEmptyAnnotation)
@@ -64,14 +64,37 @@ func newSecret(annotations map[string]string) (*Secret, error) {
 		secret.Complexity = SECRET_DEFAULT_COMPLEXITY
 	}
 
-	// Generate a random value based on the secret type
+	if secretOAuthClientRoute, found := annotations[SECRET_OAUTH_CLIENT_ANNOTATION]; found {
+		secret.OAuthClientRoute = secretOAuthClientRoute
+	}
+
+	if err := generateSecretValue(&secret); err != nil {
+		return nil, err
+	}
+
+	return &secret, nil
+}
+
+func NewSecret(name, secretType string, complexity int) (*Secret, error) {
+	secret := &Secret{
+		Name:       name,
+		Type:       secretType,
+		Complexity: complexity,
+	}
+
+	err := generateSecretValue(secret)
+
+	return secret, err
+}
+
+func generateSecretValue(secret *Secret) error {
 	switch secret.Type {
 	case "random":
 		randomValue := make([]byte, secret.Complexity)
 		for i := 0; i < secret.Complexity; i++ {
 			num, err := rand.Int(rand.Reader, big.NewInt(int64(len(letterRunes))))
 			if err != nil {
-				return nil, err
+				return err
 			}
 			randomValue[i] = letterRunes[num.Int64()]
 		}
@@ -79,16 +102,13 @@ func newSecret(annotations map[string]string) (*Secret, error) {
 	case "oauth":
 		randomValue := make([]byte, secret.Complexity)
 		if _, err := rand.Read(randomValue); err != nil {
-			return nil, err
+			return err
 		}
 		secret.Value = base64.StdEncoding.EncodeToString(
 			[]byte(base64.StdEncoding.EncodeToString(randomValue)))
 	default:
-		return nil, errors.New(errUnsupportedType)
+		return errors.New(errUnsupportedType)
 	}
-	// Get OAuthClient route name from annotation
-	if secretOAuthClientRoute, found := annotations[SECRET_OAUTH_CLIENT_ANNOTATION]; found {
-		secret.OAuthClientRoute = secretOAuthClientRoute
-	}
-	return &secret, nil
+
+	return nil
 }

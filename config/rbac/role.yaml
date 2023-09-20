@@ -144,6 +144,12 @@ rules:
   verbs:
   - create
 - apiGroups:
+  - authorino.kuadrant.io
+  resources:
+  - authconfigs
+  verbs:
+  - '*'
+- apiGroups:
   - authorization.k8s.io
   resources:
   - subjectaccessreviews
@@ -300,6 +306,12 @@ rules:
   verbs:
   - list
   - watch
+- apiGroups:
+  - config.openshift.io
+  resources:
+  - ingresses
+  verbs:
+  - get
 - apiGroups:
   - console.openshift.io
   resources:
@@ -623,6 +635,18 @@ rules:
   - patch
   - update
 - apiGroups:
+  - dscinitialization.opendatahub.io
+  resources:
+  - servicemeshresourcetrackers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - events.k8s.io
   resources:
   - events
@@ -822,6 +846,18 @@ rules:
 - apiGroups:
   - networking.istio.io
   resources:
+  - envoyfilters
+  verbs:
+  - '*'
+- apiGroups:
+  - networking.istio.io
+  resources:
+  - gateways
+  verbs:
+  - '*'
+- apiGroups:
+  - networking.istio.io
+  resources:
   - virtualservices
   verbs:
   - '*'
@@ -890,6 +926,12 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - operator.authorino.kuadrant.io
+  resources:
+  - authorinos
+  verbs:
+  - '*'
 - apiGroups:
   - operator.openshift.io
   resources:
@@ -1012,6 +1054,19 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - route.openshift.io
+  resources:
+  - routes/custom-host
+  verbs:
+  - create
+  - get
+- apiGroups:
+  - security.istio.io
+  resources:
+  - authorizationpolicies
+  verbs:
+  - '*'
 - apiGroups:
   - security.openshift.io
   resources:

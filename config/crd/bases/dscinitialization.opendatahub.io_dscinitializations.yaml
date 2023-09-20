@@ -81,6 +81,96 @@ spec:
                     description: Namespace for monitoring if it is enabled
                     type: string
                 type: object
+              serviceMesh:
+                description: Enable Service Mesh for Data Science Clusters
+                properties:
+                  auth:
+                    description: Auth holds configuration of authentication and authorization
+                      services used by Service Mesh in Opendatahub.
+                    properties:
+                      authorino:
+                        description: Authorino holds configuration of Authorino service
+                          used as external authorization provider.
+                        properties:
+                          audiences:
+                            default:
+                            - https://kubernetes.default.svc
+                            description: Audiences is a list of the identifiers that
+                              the resource server presented with the token identifies
+                              as. Audience-aware token authenticators will verify
+                              that the token was intended for at least one of the
+                              audiences in this list. If no audiences are provided,
+                              the audience will default to the audience of the Kubernetes
+                              apiserver (kubernetes.default.svc).
+                            items:
+                              type: string
+                            type: array
+                          image:
+                            default: quay.io/kuadrant/authorino:v0.13.0
+                            description: Image allows to define a custom container
+                              image to be used when deploying Authorino's instance.
+                            type: string
+                          label:
+                            default: authorino/topic=odh
+                            description: Label narrows amount of AuthConfigs to process
+                              by Authorino service.
+                            type: string
+                          name:
+                            default: authorino-mesh-authz-provider
+                            description: Name specifies how external authorization
+                              provider should be called.
+                            type: string
+                        type: object
+                      name:
+                        default: authorino
+                        description: Name of the authorization provider used for Service
+                          Mesh.
+                        type: string
+                      namespace:
+                        default: auth-provider
+                        description: Namespace where it is deployed.
+                        type: string
+                    type: object
+                  managementState:
+                    default: Removed
+                    enum:
+                    - Managed
+                    - Removed
+                    pattern: ^(Managed|Unmanaged|Force|Removed)$
+                    type: string
+                  mesh:
+                    description: Mesh holds configuration of Service Mesh used by
+                      Opendatahub.
+                    properties:
+                      certificate:
+                        description: Certificate allows to define how to use certificates
+                          for the Service Mesh communication.
+                        properties:
+                          generate:
+                            default: true
+                            description: Generate indicates if the certificate should
+                              be generated. If set to false it will assume certificate
+                              with the given name is made available as a secret in
+                              Service Mesh namespace.
+                            type: boolean
+                          name:
+                            default: opendatahub-dashboard-cert
+                            description: Name of the certificate to be used by Service
+                              Mesh.
+                            type: string
+                        type: object
+                      name:
+                        default: basic
+                        description: Name is a name Service Mesh Control Plan. Defaults
+                          to "basic".
+                        type: string
+                      namespace:
+                        default: istio-system
+                        description: Namespace is a namespace where Service Mesh is
+                          deployed. Defaults to "istio-system".
+                        type: string
+                    type: object
+                type: object
             required:
             - applicationsNamespace
             type: object

@@ -7,7 +7,7 @@ import (
 
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,12 +18,17 @@ var (
 	ComponentName          = "workbenches"
 	DependentComponentName = "notebooks"
 	// manifests for nbc in ODH and downstream + downstream use it for imageparams
-	notebookControllerPath = deploy.DefaultManifestPath + "/odh-notebook-controller/odh-notebook-controller/base"
+	notebookControllerPath            = deploy.DefaultManifestPath + "/odh-notebook-controller/odh-notebook-controller/base"
+	notebookControllerServiceMeshPath = deploy.DefaultManifestPath + "/odh-notebook-controller/odh-notebook-controller/overlays/service-mesh"
 	// manifests for ODH nbc
-	kfnotebookControllerPath    = deploy.DefaultManifestPath + "/odh-notebook-controller/kf-notebook-controller/overlays/openshift"
-	notebookImagesPath          = deploy.DefaultManifestPath + "/notebooks/overlays/additional"
-	notebookImagesPathSupported = deploy.DefaultManifestPath + "/jupyterhub/notebook-images/overlays/additional"
+	kfnotebookControllerPath            = deploy.DefaultManifestPath + "/odh-notebook-controller/kf-notebook-controller/overlays/openshift"
+	kfnotebookControllerServiceMeshPath = deploy.DefaultManifestPath + "/odh-notebook-controller/kf-notebook-controller/overlays/service-mesh"
+	notebookImagesPath                  = deploy.DefaultManifestPath + "/notebooks/overlays/additional"
+	notebookImagesPathSupported         = deploy.DefaultManifestPath + "/jupyterhub/notebook-images/overlays/additional"
 )
+
+// Verifies that Workbenches implements ComponentInterface.
+var _ components.ComponentInterface = (*Workbenches)(nil)
 
 type Workbenches struct {
 	components.Component `json:""`
@@ -32,7 +37,7 @@ type Workbenches struct {
 func (w *Workbenches) OverrideManifests(platform string) error {
 	// Download manifests if defined by devflags
 	if len(w.DevFlags.Manifests) != 0 {
-		// Go through each manifests and set the overlays if defined
+		// Go through each manifest and set the overlays if defined
 		for _, subcomponent := range w.DevFlags.Manifests {
 			if strings.Contains(subcomponent.URI, DependentComponentName) {
 				// Download subcomponent
@@ -87,9 +92,6 @@ func (w *Workbenches) GetComponentName() string {
 	return ComponentName
 }
 
-// Verifies that Dashboard implements ComponentInterface.
-var _ components.ComponentInterface = (*Workbenches)(nil)
-
 func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
 	var imageParamMap = map[string]string{
 		"odh-notebook-controller-image":    "RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE",
@@ -111,21 +113,26 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 		}
 
 		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
-			err := common.CreateNamespace(cli, "rhods-notebooks")
-			if err != nil {
+			if err := cluster.CreateNamespace(cli, "rhods-notebooks"); err != nil {
 				// no need to log error as it was already logged in createOdhNamespace
 				return err
 			}
 		}
-		// Update Default rolebinding
-		err = common.UpdatePodSecurityRolebinding(cli, []string{"notebook-controller-service-account"}, dscispec.ApplicationsNamespace)
-		if err != nil {
+		if err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "notebook-controller-service-account"); err != nil {
 			return err
 		}
 	}
 
-	err = deploy.DeployManifestsFromPath(cli, owner, notebookControllerPath, dscispec.ApplicationsNamespace, ComponentName, enabled)
+	actualNbCtrlPath := notebookControllerPath
+	shouldConfigureServiceMesh, err := deploy.ShouldConfigureServiceMesh(cli, dscispec)
 	if err != nil {
+		return err
+	}
+	if shouldConfigureServiceMesh {
+		actualNbCtrlPath = notebookControllerServiceMeshPath
+	}
+
+	if err := deploy.DeployManifestsFromPath(cli, owner, actualNbCtrlPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 		return err
 	}
 
@@ -133,17 +140,21 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 	if enabled {
 		if dscispec.DevFlags.ManifestsUri == "" && len(w.DevFlags.Manifests) == 0 {
 			if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
-				if err := deploy.ApplyParams(notebookControllerPath, w.SetImageParamsMap(imageParamMap), false); err != nil {
+				if err := deploy.ApplyParams(actualNbCtrlPath, w.SetImageParamsMap(imageParamMap), false); err != nil {
 					return err
 				}
 			}
 		}
 	}
 
-	if platform == deploy.OpenDataHub || platform == "" {
+	if platform == deploy.OpenDataHub || platform == deploy.Unknown {
 		// only for ODH after transit to kubeflow repo
+		path := kfnotebookControllerPath
+		if shouldConfigureServiceMesh {
+			path = kfnotebookControllerServiceMeshPath
+		}
 		err = deploy.DeployManifestsFromPath(cli, owner,
-			kfnotebookControllerPath,
+			path,
 			dscispec.ApplicationsNamespace,
 			ComponentName, enabled)
 		if err != nil {
@@ -157,8 +168,7 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 			enabled)
 		return err
 	} else {
-		err = deploy.DeployManifestsFromPath(cli, owner, notebookImagesPathSupported, dscispec.ApplicationsNamespace, ComponentName, enabled)
-		return err
+		return deploy.DeployManifestsFromPath(cli, owner, notebookImagesPathSupported, dscispec.ApplicationsNamespace, ComponentName, enabled)
 	}
 }
 

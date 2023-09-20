@@ -1,0 +1,90 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: oauth2-ingress
+  namespace: {{ .Mesh.Namespace }}
+  labels:
+    name: oauth2-envoy
+    app: odh
+spec:
+  priority: 10
+  workloadSelector:
+    labels:
+      istio: ingressgateway # this is all or nothing option - we should narrow to more sane labels / ns?
+  configPatches:
+  - applyTo: CLUSTER
+    match:
+      cluster:
+        service: oauth-openshift
+    patch:
+      operation: ADD
+      value:
+        name: oauth-openshift
+        dns_lookup_family: V4_ONLY
+        type: LOGICAL_DNS
+        connect_timeout: 10s
+        lb_policy: ROUND_ROBIN
+        transport_socket:
+          name: envoy.transport_sockets.tls
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+            sni: {{ .OAuth.Route }}
+        load_assignment:
+          cluster_name: oauth-openshift
+          endpoints:
+          - lb_endpoints:
+            - endpoint:
+                address:
+                  socket_address:
+                    address: {{ .OAuth.Route }}
+                    port_value: {{ .OAuth.Port }}
+  - applyTo: HTTP_FILTER
+    match:
+      context: GATEWAY
+      listener:
+        filterChain:
+          filter:
+            name: "envoy.filters.network.http_connection_manager"
+            # subFilter:
+            #   name: "envoy.filters.http.jwt_authn"
+    patch:
+      operation: INSERT_BEFORE
+      value:
+       name: envoy.filters.http.oauth2
+       typed_config:
+         "@type": type.googleapis.com/envoy.extensions.filters.http.oauth2.v3.OAuth2
+         config:
+          token_endpoint:
+            cluster: oauth-openshift
+            uri: {{ .OAuth.TokenEndpoint }}
+            timeout: 3s
+          authorization_endpoint: {{ .OAuth.AuthzEndpoint }}
+          redirect_uri: "https://%REQ(:authority)%/callback"
+          redirect_path_matcher:
+            path:
+              exact: /callback
+          signout_path:
+            path:
+              exact: /oauth/sign_out
+          credentials:
+            client_id: {{ .AppNamespace }}-oauth2-client
+            token_secret:
+              name: token
+              sds_config:
+                path: "/etc/istio/{{ .AppNamespace }}-oauth2-tokens/token-secret.yaml"
+            hmac_secret:
+              name: hmac
+              sds_config:
+                path: "/etc/istio/{{ .AppNamespace }}-oauth2-tokens/hmac-secret.yaml"
+          auth_scopes:
+            - user:full
+          forward_bearer_token: true 
+          # FIXME: This always bypasses authN for ModelMesh. It should not if
+          # the model is flagged to be auth-protected.
+          pass_through_matcher:
+          - name: ":path"
+            prefix_match: "/modelmesh/"
+          - name: ":path"
+            prefix_match: "/vmodel-route/"
+          - name: content-type
+            prefix_match: application/grpc

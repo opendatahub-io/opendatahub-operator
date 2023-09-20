@@ -72,7 +72,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.1.0
-    createdAt: "2023-8-23T00:00:00Z"
+    createdAt: "2023-10-05T16:20:15Z"
     olm.skipRange: '>=1.0.0 <2.0.0'
     operatorframework.io/initialization-resource: |-
       {
@@ -148,6 +148,9 @@ spec:
       - description: Enable monitoring on specified namespace
         displayName: Monitoring
         path: monitoring
+      - description: Enable Service Mesh for Data Science Clusters
+        displayName: Service Mesh
+        path: serviceMesh
       - description: Internal development useful field to test customizations. This
           is not recommended to be used in production environment.
         displayName: Dev Flags
@@ -157,6 +160,9 @@ spec:
           resource
         displayName: Conditions
         path: conditions
+      version: v1
+    - kind: ServiceMeshResourceTracker
+      name: servicemeshresourcetrackers.dscinitialization.opendatahub.io
       version: v1
   description: "The Open Data Hub is a machine-learning-as-a-service platform built
     on Red Hat's Kubernetes-based OpenShift® Container Platform. Open Data Hub integrates
@@ -326,6 +332,12 @@ spec:
           verbs:
           - create
         - apiGroups:
+          - authorino.kuadrant.io
+          resources:
+          - authconfigs
+          verbs:
+          - '*'
+        - apiGroups:
           - authorization.k8s.io
           resources:
           - subjectaccessreviews
@@ -482,6 +494,12 @@ spec:
           verbs:
           - list
           - watch
+        - apiGroups:
+          - config.openshift.io
+          resources:
+          - ingresses
+          verbs:
+          - get
         - apiGroups:
           - console.openshift.io
           resources:
@@ -805,6 +823,18 @@ spec:
           - patch
           - update
         - apiGroups:
+          - dscinitialization.opendatahub.io
+          resources:
+          - servicemeshresourcetrackers
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
           - events.k8s.io
           resources:
           - events
@@ -1004,6 +1034,18 @@ spec:
         - apiGroups:
           - networking.istio.io
           resources:
+          - envoyfilters
+          verbs:
+          - '*'
+        - apiGroups:
+          - networking.istio.io
+          resources:
+          - gateways
+          verbs:
+          - '*'
+        - apiGroups:
+          - networking.istio.io
+          resources:
           - virtualservices
           verbs:
           - '*'
@@ -1072,6 +1114,12 @@ spec:
           - patch
           - update
           - watch
+        - apiGroups:
+          - operator.authorino.kuadrant.io
+          resources:
+          - authorinos
+          verbs:
+          - '*'
         - apiGroups:
           - operator.openshift.io
           resources:
@@ -1194,6 +1242,19 @@ spec:
           - patch
           - update
           - watch
+        - apiGroups:
+          - route.openshift.io
+          resources:
+          - routes/custom-host
+          verbs:
+          - create
+          - get
+        - apiGroups:
+          - security.istio.io
+          resources:
+          - authorizationpolicies
+          verbs:
+          - '*'
         - apiGroups:
           - security.openshift.io
           resources:

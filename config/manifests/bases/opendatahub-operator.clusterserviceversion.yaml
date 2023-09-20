@@ -81,6 +81,9 @@ spec:
       - description: Enable monitoring on specified namespace
         displayName: Monitoring
         path: monitoring
+      - description: Enable Service Mesh for Data Science Clusters
+        displayName: Service Mesh
+        path: serviceMesh
       - description: Internal development useful field to test customizations. This
           is not recommended to be used in production environment.
         displayName: Dev Flags

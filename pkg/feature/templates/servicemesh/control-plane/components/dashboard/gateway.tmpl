@@ -1,0 +1,24 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: odh-gateway
+  namespace: {{ .AppNamespace }}
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    tls:
+      mode: SIMPLE
+      credentialName: {{ .Mesh.Certificate.Name }}
+    hosts:
+    - "{{ .AppNamespace }}.{{ .Domain }}"
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - "{{ .AppNamespace }}.{{ .Domain }}"

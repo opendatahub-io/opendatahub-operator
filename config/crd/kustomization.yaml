@@ -3,6 +3,7 @@
 # It should be run by config/default
 resources:
 - bases/dscinitialization.opendatahub.io_dscinitializations.yaml
+- bases/dscinitialization.opendatahub.io_featuretrackers.yaml
 - bases/datasciencecluster.opendatahub.io_datascienceclusters.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 

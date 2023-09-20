@@ -21,6 +21,7 @@ declare -A COMPONENT_MANIFESTS=(
     ["trustyai"]="trustyai-explainability:trustyai-service-operator:release/1.10.2:config:trustyai-service-operator"
     ["model-mesh"]="opendatahub-io:modelmesh-serving:release-0.11.0:config:model-mesh"
     ["odh-model-controller"]="opendatahub-io:odh-model-controller:release-0.11.0:config:odh-model-controller"
+    ["odh-project-controller"]="maistra:odh-project-controller:main:config:odh-project-controller"
     ["kserve"]="opendatahub-io:kserve:release-v0.11.0:config:kserve"
 )
 
@@ -47,8 +48,6 @@ if [ "$#" -ge 1 ]; then
         fi
     done
 fi
-
-# R.I.P, odh-manifests
 
 for key in "${!COMPONENT_MANIFESTS[@]}"; do
     echo "Cloning repo ${key}: ${COMPONENT_MANIFESTS[$key]}"
