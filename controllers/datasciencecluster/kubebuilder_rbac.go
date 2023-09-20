@@ -77,7 +77,7 @@ package datasciencecluster
 
 // +kubebuilder:rbac:groups="oauth.openshift.io",resources=oauthclients,verbs=*
 
-// +kubebuilder:rbac:groups="networking.k8s.io",resources=networkpolicies,verbs=get;create;list;watch;delete;update;patch
+// +kubebuilder:rbac:groups="networking.k8s.io",resources=networkpolicies,verbs=get;create;list;watch;delete;update;patch;deletecollection
 // +kubebuilder:rbac:groups="networking.k8s.io",resources=ingresses,verbs=create;delete;list;update;watch;patch;get
 
 // +kubebuilder:rbac:groups="networking.istio.io",resources=virtualservices/status,verbs=update;patch;delete
@@ -143,7 +143,7 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="core",resources=endpoints,verbs=watch;list
 
 // +kubebuilder:rbac:groups="core",resources=configmaps/status,verbs=get;update;patch;delete
-// +kubebuilder:rbac:groups="core",resources=configmaps,verbs=get;create;watch;patch;delete;list
+// +kubebuilder:rbac:groups="core",resources=configmaps,verbs=get;create;watch;patch;delete;list;deletecollection
 
 // +kubebuilder:rbac:groups="core",resources=clusterversions,verbs=watch;list
 // +kubebuilder:rbac:groups="config.openshift.io",resources=clusterversions,verbs=watch;list

@@ -12,6 +12,7 @@ func ApplyAddLabelsPlugin(componentName string, resMap resmap.ResMap) error {
 		Labels: map[string]string{
 			"app.kubernetes.io/part-of":           componentName,
 			"app.opendatahub.io/" + componentName: "true",
+			"opendatahub.io/component":            "true",
 		},
 		FieldSpecs: []types.FieldSpec{
 			{
@@ -20,13 +21,11 @@ func ApplyAddLabelsPlugin(componentName string, resMap resmap.ResMap) error {
 				CreateIfNotPresent: true,
 			},
 			{
-				Gvk: resid.Gvk{
-					Kind: "Deployment",
-				},
+				Gvk:                resid.Gvk{Kind: "Deployment"},
 				Path:               "spec/selector/matchLabels",
 				CreateIfNotPresent: true,
 			},
-			{
+			{ // for all kinds
 				Gvk:                resid.Gvk{},
 				Path:               "metadata/labels",
 				CreateIfNotPresent: true,

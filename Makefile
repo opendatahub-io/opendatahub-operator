@@ -20,7 +20,6 @@ BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
 IMAGE_BUILDER ?= podman
 OPERATOR_NAMESPACE ?= opendatahub-operator-system
 
-
 CHANNELS="fast"
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")

@@ -33,7 +33,11 @@ import (
 	netv1 "k8s.io/api/networking/v1"
 	authv1 "k8s.io/api/rbac/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -114,6 +118,58 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	if err != nil {
 		// no need to log error as it was already logged in createOdhNamespace
 		return reconcile.Result{}, err
+	}
+
+	// Cleanup old namespace's resource, but keep old namespace
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	s, err := labels.Parse("opendatahub.io/generated-namespace=true")
+	if err != nil {
+		return reconcile.Result{}, fmt.Errorf("invalid label selector \"%s\": %s", s, err)
+	}
+	ODHNamespaceList, err := clientset.CoreV1().Namespaces().List(ctx, metav1.ListOptions{
+		LabelSelector: s.String(),
+	})
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	resourceTypes := []client.Object{
+		&appsv1.Deployment{},
+		&corev1.Service{},
+		&corev1.Secret{},
+		&corev1.ConfigMap{},
+		&netv1.NetworkPolicy{},
+		&authv1.Role{},
+		&authv1.RoleBinding{},
+		&authv1.ClusterRole{},
+		&authv1.ClusterRoleBinding{},
+	}
+	for _, matchedNamespace := range ODHNamespaceList.Items {
+
+		if matchedNamespace.Name != namespace && matchedNamespace.Name != instance.Spec.Monitoring.Namespace {
+			r.Log.Info("Cleanup old namespace resources.", "Namespace", matchedNamespace.Name)
+			for _, obj := range resourceTypes {
+				if err = r.Client.DeleteAllOf(ctx, obj, client.InNamespace(matchedNamespace.Name), client.MatchingLabels{"opendatahub.io/component": "true"}); err != nil {
+					r.Log.Error(err, "Failed to cleanup old namespace left-over resource.", "Namespace", matchedNamespace.Name, "Error", err.Error())
+				}
+			}
+		}
+	}
+	if namespace != "opendatahub" { // opendatahub does not have "opendatahub.io/generated-namespace=true" on it
+		r.Log.Info("Cleanup old default namespace resources.", "Namespace", "opendatahub")
+		for _, obj := range resourceTypes {
+			if err = r.Client.DeleteAllOf(ctx, obj, client.InNamespace("opendatahub"), client.MatchingLabels{"opendatahub.io/component": "true"}); err != nil {
+				r.Log.Error(err, "Failed to cleanup old namespace left-over resource.", "Old Namespace", "opendatahub", "Error", err.Error())
+			}
+		}
 	}
 
 	// Get platform
