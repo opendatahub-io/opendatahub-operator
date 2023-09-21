@@ -559,14 +559,24 @@ spec:
           - instascales
           verbs:
           - create
+          - delete
+          - get
+          - list
           - patch
+          - update
+          - watch
         - apiGroups:
           - codeflare.codeflare.dev
           resources:
           - mcads
           verbs:
           - create
+          - delete
+          - get
+          - list
           - patch
+          - update
+          - watch
         - apiGroups:
           - config.openshift.io
           resources:
@@ -1507,6 +1517,58 @@ spec:
           - delete
           - list
           - patch
+          - watch
+        - apiGroups:
+          - workload.codeflare.dev
+          resources:
+          - appwrappers
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - workload.codeflare.dev
+          resources:
+          - appwrappers/finalizers
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - workload.codeflare.dev
+          resources:
+          - appwrappers/status
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - workload.codeflare.dev
+          resources:
+          - queuejobs
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - list
+          - patch
+          - update
           - watch
         - apiGroups:
           - authentication.k8s.io
