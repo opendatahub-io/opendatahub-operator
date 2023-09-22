@@ -165,7 +165,6 @@ func DeployManifestsFromPath(cli client.Client, owner metav1.Object, manifestPat
 	if err != nil {
 		return err
 	}
-
 	// Create / apply / delete resources in the cluster
 	for _, obj := range objs {
 		err = manageResource(context.TODO(), cli, obj, owner, namespace, componentName, componentEnabled)
