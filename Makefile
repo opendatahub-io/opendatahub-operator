@@ -17,7 +17,7 @@ IMG ?= REPLACE_IMAGE
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
 BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
 
-IMAGE_BUILDER ?= podman
+IMAGE_BUILDER ?= docker
 OPERATOR_NAMESPACE ?= opendatahub-operator-system
 
 
