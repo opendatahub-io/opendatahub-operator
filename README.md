@@ -2,36 +2,38 @@
 
 ## Introduction
 
-The Open Data Hub operator is responsible for managing the deployment and lifecycle of ODH Component manifests in [odh-manifests](https://github.com/opendatahub-io/odh-manifests) using the [KfDef](config/crd/bases/kfdef.apps.kubeflow.org_kfdefs.yaml) Custom Resource.  The focus is on supporting the [ODH Core](https://github.com/opendatahub-io/odh-manifests/blob/master/kfdef/odh-core.yaml) stack in the OpenShift clusters. 
+The Open Data Hub operator is responsible for managing the deployment and lifecycle of ODH Component manifests from either [odh-manifests](https://github.com/opendatahub-io/odh-manifests) or different component repos under `opendatahub-io` orgnization using the [KfDef](config/crd/bases/kfdef.apps.kubeflow.org_kfdefs.yaml) Custom Resource.  The focus is on supporting the [ODH Core](https://github.com/opendatahub-io/odh-manifests/blob/master/kfdef/odh-core.yaml) stack in the OpenShift clusters.
 
 NOTE: The Open Data Hub operator was originally a downstream project of the [kfctl](https://github.com/kubeflow/kfctl) operator but has diverged from the original functionality after the Kubeflow community deprecated the use of `kfctl` for deployment in favor of [kustomize](https://kustomize.io/).  `kfctl` cli is no longer a maintained or supported tool for parsing or processing the `kfdef` custom resource.
 
-##Usage
+## Usage
 
 ### Installation
 
-The latest version of operator can be installed from the community-operators catalog on OperatorHub. It can also be build 
+The latest version of operator can be installed from the community-operators catalog on OperatorHub. It can also be build
 and installed from source manually, see the Developer guide for further instructions.
 
 ### Developer Guide
 
 #### Pre-requisites
 
-- Go version **go1.18.4** 
+- Go version **go1.18.4**
 - operator-sdk version can be updated to **v1.24.1**
 
 #### Build Image
 
 - Custom operator image can be built using your local repository
-    ```
+
+    ``` shell
     make image -e IMG=quay.io/<username>/opendatahub-operator:<custom-tag>
     ```
-   The default image used is `quay.io/opendatahub/opendatahub-operator:dev-<VERSION>`
 
+   The default image used is `quay.io/opendatahub/opendatahub-operator:dev-<VERSION>`
 
 - Once the image is create, the operator can be deployed either directly, or through OLM. For each deployment method a
   kubeconfig should be exported
-  ```
+
+  ``` shell
   export KUBECONFIG=<path to kubeconfig>
   ```
 
@@ -40,43 +42,50 @@ and installed from source manually, see the Developer guide for further instruct
 **Deploying operator locally**
 
 - Define operator namespace
-  ```
+
+  ``` shell
   export OPERATOR_NAMESPACE=<namespace-to-install-operator>
   ```
+
 - Deploy the created image in your cluster using following command:
-  ```
+
+  ``` shell
   make deploy -e IMG=quay.io/<username>/opendatahub-operator:<custom-tag>
   ```
 
 - To remove resources created during installation use:
-  ```
+
+  ``` shell
   make undeploy
   ```
 
 **Deploying operator using OLM**
 
 - Define operator namespace
-  ```
+
+  ``` shell
   export OPERATOR_NAMESPACE=<namespace-to-install-operator>
   ```
   
 - To create a new bundle, run following command:
+
   ```commandline
   make bundle
   ```
+
   **Note** : Skip the above step if you want to run the existing operator bundle.
 
-
 - Build Bundle Image:
-  ```
+
+  ``` shell
   make bundle-build bundle-push BUNDLE_IMG=quay.io/<username>/opendatahub-operator-bundle:<VERSION>
   ```
   
 - Run the Bundle on a cluster:
+
   ```commandline
   operator-sdk run bundle quay.io/<username>/opendatahub-operator-bundle:<VERSION> --namespace $OPERATOR_NAMESPACE
   ```
-
 
 ### Example KfDefs
 
@@ -85,7 +94,7 @@ following KfDefs to install Open Data Hub components:
 
 - [KfDef](https://github.com/opendatahub-io/odh-manifests/blob/master/kfdef/odh-core.yaml) for Core Components
 
-
+Do condier most of the components in [odh-core.yaml](https://github.com/opendatahub-io/odh-manifests/blob/master/kfdef/odh-core.yaml) might point to a bunch of out-of-date manifests, ensure to modify to the correct source component repo and branch.
 
 ### Run e2e Tests
 
@@ -110,8 +119,6 @@ variable. Following table lists all the available flags to run the tests:
 | Flag            | Description                                                                                                                                         | Default value |
 |-----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|---------------|
 | --skip-deletion | To skip running  of `kfdef-deletion` test that includes deleting `KfDef` resources. Assign this variable to `true` to skip KfDef deletion. | false         |
-
-
 
 Example command to run full test suite in a custom namespace, skipping the test
 for KfDef deletion.
