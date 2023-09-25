@@ -5,7 +5,7 @@ set -e
 # TODO: workbench, modelmesh, monitoring, etc
 REPO_LIST=(
     "data-science-pipelines-operator:main:config:data-science-pipelines-operator"
-    "odh-dashboard:main:manifests:odh-dashboard"
+    "odh-dashboard:incubation:manifests:odh-dashboard"
     "notebooks:main:manifests:notebook-images"
     "kubeflow:v1.7-branch:components/notebook-controller/config:odh-notebook-controller/kf-notebook-controller"
     "kubeflow:v1.7-branch:components/odh-notebook-controller/config:odh-notebook-controller/odh-notebook-controller"
@@ -26,6 +26,7 @@ cp -r ./.odh-manifests-tmp/model-mesh/ ./odh-manifests
 cp -r ./.odh-manifests-tmp/odh-model-controller/ ./odh-manifests
 cp -r ./.odh-manifests-tmp/modelmesh-monitoring/ ./odh-manifests
 cp -r ./.odh-manifests-tmp/prometheus ./odh-manifests
+cp -r ./.odh-manifests-tmp/trustyai-service-operator ./odh-manifests
 cp -r ./.odh-manifests-tmp/odh-common ./odh-manifests
 rm -rf ${MANIFEST_RELEASE}.tar.gz ./.odh-manifests-tmp/
 
