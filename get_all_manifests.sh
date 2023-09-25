@@ -26,6 +26,7 @@ cp -r ./.odh-manifests-tmp/model-mesh/ ./odh-manifests
 cp -r ./.odh-manifests-tmp/odh-model-controller/ ./odh-manifests
 cp -r ./.odh-manifests-tmp/modelmesh-monitoring/ ./odh-manifests
 cp -r ./.odh-manifests-tmp/prometheus ./odh-manifests
+cp -r ./.odh-manifests-tmp/trustyai-service-operator ./odh-manifests
 cp -r ./.odh-manifests-tmp/odh-common ./odh-manifests
 rm -rf ${MANIFEST_RELEASE}.tar.gz ./.odh-manifests-tmp/
 
