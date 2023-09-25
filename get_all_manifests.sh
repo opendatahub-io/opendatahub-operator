@@ -5,7 +5,7 @@ set -e
 # TODO: workbench, modelmesh, monitoring, etc
 REPO_LIST=(
     "data-science-pipelines-operator:main:config:data-science-pipelines-operator"
-    "odh-dashboard:main:manifests:odh-dashboard"
+    "odh-dashboard:incubation:manifests:odh-dashboard"
     "notebooks:main:manifests:notebook-images"
     "kubeflow:v1.7-branch:components/notebook-controller/config:odh-notebook-controller/kf-notebook-controller"
     "kubeflow:v1.7-branch:components/odh-notebook-controller/config:odh-notebook-controller/odh-notebook-controller"
