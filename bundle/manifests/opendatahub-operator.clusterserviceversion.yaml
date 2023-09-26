@@ -5,74 +5,6 @@ metadata:
     alm-examples: |-
       [
         {
-          "apiVersion": "console.openshift.io/v1",
-          "kind": "OdhQuickStart",
-          "metadata": {
-            "annotations": {
-              "opendatahub.io/categories": "Getting started,Notebook environments"
-            },
-            "labels": {
-              "app.kubernetes.io/created-by": "odh-dashboard",
-              "app.kubernetes.io/instance": "odh-dashboard-sample",
-              "app.kubernetes.io/managed-by": "kustomize",
-              "app.kubernetes.io/name": "odh-dashboard",
-              "app.kubernetes.io/part-of": "odh-dashboard"
-            },
-            "name": "create-jupyter-notebook-sample",
-            "namespace": "opendatahub"
-          },
-          "spec": {
-            "appName": "jupyterhub",
-            "displayName": "Creating a Jupyter notebook",
-            "durationMinutes": 5
-          }
-        },
-        {
-          "apiVersion": "dashboard.opendatahub.io/v1",
-          "kind": "OdhApplication",
-          "metadata": {
-            "labels": {
-              "app.kubernetes.io/created-by": "odh-dashboard",
-              "app.kubernetes.io/instance": "odh-dashboard-sample",
-              "app.kubernetes.io/managed-by": "kustomize",
-              "app.kubernetes.io/name": "odh-dashboard",
-              "app.kubernetes.io/part-of": "odh-dashboard"
-            },
-            "name": "jupyterhub-sample",
-            "namespace": "opendatahub"
-          },
-          "spec": {
-            "displayName": "JupyterHub",
-            "docsLink": "https://jupyter.org/hub",
-            "getStartedLink": "https://jupyterhub.readthedocs.io/en/stable/getting-started/index.html",
-            "getStartedMarkDown": "# MarkDown Description",
-            "provider": "Jupyter",
-            "quickStart": "create-jupyter-notebook",
-            "route": "jupyterhub"
-          }
-        },
-        {
-          "apiVersion": "dashboard.opendatahub.io/v1",
-          "kind": "OdhDocument",
-          "metadata": {
-            "labels": {
-              "app.kubernetes.io/created-by": "odh-dashboard",
-              "app.kubernetes.io/instance": "odh-dashboard-sample",
-              "app.kubernetes.io/managed-by": "kustomize",
-              "app.kubernetes.io/name": "odh-dashboard",
-              "app.kubernetes.io/part-of": "odh-dashboard"
-            },
-            "name": "jupyterhub-view-installed-packages-sample",
-            "namespace": "opendatahub"
-          },
-          "spec": {
-            "appName": "jupyter",
-            "durationMinutes": 15,
-            "type": "how-to",
-            "url": "https://url.sample.com"
-          }
-        },
-        {
           "apiVersion": "datasciencecluster.opendatahub.io/v1",
           "kind": "DataScienceCluster",
           "metadata": {
@@ -130,34 +62,6 @@ metadata:
               "managementState": "Managed",
               "namespace": "opendatahub"
             }
-          }
-        },
-        {
-          "apiVersion": "opendatahub.io/v1alpha",
-          "kind": "OdhDashboardConfig",
-          "metadata": {
-            "labels": {
-              "app.kubernetes.io/created-by": "odh-dashboard",
-              "app.kubernetes.io/instance": "odh-dashboard-sample",
-              "app.kubernetes.io/managed-by": "kustomize",
-              "app.kubernetes.io/name": "odh-dashboard",
-              "app.kubernetes.io/part-of": "odh-dashboard",
-              "opendatahub.io/dashboard": "true"
-            },
-            "name": "odh-dashboard-config-sample",
-            "namespace": "opendatahub"
-          },
-          "spec": {
-            "dashboardConfig": null,
-            "groupsConfig": {
-              "adminGroups": "odh-admins",
-              "allowedGroups": "system:authenticated"
-            },
-            "notebookController": {
-              "enabled": true
-            },
-            "templateDisablement": [],
-            "templateOrder": []
           }
         }
       ]
@@ -247,18 +151,6 @@ spec:
           resource
         displayName: Conditions
         path: conditions
-      version: v1
-    - kind: OdhApplication
-      name: odhapplications.dashboard.opendatahub.io
-      version: v1
-    - kind: OdhDashboardConfig
-      name: odhdashboardconfigs.opendatahub.io
-      version: v1alpha
-    - kind: OdhDocument
-      name: odhdocuments.dashboard.opendatahub.io
-      version: v1
-    - kind: OdhQuickStart
-      name: odhquickstarts.console.openshift.io
       version: v1
   description: "The Open Data Hub is a machine-learning-as-a-service platform built
     on Red Hat's Kubernetes-based OpenShift® Container Platform. Open Data Hub integrates
