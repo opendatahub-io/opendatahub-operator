@@ -103,12 +103,12 @@ func (r *DSCInitializationReconciler) createOdhNamespace(dscInit *dsci.DSCInitia
 		}
 	}
 
-	// Create default NetworkPolicy for the namespace
-	err = r.reconcileDefaultNetworkPolicy(dscInit, name, ctx)
-	if err != nil {
-		r.Log.Error(err, "error reconciling network policy ", "name", name)
-		return err
-	}
+	//// Create default NetworkPolicy for the namespace
+	//err = r.reconcileDefaultNetworkPolicy(dscInit, name, ctx)
+	//if err != nil {
+	//	r.Log.Error(err, "error reconciling network policy ", "name", name)
+	//	return err
+	//}
 
 	// Create odh-common-config Configmap for the Namespace
 	err = r.createOdhCommonConfigMap(dscInit, name, ctx)
