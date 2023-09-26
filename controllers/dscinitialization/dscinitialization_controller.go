@@ -116,14 +116,6 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return reconcile.Result{}, err
 	}
 
-	// Extract latest Manifests
-	err = deploy.DownloadManifests(instance.Spec.DevFlags.ManifestsUri)
-	if err != nil {
-		r.Log.Error(err, "Failed to download and unpack manifests.", "ManifestsURI", instance.Spec.DevFlags.ManifestsUri)
-		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to download and unpack manifests")
-		return reconcile.Result{}, err
-	}
-
 	// Get platform
 	platform, err := deploy.GetPlatform(r.Client)
 	if err != nil {
