@@ -1,0 +1,25 @@
+name: Image-check
+on:
+  pull_request:
+    branches:
+      - v*
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '1.19.9'
+      - name: Check hard-coded image names in template files
+        run: |
+          lines=$(grep -r "image: " ./config/internal/ | egrep -v "{{[a-zA-Z.]+}}" | grep -v sample | wc -l)
+          if [ "$lines" -gt "0" ]; then exit 1; else exit 0; fi
+      - name: Check Operator resources
+        run: |
+          lines=$(grep -r "image: " ./config/manager/ | grep -oP -v "\\$\([[:upper:]_]+\)" | wc -l)
+          if [ "$lines" -gt "0" ]; then exit 1; else exit 0; fi
+      - name: Check non-sha image parameters
+        run: |
+          lines=$(egrep -v "IMAGES_[A-Z]+=[a-z0-9./-]+@sha256"  ./config/base/params.env | wc -l)
+          if [ "$lines" -gt "0" ]; then exit 1; else exit 0; fi

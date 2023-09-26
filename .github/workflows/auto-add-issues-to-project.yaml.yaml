@@ -1,0 +1,18 @@
+name: Add Issues to Tracking boards
+on:
+  issues:
+    types:
+      - opened
+jobs:
+  add-to-project:
+    name: Add issue to projects
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/add-to-project@v0.5.0
+        with:
+          project-url: https://github.com/orgs/opendatahub-io/projects/40
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/add-to-project@v0.5.0
+        with:
+          project-url: https://github.com/orgs/opendatahub-io/projects/45
+          github-token: ${{ secrets.GITHUB_TOKEN }}
