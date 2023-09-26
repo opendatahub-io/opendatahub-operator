@@ -39,23 +39,23 @@ type DevFlags struct {
 }
 
 type ManifestsConfig struct {
-	// uri is the URI point to a git repo with tag/branch. e.g  https://github.com/org/repo/tarball/tag
+	// uri is the URI point to a git repo with tag/branch. e.g  https://github.com/org/repo/tarball/<tag/branch>
 	// +optional
 	// +kubebuilder:default:=""
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=1
 	URI string `json:"uri,omitempty"`
 
-	// manifestsFolder is the relative path to the folder containing manifests in a repository
+	// contextDir is the relative path to the folder containing manifests in a repository
 	// +optional
 	// +kubebuilder:default:=""
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=2
-	ManifestsFolder string `json:"manifestsFolder,omitempty"`
+	ContextDir string `json:"contextDir,omitempty"`
 
-	// overlay is the subpath within manifestsFolder where kustomize builds start.
+	// sourcePath is the subpath within contextDir where kustomize builds start. Examples include any sub-folder or path: `base`, `overlays/dev`, `default`, `odh` etc
 	// +optional
 	// +kubebuilder:default:=""
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=3
-	Overlay string `json:"overlay,omitempty"`
+	SourcePath string `json:"sourcePath,omitempty"`
 }
 
 type ComponentInterface interface {

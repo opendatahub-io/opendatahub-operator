@@ -57,7 +57,7 @@ const (
 )
 
 // downloadManifests function performs following tasks:
-// 1. It takes component URI and only downloads folder specified by component.ManifestFolder field
+// 1. It takes component URI and only downloads folder specified by component.ContextDir field
 // 2. It saves the manifests in the odh-manifests/component-name/ folder
 func DownloadManifests(componentName string, manifestConfig components.ManifestsConfig) error {
 	// Get the component repo from the given url
@@ -101,7 +101,7 @@ func DownloadManifests(componentName string, manifestConfig components.Manifests
 
 		componentFiles := strings.Split(header.Name, "/")
 		componentFileName := header.Name
-		componentManifestPath := componentFiles[0] + "/" + manifestConfig.ManifestsFolder
+		componentManifestPath := componentFiles[0] + "/" + manifestConfig.ContextDir
 
 		if strings.Contains(componentFileName, componentManifestPath) {
 			// Get manifest path relative to repo

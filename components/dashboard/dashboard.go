@@ -51,14 +51,14 @@ func (d *Dashboard) OverrideManifests(platform string) error {
 		// If overlay is defined, update paths
 		if platform == string(deploy.ManagedRhods) || platform == string(deploy.SelfManagedRhods) {
 			defaultKustomizePath := "overlays/rhods"
-			if manifestConfig.Overlay != "" {
-				defaultKustomizePath = manifestConfig.Overlay
+			if manifestConfig.SourcePath != "" {
+				defaultKustomizePath = manifestConfig.SourcePath
 			}
 			PathSupported = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
 		} else {
 			defaultKustomizePath := "base"
-			if manifestConfig.Overlay != "" {
-				defaultKustomizePath = manifestConfig.Overlay
+			if manifestConfig.SourcePath != "" {
+				defaultKustomizePath = manifestConfig.SourcePath
 			}
 			Path = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
 		}

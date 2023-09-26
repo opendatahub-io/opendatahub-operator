@@ -48,8 +48,8 @@ func (k *Kserve) OverrideManifests(_ string) error {
 				}
 				// If overlay is defined, update paths
 				defaultKustomizePath := "base"
-				if subcomponent.Overlay != "" {
-					defaultKustomizePath = subcomponent.Overlay
+				if subcomponent.SourcePath != "" {
+					defaultKustomizePath = subcomponent.SourcePath
 				}
 				DependentPath = filepath.Join(deploy.DefaultManifestPath, DependentComponentName, defaultKustomizePath)
 
@@ -62,8 +62,8 @@ func (k *Kserve) OverrideManifests(_ string) error {
 				}
 				// If overlay is defined, update paths
 				defaultKustomizePath := "base"
-				if subcomponent.Overlay != "" {
-					defaultKustomizePath = subcomponent.Overlay
+				if subcomponent.SourcePath != "" {
+					defaultKustomizePath = subcomponent.SourcePath
 				}
 				Path = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
 

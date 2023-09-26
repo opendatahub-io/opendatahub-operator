@@ -40,8 +40,8 @@ func (m *ModelMeshServing) OverrideManifests(_ string) error {
 		}
 		// If overlay is defined, update paths
 		defaultKustomizePath := "base"
-		if manifestConfig.Overlay != "" {
-			defaultKustomizePath = manifestConfig.Overlay
+		if manifestConfig.SourcePath != "" {
+			defaultKustomizePath = manifestConfig.SourcePath
 		}
 		Path = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
 	}

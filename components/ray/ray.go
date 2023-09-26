@@ -33,8 +33,8 @@ func (r *Ray) OverrideManifests(_ string) error {
 		}
 		// If overlay is defined, update paths
 		defaultKustomizePath := "operator/base"
-		if manifestConfig.Overlay != "" {
-			defaultKustomizePath = manifestConfig.Overlay
+		if manifestConfig.SourcePath != "" {
+			defaultKustomizePath = manifestConfig.SourcePath
 		}
 		RayPath = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
 	}

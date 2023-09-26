@@ -50,20 +50,22 @@ spec:
                             description: List of custom manifests for the given component
                             items:
                               properties:
-                                manifestsFolder:
+                                contextDir:
                                   default: ""
-                                  description: manifestsFolder is the relative path
-                                    to the folder containing manifests in a repository
+                                  description: contextDir is the relative path to
+                                    the folder containing manifests in a repository
                                   type: string
-                                overlay:
+                                sourcePath:
                                   default: ""
-                                  description: overlay is the subpath within manifestsFolder
-                                    where kustomize builds start.
+                                  description: 'sourcePath is the subpath within contextDir
+                                    where kustomize builds start. Examples include
+                                    any sub-folder or path: `base`, `overlays/dev`,
+                                    `default`, `odh` etc'
                                   type: string
                                 uri:
                                   default: ""
                                   description: uri is the URI point to a git repo
-                                    with tag/branch. e.g  https://github.com/org/repo/tarball/tag
+                                    with tag/branch. e.g  https://github.com/org/repo/tarball/<tag/branch>
                                   type: string
                               type: object
                             type: array
@@ -91,20 +93,22 @@ spec:
                             description: List of custom manifests for the given component
                             items:
                               properties:
-                                manifestsFolder:
+                                contextDir:
                                   default: ""
-                                  description: manifestsFolder is the relative path
-                                    to the folder containing manifests in a repository
+                                  description: contextDir is the relative path to
+                                    the folder containing manifests in a repository
                                   type: string
-                                overlay:
+                                sourcePath:
                                   default: ""
-                                  description: overlay is the subpath within manifestsFolder
-                                    where kustomize builds start.
+                                  description: 'sourcePath is the subpath within contextDir
+                                    where kustomize builds start. Examples include
+                                    any sub-folder or path: `base`, `overlays/dev`,
+                                    `default`, `odh` etc'
                                   type: string
                                 uri:
                                   default: ""
                                   description: uri is the URI point to a git repo
-                                    with tag/branch. e.g  https://github.com/org/repo/tarball/tag
+                                    with tag/branch. e.g  https://github.com/org/repo/tarball/<tag/branch>
                                   type: string
                               type: object
                             type: array
@@ -133,20 +137,22 @@ spec:
                             description: List of custom manifests for the given component
                             items:
                               properties:
-                                manifestsFolder:
+                                contextDir:
                                   default: ""
-                                  description: manifestsFolder is the relative path
-                                    to the folder containing manifests in a repository
+                                  description: contextDir is the relative path to
+                                    the folder containing manifests in a repository
                                   type: string
-                                overlay:
+                                sourcePath:
                                   default: ""
-                                  description: overlay is the subpath within manifestsFolder
-                                    where kustomize builds start.
+                                  description: 'sourcePath is the subpath within contextDir
+                                    where kustomize builds start. Examples include
+                                    any sub-folder or path: `base`, `overlays/dev`,
+                                    `default`, `odh` etc'
                                   type: string
                                 uri:
                                   default: ""
                                   description: uri is the URI point to a git repo
-                                    with tag/branch. e.g  https://github.com/org/repo/tarball/tag
+                                    with tag/branch. e.g  https://github.com/org/repo/tarball/<tag/branch>
                                   type: string
                               type: object
                             type: array
@@ -177,20 +183,22 @@ spec:
                             description: List of custom manifests for the given component
                             items:
                               properties:
-                                manifestsFolder:
+                                contextDir:
                                   default: ""
-                                  description: manifestsFolder is the relative path
-                                    to the folder containing manifests in a repository
+                                  description: contextDir is the relative path to
+                                    the folder containing manifests in a repository
                                   type: string
-                                overlay:
+                                sourcePath:
                                   default: ""
-                                  description: overlay is the subpath within manifestsFolder
-                                    where kustomize builds start.
+                                  description: 'sourcePath is the subpath within contextDir
+                                    where kustomize builds start. Examples include
+                                    any sub-folder or path: `base`, `overlays/dev`,
+                                    `default`, `odh` etc'
                                   type: string
                                 uri:
                                   default: ""
                                   description: uri is the URI point to a git repo
-                                    with tag/branch. e.g  https://github.com/org/repo/tarball/tag
+                                    with tag/branch. e.g  https://github.com/org/repo/tarball/<tag/branch>
                                   type: string
                               type: object
                             type: array
@@ -220,20 +228,22 @@ spec:
                             description: List of custom manifests for the given component
                             items:
                               properties:
-                                manifestsFolder:
+                                contextDir:
                                   default: ""
-                                  description: manifestsFolder is the relative path
-                                    to the folder containing manifests in a repository
+                                  description: contextDir is the relative path to
+                                    the folder containing manifests in a repository
                                   type: string
-                                overlay:
+                                sourcePath:
                                   default: ""
-                                  description: overlay is the subpath within manifestsFolder
-                                    where kustomize builds start.
+                                  description: 'sourcePath is the subpath within contextDir
+                                    where kustomize builds start. Examples include
+                                    any sub-folder or path: `base`, `overlays/dev`,
+                                    `default`, `odh` etc'
                                   type: string
                                 uri:
                                   default: ""
                                   description: uri is the URI point to a git repo
-                                    with tag/branch. e.g  https://github.com/org/repo/tarball/tag
+                                    with tag/branch. e.g  https://github.com/org/repo/tarball/<tag/branch>
                                   type: string
                               type: object
                             type: array
@@ -262,20 +272,22 @@ spec:
                             description: List of custom manifests for the given component
                             items:
                               properties:
-                                manifestsFolder:
+                                contextDir:
                                   default: ""
-                                  description: manifestsFolder is the relative path
-                                    to the folder containing manifests in a repository
+                                  description: contextDir is the relative path to
+                                    the folder containing manifests in a repository
                                   type: string
-                                overlay:
+                                sourcePath:
                                   default: ""
-                                  description: overlay is the subpath within manifestsFolder
-                                    where kustomize builds start.
+                                  description: 'sourcePath is the subpath within contextDir
+                                    where kustomize builds start. Examples include
+                                    any sub-folder or path: `base`, `overlays/dev`,
+                                    `default`, `odh` etc'
                                   type: string
                                 uri:
                                   default: ""
                                   description: uri is the URI point to a git repo
-                                    with tag/branch. e.g  https://github.com/org/repo/tarball/tag
+                                    with tag/branch. e.g  https://github.com/org/repo/tarball/<tag/branch>
                                   type: string
                               type: object
                             type: array
@@ -303,20 +315,22 @@ spec:
                             description: List of custom manifests for the given component
                             items:
                               properties:
-                                manifestsFolder:
+                                contextDir:
                                   default: ""
-                                  description: manifestsFolder is the relative path
-                                    to the folder containing manifests in a repository
+                                  description: contextDir is the relative path to
+                                    the folder containing manifests in a repository
                                   type: string
-                                overlay:
+                                sourcePath:
                                   default: ""
-                                  description: overlay is the subpath within manifestsFolder
-                                    where kustomize builds start.
+                                  description: 'sourcePath is the subpath within contextDir
+                                    where kustomize builds start. Examples include
+                                    any sub-folder or path: `base`, `overlays/dev`,
+                                    `default`, `odh` etc'
                                   type: string
                                 uri:
                                   default: ""
                                   description: uri is the URI point to a git repo
-                                    with tag/branch. e.g  https://github.com/org/repo/tarball/tag
+                                    with tag/branch. e.g  https://github.com/org/repo/tarball/<tag/branch>
                                   type: string
                               type: object
                             type: array

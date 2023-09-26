@@ -46,9 +46,9 @@ func (w *Workbenches) OverrideManifests(platform string) error {
 				// If overlay is defined, update paths
 				defaultKustomizePath := "overlays/additional"
 				defaultKustomizePathSupported := "notebook-images/overlays/additional"
-				if subcomponent.Overlay != "" {
-					defaultKustomizePath = subcomponent.Overlay
-					defaultKustomizePathSupported = subcomponent.Overlay
+				if subcomponent.SourcePath != "" {
+					defaultKustomizePath = subcomponent.SourcePath
+					defaultKustomizePathSupported = subcomponent.SourcePath
 				}
 				if platform == string(deploy.ManagedRhods) || platform == string(deploy.SelfManagedRhods) {
 					notebookImagesPathSupported = filepath.Join(deploy.DefaultManifestPath, "jupyterhub", defaultKustomizePathSupported)
@@ -57,28 +57,28 @@ func (w *Workbenches) OverrideManifests(platform string) error {
 				}
 			}
 
-			if strings.Contains(subcomponent.ManifestsFolder, "components/odh-notebook-controller") {
+			if strings.Contains(subcomponent.ContextDir, "components/odh-notebook-controller") {
 				// Download subcomponent
 				if err := deploy.DownloadManifests("odh-notebook-controller/odh-notebook-controller", subcomponent); err != nil {
 					return err
 				}
 				// If overlay is defined, update paths
 				defaultKustomizePathNbc := "base"
-				if subcomponent.Overlay != "" {
-					defaultKustomizePathNbc = subcomponent.Overlay
+				if subcomponent.SourcePath != "" {
+					defaultKustomizePathNbc = subcomponent.SourcePath
 				}
 				notebookControllerPath = filepath.Join(deploy.DefaultManifestPath, "odh-notebook-controller/odh-notebook-controller", defaultKustomizePathNbc)
 			}
 
-			if strings.Contains(subcomponent.ManifestsFolder, "components/notebook-controller") {
+			if strings.Contains(subcomponent.ContextDir, "components/notebook-controller") {
 				// Download subcomponent
 				if err := deploy.DownloadManifests("odh-notebook-controller/kf-notebook-controller", subcomponent); err != nil {
 					return err
 				}
 				// If overlay is defined, update paths
 				defaultKustomizePathKfNbc := "overlays/openshift"
-				if subcomponent.Overlay != "" {
-					defaultKustomizePathKfNbc = subcomponent.Overlay
+				if subcomponent.SourcePath != "" {
+					defaultKustomizePathKfNbc = subcomponent.SourcePath
 				}
 				kfnotebookControllerPath = filepath.Join(deploy.DefaultManifestPath, "odh-notebook-controller/kf-notebook-controller", defaultKustomizePathKfNbc)
 			}
