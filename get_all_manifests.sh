@@ -8,7 +8,7 @@ REPO_LIST=(
     "distributed-workloads:main:ray:ray"
     "data-science-pipelines-operator:main:config:data-science-pipelines-operator"
     "kserve:release-v0.11:config:kserve"
-    "odh-dashboard:main:manifests:odh-dashboard"
+    "odh-dashboard:incubation:manifests:odh-dashboard"
     "notebooks:main:manifests:notebook"
     "kubeflow:v1.7-branch:components/notebook-controller/config:odh-notebook-controller/kf-notebook-controller"
     "kubeflow:v1.7-branch:components/odh-notebook-controller/config:odh-notebook-controller/odh-notebook-controller"
