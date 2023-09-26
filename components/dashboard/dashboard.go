@@ -71,7 +71,7 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 			}
 
 			// Deploy CRDs for odh-dashboard
-			err = deploy.DeployManifestsFromPath(cli, owner,,
+			err = deploy.DeployManifestsFromPath(cli, owner,
 				PathCRDs,
 				dscispec.ApplicationsNamespace,
 				ComponentName,
