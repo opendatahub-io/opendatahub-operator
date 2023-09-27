@@ -4,13 +4,13 @@ set -e
 # component: dsp, kserve, dashbaord, cf/ray. in the format of "repo-name:branch-name:source-folder:target-folder"
 # TODO: workbench, modelmesh, monitoring, etc
 REPO_LIST=(
-    "distributed-workloads:main:codeflare-stack:codeflare"
-    "distributed-workloads:main:ray:ray"
-    "data-science-pipelines-operator:main:config:data-science-pipelines-operator"
-    "odh-dashboard:main:manifests:odh-dashboard"
-    "kubeflow:v1.7-branch:components/notebook-controller/config:odh-notebook-controller/kf-notebook-controller"
-    "kubeflow:v1.7-branch:components/odh-notebook-controller/config:odh-notebook-controller/odh-notebook-controller"
-    "notebooks:main:manifests:notebooks"
+    "distributed-workloads:v1.0.0-rc.1:codeflare-stack:codeflare"
+    "distributed-workloads:v1.0.0-rc.1:ray:ray"
+    "data-science-pipelines-operator:v1.4.0:config:data-science-pipelines-operator"
+    "odh-dashboard:v2.15.0-incubation-fixes:manifests:odh-dashboard"
+    "kubeflow:v1.7.0-3:components/notebook-controller/config:odh-notebook-controller/kf-notebook-controller"
+    "kubeflow:v1.7.0-3:components/odh-notebook-controller/config:odh-notebook-controller/odh-notebook-controller"
+    "notebooks:v1.10.0:manifests:notebooks"
 )
 
 # pre-cleanup local env
@@ -21,7 +21,7 @@ GITHUB_URL="https://github.com/"
 MANIFEST_ORG="opendatahub-io"
 
 # comment out below logic once we have all component manifests ready to get from source git repo
-MANIFEST_RELEASE="master"
+MANIFEST_RELEASE="v1.10.0"
 MANIFESTS_TARBALL_URL="${GITHUB_URL}/${MANIFEST_ORG}/odh-manifests/tarball/${MANIFEST_RELEASE}"
 mkdir -p ./.odh-manifests-tmp/ ./odh-manifests/
 wget -q -c ${MANIFESTS_TARBALL_URL} -O - | tar -zxv -C ./.odh-manifests-tmp/ --strip-components 1 > /dev/null
