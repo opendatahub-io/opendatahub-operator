@@ -28,6 +28,9 @@ cp -r ./.odh-manifests-tmp/modelmesh-monitoring/ ./odh-manifests
 cp -r ./.odh-manifests-tmp/prometheus ./odh-manifests
 cp -r ./.odh-manifests-tmp/trustyai-service-operator ./odh-manifests
 cp -r ./.odh-manifests-tmp/odh-common ./odh-manifests
+# This is required, so that base dir under odh-notebook-controller. Overlays are not working with KfDef
+mkdir -p ./odh-manifests/odh-notebook-controller/base
+cp -r ./.odh-manifests-tmp/odh-notebook-controller/base/ ./odh-manifests/odh-notebook-controller
 rm -rf ${MANIFEST_RELEASE}.tar.gz ./.odh-manifests-tmp/
 
 for repo_info in ${REPO_LIST[@]}; do
