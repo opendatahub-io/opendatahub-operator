@@ -21,6 +21,8 @@ spec:
                 properties:
                   disableBYONImageStream:
                     type: boolean
+                  disableBiasMetrics:
+                    type: boolean
                   disableClusterManager:
                     type: boolean
                   disableCustomServingRuntimes:
@@ -30,6 +32,8 @@ spec:
                   disableInfo:
                     type: boolean
                   disableModelServing:
+                    type: boolean
+                  disablePerformanceMetrics:
                     type: boolean
                   disablePipelines:
                     type: boolean
@@ -137,6 +141,10 @@ spec:
                   - name
                   - resources
                   type: object
+                type: array
+              templateDisablement:
+                items:
+                  type: string
                 type: array
               templateOrder:
                 items:
