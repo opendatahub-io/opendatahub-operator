@@ -20,6 +20,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -65,6 +66,9 @@ type Components struct {
 	// Ray component configuration.
 	// Require CodeFlare Operator to be installed before enable component
 	Ray ray.Ray `json:"ray,omitempty"`
+
+	// TrustyAI component configuration.
+	TrustyAI trustyai.TrustyAI `json:"trustyai,omitempty"`
 }
 
 // DataScienceClusterStatus defines the observed state of DataScienceCluster
