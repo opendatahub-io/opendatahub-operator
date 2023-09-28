@@ -24,6 +24,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"golang.org/x/exp/maps"
 	"io"
 	"net/http"
@@ -55,82 +56,87 @@ const (
 	DefaultManifestPath = "/opt/manifests"
 )
 
-// DownloadManifests function performs following tasks:
-// 1. Given remote URI, download manifests, else extract local bundle
-// 2. It saves the manifests in the /opt/manifests/component-name/ folder
-func DownloadManifests(uri string) error {
+// downloadManifests function performs following tasks:
+// 1. It takes component URI and only downloads folder specified by component.ContextDir field
+// 2. It saves the manifests in the odh-manifests/component-name/ folder
+func DownloadManifests(componentName string, manifestConfig components.ManifestsConfig) error {
 	// Get the component repo from the given url
-	// e.g.  https://github.com/example/tarball/master\
-	var reader io.Reader
-	if uri != "" {
-		resp, err := http.Get(uri)
-		if err != nil {
-			return fmt.Errorf("error downloading manifests: %w", err)
-		}
-		defer resp.Body.Close()
+	// e.g  https://github.com/example/tarball/master
+	resp, err := http.Get(manifestConfig.URI)
+	if err != nil {
+		return fmt.Errorf("error downloading manifests: %v", err)
+	}
+	defer resp.Body.Close()
 
-		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("error downloading manifests: %v HTTP status", resp.StatusCode)
-		}
-		reader = resp.Body
-
-		// Create a new gzip reader
-		gzipReader, err := gzip.NewReader(reader)
-		if err != nil {
-			return fmt.Errorf("error creating gzip reader: %w", err)
-		}
-		defer gzipReader.Close()
-
-		// Create a new TAR reader
-		tarReader := tar.NewReader(gzipReader)
-
-		// Create manifest directory
-		mode := os.ModePerm
-		err = os.MkdirAll(DefaultManifestPath, mode)
-		if err != nil {
-			return fmt.Errorf("error creating manifests directory : %w", err)
-		}
-
-		for {
-			header, err := tarReader.Next()
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				return err
-			}
-			manifestsPath := strings.Split(header.Name, string(os.PathSeparator))
-
-			// Determine the file or directory path to extract to
-			target := filepath.Join(DefaultManifestPath, strings.Join(manifestsPath[1:], string(os.PathSeparator)))
-
-			if header.Typeflag == tar.TypeDir {
-				// Create directories
-				err = os.MkdirAll(target, os.ModePerm)
-				if err != nil {
-					return err
-				}
-			} else if header.Typeflag == tar.TypeReg {
-				// Extract regular files
-				outputFile, err := os.Create(target)
-				if err != nil {
-					return err
-				}
-				defer outputFile.Close()
-
-				_, err = io.Copy(outputFile, tarReader)
-				if err != nil {
-					return err
-				}
-			}
-		}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("error downloading manifests: %v HTTP status", resp.StatusCode)
 	}
 
-	return nil
+	// Create a new gzip reader
+	gzipReader, err := gzip.NewReader(resp.Body)
+	if err != nil {
+		return fmt.Errorf("error creating gzip reader: %v", err)
+	}
+	defer gzipReader.Close()
+
+	// Create a new TAR reader
+	tarReader := tar.NewReader(gzipReader)
+
+	// Create manifest directory
+	mode := os.ModePerm
+	err = os.MkdirAll(DefaultManifestPath, mode)
+	if err != nil {
+		return fmt.Errorf("error creating manifests directory : %v", err)
+	}
+
+	// Extract the contents of the TAR archive to the current directory
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		componentFiles := strings.Split(header.Name, "/")
+		componentFileName := header.Name
+		componentManifestPath := componentFiles[0] + "/" + manifestConfig.ContextDir
+
+		if strings.Contains(componentFileName, componentManifestPath) {
+			// Get manifest path relative to repo
+			// e.g. of repo/a/b/manifests/base --> base/
+			componentFoldersList := strings.Split(componentFileName, "/")
+			componentFileRelativePathFound := strings.Join(componentFoldersList[len(strings.Split(componentManifestPath, "/")):], "/")
+
+			if header.Typeflag == tar.TypeDir {
+
+				err = os.MkdirAll(DefaultManifestPath+"/"+componentName+"/"+componentFileRelativePathFound, mode)
+				if err != nil {
+					return fmt.Errorf("error creating directory:%v", err)
+				}
+				continue
+			}
+
+			if header.Typeflag == tar.TypeReg {
+				file, err := os.Create(DefaultManifestPath + "/" + componentName + "/" + componentFileRelativePathFound)
+				if err != nil {
+					fmt.Println("Error creating file:", err)
+				}
+				_, err = io.Copy(file, tarReader)
+				if err != nil {
+					fmt.Println("Error downloading file contents:", err)
+				}
+				file.Close()
+				continue
+			}
+
+		}
+	}
+	return err
 }
 
 func DeployManifestsFromPath(cli client.Client, owner metav1.Object, manifestPath string, namespace string, componentName string, componentEnabled bool) error {
-
 	// Render the Kustomize manifests
 	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
 	fs := filesys.MakeFsOnDisk()

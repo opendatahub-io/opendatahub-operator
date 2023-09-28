@@ -687,6 +687,16 @@ spec:
         - apiGroups:
           - dashboard.opendatahub.io
           resources:
+          - acceleratorprofiles
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+        - apiGroups:
+          - dashboard.opendatahub.io
+          resources:
           - odhapplications
           verbs:
           - create

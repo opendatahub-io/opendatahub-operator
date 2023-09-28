@@ -22,15 +22,13 @@ import (
 	"errors"
 	"fmt"
 	"github.com/hashicorp/go-multierror"
-	v1 "github.com/openshift/api/operator/v1"
-	"time"
-
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+	"time"
 
 	"github.com/go-logr/logr"
 	"k8s.io/client-go/util/retry"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -40,6 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
+	v1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 	authv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -70,7 +69,6 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	r.Log.Info("Reconciling DataScienceCluster resources", "Request.Namespace", req.Namespace, "Request.Name", req.Name)
 
 	instances := &dsc.DataScienceClusterList{}
-
 	if err := r.Client.List(ctx, instances); err != nil {
 		return ctrl.Result{}, err
 	}

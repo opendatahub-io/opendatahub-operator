@@ -17,7 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const (
+var (
 	ComponentName          = "odh-dashboard"
 	ComponentNameSupported = "rhods-dashboard"
 	Path                   = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
@@ -39,6 +39,36 @@ var imageParamMap = map[string]string{
 
 type Dashboard struct {
 	components.Component `json:""`
+}
+
+func (d *Dashboard) OverrideManifests(platform string) error {
+	// If devflags are set, update default manifests path
+	if len(d.DevFlags.Manifests) != 0 {
+		manifestConfig := d.DevFlags.Manifests[0]
+		if err := deploy.DownloadManifests(ComponentName, manifestConfig); err != nil {
+			return err
+		}
+		// If overlay is defined, update paths
+		if platform == string(deploy.ManagedRhods) || platform == string(deploy.SelfManagedRhods) {
+			defaultKustomizePath := "overlays/rhods"
+			if manifestConfig.SourcePath != "" {
+				defaultKustomizePath = manifestConfig.SourcePath
+			}
+			PathSupported = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
+		} else {
+			defaultKustomizePath := "base"
+			if manifestConfig.SourcePath != "" {
+				defaultKustomizePath = manifestConfig.SourcePath
+			}
+			Path = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
+		}
+
+	}
+	return nil
+}
+
+func (d *Dashboard) GetComponentDevFlags() components.DevFlags {
+	return d.DevFlags
 }
 
 func (d *Dashboard) SetImageParamsMap(imageMap map[string]string) map[string]string {
@@ -64,6 +94,11 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 	// Update Default rolebinding
 	enabled := d.GetManagementState() == operatorv1.Managed
 	if enabled {
+		// Download manifests and update paths
+		if err = d.OverrideManifests(string(platform)); err != nil {
+			return err
+		}
+
 		if platform == deploy.OpenDataHub || platform == "" {
 			err := common.UpdatePodSecurityRolebinding(cli, []string{"odh-dashboard"}, dscispec.ApplicationsNamespace)
 			if err != nil {
