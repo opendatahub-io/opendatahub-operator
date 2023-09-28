@@ -12,8 +12,8 @@ REPO_LIST=(
     "notebooks:main:manifests:notebook"
     "kubeflow:v1.7-branch:components/notebook-controller/config:odh-notebook-controller/kf-notebook-controller"
     "kubeflow:v1.7-branch:components/odh-notebook-controller/config:odh-notebook-controller/odh-notebook-controller"
-    "odh-model-controller:main:config:odh-model-controller"
-    "modelmesh-serving:main:config:model-mesh"
+    "odh-model-controller:remove_kserve_flag:config:odh-model-controller"
+    "modelmesh-serving:manifests_transition_v2:config:model-mesh"
 )
 
 # pre-cleanup local env
