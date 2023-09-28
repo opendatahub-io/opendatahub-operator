@@ -32,7 +32,7 @@ jobs:
         with:
           OVERWRITE: true
           IMAGE_REPO: ${{ env.IMAGE_REPO_ODHO }}
-          DOCKERFILE: Dockerfile
+          DOCKERFILE: ../../Dockerfiles/Dockerfile
           GH_REPO: ${{ github.repository }}
       - name: Tag latest
         shell: bash
