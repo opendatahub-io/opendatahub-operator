@@ -24,13 +24,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components"
-	"golang.org/x/exp/maps"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"golang.org/x/exp/maps"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"

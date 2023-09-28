@@ -3,11 +3,12 @@ package kserve
 
 import (
 	"fmt"
+	"path/filepath"
+	"strings"
+
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"path/filepath"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"strings"
 
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
@@ -137,15 +138,19 @@ func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dsci
 		if err != nil {
 			return err
 		}
-		// Update image parameters for odh-maodel-controller
+		// Update image parameters for odh-model-controller
 		if dscispec.DevFlags.ManifestsUri == "" {
 			if err := deploy.ApplyImageParams(DependentPath, dependentImageParamMap); err != nil {
 				return err
 			}
 		}
-	}
-	if err := deploy.DeployManifestsFromPath(cli, owner, DependentPath, dscispec.ApplicationsNamespace, k.GetComponentName(), enabled); err != nil {
-		return err
+		if err := deploy.DeployManifestsFromPath(cli, owner, DependentPath, dscispec.ApplicationsNamespace, k.GetComponentName(), enabled); err != nil {
+			if strings.Contains(err.Error(), "spec.selector") && strings.Contains(err.Error(), "field is immutable") {
+				//ignore this error
+			} else {
+				return err
+			}
+		}
 	}
 
 	return nil
