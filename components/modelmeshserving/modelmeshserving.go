@@ -4,6 +4,7 @@ package modelmeshserving
 import (
 	"context"
 	"path/filepath"
+	"strings"
 
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
@@ -15,10 +16,24 @@ import (
 )
 
 var (
-	ComponentName  = "model-mesh"
-	Path           = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
-	monitoringPath = deploy.DefaultManifestPath + "/" + "modelmesh-monitoring/base"
+	ComponentName          = "model-mesh"
+	Path                   = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/odh"
+	monitoringPath         = deploy.DefaultManifestPath + "/" + "modelmesh-monitoring/base"
+	DependentComponentName = "odh-model-controller"
+	DependentPath          = deploy.DefaultManifestPath + "/" + DependentComponentName + "/base"
 )
+
+var imageParamMap = map[string]string{
+	"odh-mm-rest-proxy":             "RELATED_IMAGE_ODH_MM_REST_PROXY_IMAGE",
+	"odh-modelmesh-runtime-adapter": "RELATED_IMAGE_ODH_MODELMESH_RUNTIME_ADAPTER_IMAGE",
+	"odh-modelmesh":                 "RELATED_IMAGE_ODH_MODELMESH_IMAGE",
+	"odh-modelmesh-controller":      "RELATED_IMAGE_ODH_MODELMESH_CONTROLLER_IMAGE",
+}
+
+// odh-model-controller to use
+var dependentImageParamMap = map[string]string{
+	"odh-model-controller": "RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
+}
 
 type ModelMeshServing struct {
 	components.Component `json:""`
@@ -69,9 +84,8 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 		if err = m.OverrideManifests(string(platform)); err != nil {
 			return err
 		}
-		err := common.UpdatePodSecurityRolebinding(cli,
-			[]string{"modelmesh", "modelmesh-controller", "odh-model-controller", "odh-prometheus-operator", "prometheus-custom"},
-			dscispec.ApplicationsNamespace)
+
+		err := common.UpdatePodSecurityRolebinding(cli, []string{"modelmesh", "modelmesh-controller", "odh-prometheus-operator", "prometheus-custom"}, dscispec.ApplicationsNamespace)
 		if err != nil {
 			return err
 		}
@@ -86,6 +100,27 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 	err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled)
 	if err != nil {
 		return err
+	}
+
+	// For odh-model-controller
+	if enabled {
+		err := common.UpdatePodSecurityRolebinding(cli, []string{"odh-model-controller"}, dscispec.ApplicationsNamespace)
+		if err != nil {
+			return err
+		}
+		// Update image parameters for odh-model-controller
+		if dscispec.DevFlags.ManifestsUri == "" {
+			if err := deploy.ApplyParams(DependentPath, m.SetImageParamsMap(dependentImageParamMap), false); err != nil {
+				return err
+			}
+		}
+		if err := deploy.DeployManifestsFromPath(cli, owner, DependentPath, dscispec.ApplicationsNamespace, m.GetComponentName(), enabled); err != nil {
+			if strings.Contains(err.Error(), "spec.selector") && strings.Contains(err.Error(), "field is immutable") {
+				//ignore this error
+			} else {
+				return err
+			}
+		}
 	}
 
 	// Get monitoring namespace

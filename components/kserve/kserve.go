@@ -132,9 +132,13 @@ func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dsci
 				return err
 			}
 		}
-	}
-	if err := deploy.DeployManifestsFromPath(cli, owner, DependentPath, dscispec.ApplicationsNamespace, k.GetComponentName(), enabled); err != nil {
-		return err
+		if err := deploy.DeployManifestsFromPath(cli, owner, DependentPath, dscispec.ApplicationsNamespace, k.GetComponentName(), enabled); err != nil {
+			if strings.Contains(err.Error(), "spec.selector") && strings.Contains(err.Error(), "field is immutable") {
+				//ignore this error
+			} else {
+				return err
+			}
+		}
 	}
 
 	return nil
