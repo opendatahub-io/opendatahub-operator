@@ -3,6 +3,7 @@ package kserve
 
 import (
 	"fmt"
+
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -80,6 +81,14 @@ func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dsci
 
 	// For odh-model-controller
 	if enabled {
+		// check if odh-model-controller is already deployed by model-mesh
+
+		dependentExists := deploy.DeploymentExists(cli, dscispec.ApplicationsNamespace, "odh-model-controller")
+
+		if dependentExists {
+			return nil
+		}
+
 		err := common.UpdatePodSecurityRolebinding(cli, []string{"odh-model-controller"}, dscispec.ApplicationsNamespace)
 		if err != nil {
 			return err

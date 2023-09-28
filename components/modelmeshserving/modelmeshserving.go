@@ -3,6 +3,7 @@ package modelmeshserving
 
 import (
 	"context"
+
 	operatorv1 "github.com/openshift/api/operator/v1"
 
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -14,9 +15,11 @@ import (
 )
 
 const (
-	ComponentName  = "model-mesh"
-	Path           = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
-	monitoringPath = deploy.DefaultManifestPath + "/" + "modelmesh-monitoring/base"
+	ComponentName          = "model-mesh"
+	Path                   = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
+	monitoringPath         = deploy.DefaultManifestPath + "/" + "modelmesh-monitoring/base"
+	DependentComponentName = "odh-model-controller"
+	DependentPath          = deploy.DefaultManifestPath + "/" + DependentComponentName + "/base"
 )
 
 var imageParamMap = map[string]string{
@@ -24,7 +27,11 @@ var imageParamMap = map[string]string{
 	"odh-modelmesh-runtime-adapter": "RELATED_IMAGE_ODH_MODELMESH_RUNTIME_ADAPTER_IMAGE",
 	"odh-modelmesh":                 "RELATED_IMAGE_ODH_MODELMESH_IMAGE",
 	"odh-modelmesh-controller":      "RELATED_IMAGE_ODH_MODELMESH_CONTROLLER_IMAGE",
-	"odh-model-controller":          "RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
+}
+
+// odh-model-controller to use
+var dependentImageParamMap = map[string]string{
+	"odh-model-controller": "RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
 }
 
 type ModelMeshServing struct {
@@ -48,7 +55,7 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 
 	// Update Default rolebinding
 	if enabled {
-		err := common.UpdatePodSecurityRolebinding(cli, []string{"modelmesh", "modelmesh-controller", "odh-model-controller", "odh-prometheus-operator", "prometheus-custom"}, dscispec.ApplicationsNamespace)
+		err := common.UpdatePodSecurityRolebinding(cli, []string{"modelmesh", "modelmesh-controller", "odh-prometheus-operator", "prometheus-custom"}, dscispec.ApplicationsNamespace)
 		if err != nil {
 			return err
 		}
@@ -63,6 +70,31 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 	err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled)
 
 	if err != nil {
+		return err
+	}
+
+	// For odh-model-controller
+	if enabled {
+		// check if odh-model-controller is already deployed by kserve
+
+		dependentExists := deploy.DeploymentExists(cli, dscispec.ApplicationsNamespace, "odh-model-controller")
+
+		if dependentExists {
+			return nil
+		}
+
+		err := common.UpdatePodSecurityRolebinding(cli, []string{"odh-model-controller"}, dscispec.ApplicationsNamespace)
+		if err != nil {
+			return err
+		}
+		// Update image parameters for kserve
+		if dscispec.DevFlags.ManifestsUri == "" {
+			if err := deploy.ApplyImageParams(Path, dependentImageParamMap); err != nil {
+				return err
+			}
+		}
+	}
+	if err := deploy.DeployManifestsFromPath(cli, owner, DependentPath, dscispec.ApplicationsNamespace, m.GetComponentName(), enabled); err != nil {
 		return err
 	}
 

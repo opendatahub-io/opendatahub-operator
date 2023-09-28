@@ -24,12 +24,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"golang.org/x/exp/maps"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"golang.org/x/exp/maps"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
@@ -38,6 +39,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/kustomize/api/filesys"
@@ -409,3 +411,28 @@ func OperatorExists(cli client.Client, operatorPrefix string) (bool, error) {
 }
 
 // TODO : Add function to cleanup code created as part of pre install and post install task of a component
+
+func DeploymentExists(cli client.Client, applicationNamespace string, deploymentName string) bool {
+	u := &unstructured.Unstructured{}
+	u.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   "apps",
+		Kind:    "Deployment",
+		Version: "v1",
+	})
+	u.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   "apps",
+		Kind:    "Deployment",
+		Version: "v1",
+	})
+	err := cli.Get(context.Background(), client.ObjectKey{
+		Namespace: applicationNamespace,
+		Name:      deploymentName,
+	}, u)
+
+	if err != nil {
+		if !apierrs.IsNotFound(err) {
+			return false
+		}
+	}
+	return true
+}

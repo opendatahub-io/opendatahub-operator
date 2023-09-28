@@ -12,6 +12,8 @@ REPO_LIST=(
     "notebooks:main:manifests:notebook"
     "kubeflow:v1.7-branch:components/notebook-controller/config:odh-notebook-controller/kf-notebook-controller"
     "kubeflow:v1.7-branch:components/odh-notebook-controller/config:odh-notebook-controller/odh-notebook-controller"
+    "odh-model-controller:main:config:odh-model-controller"
+    "modelmesh-serving:main:config:model-mesh"
 )
 
 # pre-cleanup local env
@@ -26,8 +28,6 @@ MANIFEST_RELEASE="master"
 MANIFESTS_TARBALL_URL="${GITHUB_URL}/${MANIFEST_ORG}/odh-manifests/tarball/${MANIFEST_RELEASE}"
 mkdir -p ./.odh-manifests-tmp/ ./odh-manifests/
 wget -q -c ${MANIFESTS_TARBALL_URL} -O - | tar -zxv -C ./.odh-manifests-tmp/ --strip-components 1 > /dev/null
-cp -r ./.odh-manifests-tmp/model-mesh/ ./odh-manifests
-cp -r ./.odh-manifests-tmp/odh-model-controller/ ./odh-manifests
 cp -r ./.odh-manifests-tmp/modelmesh-monitoring/ ./odh-manifests
 rm -rf ${MANIFEST_RELEASE}.tar.gz ./.odh-manifests-tmp/
 
