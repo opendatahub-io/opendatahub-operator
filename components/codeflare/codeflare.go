@@ -14,7 +14,7 @@ import (
 
 var (
 	ComponentName       = "codeflare"
-	CodeflarePath       = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
+	CodeflarePath       = deploy.DefaultManifestPath + "/" + "codeflare-stack" + "/base"
 	CodeflareOperator   = "codeflare-operator"
 	RHCodeflareOperator = "rhods-codeflare-operator"
 )
