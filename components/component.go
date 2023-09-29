@@ -4,7 +4,6 @@ import (
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -20,11 +19,50 @@ type Component struct {
 	// +kubebuilder:validation:Enum=Managed;Removed
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 	// Add any other common fields across components below
+
+	// Add developer fields
+	// +optional
+	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=2
+	DevFlags DevFlags `json:"devFlags,omitempty"`
+}
+
+func (c *Component) GetManagementState() operatorv1.ManagementState {
+	return c.ManagementState
+}
+
+// DevFlags defines list of fields that can be used by developers to test customizations. This is not recommended
+// to be used in production environment.
+type DevFlags struct {
+	// List of custom manifests for the given component
+	// +optional
+	Manifests []ManifestsConfig `json:"manifests,omitempty"`
+}
+
+type ManifestsConfig struct {
+	// uri is the URI point to a git repo with tag/branch. e.g  https://github.com/org/repo/tarball/<tag/branch>
+	// +optional
+	// +kubebuilder:default:=""
+	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=1
+	URI string `json:"uri,omitempty"`
+
+	// contextDir is the relative path to the folder containing manifests in a repository
+	// +optional
+	// +kubebuilder:default:=""
+	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=2
+	ContextDir string `json:"contextDir,omitempty"`
+
+	// sourcePath is the subpath within contextDir where kustomize builds start. Examples include any sub-folder or path: `base`, `overlays/dev`, `default`, `odh` etc
+	// +optional
+	// +kubebuilder:default:=""
+	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=3
+	SourcePath string `json:"sourcePath,omitempty"`
 }
 
 type ComponentInterface interface {
-	ReconcileComponent(owner metav1.Object, client client.Client, scheme *runtime.Scheme,
-		managementState operatorv1.ManagementState, DSCISpec *dsci.DSCInitializationSpec) error
+	ReconcileComponent(cli client.Client, owner metav1.Object, DSCISpec *dsci.DSCInitializationSpec) error
 	GetComponentName() string
+	GetManagementState() operatorv1.ManagementState
+	GetComponentDevFlags() DevFlags
 	SetImageParamsMap(imageMap map[string]string) map[string]string
+	OverrideManifests(platform string) error
 }

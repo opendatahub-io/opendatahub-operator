@@ -1,4 +1,4 @@
-# Open Data Hub Operator Redsign
+# Open Data Hub Operator Redesign
 
 ## Motivation
 
@@ -19,7 +19,7 @@ To deploy ODH components seamlessly, ODH operator will watch two CRDs:
 - DSCInitialization
 - DataScienceCluster
 
-![Operator Rearchitecture](images/Operator%20Architecture.png)
+![Operator Re-architecture](images/Operator%20Architecture.png)
 
 ### DSCInitialization
 
@@ -31,7 +31,7 @@ To deploy ODH components seamlessly, ODH operator will watch two CRDs:
 ### DataScienceCluster
 
 - This CR will be watched by the ODH operator to enable various data science components.
-- It is responsible for enabling support for CRDs like Notebooks, DataSciencePipelinesApplication, InferenceService etc based on the configuration
+- It is responsible for enabling support for CRDs like Notebooks, DataSciencePipelinesApplication, InferenceService etc. based on the configuration
 - Initially only one instance of DataScienceCluster CR will be supported by the operator. A user can extend/update the CR to enable/disable components.
 - Detailed API fields are described in the CRD.
 

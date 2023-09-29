@@ -12,7 +12,7 @@ VERSION ?= 2.1.0
 # opendatahub.io/opendatahub-operator-bundle:$VERSION and opendatahub.io/opendatahub-operator-catalog:$VERSION.
 IMAGE_TAG_BASE ?= quay.io/$(IMAGE_OWNER)/opendatahub-operator
 # Update IMG to a variable, to keep it consistent across versions for OpenShift CI
-IMG ?= REPLACE_IMAGE 
+IMG ?= REPLACE_IMAGE
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
 BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
@@ -24,6 +24,7 @@ MANIFEST_REPO ?= red-hat-data-services
 MANIFEST_RELEASE ?= master
 
 CHANNELS="alpha"
+
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
 # To re-generate a bundle for other specific channels without changing the standard setup, you can:
@@ -80,6 +81,14 @@ endif
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
+# E2E tests additional flags
+E2E_TEST_FLAGS = "--skip-deletion=true" # See README.md
+
+# Default image-build is to not use local odh-manifests folder
+# set to "true" to use local instead
+# see target "image-build"
+IMAGE_BUILD_FLAGS = --build-arg USE_LOCAL=false
+
 .PHONY: all
 all: build
 
@@ -122,10 +131,14 @@ vet: ## Run go vet against code.
 
 .PHONY: test
 test: manifests generate fmt vet envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test ./controllers/... -coverprofile cover.out
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./controllers/... -v  -coverprofile cover.out
 
 # E2E tests additional flags
 E2E_TEST_FLAGS = "--skip-deletion=false" -timeout 15m # See README.md, default go test timeout 10m
+
+.PHONY: get-manifests
+get-manifests: ## Fetch components manifests from remote git repo
+	./get_all_manifests.sh
 
 ##@ Build
 
@@ -139,7 +152,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 
 .PHONY: image-build
 image-build: test ## Build image with the manager.
-	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/Dockerfile --build-arg MANIFEST_RELEASE=$(MANIFEST_RELEASE) -t $(IMG) .
+	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/Dockerfile  ${IMAGE_BUILD_FLAGS} -t $(IMG) .
 
 .PHONY: image-push
 image-push: ## Push image with the manager.
@@ -147,15 +160,6 @@ image-push: ## Push image with the manager.
 
 .PHONY: image
 image: image-build image-push ## Build and push image with the manager.
-
-MANIFESTS_TARBALL_URL="https://github.com/$(MANIFEST_REPO)/odh-manifests/tarball/$(MANIFEST_RELEASE)"
-
-.PHONY: get-manifests
-get-manifests: odh-manifests/version.py ## Get latest odh-manifests tarball from github repo
-
-odh-manifests/version.py: ## Get latest odh-manifests tarball
-	rm -fr odh-manifests && mkdir odh-manifests
-	wget -c $(MANIFESTS_TARBALL_URL) -O - | tar -zxv -C odh-manifests/ --strip-components 1
 
 ##@ Deployment
 

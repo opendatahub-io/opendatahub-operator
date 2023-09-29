@@ -14,20 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package datasciencecluster contains controller logic of CRD DSCInitialization
+// Package dscinitialization contains controller logic of CRD DSCInitialization.
 package dscinitialization
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	operatorv1 "github.com/openshift/api/operator/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"path/filepath"
 
-	logr "github.com/go-logr/logr"
+	"github.com/go-logr/logr"
 
 	"k8s.io/client-go/util/retry"
 
-	ocuserv1 "github.com/openshift/api/user/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
@@ -89,7 +89,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	if len(instanceList.Items) > 1 {
 		message := fmt.Sprintf("only one instance of DSCInitialization object is allowed. Update existing instance on namespace %s and name %s", req.Namespace, req.Name)
-		return ctrl.Result{}, fmt.Errorf(message)
+		return ctrl.Result{}, errors.New(message)
 	}
 
 	// Start reconciling
@@ -116,14 +116,6 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return reconcile.Result{}, err
 	}
 
-	// Extract latest Manifests
-	err = deploy.DownloadManifests(instance.Spec.DevFlags.ManifestsUri)
-	if err != nil {
-		r.Log.Error(err, "Failed to download and unpack manifests.", "ManifestsURI", instance.Spec.DevFlags.ManifestsUri)
-		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to download and unpack manifests")
-		return reconcile.Result{}, err
-	}
-
 	// Get platform
 	platform, err := deploy.GetPlatform(r.Client)
 	if err != nil {
@@ -142,38 +134,28 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
 		//Apply osd specific permissions
 		if platform == deploy.ManagedRhods {
-			err = deploy.DeployManifestsFromPath(instance, r.Client, "osd",
-				deploy.DefaultManifestPath+"/osd-configs",
-				r.ApplicationsNamespace, r.Scheme, true)
+			osdConfigsPath := filepath.Join(deploy.DefaultManifestPath, "osd-configs")
+			err = deploy.DeployManifestsFromPath(r.Client, instance, osdConfigsPath, r.ApplicationsNamespace, "osd", true)
 			if err != nil {
-				r.Log.Error(err, "Failed to apply osd specific configs from manifests", "Manifests path", deploy.DefaultManifestPath+"/osd-configs")
-				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to apply "+deploy.DefaultManifestPath+"/osd-configs")
+				r.Log.Error(err, "Failed to apply osd specific configs from manifests", "Manifests path", osdConfigsPath)
+				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to apply "+osdConfigsPath)
 				return reconcile.Result{}, err
 			}
 		} else {
 			// Apply self-managed rhods config
 			// Create rhods-admins Group if it doesn't exist
-			rhodsuserGroup := &ocuserv1.Group{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "rhods-admins",
-				},
-			}
-			err := r.Client.Get(ctx, client.ObjectKey{
-				Name: rhodsuserGroup.Name,
-			}, rhodsuserGroup)
+			err := r.createUserGroup(instance, "rhods-admins", ctx)
 			if err != nil {
-				if apierrs.IsNotFound(err) {
-					err = r.Client.Create(ctx, rhodsuserGroup)
-					if err != nil && !apierrs.IsAlreadyExists(err) {
-						return reconcile.Result{}, err
-					}
-				} else {
-					return reconcile.Result{}, err
-				}
+				return reconcile.Result{}, err
 			}
 		}
-
 		// Apply common rhods-specific config
+	} else { // ODH case
+		// Create odh-admins Group if it doesn't exist
+		err := r.createUserGroup(instance, "odh-admins", ctx)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
 	}
 
 	// If monitoring enabled
@@ -208,7 +190,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		saved.Status.Phase = status.PhaseReady
 	})
 	if err != nil {
-		r.Log.Error(err, "failed to update DSCInitialization status after successfuly completed reconciliation")
+		r.Log.Error(err, "failed to update DSCInitialization status after successfully completed reconciliation")
 		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to update DSCInitialization status")
 	}
 	return ctrl.Result{}, nil
@@ -239,19 +221,16 @@ func (r *DSCInitializationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 func (r *DSCInitializationReconciler) updateStatus(ctx context.Context, original *dsci.DSCInitialization, update func(saved *dsci.DSCInitialization)) (*dsci.DSCInitialization, error) {
 	saved := &dsci.DSCInitialization{}
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-
-		err := r.Client.Get(ctx, client.ObjectKeyFromObject(original), saved)
-		if err != nil {
+		if err := r.Client.Get(ctx, client.ObjectKeyFromObject(original), saved); err != nil {
 			return err
 		}
-		// update status here
+
 		update(saved)
 
-		// Try to update
-		err = r.Client.Status().Update(ctx, saved)
 		// Return err itself here (not wrapped inside another error)
 		// so that RetryOnConflict can identify it correctly.
-		return err
+		return r.Client.Status().Update(ctx, saved)
 	})
+
 	return saved, err
 }

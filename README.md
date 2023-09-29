@@ -31,7 +31,7 @@ and installed from source manually, see the Developer guide for further instruct
 
 ## Dev Preview
 
-Developer Preview of the new Open Data Hub operator codebase is now avaible.
+Developer Preview of the new Open Data Hub operator codebase is now available.
 Refer [Dev-Preview.md](./docs/Dev-Preview.md) for testing preview features.
 
 ### Developer Guide
@@ -40,6 +40,43 @@ Refer [Dev-Preview.md](./docs/Dev-Preview.md) for testing preview features.
 
 - Go version **go1.18.9**
 - operator-sdk version can be updated to **v1.24.1**
+
+#### Download manifests
+
+`get_all_manifests.sh` is used to fetch manifests from remote git repos.
+
+It uses a local empty folder `odh-manifests` to host all manifests operator needs, either from `odh-manifests` git repo or from component's source repo.
+
+The way to config this is to update `get_all_manifests.sh` REPO_LIST variable.
+By adding new entity in variable `REPO_LIST` in the format of `<repo-name>:<branch-name>:<source-folder>:<target-folder>` this will:
+
+- git clone remote repo `opendatahub-io/<repo-name>` from its `<branch-name>` branch
+- copy content from its relative path `<source-folder>` into local `odh-manifests/<target-folder>` folder
+
+For those components cannot directly use manifests from `opendatahub-io/<repo-name>`, it falls back to use `opendatahub-io/odh-manifests` git repo. To control which version of `opendatahub-io/odh-manifests` to download, this is set in the `get_all_manifests.sh` variable `MANIFEST_RELEASE`.
+
+##### for local development
+
+```
+
+make get-manifests
+```
+
+This first cleanup your local `odh-manifests` folder.
+Ensure back up before run this command if you have local changes of manifests want to reuse later.
+
+##### for build operator image
+
+```
+
+make image-build
+```
+
+By default, building an image without any local changes(as a clean build)
+This is what the production build system is doing.
+
+In order to build an image with local `odh-manifests` folder, to set `IMAGE_BUILD_FLAGS ="--build-arg USE_LOCAL=true"` in make.
+e.g `make image-build -e IMAGE_BUILD_FLAGS="--build-arg USE_LOCAL=true"`
 
 #### Build Image
 
@@ -164,6 +201,24 @@ components. At a given time, ODH supports only **one** instance of the CR, which
 
 **Note:** Default value for a component is `false`.
 
+### Run functional Tests
+
+The functional tests are writted based on [ginkgo](https://onsi.github.io/ginkgo/) and [gomega](https://onsi.github.io/gomega/). In order to run the tests, the user needs to setup the envtest which provides a mocked kubernetes cluster. A detailed explanation on how to configure envtest is provided [here](https://book.kubebuilder.io/reference/envtest.html#configuring-envtest-for-integration-tests).
+
+To run the test on individual controllers, change directory into the contorller's folder and run
+```shell
+ginkgo -v
+```
+
+This provides detailed logs of the test spec.
+
+**Note:** When runninng tests for each controller, make sure to add the `BinaryAssetsDirectory` attribute in the `envtest.Environment` in the `suite_test.go` file. The value should point to the path where the envtest binaries are installed.
+
+In order to run tests for all the controllers, we can use the `make` command
+```shell
+make test
+```
+**Note:** The make command should be executed on the root project level.
 ### Run e2e Tests
 
 A user can run the e2e tests in the same namespace as the operator. To deploy

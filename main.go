@@ -72,11 +72,11 @@ func init() {
 	utilruntime.Must(authv1.AddToScheme(scheme))
 	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(apiextv1.AddToScheme(scheme))
-	utilruntime.Must(routev1.AddToScheme(scheme))
+	utilruntime.Must(routev1.Install(scheme))
 	utilruntime.Must(appsv1.AddToScheme(scheme))
-	utilruntime.Must(ocv1.AddToScheme(scheme))
+	utilruntime.Must(ocv1.Install(scheme))
 	utilruntime.Must(ofapiv1alpha1.AddToScheme(scheme))
-	utilruntime.Must(ocuserv1.AddToScheme(scheme))
+	utilruntime.Must(ocuserv1.Install(scheme))
 	utilruntime.Must(ofapiv2.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }

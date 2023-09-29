@@ -49,7 +49,7 @@ func (tc *testContext) testDSCDeletion() error {
 		}
 	} else if !errors.IsNotFound(err) {
 		if err != nil {
-			return fmt.Errorf("error getting DSC instance :%v", err)
+			return fmt.Errorf("error getting DSC instance :%w", err)
 		}
 	}
 	return nil

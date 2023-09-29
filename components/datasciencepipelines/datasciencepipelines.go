@@ -7,11 +7,11 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
+	"path/filepath"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const (
+var (
 	ComponentName = "data-science-pipelines-operator"
 	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
 )
@@ -29,6 +29,27 @@ type DataSciencePipelines struct {
 	components.Component `json:""`
 }
 
+func (d *DataSciencePipelines) OverrideManifests(_ string) error {
+	// If devflags are set, update default manifests path
+	if len(d.DevFlags.Manifests) != 0 {
+		manifestConfig := d.DevFlags.Manifests[0]
+		if err := deploy.DownloadManifests(ComponentName, manifestConfig); err != nil {
+			return err
+		}
+		// If overlay is defined, update paths
+		defaultKustomizePath := "base"
+		if manifestConfig.SourcePath != "" {
+			defaultKustomizePath = manifestConfig.SourcePath
+		}
+		Path = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
+	}
+	return nil
+}
+
+func (d *DataSciencePipelines) GetComponentDevFlags() components.DevFlags {
+	return d.DevFlags
+}
+
 func (d *DataSciencePipelines) SetImageParamsMap(imageMap map[string]string) map[string]string {
 	imageParamMap = imageMap
 	return imageParamMap
@@ -41,10 +62,18 @@ func (d *DataSciencePipelines) GetComponentName() string {
 // Verifies that Dashboard implements ComponentInterface
 var _ components.ComponentInterface = (*DataSciencePipelines)(nil)
 
-func (d *DataSciencePipelines) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, dscispec *dsci.DSCInitializationSpec) error {
-	enabled := managementState == operatorv1.Managed
-
+func (d *DataSciencePipelines) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
+	enabled := d.GetManagementState() == operatorv1.Managed
+	platform, err := deploy.GetPlatform(cli)
+	if err != nil {
+		return err
+	}
 	if enabled {
+		// Download manifests and update paths
+		if err = d.OverrideManifests(string(platform)); err != nil {
+			return err
+		}
+
 		// check if the dependent operator installed is done in dashboard
 
 		// Update image parameters only when we do not have customized manifests set
@@ -54,14 +83,12 @@ func (d *DataSciencePipelines) ReconcileComponent(owner metav1.Object, cli clien
 			}
 		}
 	}
-	err := deploy.DeployManifestsFromPath(owner, cli, ComponentName,
-		Path,
-		dscispec.ApplicationsNamespace,
-		scheme, enabled)
+
+	err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, d.GetComponentName(), enabled)
 	return err
 }
 
-func (in *DataSciencePipelines) DeepCopyInto(out *DataSciencePipelines) {
-	*out = *in
-	out.Component = in.Component
+func (d *DataSciencePipelines) DeepCopyInto(target *DataSciencePipelines) {
+	*target = *d
+	target.Component = d.Component
 }

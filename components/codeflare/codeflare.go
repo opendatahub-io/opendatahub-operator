@@ -3,21 +3,16 @@ package codeflare
 
 import (
 	"fmt"
-
-	"context"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	imagev1 "github.com/openshift/api/image/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
-	codeflarev1alpha1 "github.com/project-codeflare/codeflare-operator/api/codeflare/v1alpha1"
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
+	"path/filepath"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const (
+var (
 	ComponentName       = "codeflare"
 	CodeflarePath       = deploy.DefaultManifestPath + "/" + "codeflare-stack" + "/base"
 	CodeflareOperator   = "codeflare-operator"
@@ -30,42 +25,65 @@ type CodeFlare struct {
 	components.Component `json:""`
 }
 
-func (d *CodeFlare) SetImageParamsMap(imageMap map[string]string) map[string]string {
+func (c *CodeFlare) OverrideManifests(_ string) error {
+	// If devflags are set, update default manifests path
+	if len(c.DevFlags.Manifests) != 0 {
+		manifestConfig := c.DevFlags.Manifests[0]
+		if err := deploy.DownloadManifests(ComponentName, manifestConfig); err != nil {
+			return err
+		}
+		// If overlay is defined, update paths
+		defaultKustomizePath := "base"
+		if manifestConfig.SourcePath != "" {
+			defaultKustomizePath = manifestConfig.SourcePath
+		}
+		CodeflarePath = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
+
+	}
+	return nil
+}
+
+func (c *CodeFlare) GetComponentDevFlags() components.DevFlags {
+	return c.DevFlags
+}
+
+func (c *CodeFlare) SetImageParamsMap(imageMap map[string]string) map[string]string {
 	imageParamMap = imageMap
 	return imageParamMap
 }
 
-func (d *CodeFlare) GetComponentName() string {
+func (c *CodeFlare) GetComponentName() string {
 	return ComponentName
 }
 
 // Verifies that CodeFlare implements ComponentInterface
 var _ components.ComponentInterface = (*CodeFlare)(nil)
 
-func (c *CodeFlare) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, dscispec *dsci.DSCInitializationSpec) error {
-	enabled := managementState == operatorv1.Managed
+func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
+	enabled := c.GetManagementState() == operatorv1.Managed
+	platform, err := deploy.GetPlatform(cli)
+	if err != nil {
+		return err
+	}
 
 	if enabled {
+		// Download manifests and update paths
+		if err = c.OverrideManifests(string(platform)); err != nil {
+			return err
+		}
 		// check if the CodeFlare operator is installed
 		// codeflare operator not installed
 		dependentOperator := CodeflareOperator
-		platform, err := deploy.GetPlatform(cli)
-		if err != nil {
-			return err
-		}
 		// overwrite dependent operator if downstream not match upstream
 		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
 			dependentOperator = RHCodeflareOperator
 		}
-		found, err := deploy.OperatorExists(cli, dependentOperator)
 
-		if !found {
-			if err != nil {
-				return err
-			} else {
-				return fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
-					dependentOperator, ComponentName)
-			}
+		if found, err := deploy.OperatorExists(cli, dependentOperator); err != nil {
+			return err
+		} else if !found {
+			return fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
+				dependentOperator, ComponentName)
 		}
 
 		// Update image parameters only when we do not have customized manifests set
@@ -76,56 +94,13 @@ func (c *CodeFlare) ReconcileComponent(owner metav1.Object, cli client.Client, s
 		}
 	}
 
-	// Special handling to delete MCAD InstaScale ImageStream resources
-	if managementState == operatorv1.Removed {
-		// Fetch the MCAD resource based on the request
-		mcad := &codeflarev1alpha1.MCAD{}
-		err := cli.Get(context.TODO(), client.ObjectKey{
-			Name: "mcad",
-		}, mcad)
-		if err != nil {
-			if apierrs.IsNotFound(err) {
-				return fmt.Errorf("failed to get MCAD instance mcad: %v", err)
-			}
-		}
-		err = cli.Delete(context.TODO(), mcad)
-
-		// Fetch InstaScale based on the request
-		instascale := &codeflarev1alpha1.InstaScale{}
-		err = cli.Get(context.TODO(), client.ObjectKey{
-			Name: "instascale",
-		}, instascale)
-		if err != nil {
-			if apierrs.IsNotFound(err) {
-				return fmt.Errorf("failed to get InstaScale instance instascale: %v", err)
-			}
-		}
-		err = cli.Delete(context.TODO(), instascale)
-
-		// Fetch Imagestream based on the request
-		imagestream := &imagev1.ImageStream{}
-		err = cli.Get(context.TODO(), client.ObjectKey{
-			Name: "codeflare-notebook",
-		}, imagestream)
-		if err != nil {
-			if apierrs.IsNotFound(err) {
-				return fmt.Errorf("failed to get Imagestream instance codeflare-notebook: %v", err)
-			}
-		}
-		err = cli.Delete(context.TODO(), imagestream)
-	}
-
 	// Deploy Codeflare
-	err := deploy.DeployManifestsFromPath(owner, cli, ComponentName,
-		CodeflarePath,
-		dscispec.ApplicationsNamespace,
-		scheme, enabled)
-
+	err = deploy.DeployManifestsFromPath(cli, owner, CodeflarePath, dscispec.ApplicationsNamespace, c.GetComponentName(), enabled)
 	return err
 
 }
 
-func (in *CodeFlare) DeepCopyInto(out *CodeFlare) {
-	*out = *in
-	out.Component = in.Component
+func (c *CodeFlare) DeepCopyInto(target *CodeFlare) {
+	*target = *c
+	target.Component = c.Component
 }

@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"time"
 
+	ocuserv1 "github.com/openshift/api/user/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	authv1 "k8s.io/api/rbac/v1"
@@ -44,7 +45,7 @@ func (r *DSCInitializationReconciler) createOdhNamespace(dscInit *dsci.DSCInitia
 		},
 	}
 
-	// Create Namespace if doesnot exists
+	// Create Namespace if it doesn't exist
 	foundNamespace := &corev1.Namespace{}
 	err := r.Get(ctx, client.ObjectKey{Name: name}, foundNamespace)
 	if err != nil {
@@ -150,7 +151,7 @@ func (r *DSCInitializationReconciler) createDefaultRoleBinding(dscInit *dsci.DSC
 		},
 	}
 
-	// Create RoleBinding if doesnot exists
+	// Create RoleBinding if doesn't exists
 	foundRoleBinding := &authv1.RoleBinding{}
 	err := r.Client.Get(ctx, client.ObjectKey{
 		Name:      name,
@@ -189,13 +190,39 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(dscInit *dsc
 		Spec: netv1.NetworkPolicySpec{
 			// open ingress for all port for now, TODO: add explicit port per component
 			Ingress: []netv1.NetworkPolicyIngressRule{{}},
+			// open ingress for only ODH created namespaces
+			// this is tested on ROSA but not enough for PSI
+			// Ingress: []netv1.NetworkPolicyIngressRule{
+			// 	{
+			// 		From: []netv1.NetworkPolicyPeer{
+			// 			{
+			// 				NamespaceSelector: &metav1.LabelSelector{ // AND logic
+			// 					MatchLabels: map[string]string{
+			// 						"opendatahub.io/generated-namespace": "true",
+			// 					},
+			// 				},
+			// 			},
+			// 		},
+			// 	},
+			// 	{ // OR logic
+			// 		From: []netv1.NetworkPolicyPeer{
+			// 			{ // need this for access dashboard
+			// 				NamespaceSelector: &metav1.LabelSelector{
+			// 					MatchLabels: map[string]string{
+			// 						"kubernetes.io/metadata.name": "openshift-ingress",
+			// 					},
+			// 				},
+			// 			},
+			// 		},
+			// 	},
+			// },
 			PolicyTypes: []netv1.PolicyType{
 				netv1.PolicyTypeIngress,
 			},
 		},
 	}
 
-	// Create NetworkPolicy if doesnot exists
+	// Create NetworkPolicy if it doesn't exist
 	foundNetworkPolicy := &netv1.NetworkPolicy{}
 	justCreated := false
 	err := r.Client.Get(ctx, client.ObjectKey{
@@ -306,7 +333,7 @@ func (r *DSCInitializationReconciler) createOdhCommonConfigMap(dscInit *dsci.DSC
 		Data: map[string]string{"namespace": name},
 	}
 
-	// Create Configmap if doesnot exists
+	// Create Configmap if doesn't exists
 	foundConfigMap := &corev1.ConfigMap{}
 	err := r.Client.Get(ctx, client.ObjectKey{
 		Name:      name,
@@ -321,6 +348,28 @@ func (r *DSCInitializationReconciler) createOdhCommonConfigMap(dscInit *dsci.DSC
 				return err
 			}
 			err = r.Client.Create(ctx, desiredConfigMap)
+			if err != nil && !apierrs.IsAlreadyExists(err) {
+				return err
+			}
+		} else {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *DSCInitializationReconciler) createUserGroup(dscInit *dsci.DSCInitialization, userGroupName string, ctx context.Context) error {
+	userGroup := &ocuserv1.Group{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: userGroupName,
+		},
+	}
+	err := r.Client.Get(ctx, client.ObjectKey{
+		Name: userGroup.Name,
+	}, userGroup)
+	if err != nil {
+		if apierrs.IsNotFound(err) {
+			err = r.Client.Create(ctx, userGroup)
 			if err != nil && !apierrs.IsAlreadyExists(err) {
 				return err
 			}

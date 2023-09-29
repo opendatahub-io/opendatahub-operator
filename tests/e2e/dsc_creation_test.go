@@ -195,7 +195,7 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error {
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.CodeFlare))
 		if tc.testDsc.Spec.Components.CodeFlare.ManagementState == operatorv1.Managed {
 			if err != nil {
-				// depedent operator error, as expected
+				// dependent operator error, as expected
 				if strings.Contains(err.Error(), "Please install the operator before enabling component") {
 					t.Logf("expected error: %v", err.Error())
 				} else {
@@ -250,7 +250,7 @@ func (tc *testContext) testApplicationCreation(component components.ComponentInt
 				return false, nil
 			}
 		} else { // when no deployment is found
-			// check Reconcile failed with missing depdent operator error
+			// check Reconcile failed with missing dependent operator error
 			for _, Condition := range tc.testDsc.Status.Conditions {
 				if strings.Contains(Condition.Message, "Please install the operator before enabling "+component.GetComponentName()) {
 					return true, err
@@ -273,7 +273,7 @@ func (tc *testContext) testOwnerrefrences() error {
 			LabelSelector: "app.kubernetes.io/part-of=" + tc.testDsc.Spec.Components.Dashboard.GetComponentName(),
 		})
 		if err != nil {
-			return fmt.Errorf("error listing application deployments %v", err)
+			return fmt.Errorf("error listing application deployments %w", err)
 		} else {
 			// test any one deployment for ownerreference
 			if len(appDeployments.Items) != 0 && appDeployments.Items[0].OwnerReferences[0].Kind != "DataScienceCluster" {
@@ -312,7 +312,7 @@ func (tc *testContext) testUpdateComponentReconcile() error {
 		}
 		retrievedDep, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).UpdateScale(context.TODO(), testDeployment.Name, patchedReplica, metav1.UpdateOptions{})
 		if err != nil {
-			return fmt.Errorf("error patching component resources : %v", err)
+			return fmt.Errorf("error patching component resources : %w", err)
 		}
 		if retrievedDep.Spec.Replicas != patchedReplica.Spec.Replicas {
 			return fmt.Errorf("failed to patch replicas : expect to be %v but got %v", patchedReplica.Spec.Replicas, retrievedDep.Spec.Replicas)
@@ -323,7 +323,7 @@ func (tc *testContext) testUpdateComponentReconcile() error {
 		time.Sleep(2 * tc.resourceRetryInterval)
 		revertedDep, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).Get(context.TODO(), testDeployment.Name, metav1.GetOptions{})
 		if err != nil {
-			return fmt.Errorf("error getting component resource after reconcile: %v", err)
+			return fmt.Errorf("error getting component resource after reconcile: %w", err)
 		}
 		if *revertedDep.Spec.Replicas != *expectedReplica {
 			return fmt.Errorf("failed to revert back replicas : expect to be %v but got %v", *expectedReplica, *revertedDep.Spec.Replicas)
@@ -359,7 +359,7 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 		// refresh the instance in case it was updated during the reconcile
 		err := tc.customClient.Get(tc.ctx, types.NamespacedName{Name: tc.testDsc.Name}, tc.testDsc)
 		if err != nil {
-			return fmt.Errorf("error getting resource %v", err)
+			return fmt.Errorf("error getting resource %w", err)
 		}
 		// Disable the Component
 		tc.testDsc.Spec.Components.Dashboard.ManagementState = operatorv1.Removed
@@ -369,7 +369,7 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 		// Return err itself here (not wrapped inside another error)
 		// so that RetryOnConflict can identify it correctly.
 		if err != nil {
-			return fmt.Errorf("error updating component from 'enabled: true' to 'enabled: false': %v", err)
+			return fmt.Errorf("error updating component from 'enabled: true' to 'enabled: false': %w", err)
 		}
 		return nil
 	})
@@ -381,7 +381,7 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 		if errors.IsNotFound(err) {
 			return nil // correct result: should not find deployment after we disable it already
 		}
-		return fmt.Errorf("error getting component resource after reconcile: %v", err)
+		return fmt.Errorf("error getting component resource after reconcile: %w", err)
 	} else {
 		return fmt.Errorf("component %v is disabled, should not get its deployment %v from NS %v any more", tc.testDsc.Spec.Components.Dashboard.GetComponentName(), dashboardDeploymentName, tc.applicationsNamespace)
 	}

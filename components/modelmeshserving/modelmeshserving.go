@@ -3,18 +3,17 @@ package modelmeshserving
 
 import (
 	"context"
-
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
+	"path/filepath"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const (
+var (
 	ComponentName  = "model-mesh"
 	Path           = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
 	monitoringPath = deploy.DefaultManifestPath + "/" + "modelmesh-monitoring/base"
@@ -32,6 +31,27 @@ type ModelMeshServing struct {
 	components.Component `json:""`
 }
 
+func (m *ModelMeshServing) OverrideManifests(_ string) error {
+	// If devflags are set, update default manifests path
+	if len(m.DevFlags.Manifests) != 0 {
+		manifestConfig := m.DevFlags.Manifests[0]
+		if err := deploy.DownloadManifests(ComponentName, manifestConfig); err != nil {
+			return err
+		}
+		// If overlay is defined, update paths
+		defaultKustomizePath := "base"
+		if manifestConfig.SourcePath != "" {
+			defaultKustomizePath = manifestConfig.SourcePath
+		}
+		Path = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
+	}
+	return nil
+}
+
+func (m *ModelMeshServing) GetComponentDevFlags() components.DevFlags {
+	return m.DevFlags
+}
+
 func (m *ModelMeshServing) GetComponentName() string {
 	return ComponentName
 }
@@ -44,11 +64,20 @@ func (m *ModelMeshServing) SetImageParamsMap(imageMap map[string]string) map[str
 // Verifies that Dashboard implements ComponentInterface
 var _ components.ComponentInterface = (*ModelMeshServing)(nil)
 
-func (m *ModelMeshServing) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, dscispec *dsci.DSCInitializationSpec) error {
-	enabled := managementState == operatorv1.Managed
+func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
+	enabled := m.GetManagementState() == operatorv1.Managed
+	platform, err := deploy.GetPlatform(cli)
+	if err != nil {
+		return err
+	}
 
 	// Update Default rolebinding
 	if enabled {
+		// Download manifests and update paths
+		if err = m.OverrideManifests(string(platform)); err != nil {
+			return err
+		}
+
 		err := common.UpdatePodSecurityRolebinding(cli, []string{"modelmesh", "modelmesh-controller", "odh-model-controller", "odh-prometheus-operator", "prometheus-custom"}, dscispec.ApplicationsNamespace)
 		if err != nil {
 			return err
@@ -61,10 +90,7 @@ func (m *ModelMeshServing) ReconcileComponent(owner metav1.Object, cli client.Cl
 		}
 	}
 
-	err := deploy.DeployManifestsFromPath(owner, cli, ComponentName,
-		Path,
-		dscispec.ApplicationsNamespace,
-		scheme, enabled)
+	err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled)
 
 	if err != nil {
 		return err
@@ -86,15 +112,12 @@ func (m *ModelMeshServing) ReconcileComponent(owner metav1.Object, cli client.Cl
 	}
 
 	// If modelmesh is deployed successfully, deploy modelmesh-monitoring
-	err = deploy.DeployManifestsFromPath(owner, cli, ComponentName,
-		monitoringPath,
-		monitoringNamespace,
-		scheme, enabled)
+	err = deploy.DeployManifestsFromPath(cli, owner, monitoringPath, monitoringNamespace, ComponentName, enabled)
 
 	return err
 }
 
-func (in *ModelMeshServing) DeepCopyInto(out *ModelMeshServing) {
-	*out = *in
-	out.Component = in.Component
+func (m *ModelMeshServing) DeepCopyInto(target *ModelMeshServing) {
+	*target = *m
+	target.Component = m.Component
 }

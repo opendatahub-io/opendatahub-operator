@@ -7,11 +7,11 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
+	"path/filepath"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const (
+var (
 	ComponentName = "ray"
 	RayPath       = deploy.DefaultManifestPath + "/" + "ray/operator/base"
 )
@@ -24,22 +24,53 @@ type Ray struct {
 	components.Component `json:""`
 }
 
-func (d *Ray) SetImageParamsMap(imageMap map[string]string) map[string]string {
+func (r *Ray) OverrideManifests(_ string) error {
+	// If devflags are set, update default manifests path
+	if len(r.DevFlags.Manifests) != 0 {
+		manifestConfig := r.DevFlags.Manifests[0]
+		if err := deploy.DownloadManifests(ComponentName, manifestConfig); err != nil {
+			return err
+		}
+		// If overlay is defined, update paths
+		defaultKustomizePath := "operator/base"
+		if manifestConfig.SourcePath != "" {
+			defaultKustomizePath = manifestConfig.SourcePath
+		}
+		RayPath = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
+	}
+	return nil
+}
+
+func (r *Ray) GetComponentDevFlags() components.DevFlags {
+	return r.DevFlags
+}
+
+func (r *Ray) SetImageParamsMap(imageMap map[string]string) map[string]string {
 	imageParamMap = imageMap
 	return imageParamMap
 }
 
-func (d *Ray) GetComponentName() string {
+func (r *Ray) GetComponentName() string {
 	return ComponentName
 }
 
 // Verifies that Ray implements ComponentInterface
 var _ components.ComponentInterface = (*Ray)(nil)
 
-func (d *Ray) ReconcileComponent(owner metav1.Object, cli client.Client, scheme *runtime.Scheme, managementState operatorv1.ManagementState, dscispec *dsci.DSCInitializationSpec) error {
-	enabled := managementState == operatorv1.Managed
+func (r *Ray) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
+	enabled := r.GetManagementState() == operatorv1.Managed
+
+	platform, err := deploy.GetPlatform(cli)
+	if err != nil {
+		return err
+	}
 
 	if enabled {
+		// Download manifests and update paths
+		if err = r.OverrideManifests(string(platform)); err != nil {
+			return err
+		}
+
 		if dscispec.DevFlags.ManifestsUri == "" {
 			if err := deploy.ApplyImageParams(RayPath, imageParamMap); err != nil {
 				return err
@@ -47,15 +78,12 @@ func (d *Ray) ReconcileComponent(owner metav1.Object, cli client.Client, scheme 
 		}
 	}
 	// Deploy Ray Operator
-	err := deploy.DeployManifestsFromPath(owner, cli, ComponentName,
-		RayPath,
-		dscispec.ApplicationsNamespace,
-		scheme, enabled)
+	err = deploy.DeployManifestsFromPath(cli, owner, RayPath, dscispec.ApplicationsNamespace, r.GetComponentName(), enabled)
 	return err
 
 }
 
-func (in *Ray) DeepCopyInto(out *Ray) {
-	*out = *in
-	out.Component = in.Component
+func (r *Ray) DeepCopyInto(target *Ray) {
+	*target = *r
+	target.Component = r.Component
 }

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package status contains different conditons, prhases and progresses,
+// Package status contains different conditions, phases and progresses,
 // being used by DataScienceCluster and DSCInitialization's controller
 package status
 
@@ -54,14 +54,14 @@ const (
 
 // List of constants to show different reconciliation messages and statuses.
 const (
-	// Used when multiple DSCI instance exists or DSC reconcile failed/removal failed
+	// ReconcileFailed is used when multiple DSCI instance exists or DSC reconcile failed/removal failed
 	ReconcileFailed                       = "ReconcileFailed"
 	ReconcileInit                         = "ReconcileInit"
 	ReconcileCompleted                    = "ReconcileCompleted"
 	ReconcileCompletedWithComponentErrors = "ReconcileCompletedWithComponentErrors"
 	ReconcileCompletedMessage             = "Reconcile completed successfully"
 
-	// Defined constants represent extra Condition Type, used by .Condition.Type
+	// ConditionReconcileComplete represents extra Condition Type, used by .Condition.Type
 	ConditionReconcileComplete conditionsv1.ConditionType = "ReconcileComplete"
 )
 
@@ -69,7 +69,7 @@ const (
 	ReadySuffix = "Ready"
 )
 
-// Function SetProgressingCondition sets the ProgressingCondition to True and other conditions to false or
+// SetProgressingCondition sets the ProgressingCondition to True and other conditions to false or
 // Unknown. Used when we are just starting to reconcile, and there are no existing conditions.
 func SetProgressingCondition(conditions *[]conditionsv1.Condition, reason string, message string) {
 	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
@@ -104,7 +104,7 @@ func SetProgressingCondition(conditions *[]conditionsv1.Condition, reason string
 	})
 }
 
-// Function SetErrorCondition sets the ConditionReconcileComplete to False in case of any errors
+// SetErrorCondition sets the ConditionReconcileComplete to False in case of any errors
 // during the reconciliation process.
 func SetErrorCondition(conditions *[]conditionsv1.Condition, reason string, message string) {
 	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
@@ -139,7 +139,7 @@ func SetErrorCondition(conditions *[]conditionsv1.Condition, reason string, mess
 	})
 }
 
-// Function SetCompleteCondition sets the ConditionReconcileComplete to True and other Conditions
+// SetCompleteCondition sets the ConditionReconcileComplete to True and other Conditions
 // to indicate that the reconciliation process has completed successfully.
 func SetCompleteCondition(conditions *[]conditionsv1.Condition, reason string, message string) {
 	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
@@ -174,8 +174,8 @@ func SetCompleteCondition(conditions *[]conditionsv1.Condition, reason string, m
 	})
 }
 
-// Function SetComponentCondition append Condition Type with const ReadySuffix for giving component
-// when component finshed reconcile
+// SetComponentCondition appends Condition Type with const ReadySuffix for given component
+// when component finished reconcile.
 func SetComponentCondition(conditions *[]conditionsv1.Condition, component string, reason string, message string, status corev1.ConditionStatus) {
 	condtype := component + ReadySuffix
 	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
@@ -186,21 +186,8 @@ func SetComponentCondition(conditions *[]conditionsv1.Condition, component strin
 	})
 }
 
-// Function RemoveComponentCondition remove Condition of giving component
+// RemoveComponentCondition remove Condition of giving component.
 func RemoveComponentCondition(conditions *[]conditionsv1.Condition, component string) {
-	condtype := component + ReadySuffix
-	conditionsv1.RemoveStatusCondition(conditions, conditionsv1.ConditionType(condtype))
-}
-
-// Function setStatusConditionIfNotPresent is an example of a function that is not used anywhere in the code
-// won't override a status condition of the same type and status
-func setStatusConditionIfNotPresent(conditions *[]conditionsv1.Condition, condition conditionsv1.Condition) {
-
-	foundCondition := conditionsv1.FindStatusCondition(*conditions, condition.Type)
-	if foundCondition != nil && foundCondition.Status == condition.Status {
-		// already exists
-		return
-	}
-
-	conditionsv1.SetStatusCondition(conditions, condition)
+	condType := component + ReadySuffix
+	conditionsv1.RemoveStatusCondition(conditions, conditionsv1.ConditionType(condType))
 }
