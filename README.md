@@ -201,6 +201,24 @@ components. At a given time, ODH supports only **one** instance of the CR, which
 
 **Note:** Default value for a component is `false`.
 
+### Run functional Tests
+
+The functional tests are writted based on [ginkgo](https://onsi.github.io/ginkgo/) and [gomega](https://onsi.github.io/gomega/). In order to run the tests, the user needs to setup the envtest which provides a mocked kubernetes cluster. A detailed explanation on how to configure envtest is provided [here](https://book.kubebuilder.io/reference/envtest.html#configuring-envtest-for-integration-tests).
+
+To run the test on individual controllers, change directory into the contorller's folder and run
+```shell
+ginkgo -v
+```
+
+This provides detailed logs of the test spec.
+
+**Note:** When runninng tests for each controller, make sure to add the `BinaryAssetsDirectory` attribute in the `envtest.Environment` in the `suite_test.go` file. The value should point to the path where the envtest binaries are installed.
+
+In order to run tests for all the controllers, we can use the `make` command
+```shell
+make test
+```
+**Note:** The make command should be executed on the root project level.
 ### Run e2e Tests
 
 A user can run the e2e tests in the same namespace as the operator. To deploy
