@@ -304,10 +304,19 @@ func getMonitoringData(data string) (string, error) {
 
 func (r *DSCInitializationReconciler) configureCommonMonitoring(dsciInit *dsci.DSCInitialization) error {
 	// configure segment.io
-	segmentPath := filepath.Join(deploy.DefaultManifestPath, "monitoring", "segment")
-	err := deploy.DeployManifestsFromPath(r.Client, dsciInit, segmentPath, dsciInit.Spec.Monitoring.Namespace, "segment-io", dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
+	err := deploy.DeployManifestsFromPath(r.Client, dsciInit,
+		deploy.DefaultManifestPath+"/monitoring/segment",
+		dsciInit.Spec.ApplicationsNamespace, "segment-io", dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
 	if err != nil {
-		r.Log.Error(err, "error to deploy manifests", "path", segmentPath)
+		r.Log.Error(err, "error to deploy manifests under /opt/manifests/monitoring/segment")
+		return err
+	}
+	// configure monitoring base
+	err = deploy.DeployManifestsFromPath(r.Client, dsciInit,
+		deploy.DefaultManifestPath+"/monitoring/base",
+		dsciInit.Spec.Monitoring.Namespace, "monitoring-base", dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
+	if err != nil {
+		r.Log.Error(err, "error to deploy manifests under /opt/manifests/monitoring/base")
 		return err
 	}
 	return nil
