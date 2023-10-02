@@ -104,6 +104,30 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return ctrl.Result{}, errors.New(message)
 	}
 
+	// Start reconciling
+	if instance.Status.Conditions == nil {
+		reason := status.ReconcileInit
+		message := "Initializing DSCInitialization resource"
+		instance, err = r.updateStatus(ctx, instance, func(saved *dsci.DSCInitialization) {
+			status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
+			saved.Status.Phase = status.PhaseProgressing
+		})
+		if err != nil {
+			r.Log.Error(err, "Failed to add conditions to status of DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
+			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError",
+				"%s for instance %s", message, instance.Name)
+			return reconcile.Result{}, err
+		}
+	}
+
+	// Check namespace
+	namespace := instance.Spec.ApplicationsNamespace
+	err = r.createOdhNamespace(ctx, instance, namespace)
+	if err != nil {
+		// no need to log error as it was already logged in createOdhNamespace
+		return reconcile.Result{}, err
+	}
+
 	// Get platform
 	platform, err := deploy.GetPlatform(r.Client)
 	if err != nil {
