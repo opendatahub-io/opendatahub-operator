@@ -118,7 +118,7 @@ endef
 # Using controller-gen to fetch external CRDs and put them in config/crd/external folder
 # They're used in tests, as they have to be created for controller to work
 define fetch-external-crds
-GOFLAGS="-mod=readonly" $(LOCALBIN)/controller-gen crd \
+GOFLAGS="-mod=readonly" $(CONTROLLER_GEN) crd \
 paths=$(shell go env GOPATH)/pkg/mod/$(1)@$(call go-mod-version,$(1))/$(2)/... \
 output:crd:artifacts:config=config/crd/external
 endef
