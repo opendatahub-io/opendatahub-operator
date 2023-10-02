@@ -4,10 +4,10 @@ import (
 	"context"
 	"crypto/rand"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	ocuserv1 "github.com/openshift/api/user/v1"
 	"reflect"
 	"time"
 
-	ocuserv1 "github.com/openshift/api/user/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	authv1 "k8s.io/api/rbac/v1"
@@ -33,7 +33,7 @@ var (
 // - ConfigMap  'odh-common-config'
 // - Network Policies 'opendatahub' that allow traffic between the ODH namespaces
 // - RoleBinding 'opendatahub'
-func (r *DSCInitializationReconciler) createOdhNamespace(dscInit *dsci.DSCInitialization, name string, ctx context.Context) error {
+func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, dscInit *dsci.DSCInitialization, name string) error {
 	// Expected namespace for the given name
 	desiredNamespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -111,14 +111,14 @@ func (r *DSCInitializationReconciler) createOdhNamespace(dscInit *dsci.DSCInitia
 	//}
 
 	// Create odh-common-config Configmap for the Namespace
-	err = r.createOdhCommonConfigMap(dscInit, name, ctx)
+	err = r.createOdhCommonConfigMap(ctx, name, dscInit)
 	if err != nil {
 		r.Log.Error(err, "error creating configmap", "name", "odh-common-config")
 		return err
 	}
 
 	// Create default Rolebinding for the namespace
-	err = r.createDefaultRoleBinding(dscInit, name, ctx)
+	err = r.createDefaultRoleBinding(ctx, name, dscInit)
 	if err != nil {
 		r.Log.Error(err, "error creating rolebinding", "name", name)
 		return err
@@ -126,7 +126,7 @@ func (r *DSCInitializationReconciler) createOdhNamespace(dscInit *dsci.DSCInitia
 	return nil
 }
 
-func (r *DSCInitializationReconciler) createDefaultRoleBinding(dscInit *dsci.DSCInitialization, name string, ctx context.Context) error {
+func (r *DSCInitializationReconciler) createDefaultRoleBinding(ctx context.Context, name string, dscInit *dsci.DSCInitialization) error {
 	// Expected namespace for the given name
 	desiredRoleBinding := &authv1.RoleBinding{
 		TypeMeta: metav1.TypeMeta{
@@ -176,7 +176,7 @@ func (r *DSCInitializationReconciler) createDefaultRoleBinding(dscInit *dsci.DSC
 	return nil
 }
 
-func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(dscInit *dsci.DSCInitialization, name string, ctx context.Context) error {
+func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.Context, name string, dscInit *dsci.DSCInitialization) error {
 	// Expected namespace for the given name
 	desiredNetworkPolicy := &netv1.NetworkPolicy{
 		TypeMeta: metav1.TypeMeta{
@@ -319,7 +319,7 @@ func GenerateRandomHex(length int) ([]byte, error) {
 	return randomBytes, nil
 }
 
-func (r *DSCInitializationReconciler) createOdhCommonConfigMap(dscInit *dsci.DSCInitialization, name string, ctx context.Context) error {
+func (r *DSCInitializationReconciler) createOdhCommonConfigMap(ctx context.Context, name string, dscInit *dsci.DSCInitialization) error {
 	// Expected configmap for the given namespace
 	desiredConfigMap := &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
@@ -358,14 +358,19 @@ func (r *DSCInitializationReconciler) createOdhCommonConfigMap(dscInit *dsci.DSC
 	return nil
 }
 
-func (r *DSCInitializationReconciler) createUserGroup(dscInit *dsci.DSCInitialization, userGroupName string, ctx context.Context) error {
+func (r *DSCInitializationReconciler) createUserGroup(ctx context.Context, dscInit *dsci.DSCInitialization, userGroupName string) error {
 	userGroup := &ocuserv1.Group{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: userGroupName,
+			// Otherwise it errors with  "error": "an empty namespace may not be set during creation"
+			Namespace: dscInit.Spec.ApplicationsNamespace,
 		},
+		// Otherwise is errors with "error": "Group.user.openshift.io \"odh-admins\" is invalid: users: Invalid value: \"null\": users in body must be of type array: \"null\""}
+		Users: []string{},
 	}
 	err := r.Client.Get(ctx, client.ObjectKey{
-		Name: userGroup.Name,
+		Name:      userGroup.Name,
+		Namespace: dscInit.Spec.ApplicationsNamespace,
 	}, userGroup)
 	if err != nil {
 		if apierrs.IsNotFound(err) {
@@ -377,5 +382,6 @@ func (r *DSCInitializationReconciler) createUserGroup(dscInit *dsci.DSCInitializ
 			return err
 		}
 	}
+
 	return nil
 }

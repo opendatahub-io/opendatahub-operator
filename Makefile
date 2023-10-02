@@ -108,11 +108,25 @@ help: ## Display this help.
 
 ##@ Development
 
+define go-mod-version
+$(shell go mod graph | grep $(1) | head -n 1 | cut -d'@' -f 2)
+endef
+
+# Using controller-gen to fetch external CRDs and put them in config/crd/external folder
+# They're used in tests, as they have to be created for controller to work
+define fetch-external-crds
+GOFLAGS="-mod=readonly" $(CONTROLLER_GEN) crd \
+paths=$(shell go env GOPATH)/pkg/mod/$(1)@$(call go-mod-version,$(1))/$(2)/... \
+output:crd:artifacts:config=config/crd/external
+endef
+
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 # TODO: enable below when we do webhook
 # $(CONTROLLER_GEN) rbac:roleName=controller-manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 	$(CONTROLLER_GEN) rbac:roleName=controller-manager-role crd paths="./..." output:crd:artifacts:config=config/crd/bases
+	$(call fetch-external-crds,github.com/openshift/api,route/v1)
+	$(call fetch-external-crds,github.com/openshift/api,user/v1)
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.

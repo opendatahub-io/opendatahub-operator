@@ -110,7 +110,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	// Check namespace
 	namespace := instance.Spec.ApplicationsNamespace
-	err = r.createOdhNamespace(instance, namespace, ctx)
+	err = r.createOdhNamespace(ctx, instance, namespace)
 	if err != nil {
 		// no need to log error as it was already logged in createOdhNamespace
 		return reconcile.Result{}, err
@@ -144,7 +144,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		} else {
 			// Apply self-managed rhods config
 			// Create rhods-admins Group if it doesn't exist
-			err := r.createUserGroup(instance, "rhods-admins", ctx)
+			err := r.createUserGroup(ctx, instance, "rhods-admins")
 			if err != nil {
 				return reconcile.Result{}, err
 			}
@@ -152,7 +152,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		// Apply common rhods-specific config
 	} else { // ODH case
 		// Create odh-admins Group if it doesn't exist
-		err := r.createUserGroup(instance, "odh-admins", ctx)
+		err := r.createUserGroup(ctx, instance, "odh-admins")
 		if err != nil {
 			return reconcile.Result{}, err
 		}
