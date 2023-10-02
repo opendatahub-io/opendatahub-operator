@@ -11,7 +11,6 @@ REPO_LIST=(
     "kubeflow:v1.7-branch:components/notebook-controller/config:odh-notebook-controller/kf-notebook-controller"
     "kubeflow:v1.7-branch:components/odh-notebook-controller/config:odh-notebook-controller/odh-notebook-controller"
     "notebooks:main:manifests:notebooks"
-    "odh-manifests:master:trustyai-service-operator:trustyai-service-operator"
 )
 
 # pre-cleanup local env
@@ -26,10 +25,21 @@ MANIFEST_RELEASE="master"
 MANIFESTS_TARBALL_URL="${GITHUB_URL}/${MANIFEST_ORG}/odh-manifests/tarball/${MANIFEST_RELEASE}"
 mkdir -p ./.odh-manifests-tmp/ ./odh-manifests/
 wget -q -c ${MANIFESTS_TARBALL_URL} -O - | tar -zxv -C ./.odh-manifests-tmp/ --strip-components 1 > /dev/null
-cp -r ./.odh-manifests-tmp/model-mesh/ ./odh-manifests
-cp -r ./.odh-manifests-tmp/odh-model-controller/ ./odh-manifests
-cp -r ./.odh-manifests-tmp/modelmesh-monitoring/ ./odh-manifests
-cp -r ./.odh-manifests-tmp/kserve/ ./odh-manifests
+
+# ODH manifests
+ODH_MANIFESTS=(
+    "model-mesh"
+    "odh-model-controller"
+    "modelmesh-monitoring"
+    "kserve"
+    "trustyai-service-operator"
+)
+
+# Copy ODH manifests
+for dir in "${ODH_MANIFESTS[@]}"; do
+    cp -r ./.odh-manifests-tmp/${dir}/ ./odh-manifests
+done
+
 ls -lat ./odh-manifests/
 rm -rf ${MANIFEST_RELEASE}.tar.gz ./.odh-manifests-tmp/
 
