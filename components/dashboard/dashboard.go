@@ -40,7 +40,6 @@ var imageParamMap = map[string]string{
 	"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
 }
 
-
 type Dashboard struct {
 	components.Component `json:""`
 }
