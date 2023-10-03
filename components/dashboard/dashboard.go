@@ -1,17 +1,20 @@
-// Package dashboard provides utility functions to config Open Data Hub Dashboard: A web dashboard that displays installed Open Data Hub components with easy access to component UIs and documentation
+// Package dashboard provides utility functions to config Open Data Hub Dashboard: A web dashboard that displays
+// installed Open Data Hub components with easy access to component UIs and documentation
 package dashboard
 
 import (
 	"context"
 	"fmt"
-	operatorv1 "github.com/openshift/api/operator/v1"
 	"path/filepath"
 	"strings"
+
+	operatorv1 "github.com/openshift/api/operator/v1"
 
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+
 	routev1 "github.com/openshift/api/route/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -62,7 +65,6 @@ func (d *Dashboard) OverrideManifests(platform string) error {
 			}
 			Path = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
 		}
-
 	}
 	return nil
 }
@@ -80,13 +82,10 @@ func (d *Dashboard) GetComponentName() string {
 	return ComponentName
 }
 
-// Verifies that Dashboard implements ComponentInterface
+// Verifies that Dashboard implements ComponentInterface.
 var _ components.ComponentInterface = (*Dashboard)(nil)
 
-func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
-
-	// TODO: Add any additional tasks if required when reconciling component
-
+func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error { //nolint
 	platform, err := deploy.GetPlatform(cli)
 	if err != nil {
 		return err
@@ -114,7 +113,6 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 			if err != nil {
 				return fmt.Errorf("failed to deploy dashboard crds %s: %v", PathCRDs, err)
 			}
-
 		}
 		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
 			err := common.UpdatePodSecurityRolebinding(cli, []string{"rhods-dashboard"}, dscispec.ApplicationsNamespace)
@@ -256,7 +254,7 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 	}
 }
 
-func (in *Dashboard) DeepCopyInto(out *Dashboard) {
-	*out = *in
-	out.Component = in.Component
+func (d *Dashboard) DeepCopyInto(out *Dashboard) {
+	*out = *d
+	out.Component = d.Component
 }
