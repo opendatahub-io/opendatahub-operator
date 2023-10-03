@@ -5,19 +5,19 @@ import (
 	"crypto/sha256"
 	b64 "encoding/base64"
 	"fmt"
+	"path/filepath"
+	"strings"
+
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"path/filepath"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"strings"
-
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 func configurePrometheus(ctx context.Context, dsciInit *dsci.DSCInitialization, r *DSCInitializationReconciler) error {
@@ -56,7 +56,12 @@ func configurePrometheus(ctx context.Context, dsciInit *dsci.DSCInitialization, 
 
 	// Deploy prometheus CM first
 	basePath := filepath.Join(prometheusManifestsPath, "base")
-	err = deploy.DeployManifestsFromPath(r.Client, dsciInit, basePath, dsciInit.Spec.Monitoring.Namespace, "prometheus", dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
+	err = deploy.DeployManifestsFromPath(
+		r.Client, dsciInit,
+		basePath,
+		dsciInit.Spec.Monitoring.Namespace,
+		"prometheus",
+		dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
 	if err != nil {
 		r.Log.Error(err, "error to deploy manifests", "path", basePath)
 		return err
@@ -105,7 +110,13 @@ func configurePrometheus(ctx context.Context, dsciInit *dsci.DSCInitialization, 
 	}
 
 	// Deploy manifests
-	err = deploy.DeployManifestsFromPath(r.Client, dsciInit, prometheusManifestsPath, dsciInit.Spec.Monitoring.Namespace, "prometheus", dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
+	err = deploy.DeployManifestsFromPath(
+		r.Client,
+		dsciInit,
+		prometheusManifestsPath,
+		dsciInit.Spec.Monitoring.Namespace,
+		"prometheus",
+		dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
 	if err != nil {
 		r.Log.Error(err, "error to deploy manifests", "path", prometheusManifestsPath)
 		return err
@@ -170,7 +181,13 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 	r.Log.Info("Success: generate alertmanage config")
 
 	alertManagerPath := filepath.Join(deploy.DefaultManifestPath, "monitoring", "alertmanager")
-	err = deploy.DeployManifestsFromPath(r.Client, dsciInit, alertManagerPath, dsciInit.Spec.Monitoring.Namespace, "alertmanager", dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
+	err = deploy.DeployManifestsFromPath(
+		r.Client,
+		dsciInit,
+		alertManagerPath,
+		dsciInit.Spec.Monitoring.Namespace,
+		"alertmanager",
+		dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
 	if err != nil {
 		r.Log.Error(err, "error to deploy manifests", "path", alertManagerPath)
 		return err
@@ -197,13 +214,23 @@ func configureBlackboxExporter(cli client.Client, dsciInit *dsci.DSCInitializati
 
 	blackBoxPath := filepath.Join(deploy.DefaultManifestPath, "monitoring", "blackbox-exporter")
 	if apierrs.IsNotFound(err) || strings.Contains(consoleRoute.Spec.Host, "redhat.com") {
-		err := deploy.DeployManifestsFromPath(cli, dsciInit, filepath.Join(blackBoxPath, "internal"), dsciInit.Spec.Monitoring.Namespace, "blackbox-exporter", dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
+		err := deploy.DeployManifestsFromPath(
+			cli,
+			dsciInit,
+			filepath.Join(blackBoxPath, "internal"),
+			dsciInit.Spec.Monitoring.Namespace,
+			"blackbox-exporter",
+			dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
 		if err != nil {
 			return fmt.Errorf("error to deploy manifests: %w", err)
 		}
-
 	} else {
-		err := deploy.DeployManifestsFromPath(cli, dsciInit, filepath.Join(blackBoxPath, "external"), dsciInit.Spec.Monitoring.Namespace, "blackbox-exporter", dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
+		err := deploy.DeployManifestsFromPath(
+			cli, dsciInit,
+			filepath.Join(blackBoxPath, "external"),
+			dsciInit.Spec.Monitoring.Namespace,
+			"blackbox-exporter",
+			dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
 		if err != nil {
 			return fmt.Errorf("error to deploy manifests: %w", err)
 		}
@@ -230,7 +257,6 @@ func (r *DSCInitializationReconciler) configureManagedMonitoring(ctx context.Con
 }
 
 func createMonitoringProxySecret(cli client.Client, name string, dsciInit *dsci.DSCInitialization) error {
-
 	sessionSecret, err := GenerateRandomHex(32)
 	if err != nil {
 		return err
@@ -264,23 +290,6 @@ func createMonitoringProxySecret(cli client.Client, name string, dsciInit *dsci.
 		}
 	}
 	return nil
-
-}
-
-func replaceInAlertManagerConfigmap(cli client.Client, dsciInit *dsci.DSCInitialization, cmName, replaceVariable, replaceValue string) error {
-	prometheusConfig := &corev1.ConfigMap{}
-	err := cli.Get(context.TODO(), client.ObjectKey{Name: cmName, Namespace: dsciInit.Spec.Monitoring.Namespace}, prometheusConfig)
-	if err != nil {
-		if apierrs.IsNotFound(err) {
-			return nil
-		}
-		return err
-	}
-	prometheusAlertmanagerContent := prometheusConfig.Data["alertmanager.yml"]
-	prometheusAlertmanagerContent = strings.ReplaceAll(prometheusAlertmanagerContent, replaceVariable, replaceValue)
-
-	prometheusConfig.Data["alertmanager.yml"] = prometheusAlertmanagerContent
-	return cli.Update(context.TODO(), prometheusConfig)
 }
 
 func getMonitoringData(data string) (string, error) {
@@ -305,9 +314,28 @@ func getMonitoringData(data string) (string, error) {
 func (r *DSCInitializationReconciler) configureCommonMonitoring(dsciInit *dsci.DSCInitialization) error {
 	// configure segment.io
 	segmentPath := filepath.Join(deploy.DefaultManifestPath, "monitoring", "segment")
-	err := deploy.DeployManifestsFromPath(r.Client, dsciInit, segmentPath, dsciInit.Spec.Monitoring.Namespace, "segment-io", dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
+	err := deploy.DeployManifestsFromPath(
+		r.Client,
+		dsciInit,
+		segmentPath,
+		dsciInit.Spec.Monitoring.Namespace,
+		"segment-io",
+		dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
 	if err != nil {
-		r.Log.Error(err, "error to deploy manifests", "path", segmentPath)
+		r.Log.Error(err, "error to deploy manifests under /opt/manifests/monitoring/segment")
+		return err
+	}
+	// configure monitoring base
+	monitoringBasePath := filepath.Join(deploy.DefaultManifestPath, "monitoring", "base")
+	err = deploy.DeployManifestsFromPath(
+		r.Client,
+		dsciInit,
+		monitoringBasePath,
+		dsciInit.Spec.Monitoring.Namespace,
+		"monitoring-base",
+		dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
+	if err != nil {
+		r.Log.Error(err, "error to deploy manifests under /opt/manifests/monitoring/base")
 		return err
 	}
 	return nil

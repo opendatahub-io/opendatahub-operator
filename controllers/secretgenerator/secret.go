@@ -9,11 +9,11 @@ import (
 )
 
 const (
-	SECRET_NAME_ANNOTATION         = "secret-generator.opendatahub.io/name"
-	SECRET_TYPE_ANNOTATION         = "secret-generator.opendatahub.io/type"
-	SECRET_LENGTH_ANNOTATION       = "secret-generator.opendatahub.io/complexity"
-	SECRET_OAUTH_CLIENT_ANNOTATION = "secret-generator.opendatahub.io/oauth-client-route"
-	SECRET_DEFAULT_COMPLEXITY      = 16
+	SECRET_NAME_ANNOTATION         = "secret-generator.opendatahub.io/name"               //nolint
+	SECRET_TYPE_ANNOTATION         = "secret-generator.opendatahub.io/type"               //nolint
+	SECRET_LENGTH_ANNOTATION       = "secret-generator.opendatahub.io/complexity"         //nolint
+	SECRET_OAUTH_CLIENT_ANNOTATION = "secret-generator.opendatahub.io/oauth-client-route" //nolint
+	SECRET_DEFAULT_COMPLEXITY      = 16                                                   //nolint
 
 	letterRunes = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 
