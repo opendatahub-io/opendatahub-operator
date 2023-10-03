@@ -34,7 +34,12 @@ if [ "$#" -ge 1 ]; then
                 fi
                 COMPONENT_MANIFESTS["$key"]=$value
             else
-                echo "Warning: Key '$key' does not exist in COMPONENT_MANIFESTS."
+                if [[ $value =~ $pattern ]]; then
+                    COMPONENT_MANIFESTS["$key"]=$value
+                    echo "Info: Key '$key' has been added to COMPONENT_MANIFESTS with value '$value'."
+                else
+                    echo "Error: The value '$value' of '$key' does not match the expected format 'repo-org:repo-name:branch-name:source-folder:target-folder'."
+                fi
             fi
         else
             echo "Warning: Argument '$arg' does not follow the '--key=value' format."
