@@ -29,12 +29,14 @@ if [ "$#" -ge 1 ]; then
             IFS="=" read -r key value <<< "$arg"
             if [[ -n "${COMPONENT_MANIFESTS[$key]}" ]]; then
                 if [[ ! $value =~ $pattern ]]; then
-                    echo "Error: The value '$value' does not match the expected format 'repo-org:repo-name:branch-name:source-folder:target-folder'."
+                    echo "ERROR: The value '$value' does not match the expected format 'repo-org:repo-name:branch-name:source-folder:target-folder'."
                     continue
                 fi
                 COMPONENT_MANIFESTS["$key"]=$value
             else
-                echo "Warning: Key '$key' does not exist in COMPONENT_MANIFESTS."
+                echo "ERROR: '$key' does not exist in COMPONENT_MANIFESTS, it will be skipped."
+                echo "Available components are: [${!COMPONENT_MANIFESTS[@]}]"
+                exit 1
             fi
         else
             echo "Warning: Argument '$arg' does not follow the '--key=value' format."
