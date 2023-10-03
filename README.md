@@ -79,7 +79,7 @@ You have the flexibility to change the source of the manifests. Invoke the `get_
 ./get_all_manifests.sh --odh-dashboard="maistra:odh-dashboard:test-manifests:manifests:odh-dashboard"
 ```
 
-If the flag name matches components key defined in `COMPONENT_MANIFESTS` it will overwrite its location. For non-existing key it will add it to the list assuming the value is in a valid format.
+If the flag name matches components key defined in `COMPONENT_MANIFESTS` it will overwrite its location, otherwise the command will fail.
 
 ##### for local development
 
