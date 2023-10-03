@@ -24,31 +24,28 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"golang.org/x/exp/maps"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/api/errors"
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
-	ctrl "sigs.k8s.io/controller-runtime"
+	"golang.org/x/exp/maps"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins"
+	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/yaml"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/kustomize/api/filesys"
 	"sigs.k8s.io/kustomize/api/krusty"
 	"sigs.k8s.io/kustomize/api/resmap"
-
-	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
-
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins"
-
-	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
+	"sigs.k8s.io/kustomize/kyaml/filesys"
 )
 
 const (
@@ -56,81 +53,84 @@ const (
 )
 
 // DownloadManifests function performs following tasks:
-// 1. Given remote URI, download manifests, else extract local bundle
-// 2. It saves the manifests in the /opt/manifests/component-name/ folder
-func DownloadManifests(uri string) error {
+// 1. It takes component URI and only downloads folder specified by component.ContextDir field
+// 2. It saves the manifests in the odh-manifests/component-name/ folder
+func DownloadManifests(componentName string, manifestConfig components.ManifestsConfig) error {
 	// Get the component repo from the given url
-	// e.g.  https://github.com/example/tarball/master\
-	var reader io.Reader
-	if uri != "" {
-		resp, err := http.Get(uri)
+	// e.g  https://github.com/example/tarball/master
+	resp, err := http.Get(manifestConfig.URI)
+	if err != nil {
+		return fmt.Errorf("error downloading manifests: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("error downloading manifests: %v HTTP status", resp.StatusCode)
+	}
+
+	// Create a new gzip reader
+	gzipReader, err := gzip.NewReader(resp.Body)
+	if err != nil {
+		return fmt.Errorf("error creating gzip reader: %v", err)
+	}
+	defer gzipReader.Close()
+
+	// Create a new TAR reader
+	tarReader := tar.NewReader(gzipReader)
+
+	// Create manifest directory
+	mode := os.ModePerm
+	err = os.MkdirAll(DefaultManifestPath, mode)
+	if err != nil {
+		return fmt.Errorf("error creating manifests directory : %v", err)
+	}
+
+	// Extract the contents of the TAR archive to the current directory
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
 		if err != nil {
-			return fmt.Errorf("error downloading manifests: %w", err)
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("error downloading manifests: %v HTTP status", resp.StatusCode)
-		}
-		reader = resp.Body
-
-		// Create a new gzip reader
-		gzipReader, err := gzip.NewReader(reader)
-		if err != nil {
-			return fmt.Errorf("error creating gzip reader: %w", err)
-		}
-		defer gzipReader.Close()
-
-		// Create a new TAR reader
-		tarReader := tar.NewReader(gzipReader)
-
-		// Create manifest directory
-		mode := os.ModePerm
-		err = os.MkdirAll(DefaultManifestPath, mode)
-		if err != nil {
-			return fmt.Errorf("error creating manifests directory : %w", err)
+			return err
 		}
 
-		for {
-			header, err := tarReader.Next()
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				return err
-			}
-			manifestsPath := strings.Split(header.Name, string(os.PathSeparator))
+		componentFiles := strings.Split(header.Name, "/")
+		componentFileName := header.Name
+		componentManifestPath := componentFiles[0] + "/" + manifestConfig.ContextDir
 
-			// Determine the file or directory path to extract to
-			target := filepath.Join(DefaultManifestPath, strings.Join(manifestsPath[1:], string(os.PathSeparator)))
+		if strings.Contains(componentFileName, componentManifestPath) {
+			// Get manifest path relative to repo
+			// e.g. of repo/a/b/manifests/base --> base/
+			componentFoldersList := strings.Split(componentFileName, "/")
+			componentFileRelativePathFound := strings.Join(componentFoldersList[len(strings.Split(componentManifestPath, "/")):], "/")
 
 			if header.Typeflag == tar.TypeDir {
-				// Create directories
-				err = os.MkdirAll(target, os.ModePerm)
+				err = os.MkdirAll(DefaultManifestPath+"/"+componentName+"/"+componentFileRelativePathFound, mode)
 				if err != nil {
-					return err
+					return fmt.Errorf("error creating directory:%v", err)
 				}
-			} else if header.Typeflag == tar.TypeReg {
-				// Extract regular files
-				outputFile, err := os.Create(target)
-				if err != nil {
-					return err
-				}
-				defer outputFile.Close()
+				continue
+			}
 
-				_, err = io.Copy(outputFile, tarReader)
+			if header.Typeflag == tar.TypeReg {
+				file, err := os.Create(DefaultManifestPath + "/" + componentName + "/" + componentFileRelativePathFound)
 				if err != nil {
-					return err
+					fmt.Println("Error creating file:", err)
 				}
+				_, err = io.Copy(file, tarReader)
+				if err != nil {
+					fmt.Println("Error downloading file contents:", err)
+				}
+				file.Close()
+				continue
 			}
 		}
 	}
-
-	return nil
+	return err
 }
 
 func DeployManifestsFromPath(cli client.Client, owner metav1.Object, manifestPath string, namespace string, componentName string, componentEnabled bool) error {
-
 	// Render the Kustomize manifests
 	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
 	fs := filesys.MakeFsOnDisk()
@@ -174,7 +174,6 @@ func DeployManifestsFromPath(cli client.Client, owner metav1.Object, manifestPat
 	}
 
 	return nil
-
 }
 
 func getResources(resMap resmap.ResMap) ([]*unstructured.Unstructured, error) {
@@ -232,7 +231,6 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 			if found.GetKind() == "CustomResourceDefinition" {
 				return nil
 			}
-
 		}
 
 		if obj.GetOwnerReferences() == nil {
@@ -254,7 +252,7 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 	}
 
 	// Create the resource if it doesn't exist and component is enabled
-	if errors.IsNotFound(err) {
+	if apierrs.IsNotFound(err) {
 		// Set the owner reference for garbage collection
 		if err = ctrl.SetControllerReference(owner, metav1.Object(obj), cli.Scheme()); err != nil {
 			return err
@@ -295,7 +293,7 @@ This is useful for air gapped cluster
 priority of image values (from high to low):
 - image values set in manifests params.env if manifestsURI is set
 - RELATED_IMAGE_* values from CSV
-- image values set in manifests params.env if manifestsURI is not set
+- image values set in manifests params.env if manifestsURI is not set.
 */
 func ApplyImageParams(componentPath string, imageParamsMap map[string]string) error {
 	envFilePath := filepath.Join(componentPath, "params.env")
@@ -390,7 +388,7 @@ func SubscriptionExists(cli client.Client, namespace string, name string) (bool,
 
 // OperatorExists checks if an Operator with 'operatorPrefix' is installed.
 // Return true if found it, false if not.
-// TODO: if we need to check exact version of the operator installed, can append vX.Y.Z later
+// TODO: if we need to check exact version of the operator installed, can append vX.Y.Z later.
 func OperatorExists(cli client.Client, operatorPrefix string) (bool, error) {
 	opConditionList := &ofapiv2.OperatorConditionList{}
 	if err := cli.List(context.TODO(), opConditionList); err != nil {

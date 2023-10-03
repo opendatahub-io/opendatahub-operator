@@ -4,22 +4,20 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"testing"
 	"time"
 
-	"k8s.io/client-go/util/retry"
-
+	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
-
-	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components"
-	operatorv1 "github.com/openshift/api/operator/v1"
-	"strings"
+	"k8s.io/client-go/util/retry"
 )
 
 func creationTestSuite(t *testing.T) {
@@ -268,21 +266,17 @@ func (tc *testContext) testApplicationCreation(component components.ComponentInt
 func (tc *testContext) testOwnerrefrences() error {
 	// Test any one of the apps
 	if tc.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
-
 		appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(context.TODO(), metav1.ListOptions{
 			LabelSelector: "app.kubernetes.io/part-of=" + tc.testDsc.Spec.Components.Dashboard.GetComponentName(),
 		})
 		if err != nil {
 			return fmt.Errorf("error listing application deployments %w", err)
-		} else {
-			// test any one deployment for ownerreference
-			if len(appDeployments.Items) != 0 && appDeployments.Items[0].OwnerReferences[0].Kind != "DataScienceCluster" {
-
-				return fmt.Errorf("expected ownerreference not found. Got ownereferrence: %v",
-					appDeployments.Items[0].OwnerReferences)
-			}
 		}
-		return nil
+		// test any one deployment for ownerreference
+		if len(appDeployments.Items) != 0 && appDeployments.Items[0].OwnerReferences[0].Kind != "DataScienceCluster" {
+			return fmt.Errorf("expected ownerreference not found. Got ownereferrence: %v",
+				appDeployments.Items[0].OwnerReferences)
+		}
 	}
 	return nil
 }
@@ -293,7 +287,6 @@ func (tc *testContext) testUpdateComponentReconcile() error {
 	appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(context.TODO(), metav1.ListOptions{
 		LabelSelector: "app.kubernetes.io/part-of=" + tc.testDsc.Spec.Components.Dashboard.GetComponentName(),
 	})
-
 	if err != nil {
 		return err
 	}
@@ -316,7 +309,6 @@ func (tc *testContext) testUpdateComponentReconcile() error {
 		}
 		if retrievedDep.Spec.Replicas != patchedReplica.Spec.Replicas {
 			return fmt.Errorf("failed to patch replicas : expect to be %v but got %v", patchedReplica.Spec.Replicas, retrievedDep.Spec.Replicas)
-
 		}
 
 		// Sleep for 20 seconds to allow the operator to reconcile
@@ -335,8 +327,8 @@ func (tc *testContext) testUpdateComponentReconcile() error {
 
 func (tc *testContext) testUpdateDSCComponentEnabled() error {
 	// Test Updating dashboard to be disabled
-
 	var dashboardDeploymentName string
+
 	if tc.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
 		appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(context.TODO(), metav1.ListOptions{
 			LabelSelector: "app.kubernetes.io/part-of=" + tc.testDsc.Spec.Components.Dashboard.GetComponentName(),
@@ -373,6 +365,9 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 		}
 		return nil
 	})
+	if err != nil {
+		return fmt.Errorf("error after retry %w", err)
+	}
 
 	// Sleep for 20 seconds to allow the operator to reconcile
 	time.Sleep(2 * tc.resourceRetryInterval)
@@ -383,6 +378,9 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 		}
 		return fmt.Errorf("error getting component resource after reconcile: %w", err)
 	} else {
-		return fmt.Errorf("component %v is disabled, should not get its deployment %v from NS %v any more", tc.testDsc.Spec.Components.Dashboard.GetComponentName(), dashboardDeploymentName, tc.applicationsNamespace)
+		return fmt.Errorf("component %v is disabled, should not get its deployment %v from NS %v any more",
+			tc.testDsc.Spec.Components.Dashboard.GetComponentName(),
+			dashboardDeploymentName,
+			tc.applicationsNamespace)
 	}
 }

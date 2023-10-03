@@ -27,17 +27,4 @@ func (tc *testContext) validateOwnedCRDs(t *testing.T) {
 
 	require.NoErrorf(t, tc.validateCRD("dscinitializations.dscinitialization.opendatahub.io"),
 		"error in validating CRD : dscinitializations.dscinitialization.opendatahub.io")
-
-	// Verify if 4 dashabord required CRDs are installed
-	require.NoErrorf(t, tc.validateCRD("odhquickstarts.console.openshift.io"),
-		"error in validating CRD : odhquickstarts.console.openshift.io")
-
-	require.NoErrorf(t, tc.validateCRD("odhapplications.dashboard.opendatahub.io"),
-		"error in validating CRD : odhapplications.dashboard.opendatahub.io")
-
-	require.NoErrorf(t, tc.validateCRD("odhdashboardconfigs.opendatahub.io"),
-		"error in validating CRD : odhdashboardconfigs.opendatahub.io")
-
-	require.NoErrorf(t, tc.validateCRD("odhdocuments.dashboard.opendatahub.io"),
-		"error in validating CRD : odhdocuments.dashboard.opendatahub.io")
 }

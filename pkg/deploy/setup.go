@@ -12,11 +12,11 @@ import (
 )
 
 const (
-	// ManagedRhods defines expected addon catalogsource
+	// ManagedRhods defines expected addon catalogsource.
 	ManagedRhods Platform = "managed-odh"
-	// SelfManagedRhods defines display name in csv
+	// SelfManagedRhods defines display name in csv.
 	SelfManagedRhods Platform = "Red Hat OpenShift Data Science"
-	// OpenDataHub defines display name in csv
+	// OpenDataHub defines display name in csv.
 	OpenDataHub Platform = "Open Data Hub Operator"
 )
 
@@ -26,7 +26,7 @@ type Platform string
 // when CSV displayname contains OpenDataHub, return 'OpenDataHub,nil' => high priority
 // when CSV displayname contains SelfManagedRhods, return 'SelfManagedRhods,nil'
 // when in dev mode and  could not find CSV (deploy by olm), return "", nil
-// otherwise return "",err
+// otherwise return "",err.
 func isSelfManaged(cli client.Client) (Platform, error) {
 	clusterCsvs := &ofapi.ClusterServiceVersionList{}
 	err := cli.List(context.TODO(), clusterCsvs)
@@ -39,14 +39,13 @@ func isSelfManaged(cli client.Client) (Platform, error) {
 			}
 			if strings.Contains(csv.Spec.DisplayName, string(SelfManagedRhods)) {
 				return SelfManagedRhods, nil
-
 			}
 		}
 	}
 	return "", nil
 }
 
-// isManagedRHODS checks if CRD add-on exists and contains string ManagedRhods
+// isManagedRHODS checks if CRD add-on exists and contains string ManagedRhods.
 func isManagedRHODS(cli client.Client) (Platform, error) {
 	addonCRD := &apiextv1.CustomResourceDefinition{}
 

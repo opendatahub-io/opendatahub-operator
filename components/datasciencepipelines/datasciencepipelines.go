@@ -1,4 +1,5 @@
-// Package datasciencepipelines provides utility functions to config Data Science Pipelines: Pipeline solution for end to end MLOps workflows that support the Kubeflow Pipelines SDK and Tekton
+// Package datasciencepipelines provides utility functions to config Data Science Pipelines:
+// Pipeline solution for end to end MLOps workflows that support the Kubeflow Pipelines SDK and Tekton
 package datasciencepipelines
 
 import (
@@ -7,10 +8,11 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"path/filepath"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const (
+var (
 	ComponentName = "data-science-pipelines-operator"
 	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
 )
@@ -28,6 +30,27 @@ type DataSciencePipelines struct {
 	components.Component `json:""`
 }
 
+func (d *DataSciencePipelines) OverrideManifests(_ string) error {
+	// If devflags are set, update default manifests path
+	if len(d.DevFlags.Manifests) != 0 {
+		manifestConfig := d.DevFlags.Manifests[0]
+		if err := deploy.DownloadManifests(ComponentName, manifestConfig); err != nil {
+			return err
+		}
+		// If overlay is defined, update paths
+		defaultKustomizePath := "base"
+		if manifestConfig.SourcePath != "" {
+			defaultKustomizePath = manifestConfig.SourcePath
+		}
+		Path = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
+	}
+	return nil
+}
+
+func (d *DataSciencePipelines) GetComponentDevFlags() components.DevFlags {
+	return d.DevFlags
+}
+
 func (d *DataSciencePipelines) SetImageParamsMap(imageMap map[string]string) map[string]string {
 	imageParamMap = imageMap
 	return imageParamMap
@@ -37,13 +60,21 @@ func (d *DataSciencePipelines) GetComponentName() string {
 	return ComponentName
 }
 
-// Verifies that Dashboard implements ComponentInterface
+// Verifies that Dashboard implements ComponentInterface.
 var _ components.ComponentInterface = (*DataSciencePipelines)(nil)
 
 func (d *DataSciencePipelines) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
 	enabled := d.GetManagementState() == operatorv1.Managed
-
+	platform, err := deploy.GetPlatform(cli)
+	if err != nil {
+		return err
+	}
 	if enabled {
+		// Download manifests and update paths
+		if err = d.OverrideManifests(string(platform)); err != nil {
+			return err
+		}
+
 		// check if the dependent operator installed is done in dashboard
 
 		// Update image parameters only when we do not have customized manifests set
@@ -54,7 +85,7 @@ func (d *DataSciencePipelines) ReconcileComponent(cli client.Client, owner metav
 		}
 	}
 
-	err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, d.GetComponentName(), enabled)
+	err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, d.GetComponentName(), enabled)
 	return err
 }
 

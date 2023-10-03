@@ -25,7 +25,7 @@ import (
 
 // +operator-sdk:csv:customresourcedefinitions:order=1
 
-// DSCInitializationSpec defines the desired state of DSCInitialization
+// DSCInitializationSpec defines the desired state of DSCInitialization.
 type DSCInitializationSpec struct {
 	// Namespace for applications to be installed, non-configurable, default to "opendatahub"
 	// +kubebuilder:default:=opendatahub
@@ -60,10 +60,10 @@ type Monitoring struct {
 type DevFlags struct {
 	// Custom manifests uri for odh-manifests
 	// +optional
-	ManifestsUri string `json:"manifestsUri,omitempty"`
+	ManifestsUri string `json:"manifestsUri,omitempty"` //nolint
 }
 
-// DSCInitializationStatus defines the observed state of DSCInitialization
+// DSCInitializationStatus defines the observed state of DSCInitialization.
 type DSCInitializationStatus struct {
 	// Phase describes the Phase of DSCInitializationStatus
 	// This is used by OLM UI to provide status information to the user
@@ -89,7 +89,7 @@ type DSCInitializationStatus struct {
 //+kubebuilder:printcolumn:name="Created At",type=string,JSONPath=.metadata.creationTimestamp
 //+operator-sdk:csv:customresourcedefinitions:displayName="DSC Initialization"
 
-// DSCInitialization is the Schema for the dscinitializations API
+// DSCInitialization is the Schema for the dscinitializations API.
 type DSCInitialization struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -100,7 +100,7 @@ type DSCInitialization struct {
 
 //+kubebuilder:object:root=true
 
-// DSCInitializationList contains a list of DSCInitialization
+// DSCInitializationList contains a list of DSCInitialization.
 type DSCInitializationList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

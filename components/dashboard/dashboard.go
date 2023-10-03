@@ -1,23 +1,26 @@
-// Package dashboard provides utility functions to config Open Data Hub Dashboard: A web dashboard that displays installed Open Data Hub components with easy access to component UIs and documentation
+// Package dashboard provides utility functions to config Open Data Hub Dashboard: A web dashboard that displays
+// installed Open Data Hub components with easy access to component UIs and documentation
 package dashboard
 
 import (
 	"context"
 	"fmt"
-	operatorv1 "github.com/openshift/api/operator/v1"
 	"path/filepath"
 	"strings"
+
+	operatorv1 "github.com/openshift/api/operator/v1"
 
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+
 	routev1 "github.com/openshift/api/route/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const (
+var (
 	ComponentName          = "odh-dashboard"
 	ComponentNameSupported = "rhods-dashboard"
 	Path                   = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
@@ -27,6 +30,7 @@ const (
 	PathOVMS               = deploy.DefaultManifestPath + "/" + ComponentName + "/modelserving"
 	PathODHDashboardConfig = deploy.DefaultManifestPath + "/" + ComponentName + "/odhdashboardconfig"
 	PathConsoleLink        = deploy.DefaultManifestPath + "/" + ComponentName + "/consolelink"
+	PathCRDs               = deploy.DefaultManifestPath + "/" + ComponentName + "/crd"
 	NameConsoleLink        = "console"
 	NamespaceConsoleLink   = "openshift-console"
 	PathAnaconda           = deploy.DefaultManifestPath + "/partners/anaconda/base/"
@@ -40,6 +44,35 @@ type Dashboard struct {
 	components.Component `json:""`
 }
 
+func (d *Dashboard) OverrideManifests(platform string) error {
+	// If devflags are set, update default manifests path
+	if len(d.DevFlags.Manifests) != 0 {
+		manifestConfig := d.DevFlags.Manifests[0]
+		if err := deploy.DownloadManifests(ComponentName, manifestConfig); err != nil {
+			return err
+		}
+		// If overlay is defined, update paths
+		if platform == string(deploy.ManagedRhods) || platform == string(deploy.SelfManagedRhods) {
+			defaultKustomizePath := "overlays/rhods"
+			if manifestConfig.SourcePath != "" {
+				defaultKustomizePath = manifestConfig.SourcePath
+			}
+			PathSupported = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
+		} else {
+			defaultKustomizePath := "base"
+			if manifestConfig.SourcePath != "" {
+				defaultKustomizePath = manifestConfig.SourcePath
+			}
+			Path = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
+		}
+	}
+	return nil
+}
+
+func (d *Dashboard) GetComponentDevFlags() components.DevFlags {
+	return d.DevFlags
+}
+
 func (d *Dashboard) SetImageParamsMap(imageMap map[string]string) map[string]string {
 	imageParamMap = imageMap
 	return imageParamMap
@@ -49,13 +82,10 @@ func (d *Dashboard) GetComponentName() string {
 	return ComponentName
 }
 
-// Verifies that Dashboard implements ComponentInterface
+// Verifies that Dashboard implements ComponentInterface.
 var _ components.ComponentInterface = (*Dashboard)(nil)
 
-func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
-
-	// TODO: Add any additional tasks if required when reconciling component
-
+func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error { //nolint
 	platform, err := deploy.GetPlatform(cli)
 	if err != nil {
 		return err
@@ -63,16 +93,41 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 	// Update Default rolebinding
 	enabled := d.GetManagementState() == operatorv1.Managed
 	if enabled {
+		// Download manifests and update paths
+		if err = d.OverrideManifests(string(platform)); err != nil {
+			return err
+		}
+
 		if platform == deploy.OpenDataHub || platform == "" {
 			err := common.UpdatePodSecurityRolebinding(cli, []string{"odh-dashboard"}, dscispec.ApplicationsNamespace)
 			if err != nil {
 				return err
+			}
+
+			// Deploy CRDs for odh-dashboard
+			err = deploy.DeployManifestsFromPath(cli, owner,
+				PathCRDs,
+				dscispec.ApplicationsNamespace,
+				ComponentName,
+				enabled)
+			if err != nil {
+				return fmt.Errorf("failed to deploy dashboard crds %s: %v", PathCRDs, err)
 			}
 		}
 		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
 			err := common.UpdatePodSecurityRolebinding(cli, []string{"rhods-dashboard"}, dscispec.ApplicationsNamespace)
 			if err != nil {
 				return err
+			}
+
+			// Deploy CRDs for odh-dashboard
+			err = deploy.DeployManifestsFromPath(cli, owner,
+				PathCRDs,
+				dscispec.ApplicationsNamespace,
+				ComponentNameSupported,
+				enabled)
+			if err != nil {
+				return fmt.Errorf("failed to deploy dashboard crds %s: %v", PathCRDs, err)
 			}
 		}
 
@@ -199,7 +254,7 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 	}
 }
 
-func (in *Dashboard) DeepCopyInto(out *Dashboard) {
-	*out = *in
-	out.Component = in.Component
+func (d *Dashboard) DeepCopyInto(out *Dashboard) {
+	*out = *d
+	out.Component = d.Component
 }

@@ -22,8 +22,6 @@ import (
 	"fmt"
 	"time"
 
-	"sigs.k8s.io/controller-runtime/pkg/builder"
-
 	ocv1 "github.com/openshift/api/oauth/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	v1 "k8s.io/api/core/v1"
@@ -33,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -100,7 +99,7 @@ func (r *SecretGeneratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // Reconcile will generate new secret with random data for the annotated secret
 // based on the specified type and complexity. This will avoid possible race
-// conditions when a deployment mounts the secret before it is reconciled
+// conditions when a deployment mounts the secret before it is reconciled.
 func (r *SecretGeneratorReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
 	foundSecret := &v1.Secret{}
 	err := r.Client.Get(ctx, request.NamespacedName, foundSecret)
@@ -126,7 +125,8 @@ func (r *SecretGeneratorReconciler) Reconcile(ctx context.Context, request ctrl.
 	}
 
 	generatedSecretKey := types.NamespacedName{
-		Name: generatedSecret.Name, Namespace: generatedSecret.Namespace}
+		Name: generatedSecret.Name, Namespace: generatedSecret.Namespace,
+	}
 	err = r.Client.Get(ctx, generatedSecretKey, generatedSecret)
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
@@ -177,7 +177,7 @@ func (r *SecretGeneratorReconciler) Reconcile(ctx context.Context, request ctrl.
 func (r *SecretGeneratorReconciler) getRoute(ctx context.Context, name string, namespace string) (*routev1.Route, error) {
 	route := &routev1.Route{}
 	// Get spec.host from route
-	err := wait.PollImmediate(resourceRetryInterval, resourceRetryTimeout, func() (done bool, err error) {
+	err := wait.PollUntilContextTimeout(ctx, resourceRetryInterval, resourceRetryTimeout, false, func(ctx context.Context) (done bool, err error) {
 		err = r.Client.Get(ctx, client.ObjectKey{
 			Name:      name,
 			Namespace: namespace,
@@ -187,13 +187,13 @@ func (r *SecretGeneratorReconciler) getRoute(ctx context.Context, name string, n
 				return false, nil
 			}
 			return false, err
-		} else if route.Spec.Host == "" {
+		}
+		if route.Spec.Host == "" {
 			return false, nil
 		} else {
 			return true, nil
 		}
 	})
-
 	if err != nil {
 		return nil, err
 	}
