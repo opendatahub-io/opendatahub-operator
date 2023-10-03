@@ -18,9 +18,7 @@ var (
 
 var imageParamMap = map[string]string{
 	"trustyaiServiceImageName":  "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE_NAME",
-	"trustyaiServiceImageTag":   "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE_TAG",
 	"trustyaiOperatorImageName": "RELATED_IMAGE_ODH_TRUSTYAI_OPERATOR_IMAGE_NAME",
-	"trustyaiOperatorImageTag":  "RELATED_IMAGE_ODH_TRUSTYAI_OPERATOR_IMAGE_TAG",
 }
 
 type TrustyAI struct {
