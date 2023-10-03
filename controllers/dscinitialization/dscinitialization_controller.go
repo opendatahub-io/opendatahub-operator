@@ -21,12 +21,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	operatorv1 "github.com/openshift/api/operator/v1"
 	"path/filepath"
 
-	"github.com/go-logr/logr"
+	operatorv1 "github.com/openshift/api/operator/v1"
 
-	"k8s.io/client-go/util/retry"
+	"github.com/go-logr/logr"
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -35,17 +37,14 @@ import (
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
-// DSCInitializationReconciler reconciles a DSCInitialization object
+// DSCInitializationReconciler reconciles a DSCInitialization object.
 type DSCInitializationReconciler struct {
 	client.Client
 	Scheme                *runtime.Scheme
@@ -58,7 +57,7 @@ type DSCInitializationReconciler struct {
 // +kubebuilder:rbac:groups="dscinitialization.opendatahub.io",resources=dscinitializations/finalizers,verbs=get;update;patch;delete
 // +kubebuilder:rbac:groups="dscinitialization.opendatahub.io",resources=dscinitializations,verbs=get;list;watch;create;update;patch;delete
 
-// Reconcile contains controller logic specific to DSCInitialization instance updates
+// Reconcile contains controller logic specific to DSCInitialization instance updates.
 func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.Log.Info("Reconciling DSCInitialization.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
 
@@ -125,14 +124,14 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	// Apply update from legacy operator
 	// TODO: Update upgrade logic to get components through KfDef
-	//if err = updatefromLegacyVersion(r.Client); err != nil {
-	//	r.Log.Error(err, "unable to update from legacy operator version")
-	//	return reconcile.Result{}, err
-	//}
+	// if err = updatefromLegacyVersion(r.Client); err != nil {
+	//	 r.Log.Error(err, "unable to update from legacy operator version")
+	//	 return reconcile.Result{}, err
+	// }
 
 	// Apply Rhods specific configs
 	if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
-		//Apply osd specific permissions
+		// Apply osd specific permissions
 		if platform == deploy.ManagedRhods {
 			osdConfigsPath := filepath.Join(deploy.DefaultManifestPath, "osd-configs")
 			err = deploy.DeployManifestsFromPath(r.Client, instance, osdConfigsPath, r.ApplicationsNamespace, "osd", true)
@@ -218,7 +217,8 @@ func (r *DSCInitializationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func (r *DSCInitializationReconciler) updateStatus(ctx context.Context, original *dsci.DSCInitialization, update func(saved *dsci.DSCInitialization)) (*dsci.DSCInitialization, error) {
+func (r *DSCInitializationReconciler) updateStatus(ctx context.Context, original *dsci.DSCInitialization, update func(saved *dsci.DSCInitialization),
+) (*dsci.DSCInitialization, error) {
 	saved := &dsci.DSCInitialization{}
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		if err := r.Client.Get(ctx, client.ObjectKeyFromObject(original), saved); err != nil {
