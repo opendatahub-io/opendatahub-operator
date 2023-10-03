@@ -5,10 +5,10 @@ jobs:
   unit-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Setup Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.19.x'
+          go-version: 1.18
       - name: Run Unit Tests
         run: make unit-test

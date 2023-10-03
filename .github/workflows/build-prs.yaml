@@ -9,9 +9,6 @@ env:
   QUAY_ORG: opendatahub
   QUAY_ID: ${{ secrets.QUAY_ID }}
   QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
-  # Todo: add GH_USER_EMAIL and GH_USER_NAME
-  GH_USER_EMAIL: ''
-  GH_USER_NAME: ''
 jobs:
   fetch-data:
     name: Fetch workflow payload
@@ -69,7 +66,7 @@ jobs:
       SOURCE_BRANCH: ${{ needs.fetch-data.outputs.head_sha }}
       TARGET_IMAGE_TAG: pr-${{ needs.fetch-data.outputs.pr_number }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Build Image
         uses: ./.github/actions/build
         with:
@@ -87,14 +84,16 @@ jobs:
           echo ${{ needs.fetch-data.outputs.pr_number }}
           echo ${{ needs.fetch-data.outputs.pr_state }}
           echo ${{ needs.fetch-data.outputs.event_action }}
+      - name: Configure Git
+        run: |
+           git config --global user.email "github-actions[bot]@users.noreply.github.com"
+           git config --global user.name "GitHub Actions"
       - name: Send comment
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           IMG: quay.io/${{ env.QUAY_ORG }}/${{ env.IMAGE_REPO_ODHO }}:${{ env.TARGET_IMAGE_TAG }}
         run: |
-          git config user.email "${{ env.GH_USER_EMAIL }}"
-          git config user.name "${{ env.GH_USER_NAME }}"
 
           action=${{ needs.fetch-data.outputs.event_action }}
 
