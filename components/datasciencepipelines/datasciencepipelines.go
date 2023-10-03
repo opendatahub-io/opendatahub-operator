@@ -1,4 +1,5 @@
-// Package datasciencepipelines provides utility functions to config Data Science Pipelines: Pipeline solution for end to end MLOps workflows that support the Kubeflow Pipelines SDK and Tekton
+// Package datasciencepipelines provides utility functions to config Data Science Pipelines:
+// Pipeline solution for end to end MLOps workflows that support the Kubeflow Pipelines SDK and Tekton
 package datasciencepipelines
 
 import (
@@ -59,7 +60,7 @@ func (d *DataSciencePipelines) GetComponentName() string {
 	return ComponentName
 }
 
-// Verifies that Dashboard implements ComponentInterface
+// Verifies that Dashboard implements ComponentInterface.
 var _ components.ComponentInterface = (*DataSciencePipelines)(nil)
 
 func (d *DataSciencePipelines) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {

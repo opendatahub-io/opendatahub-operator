@@ -48,7 +48,8 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			Expect(foundMonitoringNamespace.Name).Should(Equal(monitoringNamespace))
 		})
 
-		It("Should create default network policy", func() {
+		// Currently commented out in the DSCI reconcile - setting test to Pending
+		PIt("Should create default network policy", func() {
 			// then
 			foundNetworkPolicy := &netv1.NetworkPolicy{}
 			Eventually(objectExists(applicationNamespace, applicationNamespace, foundNetworkPolicy), timeout, interval).Should(BeTrue())
@@ -229,16 +230,16 @@ func namespaceExists(ns string, obj client.Object) func() bool {
 	}
 }
 
-func objectExists(ns string, name string, obj client.Object) func() bool {
+func objectExists(ns string, name string, obj client.Object) func() bool { //nolint
 	return func() bool {
 		err := k8sClient.Get(context.Background(), client.ObjectKey{Name: ns, Namespace: name}, obj)
 		return err == nil
 	}
 }
 
-func dscInitializationIsReady(ns string, name string, dsciObj *dsci.DSCInitialization) func() bool {
+func dscInitializationIsReady(ns string, name string, dsciObj *dsci.DSCInitialization) func() bool { //nolint
 	return func() bool {
-		k8sClient.Get(context.Background(), client.ObjectKey{Name: ns, Namespace: name}, dsciObj)
+		_ = k8sClient.Get(context.Background(), client.ObjectKey{Name: ns, Namespace: name}, dsciObj)
 		return dsciObj.Status.Phase == readyPhase
 	}
 }
