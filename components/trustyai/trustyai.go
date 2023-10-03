@@ -27,14 +27,14 @@ type TrustyAI struct {
 	components.Component `json:""`
 }
 
-func (m *TrustyAI) GetComponentDevFlags() components.DevFlags {
-	return m.DevFlags
+func (t *TrustyAI) GetComponentDevFlags() components.DevFlags {
+	return t.DevFlags
 }
 
-func (m *TrustyAI) OverrideManifests(_ string) error {
+func (t *TrustyAI) OverrideManifests(_ string) error {
 	// If devflags are set, update default manifests path
-	if len(m.DevFlags.Manifests) != 0 {
-		manifestConfig := m.DevFlags.Manifests[0]
+	if len(t.DevFlags.Manifests) != 0 {
+		manifestConfig := t.DevFlags.Manifests[0]
 		if err := deploy.DownloadManifests(ComponentName, manifestConfig); err != nil {
 			return err
 		}
@@ -48,11 +48,11 @@ func (m *TrustyAI) OverrideManifests(_ string) error {
 	return nil
 }
 
-func (m *TrustyAI) GetComponentName() string {
+func (t *TrustyAI) GetComponentName() string {
 	return ComponentName
 }
 
-func (m *TrustyAI) SetImageParamsMap(imageMap map[string]string) map[string]string {
+func (t *TrustyAI) SetImageParamsMap(imageMap map[string]string) map[string]string {
 	imageParamMap = imageMap
 	return imageParamMap
 }
@@ -60,8 +60,8 @@ func (m *TrustyAI) SetImageParamsMap(imageMap map[string]string) map[string]stri
 // Verifies that TrustyAI implements ComponentInterface
 var _ components.ComponentInterface = (*TrustyAI)(nil)
 
-func (m *TrustyAI) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
-	enabled := m.GetManagementState() == operatorv1.Managed
+func (t *TrustyAI) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
+	enabled := t.GetManagementState() == operatorv1.Managed
 
 	if enabled {
 		if dscispec.DevFlags.ManifestsUri == "" {
@@ -71,7 +71,7 @@ func (m *TrustyAI) ReconcileComponent(cli client.Client, owner metav1.Object, ds
 		}
 	}
 	// Deploy TrustyAI Operator
-	err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, m.GetComponentName(), enabled)
+	err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, t.GetComponentName(), enabled)
 	return err
 }
 
