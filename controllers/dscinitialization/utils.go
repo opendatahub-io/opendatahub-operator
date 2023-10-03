@@ -189,33 +189,33 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.
 		},
 		Spec: netv1.NetworkPolicySpec{
 			// open ingress for all port for now, TODO: add explicit port per component
-			Ingress: []netv1.NetworkPolicyIngressRule{{}},
+			// Ingress: []netv1.NetworkPolicyIngressRule{{}},
 			// open ingress for only ODH created namespaces
 			// this is tested on ROSA but not enough for PSI
-			// Ingress: []netv1.NetworkPolicyIngressRule{
-			// 	{
-			// 		From: []netv1.NetworkPolicyPeer{
-			// 			{
-			// 				NamespaceSelector: &metav1.LabelSelector{ // AND logic
-			// 					MatchLabels: map[string]string{
-			// 						"opendatahub.io/generated-namespace": "true",
-			// 					},
-			// 				},
-			// 			},
-			// 		},
-			// 	},
-			// 	{ // OR logic
-			// 		From: []netv1.NetworkPolicyPeer{
-			// 			{ // need this for access dashboard
-			// 				NamespaceSelector: &metav1.LabelSelector{
-			// 					MatchLabels: map[string]string{
-			// 						"kubernetes.io/metadata.name": "openshift-ingress",
-			// 					},
-			// 				},
-			// 			},
-			// 		},
-			// 	},
-			// },
+			Ingress: []netv1.NetworkPolicyIngressRule{
+				{
+					From: []netv1.NetworkPolicyPeer{
+						{
+							NamespaceSelector: &metav1.LabelSelector{ // AND logic
+								MatchLabels: map[string]string{
+									"opendatahub.io/generated-namespace": "true",
+								},
+							},
+						},
+					},
+				},
+				{ // OR logic
+					From: []netv1.NetworkPolicyPeer{
+						{ // need this for access dashboard
+							NamespaceSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"kubernetes.io/metadata.name": "openshift-ingress",
+								},
+							},
+						},
+					},
+				},
+			},
 			PolicyTypes: []netv1.PolicyType{
 				netv1.PolicyTypeIngress,
 			},
