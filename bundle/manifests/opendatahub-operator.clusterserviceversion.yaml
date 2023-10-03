@@ -39,7 +39,10 @@ metadata:
               },
               "workbenches": {
                 "managementState": "Managed"
-              }
+              },
+              "trustyai": {
+                "managementState": "Removed"
+              },
             }
           }
         },
@@ -107,7 +110,10 @@ metadata:
             },
             "workbenches": {
               "managementState": "Managed"
-            }
+            },
+            "trustyai": {
+              "managementState": "Removed"
+            },
           }
         }
       }
