@@ -1,4 +1,5 @@
-// Package ray provides utility functions to config Ray as part of the stack which makes managing distributed compute infrastructure in the cloud easy and intuitive for Data Scientists
+// Package ray provides utility functions to config Ray as part of the stack
+// which makes managing distributed compute infrastructure in the cloud easy and intuitive for Data Scientists
 package ray
 
 import (
@@ -41,7 +42,7 @@ func (r *Ray) GetComponentName() string {
 	return ComponentName
 }
 
-// Verifies that Ray implements ComponentInterface
+// Verifies that Ray implements ComponentInterface.
 var _ components.ComponentInterface = (*Ray)(nil)
 
 func (r *Ray) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {

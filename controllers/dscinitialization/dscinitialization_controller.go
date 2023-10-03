@@ -22,15 +22,15 @@ import (
 	"errors"
 	"fmt"
 
-	operatorv1 "github.com/openshift/api/operator/v1"
-	routev1 "github.com/openshift/api/route/v1"
-
 	"path/filepath"
 	"reflect"
 
-	"github.com/go-logr/logr"
+	operatorv1 "github.com/openshift/api/operator/v1"
 
-	"k8s.io/client-go/util/retry"
+	"github.com/go-logr/logr"
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -39,6 +39,7 @@ import (
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -55,9 +56,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+
 )
 
-// DSCInitializationReconciler reconciles a DSCInitialization object
+// DSCInitializationReconciler reconciles a DSCInitialization object.
 type DSCInitializationReconciler struct {
 	client.Client
 	Scheme                *runtime.Scheme
@@ -70,7 +72,7 @@ type DSCInitializationReconciler struct {
 // +kubebuilder:rbac:groups="dscinitialization.opendatahub.io",resources=dscinitializations/finalizers,verbs=get;update;patch;delete
 // +kubebuilder:rbac:groups="dscinitialization.opendatahub.io",resources=dscinitializations,verbs=get;list;watch;create;update;patch;delete
 
-// Reconcile contains controller logic specific to DSCInitialization instance updates
+// Reconcile contains controller logic specific to DSCInitialization instance updates.
 func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.Log.Info("Reconciling DSCInitialization.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
 
@@ -135,6 +137,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return reconcile.Result{}, err
 	}
 
+<<<<<<< HEAD
 	switch req.Name {
 	case "prometheus": // prometheus configmap
 		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == deploy.ManagedRhods {
@@ -276,9 +279,10 @@ func (r *DSCInitializationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func (r *DSCInitializationReconciler) updateStatus(ctx context.Context, original *dsciv1.DSCInitialization,
-	update func(saved *dsciv1.DSCInitialization)) (*dsciv1.DSCInitialization, error) {
-	saved := &dsciv1.DSCInitialization{}
+
+func (r *DSCInitializationReconciler) updateStatus(ctx context.Context, original *dsci.DSCInitialization, update func(saved *dsci.DSCInitialization),
+) (*dsci.DSCInitialization, error) {
+	saved := &dsci.DSCInitialization{}
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		if err := r.Client.Get(ctx, client.ObjectKeyFromObject(original), saved); err != nil {
 			return err

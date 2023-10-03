@@ -52,11 +52,11 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 		if apierrs.IsNotFound(err) {
 			r.Log.Info("Creating namespace", "name", name)
 			// Set Controller reference
-			//err = ctrl.SetControllerReference(dscInit, desiredNamespace, r.Scheme)
-			//if err != nil {
-			//	r.Log.Error(err, "Unable to add OwnerReference to the Namespace")
-			//	return err
-			//}
+			// err = ctrl.SetControllerReference(dscInit, desiredNamespace, r.Scheme)
+			// if err != nil {
+			//	 r.Log.Error(err, "Unable to add OwnerReference to the Namespace")
+			//	 return err
+			// }
 			err = r.Create(ctx, desiredNamespace)
 			if err != nil && !apierrs.IsAlreadyExists(err) {
 				r.Log.Error(err, "Unable to create namespace", "name", name)
@@ -104,7 +104,7 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 	}
 
 	// Create default NetworkPolicy for the namespace
-	err = r.reconcileDefaultNetworkPolicy(dscInit, name, ctx)
+	err = r.reconcileDefaultNetworkPolicy(ctx, name, dscInit)
 	if err != nil {
 		r.Log.Error(err, "error reconciling network policy ", "name", name)
 		return err
@@ -274,7 +274,7 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.
 	return nil
 }
 
-// CompareNotebookNetworkPolicies checks if two services are equal, if not return false
+// CompareNotebookNetworkPolicies checks if two services are equal, if not return false.
 func CompareNotebookNetworkPolicies(np1 netv1.NetworkPolicy, np2 netv1.NetworkPolicy) bool {
 	// Two network policies will be equal if the labels and specs are identical
 	return reflect.DeepEqual(np1.ObjectMeta.Labels, np2.ObjectMeta.Labels) &&
@@ -283,8 +283,7 @@ func CompareNotebookNetworkPolicies(np1 netv1.NetworkPolicy, np2 netv1.NetworkPo
 
 func (r *DSCInitializationReconciler) waitForManagedSecret(ctx context.Context, name string, namespace string) (*corev1.Secret, error) {
 	managedSecret := &corev1.Secret{}
-	err := wait.Poll(resourceInterval, resourceTimeout, func() (done bool, err error) {
-
+	err := wait.PollUntilContextTimeout(ctx, resourceInterval, resourceTimeout, false, func(ctx context.Context) (done bool, err error) {
 		err = r.Client.Get(ctx, client.ObjectKey{
 			Namespace: namespace,
 			Name:      name,

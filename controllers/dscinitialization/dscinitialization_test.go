@@ -289,7 +289,7 @@ func objectExists(ns string, name string, obj client.Object) func() bool { //nol
 	}
 }
 
-func dscInitializationIsReady(ns string, name string, dsciObj *dsciv1.DSCInitialization) func() bool { //nolint
+func dscInitializationIsReady(ns string, name string, dsciObj *dsci.DSCInitialization) func() bool { //nolint
 	return func() bool {
 		_ = k8sClient.Get(context.Background(), client.ObjectKey{Name: ns, Namespace: name}, dsciObj)
 		return dsciObj.Status.Phase == readyPhase

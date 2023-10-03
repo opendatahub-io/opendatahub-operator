@@ -50,7 +50,8 @@ func UpdatePodSecurityRolebinding(cli client.Client, serviceAccountsList []strin
 			foundRoleBinding.Subjects = append(foundRoleBinding.Subjects, authv1.Subject{
 				Kind:      authv1.ServiceAccountKind,
 				Name:      sa,
-				Namespace: namespace})
+				Namespace: namespace,
+			})
 		}
 	}
 
@@ -58,7 +59,7 @@ func UpdatePodSecurityRolebinding(cli client.Client, serviceAccountsList []strin
 }
 
 // Internal function used by UpdatePodSecurityRolebinding()
-// Return whether Rolebinding matching service account and namespace exists or not
+// Return whether Rolebinding matching service account and namespace exists or not.
 func subjectExistInRoleBinding(subjectList []authv1.Subject, serviceAccountName, namespace string) bool {
 	for _, subject := range subjectList {
 		if subject.Name == serviceAccountName && subject.Namespace == namespace {

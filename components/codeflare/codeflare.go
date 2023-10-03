@@ -1,9 +1,10 @@
-// Package codeflare provides utility functions to config CodeFlare as part of the stack which makes managing distributed compute infrastructure in the cloud easy and intuitive for Data Scientists
+// Package codeflare provides utility functions to config CodeFlare as part of the stack
+// which makes managing distributed compute infrastructure in the cloud easy and intuitive for Data Scientists
 package codeflare
 
 import (
 	"fmt"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -36,7 +37,6 @@ func (c *CodeFlare) OverrideManifests(_ string) error {
 			defaultKustomizePath = manifestConfig.SourcePath
 		}
 		CodeflarePath = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
-
 	}
 	return nil
 }
@@ -45,7 +45,7 @@ func (c *CodeFlare) GetComponentName() string {
 	return ComponentName
 }
 
-// Verifies that CodeFlare implements ComponentInterface
+// Verifies that CodeFlare implements ComponentInterface.
 var _ components.ComponentInterface = (*CodeFlare)(nil)
 
 func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {

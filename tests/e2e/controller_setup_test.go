@@ -21,9 +21,6 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlruntime "sigs.k8s.io/controller-runtime/pkg/client/config"
-
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 )
 
 var (
@@ -32,7 +29,7 @@ var (
 	scheme       = runtime.NewScheme()
 )
 
-// Holds information specific to individual tests
+// Holds information specific to individual tests.
 type testContext struct {
 	// Rest config
 	cfg *rest.Config
@@ -55,7 +52,6 @@ type testContext struct {
 }
 
 func NewTestContext() (*testContext, error) {
-
 	// GetConfig(): If KUBECONFIG env variable is set, it is used to create
 	// the client, else the inClusterConfig() is used.
 	// Lastly if none of them are set, it uses  $HOME/.kube/config to create the client.
@@ -100,7 +96,6 @@ func NewTestContext() (*testContext, error) {
 
 // TestOdhOperator sets up the testing suite for ODH Operator.
 func TestOdhOperator(t *testing.T) {
-
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(routev1.AddToScheme(scheme))
 	utilruntime.Must(apiextv1.AddToScheme(scheme))
@@ -122,7 +117,7 @@ func TestOdhOperator(t *testing.T) {
 }
 
 func TestMain(m *testing.M) {
-	//call flag.Parse() here if TestMain uses flags
+	// call flag.Parse() here if TestMain uses flags
 	flag.StringVar(&opNamespace, "operator-namespace",
 		"opendatahub-operator-system", "Namespace where the odh operator is deployed")
 	flag.BoolVar(&skipDeletion, "skip-deletion", false, "skip deletion of the controllers")

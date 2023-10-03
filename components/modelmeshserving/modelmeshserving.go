@@ -45,7 +45,12 @@ func (m *ModelMeshServing) GetComponentName() string {
 	return ComponentName
 }
 
-// Verifies that Dashboard implements ComponentInterface
+func (m *ModelMeshServing) SetImageParamsMap(imageMap map[string]string) map[string]string {
+	imageParamMap = imageMap
+	return imageParamMap
+}
+
+// Verifies that Dashboard implements ComponentInterface.
 var _ components.ComponentInterface = (*ModelMeshServing)(nil)
 
 func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
@@ -69,8 +74,9 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 		if err = m.OverrideManifests(string(platform)); err != nil {
 			return err
 		}
-
-		err := common.UpdatePodSecurityRolebinding(cli, []string{"modelmesh", "modelmesh-controller", "odh-model-controller", "odh-prometheus-operator", "prometheus-custom"}, dscispec.ApplicationsNamespace)
+		err := common.UpdatePodSecurityRolebinding(cli,
+			[]string{"modelmesh", "modelmesh-controller", "odh-model-controller", "odh-prometheus-operator", "prometheus-custom"},
+			dscispec.ApplicationsNamespace)
 		if err != nil {
 			return err
 		}

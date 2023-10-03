@@ -30,7 +30,7 @@ type Workbenches struct {
 }
 
 func (w *Workbenches) OverrideManifests(platform string) error {
-	//Download manifests if defined by devflags
+	// Download manifests if defined by devflags
 	if len(w.DevFlags.Manifests) != 0 {
 		// Go through each manifests and set the overlays if defined
 		for _, subcomponent := range w.DevFlags.Manifests {
@@ -87,7 +87,12 @@ func (w *Workbenches) GetComponentName() string {
 	return ComponentName
 }
 
-// Verifies that Dashboard implements ComponentInterface
+func (w *Workbenches) SetImageParamsMap(imageMap map[string]string) map[string]string {
+	imageParamMap = imageMap
+	return imageParamMap
+}
+
+// Verifies that Workbench implements ComponentInterface.
 var _ components.ComponentInterface = (*Workbenches)(nil)
 
 func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
