@@ -40,8 +40,6 @@ var imageParamMap = map[string]string{
 	"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
 }
 
-// Verifies that Dashboard implements ComponentInterface
-var _ components.ComponentInterface = (*Dashboard)(nil)
 
 type Dashboard struct {
 	components.Component `json:""`
