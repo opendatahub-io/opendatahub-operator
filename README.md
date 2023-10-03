@@ -43,17 +43,43 @@ Refer [Dev-Preview.md](./docs/Dev-Preview.md) for testing preview features.
 
 #### Download manifests
 
-`get_all_manifests.sh` is used to fetch manifests from remote git repos.
+The `get_all_manifests.sh` script facilitates the process of fetching manifests from remote git repositories. It is configured to work with a predefined map of components and their corresponding manifest locations.
 
-It uses a local empty folder `odh-manifests` to host all manifests operator needs, either from `odh-manifests` git repo or from component's source repo.
+#### Structure of `COMPONENT_MANIFESTS`
 
-The way to config this is to update `get_all_manifests.sh` REPO_LIST variable.
-By adding new entity in variable `REPO_LIST` in the format of `<repo-name>:<branch-name>:<source-folder>:<target-folder>` this will:
+Each component is associated with its manifest location in the `COMPONENT_MANIFESTS` map. The key is the component's name, and the value is its location, formatted as `<repo-org>:<repo-name>:<branch-name>:<source-folder>:<target-folder>`
 
-- git clone remote repo `opendatahub-io/<repo-name>` from its `<branch-name>` branch
-- copy content from its relative path `<source-folder>` into local `odh-manifests/<target-folder>` folder
+#### Workflow
 
-For those components cannot directly use manifests from `opendatahub-io/<repo-name>`, it falls back to use `opendatahub-io/odh-manifests` git repo. To control which version of `opendatahub-io/odh-manifests` to download, this is set in the `get_all_manifests.sh` variable `MANIFEST_RELEASE`.
+1. The script clones the remote repository `<repo-org>/<repo-name>` from the specified `<branch-name>`.
+2. It then copies the content from the relative path `<source-folder>` to the local `odh-manifests/<target-folder>` folder.
+
+In cases where components cannot directly use manifests from `opendatahub-io/<repo-name>`, the script defaults to the `opendatahub-io/odh-manifests` git repository.
+
+The version of manifests fetched from `opendatahub-io/odh-manifests` is determined by the `MANIFEST_RELEASE` variable in the `get_all_manifests.sh` script.
+
+#### Local Storage
+
+The script utilizes a local, empty folder named `odh-manifests` to host all required manifests, sourced either directly from the component’s source repository or the default `odh-manifests` git repository.
+
+#### Adding New Components
+
+To include a new component in the list of manifest repositories, simply extend the `COMPONENT_MANIFESTS` map with a new entry, as shown below:
+
+```shell
+declare -A COMPONENT_MANIFESTS=(
+  // existing components ...
+  ["new-component"]="<repo-org>:<repo-name>:<branch-name>:<source-folder>:<target-folder>"
+)
+```
+#### Customizing Manifests Source
+You have the flexibility to change the source of the manifests. Invoke the `get_all_manifests.sh` script with specific flags, as illustrated below:
+
+```shell
+./get_all_manifests.sh --odh-dashboard="maistra:odh-dashboard:test-manifests:manifests:odh-dashboard"
+```
+
+If the flag name matches components key defined in `COMPONENT_MANIFESTS` it will overwrite its location, otherwise the command will fail.
 
 ##### for local development
 
