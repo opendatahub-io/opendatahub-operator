@@ -53,7 +53,6 @@ cp -r ./.odh-manifests-tmp/model-mesh/ ./odh-manifests
 cp -r ./.odh-manifests-tmp/odh-model-controller/ ./odh-manifests
 cp -r ./.odh-manifests-tmp/modelmesh-monitoring/ ./odh-manifests
 cp -r ./.odh-manifests-tmp/kserve/ ./odh-manifests
-ls -lat ./odh-manifests/
 rm -rf ${MANIFEST_RELEASE}.tar.gz ./.odh-manifests-tmp/
 
 for key in "${!COMPONENT_MANIFESTS[@]}"; do
