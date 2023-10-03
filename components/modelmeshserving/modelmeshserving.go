@@ -48,10 +48,6 @@ func (m *ModelMeshServing) OverrideManifests(_ string) error {
 	return nil
 }
 
-func (m *ModelMeshServing) GetComponentDevFlags() components.DevFlags {
-	return m.DevFlags
-}
-
 func (m *ModelMeshServing) GetComponentName() string {
 	return ComponentName
 }

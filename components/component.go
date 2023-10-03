@@ -62,7 +62,6 @@ type ComponentInterface interface {
 	ReconcileComponent(cli client.Client, owner metav1.Object, DSCISpec *dsci.DSCInitializationSpec) error
 	GetComponentName() string
 	GetManagementState() operatorv1.ManagementState
-	GetComponentDevFlags() DevFlags
 	SetImageParamsMap(imageMap map[string]string) map[string]string
 	OverrideManifests(platform string) error
 }
