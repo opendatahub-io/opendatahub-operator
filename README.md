@@ -1,5 +1,5 @@
 
-This operator is the primary operator for Open Data Hub. It is responsible for enabling Data science applications like 
+This operator is the primary operator for Open Data Hub. It is responsible for enabling Data science applications like
 Jupyter Notebooks, Modelmesh serving, Datascience pipelines etc. The operator makes use of `DataScienceCluster` CRD to deploy
 and configure these applications.
 
@@ -43,17 +43,43 @@ Refer [Dev-Preview.md](./docs/Dev-Preview.md) for testing preview features.
 
 #### Download manifests
 
-`get_all_manifests.sh` is used to fetch manifests from remote git repos.
+The `get_all_manifests.sh` script facilitates the process of fetching manifests from remote git repositories. It is configured to work with a predefined map of components and their corresponding manifest locations.
 
-It uses a local empty folder `odh-manifests` to host all manifests operator needs, either from `odh-manifests` git repo or from component's source repo.
+#### Structure of `COMPONENT_MANIFESTS`
 
-The way to config this is to update `get_all_manifests.sh` REPO_LIST variable.
-By adding new entity in variable `REPO_LIST` in the format of `<repo-name>:<branch-name>:<source-folder>:<target-folder>` this will:
+Each component is associated with its manifest location in the `COMPONENT_MANIFESTS` map. The key is the component's name, and the value is its location, formatted as `<repo-org>:<repo-name>:<branch-name>:<source-folder>:<target-folder>`
 
-- git clone remote repo `red-hat-data-services/<repo-name>` from its `<branch-name>` branch
-- copy content from its relative path `<source-folder>` into local `odh-manifests/<target-folder>` folder
+#### Workflow
 
-For those components cannot directly use manifests from `red-hat-data-services/<repo-name>`, it falls back to use `red-hat-data-services/odh-manifests` git repo. To control which version of `red-hat-data-services/odh-manifests` to download from, this is set in the `get_all_manifests.sh` variable `MANIFEST_RELEASE`.
+1. The script clones the remote repository `<repo-org>/<repo-name>` from the specified `<branch-name>`.
+2. It then copies the content from the relative path `<source-folder>` to the local `odh-manifests/<target-folder>` folder.
+
+In cases where components cannot directly use manifests from `opendatahub-io/<repo-name>`, the script defaults to the `opendatahub-io/odh-manifests` git repository.
+
+The version of manifests fetched from `opendatahub-io/odh-manifests` is determined by the `MANIFEST_RELEASE` variable in the `get_all_manifests.sh` script.
+
+#### Local Storage
+
+The script utilizes a local, empty folder named `odh-manifests` to host all required manifests, sourced either directly from the component’s source repository or the default `odh-manifests` git repository.
+
+#### Adding New Components
+
+To include a new component in the list of manifest repositories, simply extend the `COMPONENT_MANIFESTS` map with a new entry, as shown below:
+
+```shell
+declare -A COMPONENT_MANIFESTS=(
+  // existing components ...
+  ["new-component"]="<repo-org>:<repo-name>:<branch-name>:<source-folder>:<target-folder>"
+)
+```
+#### Customizing Manifests Source
+You have the flexibility to change the source of the manifests. Invoke the `get_all_manifests.sh` script with specific flags, as illustrated below:
+
+```shell
+./get_all_manifests.sh --odh-dashboard="maistra:odh-dashboard:test-manifests:manifests:odh-dashboard"
+```
+
+If the flag name matches components key defined in `COMPONENT_MANIFESTS` it will overwrite its location, otherwise the command will fail.
 
 ##### for local development
 
@@ -75,7 +101,7 @@ make image-build
 By default, building an image without any local changes(as a clean build)
 This is what the production build system is doing.
 
-In order to build an image with local `odh-manifests` folder, to set `IMAGE_BUILD_FLAGS="--build-arg USE_LOCAL=true"` in make.
+In order to build an image with local `odh-manifests` folder, to set `IMAGE_BUILD_FLAGS ="--build-arg USE_LOCAL=true"` in make.
 e.g `make image-build -e IMAGE_BUILD_FLAGS="--build-arg USE_LOCAL=true"`
 
 #### Build Image
@@ -85,7 +111,7 @@ e.g `make image-build -e IMAGE_BUILD_FLAGS="--build-arg USE_LOCAL=true"`
   ```commandline
   make image -e IMG=quay.io/<username>/opendatahub-operator:<custom-tag>
   ```
-  
+
   or (for example to user vhire)
 
   ```commandline
@@ -126,7 +152,7 @@ e.g `make image-build -e IMAGE_BUILD_FLAGS="--build-arg USE_LOCAL=true"`
 **Deploying operator using OLM**
 
 - To create a new bundle in defined operator namespace, run following command:
-  
+
   ```commandline
   export OPERATOR_NAMESPACE=<namespace-to-install-operator>
   make bundle
@@ -135,13 +161,13 @@ e.g `make image-build -e IMAGE_BUILD_FLAGS="--build-arg USE_LOCAL=true"`
   **Note** : Skip the above step if you want to run the existing operator bundle.
 
 - Build Bundle Image:
-  
+
   ```commandline
   make bundle-build bundle-push BUNDLE_IMG=quay.io/<username>/opendatahub-operator-bundle:<VERSION>
   ```
 
 - Run the Bundle on a cluster:
-  
+
   ```commandline
   operator-sdk run bundle quay.io/<username>/opendatahub-operator-bundle:<VERSION> --namespace $OPERATOR_NAMESPACE
   ```
@@ -151,12 +177,12 @@ e.g `make image-build -e IMAGE_BUILD_FLAGS="--build-arg USE_LOCAL=true"`
 There are 2 ways to test your changes with modification:
 
 1. set `devFlags.ManifestsUri` field of DSCI instance during runtime: this will pull down manifests from remote git repo
-    by using this method, it overwrites manifests and component images if images are set in the params.env file
-2. [Under implementation] build operator image with local manifests   
+   by using this method, it overwrites manifests and component images if images are set in the params.env file
+2. [Under implementation] build operator image with local manifests
 
 ### Example DataScienceCluster
 
-When the operator is installed successfully in the cluster, a user can create a `DataScienceCluster` CR to enable ODH 
+When the operator is installed successfully in the cluster, a user can create a `DataScienceCluster` CR to enable ODH
 components. At a given time, ODH supports only **one** instance of the CR, which can be updated to get custom list of components.
 
 1. Enable all components
@@ -216,7 +242,7 @@ This provides detailed logs of the test spec.
 
 In order to run tests for all the controllers, we can use the `make` command
 ```shell
-make test
+make unit-test
 ```
 **Note:** The make command should be executed on the root project level.
 ### Run e2e Tests

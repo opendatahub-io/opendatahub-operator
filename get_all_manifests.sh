@@ -1,7 +1,14 @@
 #!/bin/bash
 set -e
 
-# component: dsp, kserve, dashbaord, cf/ray. in the format of "repo-name:branch-name:source-folder:target-folder"
+GITHUB_URL="https://github.com/"
+# update to use different git repo for legacy manifests
+MANIFEST_ORG="opendatahub-io"
+# comment out below logic once we have all component manifests ready to get from source git repo
+MANIFEST_RELEASE="master"
+MANIFESTS_TARBALL_URL="${GITHUB_URL}/${MANIFEST_ORG}/odh-manifests/tarball/${MANIFEST_RELEASE}"
+
+# component: dsp, kserve, dashbaord, cf/ray. in the format of "repo-org:repo-name:branch-name:source-folder:target-folder"
 # TODO: workbench, modelmesh, monitoring, etc
 
 declare -A COMPONENT_MANIFESTS=(
@@ -15,9 +22,34 @@ declare -A COMPONENT_MANIFESTS=(
     ["trustyai"]="trustyai-explainability:trustyai-service-operator:release/1.10.2:config:trustyai-service-operator"
 )
 
+# Allow overwriting repo using flags component=repo
+pattern="^[a-zA-Z0-9_.-]+:[a-zA-Z0-9_.-]+:[a-zA-Z0-9_.-]+:[a-zA-Z0-9_./-]+:[a-zA-Z0-9_./-]+$"
+if [ "$#" -ge 1 ]; then
+    for arg in "$@"; do
+        if [[ $arg == --* ]]; then
+            arg="${arg:2}"  # Remove the '--' prefix
+            IFS="=" read -r key value <<< "$arg"
+            if [[ -n "${COMPONENT_MANIFESTS[$key]}" ]]; then
+                if [[ ! $value =~ $pattern ]]; then
+                    echo "ERROR: The value '$value' does not match the expected format 'repo-org:repo-name:branch-name:source-folder:target-folder'."
+                    continue
+                fi
+                COMPONENT_MANIFESTS["$key"]=$value
+            else
+                echo "ERROR: '$key' does not exist in COMPONENT_MANIFESTS, it will be skipped."
+                echo "Available components are: [${!COMPONENT_MANIFESTS[@]}]"
+                exit 1
+            fi
+        else
+            echo "Warning: Argument '$arg' does not follow the '--key=value' format."
+        fi
+    done
+fi
+
 # pre-cleanup local env
 rm -fr ./odh-manifests/* ./.odh-manifests-tmp/
 
+<<<<<<< HEAD
 GITHUB_URL="https://github.com/"
 # update to use different git repo
 MANIFEST_ORG="red-hat-data-services"
@@ -25,6 +57,7 @@ MANIFEST_ORG="red-hat-data-services"
 # comment out below logic once we have all component manifests ready to get from source git repo
 MANIFEST_RELEASE="master"
 MANIFESTS_TARBALL_URL="${GITHUB_URL}/${MANIFEST_ORG}/odh-manifests/tarball/${MANIFEST_RELEASE}"
+
 mkdir -p ./.odh-manifests-tmp/ ./odh-manifests/
 wget -q -c ${MANIFESTS_TARBALL_URL} -O - | tar -zxv -C ./.odh-manifests-tmp/ --strip-components 1 > /dev/null
 # modelmesh
@@ -39,17 +72,22 @@ cp -r ./.odh-manifests-tmp/jupyterhub/notebook-images/* ./odh-manifests/jupyterh
 # workbench nbc
 cp -r ./.odh-manifests-tmp/odh-notebook-controller/ ./odh-manifests
 # Trustyai
-# cp -r ./.odh-manifests-tmp/trustyai-service-operator ./odh-manifests
+cp -r ./.odh-manifests-tmp/trustyai-service-operator ./odh-manifests
 # Dashboard
 cp -r ./.odh-manifests-tmp/odh-dashboard/ ./odh-manifests
+rm -rf ${MANIFEST_RELEASE}.tar.gz ./.odh-manifests-tmp/
 
-for repo_info in ${REPO_LIST[@]}; do
-    echo "Git clone below repo ${repo_info}"
-    repo_name=$( echo $repo_info | cut -d ":" -f 1 )
-    repo_branch=$( echo $repo_info | cut -d ":" -f 2 )
-    source_path=$( echo $repo_info | cut -d ":" -f 3 )
-    target_path=$( echo $repo_info | cut -d ":" -f 4 )
-    repo_url="${GITHUB_URL}/${MANIFEST_ORG}/${repo_name}.git"
+for key in "${!COMPONENT_MANIFESTS[@]}"; do
+    echo "Cloning repo ${key}: ${COMPONENT_MANIFESTS[$key]}"
+    IFS=':' read -r -a repo_info <<< "${COMPONENT_MANIFESTS[$key]}"
+
+    repo_org="${repo_info[0]}"
+    repo_name="${repo_info[1]}"
+    repo_branch="${repo_info[2]}"
+    source_path="${repo_info[3]}"
+    target_path="${repo_info[4]}"
+
+    repo_url="${GITHUB_URL}/${repo_org}/${repo_name}.git"
     rm -rf ./.${repo_name}
     git clone --depth 1 --branch ${repo_branch} ${repo_url} ./.${repo_name}
     mkdir -p ./odh-manifests/${target_path}
