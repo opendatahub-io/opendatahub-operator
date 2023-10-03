@@ -39,7 +39,7 @@ func (t *TrustyAI) OverrideManifests(_ string) error {
 			return err
 		}
 		// If overlay is defined, update paths
-		defaultKustomizePath := "operator/base"
+		defaultKustomizePath := "base"
 		if manifestConfig.SourcePath != "" {
 			defaultKustomizePath = manifestConfig.SourcePath
 		}
