@@ -42,10 +42,6 @@ func (r *Ray) OverrideManifests(_ string) error {
 	return nil
 }
 
-func (r *Ray) GetComponentDevFlags() components.DevFlags {
-	return r.DevFlags
-}
-
 func (r *Ray) SetImageParamsMap(imageMap map[string]string) map[string]string {
 	imageParamMap = imageMap
 	return imageParamMap

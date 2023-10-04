@@ -71,10 +71,6 @@ func (k *Kserve) OverrideManifests(_ string) error {
 	return nil
 }
 
-func (k *Kserve) GetComponentDevFlags() components.DevFlags {
-	return k.DevFlags
-}
-
 func (k *Kserve) SetImageParamsMap(imageMap map[string]string) map[string]string {
 	imageParamMap = imageMap
 	return imageParamMap

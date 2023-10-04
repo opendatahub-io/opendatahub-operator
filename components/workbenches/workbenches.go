@@ -87,10 +87,6 @@ func (w *Workbenches) OverrideManifests(platform string) error {
 	return nil
 }
 
-func (w *Workbenches) GetComponentDevFlags() components.DevFlags {
-	return w.DevFlags
-}
-
 func (w *Workbenches) GetComponentName() string {
 	return ComponentName
 }
