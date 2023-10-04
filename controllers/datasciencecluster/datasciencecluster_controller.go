@@ -134,9 +134,8 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 			return ctrl.Result{}, nil
 		}
 	case 1:
-		// Set Applications namespace defined in DSCInitialization
-		r.DataScienceCluster.DSCISpec.ApplicationsNamespace = dsciInstances.Items[0].Spec.ApplicationsNamespace
-		r.DataScienceCluster.DSCISpec.DevFlags.ManifestsUri = dsciInstances.Items[0].Spec.DevFlags.ManifestsUri
+		dscInitializationSpec := dsciInstances.Items[0].Spec
+		dscInitializationSpec.DeepCopyInto(r.DataScienceCluster.DSCISpec)
 	default:
 		return ctrl.Result{}, errors.New("only one instance of DSCInitialization object is allowed")
 	}

@@ -44,10 +44,6 @@ func (c *CodeFlare) OverrideManifests(_ string) error {
 	return nil
 }
 
-func (c *CodeFlare) GetComponentDevFlags() components.DevFlags {
-	return c.DevFlags
-}
-
 func (c *CodeFlare) SetImageParamsMap(imageMap map[string]string) map[string]string {
 	imageParamMap = imageMap
 	return imageParamMap

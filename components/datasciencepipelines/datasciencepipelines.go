@@ -47,10 +47,6 @@ func (d *DataSciencePipelines) OverrideManifests(_ string) error {
 	return nil
 }
 
-func (d *DataSciencePipelines) GetComponentDevFlags() components.DevFlags {
-	return d.DevFlags
-}
-
 func (d *DataSciencePipelines) SetImageParamsMap(imageMap map[string]string) map[string]string {
 	imageParamMap = imageMap
 	return imageParamMap

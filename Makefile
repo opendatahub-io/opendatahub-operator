@@ -81,7 +81,7 @@ SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
 # E2E tests additional flags
-E2E_TEST_FLAGS = "--skip-deletion=true" # See README.md
+E2E_TEST_FLAGS = "--skip-deletion=false" -timeout 15m # See README.md, default go test timeout 10m
 
 # Default image-build is to not use local odh-manifests folder
 # set to "true" to use local instead
@@ -150,8 +150,6 @@ lint: golangci-lint ## Run golangci-lint against code.
 unit-test: manifests generate fmt vet envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./controllers/... -v  -coverprofile cover.out
 
-# E2E tests additional flags
-E2E_TEST_FLAGS = "--skip-deletion=false" -timeout 15m # See README.md, default go test timeout 10m
 
 .PHONY: get-manifests
 get-manifests: ## Fetch components manifests from remote git repo
