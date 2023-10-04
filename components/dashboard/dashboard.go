@@ -69,10 +69,6 @@ func (d *Dashboard) OverrideManifests(platform string) error {
 	return nil
 }
 
-func (d *Dashboard) GetComponentDevFlags() components.DevFlags {
-	return d.DevFlags
-}
-
 func (d *Dashboard) SetImageParamsMap(imageMap map[string]string) map[string]string {
 	imageParamMap = imageMap
 	return imageParamMap
