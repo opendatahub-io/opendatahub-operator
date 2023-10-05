@@ -91,7 +91,7 @@ metadata:
         "spec": {
           "components": {
             "codeflare": {
-              "managementState": "Removed"
+              "managementState": "Unmanaged"
             },
             "dashboard": {
               "managementState": "Managed"
@@ -106,7 +106,7 @@ metadata:
               "managementState": "Managed"
             },
             "ray": {
-              "managementState": "Removed"
+              "managementState": "Managed"
             },
             "workbenches": {
               "managementState": "Managed"

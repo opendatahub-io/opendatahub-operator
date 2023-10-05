@@ -70,7 +70,7 @@ func (t *TrustyAI) ReconcileComponent(cli client.Client, owner metav1.Object, ds
 		}
 	}
 	// Deploy TrustyAI Operator
-	err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, t.GetComponentName(), enabled)
+	err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, t.GetComponentName(), t.GetManagementState())
 	return err
 }
 

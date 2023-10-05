@@ -221,12 +221,17 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 	component components.ComponentInterface,
 ) (*dsc.DataScienceCluster, error) {
 	componentName := component.GetComponentName()
-	enabled := component.GetManagementState() == v1.Managed
+	managed := component.GetManagementState() == v1.Managed
+	unmanaged := component.GetManagementState() == v1.Unmanaged
+	removed := component.GetManagementState() == v1.Removed
 	// First set conditions to reflect a component is about to be reconciled
 	instance, err := r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
+		// default to removed
 		message := "Component is disabled"
-		if enabled {
+		if managed {
 			message = "Component is enabled"
+		} else if unmanaged {
+			message = "Component " + componentName + " is unmanaged"
 		}
 		status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileInit, message, corev1.ConditionUnknown)
 	})
@@ -242,9 +247,9 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 		// reconciliation failed: log errors, raise event and update status accordingly
 		instance = r.reportError(err, instance, "failed to reconcile "+componentName+" on DataScienceCluster")
 		instance, _ = r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
-			if enabled {
+			if managed {
 				status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileFailed, fmt.Sprintf("Component reconciliation failed: %v", err), corev1.ConditionFalse)
-			} else {
+			} else if removed {
 				status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileFailed, fmt.Sprintf("Component removal failed: %v", err), corev1.ConditionFalse)
 			}
 		})
@@ -255,10 +260,10 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 			if saved.Status.InstalledComponents == nil {
 				saved.Status.InstalledComponents = make(map[string]bool)
 			}
-			saved.Status.InstalledComponents[componentName] = enabled
-			if enabled {
-				status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileCompleted, "Component reconciled successfully", corev1.ConditionTrue)
-			} else {
+			saved.Status.InstalledComponents[componentName] = managed // both removed or unmanaged wil set InstalledComponent to false
+			if managed {
+				status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileCompleted, componentName+" reconciled successfully", corev1.ConditionTrue)
+			} else if removed {
 				status.RemoveComponentCondition(&saved.Status.Conditions, componentName)
 			}
 		})

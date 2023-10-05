@@ -77,7 +77,7 @@ func (d *DataSciencePipelines) ReconcileComponent(cli client.Client, owner metav
 		}
 	}
 
-	err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, d.GetComponentName(), enabled)
+	err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, d.GetComponentName(), d.GetManagementState())
 	return err
 }
 

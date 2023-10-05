@@ -124,7 +124,7 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 		}
 	}
 
-	err = deploy.DeployManifestsFromPath(cli, owner, notebookControllerPath, dscispec.ApplicationsNamespace, ComponentName, enabled)
+	err = deploy.DeployManifestsFromPath(cli, owner, notebookControllerPath, dscispec.ApplicationsNamespace, ComponentName, w.GetManagementState())
 	if err != nil {
 		return err
 	}
@@ -145,7 +145,7 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 		err = deploy.DeployManifestsFromPath(cli, owner,
 			kfnotebookControllerPath,
 			dscispec.ApplicationsNamespace,
-			ComponentName, enabled)
+			ComponentName, w.GetManagementState())
 		if err != nil {
 			return err
 		}
@@ -154,10 +154,10 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 			notebookImagesPath,
 			dscispec.ApplicationsNamespace,
 			ComponentName,
-			enabled)
+			w.GetManagementState())
 		return err
 	} else {
-		err = deploy.DeployManifestsFromPath(cli, owner, notebookImagesPathSupported, dscispec.ApplicationsNamespace, ComponentName, enabled)
+		err = deploy.DeployManifestsFromPath(cli, owner, notebookImagesPathSupported, dscispec.ApplicationsNamespace, ComponentName, w.GetManagementState())
 		return err
 	}
 }

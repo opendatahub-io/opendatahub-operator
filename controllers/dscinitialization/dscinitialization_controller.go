@@ -23,13 +23,12 @@ import (
 	"fmt"
 	"path/filepath"
 
-	operatorv1 "github.com/openshift/api/operator/v1"
-
 	"github.com/go-logr/logr"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 
+	v1 "github.com/openshift/api/operator/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
@@ -134,7 +133,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		// Apply osd specific permissions
 		if platform == deploy.ManagedRhods {
 			osdConfigsPath := filepath.Join(deploy.DefaultManifestPath, "osd-configs")
-			err = deploy.DeployManifestsFromPath(r.Client, instance, osdConfigsPath, r.ApplicationsNamespace, "osd", true)
+			err = deploy.DeployManifestsFromPath(r.Client, instance, osdConfigsPath, r.ApplicationsNamespace, "osd", v1.Managed)
 			if err != nil {
 				r.Log.Error(err, "Failed to apply osd specific configs from manifests", "Manifests path", osdConfigsPath)
 				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to apply "+osdConfigsPath)
@@ -158,7 +157,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 
 	// If monitoring enabled
-	if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
+	if instance.Spec.Monitoring.ManagementState == v1.Managed {
 		switch platform {
 		case deploy.SelfManagedRhods:
 			r.Log.Info("Monitoring enabled, won't apply changes", "cluster", "Self-Managed RHODS Mode")

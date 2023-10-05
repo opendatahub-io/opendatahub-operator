@@ -72,7 +72,7 @@ func (r *Ray) ReconcileComponent(cli client.Client, owner metav1.Object, dscispe
 		}
 	}
 	// Deploy Ray Operator
-	err = deploy.DeployManifestsFromPath(cli, owner, RayPath, dscispec.ApplicationsNamespace, r.GetComponentName(), enabled)
+	err = deploy.DeployManifestsFromPath(cli, owner, RayPath, dscispec.ApplicationsNamespace, r.GetComponentName(), r.GetManagementState())
 	return err
 }
 

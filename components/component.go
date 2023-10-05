@@ -16,7 +16,9 @@ type Component struct {
 	// - "Removed" : the operator is actively managing the component and will not install it,
 	//               or if it is installed, the operator will try to remove it
 	//
-	// +kubebuilder:validation:Enum=Managed;Removed
+	// - "Unmanaged" : the operator will not take any action related to the component
+	//
+	// +kubebuilder:validation:Enum=Managed;Removed;Unmanaged
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 	// Add any other common fields across components below
 

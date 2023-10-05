@@ -82,9 +82,11 @@ func setupDSCInstance() *dsc.DataScienceCluster {
 						ManagementState: operatorv1.Managed,
 					},
 				},
+				// this should not return error from operator but it wont have anythng running
+				// because we do not pre-install CFO and we set it to be unmanaged
 				CodeFlare: codeflare.CodeFlare{
 					Component: components.Component{
-						ManagementState: operatorv1.Removed,
+						ManagementState: operatorv1.Unmanaged,
 					},
 				},
 				Ray: ray.Ray{

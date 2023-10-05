@@ -34,6 +34,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins"
+	v1 "github.com/openshift/api/operator/v1"
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
@@ -130,7 +131,7 @@ func DownloadManifests(componentName string, manifestConfig components.Manifests
 	return err
 }
 
-func DeployManifestsFromPath(cli client.Client, owner metav1.Object, manifestPath string, namespace string, componentName string, componentEnabled bool) error {
+func DeployManifestsFromPath(cli client.Client, owner metav1.Object, manifestPath string, namespace string, componentName string, componentState v1.ManagementState) error {
 	// Render the Kustomize manifests
 	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
 	fs := filesys.MakeFsOnDisk()
@@ -167,7 +168,7 @@ func DeployManifestsFromPath(cli client.Client, owner metav1.Object, manifestPat
 	}
 	// Create / apply / delete resources in the cluster
 	for _, obj := range objs {
-		err = manageResource(context.TODO(), cli, obj, owner, namespace, componentName, componentEnabled)
+		err = manageResource(context.TODO(), cli, obj, owner, namespace, componentName, componentState)
 		if err != nil {
 			return err
 		}
@@ -190,7 +191,14 @@ func getResources(resMap resmap.ResMap) ([]*unstructured.Unstructured, error) {
 	return resources, nil
 }
 
-func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Unstructured, owner metav1.Object, applicationNamespace, componentName string, enabled bool) error {
+func manageResource(ctx context.Context,
+	cli client.Client,
+	obj *unstructured.Unstructured,
+	owner metav1.Object,
+	applicationNamespace,
+	componentName string,
+	componentState v1.ManagementState,
+) error {
 	resourceName := obj.GetName()
 	namespace := obj.GetNamespace()
 
@@ -203,8 +211,8 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 		return nil
 	}
 
-	// Resource exists but component is disabled
-	if !enabled {
+	// Resource exists but component is removed
+	if componentState == v1.Removed {
 		// Return nil for any errors getting the resource, since the component itself is disabled
 		if err != nil {
 			return nil
@@ -251,7 +259,7 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 		return cli.Delete(ctx, found)
 	}
 
-	// Create the resource if it doesn't exist and component is enabled
+	// Create the resource if it doesn't exist and component is managed or unmanaged
 	if apierrs.IsNotFound(err) {
 		// Set the owner reference for garbage collection
 		if err = ctrl.SetControllerReference(owner, metav1.Object(obj), cli.Scheme()); err != nil {

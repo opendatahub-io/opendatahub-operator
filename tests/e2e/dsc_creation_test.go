@@ -41,9 +41,9 @@ func creationTestSuite(t *testing.T) {
 			err = testCtx.testUpdateComponentReconcile()
 			require.NoError(t, err, "error testing updates for DSC managed resource")
 		})
-		t.Run("Validate Component Enabled field", func(t *testing.T) {
+		t.Run("Validate Component managementState field", func(t *testing.T) {
 			err = testCtx.testUpdateDSCComponentEnabled()
-			require.NoError(t, err, "error testing component enabled field")
+			require.NoError(t, err, "error testing component managementState field")
 		})
 	})
 }
@@ -87,7 +87,7 @@ func (tc *testContext) testDSCCreation() error {
 	return nil
 }
 
-func (tc *testContext) testAllApplicationCreation(t *testing.T) error {
+func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint
 	// Validate test instance is in Ready state
 
 	dscLookupKey := types.NamespacedName{Name: tc.testDsc.Name}
@@ -113,11 +113,11 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error {
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.Dashboard))
 		if tc.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
 			if err != nil {
-				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Dashboard.GetComponentName())
+				require.NoError(t, err, "error validating application %v when Managed", tc.testDsc.Spec.Components.Dashboard.GetComponentName())
 			}
 		} else {
 			if err == nil {
-				require.NoError(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.Dashboard.GetComponentName())
+				require.NoError(t, err, "error validating application %v when Removed", tc.testDsc.Spec.Components.Dashboard.GetComponentName())
 			}
 		}
 	})
@@ -128,11 +128,11 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error {
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.ModelMeshServing))
 		if tc.testDsc.Spec.Components.ModelMeshServing.ManagementState == operatorv1.Managed {
 			if err != nil {
-				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.ModelMeshServing.GetComponentName())
+				require.NoError(t, err, "error validating application %v when Managed", tc.testDsc.Spec.Components.ModelMeshServing.GetComponentName())
 			}
 		} else {
 			if err == nil {
-				require.NoError(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.ModelMeshServing.GetComponentName())
+				require.NoError(t, err, "error validating application %v when Removed", tc.testDsc.Spec.Components.ModelMeshServing.GetComponentName())
 			}
 		}
 	})
@@ -147,12 +147,12 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error {
 				if strings.Contains(err.Error(), "Please install the operator before enabling component") {
 					t.Logf("expected error: %v", err.Error())
 				} else {
-					require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Kserve.GetComponentName())
+					require.NoError(t, err, "error validating application %v when Managed", tc.testDsc.Spec.Components.Kserve.GetComponentName())
 				}
 			}
 		} else {
 			if err == nil {
-				require.NoError(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.Kserve.GetComponentName())
+				require.NoError(t, err, "error validating application %v when Removed", tc.testDsc.Spec.Components.Kserve.GetComponentName())
 			}
 		}
 	})
@@ -163,11 +163,11 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error {
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.Workbenches))
 		if tc.testDsc.Spec.Components.Workbenches.ManagementState == operatorv1.Managed {
 			if err != nil {
-				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Workbenches.GetComponentName())
+				require.NoError(t, err, "error validating application %v when Managed", tc.testDsc.Spec.Components.Workbenches.GetComponentName())
 			}
 		} else {
 			if err == nil {
-				require.NoError(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.Workbenches.GetComponentName())
+				require.NoError(t, err, "error validating application %v when Removed", tc.testDsc.Spec.Components.Workbenches.GetComponentName())
 			}
 		}
 	})
@@ -178,11 +178,11 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error {
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.DataSciencePipelines))
 		if tc.testDsc.Spec.Components.DataSciencePipelines.ManagementState == operatorv1.Managed {
 			if err != nil {
-				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.DataSciencePipelines.GetComponentName())
+				require.NoError(t, err, "error validating application %v when Managed", tc.testDsc.Spec.Components.DataSciencePipelines.GetComponentName())
 			}
 		} else {
 			if err == nil {
-				require.NoError(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.DataSciencePipelines.GetComponentName())
+				require.NoError(t, err, "error validating application %v when Removed", tc.testDsc.Spec.Components.DataSciencePipelines.GetComponentName())
 			}
 		}
 	})
@@ -191,18 +191,23 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error {
 		// speed testing in parallel
 		t.Parallel()
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.CodeFlare))
-		if tc.testDsc.Spec.Components.CodeFlare.ManagementState == operatorv1.Managed {
+		switch tc.testDsc.Spec.Components.CodeFlare.ManagementState {
+		case operatorv1.Managed:
 			if err != nil {
 				// dependent operator error, as expected
 				if strings.Contains(err.Error(), "Please install the operator before enabling component") {
 					t.Logf("expected error: %v", err.Error())
 				} else {
-					require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.CodeFlare.GetComponentName())
+					require.NoError(t, err, "error validating application %v when Managed", tc.testDsc.Spec.Components.CodeFlare.GetComponentName())
 				}
 			}
-		} else {
+		case operatorv1.Unmanaged:
+			if err != nil {
+				require.NoError(t, err, "error validating application %v when Unmanaged", tc.testDsc.Spec.Components.CodeFlare.GetComponentName())
+			}
+		case operatorv1.Removed:
 			if err == nil {
-				require.NoError(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.CodeFlare.GetComponentName())
+				require.NoError(t, err, "error validating application %v when Removed", tc.testDsc.Spec.Components.CodeFlare.GetComponentName())
 			}
 		}
 	})
@@ -213,11 +218,11 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error {
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.Ray))
 		if tc.testDsc.Spec.Components.Ray.ManagementState == operatorv1.Managed {
 			if err != nil {
-				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Ray.GetComponentName())
+				require.NoError(t, err, "error validating application %v when Managed", tc.testDsc.Spec.Components.Ray.GetComponentName())
 			}
 		} else {
 			if err == nil {
-				require.NoError(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.Ray.GetComponentName())
+				require.NoError(t, err, "error validating application %v when Removed", tc.testDsc.Spec.Components.Ray.GetComponentName())
 			}
 		}
 	})
@@ -228,11 +233,11 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error {
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.TrustyAI))
 		if tc.testDsc.Spec.Components.TrustyAI.ManagementState == operatorv1.Managed {
 			if err != nil {
-				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.TrustyAI.GetComponentName())
+				require.NoError(t, err, "error validating application %v when Managed", tc.testDsc.Spec.Components.TrustyAI.GetComponentName())
 			}
 		} else {
 			if err == nil {
-				require.NoError(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.TrustyAI.GetComponentName())
+				require.NoError(t, err, "error validating application %v when Removed", tc.testDsc.Spec.Components.TrustyAI.GetComponentName())
 			}
 		}
 	})
@@ -267,6 +272,12 @@ func (tc *testContext) testApplicationCreation(component components.ComponentInt
 			// check Reconcile failed with missing dependent operator error
 			for _, Condition := range tc.testDsc.Status.Conditions {
 				if strings.Contains(Condition.Message, "Please install the operator before enabling "+component.GetComponentName()) {
+					return true, err
+				}
+			}
+			// check component does not create deployment e.g CF
+			for _, Condition := range tc.testDsc.Status.Conditions {
+				if strings.Contains(Condition.Message, "Component "+component.GetComponentName()+" is unmanaged") {
 					return true, err
 				}
 			}
@@ -350,16 +361,16 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 			LabelSelector: "app.kubernetes.io/part-of=" + tc.testDsc.Spec.Components.Dashboard.GetComponentName(),
 		})
 		if err != nil {
-			return fmt.Errorf("error getting enabled component %v", tc.testDsc.Spec.Components.Dashboard.GetComponentName())
+			return fmt.Errorf("error getting Managed component %v", tc.testDsc.Spec.Components.Dashboard.GetComponentName())
 		}
 		if len(appDeployments.Items) > 0 {
 			dashboardDeploymentName = appDeployments.Items[0].Name
 			if appDeployments.Items[0].Status.ReadyReplicas == 0 {
-				return fmt.Errorf("error getting enabled component: %s its deployment 'ReadyReplicas'", dashboardDeploymentName)
+				return fmt.Errorf("error getting Managed component: %s its deployment 'ReadyReplicas'", dashboardDeploymentName)
 			}
 		}
 	} else {
-		return fmt.Errorf("dashboard spec should be in 'enabled: true' state in order to perform test")
+		return fmt.Errorf("dashboard spec should be in 'Managed' state in order to perform test")
 	}
 
 	// Disable component Dashboard
@@ -377,7 +388,7 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 		// Return err itself here (not wrapped inside another error)
 		// so that RetryOnConflict can identify it correctly.
 		if err != nil {
-			return fmt.Errorf("error updating component from 'enabled: true' to 'enabled: false': %w", err)
+			return fmt.Errorf("error updating component from 'Managed' to 'Removed: false': %w", err)
 		}
 		return nil
 	})

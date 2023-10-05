@@ -77,10 +77,12 @@ spec:
                           to keep it active. It will only upgrade the component if
                           it is safe to do so \n - \"Removed\" : the operator is actively
                           managing the component and will not install it, or if it
-                          is installed, the operator will try to remove it"
+                          is installed, the operator will try to remove it \n - \"Unmanaged\"
+                          : the operator will not take any action related to the component"
                         enum:
                         - Managed
                         - Removed
+                        - Unmanaged
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
                     type: object
@@ -120,10 +122,12 @@ spec:
                           to keep it active. It will only upgrade the component if
                           it is safe to do so \n - \"Removed\" : the operator is actively
                           managing the component and will not install it, or if it
-                          is installed, the operator will try to remove it"
+                          is installed, the operator will try to remove it \n - \"Unmanaged\"
+                          : the operator will not take any action related to the component"
                         enum:
                         - Managed
                         - Removed
+                        - Unmanaged
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
                     type: object
@@ -164,10 +168,12 @@ spec:
                           to keep it active. It will only upgrade the component if
                           it is safe to do so \n - \"Removed\" : the operator is actively
                           managing the component and will not install it, or if it
-                          is installed, the operator will try to remove it"
+                          is installed, the operator will try to remove it \n - \"Unmanaged\"
+                          : the operator will not take any action related to the component"
                         enum:
                         - Managed
                         - Removed
+                        - Unmanaged
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
                     type: object
@@ -210,10 +216,12 @@ spec:
                           to keep it active. It will only upgrade the component if
                           it is safe to do so \n - \"Removed\" : the operator is actively
                           managing the component and will not install it, or if it
-                          is installed, the operator will try to remove it"
+                          is installed, the operator will try to remove it \n - \"Unmanaged\"
+                          : the operator will not take any action related to the component"
                         enum:
                         - Managed
                         - Removed
+                        - Unmanaged
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
                     type: object
@@ -255,10 +263,12 @@ spec:
                           to keep it active. It will only upgrade the component if
                           it is safe to do so \n - \"Removed\" : the operator is actively
                           managing the component and will not install it, or if it
-                          is installed, the operator will try to remove it"
+                          is installed, the operator will try to remove it \n - \"Unmanaged\"
+                          : the operator will not take any action related to the component"
                         enum:
                         - Managed
                         - Removed
+                        - Unmanaged
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
                     type: object
@@ -299,10 +309,12 @@ spec:
                           to keep it active. It will only upgrade the component if
                           it is safe to do so \n - \"Removed\" : the operator is actively
                           managing the component and will not install it, or if it
-                          is installed, the operator will try to remove it"
+                          is installed, the operator will try to remove it \n - \"Unmanaged\"
+                          : the operator will not take any action related to the component"
                         enum:
                         - Managed
                         - Removed
+                        - Unmanaged
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
                     type: object
@@ -342,10 +354,12 @@ spec:
                           to keep it active. It will only upgrade the component if
                           it is safe to do so \n - \"Removed\" : the operator is actively
                           managing the component and will not install it, or if it
-                          is installed, the operator will try to remove it"
+                          is installed, the operator will try to remove it \n - \"Unmanaged\"
+                          : the operator will not take any action related to the component"
                         enum:
                         - Managed
                         - Removed
+                        - Unmanaged
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
                     type: object
@@ -385,10 +399,12 @@ spec:
                           to keep it active. It will only upgrade the component if
                           it is safe to do so \n - \"Removed\" : the operator is actively
                           managing the component and will not install it, or if it
-                          is installed, the operator will try to remove it"
+                          is installed, the operator will try to remove it \n - \"Unmanaged\"
+                          : the operator will not take any action related to the component"
                         enum:
                         - Managed
                         - Removed
+                        - Unmanaged
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
                     type: object
