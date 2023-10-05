@@ -21,13 +21,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
+
+	"github.com/go-logr/logr"
+	v1 "github.com/openshift/api/operator/v1"
 
 	"github.com/hashicorp/go-multierror"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	"github.com/go-logr/logr"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -35,7 +38,6 @@ import (
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
-	v1 "github.com/openshift/api/operator/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
@@ -150,46 +152,16 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	// Initialize error list, instead of returning errors after every component is deployed
 	var componentErrors *multierror.Error
 
-	// reconcile dashboard component
-	if instance, err = r.reconcileSubComponent(ctx, instance, &(instance.Spec.Components.Dashboard)); err != nil {
-		// no need to log any errors as this is done in the reconcileSubComponent method
-		componentErrors = multierror.Append(componentErrors, err)
+	allComponents, err := getAllComponents(&instance.Spec.Components)
+	if err != nil {
+		return ctrl.Result{}, err
 	}
 
-	// reconcile DataSciencePipelines component
-	if instance, err = r.reconcileSubComponent(ctx, instance, &(instance.Spec.Components.DataSciencePipelines)); err != nil {
-		// no need to log any errors as this is done in the reconcileSubComponent method
-		componentErrors = multierror.Append(componentErrors, err)
-	}
-
-	// reconcile Workbench component
-	if instance, err = r.reconcileSubComponent(ctx, instance, &(instance.Spec.Components.Workbenches)); err != nil {
-		// no need to log any errors as this is done in the reconcileSubComponent method
-		componentErrors = multierror.Append(componentErrors, err)
-	}
-
-	// reconcile Kserve component
-	if instance, err = r.reconcileSubComponent(ctx, instance, &(instance.Spec.Components.Kserve)); err != nil {
-		// no need to log any errors as this is done in the reconcileSubComponent method
-		componentErrors = multierror.Append(componentErrors, err)
-	}
-
-	// reconcile ModelMesh component
-	if instance, err = r.reconcileSubComponent(ctx, instance, &(instance.Spec.Components.ModelMeshServing)); err != nil {
-		// no need to log any errors as this is done in the reconcileSubComponent method
-		componentErrors = multierror.Append(componentErrors, err)
-	}
-
-	// reconcile CodeFlare component
-	if instance, err = r.reconcileSubComponent(ctx, instance, &(instance.Spec.Components.CodeFlare)); err != nil {
-		// no need to log any errors as this is done in the reconcileSubComponent method
-		componentErrors = multierror.Append(componentErrors, err)
-	}
-
-	// reconcile Ray component
-	if instance, err = r.reconcileSubComponent(ctx, instance, &(instance.Spec.Components.Ray)); err != nil {
-		// no need to log any errors as this is done in the reconcileSubComponent method
-		componentErrors = multierror.Append(componentErrors, err)
+	for _, component := range allComponents {
+		if instance, err = r.reconcileSubComponent(ctx, instance, component); err != nil {
+			// no need to log any errors as this is done in the reconcileSubComponent method
+			componentErrors = multierror.Append(componentErrors, err)
+		}
 	}
 
 	// reconcile TrustyAI component
@@ -230,6 +202,25 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		"DataScienceCluster instance %s created and deployed successfully", instance.Name)
 
 	return ctrl.Result{}, nil
+}
+
+func getAllComponents(c *dsc.Components) ([]components.ComponentInterface, error) {
+	var allComponents []components.ComponentInterface
+
+	definedComponents := reflect.ValueOf(c).Elem()
+	for i := 0; i < definedComponents.NumField(); i++ {
+		c := definedComponents.Field(i)
+		if c.CanAddr() {
+			component, ok := c.Addr().Interface().(components.ComponentInterface)
+			if !ok {
+				return allComponents, errors.New("this is not a pointer to ComponentInterface")
+			}
+
+			allComponents = append(allComponents, component)
+		}
+	}
+
+	return allComponents, nil
 }
 
 func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context, instance *dsc.DataScienceCluster,
