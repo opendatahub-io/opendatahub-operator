@@ -80,7 +80,7 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 			return err
 		}
 		// Update image parameters
-		if dscispec.DevFlags.ManifestsUri == "" {
+		if dscispec.DevFlags.ManifestsUri == "" && len(m.DevFlags.Manifests) == 0 {
 			if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
 				return err
 			}

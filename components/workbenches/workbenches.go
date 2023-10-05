@@ -135,7 +135,7 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 
 	// Update image parameters for nbc in downstream
 	if enabled {
-		if dscispec.DevFlags.ManifestsUri == "" {
+		if dscispec.DevFlags.ManifestsUri == "" && len(w.DevFlags.Manifests) == 0 {
 			if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
 				if err := deploy.ApplyImageParams(notebookControllerPath, imageParamMap); err != nil {
 					return err
