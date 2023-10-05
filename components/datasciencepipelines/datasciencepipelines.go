@@ -74,7 +74,7 @@ func (d *DataSciencePipelines) ReconcileComponent(cli client.Client, owner metav
 		// check if the dependent operator installed is done in dashboard
 
 		// Update image parameters only when we do not have customized manifests set
-		if dscispec.DevFlags.ManifestsUri == "" {
+		if dscispec.DevFlags.ManifestsUri == "" && len(d.DevFlags.Manifests) == 0 {
 			if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
 				return err
 			}
