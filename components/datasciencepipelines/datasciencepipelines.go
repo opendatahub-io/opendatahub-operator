@@ -72,7 +72,7 @@ func (d *DataSciencePipelines) ReconcileComponent(cli client.Client, owner metav
 
 		// Update image parameters only when we do not have customized manifests set
 		if dscispec.DevFlags.ManifestsUri == "" && len(d.DevFlags.Manifests) == 0 {
-			if err := deploy.ApplyParams(Path, d.SetImageParamsMap(imageParamMap), false); err != nil {
+			if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
 				return err
 			}
 		}

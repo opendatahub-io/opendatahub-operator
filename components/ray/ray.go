@@ -65,7 +65,7 @@ func (r *Ray) ReconcileComponent(cli client.Client, owner metav1.Object, dscispe
 		}
 
 		if dscispec.DevFlags.ManifestsUri == "" || len(r.DevFlags.Manifests) == 0 {
-			if err := deploy.ApplyParams(RayPath, r.SetImageParamsMap(imageParamMap), true); err != nil {
+			if err := deploy.ApplyImageParams(RayPath, imageParamMap); err != nil {
 				return err
 			}
 		}
