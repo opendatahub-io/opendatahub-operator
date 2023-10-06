@@ -18,6 +18,7 @@ declare -A COMPONENT_MANIFESTS=(
     ["kf-notebook-controller"]="opendatahub-io:kubeflow:v1.7-branch:components/notebook-controller/config:odh-notebook-controller/kf-notebook-controller"
     ["odh-notebook-controller"]="opendatahub-io:kubeflow:v1.7-branch:components/odh-notebook-controller/config:odh-notebook-controller/odh-notebook-controller"
     ["notebooks"]="opendatahub-io:notebooks:main:manifests:notebooks"
+    ["trustyai"]="trustyai-explainability:trustyai-service-operator:release/1.11.1:config:trustyai-service-operator"
 )
 
 # Allow overwriting repo using flags component=repo
