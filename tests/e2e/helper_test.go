@@ -12,6 +12,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -87,6 +88,11 @@ func setupDSCInstance() *dsc.DataScienceCluster {
 					},
 				},
 				Ray: ray.Ray{
+					Component: components.Component{
+						ManagementState: operatorv1.Managed,
+					},
+				},
+				TrustyAI: trustyai.TrustyAI{
 					Component: components.Component{
 						ManagementState: operatorv1.Managed,
 					},

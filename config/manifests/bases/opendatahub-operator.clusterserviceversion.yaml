@@ -45,6 +45,9 @@ metadata:
             },
             "workbenches": {
               "managementState": "Managed"
+            },
+            "trustyai": {
+              "managementState": "Removed"
             }
           }
         }
