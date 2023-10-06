@@ -3,14 +3,16 @@ set -e
 
 # component: dsp, kserve, dashbaord, cf/ray. in the format of "repo-name:branch-name:source-folder:target-folder"
 # TODO: workbench, modelmesh, monitoring, etc
-REPO_LIST=(
-    "distributed-workloads:main:codeflare-stack:codeflare"
-    "distributed-workloads:main:ray:ray"
-    "data-science-pipelines-operator:main:config:data-science-pipelines-operator"
-   # "odh-dashboard:main:manifests:odh-dashboard"
-   # "notebooks:main:manifests:notebook"
-   # "kubeflow:master:components/notebook-controller/config:odh-notebook-controller/kf-notebook-controller"
-   # "kubeflow:master:components/odh-notebook-controller/config:odh-notebook-controller/odh-notebook-controller"
+
+declare -A COMPONENT_MANIFESTS=(
+    ["codeflare"]="opendatahub-io:distributed-workloads:main:codeflare-stack:codeflare"
+    ["ray"]="opendatahub-io:distributed-workloads:main:ray:ray"
+    ["data-science-pipelines-operator"]="opendatahub-io:data-science-pipelines-operator:main:config:data-science-pipelines-operator"
+    ["odh-dashboard"]="opendatahub-io:odh-dashboard:incubation:manifests:odh-dashboard"
+    ["kf-notebook-controller"]="opendatahub-io:kubeflow:v1.7-branch:components/notebook-controller/config:odh-notebook-controller/kf-notebook-controller"
+    ["odh-notebook-controller"]="opendatahub-io:kubeflow:v1.7-branch:components/odh-notebook-controller/config:odh-notebook-controller/odh-notebook-controller"
+    ["notebooks"]="opendatahub-io:notebooks:main:manifests:notebooks"
+    ["trustyai"]="trustyai-explainability:trustyai-service-operator:release/1.10.2:config:trustyai-service-operator"
 )
 
 # pre-cleanup local env
