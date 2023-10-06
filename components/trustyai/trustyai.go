@@ -8,7 +8,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -36,6 +36,7 @@ func (t *TrustyAI) OverrideManifests(_ string) error {
 		}
 		Path = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
 	}
+
 	return nil
 }
 
@@ -43,10 +44,10 @@ func (t *TrustyAI) GetComponentName() string {
 	return ComponentName
 }
 
-// Verifies that TrustyAI implements ComponentInterface
+// Verifies that TrustyAI implements ComponentInterface.
 var _ components.ComponentInterface = (*TrustyAI)(nil)
 
-func (t *TrustyAI) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
+func (t *TrustyAI) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
 	var imageParamMap = map[string]string{
 		"trustyaiServiceImage":  "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE",
 		"trustyaiOperatorImage": "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE",
@@ -72,6 +73,7 @@ func (t *TrustyAI) ReconcileComponent(cli client.Client, owner metav1.Object, ds
 	}
 	// Deploy TrustyAI Operator
 	err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, t.GetComponentName(), enabled)
+
 	return err
 }
 

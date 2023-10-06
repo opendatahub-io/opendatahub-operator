@@ -10,7 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -56,6 +56,7 @@ func (m *ModelMeshServing) OverrideManifests(_ string) error {
 			Path = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
 		}
 	}
+
 	return nil
 }
 
@@ -66,7 +67,7 @@ func (m *ModelMeshServing) GetComponentName() string {
 // Verifies that Dashboard implements ComponentInterface.
 var _ components.ComponentInterface = (*ModelMeshServing)(nil)
 
-func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
+func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
 	var imageParamMap = map[string]string{
 		"odh-mm-rest-proxy":             "RELATED_IMAGE_ODH_MM_REST_PROXY_IMAGE",
 		"odh-modelmesh-runtime-adapter": "RELATED_IMAGE_ODH_MODELMESH_RUNTIME_ADAPTER_IMAGE",
@@ -81,6 +82,7 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 	}
 
 	enabled := m.GetManagementState() == operatorv1.Managed
+	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 	platform, err := deploy.GetPlatform(cli)
 	if err != nil {
 		return err
@@ -135,7 +137,7 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 	}
 
 	// Get monitoring namespace
-	dscInit := &dsci.DSCInitialization{}
+	dscInit := &dsciv1.DSCInitialization{}
 	err = cli.Get(context.TODO(), client.ObjectKey{
 		Name: "default",
 	}, dscInit)
@@ -143,7 +145,25 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 		return err
 	}
 
-	return err
+	// CloudService Monitoring handling
+	if platform == deploy.ManagedRhods {
+		// first model-mesh rules
+		if err := m.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
+			return err
+		}
+		// then odh-model-controller rules
+		if err := m.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, DependentComponentName); err != nil {
+			return err
+		}
+		if err = deploy.DeployManifestsFromPath(cli, owner,
+			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
+			dscispec.Monitoring.Namespace,
+			ComponentName+"prometheus", true); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (m *ModelMeshServing) DeepCopyInto(target *ModelMeshServing) {

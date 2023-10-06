@@ -9,7 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -37,6 +37,7 @@ func (d *DataSciencePipelines) OverrideManifests(_ string) error {
 		}
 		Path = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
 	}
+
 	return nil
 }
 
@@ -47,7 +48,7 @@ func (d *DataSciencePipelines) GetComponentName() string {
 // Verifies that Dashboard implements ComponentInterface.
 var _ components.ComponentInterface = (*DataSciencePipelines)(nil)
 
-func (d *DataSciencePipelines) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
+func (d *DataSciencePipelines) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
 	var imageParamMap = map[string]string{
 		"IMAGES_APISERVER":         "RELATED_IMAGE_ODH_ML_PIPELINES_API_SERVER_IMAGE",
 		"IMAGES_ARTIFACT":          "RELATED_IMAGE_ODH_ML_PIPELINES_ARTIFACT_MANAGER_IMAGE",
@@ -58,6 +59,8 @@ func (d *DataSciencePipelines) ReconcileComponent(cli client.Client, owner metav
 	}
 
 	enabled := d.GetManagementState() == operatorv1.Managed
+	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
+
 	platform, err := deploy.GetPlatform(cli)
 	if err != nil {
 		return err
@@ -68,7 +71,7 @@ func (d *DataSciencePipelines) ReconcileComponent(cli client.Client, owner metav
 			return err
 		}
 
-		// check if the dependent operator installed is done in dashboard
+		// skip check if the dependent operator has beeninstalled, this is done in dashboard
 
 		// Update image parameters only when we do not have customized manifests set
 		if dscispec.DevFlags.ManifestsUri == "" && len(d.DevFlags.Manifests) == 0 {
@@ -78,8 +81,23 @@ func (d *DataSciencePipelines) ReconcileComponent(cli client.Client, owner metav
 		}
 	}
 
-	err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, d.GetComponentName(), enabled)
-	return err
+	if err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+		return err
+	}
+	// CloudService Monitoring handling
+	if platform == deploy.ManagedRhods {
+		if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
+			return err
+		}
+		if err = deploy.DeployManifestsFromPath(cli, owner,
+			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
+			dscispec.Monitoring.Namespace,
+			ComponentName+"prometheus", true); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (d *DataSciencePipelines) DeepCopyInto(target *DataSciencePipelines) {

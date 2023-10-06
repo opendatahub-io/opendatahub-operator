@@ -29,15 +29,16 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 const (
 	// DeleteConfigMapLabel is the label for configMap used to trigger operator uninstall
-	// TODO: Label should be updated if addon name changes
+	// TODO: Label should be updated if addon name changes.
 	DeleteConfigMapLabel = "api.openshift.com/addon-managed-odh-delete"
-	// odhGeneratedNamespaceLabel is the label added to all the namespaces genereated by odh-deployer
+	// odhGeneratedNamespaceLabel is the label added to all the namespaces genereated by odh-deployer.
 	odhGeneratedNamespaceLabel = "opendatahub.io/generated-namespace"
 )
 
@@ -92,6 +93,7 @@ func OperatorUninstall(cli client.Client, cfg *rest.Config) error {
 	// Wait for all resources to get cleaned up
 	time.Sleep(10 * time.Second)
 	fmt.Printf("All resources deleted as part of uninstall. Removing the operator csv")
+
 	return removeCsv(cli, cfg)
 }
 
@@ -112,6 +114,7 @@ func removeDSCInitialization(cli client.Client) error {
 			}
 		}
 	}
+
 	return err
 }
 
@@ -134,6 +137,7 @@ func HasDeleteConfigMap(c client.Client) bool {
 	if err := c.List(context.TODO(), deleteConfigMapList, cmOptions...); err != nil {
 		return false
 	}
+
 	return len(deleteConfigMapList.Items) != 0
 }
 
@@ -171,6 +175,9 @@ func CreateDefaultDSC(cli client.Client, platform deploy.Platform) error {
 				Ray: ray.Ray{
 					Component: components.Component{ManagementState: operatorv1.Managed},
 				},
+				TrustyAI: trustyai.TrustyAI{
+					Component: components.Component{ManagementState: operatorv1.Managed},
+				},
 			},
 		},
 	}
@@ -193,11 +200,14 @@ func CreateDefaultDSC(cli client.Client, platform deploy.Platform) error {
 			}
 		} else {
 			fmt.Printf("DataScienceCluster resource already exists. It will not be updated with default DSC.")
+
 			return nil
 		}
 	default:
+
 		return fmt.Errorf("failed to create DataScienceCluster custom resource: %v", err)
 	}
+
 	return nil
 }
 
@@ -213,6 +223,7 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform) error 
 		if err != nil {
 			return err
 		}
+
 		return nil
 	}
 
@@ -228,8 +239,10 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform) error 
 				return err
 			}
 		}
+
 		return err
 	}
+
 	return nil
 }
 
@@ -240,6 +253,7 @@ func GetOperatorNamespace() (string, error) {
 			return ns, nil
 		}
 	}
+
 	return "", err
 }
 
@@ -288,11 +302,13 @@ func removeCsv(c client.Client, r *rest.Config) error {
 			if apierrs.IsNotFound(err) {
 				return nil
 			}
+
 			return fmt.Errorf("error deleting clusterserviceversion: %v", err)
 		}
 		fmt.Printf("Clusterserviceversion %s deleted as a part of uninstall.", operatorCsv.Name)
 	}
 	fmt.Printf("No clusterserviceversion for the operator found.")
+
 	return nil
 }
 
@@ -317,6 +333,7 @@ func getClusterServiceVersion(cfg *rest.Config, watchNameSpace string) (*ofapi.C
 			}
 		}
 	}
+
 	return nil, nil
 }
 
@@ -345,5 +362,6 @@ func getKfDefInstances(c client.Client) (*kfdefv1.KfDefList, error) {
 			return nil, fmt.Errorf("error getting list of kfdefs: %v", err)
 		}
 	}
+
 	return kfDefList, nil
 }

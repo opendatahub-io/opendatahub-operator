@@ -12,6 +12,7 @@ var letters = []rune("abcdefghijklmnopqrstuvwxyz")
 func RandomUUIDName(len int) string {
 	uuidBytes := make([]byte, len)
 	_, _ = rand.Read(uuidBytes)
+
 	return hex.EncodeToString(uuidBytes)[:len]
 }
 
