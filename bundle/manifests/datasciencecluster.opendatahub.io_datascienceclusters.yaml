@@ -18,7 +18,7 @@ spec:
     schema:
       openAPIV3Schema:
         description: DataScienceCluster is the Schema for the datascienceclusters
-          API
+          API.
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -304,6 +304,49 @@ spec:
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
                     type: object
+                  trustyai:
+                    description: TrustyAI component configuration.
+                    properties:
+                      devFlags:
+                        description: Add developer fields
+                        properties:
+                          manifests:
+                            description: List of custom manifests for the given component
+                            items:
+                              properties:
+                                contextDir:
+                                  default: ""
+                                  description: contextDir is the relative path to
+                                    the folder containing manifests in a repository
+                                  type: string
+                                sourcePath:
+                                  default: ""
+                                  description: 'sourcePath is the subpath within contextDir
+                                    where kustomize builds start. Examples include
+                                    any sub-folder or path: `base`, `overlays/dev`,
+                                    `default`, `odh` etc'
+                                  type: string
+                                uri:
+                                  default: ""
+                                  description: uri is the URI point to a git repo
+                                    with tag/branch. e.g  https://github.com/org/repo/tarball/<tag/branch>
+                                  type: string
+                              type: object
+                            type: array
+                        type: object
+                      managementState:
+                        description: "Set to one of the following values: \n - \"Managed\"
+                          : the operator is actively managing the component and trying
+                          to keep it active. It will only upgrade the component if
+                          it is safe to do so \n - \"Removed\" : the operator is actively
+                          managing the component and will not install it, or if it
+                          is installed, the operator will try to remove it"
+                        enum:
+                        - Managed
+                        - Removed
+                        pattern: ^(Managed|Unmanaged|Force|Removed)$
+                        type: string
+                    type: object
                   workbenches:
                     description: Workbenches component configuration.
                     properties:
@@ -350,7 +393,7 @@ spec:
                 type: object
             type: object
           status:
-            description: DataScienceClusterStatus defines the observed state of DataScienceCluster
+            description: DataScienceClusterStatus defines the observed state of DataScienceCluster.
             properties:
               conditions:
                 description: Conditions describes the state of the DataScienceCluster
