@@ -36,10 +36,6 @@ var (
 	PathAnaconda           = deploy.DefaultManifestPath + "/partners/anaconda/base/"
 )
 
-var imageParamMap = map[string]string{
-	"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
-}
-
 type Dashboard struct {
 	components.Component `json:""`
 }
@@ -69,11 +65,6 @@ func (d *Dashboard) OverrideManifests(platform string) error {
 	return nil
 }
 
-func (d *Dashboard) SetImageParamsMap(imageMap map[string]string) map[string]string {
-	imageParamMap = imageMap
-	return imageParamMap
-}
-
 func (d *Dashboard) GetComponentName() string {
 	return ComponentName
 }
@@ -82,6 +73,9 @@ func (d *Dashboard) GetComponentName() string {
 var _ components.ComponentInterface = (*Dashboard)(nil)
 
 func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
+	var imageParamMap = map[string]string{
+		"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
+	}
 	platform, err := deploy.GetPlatform(cli)
 	if err != nil {
 		return err
@@ -121,7 +115,7 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 
 		// Update image parameters (ODH does not use this solution, only downstream)
 		if dscispec.DevFlags.ManifestsUri == "" && len(d.DevFlags.Manifests) == 0 {
-			if err := deploy.ApplyImageParams(PathSupported, imageParamMap); err != nil {
+			if err := deploy.ApplyParams(PathSupported, d.SetImageParamsMap(imageParamMap), false); err != nil {
 				return err
 			}
 		}

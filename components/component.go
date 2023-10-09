@@ -65,3 +65,7 @@ type ComponentInterface interface {
 	SetImageParamsMap(imageMap map[string]string) map[string]string
 	OverrideManifests(platform string) error
 }
+
+func (c *Component) SetImageParamsMap(imageMap map[string]string) map[string]string {
+	return imageMap
+}
