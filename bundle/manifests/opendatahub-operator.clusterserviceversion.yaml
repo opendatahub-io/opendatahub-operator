@@ -68,8 +68,8 @@ metadata:
     capabilities: Full Lifecycle
     categories: AI/Machine Learning, Big Data
     certified: "False"
-    containerImage: quay.io/opendatahub/opendatahub-operator:v2.2.0
-    createdAt: "2023-9-26T00:00:00Z"
+    containerImage: quay.io/opendatahub/opendatahub-operator:v2.2.1
+    createdAt: "2023-10-09T00:00:00Z"
     olm.skipRange: '>=1.0.0 <2.2.0'
     operatorframework.io/initialization-resource: |-
       {
@@ -1610,5 +1610,5 @@ spec:
   selector:
     matchLabels:
       component: opendatahub-operator
-  replaces: opendatahub-operator.v2.1.0
-  version: 2.2.0
+  replaces: opendatahub-operator.v2.2.0
+  version: 2.2.1
