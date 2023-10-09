@@ -24,3 +24,5 @@ spec:
       managementState: "Removed"
     workbenches:
       managementState: "Managed"
+    trustyai:
+      managementState: "Removed"

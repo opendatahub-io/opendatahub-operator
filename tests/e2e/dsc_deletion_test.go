@@ -105,5 +105,10 @@ func (tc *testContext) testAllApplicationDeletion() error {
 	if err := tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.Ray)); err != nil {
 		return err
 	}
+
+	if err := tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.TrustyAI)); err != nil {
+		return err
+	}
+
 	return nil
 }
