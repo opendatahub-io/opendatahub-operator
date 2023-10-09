@@ -3,11 +3,14 @@ package dscinitialization
 import (
 	"context"
 	"crypto/rand"
+	"fmt"
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"reflect"
 	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 
+	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	ocuserv1 "github.com/openshift/api/user/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -382,5 +385,46 @@ func (r *DSCInitializationReconciler) createUserGroup(ctx context.Context, dscIn
 		}
 	}
 
+	return nil
+}
+
+func updatefromLegacyVersion(cli client.Client) error {
+	// Check if kfdef are deployed
+	kfdefCrd := &apiextv1.CustomResourceDefinition{}
+
+	err := cli.Get(context.TODO(), client.ObjectKey{Name: "kfdefs.kfdef.apps.kubeflow.org"}, kfdefCrd)
+	if err != nil {
+		if apierrs.IsNotFound(err) {
+			// If no Crd found, return, since its a new Installation
+			return nil
+		} else {
+			return fmt.Errorf("error retrieving kfdef CRD : %v", err)
+		}
+	} else {
+		expectedKfDefList := &kfdefv1.KfDefList{}
+		err := cli.List(context.TODO(), expectedKfDefList)
+		if err != nil {
+			if apierrs.IsNotFound(err) {
+				// If no KfDefs, do nothing and return
+				return nil
+			} else {
+				return fmt.Errorf("error getting list of kfdefs: %v", err)
+			}
+		}
+		// Delete kfdefs
+		for _, kfdef := range expectedKfDefList.Items {
+			// Remove finalizer
+			updatedKfDef := &kfdef
+			updatedKfDef.Finalizers = []string{}
+			err = cli.Update(context.TODO(), updatedKfDef)
+			if err != nil {
+				return fmt.Errorf("error removing finalizers from kfdef %v : %v", kfdef.Name, err)
+			}
+			err = cli.Delete(context.TODO(), updatedKfDef)
+			if err != nil {
+				return fmt.Errorf("error deleting kfdef %v : %v", kfdef.Name, err)
+			}
+		}
+	}
 	return nil
 }
