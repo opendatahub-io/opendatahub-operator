@@ -10,7 +10,7 @@ REPO_LIST=(
     "odh-dashboard:v2.15.0-incubation-fixes:manifests:odh-dashboard"
     "kubeflow:v1.7.0-3:components/notebook-controller/config:odh-notebook-controller/kf-notebook-controller"
     "kubeflow:v1.7.0-3:components/odh-notebook-controller/config:odh-notebook-controller/odh-notebook-controller"
-    "notebooks:v1.10.0:manifests:notebooks"
+    "notebooks:v1.10.1:manifests:notebooks"
 )
 
 # pre-cleanup local env
