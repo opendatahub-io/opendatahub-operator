@@ -242,7 +242,7 @@ This provides detailed logs of the test spec.
 
 In order to run tests for all the controllers, we can use the `make` command
 ```shell
-make test
+make unit-test
 ```
 **Note:** The make command should be executed on the root project level.
 ### Run e2e Tests
