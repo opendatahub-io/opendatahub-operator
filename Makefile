@@ -146,8 +146,8 @@ vet: ## Run go vet against code.
 lint: golangci-lint ## Run golangci-lint against code.
 	$(GOLANGCI_LINT) run --fix --sort-results
 
-.PHONY: test
-test: manifests generate fmt vet envtest ## Run tests.
+.PHONY: unit-test
+unit-test: manifests generate fmt vet envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./controllers/... -v  -coverprofile cover.out
 
 
