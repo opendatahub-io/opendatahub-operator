@@ -6,7 +6,7 @@ set -e
 REPO_LIST=(
     "data-science-pipelines-operator:v1.4.0:config:data-science-pipelines-operator"
     "odh-dashboard:v2.15.0-incubation-fixes:manifests:odh-dashboard"
-    "notebooks:v1.10.0:manifests:notebook-images"
+    "notebooks:v1.10.1:manifests:notebook-images"
     "kubeflow:v1.7.0-3:components/notebook-controller/config:odh-notebook-controller/kf-notebook-controller"
     "kubeflow:v1.7.0-3:components/odh-notebook-controller/config:odh-notebook-controller/odh-notebook-controller"
 )
