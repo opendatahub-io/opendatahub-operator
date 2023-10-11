@@ -1,0 +1,74 @@
+name: e2e Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+      - "incubation"
+    paths-ignore:
+      - 'docs/**'
+      - '**.adoc'
+      - '**.md'
+      - 'LICENSE'
+  push:
+    branches:
+      - main
+      - "incubation"
+    paths-ignore:
+      - 'docs/**'
+      - '**.adoc'
+      - '**.md'
+      - 'LICENSE'
+concurrency:
+  group: ${{ github.head_ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+env:
+  QUAY_ORG: opendatahub
+  QUAY_ID: ${{ secrets.QUAY_ID }}
+  QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+  BUNDLE_IMAGE_NAME: opendatahub-operator-bundle
+  IMAGE_NAME: opendatahub-operator
+  IMAGE_TAG: pr-${{ github.event.pull_request.number }}
+
+jobs:
+  kubernetes-e2e:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.19
+
+      - name: Build Operator Bundle
+        run: |
+          # Pull the Docker image from registry
+          podman pull quay.io/${env.QUAY_ORG}/${env.IMAGE_NAME}:${env.IMAGE_TAG}
+
+          # Create an Operator Bundle using the image
+          operator-sdk bundle create quay.io/${env.QUAY_ORG}/${env.BUNDLE_IMAGE_NAME}:${env.IMAGE_TAG} --image quay.io/${env.QUAY_ORG}/${env.IMAGE_NAME}:${env.IMAGE_TAG} --overwrite
+    
+      - name: Setup and start KinD cluster
+        uses: ./.github/actions/kind
+
+      - name: Load Image in KinD cluster
+        run: |
+          kind load docker-image ${env.BUNDLE_IMAGE_NAME}:${env.IMAGE_TAG}
+      
+      - name: Deploy Operatorhub operator bundle
+        id: deploy
+        run: |
+          echo Deploying Operatorhub operator
+          IMG="${REGISTRY_ADDRESS}"/${env.BUNDLE_IMAGE_NAME}:${env.IMAGE_TAG}
+          make deploy -e IMG="${IMG}"
+          kubectl wait --timeout=120s --for=condition=Available=true deployment -n openshift-operators opendatahub-operator-manager
+
+      - name: Run e2e tests
+        run: |
+          make e2e-test
