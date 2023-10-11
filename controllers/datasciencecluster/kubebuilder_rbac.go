@@ -24,6 +24,9 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="operators.coreos.com",resources=subscriptions,verbs=get;list;watch
 // +kubebuilder:rbac:groups="operators.coreos.com",resources=operatorconditions,verbs=get;list;watch
 
+/* This is for operator */
+// +kubebuilder:rbac:groups="operators.coreos.com",resources=catalogsources,verbs=get;list;watch
+
 // +kubebuilder:rbac:groups="apiextensions.k8s.io",resources=customresourcedefinitions,verbs=get;list;watch
 
 // +kubebuilder:rbac:groups="user.openshift.io",resources=users,verbs=list;watch;patch;delete
