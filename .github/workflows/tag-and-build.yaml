@@ -1,0 +1,49 @@
+# This workflow will build the OpenDataHub Operator image and push it to the opendatahub image registry
+
+name: Tag and Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Tag to be used for operator image'
+        required: true
+        default: 'v0.0.0-dev'
+      is-stable:
+        description: 'Select if the built image should be tagged as stable'
+        required: true
+        type: boolean
+      quay-organization:
+        description: 'Quay organization used to push the built images to'
+        required: true
+        default: 'opendatahub'
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Set Go
+      uses: actions/setup-go@v3
+      with:
+        go-version: v1.19
+
+    # QUAY LOGIN REQUIRED
+    - name: Login to Quay.io
+      uses: redhat-actions/podman-login@v1
+      with:
+        username: ${{ secrets.QUAY_ID }}
+        password: ${{ secrets.QUAY_TOKEN }}
+        registry: quay.io
+
+    - name: Image Build and Push
+      run: |
+        make build
+        make image-build -e IMG=quay.io/${{ github.event.inputs.quay-organization }}/opendatahub-operator:${{ github.event.inputs.version }}
+        make image-push -e IMG=quay.io/${{ github.event.inputs.quay-organization }}/opendatahub-operator:${{ github.event.inputs.version }}
+
+    - name: Image Push as stable tag
+      if: ${{ inputs.is-stable }}
+      run: |
+        podman tag quay.io/${{ github.event.inputs.quay-organization }}/opendatahub-operator:${{ github.event.inputs.version }} quay.io/${{ github.event.inputs.quay-organization }}/opendatahub-operator:stable
+        make image-push -e IMG=quay.io/${{ github.event.inputs.quay-organization }}/opendatahub-operator:stable
