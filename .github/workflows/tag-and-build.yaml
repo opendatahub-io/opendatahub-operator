@@ -1,22 +1,11 @@
 # This workflow will build the OpenDataHub Operator image and push it to the opendatahub image registry
 
-name: Tag and Release
+name: Tag and Build
 
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Tag to be used for operator image'
-        required: true
-        default: 'v0.0.0-dev'
-      is-stable:
-        description: 'Select if the built image should be tagged as stable'
-        required: true
-        type: boolean
-      quay-organization:
-        description: 'Quay organization used to push the built images to'
-        required: true
-        default: 'opendatahub'
+  release:
+    types:
+      - created
 
 jobs:
   push:
@@ -28,22 +17,24 @@ jobs:
       with:
         go-version: v1.19
 
-    # QUAY LOGIN REQUIRED
     - name: Login to Quay.io
       uses: redhat-actions/podman-login@v1
       with:
-        username: ${{ secrets.QUAY_ID }}
-        password: ${{ secrets.QUAY_TOKEN }}
+        username: ${{ secrets.QUAY_BOT_USER }}
+        password: ${{ secrets.QUAY_BOT_PASSWORD }}
         registry: quay.io
 
+    - name: Get Release Tag
+      id: release-tag
+      run: |
+        release_tag=$(gh release view -R github.com/opendatahub-io/opendatahub-operator --json tagName | jq -r '.tagName')
+        echo "RELEASE_TAG=$release_tag" >> $GITHUB_ENV
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
     - name: Image Build and Push
       run: |
         make build
-        make image-build -e IMG=quay.io/${{ github.event.inputs.quay-organization }}/opendatahub-operator:${{ github.event.inputs.version }}
-        make image-push -e IMG=quay.io/${{ github.event.inputs.quay-organization }}/opendatahub-operator:${{ github.event.inputs.version }}
+        make image-build -e IMG=quay.io/opendatahub/opendatahub-operator:${{ env.RELEASE_TAG }}
+        make image-push -e IMG=quay.io/opendatahub/opendatahub-operator:${{ env.RELEASE_TAG }}
 
-    - name: Image Push as stable tag
-      if: ${{ inputs.is-stable }}
-      run: |
-        podman tag quay.io/${{ github.event.inputs.quay-organization }}/opendatahub-operator:${{ github.event.inputs.version }} quay.io/${{ github.event.inputs.quay-organization }}/opendatahub-operator:stable
-        make image-push -e IMG=quay.io/${{ github.event.inputs.quay-organization }}/opendatahub-operator:stable
