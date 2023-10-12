@@ -172,3 +172,7 @@ func (c *Component) UpdatePrometheusConfig(cli client.Client, enable bool, compo
 	}
 	return nil
 }
+
+func (c *Component) SetImageParamsMap(imageMap map[string]string) map[string]string {
+	return imageMap
+}

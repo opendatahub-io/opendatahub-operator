@@ -78,6 +78,7 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 	}
 	enabled := d.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
+
 	platform, err := deploy.GetPlatform(cli)
 	if err != nil {
 		return err
@@ -118,7 +119,7 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 
 		// Update image parameters (ODH does not use this solution, only downstream)
 		if dscispec.DevFlags.ManifestsUri == "" && len(d.DevFlags.Manifests) == 0 {
-			if err := deploy.ApplyImageParams(PathSupported, imageParamMap); err != nil {
+			if err := deploy.ApplyParams(PathSupported, d.SetImageParamsMap(imageParamMap), false); err != nil {
 				return err
 			}
 		}

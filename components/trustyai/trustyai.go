@@ -2,12 +2,13 @@
 package trustyai
 
 import (
+	"path/filepath"
+
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"path/filepath"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -15,11 +16,6 @@ var (
 	ComponentName = "trustyai"
 	Path          = deploy.DefaultManifestPath + "/" + "trustyai-service-operator/base"
 )
-
-var imageParamMap = map[string]string{
-	"trustyaiServiceImage":  "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE",
-	"trustyaiOperatorImage": "RELATED_IMAGE_ODH_TRUSTYAI_OPERATOR_IMAGE",
-}
 
 type TrustyAI struct {
 	components.Component `json:""`
@@ -46,15 +42,14 @@ func (t *TrustyAI) GetComponentName() string {
 	return ComponentName
 }
 
-func (t *TrustyAI) SetImageParamsMap(imageMap map[string]string) map[string]string {
-	imageParamMap = imageMap
-	return imageParamMap
-}
-
 // Verifies that TrustyAI implements ComponentInterface
 var _ components.ComponentInterface = (*TrustyAI)(nil)
 
 func (t *TrustyAI) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
+	var imageParamMap = map[string]string{
+		"trustyaiServiceImage":  "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE",
+		"trustyaiOperatorImage": "RELATED_IMAGE_ODH_TRUSTYAI_OPERATOR_IMAGE",
+	}
 	enabled := t.GetManagementState() == operatorv1.Managed
 
 	platform, err := deploy.GetPlatform(cli)
@@ -69,7 +64,7 @@ func (t *TrustyAI) ReconcileComponent(cli client.Client, owner metav1.Object, ds
 		}
 
 		if dscispec.DevFlags.ManifestsUri == "" {
-			if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
+			if err := deploy.ApplyParams(Path, t.SetImageParamsMap(imageParamMap), false); err != nil {
 				return err
 			}
 		}

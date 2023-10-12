@@ -3,16 +3,16 @@ package kserve
 
 import (
 	"fmt"
+	"path/filepath"
+	"strings"
 
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"path/filepath"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"strings"
 )
 
 var (
@@ -23,14 +23,6 @@ var (
 	ServiceMeshOperator    = "servicemeshoperator"
 	ServerlessOperator     = "serverless-operator"
 )
-
-// Kserve to use.
-var imageParamMap = map[string]string{}
-
-// odh-model-controller to use.
-var dependentImageParamMap = map[string]string{
-	"odh-model-controller": "RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
-}
 
 type Kserve struct {
 	components.Component `json:""`
@@ -78,7 +70,7 @@ func (k *Kserve) GetComponentName() string {
 // Verifies that Kserve implements ComponentInterface.
 var _ components.ComponentInterface = (*Kserve)(nil)
 
-func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
+func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
 	// paramMap for Kserve to use.
 	var imageParamMap = map[string]string{}
 
@@ -117,7 +109,7 @@ func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dsci
 
 		// Update image parameters only when we do not have customized manifests set
 		if dscispec.DevFlags.ManifestsUri == "" && len(k.DevFlags.Manifests) == 0 {
-			if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
+			if err := deploy.ApplyParams(Path, k.SetImageParamsMap(imageParamMap), false); err != nil {
 				return err
 			}
 		}
@@ -134,7 +126,7 @@ func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dsci
 		}
 		// Update image parameters for odh-maodel-controller
 		if dscispec.DevFlags.ManifestsUri == "" && len(k.DevFlags.Manifests) == 0 {
-			if err := deploy.ApplyImageParams(DependentPath, dependentImageParamMap); err != nil {
+			if err := deploy.ApplyParams(DependentPath, k.SetImageParamsMap(dependentParamMap), false); err != nil {
 				return err
 			}
 		}

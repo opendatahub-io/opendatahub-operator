@@ -3,12 +3,17 @@
 package ray
 
 import (
+<<<<<<< HEAD
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+=======
+	"path/filepath"
+
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+>>>>>>> 2b41bb76 (feat(dw): pass down applicationNamespace to ray and codeflare (#619))
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"path/filepath"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -45,11 +50,13 @@ func (r *Ray) GetComponentName() string {
 // Verifies that Ray implements ComponentInterface.
 var _ components.ComponentInterface = (*Ray)(nil)
 
-func (r *Ray) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
+
+func (r *Ray) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
 	var imageParamMap = map[string]string{
 		"odh-kuberay-operator-controller-image": "RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE",
 		"namespace":                             dscispec.ApplicationsNamespace,
 	}
+	
 
 	enabled := r.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
@@ -65,7 +72,7 @@ func (r *Ray) ReconcileComponent(cli client.Client, owner metav1.Object, dscispe
 		}
 
 		if dscispec.DevFlags.ManifestsUri == "" || len(r.DevFlags.Manifests) == 0 {
-			if err := deploy.ApplyImageParams(RayPath, imageParamMap); err != nil {
+			if err := deploy.ApplyParams(RayPath, r.SetImageParamsMap(imageParamMap), true); err != nil {
 				return err
 			}
 		}

@@ -333,6 +333,11 @@ func ApplyParams(componentPath string, imageParamsMap map[string]string, isUpdat
 		}
 	}
 
+	// Update namespace variable with applicationNamepsace
+	if isUpdateNamespace {
+		envMap["namespace"] = imageParamsMap["namespace"]
+	}
+
 	// Move the existing file to a backup file and create empty file
 	if err := os.Rename(envFilePath, backupPath); err != nil {
 		return err
