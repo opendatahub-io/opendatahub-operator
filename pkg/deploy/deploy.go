@@ -294,8 +294,9 @@ priority of image values (from high to low):
 - image values set in manifests params.env if manifestsURI is set
 - RELATED_IMAGE_* values from CSV
 - image values set in manifests params.env if manifestsURI is not set.
+parameter isUpdateNamespace is used to set if should update namespace  with dsci applicationnamespace.
 */
-func ApplyImageParams(componentPath string, imageParamsMap map[string]string) error {
+func ApplyParams(componentPath string, imageParamsMap map[string]string, isUpdateNamespace bool) error {
 	envFilePath := filepath.Join(componentPath, "params.env")
 	// Require params.env at the root folder
 	file, err := os.Open(envFilePath)
@@ -330,6 +331,11 @@ func ApplyImageParams(componentPath string, imageParamsMap map[string]string) er
 		if relatedImageValue != "" {
 			envMap[i] = relatedImageValue
 		}
+	}
+
+	// Update namespace variable with applicationNamepsace
+	if isUpdateNamespace {
+		envMap["namespace"] = imageParamsMap["namespace"]
 	}
 
 	// Move the existing file to a backup file and create empty file

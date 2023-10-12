@@ -3,12 +3,13 @@
 package ray
 
 import (
+	"path/filepath"
+
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"path/filepath"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -16,10 +17,6 @@ var (
 	ComponentName = "ray"
 	RayPath       = deploy.DefaultManifestPath + "/" + "ray/operator/base"
 )
-
-var imageParamMap = map[string]string{
-	"odh-kuberay-operator-controller-image": "RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE",
-}
 
 type Ray struct {
 	components.Component `json:""`
@@ -42,11 +39,6 @@ func (r *Ray) OverrideManifests(_ string) error {
 	return nil
 }
 
-func (r *Ray) SetImageParamsMap(imageMap map[string]string) map[string]string {
-	imageParamMap = imageMap
-	return imageParamMap
-}
-
 func (r *Ray) GetComponentName() string {
 	return ComponentName
 }
@@ -55,6 +47,11 @@ func (r *Ray) GetComponentName() string {
 var _ components.ComponentInterface = (*Ray)(nil)
 
 func (r *Ray) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
+	var imageParamMap = map[string]string{
+		"odh-kuberay-operator-controller-image": "RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE",
+		"namespace":                             dscispec.ApplicationsNamespace,
+	}
+
 	enabled := r.GetManagementState() == operatorv1.Managed
 
 	platform, err := deploy.GetPlatform(cli)
@@ -69,7 +66,7 @@ func (r *Ray) ReconcileComponent(cli client.Client, owner metav1.Object, dscispe
 		}
 
 		if dscispec.DevFlags.ManifestsUri == "" || len(r.DevFlags.Manifests) == 0 {
-			if err := deploy.ApplyImageParams(RayPath, imageParamMap); err != nil {
+			if err := deploy.ApplyParams(RayPath, r.SetImageParamsMap(imageParamMap), true); err != nil {
 				return err
 			}
 		}

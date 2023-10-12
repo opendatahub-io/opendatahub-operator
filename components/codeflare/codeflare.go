@@ -5,12 +5,13 @@ package codeflare
 import (
 	"fmt"
 
+	"path/filepath"
+
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"path/filepath"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -20,8 +21,6 @@ var (
 	CodeflareOperator   = "codeflare-operator"
 	RHCodeflareOperator = "rhods-codeflare-operator"
 )
-
-var imageParamMap = map[string]string{}
 
 type CodeFlare struct {
 	components.Component `json:""`
@@ -44,11 +43,6 @@ func (c *CodeFlare) OverrideManifests(_ string) error {
 	return nil
 }
 
-func (c *CodeFlare) SetImageParamsMap(imageMap map[string]string) map[string]string {
-	imageParamMap = imageMap
-	return imageParamMap
-}
-
 func (c *CodeFlare) GetComponentName() string {
 	return ComponentName
 }
@@ -57,6 +51,9 @@ func (c *CodeFlare) GetComponentName() string {
 var _ components.ComponentInterface = (*CodeFlare)(nil)
 
 func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
+	var imageParamMap = map[string]string{
+		"namespace": dscispec.ApplicationsNamespace,
+	}
 	enabled := c.GetManagementState() == operatorv1.Managed
 	platform, err := deploy.GetPlatform(cli)
 	if err != nil {
@@ -85,7 +82,7 @@ func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, d
 
 		// Update image parameters only when we do not have customized manifests set
 		if dscispec.DevFlags.ManifestsUri == "" && len(c.DevFlags.Manifests) == 0 {
-			if err := deploy.ApplyImageParams(CodeflarePath, imageParamMap); err != nil {
+			if err := deploy.ApplyParams(CodeflarePath, c.SetImageParamsMap(imageParamMap), true); err != nil {
 				return err
 			}
 		}
