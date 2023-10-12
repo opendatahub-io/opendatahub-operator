@@ -1,4 +1,5 @@
-// Package datasciencepipelines provides utility functions to config Data Science Pipelines: Pipeline solution for end to end MLOps workflows that support the Kubeflow Pipelines SDK and Tekton
+// Package datasciencepipelines provides utility functions to config Data Science Pipelines:
+// Pipeline solution for end to end MLOps workflows that support the Kubeflow Pipelines SDK and Tekton
 package datasciencepipelines
 
 import (
@@ -46,10 +47,6 @@ func (d *DataSciencePipelines) OverrideManifests(_ string) error {
 	return nil
 }
 
-func (d *DataSciencePipelines) GetComponentDevFlags() components.DevFlags {
-	return d.DevFlags
-}
-
 func (d *DataSciencePipelines) SetImageParamsMap(imageMap map[string]string) map[string]string {
 	imageParamMap = imageMap
 	return imageParamMap
@@ -59,7 +56,7 @@ func (d *DataSciencePipelines) GetComponentName() string {
 	return ComponentName
 }
 
-// Verifies that Dashboard implements ComponentInterface
+// Verifies that Dashboard implements ComponentInterface.
 var _ components.ComponentInterface = (*DataSciencePipelines)(nil)
 
 func (d *DataSciencePipelines) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
@@ -77,7 +74,7 @@ func (d *DataSciencePipelines) ReconcileComponent(cli client.Client, owner metav
 		// check if the dependent operator installed is done in dashboard
 
 		// Update image parameters only when we do not have customized manifests set
-		if dscispec.DevFlags.ManifestsUri == "" {
+		if dscispec.DevFlags.ManifestsUri == "" && len(d.DevFlags.Manifests) == 0 {
 			if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
 				return err
 			}

@@ -1,8 +1,10 @@
-// Package codeflare provides utility functions to config CodeFlare as part of the stack which makes managing distributed compute infrastructure in the cloud easy and intuitive for Data Scientists
+// Package codeflare provides utility functions to config CodeFlare as part of the stack
+// which makes managing distributed compute infrastructure in the cloud easy and intuitive for Data Scientists
 package codeflare
 
 import (
 	"fmt"
+
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -38,13 +40,8 @@ func (c *CodeFlare) OverrideManifests(_ string) error {
 			defaultKustomizePath = manifestConfig.SourcePath
 		}
 		CodeflarePath = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
-
 	}
 	return nil
-}
-
-func (c *CodeFlare) GetComponentDevFlags() components.DevFlags {
-	return c.DevFlags
 }
 
 func (c *CodeFlare) SetImageParamsMap(imageMap map[string]string) map[string]string {
@@ -56,7 +53,7 @@ func (c *CodeFlare) GetComponentName() string {
 	return ComponentName
 }
 
-// Verifies that CodeFlare implements ComponentInterface
+// Verifies that CodeFlare implements ComponentInterface.
 var _ components.ComponentInterface = (*CodeFlare)(nil)
 
 func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
@@ -87,7 +84,7 @@ func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, d
 		}
 
 		// Update image parameters only when we do not have customized manifests set
-		if dscispec.DevFlags.ManifestsUri == "" {
+		if dscispec.DevFlags.ManifestsUri == "" && len(c.DevFlags.Manifests) == 0 {
 			if err := deploy.ApplyImageParams(CodeflarePath, imageParamMap); err != nil {
 				return err
 			}
@@ -97,7 +94,6 @@ func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, d
 	// Deploy Codeflare
 	err = deploy.DeployManifestsFromPath(cli, owner, CodeflarePath, dscispec.ApplicationsNamespace, c.GetComponentName(), enabled)
 	return err
-
 }
 
 func (c *CodeFlare) DeepCopyInto(target *CodeFlare) {

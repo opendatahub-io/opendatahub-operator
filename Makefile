@@ -58,11 +58,13 @@ KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 OPERATOR_SDK ?= $(LOCALBIN)/operator-sdk
+GOLANGCI_LINT ?= $(LOCALBIN)/golangci-lint
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v3.8.7
 CONTROLLER_GEN_VERSION ?= v0.9.2
 OPERATOR_SDK_VERSION ?= v1.24.1
+GOLANGCI_LINT_VERSION ?= v1.54.0
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.24.2
 
@@ -79,7 +81,7 @@ SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
 # E2E tests additional flags
-E2E_TEST_FLAGS = "--skip-deletion=true" # See README.md
+E2E_TEST_FLAGS = "--skip-deletion=false" -timeout 15m # See README.md, default go test timeout 10m
 
 # Default image-build is to not use local odh-manifests folder
 # set to "true" to use local instead
@@ -108,11 +110,25 @@ help: ## Display this help.
 
 ##@ Development
 
+define go-mod-version
+$(shell go mod graph | grep $(1) | head -n 1 | cut -d'@' -f 2)
+endef
+
+# Using controller-gen to fetch external CRDs and put them in config/crd/external folder
+# They're used in tests, as they have to be created for controller to work
+define fetch-external-crds
+GOFLAGS="-mod=readonly" $(CONTROLLER_GEN) crd \
+paths=$(shell go env GOPATH)/pkg/mod/$(1)@$(call go-mod-version,$(1))/$(2)/... \
+output:crd:artifacts:config=config/crd/external
+endef
+
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 # TODO: enable below when we do webhook
 # $(CONTROLLER_GEN) rbac:roleName=controller-manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 	$(CONTROLLER_GEN) rbac:roleName=controller-manager-role crd paths="./..." output:crd:artifacts:config=config/crd/bases
+	$(call fetch-external-crds,github.com/openshift/api,route/v1)
+	$(call fetch-external-crds,github.com/openshift/api,user/v1)
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
@@ -126,12 +142,14 @@ fmt: ## Run go fmt against code.
 vet: ## Run go vet against code.
 	go vet ./...
 
-.PHONY: test
-test: manifests generate fmt vet envtest ## Run tests.
+.PHONY: lint
+lint: golangci-lint ## Run golangci-lint against code.
+	$(GOLANGCI_LINT) run --fix --sort-results
+
+.PHONY: unit-test
+unit-test: manifests generate fmt vet envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./controllers/... -v  -coverprofile cover.out
 
-# E2E tests additional flags
-E2E_TEST_FLAGS = "--skip-deletion=false" -timeout 15m # See README.md, default go test timeout 10m
 
 .PHONY: get-manifests
 get-manifests: ## Fetch components manifests from remote git repo
@@ -148,7 +166,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./main.go
 
 .PHONY: image-build
-image-build: test ## Build image with the manager.
+image-build: unit-test ## Build image with the manager.
 	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/Dockerfile  ${IMAGE_BUILD_FLAGS} -t $(IMG) .
 
 .PHONY: image-push
@@ -190,7 +208,7 @@ KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/k
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
 $(KUSTOMIZE): $(LOCALBIN)
-	test -s $(LOCALBIN)/kustomize || { curl -s $(KUSTOMIZE_INSTALL_SCRIPT) | bash -s -- $(subst v,,$(KUSTOMIZE_VERSION)) $(LOCALBIN); }
+	test -s $(LOCALBIN)/kustomize || { curl -s $(KUSTOMIZE_INSTALL_SCRIPT) | sh -s -- $(subst v,,$(KUSTOMIZE_VERSION)) $(LOCALBIN); }
 
 .PHONY: controller-gen
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.
@@ -216,6 +234,12 @@ endif
 else
 OPERATOR_SDK = $(shell which operator-sdk)
 endif
+
+GOLANGCI_LINT_INSTALL_SCRIPT ?= 'https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh'
+.PHONY: golangci-lint
+golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
+$(GOLANGCI_LINT): $(LOCALBIN)
+	test -s $(LOCALBIN)/golangci-lint || { curl -sSfL $(GOLANGCI_LINT_INSTALL_SCRIPT) | bash -s $(GOLANGCI_LINT_VERSION); }
 
 BUNDLE_DIR ?= "bundle"
 .PHONY: bundle

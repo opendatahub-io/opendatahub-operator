@@ -34,7 +34,7 @@ type Workbenches struct {
 }
 
 func (w *Workbenches) OverrideManifests(platform string) error {
-	//Download manifests if defined by devflags
+	// Download manifests if defined by devflags
 	if len(w.DevFlags.Manifests) != 0 {
 		// Go through each manifests and set the overlays if defined
 		for _, subcomponent := range w.DevFlags.Manifests {
@@ -87,10 +87,6 @@ func (w *Workbenches) OverrideManifests(platform string) error {
 	return nil
 }
 
-func (w *Workbenches) GetComponentDevFlags() components.DevFlags {
-	return w.DevFlags
-}
-
 func (w *Workbenches) GetComponentName() string {
 	return ComponentName
 }
@@ -100,7 +96,7 @@ func (w *Workbenches) SetImageParamsMap(imageMap map[string]string) map[string]s
 	return imageParamMap
 }
 
-// Verifies that Dashboard implements ComponentInterface
+// Verifies that Dashboard implements ComponentInterface.
 var _ components.ComponentInterface = (*Workbenches)(nil)
 
 func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
@@ -139,7 +135,7 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 
 	// Update image parameters for nbc in downstream
 	if enabled {
-		if dscispec.DevFlags.ManifestsUri == "" {
+		if dscispec.DevFlags.ManifestsUri == "" && len(w.DevFlags.Manifests) == 0 {
 			if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
 				if err := deploy.ApplyImageParams(notebookControllerPath, imageParamMap); err != nil {
 					return err
@@ -168,7 +164,6 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 		err = deploy.DeployManifestsFromPath(cli, owner, notebookImagesPathSupported, dscispec.ApplicationsNamespace, ComponentName, enabled)
 		return err
 	}
-
 }
 
 func (w *Workbenches) DeepCopyInto(target *Workbenches) {

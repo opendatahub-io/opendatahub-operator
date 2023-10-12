@@ -4,25 +4,23 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"k8s.io/apimachinery/pkg/types"
-	"os"
-	"testing"
-	"time"
-
+	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	"github.com/pkg/errors"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	k8sclient "k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	"os"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlruntime "sigs.k8s.io/controller-runtime/pkg/client/config"
-
-	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"testing"
+	"time"
 )
 
 var (
@@ -31,7 +29,7 @@ var (
 	scheme       = runtime.NewScheme()
 )
 
-// Holds information specific to individual tests
+// Holds information specific to individual tests.
 type testContext struct {
 	// Rest config
 	cfg *rest.Config
@@ -54,7 +52,6 @@ type testContext struct {
 }
 
 func NewTestContext() (*testContext, error) {
-
 	// GetConfig(): If KUBECONFIG env variable is set, it is used to create
 	// the client, else the inClusterConfig() is used.
 	// Lastly if none of them are set, it uses  $HOME/.kube/config to create the client.
@@ -99,7 +96,6 @@ func NewTestContext() (*testContext, error) {
 
 // TestOdhOperator sets up the testing suite for ODH Operator.
 func TestOdhOperator(t *testing.T) {
-
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(routev1.AddToScheme(scheme))
 	utilruntime.Must(apiextv1.AddToScheme(scheme))
@@ -121,7 +117,7 @@ func TestOdhOperator(t *testing.T) {
 }
 
 func TestMain(m *testing.M) {
-	//call flag.Parse() here if TestMain uses flags
+	// call flag.Parse() here if TestMain uses flags
 	flag.StringVar(&opNamespace, "operator-namespace",
 		"opendatahub-operator-system", "Namespace where the odh operator is deployed")
 	flag.BoolVar(&skipDeletion, "skip-deletion", false, "skip deletion of the controllers")
