@@ -689,9 +689,6 @@ spec:
           - secrets
           verbs:
           - '*'
-          - create
-          - get
-          - watch
         - apiGroups:
           - ""
           resources:
@@ -1235,9 +1232,6 @@ spec:
           - oauthclients
           verbs:
           - '*'
-          - create
-          - delete
-          - get
         - apiGroups:
           - opendatahub.io
           resources:

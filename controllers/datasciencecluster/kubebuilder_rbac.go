@@ -155,6 +155,7 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="core",resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
 
 // +kubebuilder:rbac:groups="core",resources=secrets,verbs=*
+// +kubebuilder:rbac:groups="core",resources=secrets/finalizers,verbs=*
 
 // +kubebuilder:rbac:groups="core",resources=rhmis,verbs=watch;list
 

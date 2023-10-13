@@ -483,9 +483,6 @@ rules:
   - secrets
   verbs:
   - '*'
-  - create
-  - get
-  - watch
 - apiGroups:
   - ""
   resources:
@@ -1029,9 +1026,6 @@ rules:
   - oauthclients
   verbs:
   - '*'
-  - create
-  - delete
-  - get
 - apiGroups:
   - opendatahub.io
   resources:
