@@ -14,7 +14,7 @@ patches:
   target:
     group: operators.coreos.com
     kind: ClusterServiceVersion
-    name: rhods-operator.v2.1.0
+    name: rhods-operator.v2.4.0
 
 # [WEBHOOK] To enable webhooks, uncomment all the sections with [WEBHOOK] prefix.
 # Do NOT uncomment sections with prefix [CERTMANAGER], as OLM does not support cert-manager.

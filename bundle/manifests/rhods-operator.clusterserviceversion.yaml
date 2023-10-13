@@ -68,7 +68,7 @@ metadata:
     capabilities: Full Lifecycle
     categories: AI/Machine Learning, Big Data
     certified: "False"
-    containerImage: quay.io/opendatahub/opendatahub-operator:v2.1.0
+    containerImage: quay.io/opendatahub/opendatahub-operator:v2.4.0
     createdAt: "2023-8-23T00:00:00Z"
     olm.skipRange: '>=1.0.0 <2.0.0'
     operatorframework.io/initialization-resource: |-
@@ -115,7 +115,7 @@ metadata:
     operators.operatorframework.io/internal-objects: '[dscinitialization.opendatahub.io]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/red-hat-data-services/rhods-operator
-  name: rhods-operator.v2.1.0
+  name: rhods-operator.v2.4.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -1601,4 +1601,4 @@ spec:
   minKubeVersion: 1.22.0
   provider:
     name: Red Hat
-  version: 2.1.0
+  version: 2.4.0
