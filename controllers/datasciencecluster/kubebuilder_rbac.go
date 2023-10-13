@@ -88,7 +88,7 @@ package datasciencecluster
 
 // +kubebuilder:rbac:groups="operator.openshift.io",resources=consoles,verbs=list;watch;patch;delete
 
-// +kubebuilder:rbac:groups="oauth.openshift.io",resources=oauthclients,verbs=*
+// +kubebuilder:rbac:groups="oauth.openshift.io",resources=oauthclients,verbs=create;delete;list;watch;update;patch;get
 
 // +kubebuilder:rbac:groups="networking.k8s.io",resources=networkpolicies,verbs=get;create;list;watch;delete;update;patch
 // +kubebuilder:rbac:groups="networking.k8s.io",resources=ingresses,verbs=create;delete;list;update;watch;patch;get
@@ -152,7 +152,8 @@ package datasciencecluster
 
 // +kubebuilder:rbac:groups="core",resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
 
-// +kubebuilder:rbac:groups="core",resources=secrets,verbs=*
+// +kubebuilder:rbac:groups="core",resources=secrets,verbs=create;delete;list;update;watch;patch
+// +kubebuilder:rbac:groups="core",resources=secrets/finalizers,verbs=get;create;watch;update;patch;list;delete
 
 // +kubebuilder:rbac:groups="core",resources=rhmis,verbs=watch;list
 
@@ -185,7 +186,6 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="codeflare.codeflare.dev",resources=instascales,verbs=get;list;watch;create;update;patch;delete
 
 // +kubebuilder:rbac:groups="cert-manager.io",resources=certificates;issuers,verbs=create;patch
-
 
 // OpenVino still need buildconfig
 // +kubebuilder:rbac:groups="build.openshift.io",resources=builds,verbs=create;patch;delete;list;watch

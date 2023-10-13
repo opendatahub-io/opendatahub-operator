@@ -450,16 +450,24 @@ rules:
   resources:
   - secrets
   verbs:
-  - '*'
   - create
-  - get
+  - delete
+  - list
+  - patch
+  - update
   - watch
 - apiGroups:
   - ""
   resources:
   - secrets/finalizers
   verbs:
-  - '*'
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - ""
   resources:
@@ -996,10 +1004,13 @@ rules:
   resources:
   - oauthclients
   verbs:
-  - '*'
   - create
   - delete
   - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - opendatahub.io
   resources:
