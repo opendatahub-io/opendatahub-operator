@@ -20,9 +20,9 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	"os"
-
+	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"os"
 
 	datascienceclusterv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -76,6 +76,7 @@ func init() {
 	utilruntime.Must(ofapiv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(ocuserv1.Install(scheme))
 	utilruntime.Must(ofapiv2.AddToScheme(scheme))
+	utilruntime.Must(kfdefv1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 

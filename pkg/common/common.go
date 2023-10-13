@@ -20,22 +20,20 @@ package common
 import (
 	"context"
 	"fmt"
-	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
-	"google.golang.org/appengine/log"
-	"io/ioutil"
-	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/client-go/rest"
 	"os"
 	"strings"
 	"time"
 
+	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	olmclientset "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/operators/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	authv1 "k8s.io/api/rbac/v1"
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -157,7 +155,7 @@ func CreateNamespace(cli client.Client, namespace string) error {
 
 func GetOperatorNamespace() (string, error) {
 	operatorNs := "openshift-operators"
-	data, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
+	data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
 	if err == nil {
 		if ns := strings.TrimSpace(string(data)); len(ns) > 0 {
 			operatorNs = ns
@@ -221,7 +219,7 @@ func removeCsv(c client.Client, r *rest.Config) error {
 	}
 
 	if operatorCsv != nil {
-		log.Infof(context.TODO(), "Deleting csv %s", operatorCsv.Name)
+		fmt.Printf("Deleting csv %s", operatorCsv.Name)
 		err = c.Delete(context.TODO(), operatorCsv, []client.DeleteOption{}...)
 		if err != nil {
 			if apierrs.IsNotFound(err) {
@@ -229,9 +227,9 @@ func removeCsv(c client.Client, r *rest.Config) error {
 			}
 			return fmt.Errorf("error deleting clusterserviceversion: %v", err)
 		}
-		log.Infof(context.TODO(), "Clusterserviceversion %s deleted as a part of uninstall.", operatorCsv.Name)
+		fmt.Printf("Clusterserviceversion %s deleted as a part of uninstall.", operatorCsv.Name)
 	}
-	log.Infof(context.TODO(), "No clusterserviceversion for the operator found.")
+	fmt.Printf("No clusterserviceversion for the operator found.")
 	return nil
 }
 
@@ -301,13 +299,13 @@ func OperatorUninstall(cli client.Client, cfg *rest.Config) error {
 			if err := cli.Delete(context.TODO(), &namespace, []client.DeleteOption{}...); err != nil {
 				return fmt.Errorf("error deleting namespace %v: %v", namespace.Name, err)
 			}
-			log.Infof(context.TODO(), "Namespace %s deleted as a part of uninstall.", namespace.Name)
+			fmt.Printf("Namespace %s deleted as a part of uninstall.", namespace.Name)
 		}
 	}
 
 	// Wait for all resources to get cleaned up
 	time.Sleep(10 * time.Second)
-	log.Infof(context.TODO(), "All resources deleted as part of uninstall. Removing the operator csv")
+	fmt.Printf("All resources deleted as part of uninstall. Removing the operator csv")
 	return removeCsv(cli, cfg)
 }
 

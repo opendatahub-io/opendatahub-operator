@@ -91,7 +91,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	if len(instances.Items) == 0 {
 		// Request object not found, could have been deleted after reconcile request.
-		// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
+		// Owned objects are automatically garbage collected. For additional cleanup logic use operatorUninstall function.
 		// Return and don't requeue
 		if common.HasDeleteConfigMap(r.Client) {
 			return reconcile.Result{}, fmt.Errorf("error while operator uninstall: %v",
@@ -130,13 +130,11 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	// If Deletion configmap is found, reconcile to trigger operatorUninstall
 	if common.HasDeleteConfigMap(r.Client) {
-
-		if err := r.Client.Delete(context.TODO(), instance, []client.DeleteOption{}...); err != nil {
+		if err := r.Client.Delete(context.TODO(), instance); err != nil {
 			if !apierrs.IsNotFound(err) {
 				return reconcile.Result{}, err
 			}
 		}
-
 		return reconcile.Result{Requeue: true}, nil
 	}
 	// Verify a valid DSCInitialization instance is created
@@ -394,7 +392,10 @@ func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(a client
 		return []reconcile.Request{{
 			NamespacedName: types.NamespacedName{Name: instanceList.Items[0].Name},
 		}}
-	} else {
-		return nil
+	} else if len(instanceList.Items) == 0 {
+		return []reconcile.Request{{
+			NamespacedName: types.NamespacedName{Name: "default"},
+		}}
 	}
+	return nil
 }
