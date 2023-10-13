@@ -12,6 +12,7 @@ require (
 	github.com/openshift/api v0.0.0-20230823114715-5fdd7511b790
 	github.com/openshift/custom-resource-status v1.1.2
 	github.com/operator-framework/api v0.17.6
+	github.com/operator-framework/operator-lifecycle-manager v0.18.3
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.8.3
 	golang.org/x/exp v0.0.0-20230905200255-921286631fa9
@@ -82,7 +83,7 @@ require (
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.13.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.3.0 // indirect
-	google.golang.org/appengine v1.6.7 // indirect
+	google.golang.org/appengine v1.6.7
 	google.golang.org/protobuf v1.31.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
@@ -98,7 +99,6 @@ require (
 
 replace (
 	github.com/tektoncd/pipeline => github.com/tektoncd/pipeline v0.12.0
-	go.uber.org/multierr => go.uber.org/multierr v1.6.0
 	//github.com/go-openapi/spec => github.com/go-openapi/spec v0.19.3
 	k8s.io/api => k8s.io/api v0.26.0
 	//k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.24.9
