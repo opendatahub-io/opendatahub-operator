@@ -212,7 +212,7 @@ func (d *Dashboard) applyRhodsSpecificConfigs(cli client.Client, owner metav1.Ob
 		deploy.ManagedRhods:     "dedicated-admins",
 	}[platform]
 
-	if err := common.ReplaceStringsInFile(dashboardConfig, map[string]string{"<admin_groups>": adminGroups}); err != nil {
+	if err := common.ReplaceInFile(dashboardConfig, map[string]string{"<admin_groups>": adminGroups}); err != nil {
 		return err
 	}
 
@@ -261,7 +261,7 @@ func (d *Dashboard) deployConsoleLink(cli client.Client, owner metav1.Object, na
 
 	domainIndex := strings.Index(consoleRoute.Spec.Host, ".")
 	consoleLinkDomain := consoleRoute.Spec.Host[domainIndex+1:]
-	err := common.ReplaceStringsInFile(pathConsoleLink, map[string]string{
+	err := common.ReplaceInFile(pathConsoleLink, map[string]string{
 		"<rhods-dashboard-url>": "https://rhods-dashboard-" + namespace + "." + consoleLinkDomain,
 		"<section-title>":       sectionTitle,
 	})

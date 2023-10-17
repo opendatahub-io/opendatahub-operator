@@ -89,7 +89,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsci.DSCInitialization, 
 	r.Log.Info("Success: read prometheus data from prometheus.yaml from CM")
 
 	// Update prometheus manifests
-	err = common.ReplaceStringsInFile(filepath.Join(prometheusManifestsPath, "prometheus.yaml"),
+	err = common.ReplaceInFile(filepath.Join(prometheusManifestsPath, "prometheus.yaml"),
 		map[string]string{
 			"<set_alertmanager_host>":    alertmanagerRoute.Spec.Host,
 			"<alertmanager_config_hash>": alertmanagerData,
@@ -100,7 +100,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsci.DSCInitialization, 
 		return err
 	}
 
-	err = common.ReplaceStringsInFile(filepath.Join(prometheusManifestsPath, "prometheus-viewer-rolebinding.yaml"),
+	err = common.ReplaceInFile(filepath.Join(prometheusManifestsPath, "prometheus-viewer-rolebinding.yaml"),
 		map[string]string{
 			"<odh_monitoring_project>": dsciInit.Spec.Monitoring.Namespace,
 		})
@@ -163,7 +163,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 
 	// Replace variables in alertmanager configmap
 	// TODO: Following variables can later be exposed by the API
-	err = common.ReplaceStringsInFile(filepath.Join(deploy.DefaultManifestPath, "monitoring", "alertmanager", "alertmanager-configs.yaml"),
+	err = common.ReplaceInFile(filepath.Join(deploy.DefaultManifestPath, "monitoring", "alertmanager", "alertmanager-configs.yaml"),
 		map[string]string{
 			"<snitch_url>":      b64.StdEncoding.EncodeToString(deadmansnitchSecret.Data["SNITCH_URL"]),
 			"<pagerduty_token>": b64.StdEncoding.EncodeToString(pagerDutySecret.Data["PAGERDUTY_KEY"]),

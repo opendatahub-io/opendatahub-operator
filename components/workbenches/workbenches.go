@@ -2,6 +2,7 @@
 package workbenches
 
 import (
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 	"path/filepath"
 	"strings"
 
@@ -130,6 +131,9 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 	}
 	if shouldConfigureServiceMesh {
 		actualNbCtrlPath = notebookControllerServiceMeshPath
+		if err := servicemesh.OverwriteIstioGatewayVar(dscispec.ApplicationsNamespace, kfnotebookControllerServiceMeshPath); err != nil {
+			return err
+		}
 	}
 
 	if err := deploy.DeployManifestsFromPath(cli, owner, actualNbCtrlPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {

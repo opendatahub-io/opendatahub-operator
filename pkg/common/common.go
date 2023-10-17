@@ -20,21 +20,25 @@ package common
 import (
 	"fmt"
 	"os"
-	"strings"
+	"regexp"
 )
 
-// ReplaceStringsInFile replaces variable with value in manifests during runtime.
-func ReplaceStringsInFile(fileName string, replacements map[string]string) error {
+// ReplaceInFile replaces content in the given file either by plain strings or regex patterns based on the content.
+func ReplaceInFile(fileName string, replacements map[string]string) error {
 	// Read the contents of the file
 	fileContent, err := os.ReadFile(fileName)
 	if err != nil {
 		return fmt.Errorf("failed to read file: %w", err)
 	}
 
-	// Replace all occurrences of the strings in the map
+	// Replace content using string or regex
 	newContent := string(fileContent)
-	for string1, string2 := range replacements {
-		newContent = strings.ReplaceAll(newContent, string1, string2)
+	for pattern, replacement := range replacements {
+		regexPattern, err := regexp.Compile(pattern)
+		if err != nil {
+			return fmt.Errorf("failed to compile pattern: %w", err)
+		}
+		newContent = regexPattern.ReplaceAllString(newContent, replacement)
 	}
 
 	// Write the modified content back to the file
