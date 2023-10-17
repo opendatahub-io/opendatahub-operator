@@ -17,9 +17,15 @@ runs:
     - name: Container image registry
       shell: bash
       run: |
-        podman run -d -p 5000:5000 --name registry registry:2.8.1
+        export REGISTRY_NAME='registry'
+        export REGISTRY_PORT=5001
+        export REGISTRY_ADDRESS=$(hostname -i):$REGISTRY_PORT
 
-        export REGISTRY_ADDRESS=$(hostname -i):5000
+        docker run \
+            -d --restart=always -p $(hostname -i):$REGISTRY_PORT:$REGISTRY_PORT --name $REGISTRY_NAME \
+            registry:2.8.1
+            
+
         echo "REGISTRY_ADDRESS=${REGISTRY_ADDRESS}" >> $GITHUB_ENV
         echo "Container image registry started at ${REGISTRY_ADDRESS}"
 
@@ -37,7 +43,7 @@ runs:
     - name: Setup KinD cluster
       uses: helm/kind-action@v1.8.0
       with:
-        cluster_name: cluster
+        cluster_name: kind-cluster
         version: v0.17.0
         config: ${{ env.KIND_CONFIG_FILE }}
 
