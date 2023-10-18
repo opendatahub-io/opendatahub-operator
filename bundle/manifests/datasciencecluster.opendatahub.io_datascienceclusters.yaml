@@ -12,6 +12,8 @@ spec:
     listKind: DataScienceClusterList
     plural: datascienceclusters
     singular: datasciencecluster
+    shortNames:
+    - dsc
   scope: Cluster
   versions:
   - name: v1

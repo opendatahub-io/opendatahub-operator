@@ -12,6 +12,9 @@ spec:
     listKind: DSCInitializationList
     plural: dscinitializations
     singular: dscinitialization
+    shortNames:
+    - dsci
+    - dscinit
   scope: Cluster
   versions:
   - additionalPrinterColumns:
