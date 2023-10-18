@@ -24,7 +24,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  QUAY_ORG: opendatahub
+  QUAY_ORG: ${{ secrets.QUAY_ORG}}
   IMAGE_REGISTRY: quay.io
   BUNDLE_IMAGE_NAME: opendatahub-operator-bundle
   IMAGE_NAME: opendatahub-operator
