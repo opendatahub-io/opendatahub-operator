@@ -17,12 +17,12 @@ runs:
     - name: Container image registry
       shell: bash
       run: |
-        export REGISTRY_NAME='registry'
+        export REGISTRY_NAME='kind-registry'
         export REGISTRY_PORT=5001
         export REGISTRY_ADDRESS=$(hostname -i):$REGISTRY_PORT
 
         docker run \
-            -d --restart=always -p $(hostname -i):$REGISTRY_PORT:$REGISTRY_PORT --name $REGISTRY_NAME \
+            -d --restart=always -p $REGISTRY_ADDRESS:$REGISTRY_PORT --name $REGISTRY_NAME \
             registry:2.8.1
             
 
