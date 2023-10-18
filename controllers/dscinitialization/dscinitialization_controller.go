@@ -21,7 +21,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 	"path/filepath"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -126,7 +126,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	// Apply update from legacy operator
 	// TODO: Update upgrade logic to get components through KfDef
-	if err = common.RemoveKfDefInstances(r.Client); err != nil {
+	if err = upgrade.UpdateFromLegacyVersion(r.Client, platform); err != nil {
 		r.Log.Error(err, "unable to update from legacy operator version")
 		return reconcile.Result{}, err
 	}

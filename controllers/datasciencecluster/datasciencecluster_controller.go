@@ -21,7 +21,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/rest"
 	"reflect"
@@ -93,12 +93,10 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		// Request object not found, could have been deleted after reconcile request.
 		// Owned objects are automatically garbage collected. For additional cleanup logic use operatorUninstall function.
 		// Return and don't requeue
-		if common.HasDeleteConfigMap(r.Client) {
+		if upgrade.HasDeleteConfigMap(r.Client) {
 			return reconcile.Result{}, fmt.Errorf("error while operator uninstall: %v",
-				common.OperatorUninstall(r.Client, r.RestConfig))
-
+				upgrade.OperatorUninstall(r.Client, r.RestConfig))
 		}
-
 		return ctrl.Result{}, nil
 	}
 
@@ -106,7 +104,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	if instance.GetDeletionTimestamp() != nil {
 		r.Log.Info("DataScienceCluster instance is deleted.", "name", instance.Name)
-		if common.HasDeleteConfigMap(r.Client) {
+		if upgrade.HasDeleteConfigMap(r.Client) {
 			// if delete configmap exists, requeue the request to handle operator uninstall
 			return reconcile.Result{Requeue: true}, nil
 		}
@@ -129,7 +127,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	// If Deletion configmap is found, reconcile to trigger operatorUninstall
-	if common.HasDeleteConfigMap(r.Client) {
+	if upgrade.HasDeleteConfigMap(r.Client) {
 		if err := r.Client.Delete(context.TODO(), instance); err != nil {
 			if !apierrs.IsNotFound(err) {
 				return reconcile.Result{}, err
@@ -381,7 +379,7 @@ func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(a client
 		// Trigger reconcile function when uninstall configmap is created
 		if a.GetObjectKind().GroupVersionKind().Kind == "ConfigMap" {
 			labels := a.GetLabels()
-			if val, ok := labels[common.DeleteConfigMapLabel]; ok && val == "true" {
+			if val, ok := labels[upgrade.DeleteConfigMapLabel]; ok && val == "true" {
 				return []reconcile.Request{{
 					NamespacedName: types.NamespacedName{Name: instanceList.Items[0].Name},
 				}}

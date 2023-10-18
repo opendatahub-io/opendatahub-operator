@@ -111,7 +111,7 @@ package datasciencecluster
 
 /* TODO: cleanup once kfdef is not needed*/
 // +kubebuilder:rbac:groups="kubeflow.org",resources=*,verbs=*
-// +kubebuilder:rbac:groups="kfdef.apps.kubeflow.org",resources=kfdefs,verbs=get;list;watch;patch;delete
+// +kubebuilder:rbac:groups="kfdef.apps.kubeflow.org",resources=kfdefs,verbs=get;list;watch;patch;delete;update
 
 // +kubebuilder:rbac:groups="integreatly.org",resources=rhmis,verbs=list;watch;patch;delete
 

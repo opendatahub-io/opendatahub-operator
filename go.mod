@@ -83,7 +83,7 @@ require (
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.13.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.3.0 // indirect
-	google.golang.org/appengine v1.6.7
+	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
@@ -99,15 +99,10 @@ require (
 
 replace (
 	github.com/tektoncd/pipeline => github.com/tektoncd/pipeline v0.12.0
-	//github.com/go-openapi/spec => github.com/go-openapi/spec v0.19.3
+	go.uber.org/multierr => go.uber.org/multierr v1.6.0
 	k8s.io/api => k8s.io/api v0.26.0
-	//k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.24.9
-	//k8s.io/apimachinery => k8s.io/apimachinery v0.24.15
 	k8s.io/client-go => k8s.io/client-go v0.26.0
 	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20230113010536-ace3e4a52ca1
-//sigs.k8s.io/controller-runtime => sigs.k8s.io/controller-runtime v0.11.0
-//sigs.k8s.io/kustomize/api => sigs.k8s.io/kustomize/api v0.12.1
-//sigs.k8s.io/kustomize/kyaml => sigs.k8s.io/kustomize/kyaml v0.13.10
 )
 
 exclude github.com/openshift/api v3.9.0+incompatible
