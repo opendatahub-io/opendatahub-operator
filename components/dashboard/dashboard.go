@@ -21,7 +21,7 @@ import (
 )
 
 var (
-	ComponentName          = "odh-dashboard"
+	ComponentName          = "dashboard"
 	ComponentNameSupported = "rhods-dashboard"
 	Path                   = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
 	PathSupported          = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/rhods"
