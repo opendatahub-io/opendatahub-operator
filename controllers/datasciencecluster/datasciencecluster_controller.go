@@ -164,12 +164,6 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 	}
 
-	// reconcile TrustyAI component
-	if instance, err = r.reconcileSubComponent(ctx, instance, &(instance.Spec.Components.TrustyAI)); err != nil {
-		// no need to log any errors as this is done in the reconcileSubComponent method
-		componentErrors = multierror.Append(componentErrors, err)
-	}
-
 	// Process errors for components
 	if componentErrors != nil {
 		r.Log.Info("DataScienceCluster Deployment Incomplete.")
