@@ -18,6 +18,7 @@ package dscinitialization_test
 
 import (
 	"context"
+	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"path/filepath"
 	"testing"
@@ -107,6 +108,7 @@ var _ = BeforeSuite(func() {
 	utilruntime.Must(ofapi.AddToScheme(testScheme))
 	utilruntime.Must(routev1.Install(testScheme))
 	utilruntime.Must(userv1.Install(testScheme))
+	utilruntime.Must(kfdefv1.AddToScheme(testScheme))
 	//+kubebuilder:scaffold:scheme
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: testScheme})
