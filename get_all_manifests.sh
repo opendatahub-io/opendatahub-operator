@@ -20,6 +20,8 @@ declare -A COMPONENT_MANIFESTS=(
     ["odh-notebook-controller"]="opendatahub-io:kubeflow:v1.7-branch:components/odh-notebook-controller/config:odh-notebook-controller/odh-notebook-controller"
     ["notebooks"]="opendatahub-io:notebooks:main:manifests:notebooks"
     ["trustyai"]="trustyai-explainability:trustyai-service-operator:release/1.10.2:config:trustyai-service-operator"
+    ["model-mesh"]="opendatahub-io:modelmesh-serving:release-0.11.0:config:model-mesh"
+    ["odh-model-controller"]="opendatahub-io:odh-model-controller:release-0.11.0:config:odh-model-controller"
 )
 
 # Allow overwriting repo using flags component=repo
@@ -60,9 +62,12 @@ MANIFESTS_TARBALL_URL="${GITHUB_URL}/${MANIFEST_ORG}/odh-manifests/tarball/${MAN
 
 mkdir -p ./.odh-manifests-tmp/ ./odh-manifests/
 wget -q -c ${MANIFESTS_TARBALL_URL} -O - | tar -zxv -C ./.odh-manifests-tmp/ --strip-components 1 > /dev/null
+<<<<<<< HEAD
 # modelmesh
 cp -r ./.odh-manifests-tmp/model-mesh/ ./odh-manifests
 cp -r ./.odh-manifests-tmp/odh-model-controller/ ./odh-manifests
+=======
+>>>>>>> 2231cba1 (add manifests for odh-model-controller and model-mesh (#639))
 cp -r ./.odh-manifests-tmp/modelmesh-monitoring/ ./odh-manifests
 # Kserve
 cp -r ./.odh-manifests-tmp/kserve/ ./odh-manifests
