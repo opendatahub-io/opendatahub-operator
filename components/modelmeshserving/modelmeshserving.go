@@ -28,18 +28,33 @@ type ModelMeshServing struct {
 }
 
 func (m *ModelMeshServing) OverrideManifests(_ string) error {
-	// If devflags are set, update default manifests path
-	if len(m.DevFlags.Manifests) != 0 {
-		manifestConfig := m.DevFlags.Manifests[0]
-		if err := deploy.DownloadManifests(ComponentName, manifestConfig); err != nil {
-			return err
+	// Go through each manifests and set the overlays if defined
+	for _, subcomponent := range m.DevFlags.Manifests {
+		if strings.Contains(subcomponent.URI, DependentComponentName) {
+			// Download subcomponent
+			if err := deploy.DownloadManifests(DependentComponentName, subcomponent); err != nil {
+				return err
+			}
+			// If overlay is defined, update paths
+			defaultKustomizePath := "base"
+			if subcomponent.SourcePath != "" {
+				defaultKustomizePath = subcomponent.SourcePath
+			}
+			DependentPath = filepath.Join(deploy.DefaultManifestPath, DependentComponentName, defaultKustomizePath)
 		}
-		// If overlay is defined, update paths
-		defaultKustomizePath := "base"
-		if manifestConfig.SourcePath != "" {
-			defaultKustomizePath = manifestConfig.SourcePath
+
+		if strings.Contains(subcomponent.URI, ComponentName) {
+			// Download subcomponent
+			if err := deploy.DownloadManifests(ComponentName, subcomponent); err != nil {
+				return err
+			}
+			// If overlay is defined, update paths
+			defaultKustomizePath := "overlays/odh"
+			if subcomponent.SourcePath != "" {
+				defaultKustomizePath = subcomponent.SourcePath
+			}
+			Path = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
 		}
-		Path = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
 	}
 	return nil
 }
