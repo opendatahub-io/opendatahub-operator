@@ -12,6 +12,8 @@ spec:
     kind: DSCInitialization
     listKind: DSCInitializationList
     plural: dscinitializations
+    shortNames:
+    - dsci
     singular: dscinitialization
   scope: Cluster
   versions:
