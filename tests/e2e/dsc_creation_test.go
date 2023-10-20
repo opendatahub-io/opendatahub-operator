@@ -244,7 +244,7 @@ func (tc *testContext) testApplicationCreation(component components.ComponentInt
 	err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (done bool, err error) {
 		// TODO: see if checking deployment is a good test, CF does not create deployment
 		appList, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(context.TODO(), metav1.ListOptions{
-			LabelSelector: "app.kubernetes.io/part-of=" + component.GetComponentName(),
+			LabelSelector: "app.opendatahub.io/" + component.GetComponentName(),
 		})
 		if err != nil {
 			log.Printf("error listing application deployments :%v. Trying again...", err)
@@ -283,7 +283,7 @@ func (tc *testContext) testOwnerrefrences() error {
 	// Test any one of the apps
 	if tc.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
 		appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(context.TODO(), metav1.ListOptions{
-			LabelSelector: "app.kubernetes.io/part-of=" + tc.testDsc.Spec.Components.Dashboard.GetComponentName(),
+			LabelSelector: "app.opendatahub.io/" + tc.testDsc.Spec.Components.Dashboard.GetComponentName(),
 		})
 		if err != nil {
 			return fmt.Errorf("error listing application deployments %w", err)
@@ -301,7 +301,7 @@ func (tc *testContext) testUpdateComponentReconcile() error {
 	// Test Updating Dashboard Replicas
 
 	appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(context.TODO(), metav1.ListOptions{
-		LabelSelector: "app.kubernetes.io/part-of=" + tc.testDsc.Spec.Components.Dashboard.GetComponentName(),
+		LabelSelector: "app.opendatahub.io/" + tc.testDsc.Spec.Components.Dashboard.GetComponentName(),
 	})
 	if err != nil {
 		return err
@@ -347,7 +347,7 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 
 	if tc.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
 		appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(context.TODO(), metav1.ListOptions{
-			LabelSelector: "app.kubernetes.io/part-of=" + tc.testDsc.Spec.Components.Dashboard.GetComponentName(),
+			LabelSelector: "app.opendatahub.io/" + tc.testDsc.Spec.Components.Dashboard.GetComponentName(),
 		})
 		if err != nil {
 			return fmt.Errorf("error getting enabled component %v", tc.testDsc.Spec.Components.Dashboard.GetComponentName())

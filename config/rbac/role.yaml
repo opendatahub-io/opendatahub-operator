@@ -684,10 +684,12 @@ rules:
   resources:
   - kfdefs
   verbs:
+  - create
   - delete
   - get
   - list
   - patch
+  - update
   - watch
 - apiGroups:
   - kubeflow.org
@@ -910,8 +912,10 @@ rules:
   resources:
   - clusterserviceversions
   verbs:
+  - delete
   - get
   - list
+  - update
   - watch
 - apiGroups:
   - operators.coreos.com
