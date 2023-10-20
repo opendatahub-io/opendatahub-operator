@@ -3,9 +3,11 @@ package dscinitialization
 import (
 	"context"
 	"crypto/rand"
-	operatorv1 "github.com/openshift/api/operator/v1"
 	"reflect"
 	"time"
+
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 
 	ocuserv1 "github.com/openshift/api/user/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -18,8 +20,6 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 )
 
 var (
@@ -33,7 +33,7 @@ var (
 // - ConfigMap  'odh-common-config'
 // - Network Policies 'opendatahub' that allow traffic between the ODH namespaces
 // - RoleBinding 'opendatahub'
-func (r *DSCInitializationReconciler) createOdhNamespace(dscInit *dsci.DSCInitialization, name string, ctx context.Context) error {
+func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, dscInit *dsci.DSCInitialization, name string) error {
 	// Expected namespace for the given name
 	desiredNamespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -281,7 +281,7 @@ func CompareNotebookNetworkPolicies(np1 netv1.NetworkPolicy, np2 netv1.NetworkPo
 		reflect.DeepEqual(np1.Spec, np2.Spec)
 }
 
-func (r *DSCInitializationReconciler) waitForManagedSecret(ctx context.Context, name, namespace string) (*corev1.Secret, error) {
+func (r *DSCInitializationReconciler) waitForManagedSecret(ctx context.Context, name string, namespace string) (*corev1.Secret, error) {
 	managedSecret := &corev1.Secret{}
 	err := wait.Poll(resourceInterval, resourceTimeout, func() (done bool, err error) {
 
@@ -358,7 +358,7 @@ func (r *DSCInitializationReconciler) createOdhCommonConfigMap(dscInit *dsci.DSC
 	return nil
 }
 
-func (r *DSCInitializationReconciler) createUserGroup(dscInit *dsci.DSCInitialization, userGroupName string, ctx context.Context) error {
+func (r *DSCInitializationReconciler) createUserGroup(ctx context.Context, dscInit *dsci.DSCInitialization, userGroupName string) error {
 	userGroup := &ocuserv1.Group{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: userGroupName,

@@ -4,10 +4,11 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"k8s.io/apimachinery/pkg/types"
 	"os"
 	"testing"
 	"time"
+
+	"k8s.io/apimachinery/pkg/types"
 
 	routev1 "github.com/openshift/api/route/v1"
 	"github.com/pkg/errors"
@@ -21,8 +22,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlruntime "sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 )
 
 var (
@@ -46,7 +47,7 @@ type testContext struct {
 	// time required to create a resource
 	resourceCreationTimeout time.Duration
 	// test DataScienceCluster instance
-	testDsc *dsc.DataScienceCluster
+	testDsc *dscv1.DataScienceCluster
 	// time interval to check for resource creation
 	resourceRetryInterval time.Duration
 	// context for accessing resources
@@ -78,7 +79,7 @@ func NewTestContext() (*testContext, error) {
 	testDSC := setupDSCInstance()
 
 	// Get Applications namespace from DSCInitialization instance
-	dscInit := &dsci.DSCInitialization{}
+	dscInit := &dsciv1.DSCInitialization{}
 	err = custClient.Get(context.TODO(), types.NamespacedName{Name: "default"}, dscInit)
 	if err != nil {
 		return nil, errors.Wrap(err, "error getting DSCInitialization instance 'default'")
@@ -104,8 +105,8 @@ func TestOdhOperator(t *testing.T) {
 	utilruntime.Must(routev1.AddToScheme(scheme))
 	utilruntime.Must(apiextv1.AddToScheme(scheme))
 	utilruntime.Must(autoscalingv1.AddToScheme(scheme))
-	utilruntime.Must(dsci.AddToScheme(scheme))
-	utilruntime.Must(dsc.AddToScheme(scheme))
+	utilruntime.Must(dsciv1.AddToScheme(scheme))
+	utilruntime.Must(dscv1.AddToScheme(scheme))
 
 	// individual test suites after the operator is running
 	if !t.Run("validate operator pod is running", testODHOperatorValidation) {

@@ -1,8 +1,9 @@
-// Package datasciencepipelines provides utility functions to config Data Science Pipelines: Pipeline solution for end to end MLOps workflows that support the Kubeflow Pipelines SDK and Tekton
+// Package datasciencepipelines provides utility functions to config Data Science Pipelines:
+// Pipeline solution for end to end MLOps workflows that support the Kubeflow Pipelines SDK and Tekton
 package datasciencepipelines
 
 import (
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -46,15 +47,6 @@ func (d *DataSciencePipelines) OverrideManifests(_ string) error {
 	return nil
 }
 
-func (d *DataSciencePipelines) GetComponentDevFlags() components.DevFlags {
-	return d.DevFlags
-}
-
-func (d *DataSciencePipelines) SetImageParamsMap(imageMap map[string]string) map[string]string {
-	imageParamMap = imageMap
-	return imageParamMap
-}
-
 func (d *DataSciencePipelines) GetComponentName() string {
 	return ComponentName
 }
@@ -62,8 +54,10 @@ func (d *DataSciencePipelines) GetComponentName() string {
 // Verifies that Dashboard implements ComponentInterface
 var _ components.ComponentInterface = (*DataSciencePipelines)(nil)
 
-func (d *DataSciencePipelines) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
+func (d *DataSciencePipelines) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
 	enabled := d.GetManagementState() == operatorv1.Managed
+	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
+
 	platform, err := deploy.GetPlatform(cli)
 	if err != nil {
 		return err
@@ -74,18 +68,32 @@ func (d *DataSciencePipelines) ReconcileComponent(cli client.Client, owner metav
 			return err
 		}
 
-		// check if the dependent operator installed is done in dashboard
+		// skip check if the dependent operator has beeninstalled, this is done in dashboard
 
 		// Update image parameters only when we do not have customized manifests set
-		if dscispec.DevFlags.ManifestsUri == "" {
-			if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
+		if dscispec.DevFlags.ManifestsUri == "" && len(d.DevFlags.Manifests) == 0 {
+			if err := deploy.ApplyParams(Path, d.SetImageParamsMap(imageParamMap), false); err != nil {
 				return err
 			}
 		}
 	}
 
-	err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, d.GetComponentName(), enabled)
-	return err
+	if err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+		return err
+	}
+	// CloudService Monitoring handling
+	if platform == deploy.ManagedRhods {
+		if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
+			return err
+		}
+		if err = deploy.DeployManifestsFromPath(cli, owner,
+			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
+			dscispec.Monitoring.Namespace,
+			ComponentName+"prometheus", true); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (d *DataSciencePipelines) DeepCopyInto(target *DataSciencePipelines) {

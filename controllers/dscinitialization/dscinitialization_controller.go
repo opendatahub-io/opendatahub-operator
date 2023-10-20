@@ -21,8 +21,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	operatorv1 "github.com/openshift/api/operator/v1"
+	routev1 "github.com/openshift/api/route/v1"
+
 	"path/filepath"
+	"reflect"
 
 	"github.com/go-logr/logr"
 
@@ -36,13 +40,21 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
+
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 // DSCInitializationReconciler reconciles a DSCInitialization object
@@ -62,78 +74,117 @@ type DSCInitializationReconciler struct {
 func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.Log.Info("Reconciling DSCInitialization.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
 
-	instance := &dsci.DSCInitialization{}
+	instance := &dsciv1.DSCInitialization{}
 	// First check if instance is being deleted, return
 	if instance.GetDeletionTimestamp() != nil {
 		return ctrl.Result{}, nil
 	}
-
-	// Second check if instance exists, return
-	err := r.Client.Get(ctx, req.NamespacedName, instance)
+	// Second check if default instance not exists, return error
+	// TODO: update logic if we support multiple DSCI CR or different name
+	defaultDSCI := types.NamespacedName{Name: "default"}
+	err := r.Client.Get(ctx, defaultDSCI, instance)
 	if err != nil {
 		if apierrs.IsNotFound(err) {
 			// DSCInitialization instance not found
 			return ctrl.Result{}, nil
 		}
-		r.Log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
-		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to retrieve DSCInitialization instance")
+		r.Log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", "default")
+		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to retrieve DSCInitialization instance default")
 		return ctrl.Result{}, err
 	}
 
-	// Last check if multiple instances of DSCInitialization exist
-	instanceList := &dsci.DSCInitializationList{}
+	// Last check if multiple instances of DSCInitialization, exit with error
+	instanceList := &dsciv1.DSCInitializationList{}
 	err = r.Client.List(ctx, instanceList)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-
 	if len(instanceList.Items) > 1 {
 		message := fmt.Sprintf("only one instance of DSCInitialization object is allowed. Update existing instance on namespace %s and name %s", req.Namespace, req.Name)
 		return ctrl.Result{}, errors.New(message)
 	}
 
-	// Start reconciling
-	if instance.Status.Conditions == nil {
-		reason := status.ReconcileInit
-		message := "Initializing DSCInitialization resource"
-		instance, err = r.updateStatus(ctx, instance, func(saved *dsci.DSCInitialization) {
-			status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
-			saved.Status.Phase = status.PhaseProgressing
-		})
-		if err != nil {
-			r.Log.Error(err, "Failed to add conditions to status of DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
-			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError",
-				"%s for instance %s", message, instance.Name)
-			return reconcile.Result{}, err
-		}
-	}
-
-	// Check namespace
-	namespace := instance.Spec.ApplicationsNamespace
-	err = r.createOdhNamespace(instance, namespace, ctx)
-	if err != nil {
-		// no need to log error as it was already logged in createOdhNamespace
-		return reconcile.Result{}, err
-	}
-
 	// Get platform
 	platform, err := deploy.GetPlatform(r.Client)
 	if err != nil {
-		r.Log.Error(err, "Failed to determine platform (managed vs self-managed)")
+		r.Log.Error(err, "Failed to determine platform (odh vs managed vs self-managed)")
 		return reconcile.Result{}, err
 	}
 
-	// Apply update from legacy operator
-	// TODO: Update upgrade logic to get components through KfDef
-	//if err = updatefromLegacyVersion(r.Client); err != nil {
-	//	r.Log.Error(err, "unable to update from legacy operator version")
-	//	return reconcile.Result{}, err
-	//}
+	switch req.Name {
+	case "prometheus": // prometheus configmap
+		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == deploy.ManagedRhods {
+			r.Log.Info("Monitoring enabled to restart deployment", "cluster", "Managed Service Mode")
+			err := r.configureManagedMonitoring(ctx, instance, "updates")
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+		}
+		return ctrl.Result{}, nil
+	case "addon-managed-odh-parameters":
+		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == deploy.ManagedRhods {
+			r.Log.Info("Monitoring enabled when notification updated", "cluster", "Managed Service Mode")
+			err := r.configureManagedMonitoring(ctx, instance, "updates")
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+		}
+		return ctrl.Result{}, nil
+	case "backup": // revert back to the original prometheus.yml
+		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == deploy.ManagedRhods {
+			r.Log.Info("Monitoring enabled to restore back", "cluster", "Managed Service Mode")
+			err := r.configureManagedMonitoring(ctx, instance, "revertbackup")
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+		}
+		return ctrl.Result{}, nil
+	default:
+		// Check namespace is not exist, then create
+		namespace := instance.Spec.ApplicationsNamespace
+		err = r.createOdhNamespace(ctx, instance, namespace)
+		if err != nil {
+			// no need to log error as it was already logged in createOdhNamespace
+			return reconcile.Result{}, err
+		}
 
-	// Apply Rhods specific configs
-	if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
-		//Apply osd specific permissions
-		if platform == deploy.ManagedRhods {
+		// Start reconciling
+		if instance.Status.Conditions == nil {
+			reason := status.ReconcileInit
+			message := "Initializing DSCInitialization resource"
+			instance, err = r.updateStatus(ctx, instance, func(saved *dsciv1.DSCInitialization) {
+				status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
+				saved.Status.Phase = status.PhaseProgressing
+			})
+			if err != nil {
+				r.Log.Error(err, "Failed to add conditions to status of DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
+				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError",
+					"%s for instance %s", message, instance.Name)
+				return reconcile.Result{}, err
+			}
+		}
+
+		// Apply update from legacy operator
+		// TODO: Update upgrade logic to get components through KfDef
+		// if err = updatefromLegacyVersion(r.Client); err != nil {
+		//	r.Log.Error(err, "unable to update from legacy operator version")
+		//	return reconcile.Result{}, err
+		//}
+
+		switch platform {
+		case deploy.SelfManagedRhods:
+			err := r.createUserGroup(ctx, instance, "rhods-admins")
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
+				r.Log.Info("Monitoring enabled, won't apply changes", "cluster", "Self-Managed RHODS Mode")
+				err = r.configureCommonMonitoring(instance)
+				if err != nil {
+					return reconcile.Result{}, err
+				}
+			}
+		case deploy.ManagedRhods:
 			osdConfigsPath := filepath.Join(deploy.DefaultManifestPath, "osd-configs")
 			err = deploy.DeployManifestsFromPath(r.Client, instance, osdConfigsPath, r.ApplicationsNamespace, "osd", true)
 			if err != nil {
@@ -141,85 +192,69 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to apply "+osdConfigsPath)
 				return reconcile.Result{}, err
 			}
-		} else {
-			// Apply self-managed rhods config
-			// Create rhods-admins Group if it doesn't exist
-			err := r.createUserGroup(instance, "rhods-admins", ctx)
-			if err != nil {
-				return reconcile.Result{}, err
-			}
-		}
-		// Apply common rhods-specific config
-	} else { // ODH case
-		// Create odh-admins Group if it doesn't exist
-		err := r.createUserGroup(instance, "odh-admins", ctx)
-		if err != nil {
-			return reconcile.Result{}, err
-		}
-	}
-
-	// If monitoring enabled
-	if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
-		switch platform {
-		case deploy.SelfManagedRhods:
-			r.Log.Info("Monitoring enabled, won't apply changes", "cluster", "Self-Managed RHODS Mode")
-			err := r.configureCommonMonitoring(instance)
-			if err != nil {
-				return reconcile.Result{}, err
-			}
-		case deploy.ManagedRhods:
-			r.Log.Info("Monitoring enabled", "cluster", "Managed Service Mode")
-			err := r.configureManagedMonitoring(ctx, instance)
-			if err != nil {
-				// no need to log error as it was already logged in configureManagedMonitoring
-				return reconcile.Result{}, err
-			}
-			err = r.configureCommonMonitoring(instance)
-			if err != nil {
-				return reconcile.Result{}, err
+			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
+				r.Log.Info("Monitoring enabled in initialization stage", "cluster", "Managed Service Mode")
+				err := r.configureManagedMonitoring(ctx, instance, "init")
+				if err != nil {
+					return reconcile.Result{}, err
+				}
+				err = r.configureCommonMonitoring(instance)
+				if err != nil {
+					return reconcile.Result{}, err
+				}
 			}
 		default:
-			// TODO: ODH specific monitoring logic
-			r.Log.Info("Monitoring enabled, won't apply changes", "cluster", "ODH Mode")
+			err := r.createUserGroup(ctx, instance, "odh-admins")
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
+				r.Log.Info("Monitoring enabled, won't apply changes", "cluster", "ODH Mode")
+			}
 		}
-	}
 
-	// Finish reconciling
-	_, err = r.updateStatus(ctx, instance, func(saved *dsci.DSCInitialization) {
-		status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, status.ReconcileCompletedMessage)
-		saved.Status.Phase = status.PhaseReady
-	})
-	if err != nil {
-		r.Log.Error(err, "failed to update DSCInitialization status after successfully completed reconciliation")
-		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to update DSCInitialization status")
+		// Finish reconciling
+		_, err = r.updateStatus(ctx, instance, func(saved *dsciv1.DSCInitialization) {
+			status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, status.ReconcileCompletedMessage)
+			saved.Status.Phase = status.PhaseReady
+		})
+		if err != nil {
+			r.Log.Error(err, "failed to update DSCInitialization status after successfully completed reconciliation")
+			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to update DSCInitialization status")
+		}
+		return ctrl.Result{}, nil
 	}
-	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *DSCInitializationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&dsci.DSCInitialization{}).
-		Owns(&corev1.Namespace{}).
-		Owns(&corev1.Secret{}).
-		Owns(&corev1.ConfigMap{}).
-		Owns(&netv1.NetworkPolicy{}).
-		Owns(&authv1.Role{}).
-		Owns(&authv1.RoleBinding{}).
-		Owns(&authv1.ClusterRole{}).
-		Owns(&authv1.ClusterRoleBinding{}).
-		Owns(&appsv1.Deployment{}).
-		Owns(&appsv1.ReplicaSet{}).
-		Owns(&corev1.Pod{}).
-		Owns(&corev1.ServiceAccount{}).
-		Owns(&corev1.Service{}).
-		// this predicates prevents meaningless reconciliations from being triggered
-		WithEventFilter(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{})).
+		// add predicates prevents meaningless reconciliations from being triggered
+		// not use WithEventFilter() because it conflict with secret and configmap predicate
+		For(&dsciv1.DSCInitialization{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&corev1.Namespace{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&corev1.Secret{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&corev1.ConfigMap{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&netv1.NetworkPolicy{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&authv1.Role{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&authv1.RoleBinding{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&authv1.ClusterRole{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&authv1.ClusterRoleBinding{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&appsv1.Deployment{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&appsv1.ReplicaSet{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&corev1.Pod{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&corev1.ServiceAccount{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&corev1.Service{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&routev1.Route{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Watches(&source.Kind{Type: &dscv1.DataScienceCluster{}}, handler.EnqueueRequestsFromMapFunc(r.watchDSCResrouce), builder.WithPredicates(DSCDeletionPredicate)).
+		Watches(&source.Kind{Type: &corev1.Secret{}}, handler.EnqueueRequestsFromMapFunc(r.watchMonitoringSecretResrouce), builder.WithPredicates(SecretContentChangedPredicate)).
+		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchMonitoringConfigMapResrouce), builder.WithPredicates(CMContentChangedPredicate)).
 		Complete(r)
 }
 
-func (r *DSCInitializationReconciler) updateStatus(ctx context.Context, original *dsci.DSCInitialization, update func(saved *dsci.DSCInitialization)) (*dsci.DSCInitialization, error) {
-	saved := &dsci.DSCInitialization{}
+func (r *DSCInitializationReconciler) updateStatus(ctx context.Context, original *dsciv1.DSCInitialization,
+	update func(saved *dsciv1.DSCInitialization)) (*dsciv1.DSCInitialization, error) {
+	saved := &dsciv1.DSCInitialization{}
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		if err := r.Client.Get(ctx, client.ObjectKeyFromObject(original), saved); err != nil {
 			return err
@@ -231,6 +266,63 @@ func (r *DSCInitializationReconciler) updateStatus(ctx context.Context, original
 		// so that RetryOnConflict can identify it correctly.
 		return r.Client.Status().Update(ctx, saved)
 	})
-
 	return saved, err
+}
+
+var SecretContentChangedPredicate = predicate.Funcs{
+	UpdateFunc: func(e event.UpdateEvent) bool {
+		oldSecret := e.ObjectOld.(*corev1.Secret)
+		newSecret := e.ObjectNew.(*corev1.Secret)
+		return !reflect.DeepEqual(oldSecret.Data, newSecret.Data)
+	},
+}
+var CMContentChangedPredicate = predicate.Funcs{
+	UpdateFunc: func(e event.UpdateEvent) bool {
+		oldCM := e.ObjectOld.(*corev1.ConfigMap)
+		newCM := e.ObjectNew.(*corev1.ConfigMap)
+		return !reflect.DeepEqual(oldCM.Data, newCM.Data)
+	},
+}
+
+var DSCDeletionPredicate = predicate.Funcs{
+	DeleteFunc: func(e event.DeleteEvent) bool {
+		return true
+	},
+}
+
+func (r *DSCInitializationReconciler) watchMonitoringConfigMapResrouce(a client.Object) (requests []reconcile.Request) {
+	if a.GetName() == "prometheus" && a.GetNamespace() == "redhat-ods-monitoring" {
+		r.Log.Info("Found monitoring configmap has updated, start reconcile")
+		return []reconcile.Request{{
+			NamespacedName: types.NamespacedName{Name: "prometheus", Namespace: "redhat-ods-monitoring"},
+		}}
+	} else {
+		return nil
+	}
+}
+
+func (r *DSCInitializationReconciler) watchMonitoringSecretResrouce(a client.Object) (requests []reconcile.Request) {
+	if a.GetName() == "addon-managed-odh-parameters" && a.GetNamespace() == "redhat-ods-operator" {
+		r.Log.Info("Found monitoring secret has updated, start reconcile")
+		return []reconcile.Request{{
+			NamespacedName: types.NamespacedName{Name: "addon-managed-odh-parameters", Namespace: "redhat-ods-operator"},
+		}}
+	} else {
+		return nil
+	}
+}
+
+func (r *DSCInitializationReconciler) watchDSCResrouce(a client.Object) (requests []reconcile.Request) {
+	instanceList := &dscv1.DataScienceClusterList{}
+	if err := r.Client.List(context.TODO(), instanceList); err != nil {
+		// do not handle if cannot get list
+		return nil
+	}
+	if len(instanceList.Items) == 0 {
+		r.Log.Info("Found no DSC instance in cluster, reset monitoring stack config")
+		return []reconcile.Request{{
+			NamespacedName: types.NamespacedName{Name: "backup"},
+		}}
+	}
+	return nil
 }

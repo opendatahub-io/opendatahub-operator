@@ -3,7 +3,7 @@ package codeflare
 
 import (
 	"fmt"
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -14,12 +14,10 @@ import (
 
 var (
 	ComponentName       = "codeflare"
-	CodeflarePath       = deploy.DefaultManifestPath + "/" + "codeflare-stack" + "/base"
+	CodeflarePath       = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
 	CodeflareOperator   = "codeflare-operator"
 	RHCodeflareOperator = "rhods-codeflare-operator"
 )
-
-var imageParamMap = map[string]string{}
 
 type CodeFlare struct {
 	components.Component `json:""`
@@ -43,15 +41,6 @@ func (c *CodeFlare) OverrideManifests(_ string) error {
 	return nil
 }
 
-func (c *CodeFlare) GetComponentDevFlags() components.DevFlags {
-	return c.DevFlags
-}
-
-func (c *CodeFlare) SetImageParamsMap(imageMap map[string]string) map[string]string {
-	imageParamMap = imageMap
-	return imageParamMap
-}
-
 func (c *CodeFlare) GetComponentName() string {
 	return ComponentName
 }
@@ -59,13 +48,16 @@ func (c *CodeFlare) GetComponentName() string {
 // Verifies that CodeFlare implements ComponentInterface
 var _ components.ComponentInterface = (*CodeFlare)(nil)
 
-func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
+func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
+	var imageParamMap = map[string]string{
+		"namespace": dscispec.ApplicationsNamespace,
+	}
 	enabled := c.GetManagementState() == operatorv1.Managed
+	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 	platform, err := deploy.GetPlatform(cli)
 	if err != nil {
 		return err
 	}
-
 	if enabled {
 		// Download manifests and update paths
 		if err = c.OverrideManifests(string(platform)); err != nil {
@@ -87,16 +79,35 @@ func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, d
 		}
 
 		// Update image parameters only when we do not have customized manifests set
-		if dscispec.DevFlags.ManifestsUri == "" {
-			if err := deploy.ApplyImageParams(CodeflarePath, imageParamMap); err != nil {
+		if dscispec.DevFlags.ManifestsUri == "" && len(c.DevFlags.Manifests) == 0 {
+			if err := deploy.ApplyParams(CodeflarePath, c.SetImageParamsMap(imageParamMap), true); err != nil {
 				return err
 			}
 		}
 	}
 
 	// Deploy Codeflare
-	err = deploy.DeployManifestsFromPath(cli, owner, CodeflarePath, dscispec.ApplicationsNamespace, c.GetComponentName(), enabled)
-	return err
+	if err := deploy.DeployManifestsFromPath(cli, owner,
+		CodeflarePath,
+		dscispec.ApplicationsNamespace,
+		ComponentName, enabled); err != nil {
+		return err
+	}
+
+	// CloudServiceMonitoring handling
+	if platform == deploy.ManagedRhods {
+		// inject prometheus codeflare*.rules in to /opt/manifests/monitoring/prometheus/prometheus-configs.yaml
+		if err = c.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
+			return err
+		}
+		if err = deploy.DeployManifestsFromPath(cli, owner,
+			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
+			dscispec.Monitoring.Namespace,
+			ComponentName+"prometheus", true); err != nil {
+			return err
+		}
+	}
+	return nil
 
 }
 

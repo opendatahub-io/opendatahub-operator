@@ -1,0 +1,127 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    deployment: blackbox-exporter
+  name: blackbox-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      deployment: blackbox-exporter
+  template:
+    metadata:
+      labels:
+        deployment: blackbox-exporter
+    spec:
+      volumes:
+      - name: config-volume
+        configMap:
+          name: blackbox
+      - name: prometheus-tls
+        secret:
+          defaultMode: 420
+          secretName: prometheus-tls
+      - name: prometheus-proxy
+        secret:
+          defaultMode: 420
+          secretName: prometheus-proxy
+      serviceAccountName: prometheus
+      containers:
+      - name: oauth-proxy
+        args:
+        - -provider=openshift
+        - -https-address=:9114
+        - -http-address=
+        - -email-domain=*
+        - -upstream=http://localhost:9115
+        - -openshift-service-account=prometheus
+        - '-openshift-sar={"resource": "namespaces", "verb": "get", "name": "redhat-ods-monitoring",
+          "namespace": "redhat-ods-monitoring"}'
+        - '-openshift-delegate-urls={"/": {"resource": "namespaces", "verb": "get",
+          "name": "redhat-ods-monitoring", "namespace": "redhat-ods-monitoring"}}'
+        - -tls-cert=/etc/tls/private/tls.crt
+        - -tls-key=/etc/tls/private/tls.key
+        - -client-secret-file=/var/run/secrets/kubernetes.io/serviceaccount/token
+        - -cookie-secret-file=/etc/proxy/secrets/session_secret
+        - -openshift-ca=/etc/pki/tls/cert.pem
+        - -openshift-ca=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        - -client-id=system:serviceaccount:redhat-ods-monitoring:prometheus
+        - -skip-auth-regex=^/metrics
+        image: registry.redhat.io/openshift4/ose-oauth-proxy@sha256:4bef31eb993feb6f1096b51b4876c65a6fb1f4401fee97fa4f4542b6b7c9bc46
+        ports:
+        - containerPort: 9114
+          name: https
+        livenessProbe:
+          httpGet:
+            path: /oauth/healthz
+            port: 9114
+            scheme: HTTPS
+          initialDelaySeconds: 30
+          timeoutSeconds: 1
+          periodSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /oauth/healthz
+            port: 9114
+            scheme: HTTPS
+          initialDelaySeconds: 5
+          timeoutSeconds: 1
+          periodSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        resources:
+          limits:
+            cpu: 100m
+            memory: 256Mi
+          requests:
+            cpu: 100m
+            memory: 256Mi
+        volumeMounts:
+        - mountPath: /etc/tls/private
+          name: prometheus-tls
+          readOnly: false
+        - mountPath: /etc/proxy/secrets
+          name: prometheus-proxy
+          readOnly: false
+      - image: quay.io/integreatly/prometheus-blackbox-exporter@sha256:35b9d2c1002201723b7f7a9f54e9406b2ec4b5b0f73d114f47c70e15956103b5
+        name: blackbox-exporter
+        args:
+        - --log.level=debug
+        - --config.file=/tmp/blackbox.yml
+        volumeMounts:
+        - name: config-volume
+          mountPath: /tmp
+        ports:
+        - containerPort: 9115
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /-/healthy
+            port: 9115
+            scheme: HTTP
+          initialDelaySeconds: 30
+          timeoutSeconds: 1
+          periodSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /-/healthy
+            port: 9115
+            scheme: HTTP
+          initialDelaySeconds: 5
+          timeoutSeconds: 1
+          periodSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        resources:
+          limits:
+            cpu: 50m
+            memory: 50Mi
+          requests:
+            cpu: 50m
+            memory: 50Mi
+      restartPolicy: Always

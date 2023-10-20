@@ -50,10 +50,10 @@ It uses a local empty folder `odh-manifests` to host all manifests operator need
 The way to config this is to update `get_all_manifests.sh` REPO_LIST variable.
 By adding new entity in variable `REPO_LIST` in the format of `<repo-name>:<branch-name>:<source-folder>:<target-folder>` this will:
 
-- git clone remote repo `opendatahub-io/<repo-name>` from its `<branch-name>` branch
+- git clone remote repo `red-hat-data-services/<repo-name>` from its `<branch-name>` branch
 - copy content from its relative path `<source-folder>` into local `odh-manifests/<target-folder>` folder
 
-For those components cannot directly use manifests from `opendatahub-io/<repo-name>`, it falls back to use `opendatahub-io/odh-manifests` git repo. To control which version of `opendatahub-io/odh-manifests` to download, this is set in the `get_all_manifests.sh` variable `MANIFEST_RELEASE`.
+For those components cannot directly use manifests from `red-hat-data-services/<repo-name>`, it falls back to use `red-hat-data-services/odh-manifests` git repo. To control which version of `red-hat-data-services/odh-manifests` to download from, this is set in the `get_all_manifests.sh` variable `MANIFEST_RELEASE`.
 
 ##### for local development
 
@@ -75,7 +75,7 @@ make image-build
 By default, building an image without any local changes(as a clean build)
 This is what the production build system is doing.
 
-In order to build an image with local `odh-manifests` folder, to set `IMAGE_BUILD_FLAGS ="--build-arg USE_LOCAL=true"` in make.
+In order to build an image with local `odh-manifests` folder, to set `IMAGE_BUILD_FLAGS="--build-arg USE_LOCAL=true"` in make.
 e.g `make image-build -e IMAGE_BUILD_FLAGS="--build-arg USE_LOCAL=true"`
 
 #### Build Image
