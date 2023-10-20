@@ -19,8 +19,8 @@ declare -A COMPONENT_MANIFESTS=(
     ["odh-notebook-controller"]="opendatahub-io:kubeflow:v1.7-branch:components/odh-notebook-controller/config:odh-notebook-controller/odh-notebook-controller"
     ["notebooks"]="opendatahub-io:notebooks:main:manifests:notebooks"
     ["trustyai"]="trustyai-explainability:trustyai-service-operator:release/1.10.2:config:trustyai-service-operator"
-    ["model-mesh"]="opendatahub-io:modelmesh-serving:release-0.11.1:config:model-mesh"
-    ["odh-model-controller"]="opendatahub-io:odh-model-controller:release-0.11.1:config:odh-model-controller"
+    ["model-mesh"]="opendatahub-io:modelmesh-serving:release-0.11.0:config:model-mesh"
+    ["odh-model-controller"]="opendatahub-io:odh-model-controller:release-0.11.0:config:odh-model-controller"
 )
 
 # Allow overwriting repo using flags component=repo
