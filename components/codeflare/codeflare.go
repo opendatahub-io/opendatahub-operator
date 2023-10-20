@@ -17,7 +17,7 @@ import (
 
 var (
 	ComponentName       = "codeflare"
-	CodeflarePath       = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
+	CodeflarePath       = deploy.DefaultManifestPath + "/" + ComponentName + "/manifests"
 	CodeflareOperator   = "codeflare-operator"
 	RHCodeflareOperator = "rhods-codeflare-operator"
 )
@@ -52,6 +52,7 @@ var _ components.ComponentInterface = (*CodeFlare)(nil)
 
 func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
 	var imageParamMap = map[string]string{
+		"odh-codeflare-operator-controller-image": "RELATED_IMAGE_ODH_CODEFLARE_OPERATOR_IMAGE", // no need mcad, embedded in cfo
 		"namespace": dscispec.ApplicationsNamespace,
 	}
 	enabled := c.GetManagementState() == operatorv1.Managed
@@ -82,7 +83,7 @@ func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, d
 
 		// Update image parameters only when we do not have customized manifests set
 		if dscispec.DevFlags.ManifestsUri == "" && len(c.DevFlags.Manifests) == 0 {
-			if err := deploy.ApplyParams(CodeflarePath, c.SetImageParamsMap(imageParamMap), true); err != nil {
+			if err := deploy.ApplyParams(CodeflarePath+"/base", c.SetImageParamsMap(imageParamMap), true); err != nil {
 				return err
 			}
 		}

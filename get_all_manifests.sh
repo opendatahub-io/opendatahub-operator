@@ -11,7 +11,7 @@ MANIFESTS_TARBALL_URL="${GITHUB_URL}/${MANIFEST_ORG}/odh-manifests/tarball/${MAN
 # component: dsp, kserve, dashbaord, cf/ray. in the format of "repo-org:repo-name:branch-name:source-folder:target-folder"
 # TODO: workbench, modelmesh, monitoring, etc
 declare -A COMPONENT_MANIFESTS=(
-    ["codeflare"]="opendatahub-io:distributed-workloads:main:codeflare-stack:codeflare"
+    ["codeflare"]="opendatahub-io:codeflare-operator:main:config:codeflare"
     ["ray"]="opendatahub-io:kuberay:master:ray-operator/config:ray"
     ["data-science-pipelines-operator"]="opendatahub-io:data-science-pipelines-operator:main:config:data-science-pipelines-operator"
     ["odh-dashboard"]="opendatahub-io:odh-dashboard:incubation:manifests:dashboard"
