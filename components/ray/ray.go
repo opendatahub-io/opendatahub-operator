@@ -19,7 +19,7 @@ import (
 
 var (
 	ComponentName = "ray"
-	RayPath       = deploy.DefaultManifestPath + "/" + "ray/operator/base"
+	RayPath       = deploy.DefaultManifestPath + "/ray/openshift"
 )
 
 type Ray struct {
