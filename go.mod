@@ -103,6 +103,7 @@ replace (
 	k8s.io/api => k8s.io/api v0.26.0
 	k8s.io/client-go => k8s.io/client-go v0.26.0
 	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20230113010536-ace3e4a52ca1
+	sigs.k8s.io/controller-runtime => sigs.k8s.io/controller-runtime v0.14.6
 //sigs.k8s.io/kustomize/api => sigs.k8s.io/kustomize/api v0.12.1
 //sigs.k8s.io/kustomize/kyaml => sigs.k8s.io/kustomize/kyaml v0.13.10
 

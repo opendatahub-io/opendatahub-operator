@@ -4,6 +4,8 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"os"
 	"testing"
 	"time"
@@ -44,7 +46,7 @@ type testContext struct {
 	// time required to create a resource
 	resourceCreationTimeout time.Duration
 	// test DataScienceCluster instance
-	testDsc *dscv1.DataScienceCluster
+	testDsc *dsc.DataScienceCluster
 	// time interval to check for resource creation
 	resourceRetryInterval time.Duration
 	// context for accessing resources
@@ -75,7 +77,7 @@ func NewTestContext() (*testContext, error) {
 	testDSC := setupDSCInstance()
 
 	// Get Applications namespace from DSCInitialization instance
-	dscInit := &dsciv1.DSCInitialization{}
+	dscInit := &dsci.DSCInitialization{}
 	err = custClient.Get(context.TODO(), types.NamespacedName{Name: "default"}, dscInit)
 	if err != nil {
 		return nil, errors.Wrap(err, "error getting DSCInitialization instance 'default'")
@@ -100,8 +102,8 @@ func TestOdhOperator(t *testing.T) {
 	utilruntime.Must(routev1.AddToScheme(scheme))
 	utilruntime.Must(apiextv1.AddToScheme(scheme))
 	utilruntime.Must(autoscalingv1.AddToScheme(scheme))
-	utilruntime.Must(dsciv1.AddToScheme(scheme))
-	utilruntime.Must(dscv1.AddToScheme(scheme))
+	utilruntime.Must(dsci.AddToScheme(scheme))
+	utilruntime.Must(dsc.AddToScheme(scheme))
 
 	// individual test suites after the operator is running
 	if !t.Run("validate operator pod is running", testODHOperatorValidation) {

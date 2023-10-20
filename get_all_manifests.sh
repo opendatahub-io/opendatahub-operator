@@ -51,7 +51,6 @@ fi
 # pre-cleanup local env
 rm -fr ./odh-manifests/* ./.odh-manifests-tmp/
 
-<<<<<<< HEAD
 GITHUB_URL="https://github.com/"
 # update to use different git repo
 MANIFEST_ORG="red-hat-data-services"
@@ -62,12 +61,9 @@ MANIFESTS_TARBALL_URL="${GITHUB_URL}/${MANIFEST_ORG}/odh-manifests/tarball/${MAN
 
 mkdir -p ./.odh-manifests-tmp/ ./odh-manifests/
 wget -q -c ${MANIFESTS_TARBALL_URL} -O - | tar -zxv -C ./.odh-manifests-tmp/ --strip-components 1 > /dev/null
-<<<<<<< HEAD
 # modelmesh
 cp -r ./.odh-manifests-tmp/model-mesh/ ./odh-manifests
 cp -r ./.odh-manifests-tmp/odh-model-controller/ ./odh-manifests
-=======
->>>>>>> 2231cba1 (add manifests for odh-model-controller and model-mesh (#639))
 cp -r ./.odh-manifests-tmp/modelmesh-monitoring/ ./odh-manifests
 # Kserve
 cp -r ./.odh-manifests-tmp/kserve/ ./odh-manifests

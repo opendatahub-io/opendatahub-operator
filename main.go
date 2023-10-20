@@ -142,10 +142,9 @@ func main() {
 	}
 
 	if err = (&dscontr.DataScienceClusterReconciler{
-		Client:     mgr.GetClient(),
-		Scheme:     mgr.GetScheme(),
-		RestConfig: mgr.GetConfig(),
-		Log:        ctrl.Log.WithName("controllers").WithName("DataScienceCluster"),
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+		Log:    ctrl.Log.WithName("controllers").WithName("DataScienceCluster"),
 		DataScienceCluster: &dscontr.DataScienceClusterConfig{
 			DSCISpec: &dsci.DSCInitializationSpec{
 				ApplicationsNamespace: dscApplicationsNamespace,

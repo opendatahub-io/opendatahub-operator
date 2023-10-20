@@ -37,10 +37,6 @@ func (c *Component) GetManagementState() operatorv1.ManagementState {
 	return c.ManagementState
 }
 
-func (c *Component) SetImageParamsMap(imageMap map[string]string) map[string]string {
-	return imageMap
-}
-
 // DevFlags defines list of fields that can be used by developers to test customizations. This is not recommended
 // to be used in production environment.
 type DevFlags struct {
