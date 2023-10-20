@@ -20,14 +20,18 @@ package common
 import (
 	"context"
 	"fmt"
-	"os"
-	"strings"
-
 	corev1 "k8s.io/api/core/v1"
 	authv1 "k8s.io/api/rbac/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"os"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"strings"
+)
+
+const (
+	// odhGeneratedNamespaceLabel is the label added to all the namespaces genereated by odh-deployer
+	odhGeneratedNamespaceLabel = "opendatahub.io/generated-namespace"
 )
 
 // UpdatePodSecurityRolebinding update default rolebinding which is created in applications namespace by manifests
@@ -118,7 +122,7 @@ func CreateNamespace(cli client.Client, namespace string) error {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: namespace,
 			Labels: map[string]string{
-				"opendatahub.io/generated-namespace": "true",
+				odhGeneratedNamespaceLabel: "true",
 			},
 		},
 	}

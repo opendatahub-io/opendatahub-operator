@@ -7,10 +7,12 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/onsi/ginkgo/v2 v2.11.0
 	github.com/onsi/gomega v1.27.10
+	github.com/opendatahub-io/opendatahub-operator v1.7.0
 	github.com/openshift/addon-operator/apis v0.0.0-20230616140313-b6e2f736fdcd
 	github.com/openshift/api v0.0.0-20230823114715-5fdd7511b790
 	github.com/openshift/custom-resource-status v1.1.2
 	github.com/operator-framework/api v0.17.6
+	github.com/operator-framework/operator-lifecycle-manager v0.18.3
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.8.3
 	golang.org/x/exp v0.0.0-20230905200255-921286631fa9
@@ -32,6 +34,7 @@ require (
 	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
+	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-errors/errors v1.4.2 // indirect
 	github.com/go-logr/zapr v1.2.4 // indirect
 	github.com/go-openapi/jsonpointer v0.19.6 // indirect
@@ -95,16 +98,11 @@ require (
 )
 
 replace (
+	github.com/tektoncd/pipeline => github.com/tektoncd/pipeline v0.12.0
 	go.uber.org/multierr => go.uber.org/multierr v1.6.0
-	//github.com/go-openapi/spec => github.com/go-openapi/spec v0.19.3
 	k8s.io/api => k8s.io/api v0.26.0
-	//k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.24.9
-	//k8s.io/apimachinery => k8s.io/apimachinery v0.24.15
 	k8s.io/client-go => k8s.io/client-go v0.26.0
 	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20230113010536-ace3e4a52ca1
-//sigs.k8s.io/controller-runtime => sigs.k8s.io/controller-runtime v0.11.0
-//sigs.k8s.io/kustomize/api => sigs.k8s.io/kustomize/api v0.12.1
-//sigs.k8s.io/kustomize/kyaml => sigs.k8s.io/kustomize/kyaml v0.13.10
 )
 
 exclude github.com/openshift/api v3.9.0+incompatible

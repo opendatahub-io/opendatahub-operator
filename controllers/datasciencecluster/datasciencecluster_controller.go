@@ -21,6 +21,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/client-go/rest"
 	"reflect"
 	"time"
 
@@ -55,8 +58,9 @@ import (
 // DataScienceClusterReconciler reconciles a DataScienceCluster object.
 type DataScienceClusterReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
-	Log    logr.Logger
+	Scheme     *runtime.Scheme
+	Log        logr.Logger
+	RestConfig *rest.Config
 	// Recorder to generate events
 	Recorder           record.EventRecorder
 	DataScienceCluster *DataScienceClusterConfig
@@ -86,13 +90,24 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	if len(instances.Items) == 0 {
-		// DataScienceCluster instance not found
+		// Request object not found, could have been deleted after reconcile request.
+		// Owned objects are automatically garbage collected. For additional cleanup logic use operatorUninstall function.
+		// Return and don't requeue
+		if upgrade.HasDeleteConfigMap(r.Client) {
+			return reconcile.Result{}, fmt.Errorf("error while operator uninstall: %v",
+				upgrade.OperatorUninstall(r.Client, r.RestConfig))
+		}
 		return ctrl.Result{}, nil
 	}
 
 	instance := &instances.Items[0]
 
 	if instance.GetDeletionTimestamp() != nil {
+		r.Log.Info("DataScienceCluster instance is deleted.", "name", instance.Name)
+		if upgrade.HasDeleteConfigMap(r.Client) {
+			// if delete configmap exists, requeue the request to handle operator uninstall
+			return reconcile.Result{Requeue: true}, nil
+		}
 		return ctrl.Result{}, nil
 	}
 
@@ -111,6 +126,15 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 	}
 
+	// If Deletion configmap is found, reconcile to trigger operatorUninstall
+	if upgrade.HasDeleteConfigMap(r.Client) {
+		if err := r.Client.Delete(context.TODO(), instance); err != nil {
+			if !apierrs.IsNotFound(err) {
+				return reconcile.Result{}, err
+			}
+		}
+		return reconcile.Result{Requeue: true}, nil
+	}
 	// Verify a valid DSCInitialization instance is created
 	dsciInstances := &dsci.DSCInitializationList{}
 	err = r.Client.List(ctx, dsciInstances)
@@ -301,6 +325,7 @@ func (r *DataScienceClusterReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		Owns(&appsv1.ReplicaSet{}).
 		Owns(&corev1.Pod{}).
 		Watches(&source.Kind{Type: &dsci.DSCInitialization{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources)).
+		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources)).
 		// this predicates prevents meaningless reconciliations from being triggered
 		WithEventFilter(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{})).
 		Complete(r)
@@ -351,10 +376,24 @@ func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(a client
 		return nil
 	}
 	if len(instanceList.Items) == 1 {
+		// Trigger reconcile function when uninstall configmap is created
+		if a.GetObjectKind().GroupVersionKind().Kind == "ConfigMap" {
+			labels := a.GetLabels()
+			if val, ok := labels[upgrade.DeleteConfigMapLabel]; ok && val == "true" {
+				return []reconcile.Request{{
+					NamespacedName: types.NamespacedName{Name: instanceList.Items[0].Name},
+				}}
+			} else {
+				return nil
+			}
+		}
 		return []reconcile.Request{{
 			NamespacedName: types.NamespacedName{Name: instanceList.Items[0].Name},
 		}}
-	} else {
-		return nil
+	} else if len(instanceList.Items) == 0 {
+		return []reconcile.Request{{
+			NamespacedName: types.NamespacedName{Name: "default"},
+		}}
 	}
+	return nil
 }

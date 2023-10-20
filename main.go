@@ -20,17 +20,15 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	"os"
-
-	operatorv1 "github.com/openshift/api/operator/v1"
-
-	datascienceclusterv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
+	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	datascienceclustercontrollers "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
 	dscicontr "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
 	addonv1alpha1 "github.com/openshift/addon-operator/apis/addons/v1alpha1"
 	ocv1 "github.com/openshift/api/oauth/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	ocuserv1 "github.com/openshift/api/user/v1"
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -46,11 +44,13 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"os"
+	client2 "sigs.k8s.io/controller-runtime/pkg/client"
+
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	ctrl "sigs.k8s.io/controller-runtime"
-	client2 "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
@@ -64,7 +64,7 @@ func init() {
 	//+kubebuilder:scaffold:scheme
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(dsci.AddToScheme(scheme))
-	utilruntime.Must(datascienceclusterv1.AddToScheme(scheme))
+	utilruntime.Must(dsc.AddToScheme(scheme))
 	utilruntime.Must(netv1.AddToScheme(scheme))
 	utilruntime.Must(addonv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(authv1.AddToScheme(scheme))
@@ -76,6 +76,7 @@ func init() {
 	utilruntime.Must(ofapiv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(ocuserv1.Install(scheme))
 	utilruntime.Must(ofapiv2.AddToScheme(scheme))
+	utilruntime.Must(kfdefv1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -138,9 +139,10 @@ func main() {
 	}
 
 	if err = (&datascienceclustercontrollers.DataScienceClusterReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		Log:    ctrl.Log.WithName("controllers").WithName("DataScienceCluster"),
+		Client:     mgr.GetClient(),
+		Scheme:     mgr.GetScheme(),
+		RestConfig: mgr.GetConfig(),
+		Log:        ctrl.Log.WithName("controllers").WithName("DataScienceCluster"),
 		DataScienceCluster: &datascienceclustercontrollers.DataScienceClusterConfig{
 			DSCISpec: &dsci.DSCInitializationSpec{
 				ApplicationsNamespace: dscApplicationsNamespace,
@@ -203,6 +205,7 @@ func main() {
 			os.Exit(1)
 		}
 	}
+
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")
 		os.Exit(1)

@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 	"path/filepath"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -56,6 +57,7 @@ type DSCInitializationReconciler struct {
 // +kubebuilder:rbac:groups="dscinitialization.opendatahub.io",resources=dscinitializations/status,verbs=get;update;patch;delete
 // +kubebuilder:rbac:groups="dscinitialization.opendatahub.io",resources=dscinitializations/finalizers,verbs=get;update;patch;delete
 // +kubebuilder:rbac:groups="dscinitialization.opendatahub.io",resources=dscinitializations,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="kfdef.apps.kubeflow.org",resources=kfdefs,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile contains controller logic specific to DSCInitialization instance updates.
 func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -124,10 +126,10 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	// Apply update from legacy operator
 	// TODO: Update upgrade logic to get components through KfDef
-	// if err = updatefromLegacyVersion(r.Client); err != nil {
-	//	 r.Log.Error(err, "unable to update from legacy operator version")
-	//	 return reconcile.Result{}, err
-	// }
+	if err = upgrade.UpdateFromLegacyVersion(r.Client, platform); err != nil {
+		r.Log.Error(err, "unable to update from legacy operator version")
+		return reconcile.Result{}, err
+	}
 
 	// Apply Rhods specific configs
 	if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
