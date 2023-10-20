@@ -146,11 +146,6 @@ vet: ## Run go vet against code.
 lint: golangci-lint ## Run golangci-lint against code.
 	$(GOLANGCI_LINT) run --fix --sort-results
 
-.PHONY: unit-test
-unit-test: manifests generate fmt vet envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./controllers/... -v  -coverprofile cover.out
-
-
 .PHONY: get-manifests
 get-manifests: ## Fetch components manifests from remote git repo
 	./get_all_manifests.sh
@@ -214,11 +209,6 @@ $(KUSTOMIZE): $(LOCALBIN)
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.
 $(CONTROLLER_GEN): $(LOCALBIN)
 	test -s $(LOCALBIN)/controller-gen || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_GEN_VERSION)
-
-.PHONY: envtest
-envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
-$(ENVTEST): $(LOCALBIN)
-	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
 
 OPERATOR_SDK_DL_URL ?= https://github.com/operator-framework/operator-sdk/releases/download/$(OPERATOR_SDK_VERSION)
 .PHONY: operator-sdk
@@ -316,6 +306,19 @@ toolbox: ## Create a toolbox instance with the proper Golang and Operator SDK ve
 	$(IMAGE_BUILDER) stop opendatahub-toolbox ||:
 	toolbox rm opendatahub-toolbox ||:
 	toolbox create opendatahub-toolbox --image localhost/opendatahub-toolbox:latest
+
+# Run tests.
+.PHONY: envtest
+envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
+$(ENVTEST): $(LOCALBIN)
+	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+
+.PHONY: test
+test: unit-test e2e-test
+
+.PHONY: unit-test
+unit-test: envtest
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./controllers/... -v  -coverprofile cover.out
 
 .PHONY: e2e-test
 e2e-test: ## Run e2e tests for the controller
