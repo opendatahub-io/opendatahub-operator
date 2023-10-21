@@ -18,7 +18,7 @@ import (
 
 var (
 	ComponentName          = "kserve"
-	Path                   = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
+	Path                   = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/odh"
 	DependentComponentName = "odh-model-controller"
 	DependentPath          = deploy.DefaultManifestPath + "/" + DependentComponentName + "/base"
 	ServiceMeshOperator    = "servicemeshoperator"
@@ -53,7 +53,7 @@ func (k *Kserve) OverrideManifests(_ string) error {
 					return err
 				}
 				// If overlay is defined, update paths
-				defaultKustomizePath := "base"
+				defaultKustomizePath := "overlays/odh"
 				if subcomponent.SourcePath != "" {
 					defaultKustomizePath = subcomponent.SourcePath
 				}
