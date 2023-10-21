@@ -14,7 +14,7 @@ metadata:
         "apiVersion": "datasciencecluster.opendatahub.io/v1",
         "kind": "DataScienceCluster",
         "metadata": {
-          "name": "default",
+          "name": "rhods",
           "labels": {
             "app.kubernetes.io/name": "datasciencecluster",
             "app.kubernetes.io/instance": "default",
@@ -45,7 +45,10 @@ metadata:
             },
             "workbenches": {
               "managementState": "Managed"
-            }
+            },
+            "trustyAI": {
+              "managementState": "Managed"
+            },
           }
         }
       }
@@ -57,7 +60,7 @@ spec:
   apiservicedefinitions: {}
   customresourcedefinitions:
     owned:
-    - description: DataScienceCluster is the Schema for the datascienceclusters API
+    - description: DataScienceCluster is the Schema for the datascienceclusters API.
       displayName: Data Science Cluster
       kind: DataScienceCluster
       name: datascienceclusters.datasciencecluster.opendatahub.io
@@ -66,7 +69,7 @@ spec:
         displayName: Components
         path: components
       version: v1
-    - description: DSCInitialization is the Schema for the dscinitializations API
+    - description: DSCInitialization is the Schema for the dscinitializations API.
       displayName: DSC Initialization
       kind: DSCInitialization
       name: dscinitializations.dscinitialization.opendatahub.io

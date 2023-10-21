@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"os"
 	"strings"
 	"time"
@@ -139,14 +140,14 @@ func HasDeleteConfigMap(c client.Client) bool {
 
 // createDefaultDSC creates a default instance of DSC.
 // Note: When the platform is not Managed, and a DSC instance already exists, the function doesn't re-create/update the resource.
-func createDefaultDSC(cli client.Client, platform deploy.Platform) error {
+func CreateDefaultDSC(cli client.Client, platform deploy.Platform) error {
 	releaseDataScienceCluster := &dsc.DataScienceCluster{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DataScienceCluster",
 			APIVersion: "datasciencecluster.opendatahub.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "default",
+			Name: "rhods",
 		},
 		Spec: dsc.DataScienceClusterSpec{
 			Components: dsc.Components{
@@ -169,6 +170,9 @@ func createDefaultDSC(cli client.Client, platform deploy.Platform) error {
 					Component: components.Component{ManagementState: operatorv1.Managed},
 				},
 				Ray: ray.Ray{
+					Component: components.Component{ManagementState: operatorv1.Managed},
+				},
+				TrustyAI: trustyai.TrustyAI{
 					Component: components.Component{ManagementState: operatorv1.Managed},
 				},
 			},
@@ -204,12 +208,12 @@ func createDefaultDSC(cli client.Client, platform deploy.Platform) error {
 func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform) error {
 	// If platform is Managed, remove Kfdefs and create default dsc
 	if platform == deploy.ManagedRhods {
-		err := createDefaultDSC(cli, platform)
-		if err != nil {
-			return err
-		}
+		//err := createDefaultDSC(cli, platform)
+		//if err != nil {
+		//	return err
+		//}
 
-		err = RemoveKfDefInstances(cli, platform)
+		err := RemoveKfDefInstances(cli, platform)
 		if err != nil {
 			return err
 		}
@@ -229,7 +233,7 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform) error 
 		}
 	}
 	if len(kfDefList.Items) > 0 {
-		err := createDefaultDSC(cli, platform)
+		err := CreateDefaultDSC(cli, platform)
 		if err != nil {
 			return err
 		}

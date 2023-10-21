@@ -21,7 +21,7 @@ import (
 )
 
 var (
-	ComponentName          = "dashboard"
+	ComponentName          = "odh-dashboard"
 	ComponentNameSupported = "rhods-dashboard"
 	Path                   = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
 	PathSupported          = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/rhods"
@@ -144,7 +144,7 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 			sectionTitle = "OpenShift Self Managed Services"
 		}
 
-		if err := d.deployISVManifests(cli, owner, dscispec.ApplicationsNamespace, ComponentNameSupported, platform); err != nil {
+		if err := d.deployISVManifests(cli, owner, ComponentNameSupported, dscispec.ApplicationsNamespace, platform); err != nil {
 			return err
 		}
 
@@ -249,7 +249,7 @@ func (d *Dashboard) deployConsoleLink(cli client.Client, owner metav1.Object, na
 	}
 
 	enabled := d.ManagementState == operatorv1.Managed
-	err = deploy.DeployManifestsFromPath(cli, owner, pathConsoleLink, namespace, componentName, enabled)
+	err = deploy.DeployManifestsFromPath(cli, owner, PathConsoleLink, namespace, componentName, enabled)
 	if err != nil {
 		return fmt.Errorf("failed to set dashboard consolelink from %s: %w", PathConsoleLink, err)
 	}

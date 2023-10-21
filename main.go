@@ -20,6 +20,9 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
 	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
@@ -176,7 +179,7 @@ func main() {
 				APIVersion: "dscinitialization.opendatahub.io/v1",
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "default",
+				Name: "rhods-setup",
 			},
 			Spec: dsci.DSCInitializationSpec{
 				ApplicationsNamespace: dscApplicationsNamespace,
@@ -208,6 +211,28 @@ func main() {
 		}
 	}
 
+	// Create new uncached client to run initial setup
+	setupCfg, err := config.GetConfig()
+	if err != nil {
+		setupLog.Error(err, "error getting config for setup")
+		os.Exit(1)
+	}
+
+	setupClient, err := client2.New(setupCfg, client2.Options{Scheme: scheme})
+	// Get operator platform
+	platform, err := deploy.GetPlatform(setupClient)
+	if err != nil {
+		setupLog.Error(err, "error getting client for setup")
+		os.Exit(1)
+	}
+
+	// Create Default DSC
+	err = upgrade.CreateDefaultDSC(mgr.GetClient(), platform)
+	if err != nil {
+		setupLog.Error(err, "error creating rhods DSC")
+		os.Exit(1)
+	}
+
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")
 		os.Exit(1)
@@ -222,4 +247,5 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+
 }

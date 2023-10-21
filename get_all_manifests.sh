@@ -15,10 +15,10 @@ declare -A COMPONENT_MANIFESTS=(
     ["codeflare"]="opendatahub-io:codeflare-operator:main:config:codeflare"
     ["ray"]="opendatahub-io:kuberay:master:ray-operator/config:ray"
     ["data-science-pipelines-operator"]="opendatahub-io:data-science-pipelines-operator:main:config:data-science-pipelines-operator"
-    ["odh-dashboard"]="opendatahub-io:odh-dashboard:incubation:manifests:dashboard"
-    ["kf-notebook-controller"]="opendatahub-io:kubeflow:v1.7-branch:components/notebook-controller/config:odh-notebook-controller/kf-notebook-controller"
-    ["odh-notebook-controller"]="opendatahub-io:kubeflow:v1.7-branch:components/odh-notebook-controller/config:odh-notebook-controller/odh-notebook-controller"
-    ["notebooks"]="opendatahub-io:notebooks:main:manifests:notebooks"
+#    ["odh-dashboard"]="opendatahub-io:odh-dashboard:incubation:manifests:dashboard"
+#    ["kf-notebook-controller"]="opendatahub-io:kubeflow:v1.7-branch:components/notebook-controller/config:odh-notebook-controller/kf-notebook-controller"
+#    ["odh-notebook-controller"]="opendatahub-io:kubeflow:v1.7-branch:components/odh-notebook-controller/config:odh-notebook-controller/odh-notebook-controller"
+#    ["notebooks"]="opendatahub-io:notebooks:main:manifests:notebooks"
     ["trustyai"]="trustyai-explainability:trustyai-service-operator:release/1.10.2:config:trustyai-service-operator"
     ["model-mesh"]="opendatahub-io:modelmesh-serving:release-0.11.0:config:model-mesh"
     ["odh-model-controller"]="opendatahub-io:odh-model-controller:release-0.11.0:config:odh-model-controller"
@@ -62,8 +62,8 @@ MANIFESTS_TARBALL_URL="${GITHUB_URL}/${MANIFEST_ORG}/odh-manifests/tarball/${MAN
 mkdir -p ./.odh-manifests-tmp/ ./odh-manifests/
 wget -q -c ${MANIFESTS_TARBALL_URL} -O - | tar -zxv -C ./.odh-manifests-tmp/ --strip-components 1 > /dev/null
 # modelmesh
-cp -r ./.odh-manifests-tmp/model-mesh/ ./odh-manifests
-cp -r ./.odh-manifests-tmp/odh-model-controller/ ./odh-manifests
+#cp -r ./.odh-manifests-tmp/model-mesh/ ./odh-manifests
+#cp -r ./.odh-manifests-tmp/odh-model-controller/ ./odh-manifests
 cp -r ./.odh-manifests-tmp/modelmesh-monitoring/ ./odh-manifests
 # Kserve
 cp -r ./.odh-manifests-tmp/kserve/ ./odh-manifests
@@ -73,7 +73,7 @@ cp -r ./.odh-manifests-tmp/jupyterhub/notebook-images/* ./odh-manifests/jupyterh
 # workbench nbc
 cp -r ./.odh-manifests-tmp/odh-notebook-controller/ ./odh-manifests
 # Trustyai
-cp -r ./.odh-manifests-tmp/trustyai-service-operator ./odh-manifests
+#cp -r ./.odh-manifests-tmp/trustyai-service-operator ./odh-manifests
 # Dashboard
 cp -r ./.odh-manifests-tmp/odh-dashboard/ ./odh-manifests
 rm -rf ${MANIFEST_RELEASE}.tar.gz ./.odh-manifests-tmp/

@@ -81,14 +81,14 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 	// Second check if default instance not exists, return error
 	// TODO: update logic if we support multiple DSCI CR or different name
-	defaultDSCI := types.NamespacedName{Name: "default"}
+	defaultDSCI := types.NamespacedName{Name: "rhods-setup"}
 	err := r.Client.Get(ctx, defaultDSCI, instance)
 	if err != nil {
 		if apierrs.IsNotFound(err) {
 			// DSCInitialization instance not found
 			return ctrl.Result{}, nil
 		}
-		r.Log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", "default")
+		r.Log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", "rhods-setup")
 		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to retrieve DSCInitialization instance default")
 		return ctrl.Result{}, err
 	}
@@ -103,7 +103,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		message := fmt.Sprintf("only one instance of DSCInitialization object is allowed. Update existing instance on namespace %s and name %s", req.Namespace, req.Name)
 		return ctrl.Result{}, errors.New(message)
 	}
-	
+
 	// Get platform
 	platform, err := deploy.GetPlatform(r.Client)
 	if err != nil {
@@ -302,10 +302,14 @@ func (r *DSCInitializationReconciler) watchMonitoringConfigMapResrouce(a client.
 }
 
 func (r *DSCInitializationReconciler) watchMonitoringSecretResrouce(a client.Object) (requests []reconcile.Request) {
-	if a.GetName() == "addon-managed-odh-parameters" && a.GetNamespace() == "redhat-ods-operator" {
+	operatorNs, err := upgrade.GetOperatorNamespace()
+	if err != nil {
+		return nil
+	}
+	if a.GetName() == "addon-managed-odh-parameters" && a.GetNamespace() == operatorNs {
 		r.Log.Info("Found monitoring secret has updated, start reconcile")
 		return []reconcile.Request{{
-			NamespacedName: types.NamespacedName{Name: "addon-managed-odh-parameters", Namespace: "redhat-ods-operator"},
+			NamespacedName: types.NamespacedName{Name: "addon-managed-odh-parameters", Namespace: operatorNs},
 		}}
 	} else {
 		return nil
