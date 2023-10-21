@@ -38,7 +38,7 @@ Refer [Dev-Preview.md](./docs/Dev-Preview.md) for testing preview features.
 
 #### Pre-requisites
 
-- Go version **go1.18.9**
+- Go version **go1.19**
 - operator-sdk version can be updated to **v1.24.1**
 
 #### Download manifests

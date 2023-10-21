@@ -3,25 +3,25 @@ set -e
 
 GITHUB_URL="https://github.com/"
 # update to use different git repo for legacy manifests
-MANIFEST_ORG="opendatahub-io"
+MANIFEST_ORG="red-hat-data-services"
 # comment out below logic once we have all component manifests ready to get from source git repo
 MANIFEST_RELEASE="master"
 MANIFESTS_TARBALL_URL="${GITHUB_URL}/${MANIFEST_ORG}/odh-manifests/tarball/${MANIFEST_RELEASE}"
 
 # component: dsp, kserve, dashbaord, cf/ray. in the format of "repo-org:repo-name:branch-name:source-folder:target-folder"
-# TODO: workbench, modelmesh, monitoring, etc
-
+# TODO: kserve, mm, trustyai, dashbaord, nbc,odh-mm-monitoring, etc
 declare -A COMPONENT_MANIFESTS=(
-    ["codeflare"]="opendatahub-io:codeflare-operator:main:config:codeflare"
-    ["ray"]="opendatahub-io:kuberay:master:ray-operator/config:ray"
-    ["data-science-pipelines-operator"]="opendatahub-io:data-science-pipelines-operator:main:config:data-science-pipelines-operator"
-#    ["odh-dashboard"]="opendatahub-io:odh-dashboard:incubation:manifests:dashboard"
-#    ["kf-notebook-controller"]="opendatahub-io:kubeflow:v1.7-branch:components/notebook-controller/config:odh-notebook-controller/kf-notebook-controller"
-#    ["odh-notebook-controller"]="opendatahub-io:kubeflow:v1.7-branch:components/odh-notebook-controller/config:odh-notebook-controller/odh-notebook-controller"
-#    ["notebooks"]="opendatahub-io:notebooks:main:manifests:notebooks"
-    ["trustyai"]="trustyai-explainability:trustyai-service-operator:release/1.10.2:config:trustyai-service-operator"
-    ["model-mesh"]="opendatahub-io:modelmesh-serving:release-0.11.0:config:model-mesh"
-    ["odh-model-controller"]="opendatahub-io:odh-model-controller:release-0.11.0:config:odh-model-controller"
+    ["codeflare"]="red-hat-data-services:codeflare-operator:main:config:codeflare"
+    ["ray"]="red-hat-data-services:kuberay:master:ray-operator/config:ray"
+    ["data-science-pipelines-operator"]="red-hat-data-services:data-science-pipelines-operator:main:config:data-science-pipelines-operator"
+#    ["odh-dashboard"]="opendatahub-io:odh-dashboard:main:manifests:dashboard"
+#    ["kf-notebook-controller"]="red-hat-data-services:kubeflow:rhods-2.4:components/notebook-controller/config:odh-notebook-controller/kf-notebook-controller"
+#    ["odh-notebook-controller"]="red-hat-data-services:kubeflow:rhods-2.4:components/odh-notebook-controller/config:odh-notebook-controller/odh-notebook-controller"
+    ["notebooks"]="red-hat-data-services:notebooks:main:manifests:/jupyterhub/notebooks"
+#    ["trustyai"]="red-hat-data-services:trustyai-service-operator:main:config:trustyai-service-operator"
+#    ["model-mesh"]="red-hat-data-services:modelmesh-serving:release-0.11.0:config:model-mesh"
+#    ["odh-model-controller"]="red-hat-data-services:odh-model-controller:release-0.11.0:config:odh-model-controller"
+#    ["kserve"]="red-hat-data-services:kserve:release-v0.11.0:config:kserve"
 )
 
 # Allow overwriting repo using flags component=repo
@@ -51,31 +51,23 @@ fi
 # pre-cleanup local env
 rm -fr ./odh-manifests/* ./.odh-manifests-tmp/
 
-GITHUB_URL="https://github.com/"
-# update to use different git repo
-MANIFEST_ORG="red-hat-data-services"
-
-# comment out below logic once we have all component manifests ready to get from source git repo
-MANIFEST_RELEASE="master"
-MANIFESTS_TARBALL_URL="${GITHUB_URL}/${MANIFEST_ORG}/odh-manifests/tarball/${MANIFEST_RELEASE}"
-
 mkdir -p ./.odh-manifests-tmp/ ./odh-manifests/
 wget -q -c ${MANIFESTS_TARBALL_URL} -O - | tar -zxv -C ./.odh-manifests-tmp/ --strip-components 1 > /dev/null
+# mm-monitroing
+cp -r ./.odh-manifests-tmp/modelmesh-monitoring/ ./odh-manifests
 # modelmesh
-#cp -r ./.odh-manifests-tmp/model-mesh/ ./odh-manifests
-#cp -r ./.odh-manifests-tmp/odh-model-controller/ ./odh-manifests
+cp -r ./.odh-manifests-tmp/model-mesh/ ./odh-manifests
+cp -r ./.odh-manifests-tmp/odh-model-controller/ ./odh-manifests
 cp -r ./.odh-manifests-tmp/modelmesh-monitoring/ ./odh-manifests
 # Kserve
 cp -r ./.odh-manifests-tmp/kserve/ ./odh-manifests
-# workbench image
-mkdir -p ./odh-manifests/jupyterhub/notebook-images
-cp -r ./.odh-manifests-tmp/jupyterhub/notebook-images/* ./odh-manifests/jupyterhub/notebook-images
 # workbench nbc
 cp -r ./.odh-manifests-tmp/odh-notebook-controller/ ./odh-manifests
 # Trustyai
-#cp -r ./.odh-manifests-tmp/trustyai-service-operator ./odh-manifests
+cp -r ./.odh-manifests-tmp/trustyai-service-operator ./odh-manifests
 # Dashboard
 cp -r ./.odh-manifests-tmp/odh-dashboard/ ./odh-manifests
+
 rm -rf ${MANIFEST_RELEASE}.tar.gz ./.odh-manifests-tmp/
 
 for key in "${!COMPONENT_MANIFESTS[@]}"; do

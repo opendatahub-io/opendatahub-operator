@@ -3,11 +3,11 @@ kind: DSCInitialization
 metadata:
   labels:
     app.kubernetes.io/name: dscinitialization
-    app.kubernetes.io/instance: default
+    app.kubernetes.io/instance: rhods-setup
     app.kubernetes.io/part-of: rhods-operator
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/created-by: rhods-operator
-  name: default
+  name: rhods-setup
 spec:
   monitoring:
     managementState: "Managed"
