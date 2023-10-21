@@ -1,14 +1,16 @@
 # Build the manager binary
-ARG GOLANG_VERSION=1.18.9
+ARG GOLANG_VERSION=1.19
 ARG USE_LOCAL=false
+ARG OVERWRITE_MANIFESTS=""
 
 ################################################################################
 FROM registry.access.redhat.com/ubi8/go-toolset:$GOLANG_VERSION as builder_local_false
+ARG OVERWRITE_MANIFESTS
 # Get all manifests from remote git repo to builder_local_false by script
 USER root
 WORKDIR /opt
 COPY get_all_manifests.sh get_all_manifests.sh
-RUN ./get_all_manifests.sh
+RUN ./get_all_manifests.sh ${OVERWRITE_MANIFESTS}
 
 ################################################################################
 FROM registry.access.redhat.com/ubi8/go-toolset:$GOLANG_VERSION as builder_local_true

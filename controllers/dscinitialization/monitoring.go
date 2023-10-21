@@ -4,6 +4,7 @@ import (
 	"context"
 	b64 "encoding/base64"
 	"fmt"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
@@ -117,8 +118,13 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 	}
 	// r.Log.Info("Success: inject alertmanage-configs.yaml")
 
+	operatorNs, err := upgrade.GetOperatorNamespace()
+	if err != nil {
+		r.Log.Error(err, "error getting operator namespace for smtp secret")
+		return err
+	}
 	// Get SMTP receiver email secret (assume operator namespace for managed service is not configurable)
-	smtpEmailSecret, err := r.waitForManagedSecret(ctx, "addon-managed-odh-parameters", "redhat-ods-operator")
+	smtpEmailSecret, err := r.waitForManagedSecret(ctx, "addon-managed-odh-parameters", operatorNs)
 	if err != nil {
 		return fmt.Errorf("error getting smtp receiver email secret: %w", err)
 	}

@@ -1,0 +1,39 @@
+linters-settings:
+  gocyclo:
+    min-complexity: 30
+  lll:
+    line-length: 180
+
+linters:
+  disable-all: true
+  enable:
+    - bodyclose
+    - dogsled
+    - dupl
+    - errcheck
+    - exportloopref
+    - goconst
+    - gocritic
+    - gocyclo
+    - gofmt
+    - goprintffuncname
+    - gosimple
+    - govet
+    - ineffassign
+    - misspell
+    - nakedret
+    - nolintlint
+    - staticcheck
+    - stylecheck
+    - typecheck
+    - unconvert
+    - unparam
+    - unused
+    - whitespace
+    - lll
+
+issues:
+  exclude-rules:
+    - path: tests/e2e/(.+)_test\.go
+      linters:
+        - typecheck

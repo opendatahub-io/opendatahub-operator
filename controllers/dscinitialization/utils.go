@@ -52,11 +52,11 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 		if apierrs.IsNotFound(err) {
 			r.Log.Info("Creating namespace", "name", name)
 			// Set Controller reference
-			//err = ctrl.SetControllerReference(dscInit, desiredNamespace, r.Scheme)
-			//if err != nil {
-			//	r.Log.Error(err, "Unable to add OwnerReference to the Namespace")
-			//	return err
-			//}
+			// err = ctrl.SetControllerReference(dscInit, desiredNamespace, r.Scheme)
+			// if err != nil {
+			//	 r.Log.Error(err, "Unable to add OwnerReference to the Namespace")
+			//	 return err
+			// }
 			err = r.Create(ctx, desiredNamespace)
 			if err != nil && !apierrs.IsAlreadyExists(err) {
 				r.Log.Error(err, "Unable to create namespace", "name", name)
@@ -104,21 +104,21 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 	}
 
 	// Create default NetworkPolicy for the namespace
-	err = r.reconcileDefaultNetworkPolicy(dscInit, name, ctx)
+	err = r.reconcileDefaultNetworkPolicy(ctx, name, dscInit)
 	if err != nil {
 		r.Log.Error(err, "error reconciling network policy ", "name", name)
 		return err
 	}
 
 	// Create odh-common-config Configmap for the Namespace
-	err = r.createOdhCommonConfigMap(dscInit, name, ctx)
+	err = r.createOdhCommonConfigMap(ctx, name, dscInit)
 	if err != nil {
 		r.Log.Error(err, "error creating configmap", "name", "odh-common-config")
 		return err
 	}
 
 	// Create default Rolebinding for the namespace
-	err = r.createDefaultRoleBinding(dscInit, name, ctx)
+	err = r.createDefaultRoleBinding(ctx, name, dscInit)
 	if err != nil {
 		r.Log.Error(err, "error creating rolebinding", "name", name)
 		return err
@@ -126,7 +126,7 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 	return nil
 }
 
-func (r *DSCInitializationReconciler) createDefaultRoleBinding(dscInit *dsci.DSCInitialization, name string, ctx context.Context) error {
+func (r *DSCInitializationReconciler) createDefaultRoleBinding(ctx context.Context, name string, dscInit *dsci.DSCInitialization) error {
 	// Expected namespace for the given name
 	desiredRoleBinding := &authv1.RoleBinding{
 		TypeMeta: metav1.TypeMeta{
@@ -176,7 +176,7 @@ func (r *DSCInitializationReconciler) createDefaultRoleBinding(dscInit *dsci.DSC
 	return nil
 }
 
-func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(dscInit *dsci.DSCInitialization, name string, ctx context.Context) error {
+func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.Context, name string, dscInit *dsci.DSCInitialization) error {
 	// Expected namespace for the given name
 	desiredNetworkPolicy := &netv1.NetworkPolicy{
 		TypeMeta: metav1.TypeMeta{
@@ -189,33 +189,33 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(dscInit *dsc
 		},
 		Spec: netv1.NetworkPolicySpec{
 			// open ingress for all port for now, TODO: add explicit port per component
-			Ingress: []netv1.NetworkPolicyIngressRule{{}},
+			// Ingress: []netv1.NetworkPolicyIngressRule{{}},
 			// open ingress for only ODH created namespaces
 			// this is tested on ROSA but not enough for PSI
-			// Ingress: []netv1.NetworkPolicyIngressRule{
-			// 	{
-			// 		From: []netv1.NetworkPolicyPeer{
-			// 			{
-			// 				NamespaceSelector: &metav1.LabelSelector{ // AND logic
-			// 					MatchLabels: map[string]string{
-			// 						"opendatahub.io/generated-namespace": "true",
-			// 					},
-			// 				},
-			// 			},
-			// 		},
-			// 	},
-			// 	{ // OR logic
-			// 		From: []netv1.NetworkPolicyPeer{
-			// 			{ // need this for access dashboard
-			// 				NamespaceSelector: &metav1.LabelSelector{
-			// 					MatchLabels: map[string]string{
-			// 						"kubernetes.io/metadata.name": "openshift-ingress",
-			// 					},
-			// 				},
-			// 			},
-			// 		},
-			// 	},
-			// },
+			Ingress: []netv1.NetworkPolicyIngressRule{
+				{
+					From: []netv1.NetworkPolicyPeer{
+						{
+							NamespaceSelector: &metav1.LabelSelector{ // AND logic
+								MatchLabels: map[string]string{
+									"opendatahub.io/generated-namespace": "true",
+								},
+							},
+						},
+					},
+				},
+				{ // OR logic
+					From: []netv1.NetworkPolicyPeer{
+						{ // need this for access dashboard
+							NamespaceSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"kubernetes.io/metadata.name": "openshift-ingress",
+								},
+							},
+						},
+					},
+				},
+			},
 			PolicyTypes: []netv1.PolicyType{
 				netv1.PolicyTypeIngress,
 			},
@@ -274,7 +274,7 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(dscInit *dsc
 	return nil
 }
 
-// CompareNotebookNetworkPolicies checks if two services are equal, if not return false
+// CompareNotebookNetworkPolicies checks if two services are equal, if not return false.
 func CompareNotebookNetworkPolicies(np1 netv1.NetworkPolicy, np2 netv1.NetworkPolicy) bool {
 	// Two network policies will be equal if the labels and specs are identical
 	return reflect.DeepEqual(np1.ObjectMeta.Labels, np2.ObjectMeta.Labels) &&
@@ -283,8 +283,7 @@ func CompareNotebookNetworkPolicies(np1 netv1.NetworkPolicy, np2 netv1.NetworkPo
 
 func (r *DSCInitializationReconciler) waitForManagedSecret(ctx context.Context, name string, namespace string) (*corev1.Secret, error) {
 	managedSecret := &corev1.Secret{}
-	err := wait.Poll(resourceInterval, resourceTimeout, func() (done bool, err error) {
-
+	err := wait.PollUntilContextTimeout(ctx, resourceInterval, resourceTimeout, false, func(ctx context.Context) (done bool, err error) {
 		err = r.Client.Get(ctx, client.ObjectKey{
 			Namespace: namespace,
 			Name:      name,
@@ -319,7 +318,7 @@ func GenerateRandomHex(length int) ([]byte, error) {
 	return randomBytes, nil
 }
 
-func (r *DSCInitializationReconciler) createOdhCommonConfigMap(dscInit *dsci.DSCInitialization, name string, ctx context.Context) error {
+func (r *DSCInitializationReconciler) createOdhCommonConfigMap(ctx context.Context, name string, dscInit *dsci.DSCInitialization) error {
 	// Expected configmap for the given namespace
 	desiredConfigMap := &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
@@ -362,10 +361,15 @@ func (r *DSCInitializationReconciler) createUserGroup(ctx context.Context, dscIn
 	userGroup := &ocuserv1.Group{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: userGroupName,
+			// Otherwise it errors with  "error": "an empty namespace may not be set during creation"
+			Namespace: dscInit.Spec.ApplicationsNamespace,
 		},
+		// Otherwise is errors with "error": "Group.user.openshift.io \"odh-admins\" is invalid: users: Invalid value: \"null\": users in body must be of type array: \"null\""}
+		Users: []string{},
 	}
 	err := r.Client.Get(ctx, client.ObjectKey{
-		Name: userGroup.Name,
+		Name:      userGroup.Name,
+		Namespace: dscInit.Spec.ApplicationsNamespace,
 	}, userGroup)
 	if err != nil {
 		if apierrs.IsNotFound(err) {
@@ -377,5 +381,6 @@ func (r *DSCInitializationReconciler) createUserGroup(ctx context.Context, dscIn
 			return err
 		}
 	}
+
 	return nil
 }

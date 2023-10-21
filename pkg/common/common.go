@@ -22,17 +22,21 @@ import (
 	"crypto/sha256"
 	b64 "encoding/base64"
 	"fmt"
-	routev1 "github.com/openshift/api/route/v1"
 	"os"
 	"regexp"
 	"strings"
 
+	routev1 "github.com/openshift/api/route/v1"
 	corev1 "k8s.io/api/core/v1"
 	authv1 "k8s.io/api/rbac/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	//"net/http"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+const (
+	// odhGeneratedNamespaceLabel is the label added to all the namespaces genereated by odh-deployer
+	odhGeneratedNamespaceLabel = "opendatahub.io/generated-namespace"
 )
 
 // UpdatePodSecurityRolebinding update default rolebinding which is created in namespace by manifests
@@ -50,7 +54,8 @@ func UpdatePodSecurityRolebinding(cli client.Client, serviceAccountsList []strin
 			foundRoleBinding.Subjects = append(foundRoleBinding.Subjects, authv1.Subject{
 				Kind:      authv1.ServiceAccountKind,
 				Name:      sa,
-				Namespace: namespace})
+				Namespace: namespace,
+			})
 		}
 	}
 
@@ -58,7 +63,7 @@ func UpdatePodSecurityRolebinding(cli client.Client, serviceAccountsList []strin
 }
 
 // Internal function used by UpdatePodSecurityRolebinding()
-// Return whether Rolebinding matching service account and namespace exists or not
+// Return whether Rolebinding matching service account and namespace exists or not.
 func subjectExistInRoleBinding(subjectList []authv1.Subject, serviceAccountName, namespace string) bool {
 	for _, subject := range subjectList {
 		if subject.Name == serviceAccountName && subject.Namespace == namespace {
@@ -140,7 +145,7 @@ func CreateNamespace(cli client.Client, namespace string) error {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: namespace,
 			Labels: map[string]string{
-				"opendatahub.io/generated-namespace": "true",
+				odhGeneratedNamespaceLabel: "true",
 			},
 		},
 	}

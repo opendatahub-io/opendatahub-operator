@@ -20,15 +20,18 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	operatorv1 "github.com/openshift/api/operator/v1"
-	"os"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
-	// to ensure that exec-entrypoint and run can make use of them.
-	_ "k8s.io/client-go/plugin/pkg/client/auth"
-
+	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
+	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dscicontr "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
 	addonv1alpha1 "github.com/openshift/addon-operator/apis/addons/v1alpha1"
 	ocv1 "github.com/openshift/api/oauth/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	ocuserv1 "github.com/openshift/api/user/v1"
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -44,16 +47,17 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	ctrl "sigs.k8s.io/controller-runtime"
+	"os"
 	client2 "sigs.k8s.io/controller-runtime/pkg/client"
+
+	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
+	// to ensure that exec-entrypoint and run can make use of them.
+	_ "k8s.io/client-go/plugin/pkg/client/auth"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	dscontr "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
-	dscicontr "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
-	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -65,8 +69,8 @@ var (
 func init() {
 	//+kubebuilder:scaffold:scheme
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-	utilruntime.Must(dsciv1.AddToScheme(scheme))
-	utilruntime.Must(dscv1.AddToScheme(scheme))
+	utilruntime.Must(dsci.AddToScheme(scheme))
+	utilruntime.Must(dsc.AddToScheme(scheme))
 	utilruntime.Must(netv1.AddToScheme(scheme))
 	utilruntime.Must(addonv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(authv1.AddToScheme(scheme))
@@ -78,6 +82,7 @@ func init() {
 	utilruntime.Must(ofapiv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(ocuserv1.Install(scheme))
 	utilruntime.Must(ofapiv2.AddToScheme(scheme))
+	utilruntime.Must(kfdefv1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -144,7 +149,7 @@ func main() {
 		Scheme: mgr.GetScheme(),
 		Log:    ctrl.Log.WithName("controllers").WithName("DataScienceCluster"),
 		DataScienceCluster: &dscontr.DataScienceClusterConfig{
-			DSCISpec: &dsciv1.DSCInitializationSpec{
+			DSCISpec: &dsci.DSCInitializationSpec{
 				ApplicationsNamespace: dscApplicationsNamespace,
 			},
 		},
@@ -168,17 +173,17 @@ func main() {
 	if !disableDSCConfig {
 		// Create DSCInitialization CR if it's not present
 		client := mgr.GetClient()
-		releaseDscInitialization := &dsciv1.DSCInitialization{
+		releaseDscInitialization := &dsci.DSCInitialization{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "DSCInitialization",
 				APIVersion: "dscinitialization.opendatahub.io/v1",
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "default",
+				Name: "rhods-setup",
 			},
-			Spec: dsciv1.DSCInitializationSpec{
+			Spec: dsci.DSCInitializationSpec{
 				ApplicationsNamespace: dscApplicationsNamespace,
-				Monitoring: dsciv1.Monitoring{
+				Monitoring: dsci.Monitoring{
 					ManagementState: operatorv1.Managed,
 					Namespace:       dscMonitoringNamespace,
 				},
@@ -204,8 +209,30 @@ func main() {
 			setupLog.Error(err, "failed to create DscInitialization custom resource")
 			os.Exit(1)
 		}
-
 	}
+
+	// Create new uncached client to run initial setup
+	setupCfg, err := config.GetConfig()
+	if err != nil {
+		setupLog.Error(err, "error getting config for setup")
+		os.Exit(1)
+	}
+
+	setupClient, err := client2.New(setupCfg, client2.Options{Scheme: scheme})
+	// Get operator platform
+	platform, err := deploy.GetPlatform(setupClient)
+	if err != nil {
+		setupLog.Error(err, "error getting client for setup")
+		os.Exit(1)
+	}
+
+	// Create Default DSC
+	err = upgrade.CreateDefaultDSC(mgr.GetClient(), platform)
+	if err != nil {
+		setupLog.Error(err, "error creating rhods DSC")
+		os.Exit(1)
+	}
+
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")
 		os.Exit(1)
@@ -220,4 +247,5 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+
 }

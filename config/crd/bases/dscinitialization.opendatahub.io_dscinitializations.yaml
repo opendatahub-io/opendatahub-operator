@@ -12,6 +12,8 @@ spec:
     kind: DSCInitialization
     listKind: DSCInitializationList
     plural: dscinitializations
+    shortNames:
+    - dsci
     singular: dscinitialization
   scope: Cluster
   versions:
@@ -29,7 +31,7 @@ spec:
     name: v1
     schema:
       openAPIV3Schema:
-        description: DSCInitialization is the Schema for the dscinitializations API
+        description: DSCInitialization is the Schema for the dscinitializations API.
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -44,7 +46,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: DSCInitializationSpec defines the desired state of DSCInitialization
+            description: DSCInitializationSpec defines the desired state of DSCInitialization.
             properties:
               applicationsNamespace:
                 default: redhat-ods-applications
@@ -83,7 +85,7 @@ spec:
             - applicationsNamespace
             type: object
           status:
-            description: DSCInitializationStatus defines the observed state of DSCInitialization
+            description: DSCInitializationStatus defines the observed state of DSCInitialization.
             properties:
               conditions:
                 description: Conditions describes the state of the DSCInitializationStatus

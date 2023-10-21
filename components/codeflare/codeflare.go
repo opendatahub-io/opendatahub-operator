@@ -1,20 +1,22 @@
-// Package codeflare provides utility functions to config CodeFlare as part of the stack which makes managing distributed compute infrastructure in the cloud easy and intuitive for Data Scientists
+// Package codeflare provides utility functions to config CodeFlare as part of the stack
+// which makes managing distributed compute infrastructure in the cloud easy and intuitive for Data Scientists
 package codeflare
 
 import (
 	"fmt"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"path/filepath"
+
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"path/filepath"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var (
 	ComponentName       = "codeflare"
-	CodeflarePath       = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
+	CodeflarePath       = deploy.DefaultManifestPath + "/" + ComponentName + "/manifests"
 	CodeflareOperator   = "codeflare-operator"
 	RHCodeflareOperator = "rhods-codeflare-operator"
 )
@@ -36,7 +38,6 @@ func (c *CodeFlare) OverrideManifests(_ string) error {
 			defaultKustomizePath = manifestConfig.SourcePath
 		}
 		CodeflarePath = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
-
 	}
 	return nil
 }
@@ -45,11 +46,12 @@ func (c *CodeFlare) GetComponentName() string {
 	return ComponentName
 }
 
-// Verifies that CodeFlare implements ComponentInterface
+// Verifies that CodeFlare implements ComponentInterface.
 var _ components.ComponentInterface = (*CodeFlare)(nil)
 
-func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
+func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
 	var imageParamMap = map[string]string{
+		"odh-codeflare-operator-controller-image": "RELATED_IMAGE_ODH_CODEFLARE_OPERATOR_IMAGE", // no need mcad, embedded in cfo
 		"namespace": dscispec.ApplicationsNamespace,
 	}
 	enabled := c.GetManagementState() == operatorv1.Managed
@@ -73,14 +75,14 @@ func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, d
 
 		if found, err := deploy.OperatorExists(cli, dependentOperator); err != nil {
 			return err
-		} else if !found {
-			return fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
+		} else if found {
+			return fmt.Errorf("operator %s  found. Please uninstall the operator before enabling %s component",
 				dependentOperator, ComponentName)
 		}
 
 		// Update image parameters only when we do not have customized manifests set
 		if dscispec.DevFlags.ManifestsUri == "" && len(c.DevFlags.Manifests) == 0 {
-			if err := deploy.ApplyParams(CodeflarePath, c.SetImageParamsMap(imageParamMap), true); err != nil {
+			if err := deploy.ApplyParams(CodeflarePath+"/base", c.SetImageParamsMap(imageParamMap), true); err != nil {
 				return err
 			}
 		}

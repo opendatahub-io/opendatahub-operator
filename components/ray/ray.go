@@ -1,19 +1,21 @@
-// Package ray provides utility functions to config Ray as part of the stack which makes managing distributed compute infrastructure in the cloud easy and intuitive for Data Scientists
+// Package ray provides utility functions to config Ray as part of the stack
+// which makes managing distributed compute infrastructure in the cloud easy and intuitive for Data Scientists
 package ray
 
 import (
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"path/filepath"
+
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"path/filepath"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var (
 	ComponentName = "ray"
-	RayPath       = deploy.DefaultManifestPath + "/" + "ray/operator/base"
+	RayPath       = deploy.DefaultManifestPath + "/ray/openshift"
 )
 
 type Ray struct {
@@ -41,10 +43,10 @@ func (r *Ray) GetComponentName() string {
 	return ComponentName
 }
 
-// Verifies that Ray implements ComponentInterface
+// Verifies that Ray implements ComponentInterface.
 var _ components.ComponentInterface = (*Ray)(nil)
 
-func (r *Ray) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
+func (r *Ray) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
 	var imageParamMap = map[string]string{
 		"odh-kuberay-operator-controller-image": "RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE",
 		"namespace":                             dscispec.ApplicationsNamespace,

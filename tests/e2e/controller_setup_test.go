@@ -4,6 +4,8 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"os"
 	"testing"
 	"time"
@@ -21,9 +23,6 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlruntime "sigs.k8s.io/controller-runtime/pkg/client/config"
-
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 )
 
 var (
@@ -32,7 +31,7 @@ var (
 	scheme       = runtime.NewScheme()
 )
 
-// Holds information specific to individual tests
+// Holds information specific to individual tests.
 type testContext struct {
 	// Rest config
 	cfg *rest.Config
@@ -47,7 +46,7 @@ type testContext struct {
 	// time required to create a resource
 	resourceCreationTimeout time.Duration
 	// test DataScienceCluster instance
-	testDsc *dscv1.DataScienceCluster
+	testDsc *dsc.DataScienceCluster
 	// time interval to check for resource creation
 	resourceRetryInterval time.Duration
 	// context for accessing resources
@@ -55,7 +54,6 @@ type testContext struct {
 }
 
 func NewTestContext() (*testContext, error) {
-
 	// GetConfig(): If KUBECONFIG env variable is set, it is used to create
 	// the client, else the inClusterConfig() is used.
 	// Lastly if none of them are set, it uses  $HOME/.kube/config to create the client.
@@ -79,7 +77,7 @@ func NewTestContext() (*testContext, error) {
 	testDSC := setupDSCInstance()
 
 	// Get Applications namespace from DSCInitialization instance
-	dscInit := &dsciv1.DSCInitialization{}
+	dscInit := &dsci.DSCInitialization{}
 	err = custClient.Get(context.TODO(), types.NamespacedName{Name: "default"}, dscInit)
 	if err != nil {
 		return nil, errors.Wrap(err, "error getting DSCInitialization instance 'default'")
@@ -100,13 +98,12 @@ func NewTestContext() (*testContext, error) {
 
 // TestOdhOperator sets up the testing suite for ODH Operator.
 func TestOdhOperator(t *testing.T) {
-
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(routev1.AddToScheme(scheme))
 	utilruntime.Must(apiextv1.AddToScheme(scheme))
 	utilruntime.Must(autoscalingv1.AddToScheme(scheme))
-	utilruntime.Must(dsciv1.AddToScheme(scheme))
-	utilruntime.Must(dscv1.AddToScheme(scheme))
+	utilruntime.Must(dsci.AddToScheme(scheme))
+	utilruntime.Must(dsc.AddToScheme(scheme))
 
 	// individual test suites after the operator is running
 	if !t.Run("validate operator pod is running", testODHOperatorValidation) {
@@ -122,7 +119,7 @@ func TestOdhOperator(t *testing.T) {
 }
 
 func TestMain(m *testing.M) {
-	//call flag.Parse() here if TestMain uses flags
+	// call flag.Parse() here if TestMain uses flags
 	flag.StringVar(&opNamespace, "operator-namespace",
 		"opendatahub-operator-system", "Namespace where the odh operator is deployed")
 	flag.BoolVar(&skipDeletion, "skip-deletion", false, "skip deletion of the controllers")

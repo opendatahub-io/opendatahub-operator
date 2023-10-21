@@ -21,16 +21,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
-	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
-
 	"path/filepath"
 	"reflect"
 
-	"github.com/go-logr/logr"
+	operatorv1 "github.com/openshift/api/operator/v1"
 
-	"k8s.io/client-go/util/retry"
+	"github.com/go-logr/logr"
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -39,6 +40,7 @@ import (
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -48,16 +50,13 @@ import (
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
-// DSCInitializationReconciler reconciles a DSCInitialization object
+// DSCInitializationReconciler reconciles a DSCInitialization object.
 type DSCInitializationReconciler struct {
 	client.Client
 	Scheme                *runtime.Scheme
@@ -69,8 +68,9 @@ type DSCInitializationReconciler struct {
 // +kubebuilder:rbac:groups="dscinitialization.opendatahub.io",resources=dscinitializations/status,verbs=get;update;patch;delete
 // +kubebuilder:rbac:groups="dscinitialization.opendatahub.io",resources=dscinitializations/finalizers,verbs=get;update;patch;delete
 // +kubebuilder:rbac:groups="dscinitialization.opendatahub.io",resources=dscinitializations,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="kfdef.apps.kubeflow.org",resources=kfdefs,verbs=get;list;watch;create;update;patch;delete
 
-// Reconcile contains controller logic specific to DSCInitialization instance updates
+// Reconcile contains controller logic specific to DSCInitialization instance updates.
 func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.Log.Info("Reconciling DSCInitialization.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
 
@@ -81,14 +81,14 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 	// Second check if default instance not exists, return error
 	// TODO: update logic if we support multiple DSCI CR or different name
-	defaultDSCI := types.NamespacedName{Name: "default"}
+	defaultDSCI := types.NamespacedName{Name: "rhods-setup"}
 	err := r.Client.Get(ctx, defaultDSCI, instance)
 	if err != nil {
 		if apierrs.IsNotFound(err) {
 			// DSCInitialization instance not found
 			return ctrl.Result{}, nil
 		}
-		r.Log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", "default")
+		r.Log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", "rhods-setup")
 		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to retrieve DSCInitialization instance default")
 		return ctrl.Result{}, err
 	}
@@ -166,10 +166,10 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 		// Apply update from legacy operator
 		// TODO: Update upgrade logic to get components through KfDef
-		// if err = updatefromLegacyVersion(r.Client); err != nil {
-		//	r.Log.Error(err, "unable to update from legacy operator version")
-		//	return reconcile.Result{}, err
-		//}
+		if err = upgrade.UpdateFromLegacyVersion(r.Client, platform); err != nil {
+			r.Log.Error(err, "unable to update from legacy operator version")
+			return reconcile.Result{}, err
+		}
 
 		switch platform {
 		case deploy.SelfManagedRhods:
@@ -252,9 +252,9 @@ func (r *DSCInitializationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func (r *DSCInitializationReconciler) updateStatus(ctx context.Context, original *dsciv1.DSCInitialization,
-	update func(saved *dsciv1.DSCInitialization)) (*dsciv1.DSCInitialization, error) {
-	saved := &dsciv1.DSCInitialization{}
+func (r *DSCInitializationReconciler) updateStatus(ctx context.Context, original *dsci.DSCInitialization, update func(saved *dsci.DSCInitialization),
+) (*dsci.DSCInitialization, error) {
+	saved := &dsci.DSCInitialization{}
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		if err := r.Client.Get(ctx, client.ObjectKeyFromObject(original), saved); err != nil {
 			return err
@@ -302,10 +302,14 @@ func (r *DSCInitializationReconciler) watchMonitoringConfigMapResrouce(a client.
 }
 
 func (r *DSCInitializationReconciler) watchMonitoringSecretResrouce(a client.Object) (requests []reconcile.Request) {
-	if a.GetName() == "addon-managed-odh-parameters" && a.GetNamespace() == "redhat-ods-operator" {
+	operatorNs, err := upgrade.GetOperatorNamespace()
+	if err != nil {
+		return nil
+	}
+	if a.GetName() == "addon-managed-odh-parameters" && a.GetNamespace() == operatorNs {
 		r.Log.Info("Found monitoring secret has updated, start reconcile")
 		return []reconcile.Request{{
-			NamespacedName: types.NamespacedName{Name: "addon-managed-odh-parameters", Namespace: "redhat-ods-operator"},
+			NamespacedName: types.NamespacedName{Name: "addon-managed-odh-parameters", Namespace: operatorNs},
 		}}
 	} else {
 		return nil

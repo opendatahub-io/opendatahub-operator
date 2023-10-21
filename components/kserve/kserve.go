@@ -3,16 +3,16 @@ package kserve
 
 import (
 	"fmt"
-	operatorv1 "github.com/openshift/api/operator/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"path/filepath"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strings"
 
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	operatorv1 "github.com/openshift/api/operator/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var (
@@ -29,7 +29,7 @@ type Kserve struct {
 }
 
 func (k *Kserve) OverrideManifests(_ string) error {
-	//Download manifests if defined by devflags
+	// Download manifests if defined by devflags
 	if len(k.DevFlags.Manifests) != 0 {
 		// Go through each manifests and set the overlays if defined
 		for _, subcomponent := range k.DevFlags.Manifests {
@@ -44,7 +44,6 @@ func (k *Kserve) OverrideManifests(_ string) error {
 					defaultKustomizePath = subcomponent.SourcePath
 				}
 				DependentPath = filepath.Join(deploy.DefaultManifestPath, DependentComponentName, defaultKustomizePath)
-
 			}
 
 			if strings.Contains(subcomponent.URI, ComponentName) {
@@ -58,9 +57,7 @@ func (k *Kserve) OverrideManifests(_ string) error {
 					defaultKustomizePath = subcomponent.SourcePath
 				}
 				Path = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
-
 			}
-
 		}
 	}
 	return nil
@@ -70,10 +67,10 @@ func (k *Kserve) GetComponentName() string {
 	return ComponentName
 }
 
-// Verifies that Kserve implements ComponentInterface
+// Verifies that Kserve implements ComponentInterface.
 var _ components.ComponentInterface = (*Kserve)(nil)
 
-func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
+func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
 	// paramMap for Kserve to use.
 	var imageParamMap = map[string]string{}
 
@@ -127,15 +124,20 @@ func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dsci
 		if err != nil {
 			return err
 		}
-		// Update image parameters for odh-model-controller
+		// Update image parameters for odh-maodel-controller
 		if dscispec.DevFlags.ManifestsUri == "" && len(k.DevFlags.Manifests) == 0 {
 			if err := deploy.ApplyParams(DependentPath, k.SetImageParamsMap(dependentParamMap), false); err != nil {
 				return err
 			}
 		}
 	}
-	if err := deploy.DeployManifestsFromPath(cli, owner, DependentPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
-		return err
+
+	if err := deploy.DeployManifestsFromPath(cli, owner, DependentPath, dscispec.ApplicationsNamespace, k.GetComponentName(), enabled); err != nil {
+		if strings.Contains(err.Error(), "spec.selector") && strings.Contains(err.Error(), "field is immutable") {
+			// ignore this error
+		} else {
+			return err
+		}
 	}
 
 	return nil

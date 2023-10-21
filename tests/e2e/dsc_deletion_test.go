@@ -4,12 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log"
-
 	"testing"
 
 	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
-
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,7 +30,6 @@ func deletionTestSuite(t *testing.T) {
 			require.NoError(t, err, "Error to delete component")
 		})
 	})
-
 }
 
 func (tc *testContext) testDSCDeletion() error {
@@ -108,5 +105,10 @@ func (tc *testContext) testAllApplicationDeletion() error {
 	if err := tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.Ray)); err != nil {
 		return err
 	}
+
+	if err := tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.TrustyAI)); err != nil {
+		return err
+	}
+
 	return nil
 }

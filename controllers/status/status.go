@@ -23,45 +23,45 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-// These constants represent the overall Phase as used by .Status.Phase
+// These constants represent the overall Phase as used by .Status.Phase.
 const (
 	// PhaseIgnored is used when a resource is ignored
-	// is an example of a constant that is not used anywhere in the code
+	// is an example of a constant that is not used anywhere in the code.
 	PhaseIgnored = "Ignored"
 	// PhaseNotReady is used when waiting for system to be ready after reconcile is successful
 	// is an example of a constant that is not used anywhere in the code.
 	PhaseNotReady = "Not Ready"
 	// PhaseClusterExpanding is used when cluster is expanding capacity
-	// is an example of a constant that is not used anywhere in the code
+	// is an example of a constant that is not used anywhere in the code.
 	PhaseClusterExpanding = "Expanding Capacity"
 	// PhaseDeleting is used when cluster is deleting
-	// is an example of a constant that is not used anywhere in the code
+	// is an example of a constant that is not used anywhere in the code.
 	PhaseDeleting = "Deleting"
 	// PhaseConnecting is used when cluster is connecting to external cluster
-	// is an example of a constant that is not used anywhere in the code
+	// is an example of a constant that is not used anywhere in the code.
 	PhaseConnecting = "Connecting"
 	// PhaseOnboarding is used when consumer is Onboarding
-	// is an example of a constant that is not used anywhere in the code
+	// is an example of a constant that is not used anywhere in the code.
 	PhaseOnboarding = "Onboarding"
 
-	// PhaseProgressing is used when SetProgressingCondition() is called
+	// PhaseProgressing is used when SetProgressingCondition() is called.
 	PhaseProgressing = "Progressing"
-	// PhaseError is used when SetErrorCondition() is called
+	// PhaseError is used when SetErrorCondition() is called.
 	PhaseError = "Error"
-	// PhaseReady is used when SetCompleteCondition is called
+	// PhaseReady is used when SetCompleteCondition is called.
 	PhaseReady = "Ready"
 )
 
 // List of constants to show different reconciliation messages and statuses.
 const (
-	// ReconcileFailed is used when multiple DSCI instance exists or DSC reconcile failed/removal failed
+	// ReconcileFailed is used when multiple DSCI instance exists or DSC reconcile failed/removal failed.
 	ReconcileFailed                       = "ReconcileFailed"
 	ReconcileInit                         = "ReconcileInit"
 	ReconcileCompleted                    = "ReconcileCompleted"
 	ReconcileCompletedWithComponentErrors = "ReconcileCompletedWithComponentErrors"
 	ReconcileCompletedMessage             = "Reconcile completed successfully"
 
-	// ConditionReconcileComplete represents extra Condition Type, used by .Condition.Type
+	// ConditionReconcileComplete represents extra Condition Type, used by .Condition.Type.
 	ConditionReconcileComplete conditionsv1.ConditionType = "ReconcileComplete"
 )
 
