@@ -22,7 +22,7 @@ var (
 	// manifests for ODH nbc
 	kfnotebookControllerPath    = deploy.DefaultManifestPath + "/odh-notebook-controller/kf-notebook-controller/overlays/openshift"
 	notebookImagesPath          = deploy.DefaultManifestPath + "/notebooks/overlays/additional"
-	notebookImagesPathSupported = deploy.DefaultManifestPath + "/jupyterhub/notebook-images/overlays/additional"
+	notebookImagesPathSupported = deploy.DefaultManifestPath + "/jupyterhub/notebooks/base"
 )
 
 type Workbenches struct {

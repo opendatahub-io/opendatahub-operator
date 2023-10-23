@@ -350,7 +350,6 @@ func createMonitoringProxySecret(cli client.Client, name string, dsciInit *dsci.
 		}
 	}
 	return nil
-
 }
 
 func (r *DSCInitializationReconciler) configureCommonMonitoring(dsciInit *dsci.DSCInitialization) error {

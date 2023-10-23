@@ -10,12 +10,12 @@ metadata:
           "metadata": {
             "labels": {
               "app.kubernetes.io/created-by": "rhods-operator",
-              "app.kubernetes.io/instance": "default",
+              "app.kubernetes.io/instance": "rhods",
               "app.kubernetes.io/managed-by": "kustomize",
               "app.kubernetes.io/name": "datasciencecluster",
               "app.kubernetes.io/part-of": "rhods-operator"
             },
-            "name": "default"
+            "name": "rhods"
           },
           "spec": {
             "components": {
@@ -52,12 +52,12 @@ metadata:
           "metadata": {
             "labels": {
               "app.kubernetes.io/created-by": "rhods-operator",
-              "app.kubernetes.io/instance": "default",
+              "app.kubernetes.io/instance": "rhods-setup",
               "app.kubernetes.io/managed-by": "kustomize",
               "app.kubernetes.io/name": "dscinitialization",
               "app.kubernetes.io/part-of": "rhods-operator"
             },
-            "name": "default"
+            "name": "rhods-setup"
           },
           "spec": {
             "applicationsNamespace": "redhat-ods-applications",
@@ -82,7 +82,7 @@ metadata:
           "name": "rhods",
           "labels": {
             "app.kubernetes.io/name": "datasciencecluster",
-            "app.kubernetes.io/instance": "default",
+            "app.kubernetes.io/instance": "rhods",
             "app.kubernetes.io/part-of": "opendatahub-operator",
             "app.kubernetes.io/managed-by": "kustomize",
             "app.kubernetes.io/created-by": "opendatahub-operator"
@@ -111,9 +111,9 @@ metadata:
             "workbenches": {
               "managementState": "Managed"
             },
-            "trustyAI": {
+            "trustyai": {
               "managementState": "Managed"
-            },
+            }
           }
         }
       }

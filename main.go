@@ -219,13 +219,16 @@ func main() {
 	}
 
 	setupClient, err := client2.New(setupCfg, client2.Options{Scheme: scheme})
-	// Get operator platform
-	platform, err := deploy.GetPlatform(setupClient)
 	if err != nil {
 		setupLog.Error(err, "error getting client for setup")
 		os.Exit(1)
 	}
-
+	// Get operator platform
+	platform, err := deploy.GetPlatform(setupClient)
+	if err != nil {
+		setupLog.Error(err, "error getting platform")
+		os.Exit(1)
+	}
 	// Create Default DSC
 	err = upgrade.CreateDefaultDSC(mgr.GetClient(), platform)
 	if err != nil {
@@ -247,5 +250,4 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
-
 }

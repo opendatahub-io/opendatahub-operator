@@ -208,8 +208,8 @@ func CreateDefaultDSC(cli client.Client, platform deploy.Platform) error {
 func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform) error {
 	// If platform is Managed, remove Kfdefs and create default dsc
 	if platform == deploy.ManagedRhods {
-		//err := createDefaultDSC(cli, platform)
-		//if err != nil {
+		// err := createDefaultDSC(cli, platform)
+		// if err != nil {
 		//	return err
 		//}
 

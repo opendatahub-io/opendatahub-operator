@@ -110,7 +110,6 @@ func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, d
 		}
 	}
 	return nil
-
 }
 
 func (c *CodeFlare) DeepCopyInto(target *CodeFlare) {

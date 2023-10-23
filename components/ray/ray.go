@@ -15,7 +15,7 @@ import (
 
 var (
 	ComponentName = "ray"
-	RayPath       = deploy.DefaultManifestPath + "/ray/openshift"
+	RayPath       = deploy.DefaultManifestPath + "/" + ComponentName + "/openshift"
 )
 
 type Ray struct {
@@ -30,7 +30,7 @@ func (r *Ray) OverrideManifests(_ string) error {
 			return err
 		}
 		// If overlay is defined, update paths
-		defaultKustomizePath := "operator/base"
+		defaultKustomizePath := "openshift"
 		if manifestConfig.SourcePath != "" {
 			defaultKustomizePath = manifestConfig.SourcePath
 		}
@@ -88,7 +88,6 @@ func (r *Ray) ReconcileComponent(cli client.Client, owner metav1.Object, dscispe
 		}
 	}
 	return nil
-
 }
 
 func (r *Ray) DeepCopyInto(target *Ray) {
