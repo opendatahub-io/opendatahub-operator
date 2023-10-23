@@ -100,6 +100,8 @@ require (
 replace (
 	github.com/tektoncd/pipeline => github.com/tektoncd/pipeline v0.12.0
 	go.uber.org/multierr => go.uber.org/multierr v1.6.0
+	golang.org/x/image => golang.org/x/image v0.10.0
+	google.golang.org/grpc => google.golang.org/grpc v1.58.3
 	k8s.io/api => k8s.io/api v0.26.0
 	k8s.io/client-go => k8s.io/client-go v0.26.0
 	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20230113010536-ace3e4a52ca1
