@@ -12,7 +12,7 @@ require (
 	github.com/openshift/api v0.0.0-20230823114715-5fdd7511b790
 	github.com/openshift/custom-resource-status v1.1.2
 	github.com/operator-framework/api v0.17.6
-	github.com/operator-framework/operator-lifecycle-manager v0.18.3
+	github.com/operator-framework/operator-lifecycle-manager v0.25.0
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.8.3
 	golang.org/x/exp v0.0.0-20230905200255-921286631fa9
