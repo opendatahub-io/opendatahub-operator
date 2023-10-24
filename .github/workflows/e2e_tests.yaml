@@ -32,7 +32,7 @@ env:
 
 jobs:
   kubernetes-e2e:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -40,12 +40,12 @@ jobs:
           submodules: recursive
 
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version: 1.19
 
       - name: Log to Quay.io
-        uses: redhat-actions/podman-login@v1
+        uses: docker/login-action@v2
         with:
           username: ${{ secrets.QUAY_ID }}
           password: ${{ secrets.QUAY_TOKEN }}
@@ -108,4 +108,3 @@ jobs:
       - name: Clean up KinD cluster
         run:  |
           kind delete cluster --name kind-cluster
-          
