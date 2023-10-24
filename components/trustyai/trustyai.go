@@ -4,7 +4,7 @@ package trustyai
 import (
 	"path/filepath"
 
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -45,7 +45,7 @@ func (t *TrustyAI) GetComponentName() string {
 // Verifies that TrustyAI implements ComponentInterface
 var _ components.ComponentInterface = (*TrustyAI)(nil)
 
-func (t *TrustyAI) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
+func (t *TrustyAI) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
 	var imageParamMap = map[string]string{
 		"trustyaiServiceImage":  "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE",
 		"trustyaiOperatorImage": "RELATED_IMAGE_ODH_TRUSTYAI_OPERATOR_IMAGE",
