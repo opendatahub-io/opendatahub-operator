@@ -22,16 +22,15 @@ import (
 	"crypto/sha256"
 	b64 "encoding/base64"
 	"fmt"
-	"os"
-	"regexp"
-	"strings"
-
 	routev1 "github.com/openshift/api/route/v1"
 	corev1 "k8s.io/api/core/v1"
 	authv1 "k8s.io/api/rbac/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"os"
+	"regexp"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"strings"
 )
 
 const (
@@ -40,7 +39,7 @@ const (
 )
 
 // UpdatePodSecurityRolebinding update default rolebinding which is created in namespace by manifests
-// being used by different components and sre monitoring
+// being used by different components and sre monitoring.
 func UpdatePodSecurityRolebinding(cli client.Client, serviceAccountsList []string, namespace string) error {
 	foundRoleBinding := &authv1.RoleBinding{}
 	err := cli.Get(context.TODO(), client.ObjectKey{Name: namespace, Namespace: namespace}, foundRoleBinding)

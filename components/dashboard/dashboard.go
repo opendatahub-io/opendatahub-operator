@@ -10,7 +10,7 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -21,7 +21,7 @@ import (
 )
 
 var (
-	ComponentName          = "odh-dashboard"
+	ComponentName          = "dashboard"
 	ComponentNameSupported = "rhods-dashboard"
 	Path                   = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
 	PathSupported          = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/rhods"
@@ -72,7 +72,7 @@ func (d *Dashboard) GetComponentName() string {
 // Verifies that Dashboard implements ComponentInterface.
 var _ components.ComponentInterface = (*Dashboard)(nil)
 
-func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
+func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
 	var imageParamMap = map[string]string{
 		"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
 	}
@@ -92,24 +92,24 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 		}
 
 		if platform == deploy.OpenDataHub || platform == "" {
-			err := common.UpdatePodSecurityRolebinding(cli, []string{"odh-dashboard"}, dscispec.ApplicationsNamespace)
-			if err != nil {
-				return err
-			}
-
-			if err := d.deployCRDsForPlatform(cli, owner, dscispec.ApplicationsNamespace, platform); err != nil {
-				return fmt.Errorf("failed to deploy dashboard crds %s: %v", PathCRDs, err)
-			}
-		}
-
-		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
-			err := common.UpdatePodSecurityRolebinding(cli, []string{"rhods-dashboard"}, dscispec.ApplicationsNamespace)
+			err := common.UpdatePodSecurityRolebinding(cli, []string{ComponentName}, dscispec.ApplicationsNamespace)
 			if err != nil {
 				return err
 			}
 			// Deploy CRDs
 			if err := d.deployCRDsForPlatform(cli, owner, dscispec.ApplicationsNamespace, platform); err != nil {
-				return fmt.Errorf("failed to deploy dashboard crds %s: %v", PathCRDs, err)
+				return fmt.Errorf("failed to deploy %s crds %s: %v", ComponentName, PathCRDs, err)
+			}
+		}
+
+		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
+			err := common.UpdatePodSecurityRolebinding(cli, []string{ComponentNameSupported}, dscispec.ApplicationsNamespace)
+			if err != nil {
+				return err
+			}
+			// Deploy CRDs
+			if err := d.deployCRDsForPlatform(cli, owner, dscispec.ApplicationsNamespace, platform); err != nil {
+				return fmt.Errorf("failed to deploy %s crds %s: %v", ComponentNameSupported, PathCRDs, err)
 			}
 			// Apply RHODS specific configs
 			if err := d.applyRhodsSpecificConfigs(cli, owner, dscispec.ApplicationsNamespace, platform); err != nil {
