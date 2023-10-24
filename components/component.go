@@ -34,7 +34,7 @@ type Component struct {
 	// Add developer fields
 	// +optional
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=2
-	DevFlags DevFlags `json:"devFlags,omitempty"`
+	DevFlags *DevFlags `json:"devFlags,omitempty"`
 }
 
 func (c *Component) GetManagementState() operatorv1.ManagementState {

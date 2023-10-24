@@ -104,12 +104,12 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		if err := d.cleanOauthClient(cli, dscispec, currentComponentExist); err != nil {
 			return err
 		}
-
-		// Download manifests and update paths
-		if err := d.OverrideManifests(string(platform)); err != nil {
-			return err
+		if d.DevFlags != nil {
+			// Download manifests and update paths
+			if err := d.OverrideManifests(string(platform)); err != nil {
+				return err
+			}
 		}
-
 		if platform == deploy.OpenDataHub || platform == "" {
 			err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "odh-dashboard")
 			if err != nil {
@@ -137,7 +137,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		}
 
 		// Update image parameters (ODH does not use this solution, only downstream)
-		if dscispec.DevFlags.ManifestsUri == "" && len(d.DevFlags.Manifests) == 0 {
+		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (d.DevFlags == nil || len(d.DevFlags.Manifests) == 0) {
 			if err := deploy.ApplyParams(PathSupported, d.SetImageParamsMap(imageParamMap), false); err != nil {
 				return err
 			}

@@ -64,12 +64,13 @@ func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client, re
 	}
 
 	if enabled {
-		// Download manifests and update paths
-		if err = t.OverrideManifests(string(platform)); err != nil {
-			return err
+		if t.DevFlags != nil {
+			// Download manifests and update paths
+			if err = t.OverrideManifests(string(platform)); err != nil {
+				return err
+			}
 		}
-
-		if dscispec.DevFlags.ManifestsUri == "" {
+		if dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "" {
 			if err := deploy.ApplyParams(Path, t.SetImageParamsMap(imageParamMap), false); err != nil {
 				return err
 			}
