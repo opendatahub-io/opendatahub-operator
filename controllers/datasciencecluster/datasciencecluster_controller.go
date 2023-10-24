@@ -201,6 +201,9 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		if instance, err = r.reconcileSubComponent(ctx, instance, component); err != nil {
 			componentErrors = multierror.Append(componentErrors, err)
 		}
+		if instance, err = r.waitComponentDone(ctx, instance, component); err != nil {
+			componentErrors = multierror.Append(componentErrors, err)
+		}
 	}
 
 	// Process errors for components
@@ -270,22 +273,45 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 		})
 		return instance, err
 	} else {
-		// reconciliation succeeded: update status accordingly
+		// reconciliation succeeded
 		instance, err = r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
 			if saved.Status.InstalledComponents == nil {
 				saved.Status.InstalledComponents = make(map[string]bool)
 			}
 			saved.Status.InstalledComponents[componentName] = enabled
 			if enabled {
-				status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileCompleted, "Component reconciled successfully", corev1.ConditionTrue)
+				// status set from "false" to "unknown" till deployment is ready
+				status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileCompleted, "Component reconciled successfully", corev1.ConditionUnknown)
 			} else {
 				status.RemoveComponentCondition(&saved.Status.Conditions, componentName)
 			}
 		})
+
 		if err != nil {
 			instance = r.reportError(err, instance, "failed to update DataScienceCluster status after reconciling "+componentName)
 			return instance, err
 		}
+	}
+	return instance, nil
+}
+
+// wait for component's deployment is ready by a 20sec check for 2min
+func (r *DataScienceClusterReconciler) waitComponentDone(ctx context.Context, instance *dsc.DataScienceCluster,
+	component components.ComponentInterface) (*dsc.DataScienceCluster, error) {
+	componentName := component.GetComponentName()
+	err := component.WaitForDeploymentAvailable(ctx, r.RestConfig, componentName, r.DataScienceCluster.DSCISpec.ApplicationsNamespace, 20, 2)
+	if err != nil {
+		r.Log.Error(err, "deployment for component "+componentName+" is not ready")
+		return instance, err
+	}
+	instance, err = r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
+		status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileCompleted, "Component ready to serve", corev1.ConditionTrue)
+	})
+	if err != nil {
+		r.Log.Error(err, "Failed to set conditions from unknonwn to true for component.", "Component", componentName)
+		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DataScienceClusterComponentDeploymentFailures",
+			"failed to update condition for component %s", componentName)
+		return instance, err
 	}
 	return instance, nil
 }
