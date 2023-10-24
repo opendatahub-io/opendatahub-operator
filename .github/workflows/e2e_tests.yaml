@@ -4,7 +4,7 @@ on:
   pull_request:
     branches:
       - main
-      - "incubation"
+      - 'incubation'
     paths-ignore:
       - 'docs/**'
       - '**.adoc'
@@ -13,7 +13,7 @@ on:
   push:
     branches:
       - main
-      - "incubation"
+      - 'incubation'
     paths-ignore:
       - 'docs/**'
       - '**.adoc'
@@ -32,7 +32,7 @@ env:
 
 jobs:
   kubernetes-e2e:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -43,6 +43,13 @@ jobs:
         uses: actions/setup-go@v3
         with:
           go-version: 1.19
+
+      - name: Log to Quay.io
+        uses: redhat-actions/podman-login@v1
+        with:
+          username: ${{ secrets.QUAY_ID }}
+          password: ${{ secrets.QUAY_TOKEN }}
+          registry: ${{ env.IMAGE_REGISTRY}}
 
       - name: Build Operator Bundle
         run: |
@@ -62,13 +69,6 @@ jobs:
           # Build operator bundle image
           make bundle-build -e BUNDLE_IMG=quay.io/${{ env.QUAY_ORG }}/${{ env.BUNDLE_IMAGE_NAME }}:${{ env.IMAGE_TAG }} \
           -e IMG=quay.io/${{ env.QUAY_ORG }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
-
-      - name: Log to Quay.io
-        uses: redhat-actions/podman-login@v1
-        with:
-          username: ${{ secrets.QUAY_ID }}
-          password: ${{ secrets.QUAY_TOKEN }}
-          registry: ${{ env.IMAGE_REGISTRY}}
 
       - name: Push Operator Bundle Image
         run:  |
@@ -108,3 +108,4 @@ jobs:
       - name: Clean up KinD cluster
         run:  |
           kind delete cluster --name kind-cluster
+          
