@@ -79,7 +79,7 @@ const (
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	r.Log.Info("Reconciling DataScienceCluster resources", "Request.Namespace", req.Namespace, "Request.Name", req.Name)
+	r.Log.Info("Reconciling DataScienceCluster resources", "Request.Name", req.Name)
 
 	instances := &dsc.DataScienceClusterList{}
 	if err := r.Client.List(ctx, instances); err != nil {
@@ -87,7 +87,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	if len(instances.Items) > 1 {
-		message := fmt.Sprintf("only one instance of DataScienceCluster object is allowed. Update existing instance on namespace %s and name %s", req.Namespace, req.Name)
+		message := fmt.Sprintf("only one instance of DataScienceCluster object is allowed. Update existing instance %s", req.Name)
 		err := errors.New(message)
 		_ = r.reportError(err, &instances.Items[0], message)
 
@@ -113,7 +113,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	dsciInstances := &dsci.DSCInitializationList{}
 	err = r.Client.List(ctx, dsciInstances)
 	if err != nil {
-		r.Log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
+		r.Log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization Request.Name", req.Name)
 		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to retrieve DSCInitialization instance")
 		return ctrl.Result{}, err
 	}
@@ -147,14 +147,14 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	if instance.ObjectMeta.DeletionTimestamp.IsZero() {
 		if !controllerutil.ContainsFinalizer(instance, finalizerName) {
-			r.Log.Info("Adding finalizer for DataScienceCluster", "name", instance.Name, "namespace", instance.Namespace, "finalizer", finalizerName)
+			r.Log.Info("Adding finalizer for DataScienceCluster", "name", instance.Name, "finalizer", finalizerName)
 			controllerutil.AddFinalizer(instance, finalizerName)
 			if err := r.Update(ctx, instance); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
 	} else {
-		r.Log.Info("Finalization DataScienceCluster start deleting instance", "name", instance.Name, "namespace", instance.Namespace, "finalizer", finalizerName)
+		r.Log.Info("Finalization DataScienceCluster start deleting instance", "name", instance.Name, "finalizer", finalizerName)
 		for _, component := range allComponents {
 			if err := component.Cleanup(r.Client, r.DataScienceCluster.DSCISpec); err != nil {
 				return ctrl.Result{}, err
@@ -182,7 +182,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 			saved.Status.Phase = status.PhaseProgressing
 		})
 		if err != nil {
-			_ = r.reportError(err, instance, fmt.Sprintf("failed to add conditions to status of DataScienceCluster resource on namespace %s and name %s", req.Namespace, req.Name))
+			_ = r.reportError(err, instance, fmt.Sprintf("failed to add conditions to status of DataScienceCluster resource name %s", req.Name))
 			return ctrl.Result{}, err
 		}
 	}
