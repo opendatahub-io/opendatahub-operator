@@ -39,6 +39,11 @@ func (c *Component) SetImageParamsMap(imageMap map[string]string) map[string]str
 	return imageMap
 }
 
+func (c *Component) Cleanup(_ client.Client, _ *dsciv1.DSCInitializationSpec) error {
+	// noop
+	return nil
+}
+
 // DevFlags defines list of fields that can be used by developers to test customizations. This is not recommended
 // to be used in production environment.
 type DevFlags struct {
@@ -69,6 +74,7 @@ type ManifestsConfig struct {
 
 type ComponentInterface interface {
 	ReconcileComponent(cli client.Client, owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec) error
+	Cleanup(cli client.Client, DSCISpec *dsciv1.DSCInitializationSpec) error
 	GetComponentName() string
 	GetManagementState() operatorv1.ManagementState
 	SetImageParamsMap(imageMap map[string]string) map[string]string

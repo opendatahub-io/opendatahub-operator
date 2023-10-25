@@ -22,26 +22,28 @@ import (
 	"errors"
 	"fmt"
 	routev1 "github.com/openshift/api/route/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	netv1 "k8s.io/api/networking/v1"
+	authv1 "k8s.io/api/rbac/v1"
 	"path/filepath"
 	"reflect"
-
-	operatorv1 "github.com/openshift/api/operator/v1"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/go-logr/logr"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	appsv1 "k8s.io/api/apps/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
+
 	corev1 "k8s.io/api/core/v1"
-	netv1 "k8s.io/api/networking/v1"
-	authv1 "k8s.io/api/rbac/v1"
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -50,8 +52,10 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/source"
+)
+
+const (
+	finalizerName = "dscinitialization.opendatahub.io/finalizer"
 )
 
 // DSCInitializationReconciler reconciles a DSCInitialization object.
@@ -72,34 +76,69 @@ type DSCInitializationReconciler struct {
 func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint
 	r.Log.Info("Reconciling DSCInitialization.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
 
-	instance := &dsciv1.DSCInitialization{}
-	// First check if instance is being deleted, return
-	if instance.GetDeletionTimestamp() != nil {
-		return ctrl.Result{}, nil
-	}
-	// Second check if default instance not exists, return error
-	// TODO: update logic if we support multiple DSCI CR or different name
-	defaultDSCI := types.NamespacedName{Name: "rhods-setup"}
-	err := r.Client.Get(ctx, defaultDSCI, instance)
-	if err != nil {
-		if apierrs.IsNotFound(err) {
-			// DSCInitialization instance not found
-			return ctrl.Result{}, nil
-		}
-		r.Log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", "rhods-setup")
-		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to retrieve DSCInitialization instance default")
+	instances := &dsciv1.DSCInitializationList{}
+	if err := r.Client.List(ctx, instances); err != nil {
+		r.Log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
+		r.Recorder.Eventf(instances, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to retrieve DSCInitialization instance")
 		return ctrl.Result{}, err
 	}
 
-	// Last check if multiple instances of DSCInitialization, exit with error
-	instanceList := &dsciv1.DSCInitializationList{}
-	err = r.Client.List(ctx, instanceList)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	if len(instanceList.Items) > 1 {
+	if len(instances.Items) > 1 {
 		message := fmt.Sprintf("only one instance of DSCInitialization object is allowed. Update existing instance on namespace %s and name %s", req.Namespace, req.Name)
+
 		return ctrl.Result{}, errors.New(message)
+	}
+
+	if len(instances.Items) == 0 {
+		return ctrl.Result{}, nil
+	}
+
+	instance := &instances.Items[0]
+
+	if instance.ObjectMeta.DeletionTimestamp.IsZero() {
+		if !controllerutil.ContainsFinalizer(instance, finalizerName) {
+			r.Log.Info("Adding finalizer for DSCInitialization", "name", instance.Name, "namespace", instance.Namespace, "finalizer", finalizerName)
+			controllerutil.AddFinalizer(instance, finalizerName)
+			if err := r.Update(ctx, instance); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+	} else {
+		r.Log.Info("Finalization DSCInitialization start deleting instance", "name", instance.Name, "namespace", instance.Namespace, "finalizer", finalizerName)
+		// Add cleanup logic here
+		if controllerutil.ContainsFinalizer(instance, finalizerName) {
+			controllerutil.RemoveFinalizer(instance, finalizerName)
+			if err := r.Update(ctx, instance); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+
+		return ctrl.Result{}, nil
+	}
+
+	var err error
+	// Start reconciling
+	if instance.Status.Conditions == nil {
+		reason := status.ReconcileInit
+		message := "Initializing DSCInitialization resource"
+		instance, err = r.updateStatus(ctx, instance, func(saved *dsciv1.DSCInitialization) {
+			status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
+			saved.Status.Phase = status.PhaseProgressing
+		})
+		if err != nil {
+			r.Log.Error(err, "Failed to add conditions to status of DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
+			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError",
+				"%s for instance %s", message, instance.Name)
+			return reconcile.Result{}, err
+		}
+	}
+
+	// Check namespace
+	namespace := instance.Spec.ApplicationsNamespace
+	err = r.createOdhNamespace(ctx, instance, namespace)
+	if err != nil {
+		// no need to log error as it was already logged in createOdhNamespace
+		return reconcile.Result{}, err
 	}
 
 	// Get platform
