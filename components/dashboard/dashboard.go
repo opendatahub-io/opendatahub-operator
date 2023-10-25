@@ -5,6 +5,7 @@ package dashboard
 import (
 	"context"
 	"fmt"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"path/filepath"
 	"strings"
 
@@ -88,7 +89,7 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 		}
 
 		if platform == deploy.OpenDataHub || platform == "" {
-			err := common.UpdatePodSecurityRolebinding(cli, []string{"odh-dashboard"}, dscispec.ApplicationsNamespace)
+			err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "odh-dashboard")
 			if err != nil {
 				return err
 			}
@@ -99,7 +100,7 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 		}
 
 		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
-			err := common.UpdatePodSecurityRolebinding(cli, []string{"rhods-dashboard"}, dscispec.ApplicationsNamespace)
+			err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "rhods-dashboard")
 			if err != nil {
 				return err
 			}
@@ -187,7 +188,7 @@ func (d *Dashboard) applyRhodsSpecificConfigs(cli client.Client, owner metav1.Ob
 		return fmt.Errorf("failed to set dashboard OVMS from %s: %w", PathOVMS, err)
 	}
 
-	if err := common.CreateSecret(cli, "anaconda-ce-access", namespace); err != nil {
+	if err := cluster.CreateSecret(cli, "anaconda-ce-access", namespace); err != nil {
 		return fmt.Errorf("failed to create access-secret for anaconda: %w", err)
 	}
 

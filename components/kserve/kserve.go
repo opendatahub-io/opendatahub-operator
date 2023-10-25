@@ -3,13 +3,12 @@ package kserve
 
 import (
 	"fmt"
-
 	"path/filepath"
 	"strings"
 
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -122,8 +121,7 @@ func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dsci
 
 	// For odh-model-controller
 	if enabled {
-		err := common.UpdatePodSecurityRolebinding(cli, []string{"odh-model-controller"}, dscispec.ApplicationsNamespace)
-		if err != nil {
+		if err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "odh-model-controller"); err != nil {
 			return err
 		}
 		// Update image parameters for odh-maodel-controller
