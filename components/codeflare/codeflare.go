@@ -74,7 +74,7 @@ func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, d
 		}
 
 		if found, err := deploy.OperatorExists(cli, dependentOperator); err != nil {
-			return err
+			return fmt.Errorf("operator exists throws error %v", err)
 		} else if found {
 			return fmt.Errorf("operator %s  found. Please uninstall the operator before enabling %s component",
 				dependentOperator, ComponentName)
@@ -110,6 +110,7 @@ func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, d
 		}
 	}
 	return nil
+
 }
 
 func (c *CodeFlare) DeepCopyInto(target *CodeFlare) {
