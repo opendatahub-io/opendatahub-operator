@@ -110,13 +110,40 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 			"<smtp_port>":       string(smtpSecret.Data["port"]),
 			"<smtp_username>":   string(smtpSecret.Data["username"]),
 			"<smtp_password>":   string(smtpSecret.Data["password"]),
-			"@devshift.net":     "@rhmw.io",
 		})
 	if err != nil {
 		r.Log.Error(err, "error to inject data to alertmanager-configs.yaml")
 		return err
 	}
 	// r.Log.Info("Success: inject alertmanage-configs.yaml")
+
+	// special handling for dev-mod
+	consolelinkDomain, err := common.GetDomain(r.Client, NameConsoleLink, NamespaceConsoleLink)
+	if err != nil {
+		return fmt.Errorf("error getting console route URL : %v", err)
+	}
+	if strings.Contains(consolelinkDomain, "devshift.org") {
+		err = common.ReplaceStringsInFile(filepath.Join(alertManagerPath, "alertmanager-configs.yaml"),
+			map[string]string{
+				"@devshift.net": "@rhmw.io",
+			})
+		if err != nil {
+			r.Log.Error(err, "error to replace data for dev mode1 to alertmanager-configs.yaml")
+			return err
+		}
+	}
+	if strings.Contains(consolelinkDomain, "aisrhods") {
+		err = common.ReplaceStringsInFile(filepath.Join(alertManagerPath, "alertmanager-configs.yaml"),
+			map[string]string{
+				"receiver: PagerDuty": "receiver: alerts-sink",
+			})
+		if err != nil {
+			r.Log.Error(err, "error to replace data for dev mode2 to alertmanager-configs.yaml")
+			return err
+		}
+	}
+
+	// r.Log.Info("Success: inject alertmanage-configs.yaml for dev mode")
 
 	operatorNs, err := upgrade.GetOperatorNamespace()
 	if err != nil {

@@ -1,17 +1,15 @@
 package components
 
 import (
+	"fmt"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"fmt"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"os"
 	"path/filepath"
-	"strings"
-
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"strings"
 )
 
 type Component struct {
@@ -35,6 +33,10 @@ type Component struct {
 
 func (c *Component) GetManagementState() operatorv1.ManagementState {
 	return c.ManagementState
+}
+
+func (c *Component) SetImageParamsMap(imageMap map[string]string) map[string]string {
+	return imageMap
 }
 
 // DevFlags defines list of fields that can be used by developers to test customizations. This is not recommended
@@ -167,8 +169,4 @@ func (c *Component) UpdatePrometheusConfig(cli client.Client, enable bool, compo
 		return err
 	}
 	return nil
-}
-
-func (c *Component) SetImageParamsMap(imageMap map[string]string) map[string]string {
-	return imageMap
 }

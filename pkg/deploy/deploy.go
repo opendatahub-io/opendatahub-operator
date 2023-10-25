@@ -343,11 +343,6 @@ func ApplyParams(componentPath string, imageParamsMap map[string]string, isUpdat
 		return err
 	}
 
-	// Update namespace variable with applicationNamepsace
-	if isUpdateNamespace {
-		envMap["namespace"] = imageParamsMap["namespace"]
-	}
-
 	file, err = os.Create(envFilePath)
 	if err != nil {
 		// If create fails, try to restore the backup file
