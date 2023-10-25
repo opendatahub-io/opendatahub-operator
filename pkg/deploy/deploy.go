@@ -233,8 +233,15 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 			}
 		}
 
-		if obj.GetOwnerReferences() == nil {
+		existingOwnerReferences := obj.GetOwnerReferences()
+		if existingOwnerReferences == nil {
 			return cli.Delete(ctx, found)
+		} else if len(existingOwnerReferences) > 0 {
+			for _, owner := range existingOwnerReferences {
+				if owner.Kind != "DataScienceCluster" && owner.Kind != "DataScienceInitialization" {
+					return nil
+				}
+			}
 		}
 
 		found.SetOwnerReferences([]metav1.OwnerReference{})

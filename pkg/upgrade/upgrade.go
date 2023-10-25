@@ -208,32 +208,52 @@ func CreateDefaultDSC(cli client.Client, platform deploy.Platform) error {
 func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform) error {
 	// If platform is Managed, remove Kfdefs and create default dsc
 	if platform == deploy.ManagedRhods {
-		err := RemoveKfDefInstances(cli, platform)
+		err := CreateDefaultDSC(cli, platform)
+		if err != nil {
+			return err
+		}
+
+		err = RemoveKfDefInstances(cli, platform)
 		if err != nil {
 			return err
 		}
 		return nil
 	}
 
-	// If KfDef Instances found, and no DSC instances are found in Self-managed, that means this is an upgrade path from
-	// legacy version. Create a default DSC instance
-	kfDefList := &kfdefv1.KfDefList{}
-	err := cli.List(context.TODO(), kfDefList)
-	if err != nil {
-		if apierrs.IsNotFound(err) {
-			// If no KfDefs, do nothing and return
-			return nil
-		} else {
-			return fmt.Errorf("error getting list of kfdefs: %v", err)
-		}
-	}
-	if len(kfDefList.Items) > 0 {
-		err := CreateDefaultDSC(cli, platform)
+	if platform == deploy.SelfManagedRhods {
+		// If KfDef CRD is not found, we see it as a cluster not pre-installed v1 operator	// Check if kfdef are deployed
+		kfdefCrd := &apiextv1.CustomResourceDefinition{}
+		err := cli.Get(context.TODO(), client.ObjectKey{Name: "kfdefs.kfdef.apps.kubeflow.org"}, kfdefCrd)
 		if err != nil {
-			return err
+			if apierrs.IsNotFound(err) {
+				// If no Crd found, return, since its a new Installation
+				return nil
+			} else {
+				return fmt.Errorf("error retrieving kfdef CRD : %v", err)
+			}
 		}
+
+		// If KfDef Instances found, and no DSC instances are found in Self-managed, that means this is an upgrade path from
+		// legacy version. Create a default DSC instance
+		kfDefList := &kfdefv1.KfDefList{}
+		err = cli.List(context.TODO(), kfDefList)
+		if err != nil {
+			if apierrs.IsNotFound(err) {
+				// If no KfDefs, do nothing and return
+				return nil
+			} else {
+				return fmt.Errorf("error getting list of kfdefs: %v", err)
+			}
+		}
+		if len(kfDefList.Items) > 0 {
+			err := CreateDefaultDSC(cli, platform)
+			if err != nil {
+				return err
+			}
+		}
+		return err
 	}
-	return err
+	return nil
 }
 
 func GetOperatorNamespace() (string, error) {
