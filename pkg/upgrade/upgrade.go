@@ -216,10 +216,22 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform) error 
 		return nil
 	}
 
+	// If KfDef CRD is not found, we see it as a cluster not pre-installed v1 operator	// Check if kfdef are deployed
+	kfdefCrd := &apiextv1.CustomResourceDefinition{}
+	err := cli.Get(context.TODO(), client.ObjectKey{Name: "kfdefs.kfdef.apps.kubeflow.org"}, kfdefCrd)
+	if err != nil {
+		if apierrs.IsNotFound(err) {
+			// If no Crd found, return, since its a new Installation
+			return nil
+		} else {
+			return fmt.Errorf("error retrieving kfdef CRD : %v", err)
+		}
+	}
+
 	// If KfDef Instances found, and no DSC instances are found in Self-managed, that means this is an upgrade path from
 	// legacy version. Create a default DSC instance
 	kfDefList := &kfdefv1.KfDefList{}
-	err := cli.List(context.TODO(), kfDefList)
+	err = cli.List(context.TODO(), kfDefList)
 	if err != nil {
 		if apierrs.IsNotFound(err) {
 			// If no KfDefs, do nothing and return
