@@ -4,7 +4,6 @@ package codeflare
 
 import (
 	"fmt"
-
 	"path/filepath"
 
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -34,7 +33,7 @@ func (c *CodeFlare) OverrideManifests(_ string) error {
 			return err
 		}
 		// If overlay is defined, update paths
-		defaultKustomizePath := "base"
+		defaultKustomizePath := "manifests"
 		if manifestConfig.SourcePath != "" {
 			defaultKustomizePath = manifestConfig.SourcePath
 		}
@@ -60,7 +59,6 @@ func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, d
 	if err != nil {
 		return err
 	}
-
 	if enabled {
 		// Download manifests and update paths
 		if err = c.OverrideManifests(string(platform)); err != nil {
@@ -75,9 +73,9 @@ func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, d
 		}
 
 		if found, err := deploy.OperatorExists(cli, dependentOperator); err != nil {
-			return err
-		} else if !found {
-			return fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
+			return fmt.Errorf("operator exists throws error %v", err)
+		} else if found {
+			return fmt.Errorf("operator %s  found. Please uninstall the operator before enabling %s component",
 				dependentOperator, ComponentName)
 		}
 
@@ -90,8 +88,13 @@ func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, d
 	}
 
 	// Deploy Codeflare
-	err = deploy.DeployManifestsFromPath(cli, owner, CodeflarePath, dscispec.ApplicationsNamespace, c.GetComponentName(), enabled)
-	return err
+	if err := deploy.DeployManifestsFromPath(cli, owner,
+		CodeflarePath,
+		dscispec.ApplicationsNamespace,
+		ComponentName, enabled); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c *CodeFlare) DeepCopyInto(target *CodeFlare) {
