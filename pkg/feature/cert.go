@@ -13,6 +13,7 @@ import (
 	"math/big"
 	"math/rand"
 	"net"
+	"strings"
 	"time"
 )
 
@@ -57,6 +58,9 @@ func generateCertificate(addr string) ([]byte, []byte, error) {
 	if ip := net.ParseIP(addr); ip != nil {
 		tmpl.IPAddresses = append(tmpl.IPAddresses, ip)
 	} else {
+		if strings.HasPrefix(addr, "*.") {
+			tmpl.DNSNames = append(tmpl.DNSNames, addr[2:])
+		}
 		tmpl.DNSNames = append(tmpl.DNSNames, addr)
 	}
 
