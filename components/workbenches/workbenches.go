@@ -19,8 +19,7 @@ var (
 	ComponentName          = "workbenches"
 	DependentComponentName = "notebooks"
 	// manifests for nbc in ODH and downstream + downstream use it for imageparams
-	notebookControllerPath            = deploy.DefaultManifestPath + "/odh-notebook-controller/odh-notebook-controller/base"
-	notebookControllerServiceMeshPath = deploy.DefaultManifestPath + "/odh-notebook-controller/odh-notebook-controller/overlays/service-mesh"
+	notebookControllerPath = deploy.DefaultManifestPath + "/odh-notebook-controller/odh-notebook-controller/base"
 	// manifests for ODH nbc
 	kfnotebookControllerPath            = deploy.DefaultManifestPath + "/odh-notebook-controller/kf-notebook-controller/overlays/openshift"
 	kfnotebookControllerServiceMeshPath = deploy.DefaultManifestPath + "/odh-notebook-controller/kf-notebook-controller/overlays/service-mesh"
@@ -124,19 +123,17 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 		}
 	}
 
-	actualNbCtrlPath := notebookControllerPath
 	shouldConfigureServiceMesh, err := deploy.ShouldConfigureServiceMesh(cli, dscispec)
 	if err != nil {
 		return err
 	}
 	if shouldConfigureServiceMesh {
-		actualNbCtrlPath = notebookControllerServiceMeshPath
 		if err := servicemesh.OverwriteIstioGatewayVar(dscispec.ApplicationsNamespace, kfnotebookControllerServiceMeshPath); err != nil {
 			return err
 		}
 	}
 
-	if err := deploy.DeployManifestsFromPath(cli, owner, actualNbCtrlPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+	if err := deploy.DeployManifestsFromPath(cli, owner, notebookControllerPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 		return err
 	}
 
@@ -144,7 +141,7 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 	if enabled {
 		if dscispec.DevFlags.ManifestsUri == "" && len(w.DevFlags.Manifests) == 0 {
 			if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
-				if err := deploy.ApplyParams(actualNbCtrlPath, w.SetImageParamsMap(imageParamMap), false); err != nil {
+				if err := deploy.ApplyParams(notebookControllerPath, w.SetImageParamsMap(imageParamMap), false); err != nil {
 					return err
 				}
 			}
