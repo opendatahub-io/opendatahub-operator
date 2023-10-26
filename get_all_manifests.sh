@@ -21,7 +21,7 @@ declare -A COMPONENT_MANIFESTS=(
     ["trustyai"]="trustyai-explainability:trustyai-service-operator:release/1.10.2:config:trustyai-service-operator"
     ["model-mesh"]="opendatahub-io:modelmesh-serving:release-0.11.0:config:model-mesh"
     ["odh-model-controller"]="opendatahub-io:odh-model-controller:release-0.11.0:config:odh-model-controller"
-    ["kserve"]="red-hat-data-services:kserve:release-v0.11.0:config:kserve"
+    ["kserve"]="opendatahub-io:kserve:release-v0.11.0:config:kserve"
 )
 
 # Allow overwriting repo using flags component=repo
