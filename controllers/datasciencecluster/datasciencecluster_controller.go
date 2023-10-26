@@ -223,7 +223,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 		r.Recorder.Eventf(instance, corev1.EventTypeNormal, "DataScienceClusterComponentFailures",
 			"DataScienceCluster instance %s created, but have some failures in component %v", instance.Name, componentErrors)
-		return ctrl.Result{RequeueAfter: time.Second * 10}, componentErrors
+		return ctrl.Result{RequeueAfter: time.Second * 30}, componentErrors
 	}
 
 	// finalize reconciliation
