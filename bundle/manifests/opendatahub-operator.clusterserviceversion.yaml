@@ -269,6 +269,22 @@ spec:
           - patch
           - watch
         - apiGroups:
+          - apiregistration.k8s.io
+          resources:
+          - apiservices
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - apps
+          resources:
+          - daemonsets
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
           - apps
           resources:
           - deployments
@@ -861,6 +877,7 @@ spec:
           verbs:
           - create
           - delete
+          - get
           - list
           - patch
           - update
