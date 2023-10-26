@@ -48,14 +48,7 @@ if [ "$#" -ge 1 ]; then
     done
 fi
 
-# pre-cleanup local env
-rm -fr ./odh-manifests/* ./.odh-manifests-tmp/
-
-mkdir -p ./.odh-manifests-tmp/ ./odh-manifests/
-wget -q -c ${MANIFESTS_TARBALL_URL} -O - | tar -zxv -C ./.odh-manifests-tmp/ --strip-components 1 > /dev/null
-cp -r ./.odh-manifests-tmp/modelmesh-monitoring/ ./odh-manifests
-cp -r ./.odh-manifests-tmp/kserve/ ./odh-manifests
-rm -rf ${MANIFEST_RELEASE}.tar.gz ./.odh-manifests-tmp/
+# R.I.P, odh-manifests
 
 for key in "${!COMPONENT_MANIFESTS[@]}"; do
     echo "Cloning repo ${key}: ${COMPONENT_MANIFESTS[$key]}"
