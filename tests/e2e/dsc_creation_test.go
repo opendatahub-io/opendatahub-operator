@@ -194,9 +194,7 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error {
 		if tc.testDsc.Spec.Components.CodeFlare.ManagementState == operatorv1.Managed {
 			if err != nil {
 				// dependent operator error, as expected
-				if strings.Contains(err.Error(), "Please install the operator before enabling component") {
-					t.Logf("expected error: %v", err.Error())
-				} else {
+				{
 					require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.CodeFlare.GetComponentName())
 				}
 			}

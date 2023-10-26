@@ -30,8 +30,6 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
-
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
@@ -49,6 +47,7 @@ import (
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -161,13 +160,6 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 					"%s for instance %s", message, instance.Name)
 				return reconcile.Result{}, err
 			}
-		}
-
-		// Apply update from legacy operator
-		// TODO: Update upgrade logic to get components through KfDef
-		if err = upgrade.UpdateFromLegacyVersion(r.Client, platform); err != nil {
-			r.Log.Error(err, "unable to update from legacy operator version")
-			return reconcile.Result{}, err
 		}
 
 		switch platform {

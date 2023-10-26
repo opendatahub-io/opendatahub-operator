@@ -20,15 +20,14 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
-	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
 	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	dscicontr "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 	addonv1alpha1 "github.com/openshift/addon-operator/apis/addons/v1alpha1"
 	ocv1 "github.com/openshift/api/oauth/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -49,7 +48,7 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"os"
 	client2 "sigs.k8s.io/controller-runtime/pkg/client"
-
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -227,10 +226,10 @@ func main() {
 		setupLog.Error(err, "error getting platform")
 		os.Exit(1)
 	}
-	// Create Default DSC
-	err = upgrade.CreateDefaultDSC(mgr.GetClient(), platform)
-	if err != nil {
-		setupLog.Error(err, "error creating rhods DSC")
+
+	// Apply update from legacy operator
+	if err = upgrade.UpdateFromLegacyVersion(setupClient, platform); err != nil {
+		setupLog.Error(err, "unable to update from legacy operator version")
 		os.Exit(1)
 	}
 
