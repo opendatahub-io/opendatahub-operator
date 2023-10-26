@@ -162,13 +162,6 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			}
 		}
 
-		// Apply update from legacy operator
-		// TODO: Update upgrade logic to get components through KfDef
-		if err = upgrade.UpdateFromLegacyVersion(r.Client, platform); err != nil {
-			r.Log.Error(err, "unable to update from legacy operator version")
-			return reconcile.Result{}, err
-		}
-
 		switch platform {
 		case deploy.SelfManagedRhods:
 			err := r.createUserGroup(ctx, instance, "rhods-admins")
