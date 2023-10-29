@@ -3,21 +3,24 @@ package modelmeshserving
 
 import (
 	"context"
+	"path/filepath"
+	"strings"
+
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"path/filepath"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var (
 	ComponentName          = "model-mesh"
-	Path                   = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
+	Path                   = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/odh"
 	monitoringPath         = deploy.DefaultManifestPath + "/" + "modelmesh-monitoring/base"
 	DependentComponentName = "odh-model-controller"
+	DependentPath          = deploy.DefaultManifestPath + "/" + DependentComponentName + "/base"
 )
 
 type ModelMeshServing struct {
@@ -25,18 +28,33 @@ type ModelMeshServing struct {
 }
 
 func (m *ModelMeshServing) OverrideManifests(_ string) error {
-	// If devflags are set, update default manifests path
-	if len(m.DevFlags.Manifests) != 0 {
-		manifestConfig := m.DevFlags.Manifests[0]
-		if err := deploy.DownloadManifests(ComponentName, manifestConfig); err != nil {
-			return err
+	// Go through each manifests and set the overlays if defined
+	for _, subcomponent := range m.DevFlags.Manifests {
+		if strings.Contains(subcomponent.URI, DependentComponentName) {
+			// Download subcomponent
+			if err := deploy.DownloadManifests(DependentComponentName, subcomponent); err != nil {
+				return err
+			}
+			// If overlay is defined, update paths
+			defaultKustomizePath := "base"
+			if subcomponent.SourcePath != "" {
+				defaultKustomizePath = subcomponent.SourcePath
+			}
+			DependentPath = filepath.Join(deploy.DefaultManifestPath, DependentComponentName, defaultKustomizePath)
 		}
-		// If overlay is defined, update paths
-		defaultKustomizePath := "base"
-		if manifestConfig.SourcePath != "" {
-			defaultKustomizePath = manifestConfig.SourcePath
+
+		if strings.Contains(subcomponent.URI, ComponentName) {
+			// Download subcomponent
+			if err := deploy.DownloadManifests(ComponentName, subcomponent); err != nil {
+				return err
+			}
+			// If overlay is defined, update paths
+			defaultKustomizePath := "overlays/odh"
+			if subcomponent.SourcePath != "" {
+				defaultKustomizePath = subcomponent.SourcePath
+			}
+			Path = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
 		}
-		Path = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
 	}
 	return nil
 }
@@ -45,7 +63,7 @@ func (m *ModelMeshServing) GetComponentName() string {
 	return ComponentName
 }
 
-// Verifies that Dashboard implements ComponentInterface
+// Verifies that Dashboard implements ComponentInterface.
 var _ components.ComponentInterface = (*ModelMeshServing)(nil)
 
 func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
@@ -57,12 +75,18 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 		"odh-model-controller":          "RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
 	}
 
+	// odh-model-controller to use
+	var dependentImageParamMap = map[string]string{
+		"odh-model-controller": "RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
+	}
+
 	enabled := m.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 	platform, err := deploy.GetPlatform(cli)
 	if err != nil {
 		return err
 	}
+
 	// Update Default rolebinding
 	if enabled {
 		// Download manifests and update paths
@@ -70,10 +94,7 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 			return err
 		}
 
-		err := common.UpdatePodSecurityRolebinding(
-			cli,
-			[]string{"modelmesh", "modelmesh-controller", "odh-model-controller", "odh-prometheus-operator", "prometheus-custom"},
-			dscispec.ApplicationsNamespace)
+		err := common.UpdatePodSecurityRolebinding(cli, []string{"modelmesh", "modelmesh-controller", "odh-prometheus-operator", "prometheus-custom"}, dscispec.ApplicationsNamespace)
 		if err != nil {
 			return err
 		}
@@ -90,7 +111,28 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 		return err
 	}
 
-	// Get modelmesh monitoring namespace
+	// For odh-model-controller
+	if enabled {
+		err := common.UpdatePodSecurityRolebinding(cli, []string{"odh-model-controller"}, dscispec.ApplicationsNamespace)
+		if err != nil {
+			return err
+		}
+		// Update image parameters for odh-model-controller
+		if dscispec.DevFlags.ManifestsUri == "" {
+			if err := deploy.ApplyParams(DependentPath, m.SetImageParamsMap(dependentImageParamMap), false); err != nil {
+				return err
+			}
+		}
+	}
+	if err := deploy.DeployManifestsFromPath(cli, owner, DependentPath, dscispec.ApplicationsNamespace, m.GetComponentName(), enabled); err != nil {
+		if strings.Contains(err.Error(), "spec.selector") && strings.Contains(err.Error(), "field is immutable") {
+			// ignore this error
+		} else {
+			return err
+		}
+	}
+
+	// Get monitoring namespace
 	dscInit := &dsciv1.DSCInitialization{}
 	err = cli.Get(context.TODO(), client.ObjectKey{
 		Name: "rhods-setup",
@@ -111,6 +153,7 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 	}
 
 	// CloudService Monitoring handling
+	// TODO: cleanup logic in rhods-2.5
 	if platform == deploy.ManagedRhods {
 		// first model-mesh rules
 		if err := m.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {

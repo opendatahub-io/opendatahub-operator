@@ -1,5 +1,6 @@
 
 # Prometheus Monitor Service (Metrics)
+# this is auto generated not in use, we have SM in config/monitoring/prometheus
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -10,7 +11,7 @@ metadata:
 spec:
   endpoints:
     - path: /metrics
-      port: https
+      port: '8080'
       scheme: https
       bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
       tlsConfig:

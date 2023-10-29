@@ -142,16 +142,14 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 			}
 		}
 	}
-
+	if err = deploy.DeployManifestsFromPath(cli, owner,
+		kfnotebookControllerPath,
+		dscispec.ApplicationsNamespace,
+		ComponentName, enabled); err != nil {
+		return err
+	}
 	manifestsPath := ""
 	if platform == deploy.OpenDataHub || platform == "" {
-		// only for ODH after transit to kubeflow repo
-		if err = deploy.DeployManifestsFromPath(cli, owner,
-			kfnotebookControllerPath,
-			dscispec.ApplicationsNamespace,
-			ComponentName, enabled); err != nil {
-			return err
-		}
 		manifestsPath = notebookImagesPath
 	} else {
 		manifestsPath = notebookImagesPathSupported

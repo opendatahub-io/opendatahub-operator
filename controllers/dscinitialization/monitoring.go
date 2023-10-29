@@ -25,11 +25,16 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
+// +kubebuilder:rbac:groups="route.openshift.io",resources=routers/metrics,verbs=get
+// +kubebuilder:rbac:groups="route.openshift.io",resources=routers/federate,verbs=get
+// +kubebuilder:rbac:groups="image.openshift.io",resources=registry/metrics,verbs=get
+
 var (
 	ComponentName           = "monitoring"
 	alertManagerPath        = filepath.Join(deploy.DefaultManifestPath, ComponentName, "alertmanager")
 	prometheusManifestsPath = filepath.Join(deploy.DefaultManifestPath, ComponentName, "prometheus", "base")
 	prometheusConfigPath    = filepath.Join(deploy.DefaultManifestPath, ComponentName, "prometheus", "apps")
+	networkpolicyPath       = filepath.Join(deploy.DefaultManifestPath, ComponentName, "networkpolicy")
 	NameConsoleLink         = "console"
 	NamespaceConsoleLink    = "openshift-console"
 )

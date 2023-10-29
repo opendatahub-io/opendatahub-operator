@@ -852,6 +852,12 @@ spec:
           verbs:
           - get
         - apiGroups:
+          - image.openshift.io
+          resources:
+          - registry/metrics
+          verbs:
+          - get
+        - apiGroups:
           - integreatly.org
           resources:
           - rhmis
@@ -1181,6 +1187,18 @@ spec:
           - roles
           verbs:
           - '*'
+        - apiGroups:
+          - route.openshift.io
+          resources:
+          - routers/federate
+          verbs:
+          - get
+        - apiGroups:
+          - route.openshift.io
+          resources:
+          - routers/metrics
+          verbs:
+          - get
         - apiGroups:
           - route.openshift.io
           resources:

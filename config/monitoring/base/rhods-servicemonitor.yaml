@@ -14,6 +14,7 @@ spec:
       params:
         'match[]':
           - '{__name__= "rhods_total_users"}'
+          - '{__name__= "rhods_active_users"}'
           - '{__name__= "rhods_aggregate_availability"}'
           - ALERTS{alertname!="DeadManSnitch", alertstate="firing"}
       path: /federate
@@ -30,7 +31,6 @@ spec:
   selector:
     matchLabels:
       app: prometheus
-
 ---
 # servicemonitoring for rhods operator
 apiVersion: monitoring.coreos.com/v1
@@ -43,11 +43,14 @@ metadata:
 spec:
   endpoints:
     - path: /metrics
-      port: https
+      port: '8080'
       scheme: https
       bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
       tlsConfig:
         insecureSkipVerify: true
+  namespaceSelector:
+    matchNames:
+      - redhat-ods-operator
   selector:
     matchLabels:
       control-plane: controller-manager

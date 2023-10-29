@@ -24,7 +24,6 @@ data:
       bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
       honor_labels: true
       metrics_path: '/federate'
-
       params:
         'match[]':
           - '{__name__= "haproxy_backend_http_responses_total"}'
@@ -38,8 +37,6 @@ data:
           - '{__name__= "kube_pod_container_status_terminated_reason"}'
           - '{__name__= "openshift_build_status_phase_total"}'
           - '{__name__= "kube_statefulset_replicas"}'
-
-
       static_configs:
         - targets:
           - "prometheus-k8s.openshift-monitoring.svc.cluster.local:9091"
@@ -77,7 +74,7 @@ data:
       authorization:
         credentials_file: /run/secrets/kubernetes.io/serviceaccount/token
       static_configs:
-      - targets: [https://rhods-dashboard-<odh_application_namespace>.<console_domain>]
+      - targets: [rhods-dashboard-<odh_application_namespace>.<console_domain>]
         labels:
           name: rhods-dashboard
       relabel_configs:
@@ -297,7 +294,7 @@ data:
               - redhat-ods-operator
       relabel_configs:
         - source_labels: [__meta_kubernetes_service_name]
-          regex: ^(rhods-ods-operator-controller-manager-metrics)$ 
+          regex: ^(redhat-ods-operator-controller-manager-metrics)$ 
           target_label: kubernetes_name
           action: keep
         - source_labels: [__address__]
@@ -435,7 +432,7 @@ data:
             sum(probe_success:burnrate1h{instance=~"codeflare-operator"}) by (instance) > (14.40 * (1-0.99950))
           for: 2m
           labels:
-            severity: warning
+            severity: info
         - alert: CodeFlare Operator Probe Success Burn Rate
           annotations:
             message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
@@ -447,7 +444,7 @@ data:
             sum(probe_success:burnrate6h{instance=~"codeflare-operator"}) by (instance) > (6.00 * (1-0.99950))
           for: 15m
           labels:
-            severity: warning
+            severity: info
         - alert: CodeFlare Operator Probe Success Burn Rate
           annotations:
             message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
@@ -459,7 +456,7 @@ data:
             sum(probe_success:burnrate1d{instance=~"codeflare-operator"}) by (instance) > (3.00 * (1-0.99950))
           for: 1h
           labels:
-            severity: warning
+            severity: info
 
       - name: Distributed Workloads CodeFlare
         interval: 1m
@@ -467,7 +464,7 @@ data:
           - alert: CodeFlare Operator is not running
             expr: absent(up{job=~'CodeFlare Operator'}) or up{job=~'CodeFlare Operator'} != 1
             labels:
-              severity: warning
+              severity: info 
             annotations:
               description: This alert fires when the CodeFlare Operator is not running.
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/codeflare-operator-availability.md'
@@ -475,7 +472,7 @@ data:
           - alert: CodeFlare Operator taking too long to be up
             expr: absent_over_time(up{job="CodeFlare Operator"}[2m]) == 1
             labels:
-              severity: warning
+              severity: info 
             annotations:
               description: This alert fires when the CodeFlare Operator takes over 2 min. to come back online. Either CodeFlare Operator is not running and failing to become ready, is misconfigured, or the metrics endpoint is not responding.
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/codeflare-operator-absent-over-time.md'

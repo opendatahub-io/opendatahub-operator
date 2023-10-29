@@ -51,7 +51,7 @@ spec:
         image: registry.redhat.io/openshift4/ose-oauth-proxy@sha256:4bef31eb993feb6f1096b51b4876c65a6fb1f4401fee97fa4f4542b6b7c9bc46
         ports:
         - containerPort: 9114
-          name: https
+          name: metrics
         livenessProbe:
           httpGet:
             path: /oauth/healthz

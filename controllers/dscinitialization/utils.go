@@ -3,6 +3,7 @@ package dscinitialization
 import (
 	"context"
 	"crypto/rand"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"reflect"
 	"time"
 
@@ -177,100 +178,122 @@ func (r *DSCInitializationReconciler) createDefaultRoleBinding(ctx context.Conte
 }
 
 func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.Context, name string, dscInit *dsci.DSCInitialization) error {
-	// Expected namespace for the given name
-	desiredNetworkPolicy := &netv1.NetworkPolicy{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "NetworkPolicy",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
+	platform, err := deploy.GetPlatform(r.Client)
+	if err != nil {
+		return err
+	}
+	if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
+		// Deploy networkpolicy for operator namespace
+		err = deploy.DeployManifestsFromPath(r.Client, dscInit, networkpolicyPath+"/operator", "redhat-ods-operator", "networkpolicy", true)
+		if err != nil {
+			r.Log.Error(err, "error to set networkpolicy in operator namespace", "path", networkpolicyPath)
+			return err
+		}
+		// Deploy networkpolicy for monitoring namespace
+		err = deploy.DeployManifestsFromPath(r.Client, dscInit, networkpolicyPath+"/monitoring", dscInit.Spec.Monitoring.Namespace, "networkpolicy", true)
+		if err != nil {
+			r.Log.Error(err, "error to set networkpolicy in monitroing namespace", "path", networkpolicyPath)
+			return err
+		}
+		// Deploy networkpolicy for applications namespace
+		err = deploy.DeployManifestsFromPath(r.Client, dscInit, networkpolicyPath+"/applications", dscInit.Spec.ApplicationsNamespace, "networkpolicy", true)
+		if err != nil {
+			r.Log.Error(err, "error to set networkpolicy in applications namespace", "path", networkpolicyPath)
+			return err
+		}
+	} else { // Expected namespace for the given name
+		desiredNetworkPolicy := &netv1.NetworkPolicy{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "NetworkPolicy",
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: name,
+			},
+			Spec: netv1.NetworkPolicySpec{
+				// open ingress for all port for now, TODO: add explicit port per component
+				// Ingress: []netv1.NetworkPolicyIngressRule{{}},
+				// open ingress for only operator created namespaces
+				Ingress: []netv1.NetworkPolicyIngressRule{
+					{
+						From: []netv1.NetworkPolicyPeer{
+							{
+								NamespaceSelector: &metav1.LabelSelector{ // AND logic
+									MatchLabels: map[string]string{
+										"opendatahub.io/generated-namespace": "true",
+									},
+								},
+							},
+						},
+					},
+					{ // OR logic
+						From: []netv1.NetworkPolicyPeer{
+							{ // need this for access dashboard
+								NamespaceSelector: &metav1.LabelSelector{
+									MatchLabels: map[string]string{
+										"kubernetes.io/metadata.name": "openshift-ingress",
+									},
+								},
+							},
+						},
+					},
+				},
+				PolicyTypes: []netv1.PolicyType{
+					netv1.PolicyTypeIngress,
+				},
+			},
+		}
+
+		// Create NetworkPolicy if it doesn't exist
+		foundNetworkPolicy := &netv1.NetworkPolicy{}
+		justCreated := false
+		err = r.Client.Get(ctx, client.ObjectKey{
 			Name:      name,
 			Namespace: name,
-		},
-		Spec: netv1.NetworkPolicySpec{
-			// open ingress for all port for now, TODO: add explicit port per component
-			// Ingress: []netv1.NetworkPolicyIngressRule{{}},
-			// open ingress for only ODH created namespaces
-			// this is tested on ROSA but not enough for PSI
-			Ingress: []netv1.NetworkPolicyIngressRule{
-				{
-					From: []netv1.NetworkPolicyPeer{
-						{
-							NamespaceSelector: &metav1.LabelSelector{ // AND logic
-								MatchLabels: map[string]string{
-									"opendatahub.io/generated-namespace": "true",
-								},
-							},
-						},
-					},
-				},
-				{ // OR logic
-					From: []netv1.NetworkPolicyPeer{
-						{ // need this for access dashboard
-							NamespaceSelector: &metav1.LabelSelector{
-								MatchLabels: map[string]string{
-									"kubernetes.io/metadata.name": "openshift-ingress",
-								},
-							},
-						},
-					},
-				},
-			},
-			PolicyTypes: []netv1.PolicyType{
-				netv1.PolicyTypeIngress,
-			},
-		},
-	}
-
-	// Create NetworkPolicy if it doesn't exist
-	foundNetworkPolicy := &netv1.NetworkPolicy{}
-	justCreated := false
-	err := r.Client.Get(ctx, client.ObjectKey{
-		Name:      name,
-		Namespace: name,
-	}, foundNetworkPolicy)
-	if err != nil {
-		if apierrs.IsNotFound(err) {
-			// Set Controller reference
-			err = ctrl.SetControllerReference(dscInit, desiredNetworkPolicy, r.Scheme)
-			if err != nil {
-				r.Log.Error(err, "Unable to add OwnerReference to the Network policy")
-				return err
-			}
-			err = r.Client.Create(ctx, desiredNetworkPolicy)
-			if err != nil && !apierrs.IsAlreadyExists(err) {
-				return err
-			}
-			justCreated = true
-		} else {
-			return err
-		}
-	}
-
-	// Reconcile the NetworkPolicy spec if it has been manually modified
-	if !justCreated && !CompareNotebookNetworkPolicies(*desiredNetworkPolicy, *foundNetworkPolicy) {
-		r.Log.Info("Reconciling Network policy", "name", foundNetworkPolicy.Name)
-		// Retry the update operation when the ingress controller eventually
-		// updates the resource version field
-		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			// Get the last route revision
-			if err := r.Get(ctx, types.NamespacedName{
-				Name:      desiredNetworkPolicy.Name,
-				Namespace: desiredNetworkPolicy.Namespace,
-			}, foundNetworkPolicy); err != nil {
-				return err
-			}
-			// Reconcile labels and spec field
-			foundNetworkPolicy.Spec = desiredNetworkPolicy.Spec
-			foundNetworkPolicy.ObjectMeta.Labels = desiredNetworkPolicy.ObjectMeta.Labels
-			return r.Update(ctx, foundNetworkPolicy)
-		})
+		}, foundNetworkPolicy)
 		if err != nil {
-			r.Log.Error(err, "Unable to reconcile the Network Policy")
-			return err
+			if apierrs.IsNotFound(err) {
+				// Set Controller reference
+				err = ctrl.SetControllerReference(dscInit, desiredNetworkPolicy, r.Scheme)
+				if err != nil {
+					r.Log.Error(err, "Unable to add OwnerReference to the Network policy")
+					return err
+				}
+				err = r.Client.Create(ctx, desiredNetworkPolicy)
+				if err != nil && !apierrs.IsAlreadyExists(err) {
+					return err
+				}
+				justCreated = true
+			} else {
+				return err
+			}
+		}
+
+		// Reconcile the NetworkPolicy spec if it has been manually modified
+		if !justCreated && !CompareNotebookNetworkPolicies(*desiredNetworkPolicy, *foundNetworkPolicy) {
+			r.Log.Info("Reconciling Network policy", "name", foundNetworkPolicy.Name)
+			// Retry the update operation when the ingress controller eventually
+			// updates the resource version field
+			err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+				// Get the last route revision
+				if err := r.Get(ctx, types.NamespacedName{
+					Name:      desiredNetworkPolicy.Name,
+					Namespace: desiredNetworkPolicy.Namespace,
+				}, foundNetworkPolicy); err != nil {
+					return err
+				}
+				// Reconcile labels and spec field
+				foundNetworkPolicy.Spec = desiredNetworkPolicy.Spec
+				foundNetworkPolicy.ObjectMeta.Labels = desiredNetworkPolicy.ObjectMeta.Labels
+				return r.Update(ctx, foundNetworkPolicy)
+			})
+			if err != nil {
+				r.Log.Error(err, "Unable to reconcile the Network Policy")
+				return err
+			}
 		}
 	}
-
 	return nil
 }
 
