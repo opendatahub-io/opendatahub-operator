@@ -1,0 +1,56 @@
+name: e2e Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+      - 'incubation'
+    paths-ignore:
+      - 'docs/**'
+      - '**.adoc'
+      - '**.md'
+      - 'LICENSE'
+  push:
+    branches:
+      - main
+      - 'incubation'
+    paths-ignore:
+      - 'docs/**'
+      - '**.adoc'
+      - '**.md'
+      - 'LICENSE'
+concurrency:
+  group: ${{ github.head_ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+env:
+  QUAY_ORG: ${{ secrets.QUAY_ORG}}
+  IMAGE_REGISTRY: quay.io
+  BUNDLE_IMAGE_NAME: opendatahub-operator-bundle
+  IMAGE_NAME: opendatahub-operator
+  IMAGE_TAG:  pr-${{ github.event.pull_request.number }}
+
+jobs:
+  kubernetes-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.19
+
+      - name: Login to Quay.io
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.IMAGE_REGISTRY}}
+          username: ${{ secrets.QUAY_ID }}
+          password: ${{ secrets.QUAY_TOKEN }}
+
+      - name: Build Operator Bundle
+        run:  |
+          echo 'Build Operator Bundle'
