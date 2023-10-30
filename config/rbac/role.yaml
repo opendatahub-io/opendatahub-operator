@@ -637,7 +637,7 @@ rules:
 - apiGroups:
   - dscinitialization.opendatahub.io
   resources:
-  - servicemeshresourcetrackers
+  - featuretrackers
   verbs:
   - create
   - delete
