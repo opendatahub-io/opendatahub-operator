@@ -21,7 +21,8 @@ declare -A COMPONENT_MANIFESTS=(
     ["trustyai"]="red-hat-data-services:trustyai-service-operator:rhods-2.4:config:trustyai-service-operator"
 #    ["model-mesh"]="red-hat-data-services:modelmesh-serving:release-0.11.0:config:model-mesh"
 #    ["odh-model-controller"]="red-hat-data-services:odh-model-controller:release-0.11.0:config:odh-model-controller"
-#    ["kserve"]="red-hat-data-services:kserve:release-v0.11.0:config:kserve"
+    ["kserve"]="red-hat-data-services:kserve:release-v0.11.0:config:kserve"
+
 )
 
 # Allow overwriting repo using flags component=repo
@@ -48,6 +49,7 @@ if [ "$#" -ge 1 ]; then
     done
 fi
 
+<<<<<<< HEAD
 # pre-cleanup local env
 rm -fr ./odh-manifests/* ./.odh-manifests-tmp/
 
@@ -67,6 +69,9 @@ cp -r ./.odh-manifests-tmp/odh-notebook-controller/ ./odh-manifests
 cp -r ./.odh-manifests-tmp/odh-dashboard/ ./odh-manifests/dashboard
 
 rm -rf ${MANIFEST_RELEASE}.tar.gz ./.odh-manifests-tmp/
+=======
+# R.I.P, odh-manifests
+>>>>>>> 890da22a (update(kserve): manifests path from in-repo (#657))
 
 for key in "${!COMPONENT_MANIFESTS[@]}"; do
     echo "Cloning repo ${key}: ${COMPONENT_MANIFESTS[$key]}"
