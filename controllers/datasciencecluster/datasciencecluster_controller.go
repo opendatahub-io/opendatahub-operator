@@ -107,15 +107,6 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	instance := &instances.Items[0]
 
-	if instance.GetDeletionTimestamp() != nil {
-		r.Log.Info("DataScienceCluster instance is deleted.", "name", instance.Name)
-		if upgrade.HasDeleteConfigMap(r.Client) {
-			// if delete configmap exists, requeue the request to handle operator uninstall
-			return reconcile.Result{Requeue: true}, nil
-		}
-		return ctrl.Result{}, nil
-	}
-
 	var err error
 
 	// Verify a valid DSCInitialization instance is created
@@ -175,7 +166,10 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 				return ctrl.Result{}, err
 			}
 		}
-
+		if upgrade.HasDeleteConfigMap(r.Client) {
+			// if delete configmap exists, requeue the request to handle operator uninstall
+			return reconcile.Result{Requeue: true}, nil
+		}
 		return ctrl.Result{}, nil
 	}
 
@@ -223,7 +217,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 		r.Recorder.Eventf(instance, corev1.EventTypeNormal, "DataScienceClusterComponentFailures",
 			"DataScienceCluster instance %s created, but have some failures in component %v", instance.Name, componentErrors)
-		return ctrl.Result{RequeueAfter: time.Second * 10}, componentErrors
+		return ctrl.Result{RequeueAfter: time.Second * 30}, componentErrors
 	}
 
 	// finalize reconciliation
