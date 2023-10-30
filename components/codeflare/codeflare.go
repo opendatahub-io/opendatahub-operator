@@ -109,6 +109,7 @@ func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, d
 			return err
 		}
 	}
+
 	return nil
 }
 

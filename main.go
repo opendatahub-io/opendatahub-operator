@@ -47,7 +47,8 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"os"
-	client2 "sigs.k8s.io/controller-runtime/pkg/client"
+
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -169,7 +170,7 @@ func main() {
 	_, disableDSCConfig := os.LookupEnv("DISABLE_DSC_CONFIG")
 	if !disableDSCConfig {
 		// Create DSCInitialization CR if it's not present
-		client := mgr.GetClient()
+		c := mgr.GetClient()
 		releaseDscInitialization := &dsci.DSCInitialization{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "DSCInitialization",
@@ -186,7 +187,7 @@ func main() {
 				},
 			},
 		}
-		err = client.Create(context.TODO(), releaseDscInitialization)
+		err = c.Create(context.TODO(), releaseDscInitialization)
 		switch {
 		case err == nil:
 			setupLog.Info("created DscInitialization resource")
@@ -197,8 +198,8 @@ func main() {
 			if err != nil {
 				setupLog.Error(err, "failed to get DscInitialization custom resource data")
 			}
-			err = client.Patch(context.TODO(), releaseDscInitialization, client2.RawPatch(types.ApplyPatchType, data),
-				client2.ForceOwnership, client2.FieldOwner("opendatahub-operator"))
+			err = c.Patch(context.TODO(), releaseDscInitialization, client.RawPatch(types.ApplyPatchType, data),
+				client.ForceOwnership, client.FieldOwner("opendatahub-operator"))
 			if err != nil {
 				setupLog.Error(err, "failed to update DscInitialization custom resource")
 			}
@@ -215,7 +216,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	setupClient, err := client2.New(setupCfg, client2.Options{Scheme: scheme})
+	setupClient, err := client.New(setupCfg, client.Options{Scheme: scheme})
 	if err != nil {
 		setupLog.Error(err, "error getting client for setup")
 		os.Exit(1)
@@ -223,7 +224,7 @@ func main() {
 	// Get operator platform
 	platform, err := deploy.GetPlatform(setupClient)
 	if err != nil {
-		setupLog.Error(err, "error getting platform")
+		setupLog.Error(err, "error getting client for setup")
 		os.Exit(1)
 	}
 
