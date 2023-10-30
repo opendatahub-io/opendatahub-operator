@@ -29,8 +29,6 @@ import (
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
-
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
@@ -136,13 +134,6 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	platform, err := deploy.GetPlatform(r.Client)
 	if err != nil {
 		r.Log.Error(err, "Failed to determine platform (managed vs self-managed)")
-		return reconcile.Result{}, err
-	}
-
-	// Apply update from legacy operator
-	// TODO: Update upgrade logic to get components through KfDef
-	if err = upgrade.UpdateFromLegacyVersion(r.Client, platform); err != nil {
-		r.Log.Error(err, "unable to update from legacy operator version")
 		return reconcile.Result{}, err
 	}
 
