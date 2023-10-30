@@ -233,15 +233,8 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 			}
 		}
 
-		existingOwnerReferences := found.GetOwnerReferences()
-		if existingOwnerReferences == nil {
+		if obj.GetOwnerReferences() == nil {
 			return cli.Delete(ctx, found)
-		} else if len(existingOwnerReferences) > 0 {
-			for _, owner := range existingOwnerReferences {
-				if owner.Kind != "DataScienceCluster" && owner.Kind != "DataScienceInitialization" {
-					return nil
-				}
-			}
 		}
 
 		found.SetOwnerReferences([]metav1.OwnerReference{})
@@ -250,8 +243,6 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 			return err
 		}
 
-		// Patch the resources when ownerreferences are set to nil.
-		// This Patch request is needed to ensure, DSC ownerreference is removed from a resource before deleting it.
 		err = cli.Patch(ctx, found, client.RawPatch(types.ApplyPatchType, data), client.ForceOwnership, client.FieldOwner(owner.GetName()))
 		if err != nil {
 			return err
