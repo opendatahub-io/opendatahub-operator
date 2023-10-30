@@ -57,7 +57,7 @@ func (tc *testContext) testApplicationDeletion(component components.ComponentInt
 
 	if err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (done bool, err error) {
 		appList, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(ctx, metav1.ListOptions{
-			LabelSelector: "app.kubernetes.io/part-of=" + component.GetComponentName(),
+			LabelSelector: "app.opendatahub.io/" + component.GetComponentName(),
 		})
 		if err != nil {
 			log.Printf("error listing component deployments :%v. Trying again...", err)
