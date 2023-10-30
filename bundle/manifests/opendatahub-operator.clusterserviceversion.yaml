@@ -72,7 +72,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.1.0
-    createdAt: "2023-10-25T18:45:11Z"
+    createdAt: "2023-10-30T14:38:57Z"
     olm.skipRange: '>=1.0.0 <2.0.0'
     operatorframework.io/initialization-resource: |-
       {
@@ -807,6 +807,18 @@ spec:
           - get
           - patch
           - update
+        - apiGroups:
+          - dscinitialization.opendatahub.io
+          resources:
+          - featuretrackers
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
         - apiGroups:
           - events.k8s.io
           resources:
