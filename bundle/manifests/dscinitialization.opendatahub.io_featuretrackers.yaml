@@ -4,24 +4,23 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.9.2
   creationTimestamp: null
-  name: servicemeshresourcetrackers.dscinitialization.opendatahub.io
+  name: featuretrackers.dscinitialization.opendatahub.io
 spec:
   group: dscinitialization.opendatahub.io
   names:
-    kind: ServiceMeshResourceTracker
-    listKind: ServiceMeshResourceTrackerList
-    plural: servicemeshresourcetrackers
-    singular: servicemeshresourcetracker
+    kind: FeatureTracker
+    listKind: FeatureTrackerList
+    plural: featuretrackers
+    singular: featuretracker
   scope: Cluster
   versions:
   - name: v1
     schema:
       openAPIV3Schema:
-        description: ServiceMeshResourceTracker is a cluster-scoped resource for tracking
-          objects created by Service Mesh initialization for Data Science Platform.
-          It's primarily used as owner reference for resources created across namespaces
-          so that they can be garbage collected by Kubernetes when they're not needed
-          anymore.
+        description: FeatureTracker is a cluster-scoped resource for tracking objects
+          created through Features API for Data Science Platform. It's primarily used
+          as owner reference for resources created across namespaces so that they
+          can be garbage collected by Kubernetes when they're not needed anymore.
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -36,12 +35,10 @@ spec:
           metadata:
             type: object
           spec:
-            description: ServiceMeshResourceTrackerSpec defines the desired state
-              of ServiceMeshResourceTracker.
+            description: FeatureTrackerSpec defines the desired state of FeatureTracker.
             type: object
           status:
-            description: ServiceMeshResourceTrackerStatus defines the observed state
-              of ServiceMeshResourceTracker.
+            description: FeatureTrackerStatus defines the observed state of FeatureTracker.
             type: object
         type: object
     served: true
