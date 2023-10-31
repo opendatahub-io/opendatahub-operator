@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/hashicorp/go-multierror"
 	v1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -13,11 +14,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
-	"net/url"
-	"regexp"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlLog "sigs.k8s.io/controller-runtime/pkg/log"
-	"strings"
 )
 
 var log = ctrlLog.Log.WithName("features")
@@ -202,7 +200,7 @@ func (f *Feature) createResourceTracker() error {
 			Kind:       "FeatureTracker",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: f.Spec.AppNamespace + "-" + convertToRFC1123Subdomain(f.Name),
+			Name: f.Spec.AppNamespace + "-" + common.TrimToRFC1123Name(f.Name),
 		},
 	}
 
@@ -238,17 +236,4 @@ func (f *Feature) createResourceTracker() error {
 	})
 
 	return nil
-}
-
-func convertToRFC1123Subdomain(input string) string {
-	escaped := url.PathEscape(input)
-
-	// Define a regular expression to match characters that need to be replaced
-	regex := regexp.MustCompile(`[^A-Za-z0-9.\-_]+`)
-
-	// Replace non-alphanumeric characters with a hyphen
-	replaced := regex.ReplaceAllString(escaped, "-")
-
-	// Convert the result to lowercase
-	return strings.ToLower(replaced)
 }
