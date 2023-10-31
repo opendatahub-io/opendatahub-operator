@@ -4,24 +4,22 @@ set -e
 GITHUB_URL="https://github.com/"
 # update to use different git repo for legacy manifests
 MANIFEST_ORG="opendatahub-io"
-# comment out below logic once we have all component manifests ready to get from source git repo
-MANIFEST_RELEASE="master"
-MANIFESTS_TARBALL_URL="${GITHUB_URL}/${MANIFEST_ORG}/odh-manifests/tarball/${MANIFEST_RELEASE}"
+
 
 # component: dsp, kserve, dashbaord, cf/ray. in the format of "repo-org:repo-name:branch-name:source-folder:target-folder"
 # TODO: odh-mm-monitoring, etc
 declare -A COMPONENT_MANIFESTS=(
     ["codeflare"]="opendatahub-io:codeflare-operator:main:config:codeflare"
     ["ray"]="opendatahub-io:kuberay:master:ray-operator/config:ray"
-    ["data-science-pipelines-operator"]="opendatahub-io:data-science-pipelines-operator:main:config:data-science-pipelines-operator"
-    ["odh-dashboard"]="opendatahub-io:odh-dashboard:incubation:manifests:dashboard"
-    ["kf-notebook-controller"]="opendatahub-io:kubeflow:v1.7-branch:components/notebook-controller/config:odh-notebook-controller/kf-notebook-controller"
-    ["odh-notebook-controller"]="opendatahub-io:kubeflow:v1.7-branch:components/odh-notebook-controller/config:odh-notebook-controller/odh-notebook-controller"
-    ["notebooks"]="opendatahub-io:notebooks:main:manifests:notebooks"
-    ["trustyai"]="trustyai-explainability:trustyai-service-operator:release/1.10.2:config:trustyai-service-operator"
-    ["model-mesh"]="opendatahub-io:modelmesh-serving:release-0.11.0:config:model-mesh"
-    ["odh-model-controller"]="opendatahub-io:odh-model-controller:release-0.11.0:config:odh-model-controller"
-    ["kserve"]="opendatahub-io:kserve:release-v0.11.0:config:kserve"
+    ["data-science-pipelines-operator"]="opendatahub-io:data-science-pipelines-operator:v1.6.0:config:data-science-pipelines-operator"
+    ["odh-dashboard"]="opendatahub-io:odh-dashboard:v2.17.0-incubation:manifests:dashboard"
+    ["kf-notebook-controller"]="opendatahub-io:kubeflow:v1.7.0-5:components/notebook-controller/config:odh-notebook-controller/kf-notebook-controller"
+    ["odh-notebook-controller"]="opendatahub-io:kubeflow:v1.7.0-5:components/odh-notebook-controller/config:odh-notebook-controller/odh-notebook-controller"
+    ["notebooks"]="opendatahub-io:notebooks:v1.12.0:manifests:notebooks"
+    ["trustyai"]="trustyai-explainability:trustyai-service-operator:v1.11.1:config:trustyai-service-operator"
+    ["model-mesh"]="opendatahub-io:modelmesh-serving:v0.11.1.0:config:model-mesh"
+    ["odh-model-controller"]="opendatahub-io:odh-model-controller:v0.11.1.0:config:odh-model-controller"
+    ["kserve"]="opendatahub-io:kserve:v0.11.1.0:config:kserve"
 )
 
 # Allow overwriting repo using flags component=repo
