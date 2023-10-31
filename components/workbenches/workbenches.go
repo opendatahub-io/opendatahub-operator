@@ -113,7 +113,7 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 		}
 
 		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
-			if err := cluster.CreateNamespace(cli, "rhods-notebooks"); err != nil {
+			if _, err := cluster.CreateNamespace(cli, "rhods-notebooks"); err != nil {
 				// no need to log error as it was already logged in createOdhNamespace
 				return err
 			}
