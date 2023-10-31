@@ -1,0 +1,18 @@
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: odh-monitoring
+  labels:
+    app: odh-monitoring
+  namespace: prometheus
+spec:
+  replicas: 2
+  serviceAccountName: prometheus-k8s
+  securityContext: {}
+  serviceMonitorSelector:
+      matchLabels:
+        team: opendatahub
+  podMonitorSelector:
+      matchLabels:
+        team: opendatahub
+  ruleSelector: {}

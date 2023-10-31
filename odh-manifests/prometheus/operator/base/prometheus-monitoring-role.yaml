@@ -1,0 +1,23 @@
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: odh-prometheus-monitoring
+  namespace: opendatahub
+rules:
+  - verbs:
+      - get
+      - list
+      - watch
+    apiGroups:
+      - ''
+    resources:
+      - services
+      - endpoints
+      - pods
+  - verbs:
+      - get
+    apiGroups:
+      - ''
+    resources:
+      - configmaps

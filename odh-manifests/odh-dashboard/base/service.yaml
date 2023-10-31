@@ -1,0 +1,13 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: odh-dashboard
+  annotations:
+    service.alpha.openshift.io/serving-cert-secret-name: dashboard-proxy-tls
+spec:
+  selector:
+    deployment: odh-dashboard
+  ports:
+  - protocol: TCP
+    targetPort: 8443
+    port: 8443

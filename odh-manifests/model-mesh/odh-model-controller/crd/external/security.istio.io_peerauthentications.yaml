@@ -1,0 +1,98 @@
+kind: CustomResourceDefinition
+apiVersion: apiextensions.k8s.io/v1
+metadata:
+  name: peerauthentications.security.istio.io
+  labels:
+    app: istio-pilot
+    chart: istio
+    heritage: Tiller
+    istio: security
+    maistra-version: 2.4.2
+    release: istio
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  group: security.istio.io
+  names:
+    plural: peerauthentications
+    singular: peerauthentication
+    shortNames:
+      - pa
+    kind: PeerAuthentication
+    listKind: PeerAuthenticationList
+    categories:
+      - istio-io
+      - security-istio-io
+  scope: Namespaced
+  versions:
+    - name: v1beta1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              description: >-
+                PeerAuthentication defines how traffic will be tunneled (or not)
+                to the sidecar.
+              type: object
+              properties:
+                mtls:
+                  description: Mutual TLS settings for workload.
+                  type: object
+                  properties:
+                    mode:
+                      description: Defines the mTLS mode used for peer authentication.
+                      type: string
+                      enum:
+                        - UNSET
+                        - DISABLE
+                        - PERMISSIVE
+                        - STRICT
+                portLevelMtls:
+                  description: Port specific mutual TLS settings.
+                  type: object
+                  additionalProperties:
+                    type: object
+                    properties:
+                      mode:
+                        description: Defines the mTLS mode used for peer authentication.
+                        type: string
+                        enum:
+                          - UNSET
+                          - DISABLE
+                          - PERMISSIVE
+                          - STRICT
+                selector:
+                  description: >-
+                    The selector determines the workloads to apply the
+                    ChannelAuthentication on.
+                  type: object
+                  properties:
+                    matchLabels:
+                      type: object
+                      additionalProperties:
+                        type: string
+            status:
+              type: object
+              x-kubernetes-preserve-unknown-fields: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Mode
+          type: string
+          description: Defines the mTLS mode used for peer authentication.
+          jsonPath: .spec.mtls.mode
+        - name: Age
+          type: date
+          description: >-
+            CreationTimestamp is a timestamp representing the server time when
+            this object was created. It is not guaranteed to be set in
+            happens-before order across separate operations. Clients may not set
+            this value. It is represented in RFC3339 form and is in UTC.
+            Populated by the system. Read-only. Null for lists. More info:
+            https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata
+          jsonPath: .metadata.creationTimestamp
+  conversion:
+    strategy: None

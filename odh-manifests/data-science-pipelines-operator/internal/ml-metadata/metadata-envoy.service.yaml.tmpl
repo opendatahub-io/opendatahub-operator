@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: ds-pipeline-metadata-envoy-{{.Name}}
+    component: data-science-pipelines
+  name: ds-pipeline-metadata-envoy-{{.Name}}
+  namespace: {{.Namespace}}
+spec:
+  ports:
+    - name: md-envoy
+      port: 9090
+      protocol: TCP
+  selector:
+    app: ds-pipeline-metadata-envoy-{{.Name}}
+    component: data-science-pipelines
+  type: ClusterIP

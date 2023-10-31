@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.ScheduledWorkflowDefaultResourceName}}
+  namespace: {{.Namespace}}
+  labels:
+    app: {{.ScheduledWorkflowDefaultResourceName}}
+    component: data-science-pipelines
+    dspa: {{.Name}}
+spec:
+  selector:
+    matchLabels:
+      app: {{.ScheduledWorkflowDefaultResourceName}}
+      component: data-science-pipelines
+      dspa: {{.Name}}
+  template:
+    metadata:
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+      labels:
+        app: {{.ScheduledWorkflowDefaultResourceName}}
+        component: data-science-pipelines
+        dspa: {{.Name}}
+    spec:
+      containers:
+        - env:
+            - name: CRON_SCHEDULE_TIMEZONE
+              value: "{{.ScheduledWorkflow.CronScheduleTimezone}}"
+          image: "{{.ScheduledWorkflow.Image}}"
+          imagePullPolicy: IfNotPresent
+          name: ds-pipeline-scheduledworkflow
+          command:
+            - controller
+            - "--logtostderr=true"
+            - "--namespace={{.Namespace}}"
+          livenessProbe:
+            exec:
+              command:
+                - test
+                - -x
+                - controller
+            initialDelaySeconds: 30
+            periodSeconds: 5
+            timeoutSeconds: 2
+          readinessProbe:
+            exec:
+              command:
+                - test
+                - -x
+                - controller
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 2
+          resources:
+            {{ if .ScheduledWorkflow.Resources.Requests }}
+            requests:
+              {{ if .ScheduledWorkflow.Resources.Requests.CPU }}
+              cpu: {{.ScheduledWorkflow.Resources.Requests.CPU}}
+              {{ end }}
+              {{ if .ScheduledWorkflow.Resources.Requests.Memory }}
+              memory: {{.ScheduledWorkflow.Resources.Requests.Memory}}
+              {{ end }}
+            {{ end }}
+            {{ if .ScheduledWorkflow.Resources.Limits }}
+            limits:
+              {{ if .ScheduledWorkflow.Resources.Limits.CPU }}
+              cpu: {{.ScheduledWorkflow.Resources.Limits.CPU}}
+              {{ end }}
+              {{ if .ScheduledWorkflow.Resources.Limits.Memory }}
+              memory: {{.ScheduledWorkflow.Resources.Limits.Memory}}
+              {{ end }}
+            {{ end }}
+      serviceAccountName: {{.ScheduledWorkflowDefaultResourceName}}

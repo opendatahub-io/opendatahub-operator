@@ -1,0 +1,19 @@
+# A simple DSPA with the Database and ObjectStore Health Checks Disabled
+#
+# Since the default database and storage options leverage internal Services,
+# a locally-run DSPO that manages an external cluster (common development practice)
+# would not be able to run the pre-deploy health checks on these prerequisite components
+# and therefore the DSPA will never fully deploy without disabling them, as this DSPA sample does
+apiVersion: datasciencepipelinesapplications.opendatahub.io/v1alpha1
+kind: DataSciencePipelinesApplication
+metadata:
+  name: sample
+spec:
+  database:
+    disableHealthCheck: true
+  objectStorage:
+    disableHealthCheck: true
+    minio:
+      image: 'quay.io/opendatahub/minio:RELEASE.2019-08-14T20-37-41Z-license-compliance'
+  mlpipelineUI:
+    image: 'quay.io/opendatahub/odh-ml-pipelines-frontend-container:beta-ui'

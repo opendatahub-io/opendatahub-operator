@@ -17,12 +17,13 @@ COPY main.go main.go
 COPY apis/ apis/
 COPY controllers/ controllers/
 COPY pkg/ pkg/
+COPY odh-manifests/ odh-manifests/
 # Build
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o manager main.go
 
 # Get all manifests from remote git repo to builder_local_false by script
-COPY get_all_manifests.sh get_all_manifests.sh
-RUN ./get_all_manifests.sh
+#COPY get_all_manifests.sh get_all_manifests.sh
+#RUN ./get_all_manifests.sh
 RUN tar -czvf odh-manifests.tar.gz odh-manifests
 
 ################################################################################

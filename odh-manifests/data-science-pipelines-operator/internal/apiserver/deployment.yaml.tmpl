@@ -1,0 +1,216 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.APIServerDefaultResourceName}}
+  namespace: {{.Namespace}}
+  labels:
+    app: {{.APIServerDefaultResourceName}}
+    component: data-science-pipelines
+    dspa: {{.Name}}
+spec:
+  selector:
+    matchLabels:
+      app: {{.APIServerDefaultResourceName}}
+      component: data-science-pipelines
+      dspa: {{.Name}}
+  template:
+    metadata:
+      labels:
+        app: {{.APIServerDefaultResourceName}}
+        component: data-science-pipelines
+        dspa: {{.Name}}
+    spec:
+      containers:
+        - env:
+            - name: POD_NAMESPACE
+              value: "{{.Namespace}}"
+            - name: DBCONFIG_USER
+              value: "{{.DBConnection.Username}}"
+            - name: DBCONFIG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: "{{.DBConnection.CredentialsSecret.Key}}"
+                  name: "{{.DBConnection.CredentialsSecret.Name}}"
+            - name: DBCONFIG_DBNAME
+              value: "{{.DBConnection.DBName}}"
+            - name: DBCONFIG_HOST
+              value: "{{.DBConnection.Host}}"
+            - name: DBCONFIG_PORT
+              value: "{{.DBConnection.Port}}"
+            - name: ARTIFACT_BUCKET
+              value: "{{.ObjectStorageConnection.Bucket}}"
+            - name: ARTIFACT_ENDPOINT
+              value: "{{.ObjectStorageConnection.Endpoint}}"
+            - name: ARTIFACT_SCRIPT
+              valueFrom:
+                configMapKeyRef:
+                  key: "{{ .APIServer.ArtifactScriptConfigMap.Key }}"
+                  name: "{{ .APIServer.ArtifactScriptConfigMap.Name }}"
+            - name: ARTIFACT_IMAGE
+              value: "{{.APIServer.ArtifactImage}}"
+            - name: ARCHIVE_LOGS
+              value: "{{.APIServer.ArchiveLogs}}"
+            - name: TRACK_ARTIFACTS
+              value: "{{.APIServer.TrackArtifacts}}"
+            - name: STRIP_EOF
+              value: "{{.APIServer.StripEOF}}"
+            - name: PIPELINE_RUNTIME
+              value: "tekton"
+            - name: DEFAULTPIPELINERUNNERSERVICEACCOUNT
+              value: "pipeline-runner-{{.Name}}"
+            - name: INJECT_DEFAULT_SCRIPT
+              value: "{{.APIServer.InjectDefaultScript}}"
+            - name: APPLY_TEKTON_CUSTOM_RESOURCE
+              value: "{{.APIServer.ApplyTektonCustomResource}}"
+            - name: TERMINATE_STATUS
+              value: "{{.APIServer.TerminateStatus}}"
+            - name: AUTO_UPDATE_PIPELINE_DEFAULT_VERSION
+              value: "{{.APIServer.AutoUpdatePipelineDefaultVersion}}"
+            - name: DBCONFIG_CONMAXLIFETIMESEC
+              value: "{{.APIServer.DBConfigConMaxLifetimeSec}}"
+            - name: ML_PIPELINE_VISUALIZATIONSERVER_SERVICE_HOST
+              value: "ds-pipeline-visualizationserver"
+            - name: ML_PIPELINE_VISUALIZATIONSERVER_SERVICE_PORT
+              value: "8888"
+            - name: OBJECTSTORECONFIG_BUCKETNAME
+              value: "{{.ObjectStorageConnection.Bucket}}"
+            - name: OBJECTSTORECONFIG_ACCESSKEY
+              valueFrom:
+                secretKeyRef:
+                  key: "{{.ObjectStorageConnection.CredentialsSecret.AccessKey}}"
+                  name: "{{.ObjectStorageConnection.CredentialsSecret.SecretName}}"
+            - name: OBJECTSTORECONFIG_SECRETACCESSKEY
+              valueFrom:
+                secretKeyRef:
+                  key: "{{.ObjectStorageConnection.CredentialsSecret.SecretKey}}"
+                  name: "{{.ObjectStorageConnection.CredentialsSecret.SecretName}}"
+            - name: OBJECTSTORECONFIG_SECURE
+              value: "{{.ObjectStorageConnection.Secure}}"
+            - name: MINIO_SERVICE_SERVICE_HOST
+              value: "{{.ObjectStorageConnection.Host}}"
+            - name: MINIO_SERVICE_SERVICE_PORT
+              value: "{{.ObjectStorageConnection.Port}}"
+            - name: CACHE_IMAGE
+              value: "{{.APIServer.CacheImage}}"
+            - name: MOVERESULTS_IMAGE
+              value: "{{.APIServer.MoveResultsImage}}"
+          image: {{.APIServer.Image}}
+          imagePullPolicy: Always
+          name: ds-pipeline-api-server
+          ports:
+            - containerPort: 8888
+              name: http
+            - containerPort: 8887
+              name: grpc
+          livenessProbe:
+            exec:
+              command:
+                - wget
+                - -q
+                - -S
+                - -O
+                - '-'
+                - http://localhost:8888/apis/v1beta1/healthz
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 2
+          readinessProbe:
+            exec:
+              command:
+                - wget
+                - -q
+                - -S
+                - -O
+                - '-'
+                - http://localhost:8888/apis/v1beta1/healthz
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 2
+          resources:
+            {{ if .APIServer.Resources.Requests }}
+            requests:
+              {{ if .APIServer.Resources.Requests.CPU }}
+              cpu: {{.APIServer.Resources.Requests.CPU}}
+              {{ end }}
+              {{ if .APIServer.Resources.Requests.Memory }}
+              memory: {{.APIServer.Resources.Requests.Memory}}
+              {{ end }}
+            {{ end }}
+            {{ if .APIServer.Resources.Limits }}
+            limits:
+              {{ if .APIServer.Resources.Limits.CPU }}
+              cpu: {{.APIServer.Resources.Limits.CPU}}
+              {{ end }}
+              {{ if .APIServer.Resources.Limits.Memory }}
+              memory: {{.APIServer.Resources.Limits.Memory}}
+              {{ end }}
+            {{ end }}
+          {{ if .APIServer.EnableSamplePipeline }}
+          volumeMounts:
+            - name: sample-config
+              mountPath: /config/sample_config.json
+              subPath: sample_config.json
+            - name: sample-pipeline
+              mountPath: /samples/
+          {{ end }}
+        {{ if .APIServer.EnableRoute }}
+        - name: oauth-proxy
+          args:
+            - --https-address=:8443
+            - --provider=openshift
+            - --openshift-service-account={{.APIServerDefaultResourceName}}
+            - --upstream=http://localhost:8888
+            - --tls-cert=/etc/tls/private/tls.crt
+            - --tls-key=/etc/tls/private/tls.key
+            - --cookie-secret=SECRET
+            - '--openshift-delegate-urls={"/": {"group":"route.openshift.io","resource":"routes","verb":"get","name":"{{.APIServerDefaultResourceName}}","namespace":"{{.Namespace}}"}}'
+            - '--openshift-sar={"namespace":"{{.Namespace}}","resource":"routes","resourceName":"{{.APIServerDefaultResourceName}}","verb":"get","resourceAPIGroup":"route.openshift.io"}'
+            - --skip-auth-regex='(^/metrics|^/apis/v1beta1/healthz)'
+          image: {{.OAuthProxy}}
+          ports:
+            - containerPort: 8443
+              name: oauth
+          livenessProbe:
+            httpGet:
+              path: /oauth/healthz
+              port: oauth
+              scheme: HTTPS
+            initialDelaySeconds: 30
+            timeoutSeconds: 1
+            periodSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /oauth/healthz
+              port: oauth
+              scheme: HTTPS
+            initialDelaySeconds: 5
+            timeoutSeconds: 1
+            periodSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+          resources:
+            limits:
+              cpu: 100m
+              memory: 256Mi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+          volumeMounts:
+            - mountPath: /etc/tls/private
+              name: proxy-tls
+        {{ end }}
+      serviceAccountName: {{.APIServerDefaultResourceName}}
+      volumes:
+        - name: proxy-tls
+          secret:
+            secretName: ds-pipelines-proxy-tls-{{.Name}}
+        {{ if .APIServer.EnableSamplePipeline }}
+        - name: sample-config
+          configMap:
+            name: sample-config-{{.Name}}
+        - name: sample-pipeline
+          configMap:
+            name: sample-pipeline-{{.Name}}
+        {{ end }}

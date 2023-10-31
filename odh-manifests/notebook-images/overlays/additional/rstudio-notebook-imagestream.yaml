@@ -1,0 +1,39 @@
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  labels:
+    opendatahub.io/notebook-image: "true"
+  annotations:
+    opendatahub.io/notebook-image-url: "https://github.com/opendatahub-io/notebooks/tree/main/rstudio"
+    opendatahub.io/notebook-image-name: "R Studio"
+    opendatahub.io/notebook-image-desc: "R Studio workbench image, allows to integrated development environment for R, a programming language for statistical computing and graphics."
+    opendatahub.io/notebook-image-order: "9"
+  name: rstudio-notebook
+spec:
+  lookupPolicy:
+    local: true
+  tags:
+    # N Version of the image
+    - annotations:
+        opendatahub.io/notebook-software: '[{"name":"Python","version":"v3.9"}]'
+        opendatahub.io/notebook-python-dependencies: '[{"name":"r-studio","version":"4.3"}]'
+        openshift.io/imported-from: quay.io/opendatahub/workbench-images
+        opendatahub.io/workbench-image-recommended: 'true'
+      from:
+        kind: DockerImage
+        name: quay.io/opendatahub/workbench-images@sha256:8e99e4e3800db121d02b50adec5eba27746bf89d32dba3e2b17e8d750ac53608
+      name: "2023.2"
+      referencePolicy:
+        type: Source
+    # N - 1 Version of the image
+    - annotations:
+        opendatahub.io/notebook-software: '[{"name":"Python","version":"v3.9"}]'
+        opendatahub.io/notebook-python-dependencies: '[{"name":"r-studio","version":"4.3"}]'
+        openshift.io/imported-from: quay.io/opendatahub/workbench-images
+      from:
+        kind: DockerImage
+        name: quay.io/opendatahub/workbench-images@sha256:75d6764e1155c1d18dc4472ff319f9291d0d9703b19ee1374e902b6ab7f55cfb
+      name: "2023.1"
+      referencePolicy:
+        type: Source

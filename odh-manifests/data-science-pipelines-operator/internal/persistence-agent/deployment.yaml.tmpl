@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.PersistentAgentDefaultResourceName}}
+  namespace: {{.Namespace}}
+  labels:
+    app: {{.PersistentAgentDefaultResourceName}}
+    component: data-science-pipelines
+    dspa: {{.Name}}
+spec:
+  selector:
+    matchLabels:
+      app: {{.PersistentAgentDefaultResourceName}}
+      component: data-science-pipelines
+      dspa: {{.Name}}
+  template:
+    metadata:
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+      labels:
+        app: {{.PersistentAgentDefaultResourceName}}
+        component: data-science-pipelines
+        dspa: {{.Name}}
+    spec:
+      containers:
+        - env:
+            - name: NAMESPACE
+              value: "{{.Namespace}}"
+          image: "{{.PersistenceAgent.Image}}"
+          imagePullPolicy: IfNotPresent
+          name: ds-pipeline-persistenceagent
+          command:
+            - persistence_agent
+            - "--logtostderr=true"
+            - "--ttlSecondsAfterWorkflowFinish=86400"
+            - "--numWorker={{.PersistenceAgent.NumWorkers}}"
+            - "--mlPipelineAPIServerName={{.APIServerServiceName}}"
+            - "--namespace={{.Namespace}}"
+            - "--mlPipelineServiceHttpPort=8888"
+            - "--mlPipelineServiceGRPCPort=8887"
+          livenessProbe:
+            exec:
+              command:
+                - test
+                - -x
+                - persistence_agent
+            initialDelaySeconds: 30
+            periodSeconds: 5
+            timeoutSeconds: 2
+          readinessProbe:
+            exec:
+              command:
+                - test
+                - -x
+                - persistence_agent
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 2
+          resources:
+            {{ if .PersistenceAgent.Resources.Requests }}
+            requests:
+              {{ if .PersistenceAgent.Resources.Requests.CPU }}
+              cpu: {{.PersistenceAgent.Resources.Requests.CPU}}
+              {{ end }}
+              {{ if .PersistenceAgent.Resources.Requests.Memory }}
+              memory: {{.PersistenceAgent.Resources.Requests.Memory}}
+              {{ end }}
+            {{ end }}
+            {{ if .PersistenceAgent.Resources.Limits }}
+            limits:
+              {{ if .PersistenceAgent.Resources.Limits.CPU }}
+              cpu: {{.PersistenceAgent.Resources.Limits.CPU}}
+              {{ end }}
+              {{ if .PersistenceAgent.Resources.Limits.Memory }}
+              memory: {{.PersistenceAgent.Resources.Limits.Memory}}
+              {{ end }}
+            {{ end }}
+      serviceAccountName: {{.PersistentAgentDefaultResourceName}}

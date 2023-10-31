@@ -1,0 +1,19 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    team: opendatahub
+  name: odh-application-servicemonitor
+spec:
+  endpoints:
+    - port: metrics # Argo
+    - bearerTokenSecret:
+        key: PROMETHEUS_API_TOKEN
+        name: jupyterhub
+      port: 8081-tcp # Jupyterhub
+      path: "/metrics"
+    - port: nbc-metrics # Notebook Controller
+      path: "/metrics"
+  selector:
+    matchLabels:
+      opendatahub.io/component: "true"

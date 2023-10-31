@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controller-manager
+  namespace: datasciencepipelinesapplications-controller
+  labels:
+    app.kubernetes.io/name: data-science-pipelines-operator
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: data-science-pipelines-operator
+  replicas: 1
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+      labels:
+        app.kubernetes.io/name: data-science-pipelines-operator
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      volumes:
+        - name: config
+          configMap:
+            name: dspo-config
+      containers:
+      - command:
+        - /manager
+        args:
+        - --leader-elect
+        - --zap-log-level=$(ZAP_LOG_LEVEL)
+        - --MaxConcurrentReconciles=$(MAX_CONCURRENT_RECONCILES)
+        - --config
+        - /home/config
+        image: $(IMAGES_DSPO)
+        name: manager
+        env:
+          # Env vars are prioritized over --config
+          - name: IMAGES_APISERVER
+            value: $(IMAGES_APISERVER)
+          - name: IMAGES_ARTIFACT
+            value: $(IMAGES_ARTIFACT)
+          - name: IMAGES_OAUTHPROXY
+            value: $(IMAGES_OAUTHPROXY)
+          - name: IMAGES_PERSISTENTAGENT
+            value: $(IMAGES_PERSISTENTAGENT)
+          - name: IMAGES_SCHEDULEDWORKFLOW
+            value: $(IMAGES_SCHEDULEDWORKFLOW)
+          - name: IMAGES_CACHE
+            value: $(IMAGES_CACHE)
+          - name: IMAGES_MOVERESULTSIMAGE
+            value: $(IMAGES_MOVERESULTSIMAGE)
+          - name: IMAGES_MARIADB
+            value: $(IMAGES_MARIADB)
+          - name: IMAGES_MLMDENVOY
+            value: $(IMAGES_MLMDENVOY)
+          - name: IMAGES_MLMDGRPC
+            value: $(IMAGES_MLMDGRPC)
+          - name: IMAGES_MLMDWRITER
+            value: $(IMAGES_MLMDWRITER)
+          - name: ZAP_LOG_LEVEL
+            value: $(ZAP_LOG_LEVEL)
+          - name: MAX_CONCURRENT_RECONCILES
+            value: $(MAX_CONCURRENT_RECONCILES)
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - "ALL"
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            cpu: 1
+            memory: 4Gi
+          requests:
+            cpu: 10m
+            memory: 64Mi
+        volumeMounts:
+          - mountPath: /home/config
+            name: config
+      serviceAccountName: controller-manager
+      terminationGracePeriodSeconds: 10

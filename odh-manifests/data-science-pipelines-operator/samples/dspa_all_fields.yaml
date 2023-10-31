@@ -1,0 +1,213 @@
+# This file should not be used to deploy a DataSciencePipelinesApplication
+# It's main purpose is to show all possible fields that can be configured
+# Note that you cannot specify all fields, some are mutually exclusive
+# For example, you can only specify either a miniodb deployment or
+# externalstorage connection, but not both
+apiVersion: datasciencepipelinesapplications.opendatahub.io/v1alpha1
+kind: DataSciencePipelinesApplication
+metadata:
+  name: sample
+  namespace: data-science-project
+spec:
+  apiServer:
+    deploy: true
+    image: quay.io/modh/odh-ml-pipelines-api-server-container:v1.18.0-8
+    applyTektonCustomResource: true
+    archiveLogs: false
+    artifactImage: quay.io/modh/odh-ml-pipelines-artifact-manager-container:v1.18.0-8
+    cacheImage: registry.access.redhat.com/ubi8/ubi-minimal
+    moveResultsImage: busybox
+    injectDefaultScript: true
+    stripEOF: true
+    terminateStatus: Cancelled
+    trackArtifacts: true
+    dbConfigConMaxLifetimeSec: 120
+    collectMetrics: true
+    autoUpdatePipelineDefaultVersion: true
+    resources:
+      requests:
+        cpu: 250m
+        memory: 500Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+    # optional (default is: ds-pipeline-artifact-script-${metadata.name})
+    # apiserver deployment will fail if the specified custom config does not exist
+    # if default name is used, the configmap will be over-written by the operator:
+
+    #  artifactScriptConfigMap:
+    #    name: YourConfigMapName
+    #    key: "artifact_script"
+  persistenceAgent:
+    deploy: true
+    image: quay.io/modh/odh-ml-pipelines-persistenceagent-container:v1.18.0-8
+    numWorkers: 2  # Number of worker for sync job.
+    resources:
+      requests:
+        cpu: 120m
+        memory: 500Mi
+      limits:
+        cpu: 250m
+        memory: 1Gi
+  scheduledWorkflow:
+    deploy: true
+    image: quay.io/modh/odh-ml-pipelines-scheduledworkflow-container:v1.18.0-8
+    cronScheduleTimezone: UTC
+    resources:
+      requests:
+        cpu: 120m
+        memory: 100Mi
+      limits:
+        cpu: 250m
+        memory: 250Mi
+  mlpipelineUI:
+    deploy: true
+    image: quay.io/opendatahub/odh-ml-pipelines-frontend-container:beta-ui
+    resources:
+      limits:
+        cpu: 100m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+    # requires this configmap to be created before hand,
+    # otherwise operator will not deploy DSPA
+    configMap: ds-pipeline-ui-configmap
+  database:
+    disableHealthCheck: false
+    mariaDB:   # mutually exclusive with externalDB
+      deploy: true
+      image: registry.redhat.io/rhel8/mariadb-103:1-188
+      username: mlpipeline
+      pipelineDBName: randomDBName
+      pvcSize: 20Gi
+      resources:
+        requests:
+          cpu: 300m
+          memory: 800Mi
+        limits:
+          cpu: "1"
+          memory: 1Gi
+      # requires this configmap to be created before hand,
+      # otherwise operator will not deploy DSPA
+      passwordSecret:
+        name: ds-pipelines-db-sample
+        key: password
+#    externalDB:
+#      host: mysql:3306
+#      port: "8888"
+#      username: root
+#      pipelineDBName: randomDBName
+#      passwordSecret:
+#        name: somesecret
+#        key: somekey
+  objectStorage:
+    disableHealthCheck: false
+    minio:  # mutually exclusive with externalStorage
+      deploy: true
+      image: quay.io/opendatahub/minio:RELEASE.2019-08-14T20-37-41Z-license-compliance
+      bucket: mlpipeline
+      pvcSize: 10Gi
+      resources:
+        requests:
+          cpu: 200m
+          memory: 100Mi
+        limits:
+          cpu: 250m
+          memory: 1Gi
+      # requires this configmap to be created before hand,
+      # otherwise operator will not deploy DSPA
+      s3CredentialsSecret:
+        secretName: somesecret-sample
+        accessKey: AWS_ACCESS_KEY_ID
+        secretKey: AWS_SECRET_ACCESS_KEY
+#    externalStorage:
+#      host: minio.com
+#      port: "9092"
+#      bucket: mlpipeline
+#      scheme: https
+#      s3CredentialsSecret:
+#        secretName: somesecret-db-sample
+#        accessKey: somekey
+#        secretKey: somekey
+  mlmd:  # Deploys an optional ML-Metadata Component
+    deploy: true
+    envoy:
+      image: quay.io/opendatahub/ds-pipelines-metadata-envoy:1.7.0
+      resources:
+        limits:
+          cpu: 100m
+          memory: 256Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+    grpc:
+      image: quay.io/opendatahub/ds-pipelines-metadata-grpc:1.0.0
+      port: "8080"
+      resources:
+        limits:
+          cpu: 100m
+          memory: 256Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+    writer:
+      image: quay.io/opendatahub/ds-pipelines-metadata-writer:1.1.0
+      resources:
+        limits:
+          cpu: 100m
+          memory: 256Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+status:
+  # Reports True iff:
+  # * ApiServerReady, PersistenceAgentReady, ScheduledWorkflowReady, DatabaseReady, ObjectStorageReady report True
+  # AND
+  # * MLPIpelinesUIReady is (Ready: True) OR is (Ready: False && DeploymentDisabled)
+  conditions:
+    - type: Ready
+      status: "True"
+      observedGeneration: 4
+      lastTransitionTime: '2023-02-02T21:00:00Z'
+      reason: MinimumReplicasAvailable
+      message: 'some message'
+    - type: ApiServerReady
+      status: "True"
+      observedGeneration: 4
+      lastTransitionTime: '2023-02-02T21:00:00Z'
+      reason: MinimumReplicasAvailable
+      message: 'some message'
+    - type: UserInterfaceReady
+      status: "True"
+      observedGeneration: 4
+      lastTransitionTime: '2023-02-02T21:00:00Z'
+      reason: MinimumReplicasAvailable
+      message: 'some message'
+    - type: PersistenceAgentReady
+      status: "True"
+      observedGeneration: 4
+      lastTransitionTime: '2023-02-02T21:00:00Z'
+      reason: MinimumReplicasAvailable
+      message: 'some message'
+    - type: ScheduledWorkflowReady
+      status: "True"
+      observedGeneration: 4
+      lastTransitionTime: '2023-02-02T21:00:00Z'
+      reason: MinimumReplicasAvailable
+      message: 'some message'
+    # Do we need to do this?? API Server application already
+    # checks for db/storage connectivity, and pod will fail to come up
+    # in such a case.
+    - type: DatabaseReady
+      status: "True"
+      observedGeneration: 4
+      lastTransitionTime: '2023-02-02T21:00:00Z'
+      reason: DataBaseReady
+      message: ''
+    - type: ObjectStorageReady
+      status: "True"
+      observedGeneration: 4
+      lastTransitionTime: '2023-02-02T21:00:00Z'
+      reason: ObjectStorageReady
+      message: ''

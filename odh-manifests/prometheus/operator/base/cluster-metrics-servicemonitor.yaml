@@ -1,0 +1,49 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: cluster-monitor-federation
+  labels:
+    monitor-component: cluster-resources
+    team: opendatahub
+spec:
+  endpoints:
+    - bearerTokenSecret:
+        key: token
+        name: odh.prometheus-k8s
+      honorLabels: true
+      honorTimestamps: false
+      params:
+        'match[]':
+          - '{__name__= "container_cpu_cfs_throttled_seconds_total"}'
+          - '{__name__= "container_cpu_usage_seconds_total"}'
+          - '{__name__= "container_memory_working_set_bytes"}'
+          - '{__name__= "container_memory_rss"}'
+          - '{__name__= "kubelet_volume_stats_used_bytes"}'
+          - '{__name__= "kubelet_volume_stats_capacity_bytes"}'
+          - '{__name__= "kube_pod_container_status_restarts_total"}'
+          - '{__name__= "kube_pod_container_status_terminated_reason"}'
+          - '{__name__= "kube_pod_container_status_waiting_reason"}'
+          - '{__name__= "kube_pod_container_resource_limits"}'
+          - '{__name__= "kube_pod_container_resource_requests"}'
+          - '{__name__= "kube_pod_container_resource_requests_cpu_cores"}'
+          - '{__name__= "kube_pod_container_resource_limits_cpu_cores"}'
+          - '{__name__= "kube_pod_container_resource_requests_memory_bytes"}'
+          - '{__name__= "kube_pod_container_resource_limits_memory_bytes"}'
+          - '{__name__= "kube_pod_status_phase"}'
+          - '{__name__= "kube_pod_labels"}'
+      path: /federate
+      port: web
+      scheme: https
+      tlsConfig:
+        insecureSkipVerify: true
+      scrapeTimeout: 10s
+      interval: 30s
+      metricRelabelings:
+        - action: labeldrop
+          regex: prometheus_replica
+  namespaceSelector:
+    matchNames:
+      - openshift-monitoring
+  selector:
+    matchLabels:
+      prometheus: k8s

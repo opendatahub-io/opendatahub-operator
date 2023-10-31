@@ -1,0 +1,247 @@
+# Copyright 2021 IBM Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+apiVersion: v1
+kind: Service
+metadata:
+  name: etcd
+spec:
+  ports:
+    - name: etcd-client-port
+      port: 2379
+      protocol: TCP
+      targetPort: 2379
+  selector:
+    app: etcd
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: etcd
+  name: etcd
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: etcd
+  template:
+    metadata:
+      labels:
+        app: etcd
+    spec:
+      containers:
+        - command:
+            - etcd
+            - --data-dir # use data directory under /tmp for read/write access by non-root user on OpenShift
+            - /tmp/etcd.data
+            - --listen-client-urls
+            - http://0.0.0.0:2379
+            - --advertise-client-urls
+            - http://0.0.0.0:2379
+            - "--data-dir"
+            - /tmp/etcd.data
+          # image: quay.io/coreos/etcd:v3.5.4
+          # Tag -> registry.access.redhat.com/rhel7/etcd:3.2.32-34
+          image: registry.redhat.io/rhel7/etcd@sha256:d3495b263b103681f1b09a558be43c21989bfc269eb90f84c2609042cebdc626
+          name: etcd
+          ports:
+            - containerPort: 2379
+              name: client
+              protocol: TCP
+            - containerPort: 2380
+              name: server
+              protocol: TCP
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: model-serving-etcd
+stringData:
+  etcd_connection: |
+    {
+      "endpoints": "http://etcd:2379",
+      "root_prefix": "modelmesh-serving"
+    }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+spec:
+  ports:
+    - name: minio-client-port
+      port: 9000
+      protocol: TCP
+      targetPort: 9000
+  selector:
+    app: minio
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: minio
+  name: minio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      containers:
+        - args:
+            - server
+            - /data1
+          env:
+            - name: MINIO_ACCESS_KEY
+              value: AKIAIOSFODNN7EXAMPLE
+            - name: MINIO_SECRET_KEY
+              value: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+          image: kserve/modelmesh-minio-dev-examples:latest
+          name: minio
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: storage-config
+stringData:
+  localMinIO: |
+    {
+      "type": "s3",
+      "access_key_id": "AKIAIOSFODNN7EXAMPLE",
+      "secret_access_key": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+      "endpoint_url": "http://minio:9000",
+      "default_bucket": "modelmesh-example-models",
+      "region": "us-south"
+    }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: "models-pvc-1"
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: "models-pvc-2"
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: "models-pvc-3"
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "pvc-init"
+spec:
+  template:
+    metadata:
+      name: "pvc-init-pod"
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: "copy-pod"
+          image: kserve/modelmesh-minio-examples:latest
+          securityContext:
+            allowPrivilegeEscalation: false
+          command: ["/bin/sh", "-ex", "-c"]
+          args:
+            - echo copy model files ...;
+              whoami;
+              ls -al "${SRC_FOLDER}";
+              cp -r "${SRC_FOLDER}"/* "${DST_FOLDER_1}" &&
+              cp -r "${SRC_FOLDER}"/* "${DST_FOLDER_2}" &&
+              cp -r "${SRC_FOLDER}"/* "${DST_FOLDER_3}" &&
+              ls -al "${DST_FOLDER_1}" &&
+              ls -al "${DST_FOLDER_2}" &&
+              ls -al "${DST_FOLDER_3}" &&
+              echo done &&
+              exit 0;
+          env:
+            - name: SRC_FOLDER
+              value: "/data1/modelmesh-example-models"
+            - name: DST_FOLDER_1
+              value: "/mnt/pvc1"
+            - name: DST_FOLDER_2
+              value: "/mnt/pvc2"
+            - name: DST_FOLDER_3
+              value: "/mnt/pvc3"
+          volumeMounts:
+            - name: "pvc1"
+              mountPath: "/mnt/pvc1"
+            - name: "pvc2"
+              mountPath: "/mnt/pvc2"
+            - name: "pvc3"
+              mountPath: "/mnt/pvc3"
+      volumes:
+        - name: "pvc1"
+          persistentVolumeClaim:
+            claimName: "models-pvc-1"
+        - name: "pvc2"
+          persistentVolumeClaim:
+            claimName: "models-pvc-2"
+        - name: "pvc3"
+          persistentVolumeClaim:
+            claimName: "models-pvc-3"
+  backoffLimit: 4
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "pvc-reader"
+spec:
+  containers:
+    - name: main
+      image: ubuntu
+      command: ["/bin/sh", "-ec", "sleep 10000"]
+      volumeMounts:
+        - name: "pvc1"
+          mountPath: "/mnt/pvc1"
+        - name: "pvc2"
+          mountPath: "/mnt/pvc2"
+        - name: "pvc3"
+          mountPath: "/mnt/pvc3"
+  volumes:
+    - name: "pvc1"
+      persistentVolumeClaim:
+        claimName: "models-pvc-1"
+    - name: "pvc2"
+      persistentVolumeClaim:
+        claimName: "models-pvc-2"
+    - name: "pvc3"
+      persistentVolumeClaim:
+        claimName: "models-pvc-3"

@@ -1,0 +1,39 @@
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  labels:
+    opendatahub.io/notebook-image: "true"
+  annotations:
+    opendatahub.io/notebook-image-url: "https://github.com/opendatahub-io/notebooks/tree/main/codeserver"
+    opendatahub.io/notebook-image-name: "Code Server"
+    opendatahub.io/notebook-image-desc: "Code Server workbench image, allows to run Visual Studio Code (VSCode) on a remote server through the browser."
+    opendatahub.io/notebook-image-order: "8"
+  name: code-server-notebook
+spec:
+  lookupPolicy:
+    local: true
+  tags:
+    # N Version of the image
+    - annotations:
+        opendatahub.io/notebook-software: '[{"name":"Python","version":"v3.9"}]'
+        opendatahub.io/notebook-python-dependencies: '[{"name":"code-sever","version":"4.16"}]'
+        openshift.io/imported-from: quay.io/opendatahub/workbench-images
+        opendatahub.io/workbench-image-recommended: 'true'
+      from:
+        kind: DockerImage
+        name: quay.io/opendatahub/workbench-images@sha256:1c5bcbfc222dfb59849fee67e050719c688c93d3608f7b46edbe5666263641f3
+      name: "2023.2"
+      referencePolicy:
+        type: Source
+    # N - 1 Version of the image
+    - annotations:
+        opendatahub.io/notebook-software: '[{"name":"Python","version":"v3.9"}]'
+        opendatahub.io/notebook-python-dependencies: '[{"name":"code-sever","version":"4.11"}]'
+        openshift.io/imported-from: quay.io/opendatahub/workbench-images
+      from:
+        kind: DockerImage
+        name: quay.io/opendatahub/workbench-images@sha256:fd5b9f65c0f46d4c093e2f58fce305eeb125bf19ee1d88f67b9fafe56142e92d
+      name: "2023.1"
+      referencePolicy:
+        type: Source

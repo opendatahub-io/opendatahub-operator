@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: aws-bucket-creds
+  labels:
+    opendatahub.io/dashboard: 'true'
+    opendatahub.io/managed: 'true'
+  annotations:
+    opendatahub.io/connection-type: s3
+    openshift.io/display-name: AWS S3 Connection
+stringData:
+  k8saccesskey: someaccesskey
+  k8ssecretkey: somesecretkey
+type: Opaque
