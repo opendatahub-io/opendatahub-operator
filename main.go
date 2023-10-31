@@ -41,7 +41,8 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
-	client2 "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
@@ -51,6 +52,8 @@ import (
 	datascienceclustercontrollers "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
 	dscicontr "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
 
 var (
