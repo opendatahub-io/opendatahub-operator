@@ -174,7 +174,7 @@ func (r *DSCInitializationReconciler) handleServiceMesh(instance *dsci.DSCInitia
 	}
 
 	if shouldConfigureServiceMesh {
-		serviceMeshInitializer := servicemesh.NewServiceMeshInitializer(&instance.Spec, configureServiceMeshFeatures)
+		serviceMeshInitializer := feature.NewFeaturesInitializer(&instance.Spec, configureServiceMeshFeatures)
 
 		if err := serviceMeshInitializer.Prepare(); err != nil {
 			r.Log.Error(err, "failed configuring service mesh resources")
@@ -201,7 +201,7 @@ func (r *DSCInitializationReconciler) cleanupServiceMesh(instance *dsci.DSCIniti
 	}
 
 	if shouldConfigureServiceMesh {
-		serviceMeshInitializer := servicemesh.NewServiceMeshInitializer(&instance.Spec, configureServiceMeshFeatures)
+		serviceMeshInitializer := feature.NewFeaturesInitializer(&instance.Spec, configureServiceMeshFeatures)
 		if err := serviceMeshInitializer.Prepare(); err != nil {
 			return err
 		}
@@ -213,7 +213,7 @@ func (r *DSCInitializationReconciler) cleanupServiceMesh(instance *dsci.DSCIniti
 	return nil
 }
 
-func configureServiceMeshFeatures(s *servicemesh.ServiceMeshInitializer) error {
+func configureServiceMeshFeatures(s *feature.FeaturesInitializer) error {
 	var rootDir = filepath.Join(feature.BaseOutputDir, s.DSCInitializationSpec.ApplicationsNamespace)
 	if err := feature.CopyEmbeddedFiles("templates", rootDir); err != nil {
 		return err

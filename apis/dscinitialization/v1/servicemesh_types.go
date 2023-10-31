@@ -109,6 +109,7 @@ type FeatureTrackerList struct {
 	Items           []FeatureTracker `json:"items"`
 }
 
+// TODO move logic to sth like management state
 // IsValid returns true if the spec is a valid and complete.
 // If invalid it provides message with the reasons.
 func (s *ServiceMeshSpec) IsValid() (bool, string) {

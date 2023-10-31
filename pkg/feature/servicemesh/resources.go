@@ -78,7 +78,7 @@ func setServiceMeshDisabledFlag(disabled bool) feature.Action {
 		}
 
 		if len(configs.Items) == 0 {
-			log.Info("No odhdashboardconfig found in namespace, doing nothing")
+			log.Info("No odhdashboardconfig found in namespace, doing nothing", "name", feature.Name)
 			return nil
 		}
 
@@ -97,12 +97,12 @@ func setServiceMeshDisabledFlag(disabled bool) feature.Action {
 		if _, err := feature.DynamicClient.Resource(gvr.ODHDashboardConfigGVR).
 			Namespace(feature.Spec.AppNamespace).
 			Update(context.TODO(), &config, metav1.UpdateOptions{}); err != nil {
-			log.Error(err, "Failed to update odhdashboardconfig")
+			log.Error(err, "Failed to update odhdashboardconfig", "name", feature.Name)
 
 			return err
 		}
 
-		log.Info("Successfully patched odhdashboardconfig")
+		log.Info("Successfully patched odhdashboardconfig", "name", feature.Name)
 		return nil
 	}
 }

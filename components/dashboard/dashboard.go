@@ -176,7 +176,7 @@ func (d *Dashboard) Cleanup(cli client.Client, dscispec *dsci.DSCInitializationS
 	}
 
 	if shouldConfigureServiceMesh {
-		serviceMeshInitializer := servicemesh.NewServiceMeshInitializer(dscispec, d.defineServiceMeshFeatures(dscispec))
+		serviceMeshInitializer := feature.NewFeaturesInitializer(dscispec, d.defineServiceMeshFeatures(dscispec))
 
 		if err := serviceMeshInitializer.Prepare(); err != nil {
 			return err
@@ -285,7 +285,7 @@ func (d *Dashboard) configureServiceMesh(cli client.Client, owner metav1.Object,
 	}
 
 	if shouldConfigureServiceMesh {
-		serviceMeshInitializer := servicemesh.NewServiceMeshInitializer(dscispec, d.defineServiceMeshFeatures(dscispec))
+		serviceMeshInitializer := feature.NewFeaturesInitializer(dscispec, d.defineServiceMeshFeatures(dscispec))
 
 		if err := serviceMeshInitializer.Prepare(); err != nil {
 			return err
@@ -304,8 +304,8 @@ func (d *Dashboard) configureServiceMesh(cli client.Client, owner metav1.Object,
 	return nil
 }
 
-func (d *Dashboard) defineServiceMeshFeatures(dscispec *dsci.DSCInitializationSpec) servicemesh.DefineFeatures {
-	return func(s *servicemesh.ServiceMeshInitializer) error {
+func (d *Dashboard) defineServiceMeshFeatures(dscispec *dsci.DSCInitializationSpec) feature.DefinedFeatures {
+	return func(s *feature.FeaturesInitializer) error {
 		var rootDir = filepath.Join(feature.BaseOutputDir, dscispec.ApplicationsNamespace)
 		if err := feature.CopyEmbeddedFiles("templates", rootDir); err != nil {
 			return err

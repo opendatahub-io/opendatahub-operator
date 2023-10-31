@@ -1,46 +1,35 @@
-package servicemesh
+package feature
 
 import (
 	"github.com/hashicorp/go-multierror"
 	v1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
-	"github.com/pkg/errors"
-	ctrlLog "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-var log = ctrlLog.Log.WithName("service-mesh")
-
-type ServiceMeshInitializer struct {
+type FeaturesInitializer struct {
 	*v1.DSCInitializationSpec
-	defineFeatures DefineFeatures
-	Features       []*feature.Feature
+	definedFeatures DefinedFeatures
+	Features        []*Feature
 }
 
-type DefineFeatures func(s *ServiceMeshInitializer) error
+type DefinedFeatures func(s *FeaturesInitializer) error
 
-func NewServiceMeshInitializer(spec *v1.DSCInitializationSpec, def DefineFeatures) *ServiceMeshInitializer {
-	return &ServiceMeshInitializer{
+func NewFeaturesInitializer(spec *v1.DSCInitializationSpec, def DefinedFeatures) *FeaturesInitializer {
+	return &FeaturesInitializer{
 		DSCInitializationSpec: spec,
-		defineFeatures:        def,
+		definedFeatures:       def,
 	}
 }
 
 // Prepare performs validation of the spec and ensures all resources,
 // such as Features and their templates, are processed and initialized
 // before proceeding with the actual cluster set-up.
-func (s *ServiceMeshInitializer) Prepare() error {
-	log.Info("Initializing Service Mesh configuration")
+func (s *FeaturesInitializer) Prepare() error {
+	log.Info("Initializing features")
 
-	serviceMeshSpec := &s.DSCInitializationSpec.ServiceMesh
-
-	if valid, reason := serviceMeshSpec.IsValid(); !valid {
-		return errors.New(reason)
-	}
-
-	return s.defineFeatures(s)
+	return s.definedFeatures(s)
 }
 
-func (s *ServiceMeshInitializer) Apply() error {
+func (s *FeaturesInitializer) Apply() error {
 	var applyErrors *multierror.Error
 
 	for _, f := range s.Features {
@@ -52,10 +41,10 @@ func (s *ServiceMeshInitializer) Apply() error {
 }
 
 // Delete executes registered clean-up tasks in the opposite order they were initiated (following a stack structure).
-// For instance, this allows for the unpatching of Service Mesh Control Plane before its deletion.
+// For instance, this allows for the undoing patches before its deletion.
 // This approach assumes that Features are either instantiated in the correct sequence
 // or are self-contained.
-func (s *ServiceMeshInitializer) Delete() error {
+func (s *FeaturesInitializer) Delete() error {
 	var cleanupErrors *multierror.Error
 	for i := len(s.Features) - 1; i >= 0; i-- {
 		log.Info("cleanup", "name", s.Features[i].Name)
