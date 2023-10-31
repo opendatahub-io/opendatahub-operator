@@ -53,7 +53,7 @@ func (f *Feature) createResourceFromFile(filename string) error {
 		ensureNamespaceIsSet(f, u)
 
 		name := u.GetName()
-		namespace := u.GetName()
+		namespace := u.GetNamespace()q
 
 		u.SetOwnerReferences([]metav1.OwnerReference{
 			f.OwnerReference(),
