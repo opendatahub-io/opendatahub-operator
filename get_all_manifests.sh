@@ -8,6 +8,7 @@ MANIFEST_ORG="red-hat-data-services"
 MANIFEST_RELEASE="master"
 MANIFESTS_TARBALL_URL="${GITHUB_URL}/${MANIFEST_ORG}/odh-manifests/tarball/${MANIFEST_RELEASE}"
 
+
 # component: dsp, kserve, dashbaord, cf/ray. in the format of "repo-org:repo-name:branch-name:source-folder:target-folder"
 # TODO: kserve, mm, trustyai, dashbaord, nbc,odh-mm-monitoring, etc
 declare -A COMPONENT_MANIFESTS=(
@@ -69,9 +70,6 @@ cp -r ./.odh-manifests-tmp/odh-notebook-controller/ ./odh-manifests
 cp -r ./.odh-manifests-tmp/odh-dashboard/ ./odh-manifests/dashboard
 
 rm -rf ${MANIFEST_RELEASE}.tar.gz ./.odh-manifests-tmp/
-=======
-# R.I.P, odh-manifests
->>>>>>> 890da22a (update(kserve): manifests path from in-repo (#657))
 
 for key in "${!COMPONENT_MANIFESTS[@]}"; do
     echo "Cloning repo ${key}: ${COMPONENT_MANIFESTS[$key]}"
