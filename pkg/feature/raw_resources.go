@@ -34,17 +34,7 @@ const (
 	YamlSeparator = "(?m)^---[ \t]*$"
 )
 
-type NameValue struct {
-	Name  string
-	Value string
-}
-
-func (f *Feature) createResourceFromFile(filename string, elems ...NameValue) error {
-	elemsMap := make(map[string]NameValue)
-	for _, nv := range elems {
-		elemsMap[nv.Name] = nv
-	}
-
+func (f *Feature) createResourceFromFile(filename string) error {
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		return errors.WithStack(err)
@@ -60,15 +50,10 @@ func (f *Feature) createResourceFromFile(filename string, elems ...NameValue) er
 			return errors.WithStack(err)
 		}
 
+		ensureNamespaceIsSet(f, u)
+
 		name := u.GetName()
-		namespace := u.GetNamespace()
-		if namespace == "" {
-			if val, exists := elemsMap["namespace"]; exists {
-				u.SetNamespace(val.Value)
-			} else {
-				u.SetNamespace("default")
-			}
-		}
+		namespace := u.GetName()
 
 		u.SetOwnerReferences([]metav1.OwnerReference{
 			f.OwnerReference(),
@@ -93,12 +78,7 @@ func (f *Feature) createResourceFromFile(filename string, elems ...NameValue) er
 	return nil
 }
 
-func (f *Feature) patchResourceFromFile(filename string, elems ...NameValue) error {
-	elemsMap := make(map[string]NameValue)
-	for _, nv := range elems {
-		elemsMap[nv.Name] = nv
-	}
-
+func (f *Feature) patchResourceFromFile(filename string) error {
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		return errors.WithStack(err)
@@ -109,28 +89,18 @@ func (f *Feature) patchResourceFromFile(filename string, elems ...NameValue) err
 		if strings.TrimSpace(str) == "" {
 			continue
 		}
-		p := &unstructured.Unstructured{}
-		if err := yaml.Unmarshal([]byte(str), p); err != nil {
+		u := &unstructured.Unstructured{}
+		if err := yaml.Unmarshal([]byte(str), u); err != nil {
 			log.Error(err, "error unmarshalling yaml")
 			return errors.WithStack(err)
 		}
 
-		// Adding `namespace:` to Namespace resource doesn't make sense
-		if p.GetKind() != "Namespace" {
-			namespace := p.GetNamespace()
-			if namespace == "" {
-				if val, exists := elemsMap["namespace"]; exists {
-					p.SetNamespace(val.Value)
-				} else {
-					p.SetNamespace("default")
-				}
-			}
-		}
+		ensureNamespaceIsSet(f, u)
 
 		gvr := schema.GroupVersionResource{
-			Group:    strings.ToLower(p.GroupVersionKind().Group),
-			Version:  p.GroupVersionKind().Version,
-			Resource: strings.ToLower(p.GroupVersionKind().Kind) + "s",
+			Group:    strings.ToLower(u.GroupVersionKind().Group),
+			Version:  u.GroupVersionKind().Version,
+			Resource: strings.ToLower(u.GroupVersionKind().Kind) + "s",
 		}
 
 		// Convert the patch from YAML to JSON
@@ -141,12 +111,12 @@ func (f *Feature) patchResourceFromFile(filename string, elems ...NameValue) err
 		}
 
 		_, err = f.DynamicClient.Resource(gvr).
-			Namespace(p.GetNamespace()).
-			Patch(context.TODO(), p.GetName(), k8stypes.MergePatchType, patchAsJSON, metav1.PatchOptions{})
+			Namespace(u.GetNamespace()).
+			Patch(context.TODO(), u.GetName(), k8stypes.MergePatchType, patchAsJSON, metav1.PatchOptions{})
 		if err != nil {
 			log.Error(err, "error patching resource",
 				"gvr", fmt.Sprintf("%+v\n", gvr),
-				"patch", fmt.Sprintf("%+v\n", p),
+				"patch", fmt.Sprintf("%+v\n", u),
 				"json", fmt.Sprintf("%+v\n", patchAsJSON))
 			return errors.WithStack(err)
 		}
@@ -155,5 +125,15 @@ func (f *Feature) patchResourceFromFile(filename string, elems ...NameValue) err
 			return errors.WithStack(err)
 		}
 	}
+
 	return nil
+}
+
+// For any other than Namespace kind we set namespace to AppNamespace if it is not defined
+// yet for the object
+func ensureNamespaceIsSet(f *Feature, u *unstructured.Unstructured) {
+	namespace := u.GetNamespace()
+	if u.GetKind() != "Namespace" && namespace == "" {
+		u.SetNamespace(f.Spec.AppNamespace)
+	}
 }
