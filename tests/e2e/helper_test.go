@@ -70,7 +70,7 @@ func setupDSCInstance() *dsc.DataScienceCluster {
 				},
 				ModelMeshServing: modelmeshserving.ModelMeshServing{
 					Component: components.Component{
-						ManagementState: operatorv1.Removed,
+						ManagementState: operatorv1.Managed,
 					},
 				},
 				DataSciencePipelines: datasciencepipelines.DataSciencePipelines{
@@ -85,7 +85,7 @@ func setupDSCInstance() *dsc.DataScienceCluster {
 				},
 				CodeFlare: codeflare.CodeFlare{
 					Component: components.Component{
-						ManagementState: operatorv1.Removed,
+						ManagementState: operatorv1.Managed,
 					},
 				},
 				Ray: ray.Ray{
