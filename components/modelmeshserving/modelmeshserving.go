@@ -16,9 +16,9 @@ import (
 )
 
 var (
-	ComponentName          = "model-mesh"
-	Path                   = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/odh"
-	monitoringPath         = deploy.DefaultManifestPath + "/" + "modelmesh-monitoring/base"
+	ComponentName = "model-mesh"
+	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/odh"
+	// monitoringPath         = deploy.DefaultManifestPath + "/" + "modelmesh-monitoring/base"
 	DependentComponentName = "odh-model-controller"
 	DependentPath          = deploy.DefaultManifestPath + "/" + DependentComponentName + "/base"
 )
@@ -140,17 +140,12 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 	if err != nil {
 		return err
 	}
-	var monitoringNamespace string
-	if dscInit.Spec.Monitoring.Namespace != "" {
-		monitoringNamespace = dscInit.Spec.Monitoring.Namespace
-	} else {
-		monitoringNamespace = dscispec.ApplicationsNamespace
-	}
-
-	// If modelmesh is deployed successfully, deploy modelmesh-monitoring
-	if err = deploy.DeployManifestsFromPath(cli, owner, monitoringPath, monitoringNamespace, ComponentName, enabled); err != nil {
-		return err
-	}
+	// var monitoringNamespace string
+	// if dscInit.Spec.Monitoring.Namespace != "" {
+	// 	monitoringNamespace = dscInit.Spec.Monitoring.Namespace
+	// } else {
+	// 	monitoringNamespace = dscispec.ApplicationsNamespace
+	// }
 
 	// CloudService Monitoring handling
 	// TODO: cleanup logic in rhods-2.5
