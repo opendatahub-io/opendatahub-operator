@@ -165,7 +165,7 @@ func main() {
 	_, disableDSCConfig := os.LookupEnv("DISABLE_DSC_CONFIG")
 	if !disableDSCConfig {
 		// Create DSCInitialization CR if it's not present
-		client := mgr.GetClient()
+		c := mgr.GetClient()
 		releaseDscInitialization := &dsci.DSCInitialization{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "DSCInitialization",
@@ -182,7 +182,7 @@ func main() {
 				},
 			},
 		}
-		err = client.Create(context.TODO(), releaseDscInitialization)
+		err = c.Create(context.TODO(), releaseDscInitialization)
 		switch {
 		case err == nil:
 			setupLog.Info("created DscInitialization resource")
@@ -193,8 +193,8 @@ func main() {
 			if err != nil {
 				setupLog.Error(err, "failed to get DscInitialization custom resource data")
 			}
-			err = client.Patch(context.TODO(), releaseDscInitialization, client2.RawPatch(types.ApplyPatchType, data),
-				client2.ForceOwnership, client2.FieldOwner("opendatahub-operator"))
+			err = c.Patch(context.TODO(), releaseDscInitialization, client.RawPatch(types.ApplyPatchType, data),
+				client.ForceOwnership, client.FieldOwner("opendatahub-operator"))
 			if err != nil {
 				setupLog.Error(err, "failed to update DscInitialization custom resource")
 			}
@@ -202,6 +202,31 @@ func main() {
 			setupLog.Error(err, "failed to create DscInitialization custom resource")
 			os.Exit(1)
 		}
+	}
+
+	// Create new uncached client to run initial setup
+	setupCfg, err := config.GetConfig()
+	if err != nil {
+		setupLog.Error(err, "error getting config for setup")
+		os.Exit(1)
+	}
+
+	setupClient, err := client.New(setupCfg, client.Options{Scheme: scheme})
+	if err != nil {
+		setupLog.Error(err, "error getting client for setup")
+		os.Exit(1)
+	}
+	// Get operator platform
+	platform, err := deploy.GetPlatform(setupClient)
+	if err != nil {
+		setupLog.Error(err, "error getting client for setup")
+		os.Exit(1)
+	}
+
+	// Apply update from legacy operator
+	if err = upgrade.UpdateFromLegacyVersion(setupClient, platform); err != nil {
+		setupLog.Error(err, "unable to update from legacy operator version")
+		os.Exit(1)
 	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
