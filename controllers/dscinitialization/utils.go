@@ -68,9 +68,9 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 		}
 	} else if dscInit.Spec.Monitoring.ManagementState == operatorv1.Managed {
 		r.Log.Info("Patching application namespace for Managed cluster", "name", name)
-		lablePatch := `{"metadata":{"labels":{"openshift.io/cluster-monitoring":"true","pod-security.kubernetes.io/enforce":"baseline","opendatahub.io/generated-namespace": "true"}}}` //nolint
+		labelPatch := `{"metadata":{"labels":{"openshift.io/cluster-monitoring":"true","pod-security.kubernetes.io/enforce":"baseline","opendatahub.io/generated-namespace": "true"}}}` //nolint
 		err = r.Patch(ctx, foundNamespace, client.RawPatch(types.MergePatchType,
-			[]byte(lablePatch)))
+			[]byte(labelPatch)))
 		if err != nil {
 			return err
 		}
@@ -104,9 +104,9 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 			}
 		} else { // force to patch monitoring namespace with label for cluster-monitoring
 			r.Log.Info("Patching monitoring namespace for Managed cluster", "name", monitoringName)
-			lablePatch := `{"metadata":{"labels":{"openshift.io/cluster-monitoring":"true","pod-security.kubernetes.io/enforce":"baseline","opendatahub.io/generated-namespace": "true"}}}` //nolint
+			labelPatch := `{"metadata":{"labels":{"openshift.io/cluster-monitoring":"true","pod-security.kubernetes.io/enforce":"baseline","opendatahub.io/generated-namespace": "true"}}}` //nolint
 
-			err = r.Patch(ctx, foundMonitoringNamespace, client.RawPatch(types.MergePatchType, []byte(lablePatch)))
+			err = r.Patch(ctx, foundMonitoringNamespace, client.RawPatch(types.MergePatchType, []byte(labelPatch)))
 			if err != nil {
 				return err
 			}
