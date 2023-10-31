@@ -390,7 +390,10 @@ rules:
   resources:
   - endpoints
   verbs:
+  - create
+  - delete
   - list
+  - update
   - watch
 - apiGroups:
   - ""
@@ -804,6 +807,46 @@ rules:
 - apiGroups:
   - monitoring.coreos.com
   resources:
+  - alertmanagerconfigs
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - patch
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - alertmanagers
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - patch
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - alertmanagers/finalizers
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - patch
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - alertmanagers/status
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - patch
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
   - podmonitors
   verbs:
   - create
@@ -816,10 +859,41 @@ rules:
 - apiGroups:
   - monitoring.coreos.com
   resources:
+  - probes
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - patch
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
   - prometheuses
   verbs:
   - create
   - delete
+  - deletecollection
+  - get
+  - patch
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - prometheuses/finalizers
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - patch
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - prometheuses/status
+  verbs:
+  - create
+  - delete
+  - deletecollection
   - get
   - patch
 - apiGroups:
@@ -829,6 +903,7 @@ rules:
   verbs:
   - create
   - delete
+  - deletecollection
   - get
   - patch
 - apiGroups:
@@ -838,11 +913,42 @@ rules:
   verbs:
   - create
   - delete
+  - deletecollection
   - get
   - list
   - patch
   - update
   - watch
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - thanosrulers
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - patch
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - thanosrulers/finalizers
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - patch
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - thanosrulers/status
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - patch
 - apiGroups:
   - networking.istio.io
   resources:
