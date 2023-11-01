@@ -64,17 +64,17 @@ type DSCInitializationReconciler struct {
 
 // Reconcile contains controller logic specific to DSCInitialization instance updates.
 func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	r.Log.Info("Reconciling DSCInitialization.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
+	r.Log.Info("Reconciling DSCInitialization.", "DSCInitialization Request.Name", req.Name)
 
 	instances := &dsci.DSCInitializationList{}
 	if err := r.Client.List(ctx, instances); err != nil {
-		r.Log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
+		r.Log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization Request.Name", req.Name)
 		r.Recorder.Eventf(instances, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to retrieve DSCInitialization instance")
 		return ctrl.Result{}, err
 	}
 
 	if len(instances.Items) > 1 {
-		message := fmt.Sprintf("only one instance of DSCInitialization object is allowed. Update existing instance on namespace %s and name %s", req.Namespace, req.Name)
+		message := fmt.Sprintf("only one instance of DSCInitialization object is allowed. Update existing instance name %s", req.Name)
 
 		return ctrl.Result{}, errors.New(message)
 	}
@@ -87,14 +87,14 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	if instance.ObjectMeta.DeletionTimestamp.IsZero() {
 		if !controllerutil.ContainsFinalizer(instance, finalizerName) {
-			r.Log.Info("Adding finalizer for DSCInitialization", "name", instance.Name, "namespace", instance.Namespace, "finalizer", finalizerName)
+			r.Log.Info("Adding finalizer for DSCInitialization", "name", instance.Name, "finalizer", finalizerName)
 			controllerutil.AddFinalizer(instance, finalizerName)
 			if err := r.Update(ctx, instance); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
 	} else {
-		r.Log.Info("Finalization DSCInitialization start deleting instance", "name", instance.Name, "namespace", instance.Namespace, "finalizer", finalizerName)
+		r.Log.Info("Finalization DSCInitialization start deleting instance", "name", instance.Name, "finalizer", finalizerName)
 		// Add cleanup logic here
 		if controllerutil.ContainsFinalizer(instance, finalizerName) {
 			controllerutil.RemoveFinalizer(instance, finalizerName)
@@ -116,7 +116,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			saved.Status.Phase = status.PhaseProgressing
 		})
 		if err != nil {
-			r.Log.Error(err, "Failed to add conditions to status of DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
+			r.Log.Error(err, "Failed to add conditions to status of DSCInitialization resource.", "DSCInitialization Request.Name", req.Name)
 			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError",
 				"%s for instance %s", message, instance.Name)
 			return reconcile.Result{}, err
