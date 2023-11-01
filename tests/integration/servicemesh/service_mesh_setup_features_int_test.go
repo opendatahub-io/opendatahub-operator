@@ -2,14 +2,12 @@ package servicemesh_test
 
 import (
 	"context"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
-	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 	"io"
+	"os"
+	"path"
+	"path/filepath"
+	"time"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,10 +15,15 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
-	"os"
-	"path"
-	"path/filepath"
-	"time"
+
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
+	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 const (

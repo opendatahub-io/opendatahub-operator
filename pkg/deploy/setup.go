@@ -2,14 +2,15 @@ package deploy
 
 import (
 	"context"
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	operatorv1 "github.com/openshift/api/operator/v1"
 	"strings"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 )
 
 const (

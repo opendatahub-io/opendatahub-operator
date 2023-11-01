@@ -26,13 +26,6 @@ import (
 
 	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
-
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
-
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
@@ -45,6 +38,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 )
 
 const (
@@ -68,17 +67,17 @@ type DSCInitializationReconciler struct {
 
 // Reconcile contains controller logic specific to DSCInitialization instance updates.
 func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	r.Log.Info("Reconciling DSCInitialization.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
+	r.Log.Info("Reconciling DSCInitialization.", "DSCInitialization Request.Name", req.Name)
 
 	instances := &dsci.DSCInitializationList{}
 	if err := r.Client.List(ctx, instances); err != nil {
-		r.Log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
+		r.Log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization Request.Name", req.Name)
 		r.Recorder.Eventf(instances, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to retrieve DSCInitialization instance")
 		return ctrl.Result{}, err
 	}
 
 	if len(instances.Items) > 1 {
-		message := fmt.Sprintf("only one instance of DSCInitialization object is allowed. Update existing instance on namespace %s and name %s", req.Namespace, req.Name)
+		message := fmt.Sprintf("only one instance of DSCInitialization object is allowed. Update existing instance name %s", req.Name)
 
 		return ctrl.Result{}, errors.New(message)
 	}
@@ -91,14 +90,14 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	if instance.ObjectMeta.DeletionTimestamp.IsZero() {
 		if !controllerutil.ContainsFinalizer(instance, finalizerName) {
-			r.Log.Info("Adding finalizer for DSCInitialization", "name", instance.Name, "namespace", instance.Namespace, "finalizer", finalizerName)
+			r.Log.Info("Adding finalizer for DSCInitialization", "name", instance.Name, "finalizer", finalizerName)
 			controllerutil.AddFinalizer(instance, finalizerName)
 			if err := r.Update(ctx, instance); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
 	} else {
-		r.Log.Info("Finalization DSCInitialization start deleting instance", "name", instance.Name, "namespace", instance.Namespace, "finalizer", finalizerName)
+		r.Log.Info("Finalization DSCInitialization start deleting instance", "name", instance.Name, "finalizer", finalizerName)
 		if err := r.cleanupServiceMesh(instance); err != nil {
 			return ctrl.Result{}, err
 		}
@@ -122,7 +121,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			saved.Status.Phase = status.PhaseProgressing
 		})
 		if err != nil {
-			r.Log.Error(err, "Failed to add conditions to status of DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
+			r.Log.Error(err, "Failed to add conditions to status of DSCInitialization resource.", "DSCInitialization Request.Name", req.Name)
 			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError",
 				"%s for instance %s", message, instance.Name)
 			return reconcile.Result{}, err

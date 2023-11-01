@@ -3,11 +3,13 @@ package servicemesh
 import (
 	"bytes"
 	"fmt"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
+	"text/template"
+
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"text/template"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 )
 
 const tokenSecret = `

@@ -3,12 +3,14 @@ package servicemesh
 import (
 	"context"
 	"fmt"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
+
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	ctrlLog "sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 )
 
 var log = ctrlLog.Log.WithName("features")

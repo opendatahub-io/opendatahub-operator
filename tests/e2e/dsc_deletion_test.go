@@ -6,14 +6,15 @@ import (
 	"log"
 	"testing"
 
-	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 )
 
 func deletionTestSuite(t *testing.T) {

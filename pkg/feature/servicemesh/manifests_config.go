@@ -2,8 +2,9 @@ package servicemesh
 
 import (
 	"fmt"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"path/filepath"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 )
 
 const (

@@ -3,8 +3,9 @@ package feature
 import (
 	"context"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
 // CreateNamespace will create namespace with the given name if it does not exist yet and sets feature as an owner of it.

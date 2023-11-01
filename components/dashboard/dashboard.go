@@ -5,7 +5,6 @@ package dashboard
 import (
 	"context"
 	"fmt"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 	"path"
 	"path/filepath"
 	"strings"
@@ -22,6 +21,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 )
 
 var (

@@ -1,9 +1,10 @@
 package cluster_test
 
 import (
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
 var _ = Describe("extracting hostname and port from URL", func() {

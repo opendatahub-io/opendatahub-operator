@@ -6,17 +6,19 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"github.com/bitly/go-simplejson"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 	"io"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/client-go/dynamic"
 	"net/http"
 	"net/url"
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/bitly/go-simplejson"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/client-go/dynamic"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 )
 
 // +kubebuilder:rbac:groups="config.openshift.io",resources=ingresses,verbs=get

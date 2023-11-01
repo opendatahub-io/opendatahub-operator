@@ -2,10 +2,8 @@ package feature
 
 import (
 	"context"
+
 	"github.com/hashicorp/go-multierror"
-	v1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -16,6 +14,10 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlLog "sigs.k8s.io/controller-runtime/pkg/log"
+
+	v1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 )
 
 var log = ctrlLog.Log.WithName("features")

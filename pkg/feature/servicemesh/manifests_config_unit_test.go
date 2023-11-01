@@ -1,11 +1,13 @@
 package servicemesh_test
 
 import (
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 	"os"
 	"path/filepath"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Overwriting gateway name in env file", func() {

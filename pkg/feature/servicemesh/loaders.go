@@ -1,10 +1,11 @@
 package servicemesh
 
 import (
+	"github.com/pkg/errors"
+
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
-	"github.com/pkg/errors"
 )
 
 func ClusterDetails(f *feature.Feature) error {
