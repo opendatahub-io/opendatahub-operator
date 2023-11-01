@@ -16,6 +16,10 @@ package feature
 import (
 	"context"
 	"fmt"
+	"os"
+	"regexp"
+	"strings"
+
 	"github.com/ghodss/yaml"
 	"github.com/pkg/errors"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -23,9 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8stypes "k8s.io/apimachinery/pkg/types"
-	"os"
-	"regexp"
-	"strings"
 )
 
 const (
