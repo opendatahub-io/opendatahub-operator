@@ -13,6 +13,36 @@ import (
 	"strings"
 )
 
+func SelfSignedCertificate(f *feature.Feature) error {
+	if f.Spec.Mesh.Certificate.Generate {
+		meta := metav1.ObjectMeta{
+			Name:      f.Spec.Mesh.Certificate.Name,
+			Namespace: f.Spec.Mesh.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				f.OwnerReference(),
+			},
+		}
+
+		cert, err := feature.GenerateSelfSignedCertificateAsSecret(f.Spec.Domain, meta)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+
+		if err != nil {
+			return errors.WithStack(err)
+		}
+
+		_, err = f.Clientset.CoreV1().
+			Secrets(f.Spec.Mesh.Namespace).
+			Create(context.TODO(), cert, metav1.CreateOptions{})
+		if err != nil && !k8serrors.IsAlreadyExists(err) {
+			return errors.WithStack(err)
+		}
+	}
+
+	return nil
+}
+
 func EnvoyOAuthSecrets(feature *feature.Feature) error {
 	objectMeta := metav1.ObjectMeta{
 		Name:      feature.Spec.AppNamespace + "-oauth2-tokens",

@@ -308,7 +308,7 @@ toolbox: ## Create a toolbox instance with the proper Golang and Operator SDK ve
 	toolbox create opendatahub-toolbox --image localhost/opendatahub-toolbox:latest
 
 # Run tests.
-TEST_SRC=./controllers/... ./tests/integration/servicemesh/...
+TEST_SRC=./controllers/... ./tests/integration/...
 
 .PHONY: envtest
 envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.

@@ -229,7 +229,7 @@ func configureServiceMeshFeatures(s *feature.FeaturesInitializer) error {
 			path.Join(rootDir, feature.ControlPlaneDir, "filters"),
 		).
 		WithResources(
-			feature.SelfSignedCertificate,
+			servicemesh.SelfSignedCertificate,
 			servicemesh.EnvoyOAuthSecrets,
 		).
 		WithData(servicemesh.ClusterDetails, servicemesh.OAuthConfig).
