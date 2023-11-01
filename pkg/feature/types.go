@@ -1,8 +1,9 @@
 package feature
 
 import (
-	v1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"strings"
+
+	v1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 )
 
 type Spec struct {
