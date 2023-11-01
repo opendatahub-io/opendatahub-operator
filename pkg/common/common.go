@@ -22,11 +22,12 @@ import (
 	"crypto/sha256"
 	b64 "encoding/base64"
 	"fmt"
-	routev1 "github.com/openshift/api/route/v1"
 	"os"
 	"regexp"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strings"
+
+	routev1 "github.com/openshift/api/route/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // ReplaceStringsInFile replaces variable with value in manifests during runtime.

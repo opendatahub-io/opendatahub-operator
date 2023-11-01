@@ -3,13 +3,10 @@ package dscinitialization
 import (
 	"context"
 	"crypto/rand"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"reflect"
 	"time"
 
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
-
 	ocuserv1 "github.com/openshift/api/user/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
@@ -21,6 +18,9 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 var (

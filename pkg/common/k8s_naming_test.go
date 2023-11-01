@@ -1,9 +1,10 @@
 package common_test
 
 import (
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 )
 
 var _ = Describe("Ensuring name (e.g. meta.Name) fulfills RFC1123 naming spec", func() {

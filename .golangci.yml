@@ -3,6 +3,16 @@ linters-settings:
     min-complexity: 30
   lll:
     line-length: 180
+  gci:
+    sections:
+      - standard
+      - default
+      - blank
+      - prefix(github.com/opendatahub-io/opendatahub-operator)
+      - blank
+      - dot
+    skip-generated: false
+    custom-order: true
 
 linters:
   disable-all: true
@@ -12,6 +22,7 @@ linters:
     - dupl
     - errcheck
     - exportloopref
+    - gci
     - goconst
     - gocritic
     - gocyclo

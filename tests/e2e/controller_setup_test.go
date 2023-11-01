@@ -4,14 +4,20 @@ import (
 	"context"
 	"flag"
 	"fmt"
+<<<<<<< HEAD
 	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+=======
+>>>>>>> dcc6b91c (feat(linter): introduces gci to streamline import rules (#676))
 	"os"
 	"testing"
 	"time"
 
+<<<<<<< HEAD
 	"k8s.io/apimachinery/pkg/types"
 
+=======
+>>>>>>> dcc6b91c (feat(linter): introduces gci to streamline import rules (#676))
 	routev1 "github.com/openshift/api/route/v1"
 	"github.com/pkg/errors"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
@@ -23,6 +29,12 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlruntime "sigs.k8s.io/controller-runtime/pkg/client/config"
+<<<<<<< HEAD
+=======
+
+	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+>>>>>>> dcc6b91c (feat(linter): introduces gci to streamline import rules (#676))
 )
 
 var (
