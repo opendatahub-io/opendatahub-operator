@@ -25,7 +25,7 @@ import (
 	ocv1 "github.com/openshift/api/oauth/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	v1 "k8s.io/api/core/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -104,7 +104,7 @@ func (r *SecretGeneratorReconciler) Reconcile(ctx context.Context, request ctrl.
 	foundSecret := &v1.Secret{}
 	err := r.Client.Get(ctx, request.NamespacedName, foundSecret)
 	if err != nil {
-		if k8serrors.IsNotFound(err) {
+		if apierrs.IsNotFound(err) {
 			// If Secret is deleted, delete OAuthClient if exists
 			err = r.deleteOAuthClient(ctx, request.Name)
 		}
@@ -129,12 +129,12 @@ func (r *SecretGeneratorReconciler) Reconcile(ctx context.Context, request ctrl.
 	}
 	err = r.Client.Get(ctx, generatedSecretKey, generatedSecret)
 	if err != nil {
-		if k8serrors.IsNotFound(err) {
+		if apierrs.IsNotFound(err) {
 			// Generate secret random value
 			secGenLog.Info("Generating a random value for a secret in a namespace",
 				"secret", generatedSecret.Name, "namespace", generatedSecret.Namespace)
 
-			secret, err := newSecret(foundSecret.GetAnnotations())
+			secret, err := NewSecretFrom(foundSecret.GetAnnotations())
 			if err != nil {
 				secGenLog.Error(err, "error creating secret")
 				return ctrl.Result{}, err
@@ -183,7 +183,7 @@ func (r *SecretGeneratorReconciler) getRoute(ctx context.Context, name string, n
 			Namespace: namespace,
 		}, route)
 		if err != nil {
-			if k8serrors.IsNotFound(err) {
+			if apierrs.IsNotFound(err) {
 				return false, nil
 			}
 			return false, err
@@ -217,7 +217,7 @@ func (r *SecretGeneratorReconciler) createOAuthClient(ctx context.Context, name 
 
 	err := r.Client.Create(ctx, oauthClient)
 	if err != nil {
-		if k8serrors.IsAlreadyExists(err) {
+		if apierrs.IsAlreadyExists(err) {
 			secGenLog.Info("OAuth client resource already exists", "name", oauthClient.Name)
 			return nil
 		}
@@ -232,7 +232,7 @@ func (r *SecretGeneratorReconciler) deleteOAuthClient(ctx context.Context, secre
 		Name: secretName,
 	}, oauthClient)
 	if err != nil {
-		if k8serrors.IsNotFound(err) {
+		if apierrs.IsNotFound(err) {
 			return nil
 		}
 		return err

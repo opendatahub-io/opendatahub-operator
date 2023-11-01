@@ -5,13 +5,14 @@ import (
 	"path/filepath"
 	"strings"
 
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 var (
@@ -111,14 +112,14 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 		}
 
 		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
-			err := common.CreateNamespace(cli, "rhods-notebooks")
+			_, err := cluster.CreateNamespace(cli, "rhods-notebooks")
 			if err != nil {
 				// no need to log error as it was already logged in createOdhNamespace
 				return err
 			}
 		}
 		// Update Default rolebinding
-		err = common.UpdatePodSecurityRolebinding(cli, []string{"notebook-controller-service-account"}, dscispec.ApplicationsNamespace)
+		err = cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "notebook-controller-service-account")
 		if err != nil {
 			return err
 		}
