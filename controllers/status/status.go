@@ -61,6 +61,7 @@ const (
 	ReconcileCompletedWithComponentErrors = "ReconcileCompletedWithComponentErrors"
 	ReconcileCompletedMessage             = "Reconcile completed successfully"
 	DuplicateDataScienceCluster           = "DuplicateDataScienceCluster"
+	DuplicateDSCInitialization            = "DuplicateDSCInitialization"
 
 	// ConditionReconcileComplete represents extra Condition Type, used by .Condition.Type.
 	ConditionReconcileComplete conditionsv1.ConditionType = "ReconcileComplete"

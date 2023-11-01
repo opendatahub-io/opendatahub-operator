@@ -82,6 +82,11 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	if len(instances.Items) > 1 {
 		message := fmt.Sprintf("only one instance of DSCInitialization object is allowed. Update existing instance name %s", req.Name)
 
+		_, _ = r.updateStatus(ctx, instance, func(saved *dsci.DSCInitialization) {
+			status.SetErrorCondition(&saved.Status.Conditions, status.DuplicateDSCInitialization, message)
+			saved.Status.Phase = status.PhaseError
+		})
+
 		return ctrl.Result{}, errors.New(message)
 	}
 

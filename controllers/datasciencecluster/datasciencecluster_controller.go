@@ -142,7 +142,12 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		dscInitializationSpec := dsciInstances.Items[0].Spec
 		dscInitializationSpec.DeepCopyInto(r.DataScienceCluster.DSCISpec)
 	default:
-		return ctrl.Result{}, errors.New("only one instance of DSCInitialization object is allowed")
+		message := "only one instance of DSCInitialization object is allowed"
+		_, _ = r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
+			status.SetErrorCondition(&saved.Status.Conditions, status.DuplicateDSCInitialization, message)
+			saved.Status.Phase = status.PhaseError
+		})
+		return ctrl.Result{}, errors.New(message)
 	}
 
 	allComponents, err := getAllComponents(&instance.Spec.Components)
