@@ -102,7 +102,12 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	if len(instances.Items) > 1 {
 		message := fmt.Sprintf("only one instance of DataScienceCluster object is allowed. Update existing instance %s", req.Name)
 		err := errors.New(message)
-		_ = r.reportError(err, &instances.Items[0], message)
+		_ = r.reportError(err, instance, message)
+
+		_, _ = r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
+			status.SetErrorCondition(&saved.Status.Conditions, status.DuplicateDataScienceCluster, message)
+			saved.Status.Phase = status.PhaseError
+		})
 
 		return ctrl.Result{}, err
 	}
