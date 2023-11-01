@@ -2,6 +2,7 @@ package feature
 
 import (
 	"bytes"
+	"context"
 	cryptorand "crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -15,10 +16,43 @@ import (
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	v1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 )
 
 var seededRand = rand.New(rand.NewSource(time.Now().UnixNano()))
+
+func (f *Feature) CreateSelfSignedCertificate(certificate v1.CertificateSpec, domain, namespace string) error {
+	if certificate.Generate == "SelfSigned" {
+		meta := metav1.ObjectMeta{
+			Name:      certificate.SecretName,
+			Namespace: namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				f.OwnerReference(),
+			},
+		}
+
+		cert, err := GenerateSelfSignedCertificateAsSecret(domain, meta)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+
+		if err != nil {
+			return errors.WithStack(err)
+		}
+
+		_, err = f.Clientset.CoreV1().
+			Secrets(namespace).
+			Create(context.TODO(), cert, metav1.CreateOptions{})
+		if err != nil && !k8serrors.IsAlreadyExists(err) {
+			return errors.WithStack(err)
+		}
+	}
+
+	return nil
+}
 
 func GenerateSelfSignedCertificateAsSecret(addr string, objectMeta metav1.ObjectMeta) (*corev1.Secret, error) {
 	cert, key, err := generateCertificate(addr)

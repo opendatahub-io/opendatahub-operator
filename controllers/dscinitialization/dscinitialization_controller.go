@@ -41,6 +41,9 @@ import (
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/serverless"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 )
 
 const (
@@ -192,6 +195,16 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 	}
 
+	// Apply Service Mesh configurations
+	if errServiceMesh := r.configureServiceMesh(instance); errServiceMesh != nil {
+		return reconcile.Result{}, errServiceMesh
+	}
+
+	// Apply Serverless configurations
+	if errServerless := r.configureServerless(instance); errServerless != nil {
+		return reconcile.Result{}, errServerless
+	}
+
 	// Finish reconciling
 	_, err = r.updateStatus(ctx, instance, func(saved *dsci.DSCInitialization) {
 		status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, status.ReconcileCompletedMessage)
@@ -242,4 +255,48 @@ func (r *DSCInitializationReconciler) updateStatus(ctx context.Context, original
 	})
 
 	return saved, err
+}
+
+func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsci.DSCInitialization) error {
+	if instance.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
+		serviceMeshInitializer := feature.NewFeaturesInitializer(&instance.Spec, servicemesh.ConfigureServiceMeshFeatures)
+
+		if err := serviceMeshInitializer.Prepare(); err != nil {
+			r.Log.Error(err, "failed configuring service mesh resources")
+			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed configuring service mesh resources")
+
+			return err
+		}
+
+		if err := serviceMeshInitializer.Apply(); err != nil {
+			r.Log.Error(err, "failed applying service mesh resources")
+			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed applying service mesh resources")
+
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (r *DSCInitializationReconciler) configureServerless(instance *dsci.DSCInitialization) error {
+	if instance.Spec.Serverless.ManagementState == operatorv1.Managed {
+		serverlessInitializer := feature.NewFeaturesInitializer(&instance.Spec, serverless.ConfigureServerlessFeatures)
+
+		if err := serverlessInitializer.Prepare(); err != nil {
+			r.Log.Error(err, "failed configuring serverless resources")
+			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed configuring serverless resources")
+
+			return err
+		}
+
+		if err := serverlessInitializer.Apply(); err != nil {
+			r.Log.Error(err, "failed applying serverless resources")
+			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed applying serverless resources")
+
+			return err
+		}
+	}
+
+	return nil
 }

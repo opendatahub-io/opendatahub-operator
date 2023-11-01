@@ -1,0 +1,18 @@
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: knative-ingress-gateway
+  namespace: {{ .Serving.Namespace }}
+spec:
+  selector: # TODO
+    knative: ingressgateway
+  servers:
+    - hosts:
+        - '*' # TODO
+      port:
+        name: https
+        number: 443
+        protocol: HTTPS
+      tls: # TODO
+        credentialName: {{ .Serving.IngressGateway.Certificate.SecretName }}
+        mode: SIMPLE

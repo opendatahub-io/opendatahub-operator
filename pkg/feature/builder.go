@@ -26,7 +26,9 @@ func CreateFeature(name string) *featureBuilder {
 func (fb *featureBuilder) For(spec *v1.DSCInitializationSpec) *featureBuilder {
 	createSpec := func(f *Feature) error {
 		f.Spec = &Spec{
-			AppNamespace: spec.ApplicationsNamespace,
+			AppNamespace:    spec.ApplicationsNamespace,
+			ServiceMeshSpec: &spec.ServiceMesh,
+			ServerlessSpec:  &spec.Serverless,
 		}
 
 		return nil

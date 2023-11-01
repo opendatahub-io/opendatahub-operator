@@ -301,6 +301,12 @@ rules:
   - list
   - watch
 - apiGroups:
+  - config.openshift.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+- apiGroups:
   - console.openshift.io
   resources:
   - consolelinks
@@ -940,6 +946,12 @@ rules:
 - apiGroups:
   - networking.istio.io
   resources:
+  - gateways
+  verbs:
+  - '*'
+- apiGroups:
+  - networking.istio.io
+  resources:
   - virtualservices
   verbs:
   - '*'
@@ -1008,6 +1020,12 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - operator.knative.dev
+  resources:
+  - knativeservings
+  verbs:
+  - '*'
 - apiGroups:
   - operator.openshift.io
   resources:

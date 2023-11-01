@@ -35,9 +35,22 @@ type DSCInitializationSpec struct {
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=2
 	// +optional
 	Monitoring Monitoring `json:"monitoring,omitempty"`
+	// Configures Service Mesh as networking layer for Data Science Clusters components.
+	// The Service Mesh is a mandatory prerequisite for single model serving (KServe) and
+	// you should review this configuration if you are planning to use KServe.
+	// For other components, it enhances user experience; e.g. it provides unified
+	// authentication giving a Single Sign On experience.
+	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=3
+	// +optional
+	ServiceMesh ServiceMeshSpec `json:"serviceMesh,omitempty"`
+	// Configures Serverless (KNative Serving). This is a prerequisite for single model
+	// serving (KServe) and you should review this configuration if you are planning to use KServe.
+	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=4
+	// +optional
+	Serverless ServerlessSpec `json:"serverless,omitempty"`
 	// Internal development useful field to test customizations.
 	// This is not recommended to be used in production environment.
-	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=3
+	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=5
 	// +optional
 	DevFlags DevFlags `json:"devFlags,omitempty"`
 }

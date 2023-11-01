@@ -3,7 +3,10 @@ package feature
 import (
 	"context"
 
+	corev1 "k8s.io/api/core/v1"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
@@ -12,6 +15,21 @@ import (
 // This way we ensure that when the feature is cleaned up, the namespace will be deleted as well.
 func CreateNamespace(namespace string) Action {
 	return func(f *Feature) error {
+		// Despite the cluster.CreateNamespace function already checks if the target
+		// namespace exists, it seems relevant to do the check here. Otherwise, we may
+		// set or change the owner reference of an existent namespace, and that would lead
+		// to namespace deletion for cases where it is better to not terminate it.
+		foundNamespace := &corev1.Namespace{}
+		err := f.Client.Get(context.TODO(), client.ObjectKey{Name: namespace}, foundNamespace)
+		if err != nil {
+			if !apierrs.IsNotFound(err) {
+				return err
+			}
+		} else {
+			// Namespace exists. We do no-op.
+			return nil
+		}
+
 		createdNs, err := cluster.CreateNamespace(f.Client, namespace)
 		if err != nil {
 			return err
