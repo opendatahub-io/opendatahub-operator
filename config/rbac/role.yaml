@@ -626,6 +626,18 @@ rules:
   - patch
   - update
 - apiGroups:
+  - dscinitialization.opendatahub.io
+  resources:
+  - featuretrackers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - events.k8s.io
   resources:
   - events

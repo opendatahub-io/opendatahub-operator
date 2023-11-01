@@ -107,6 +107,51 @@ type DSCInitializationList struct {
 	Items           []DSCInitialization `json:"items"`
 }
 
+// FeatureTracker is a cluster-scoped resource for tracking objects
+// created through Features API for Data Science Platform.
+// It's primarily used as owner reference for resources created across namespaces so that they can be
+// garbage collected by Kubernetes when they're not needed anymore.
+// +kubebuilder:object:root=true
+// +kubebuilder:resource:scope=Cluster
+type FeatureTracker struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   FeatureTrackerSpec   `json:"spec,omitempty"`
+	Status FeatureTrackerStatus `json:"status,omitempty"`
+}
+
+func (s *FeatureTracker) ToOwnerReference() metav1.OwnerReference {
+	return metav1.OwnerReference{
+		APIVersion: s.APIVersion,
+		Kind:       s.Kind,
+		Name:       s.Name,
+		UID:        s.UID,
+	}
+}
+
+// FeatureTrackerSpec defines the desired state of FeatureTracker.
+type FeatureTrackerSpec struct {
+}
+
+// FeatureTrackerStatus defines the observed state of FeatureTracker.
+type FeatureTrackerStatus struct {
+}
+
+// +kubebuilder:object:root=true
+
+// FeatureTrackerList contains a list of FeatureTracker.
+type FeatureTrackerList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []FeatureTracker `json:"items"`
+}
+
 func init() {
-	SchemeBuilder.Register(&DSCInitialization{}, &DSCInitializationList{})
+	SchemeBuilder.Register(
+		&DSCInitialization{},
+		&DSCInitializationList{},
+		&FeatureTracker{},
+		&FeatureTrackerList{},
+	)
 }

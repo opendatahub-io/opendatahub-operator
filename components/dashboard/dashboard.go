@@ -12,9 +12,9 @@ import (
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-
 	routev1 "github.com/openshift/api/route/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -92,7 +92,7 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 		}
 
 		if platform == deploy.OpenDataHub || platform == "" {
-			err := common.UpdatePodSecurityRolebinding(cli, []string{ComponentName}, dscispec.ApplicationsNamespace)
+			err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "odh-dashboard")
 			if err != nil {
 				return err
 			}
@@ -103,7 +103,7 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 		}
 
 		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
-			err := common.UpdatePodSecurityRolebinding(cli, []string{ComponentNameSupported}, dscispec.ApplicationsNamespace)
+			err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "rhods-dashboard")
 			if err != nil {
 				return err
 			}
@@ -204,7 +204,7 @@ func (d *Dashboard) applyRhodsSpecificConfigs(cli client.Client, owner metav1.Ob
 		return fmt.Errorf("failed to set dashboard OVMS from %s: %w", PathOVMS, err)
 	}
 
-	if err := common.CreateSecret(cli, "anaconda-ce-access", namespace); err != nil {
+	if err := cluster.CreateSecret(cli, "anaconda-ce-access", namespace); err != nil {
 		return fmt.Errorf("failed to create access-secret for anaconda: %w", err)
 	}
 

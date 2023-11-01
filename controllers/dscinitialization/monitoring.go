@@ -4,6 +4,7 @@ import (
 	"context"
 	b64 "encoding/base64"
 	"fmt"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -70,7 +71,7 @@ func (r *DSCInitializationReconciler) configureManagedMonitoring(ctx context.Con
 	}
 
 	if initial == "init" {
-		err := common.UpdatePodSecurityRolebinding(r.Client, []string{"redhat-ods-monitoring"}, dscInit.Spec.Monitoring.Namespace)
+		err := cluster.UpdatePodSecurityRolebinding(r.Client, dscInit.Spec.Monitoring.Namespace, "redhat-ods-monitoring")
 		if err != nil {
 			return fmt.Errorf("error to update monitoring security rolebinding: %w", err)
 		}

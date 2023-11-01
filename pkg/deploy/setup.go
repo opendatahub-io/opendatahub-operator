@@ -17,6 +17,8 @@ const (
 	SelfManagedRhods Platform = "Red Hat OpenShift Data Science"
 	// OpenDataHub defines display name in csv.
 	OpenDataHub Platform = "Open Data Hub Operator"
+	// Unknown indicates that operator is not deployed using OLM
+	Unknown Platform = ""
 )
 
 type Platform string
@@ -41,7 +43,7 @@ func isSelfManaged(cli client.Client) (Platform, error) {
 			}
 		}
 	}
-	return "", nil
+	return Unknown, nil
 }
 
 // isManagedRHODS checks if CRD add-on exists and contains string ManagedRhods.
@@ -59,9 +61,9 @@ func isManagedRHODS(cli client.Client) (Platform, error) {
 		err := cli.List(context.TODO(), expectedCatlogSource)
 		if err != nil {
 			if apierrs.IsNotFound(err) {
-				return "", nil
+				return Unknown, nil
 			} else {
-				return "", err
+				return Unknown, err
 			}
 		}
 		if len(expectedCatlogSource.Items) > 0 {
@@ -78,7 +80,7 @@ func isManagedRHODS(cli client.Client) (Platform, error) {
 func GetPlatform(cli client.Client) (Platform, error) {
 	// First check if its addon installation to return 'ManagedRhods, nil'
 	if platform, err := isManagedRHODS(cli); err != nil {
-		return "", err
+		return Unknown, err
 	} else if platform == ManagedRhods {
 		return ManagedRhods, nil
 	}

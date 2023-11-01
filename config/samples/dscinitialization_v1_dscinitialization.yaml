@@ -13,3 +13,4 @@ spec:
     managementState: "Managed"
     namespace: 'redhat-ods-monitoring'
   applicationsNamespace: 'redhat-ods-applications'
+
