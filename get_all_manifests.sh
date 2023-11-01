@@ -2,11 +2,6 @@
 set -e
 
 GITHUB_URL="https://github.com/"
-# update to use different git repo for legacy manifests
-MANIFEST_ORG="opendatahub-io"
-# comment out below logic once we have all component manifests ready to get from source git repo
-MANIFEST_RELEASE="master"
-MANIFESTS_TARBALL_URL="${GITHUB_URL}/${MANIFEST_ORG}/odh-manifests/tarball/${MANIFEST_RELEASE}"
 
 # component: dsp, kserve, dashbaord, cf/ray. in the format of "repo-org:repo-name:branch-name:source-folder:target-folder"
 # TODO: odh-mm-monitoring, etc

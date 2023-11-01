@@ -1,4 +1,4 @@
-package controllers_test
+package envtestutil
 
 import (
 	"fmt"
@@ -11,15 +11,19 @@ func FindProjectRoot() (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	for {
 		if _, err := os.Stat(filepath.Join(currentDir, "go.mod")); err == nil {
 			return filepath.FromSlash(currentDir), nil
 		}
+
 		parentDir := filepath.Dir(currentDir)
 		if parentDir == currentDir {
 			break
 		}
+
 		currentDir = parentDir
 	}
+
 	return "", fmt.Errorf("project root not found")
 }

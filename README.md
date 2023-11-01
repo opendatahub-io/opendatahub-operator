@@ -54,10 +54,6 @@ Each component is associated with its manifest location in the `COMPONENT_MANIFE
 1. The script clones the remote repository `<repo-org>/<repo-name>` from the specified `<branch-name>`.
 2. It then copies the content from the relative path `<source-folder>` to the local `odh-manifests/<target-folder>` folder.
 
-In cases where components cannot directly use manifests from `opendatahub-io/<repo-name>`, the script defaults to the `opendatahub-io/odh-manifests` git repository.
-
-The version of manifests fetched from `opendatahub-io/odh-manifests` is determined by the `MANIFEST_RELEASE` variable in the `get_all_manifests.sh` script.
-
 #### Local Storage
 
 The script utilizes a local, empty folder named `odh-manifests` to host all required manifests, sourced either directly from the component’s source repository or the default `odh-manifests` git repository.
@@ -84,7 +80,6 @@ If the flag name matches components key defined in `COMPONENT_MANIFESTS` it will
 ##### for local development
 
 ```
-
 make get-manifests
 ```
 

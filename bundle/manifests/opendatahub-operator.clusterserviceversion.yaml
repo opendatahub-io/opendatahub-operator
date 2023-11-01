@@ -72,7 +72,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.1.0
-    createdAt: "2023-8-23T00:00:00Z"
+    createdAt: "2023-10-30T14:38:57Z"
     olm.skipRange: '>=1.0.0 <2.0.0'
     operatorframework.io/initialization-resource: |-
       {
@@ -117,7 +117,7 @@ metadata:
           }
         }
       }
-    operators.operatorframework.io/builder: operator-sdk-v1.24.1
+    operators.operatorframework.io/builder: operator-sdk-v1.32.0
     operators.operatorframework.io/internal-objects: '[dscinitialization.opendatahub.io]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/opendatahub-io/opendatahub-operator
@@ -157,6 +157,9 @@ spec:
           resource
         displayName: Conditions
         path: conditions
+      version: v1
+    - kind: FeatureTracker
+      name: featuretrackers.dscinitialization.opendatahub.io
       version: v1
   description: "The Open Data Hub is a machine-learning-as-a-service platform built
     on Red Hat's Kubernetes-based OpenShift® Container Platform. Open Data Hub integrates
@@ -560,7 +563,10 @@ spec:
           resources:
           - endpoints
           verbs:
+          - create
+          - delete
           - list
+          - update
           - watch
         - apiGroups:
           - ""
@@ -805,6 +811,18 @@ spec:
           - patch
           - update
         - apiGroups:
+          - dscinitialization.opendatahub.io
+          resources:
+          - featuretrackers
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
           - events.k8s.io
           resources:
           - events
@@ -962,6 +980,46 @@ spec:
         - apiGroups:
           - monitoring.coreos.com
           resources:
+          - alertmanagerconfigs
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - patch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
+          - alertmanagers
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - patch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
+          - alertmanagers/finalizers
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - patch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
+          - alertmanagers/status
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - patch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
           - podmonitors
           verbs:
           - create
@@ -974,10 +1032,41 @@ spec:
         - apiGroups:
           - monitoring.coreos.com
           resources:
+          - probes
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - patch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
           - prometheuses
           verbs:
           - create
           - delete
+          - deletecollection
+          - get
+          - patch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
+          - prometheuses/finalizers
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - patch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
+          - prometheuses/status
+          verbs:
+          - create
+          - delete
+          - deletecollection
           - get
           - patch
         - apiGroups:
@@ -987,6 +1076,7 @@ spec:
           verbs:
           - create
           - delete
+          - deletecollection
           - get
           - patch
         - apiGroups:
@@ -996,11 +1086,42 @@ spec:
           verbs:
           - create
           - delete
+          - deletecollection
           - get
           - list
           - patch
           - update
           - watch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
+          - thanosrulers
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - patch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
+          - thanosrulers/finalizers
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - patch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
+          - thanosrulers/status
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - patch
         - apiGroups:
           - networking.istio.io
           resources:

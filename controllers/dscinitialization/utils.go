@@ -66,9 +66,11 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 			r.Log.Error(err, "Unable to fetch namespace", "name", name)
 			return err
 		}
-	} else if (dscInit.Spec.Monitoring.ManagementState == operatorv1.Managed) && dscInit.Spec.Monitoring.Namespace == name {
+	} else if dscInit.Spec.Monitoring.ManagementState == operatorv1.Managed {
+		r.Log.Info("Patching application namespace for Managed cluster", "name", name)
+		labelPatch := `{"metadata":{"labels":{"openshift.io/cluster-monitoring":"true","pod-security.kubernetes.io/enforce":"baseline","opendatahub.io/generated-namespace": "true"}}}` //nolint
 		err = r.Patch(ctx, foundNamespace, client.RawPatch(types.MergePatchType,
-			[]byte(`{"metadata": {"labels": {"openshift.io/cluster-monitoring": "true"}}}`)))
+			[]byte(labelPatch)))
 		if err != nil {
 			return err
 		}
@@ -98,6 +100,14 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 				}
 			} else {
 				r.Log.Error(err, "Unable to fetch monitoring namespace", "name", monitoringName)
+				return err
+			}
+		} else { // force to patch monitoring namespace with label for cluster-monitoring
+			r.Log.Info("Patching monitoring namespace for Managed cluster", "name", monitoringName)
+			labelPatch := `{"metadata":{"labels":{"openshift.io/cluster-monitoring":"true","pod-security.kubernetes.io/enforce":"baseline","opendatahub.io/generated-namespace": "true"}}}` //nolint
+
+			err = r.Patch(ctx, foundMonitoringNamespace, client.RawPatch(types.MergePatchType, []byte(labelPatch)))
+			if err != nil {
 				return err
 			}
 		}

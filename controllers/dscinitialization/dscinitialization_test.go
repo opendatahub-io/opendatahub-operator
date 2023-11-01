@@ -12,6 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -27,9 +28,10 @@ const (
 
 var _ = Describe("DataScienceCluster initialization", func() {
 	Context("Creation of related resources", func() {
-		applicationName := "default-test"
+		var applicationName string
 		BeforeEach(func() {
 			// when
+			applicationName = envtestutil.AppendRandomNameTo("default-test")
 			desiredDsci := createDSCI(applicationName)
 			Expect(k8sClient.Create(context.Background(), desiredDsci)).Should(Succeed())
 			foundDsci := &dsci.DSCInitialization{}
@@ -99,7 +101,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 		AfterEach(cleanupResources)
 
 		It("Should not update rolebinding if it exists", func() {
-			applicationName := "rolebinding-test"
+			applicationName := envtestutil.AppendRandomNameTo("rolebinding-test")
 
 			// given
 			desiredRoleBinding := &authv1.RoleBinding{
@@ -136,7 +138,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 		})
 
 		It("Should not update configmap if it exists", func() {
-			applicationName := "configmap-test"
+			applicationName := envtestutil.AppendRandomNameTo("configmap-test")
 
 			// given
 			desiredConfigMap := &corev1.ConfigMap{
@@ -169,7 +171,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 		})
 
 		It("Should not update namespace if it exists", func() {
-			applicationName := "configmap-test"
+			applicationName := envtestutil.AppendRandomNameTo("configmap-test")
 			anotherNamespace := "test-another-ns"
 
 			// given

@@ -43,7 +43,7 @@ import (
 	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
 	dscinitializationv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
-	util "github.com/opendatahub-io/opendatahub-operator/v2/controllers/test"
+	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -77,7 +77,7 @@ var _ = BeforeSuite(func() {
 	ctx, cancel = context.WithCancel(context.TODO())
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 	By("bootstrapping test environment")
-	rootPath, pathErr := util.FindProjectRoot()
+	rootPath, pathErr := envtestutil.FindProjectRoot()
 	Expect(pathErr).ToNot(HaveOccurred(), pathErr)
 
 	testEnv = &envtest.Environment{
