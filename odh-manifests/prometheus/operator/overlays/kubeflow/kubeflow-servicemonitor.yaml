@@ -1,0 +1,13 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    team: opendatahub
+  name: kubeflowmonitor
+spec:
+  endpoints:
+      # for katib and argo
+    - port: metrics
+      # for pytorchjob and tfjob
+    - port: monitoring-port
+  selector: {}

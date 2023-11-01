@@ -1,0 +1,14 @@
+kind: Route
+apiVersion: route.openshift.io/v1
+metadata:
+  name: prometheus-portal
+  namespace: opendatahub
+spec:
+  to:
+    kind: Service
+    name: prometheus-operated
+  port:
+    targetPort: web
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

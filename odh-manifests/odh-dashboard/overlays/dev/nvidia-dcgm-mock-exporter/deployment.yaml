@@ -1,0 +1,99 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nvidia-dcgm-mock-exporter
+  labels:
+    app: nvidia-dcgm-exporter
+spec:
+  replicas: 1
+  selector:
+    type: RollingUpdate
+    matchLabels:
+      app: nvidia-dcgm-exporter
+  template:
+    metadata:
+      labels:
+        app: nvidia-dcgm-exporter
+    spec:
+      containers:
+        - name: metrics
+          image: registry.redhat.io/rhel8/nodejs-14-minimal:latest
+          imagePullPolicy: Always
+          workingDir: /usr/tmp
+          command:
+            - /bin/bash
+            - -c
+            - |
+              #/bin/bash
+              cat <<EOF>> package.json
+              {
+                  "type": "module"
+              }
+              EOF
+              cat <<EOF > mock-server.js
+              import client from 'prom-client';
+              import http from 'http';
+              import url from 'url';
+
+              const registry = new client.Registry
+
+              const mockGPU = new client.Gauge(
+                  {
+                      name: "DCGM_FI_PROF_GR_ENGINE_ACTIVE",
+                      help: "Mock gpu data",
+                      labelNames: [
+                          'Hostname',
+                          'UUID',
+                          'device',
+                          'gpu',
+                          'modelName',
+                          'pod',
+                      ],
+                      registers: [registry],
+                  },
+              );
+
+              mockGPU.labels(
+                  {
+                      Hostname: "node1.opendatahub.io",
+                      UUID: "GPU-cd248e1c-1c37-7bd5-076c-25d95eca8e2b",
+                      device: "nvidia0",
+                      modelName: "Tesla T4",
+                      gpu: "0",
+                  }).set(0)
+
+              mockGPU.labels(
+                  {
+                      Hostname: "node1.opendatahub.io",
+                      UUID: "GPU-691bd394-0924-4ec9-9baa-c79d97f26a30",
+                      device: "nvidia1",
+                      modelName: "Tesla T4",
+                      gpu: "1",
+                  }).set(0)
+
+              mockGPU.labels(
+                  {
+                      Hostname: "node1.opendatahub.io",
+                      UUID: "GPU-d0c6cbdf-719e-44d6-9810-7bb62e565997",
+                      device: "nvidia2",
+                      modelName: "Tesla T4",
+                      gpu: "2",
+                      pod: "this-gpu-is-busy",
+                  }).set(0)
+
+              const server = http.createServer();
+              server.on('request', async (req, res) => {
+                  var requestPath = String(req.url)
+                  if (requestPath === "/metrics") {
+                      var metric = await registry.metrics()
+                      res.write(metric);
+                      res.end();
+                  }
+              });
+              server.listen(9400)
+              console.log("Started mock server...")
+              EOF
+              npm install prom-client
+              node mock-server.js
+          ports:
+            - containerPort: 9400

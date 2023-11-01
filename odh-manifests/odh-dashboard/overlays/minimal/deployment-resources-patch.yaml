@@ -1,0 +1,12 @@
+# these three replaces are for testing on less powerful clusters (crc)
+- op: replace
+  path: /spec/replicas
+  value: 1
+
+- op: replace
+  path: /spec/template/spec/containers/0/livenessProbe/periodSeconds
+  value: 300
+
+- op: replace
+  path: /spec/template/spec/containers/0/readinessProbe/periodSeconds
+  value: 300

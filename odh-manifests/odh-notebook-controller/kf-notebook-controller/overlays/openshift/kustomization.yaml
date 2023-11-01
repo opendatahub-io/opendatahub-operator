@@ -1,0 +1,24 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+namespace: opendatahub
+commonLabels:
+  app.kubernetes.io/part-of: odh-notebook-controller
+  component.opendatahub.io/name: kf-notebook-controller
+  opendatahub.io/component: "true"
+images:
+  - name: docker.io/kubeflownotebookswg/notebook-controller
+    newName: quay.io/opendatahub/kubeflow-notebook-controller
+    newTag: 1.7-fef37c4
+configMapGenerator:
+  - name: config
+    behavior: merge
+    literals:
+      - USE_ISTIO=false
+      - ADD_FSGROUP=false
+patchesStrategicMerge:
+  - remove_namespace_patch.yaml
+  - manager_openshift_patch.yaml
+  - manager_service_openshift_patch.yaml

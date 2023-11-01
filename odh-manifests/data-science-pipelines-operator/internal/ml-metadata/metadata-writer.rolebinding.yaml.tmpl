@@ -1,0 +1,15 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app: ds-pipeline-metadata-writer-{{.Name}}
+    component: data-science-pipelines
+  name: ds-pipeline-metadata-writer-{{.Name}}
+  namespace: {{.Namespace}}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ds-pipeline-metadata-writer-{{.Name}}
+subjects:
+  - kind: ServiceAccount
+    name: ds-pipeline-metadata-writer-{{.Name}}

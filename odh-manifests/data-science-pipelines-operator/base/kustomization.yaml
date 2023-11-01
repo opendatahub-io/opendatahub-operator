@@ -1,0 +1,117 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: odh-applications
+namePrefix: data-science-pipelines-operator-
+resources:
+  - ../crd
+  - ../rbac
+  - ../manager
+  - ../prometheus
+  - ../configmaps
+
+# Parameterize images via KfDef in ODH
+configMapGenerator:
+  - name: dspo-parameters
+    envs:
+      - params.env
+vars:
+  - name: IMAGES_APISERVER
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_APISERVER
+  - name: IMAGES_ARTIFACT
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_ARTIFACT
+  - name: IMAGES_OAUTHPROXY
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_OAUTHPROXY
+  - name: IMAGES_PERSISTENTAGENT
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_PERSISTENTAGENT
+  - name: IMAGES_SCHEDULEDWORKFLOW
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_SCHEDULEDWORKFLOW
+  - name: IMAGES_CACHE
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_CACHE
+  - name: IMAGES_MOVERESULTSIMAGE
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_MOVERESULTSIMAGE
+  - name: IMAGES_MARIADB
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_MARIADB
+  - name: IMAGES_MLMDENVOY
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_MLMDENVOY
+  - name: IMAGES_MLMDGRPC
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_MLMDGRPC
+  - name: IMAGES_MLMDWRITER
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_MLMDWRITER
+  - name: IMAGES_DSPO
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_DSPO
+  - name: ZAP_LOG_LEVEL
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.ZAP_LOG_LEVEL
+  - name: MAX_CONCURRENT_RECONCILES
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.MAX_CONCURRENT_RECONCILES
+configurations:
+  - params.yaml

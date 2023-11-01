@@ -1,0 +1,36 @@
+apiVersion: kfdef.apps.kubeflow.org/v1
+kind: KfDef
+metadata:
+  annotations:
+    kfctl.kubeflow.io/force-delete: "false"
+  name: odh-dashboard-kfnbc-test
+  namespace: opendatahub
+spec:
+  applications:
+  - kustomizeConfig:
+    # We just need this for creating the ODH default notebook images that are provided by ODH JupyterHub
+    #TODO: Replace with the new ODH default notebook images as part of ODH Core
+      overlays:
+      - additional
+      repoRef:
+        name: manifests
+        path: jupyterhub/notebook-images
+    name: notebook-images
+  - kustomizeConfig:
+      repoRef:
+        name: manifests
+        path: odh-notebook-controller
+    name: odh-notebook-controller
+  - kustomizeConfig:
+      overlays:
+      # Uncomment the performance overlay below to have the operator deploy more dashboard replicas
+      #- performance
+      repoRef:
+        name: manifests-dashboard  # Use the odh-dashboard repo as the source for this kustomize manifest
+        path: manifests
+    name: odh-dashboard
+  repos:
+  - name: manifests
+    uri: https://github.com/opendatahub-io/odh-manifests/tarball/master
+  - name: manifests-dashboard  # Use the manifests from the odh-dashboard repo
+    uri: https://github.com/opendatahub-io/odh-dashboard/tarball/main

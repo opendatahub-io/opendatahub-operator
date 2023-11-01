@@ -1,0 +1,4 @@
+varReference:
+- path: spec/targetNamespaces
+  kind: OperatorGroup
+  apiGroup: operators.coreos.com

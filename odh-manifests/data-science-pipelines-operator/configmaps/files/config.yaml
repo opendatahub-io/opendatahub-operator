@@ -1,0 +1,12 @@
+Images:
+  ApiServer: $(IMAGES_APISERVER)
+  Artifact: $(IMAGES_ARTIFACT)
+  OAuthProxy: $(IMAGES_OAUTHPROXY)
+  PersistentAgent: $(IMAGES_PERSISTENTAGENT)
+  ScheduledWorkflow: $(IMAGES_SCHEDULEDWORKFLOW)
+  Cache: $(IMAGES_CACHE)
+  MoveResultsImage: $(IMAGES_MOVERESULTSIMAGE)
+  MariaDB: $(IMAGES_MARIADB)
+  MlmdEnvoy: $(IMAGES_MLMDENVOY)
+  MlmdGRPC: $(IMAGES_MLMDGRPC)
+  MlmdWriter: $(IMAGES_MLMDWRITER)

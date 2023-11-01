@@ -1,0 +1,13 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+  - code-server-notebook-imagestream.yaml
+  - rstudio-notebook-imagestream.yaml
+  - rstudio-gpu-notebook-imagestream.yaml
+
+commonLabels:
+  opendatahub.io/component: "true"
+  component.opendatahub.io/name: notebooks

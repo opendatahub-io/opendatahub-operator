@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: modelmesh-webhook-server-service
+  namespace: system
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: modelmesh-webhook-server-cert

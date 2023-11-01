@@ -1,0 +1,18 @@
+apiVersion: datasciencepipelinesapplications.opendatahub.io/v1alpha1
+kind: DataSciencePipelinesApplication
+metadata:
+  name: sample
+spec:
+  objectStorage:
+    externalStorage:
+      bucket: rhods-dsp-dev
+      host: s3.amazonaws.com
+      s3CredentialsSecret:
+        accessKey: k8saccesskey
+        secretKey: k8ssecretkey
+        secretName: aws-bucket-creds
+      scheme: https
+  # Optional
+  mlpipelineUI:
+    # Image field is required
+    image: 'quay.io/opendatahub/odh-ml-pipelines-frontend-container:beta-ui'

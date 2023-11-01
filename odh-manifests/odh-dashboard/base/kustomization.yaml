@@ -1,0 +1,31 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+commonLabels:
+  app: odh-dashboard
+  app.kubernetes.io/part-of: odh-dashboard
+resources:
+  - ../apps
+  - ../modelserving
+  - role.yaml
+  - cluster-role.yaml
+  - service-account.yaml
+  - role-binding.yaml
+  - cluster-role-binding.yaml
+  - auth-delegator.clusterrolebinding.yaml
+  - cluster-monitoring-role-binding.yaml
+  - deployment.yaml
+  - routes.yaml
+  - service.yaml
+  - oauth.secret.yaml
+  - fetch-builds-and-images.rbac.yaml
+  - image-puller.clusterrolebinding.yaml
+  - model-serving-role.yaml
+  - model-serving-role-binding.yaml
+  - fetch-accelerators.rbac.yaml
+images:
+- name: odh-dashboard
+  newName: quay.io/opendatahub/odh-dashboard
+  digest: sha256:8d5cf645eb61cad2b874a34fae86d94aea627ba12e371b1af43ddc9cfcdf98a2
+- name: oauth-proxy
+  newName: registry.redhat.io/openshift4/ose-oauth-proxy
+  digest: sha256:ab112105ac37352a2a4916a39d6736f5db6ab4c29bad4467de8d613e80e9bb33

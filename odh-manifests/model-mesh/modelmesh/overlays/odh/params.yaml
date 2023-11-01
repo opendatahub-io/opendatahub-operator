@@ -1,0 +1,15 @@
+varReference:
+  - path: metadata/namespace
+    kind: ServiceAccount
+    apiVersion: v1
+  - path: metadata/name
+    kind: ClusterRoleBinding
+    apiGroup: rbac.authorization.k8s.io
+  - path: subjects/namespace
+    kind: RoleBinding
+    apiGroup: rbac.authorization.k8s.io
+  - path: spec/template/spec/containers[]/image
+    kind: Deployment
+    apiVersion: apps/v1
+  - path: data
+    kind: ConfigMap

@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ds-pipelines-minio-sa-{{.Name}}
+  namespace: {{.Namespace}}
+  labels:
+    app: minio-{{.Name}}
+    component: data-science-pipelines

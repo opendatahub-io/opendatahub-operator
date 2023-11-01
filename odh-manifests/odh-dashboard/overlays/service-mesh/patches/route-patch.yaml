@@ -1,0 +1,9 @@
+- op: remove
+  path: /metadata/annotations
+
+- op: replace
+  path: /spec/port/targetPort
+  value: 8080
+
+- op: remove
+  path: /spec/tls

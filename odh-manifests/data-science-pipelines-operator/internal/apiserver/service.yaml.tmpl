@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{.APIServerServiceName}}
+  namespace: {{.Namespace}}
+  annotations:
+    service.alpha.openshift.io/serving-cert-secret-name: ds-pipelines-proxy-tls-{{.Name}}
+  labels:
+    app: {{.APIServerDefaultResourceName}}
+    component: data-science-pipelines
+spec:
+  ports:
+    - name: oauth
+      port: 8443
+      protocol: TCP
+      targetPort: oauth
+    - name: http
+      port: 8888
+      protocol: TCP
+      targetPort: http
+    - name: grpc
+      port: 8887
+      protocol: TCP
+      targetPort: 8887
+  selector:
+    app: {{.APIServerDefaultResourceName}}
+    component: data-science-pipelines

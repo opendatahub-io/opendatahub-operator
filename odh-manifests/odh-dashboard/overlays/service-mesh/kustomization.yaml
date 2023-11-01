@@ -1,0 +1,40 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+bases:
+- ../../base
+
+patchesStrategicMerge:
+# when using bases:
+# - ../../base
+# the entire directory is truncated and the lookup is performed in base/
+# for this reason the files must be there as well. with the same content, as they will be in fact used
+- patches/oauth-client-patch.yaml
+- patches/oauth-config-patch.yaml
+
+# # needs to be patchesJson6902, patches seems to be ignored
+# # also: inline patches do not work, operator complains about overlays/service-mesh being
+# # a directory and not a kustomization.yaml file
+patchesJson6902:
+- path: patches/route-patch.yaml
+  target:
+    group: route.openshift.io
+    version: v1
+    kind: Route
+    name: odh-dashboard
+- path: patches/service-patch.yaml
+  target:
+    version: v1
+    kind: Service
+    name: odh-dashboard
+- path: patches/service-account-patch.yaml
+  target:
+    version: v1
+    kind: ServiceAccount
+    name: odh-dashboard
+- path: patches/deployment-patch.yaml
+  target:
+    group: apps
+    version: v1
+    kind: Deployment
+    name: odh-dashboard

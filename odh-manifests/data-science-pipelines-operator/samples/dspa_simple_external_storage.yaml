@@ -1,0 +1,21 @@
+apiVersion: datasciencepipelinesapplications.opendatahub.io/v1alpha1
+kind: DataSciencePipelinesApplication
+metadata:
+  name: sample
+  namespace: data-science-project
+spec:
+  objectStorage:
+    # Configure your external object storage via `externalStorage` field
+    externalStorage:
+      host: minio.com
+      port: "9092"
+      bucket: mlpipeline
+      scheme: https
+      s3CredentialsSecret:
+        secretName: somesecret-db-sample
+        accessKey: AWS_ACCESS_KEY_ID
+        secretKey: AWS_SECRET_ACCESS_KEY
+  # Optional
+  mlpipelineUI:
+    # Image field is required
+    image: 'quay.io/opendatahub/odh-ml-pipelines-frontend-container:beta-ui'

@@ -1,0 +1,18 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: odh-model-controller
+spec:
+  replicas: 3
+  template:
+    spec:
+      containers:
+        - args:
+            - --leader-elect
+            - "--monitoring-namespace"
+            - "$(MONITORING_NS)"
+          image: $(odh-model-controller) 
+          env:
+            - name: MONITORING_NS
+              value: $(monitoring-namespace)
+          name: manager

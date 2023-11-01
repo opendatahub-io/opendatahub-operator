@@ -1,0 +1,20 @@
+---
+apiVersion: kubeflow.org/v1
+kind: Notebook
+metadata:
+  name: notebook-sample-oauth-v1
+  annotations:
+    notebooks.opendatahub.io/inject-oauth: "true"
+spec:
+  template:
+    spec:
+      containers:
+        - name: notebook-sample-oauth-v1
+          image: quay.io/thoth-station/s2i-minimal-notebook:v0.2.2
+          imagePullPolicy: Always
+          workingDir: /opt/app-root/src
+          env:
+            - name: JUPYTER_NOTEBOOK_PORT
+              value: "8888"
+            - name: NOTEBOOK_ARGS
+              value: "--NotebookApp.token='' --NotebookApp.password=''"

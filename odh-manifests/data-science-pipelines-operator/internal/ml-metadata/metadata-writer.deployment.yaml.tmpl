@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ds-pipeline-metadata-writer-{{.Name}}
+  namespace: {{.Namespace}}
+  labels:
+    app: ds-pipeline-metadata-writer-{{.Name}}
+    component: data-science-pipelines
+    dspa: {{.Name}}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ds-pipeline-metadata-writer-{{.Name}}
+      component: data-science-pipelines
+      dspa: {{.Name}}
+  template:
+    metadata:
+      labels:
+        app: ds-pipeline-metadata-writer-{{.Name}}
+        component: data-science-pipelines
+        dspa: {{.Name}}
+    spec:
+      containers:
+        - env:
+            - name: NAMESPACE_TO_WATCH
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: PIPELINE_RUNTIME
+              value: tekton
+            - name: ARCHIVE_LOGS
+              value: "{{.APIServer.ArchiveLogs}}"
+            - name: METADATA_GRPC_SERVICE_SERVICE_HOST
+              value: "ds-pipeline-metadata-grpc-{{.Name}}"
+            - name: METADATA_GRPC_SERVICE_SERVICE_PORT
+              value: "{{.MLMD.GRPC.Port}}"
+          image: "{{.MLMD.Writer.Image}}"
+          name: main
+          livenessProbe:
+            exec:
+              command:
+                - pidof
+                - python3
+            initialDelaySeconds: 30
+            periodSeconds: 5
+            timeoutSeconds: 2
+          readinessProbe:
+            exec:
+              command:
+                - pidof
+                - python3
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 2
+          resources:
+            {{ if .MLMD.Writer.Resources.Requests }}
+            requests:
+              {{ if .MLMD.Writer.Resources.Requests.CPU }}
+              cpu: {{.MLMD.Writer.Resources.Requests.CPU}}
+              {{ end }}
+              {{ if .MLMD.Writer.Resources.Requests.Memory }}
+              memory: {{.MLMD.Writer.Resources.Requests.Memory}}
+              {{ end }}
+            {{ end }}
+            {{ if .MLMD.Writer.Resources.Limits }}
+            limits:
+              {{ if .MLMD.Writer.Resources.Limits.CPU }}
+              cpu: {{.MLMD.Writer.Resources.Limits.CPU}}
+              {{ end }}
+              {{ if .MLMD.Writer.Resources.Limits.Memory }}
+              memory: {{.MLMD.Writer.Resources.Limits.Memory}}
+              {{ end }}
+            {{ end }}
+      serviceAccountName: ds-pipeline-metadata-writer-{{.Name}}

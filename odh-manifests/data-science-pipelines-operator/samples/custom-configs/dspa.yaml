@@ -1,0 +1,97 @@
+apiVersion: datasciencepipelinesapplications.opendatahub.io/v1alpha1
+kind: DataSciencePipelinesApplication
+metadata:
+  name: sample
+spec:
+  apiServer:
+    deploy: true
+    image: quay.io/modh/odh-ml-pipelines-api-server-container:v1.18.0-8
+    applyTektonCustomResource: true
+    archiveLogs: false
+    artifactImage: quay.io/modh/odh-ml-pipelines-artifact-manager-container:v1.18.0-8
+    cacheImage: registry.access.redhat.com/ubi8/ubi-minimal
+    moveResultsImage: busybox
+    injectDefaultScript: true
+    stripEOF: true
+    terminateStatus: Cancelled
+    trackArtifacts: true
+    dbConfigConMaxLifetimeSec: 120
+    collectMetrics: true
+    autoUpdatePipelineDefaultVersion: true
+    artifactScriptConfigMap:
+      name: custom-artifact-script
+      key: "somekey"
+    resources:
+      requests:
+        cpu: 250m
+        memory: 500Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+  persistenceAgent:
+    deploy: true
+    image: quay.io/modh/odh-ml-pipelines-persistenceagent-container:v1.18.0-8
+    numWorkers: 2
+    resources:
+      requests:
+        cpu: 120m
+        memory: 500Mi
+      limits:
+        cpu: 250m
+        memory: 1Gi
+  scheduledWorkflow:
+    deploy: true
+    image: quay.io/modh/odh-ml-pipelines-scheduledworkflow-container:v1.18.0-8
+    cronScheduleTimezone: UTC
+    resources:
+      requests:
+        cpu: 120m
+        memory: 100Mi
+      limits:
+        cpu: 250m
+        memory: 250Mi
+  mlpipelineUI:
+    deploy: true
+    image: quay.io/opendatahub/odh-ml-pipelines-frontend-container:beta-ui
+    resources:
+      limits:
+        cpu: 100m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+    configMap: custom-ui-configmap
+  database:
+    mariaDB:
+      deploy: true
+      image: registry.redhat.io/rhel8/mariadb-103:1-188
+      username: mlpipeline
+      pipelineDBName: randomDBName
+      pvcSize: 10Gi
+      resources:
+        requests:
+          cpu: 300m
+          memory: 800Mi
+        limits:
+          cpu: "1"
+          memory: 1Gi
+      passwordSecret:
+        name: testdbsecret
+        key: password
+  objectStorage:
+    minio:
+      deploy: true
+      image: quay.io/opendatahub/minio:RELEASE.2019-08-14T20-37-41Z-license-compliance
+      bucket: mlpipeline
+      pvcSize: 10Gi
+      resources:
+        requests:
+          cpu: 200m
+          memory: 100Mi
+        limits:
+          cpu: 250m
+          memory: 1Gi
+      s3CredentialsSecret:
+        secretName: teststoragesecret
+        accessKey: AWS_ACCESS_KEY_ID
+        secretKey: AWS_SECRET_ACCESS_KEY

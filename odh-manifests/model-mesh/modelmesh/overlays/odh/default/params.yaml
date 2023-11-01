@@ -1,0 +1,4 @@
+varReference:
+  - path: spec/template/spec/containers[]/image
+    kind: Deployment
+    apiVersion: apps/v1

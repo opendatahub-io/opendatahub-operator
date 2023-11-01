@@ -1,0 +1,8 @@
+# Enables the Jupyter Spawner UI for the notebook-controller
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: odh-enabled-applications-config
+data:
+  jupyter: 'true'
+  jupyterhub: 'true'

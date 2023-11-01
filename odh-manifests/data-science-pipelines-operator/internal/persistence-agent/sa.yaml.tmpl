@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{.PersistentAgentDefaultResourceName}}
+  namespace: {{.Namespace}}
+  labels:
+    app: {{.PersistentAgentDefaultResourceName}}
+    component: data-science-pipelines
