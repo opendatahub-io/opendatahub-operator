@@ -12,7 +12,7 @@ type FeaturesInitializer struct {
 	Features        []*Feature
 }
 
-type DefinedFeatures func(s *FeaturesInitializer) error
+type DefinedFeatures func(featuresInitializer *FeaturesInitializer) error
 
 func NewFeaturesInitializer(spec *v1.DSCInitializationSpec, def DefinedFeatures) *FeaturesInitializer {
 	return &FeaturesInitializer{
@@ -24,16 +24,16 @@ func NewFeaturesInitializer(spec *v1.DSCInitializationSpec, def DefinedFeatures)
 // Prepare performs validation of the spec and ensures all resources,
 // such as Features and their templates, are processed and initialized
 // before proceeding with the actual cluster set-up.
-func (s *FeaturesInitializer) Prepare() error {
+func (f *FeaturesInitializer) Prepare() error {
 	log.Info("Initializing features")
 
-	return s.definedFeatures(s)
+	return f.definedFeatures(f)
 }
 
-func (s *FeaturesInitializer) Apply() error {
+func (f *FeaturesInitializer) Apply() error {
 	var applyErrors *multierror.Error
 
-	for _, f := range s.Features {
+	for _, f := range f.Features {
 		err := f.Apply()
 		applyErrors = multierror.Append(applyErrors, err)
 	}
@@ -45,11 +45,11 @@ func (s *FeaturesInitializer) Apply() error {
 // For instance, this allows for the undoing patches before its deletion.
 // This approach assumes that Features are either instantiated in the correct sequence
 // or are self-contained.
-func (s *FeaturesInitializer) Delete() error {
+func (f *FeaturesInitializer) Delete() error {
 	var cleanupErrors *multierror.Error
-	for i := len(s.Features) - 1; i >= 0; i-- {
-		log.Info("cleanup", "name", s.Features[i].Name)
-		cleanupErrors = multierror.Append(cleanupErrors, s.Features[i].Cleanup())
+	for i := len(f.Features) - 1; i >= 0; i-- {
+		log.Info("cleanup", "name", f.Features[i].Name)
+		cleanupErrors = multierror.Append(cleanupErrors, f.Features[i].Cleanup())
 	}
 
 	return cleanupErrors.ErrorOrNil()
