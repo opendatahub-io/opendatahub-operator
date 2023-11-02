@@ -203,27 +203,21 @@ KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/k
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
 $(KUSTOMIZE): $(LOCALBIN)
-	test -s $(LOCALBIN)/kustomize || { curl -s $(KUSTOMIZE_INSTALL_SCRIPT) | sh -s -- $(subst v,,$(KUSTOMIZE_VERSION)) $(LOCALBIN); }
+	test -s $(KUSTOMIZE) || { curl -s $(KUSTOMIZE_INSTALL_SCRIPT) | sh -s -- $(subst v,,$(KUSTOMIZE_VERSION)) $(LOCALBIN); }
 
 .PHONY: controller-gen
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.
 $(CONTROLLER_GEN): $(LOCALBIN)
-	test -s $(LOCALBIN)/controller-gen || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_GEN_VERSION)
+	test -s $(CONTROLLER_GEN) || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_GEN_VERSION)
 
 OPERATOR_SDK_DL_URL ?= https://github.com/operator-framework/operator-sdk/releases/download/$(OPERATOR_SDK_VERSION)
 .PHONY: operator-sdk
-operator-sdk: $(LOCALBIN) ## Download and install operator-sdk into LOCALBIN if not exists in PATH
-ifeq (,$(shell command -v operator-sdk 2>/dev/null))
-ifeq (,$(shell command -v $(OPERATOR_SDK) 2>/dev/null))
-	@{ \
+operator-sdk: $(OPERATOR_SDK) ## Download and install operator-sdk
+$(OPERATOR_SDK): $(LOCALBIN)
 	OS=$(shell go env GOOS) && ARCH=$(shell go env GOARCH) && \
-	curl -sSLo $(OPERATOR_SDK) $(OPERATOR_SDK_DL_URL)/operator-sdk_$${OS}_$${ARCH} && \
+	test -s $(OPERATOR_SDK) || curl -sSLo $(OPERATOR_SDK) $(OPERATOR_SDK_DL_URL)/operator-sdk_$${OS}_$${ARCH} && \
 	chmod +x $(OPERATOR_SDK) ;\
-	}
-endif
-else
-OPERATOR_SDK = $(shell which operator-sdk)
-endif
+
 
 GOLANGCI_LINT_INSTALL_SCRIPT ?= 'https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh'
 .PHONY: golangci-lint
