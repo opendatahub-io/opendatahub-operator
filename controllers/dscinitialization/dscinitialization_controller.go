@@ -73,17 +73,22 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return ctrl.Result{}, err
 	}
 
-	if len(instances.Items) > 1 {
-		message := fmt.Sprintf("only one instance of DSCInitialization object is allowed. Update existing instance name %s", req.Name)
-
-		return ctrl.Result{}, errors.New(message)
-	}
-
 	if len(instances.Items) == 0 {
 		return ctrl.Result{}, nil
 	}
 
 	instance := &instances.Items[0]
+
+	if len(instances.Items) > 1 {
+		message := fmt.Sprintf("only one instance of DSCInitialization object is allowed. Update existing instance name %s", req.Name)
+
+		_, _ = r.updateStatus(ctx, instance, func(saved *dsci.DSCInitialization) {
+			status.SetErrorCondition(&saved.Status.Conditions, status.DuplicateDSCInitialization, message)
+			saved.Status.Phase = status.PhaseError
+		})
+
+		return ctrl.Result{}, errors.New(message)
+	}
 
 	if instance.ObjectMeta.DeletionTimestamp.IsZero() {
 		if !controllerutil.ContainsFinalizer(instance, finalizerName) {
