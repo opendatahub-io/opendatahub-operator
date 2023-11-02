@@ -13,8 +13,12 @@ LABEL operators.operatorframework.io.metrics.builder=operator-sdk-v1.24.1
 LABEL operators.operatorframework.io.bundle.package.v1=opendatahub-operator
 LABEL operators.operatorframework.io.bundle.channels.v1=fast
 LABEL operators.operatorframework.io.bundle.channel.default.v1=fast
+<<<<<<< HEAD
 LABEL operators.operatorframework.io.metrics.builder=operator-sdk-v1.32.0
 >>>>>>> adb66588 (feat: introduces features fluent interface (#668))
+=======
+LABEL operators.operatorframework.io.metrics.builder=operator-sdk-v1.24.1
+>>>>>>> 78041ea1 (fix(make): ensures projects version of operator-sdk is used (#695))
 LABEL operators.operatorframework.io.metrics.mediatype.v1=metrics+v1
 LABEL operators.operatorframework.io.metrics.project_layout=go.kubebuilder.io/v3
 
