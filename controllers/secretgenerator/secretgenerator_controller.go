@@ -50,7 +50,7 @@ const (
 var secGenLog = log.Log.WithName("secret-generator")
 
 // SecretGeneratorReconciler holds the controller configuration.
-type SecretGeneratorReconciler struct {
+type SecretGeneratorReconciler struct { //nolint:golint,revive // Readability
 	Client client.Client
 	Scheme *runtime.Scheme
 }
@@ -183,8 +183,8 @@ func (r *SecretGeneratorReconciler) Reconcile(ctx context.Context, request ctrl.
 func (r *SecretGeneratorReconciler) getRoute(ctx context.Context, name string, namespace string) (*routev1.Route, error) {
 	route := &routev1.Route{}
 	// Get spec.host from route
-	err := wait.PollUntilContextTimeout(ctx, resourceRetryInterval, resourceRetryTimeout, false, func(ctx context.Context) (done bool, err error) {
-		err = r.Client.Get(ctx, client.ObjectKey{
+	err := wait.PollUntilContextTimeout(ctx, resourceRetryInterval, resourceRetryTimeout, false, func(ctx context.Context) (bool, error) {
+		err := r.Client.Get(ctx, client.ObjectKey{
 			Name:      name,
 			Namespace: namespace,
 		}, route)
@@ -197,9 +197,8 @@ func (r *SecretGeneratorReconciler) getRoute(ctx context.Context, name string, n
 		}
 		if route.Spec.Host == "" {
 			return false, nil
-		} else {
-			return true, nil
 		}
+		return true, nil
 	})
 	if err != nil {
 		return nil, err
@@ -229,7 +228,7 @@ func (r *SecretGeneratorReconciler) createOAuthClient(ctx context.Context, name 
 			secGenLog.Info("OAuth client resource already exists, patch it", "name", oauthClient.Name)
 			data, err := json.Marshal(oauthClient)
 			if err != nil {
-				return fmt.Errorf("failed to get DataScienceCluster CR data: %w", err)
+				return fmt.Errorf("failed to get DataScienceCluster custom resource data: %w", err)
 			}
 			if err = r.Client.Patch(context.TODO(), oauthClient, client.RawPatch(types.ApplyPatchType, data),
 				client.ForceOwnership, client.FieldOwner("rhods-operator")); err != nil {

@@ -80,9 +80,9 @@ func CheckControlPlaneComponentReadiness(dynamicClient dynamic.Interface, smcp, 
 		return false, err
 	}
 
-	readyComponents := len(components["ready"].([]interface{}))
-	pendingComponents := len(components["pending"].([]interface{}))
-	unreadyComponents := len(components["unready"].([]interface{}))
+	readyComponents := len(components["ready"].([]interface{}))     //nolint:forcetypeassert
+	pendingComponents := len(components["pending"].([]interface{})) //nolint:forcetypeassert
+	unreadyComponents := len(components["unready"].([]interface{})) //nolint:forcetypeassert
 
 	return pendingComponents == 0 && unreadyComponents == 0 && readyComponents > 0, nil
 }

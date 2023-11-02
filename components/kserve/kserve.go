@@ -144,9 +144,8 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resC
 	}
 
 	if err := deploy.DeployManifestsFromPath(cli, owner, DependentPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
-		if strings.Contains(err.Error(), "spec.selector") && strings.Contains(err.Error(), "field is immutable") {
-			// ignore this error
-		} else {
+		if !strings.Contains(err.Error(), "spec.selector") || !strings.Contains(err.Error(), "field is immutable") {
+			// explicitly ignore error if error contains keywords "spec.selector" and "field is immutable" and return all other error.
 			return err
 		}
 	}
@@ -207,10 +206,7 @@ func (k *Kserve) removeServerlessFeatures(instance *dsciv1.DSCInitializationSpec
 		return err
 	}
 
-	if err := serverlessInitializer.Delete(); err != nil {
-		return err
-	}
-	return nil
+	return serverlessInitializer.Delete()
 }
 
 func checkDepedentOps(cli client.Client) *multierror.Error {

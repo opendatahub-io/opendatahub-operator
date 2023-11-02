@@ -57,7 +57,7 @@ const (
 )
 
 // DSCInitializationReconciler reconciles a DSCInitialization object.
-type DSCInitializationReconciler struct {
+type DSCInitializationReconciler struct { //nolint:golint,revive // Readability
 	client.Client
 	Scheme                *runtime.Scheme
 	Log                   logr.Logger
@@ -72,7 +72,7 @@ type DSCInitializationReconciler struct {
 // +kubebuilder:rbac:groups="kfdef.apps.kubeflow.org",resources=kfdefs,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile contains controller logic specific to DSCInitialization instance updates.
-func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint
+func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:funlen,gocyclo,maintidx
 	r.Log.Info("Reconciling DSCInitialization.", "DSCInitialization Request.Name", req.Name)
 
 	instances := &dsciv1.DSCInitializationList{}
@@ -101,6 +101,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		message := fmt.Sprintf("only one instance of DSCInitialization object is allowed. Please delete other instances than %s", earliestDSCI.Name)
 		// update all instances Message and Status
 		for _, deletionInstance := range instances.Items {
+			deletionInstance := deletionInstance
 			if deletionInstance.Name != earliestDSCI.Name {
 				_, _ = r.updateStatus(ctx, &deletionInstance, func(saved *dsciv1.DSCInitialization) {
 					status.SetErrorCondition(&saved.Status.Conditions, status.DuplicateDSCInitialization, message)
@@ -333,8 +334,8 @@ func (r *DSCInitializationReconciler) updateStatus(ctx context.Context, original
 
 var SecretContentChangedPredicate = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
-		oldSecret := e.ObjectOld.(*corev1.Secret)
-		newSecret := e.ObjectNew.(*corev1.Secret)
+		oldSecret, _ := e.ObjectOld.(*corev1.Secret)
+		newSecret, _ := e.ObjectNew.(*corev1.Secret)
 
 		return !reflect.DeepEqual(oldSecret.Data, newSecret.Data)
 	},
@@ -342,8 +343,8 @@ var SecretContentChangedPredicate = predicate.Funcs{
 
 var CMContentChangedPredicate = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
-		oldCM := e.ObjectOld.(*corev1.ConfigMap)
-		newCM := e.ObjectNew.(*corev1.ConfigMap)
+		oldCM, _ := e.ObjectOld.(*corev1.ConfigMap)
+		newCM, _ := e.ObjectNew.(*corev1.ConfigMap)
 
 		return !reflect.DeepEqual(oldCM.Data, newCM.Data)
 	},
@@ -356,17 +357,16 @@ var DSCDeletionPredicate = predicate.Funcs{
 	},
 }
 
-func (r *DSCInitializationReconciler) watchMonitoringConfigMapResource(a client.Object) (requests []reconcile.Request) {
+func (r *DSCInitializationReconciler) watchMonitoringConfigMapResource(a client.Object) []reconcile.Request {
 	if a.GetName() == "prometheus" && a.GetNamespace() == "redhat-ods-monitoring" {
 		r.Log.Info("Found monitoring configmap has updated, start reconcile")
 
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "prometheus", Namespace: "redhat-ods-monitoring"}}}
-	} else {
-		return nil
 	}
+	return nil
 }
 
-func (r *DSCInitializationReconciler) watchMonitoringSecretResource(a client.Object) (requests []reconcile.Request) {
+func (r *DSCInitializationReconciler) watchMonitoringSecretResource(a client.Object) []reconcile.Request {
 	operatorNs, err := upgrade.GetOperatorNamespace()
 	if err != nil {
 		return nil
@@ -375,12 +375,11 @@ func (r *DSCInitializationReconciler) watchMonitoringSecretResource(a client.Obj
 		r.Log.Info("Found monitoring secret has updated, start reconcile")
 
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "addon-managed-odh-parameters", Namespace: operatorNs}}}
-	} else {
-		return nil
 	}
+	return nil
 }
 
-func (r *DSCInitializationReconciler) watchDSCResource(_ client.Object) (requests []reconcile.Request) {
+func (r *DSCInitializationReconciler) watchDSCResource(_ client.Object) []reconcile.Request {
 	instanceList := &dscv1.DataScienceClusterList{}
 	if err := r.Client.List(context.TODO(), instanceList); err != nil {
 		// do not handle if cannot get list

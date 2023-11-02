@@ -29,7 +29,7 @@ func CopyEmbeddedFiles(src, dest string) error {
 			if err != nil {
 				return err
 			}
-			if err := os.WriteFile(destPath, data, 0644); err != nil {
+			if err := os.WriteFile(destPath, data, 0600); err != nil {
 				return err
 			}
 		}
