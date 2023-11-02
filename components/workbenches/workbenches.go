@@ -20,7 +20,7 @@ var (
 	DependentComponentName = "notebooks"
 	// manifests for nbc in ODH and downstream + downstream use it for imageparams
 	notebookControllerPath = deploy.DefaultManifestPath + "/odh-notebook-controller/odh-notebook-controller/base"
-	// manifests for ODH nbc
+	// manifests for ODH nbc + downstream use it for imageparams
 	kfnotebookControllerPath    = deploy.DefaultManifestPath + "/odh-notebook-controller/kf-notebook-controller/overlays/openshift"
 	notebookImagesPath          = deploy.DefaultManifestPath + "/notebooks/overlays/additional"
 	notebookImagesPathSupported = deploy.DefaultManifestPath + "/jupyterhub/notebooks/base"
@@ -136,8 +136,12 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 	if enabled {
 		if dscispec.DevFlags.ManifestsUri == "" && len(w.DevFlags.Manifests) == 0 {
 			if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
-				// TODO: fix for nbc new path if want to split into two params.env
+
 				if err := deploy.ApplyParams(notebookControllerPath, w.SetImageParamsMap(imageParamMap), false); err != nil {
+					return err
+				}
+				// for odh-notebook-controller image
+				if err := deploy.ApplyParams(kfnotebookControllerPath, w.SetImageParamsMap(imageParamMap), false); err != nil {
 					return err
 				}
 			}
