@@ -2,11 +2,12 @@ package feature
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
 	"html/template"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/pkg/errors"
 )
 
 type manifest struct {
