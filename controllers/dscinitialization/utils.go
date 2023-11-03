@@ -214,12 +214,23 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.
 						},
 					},
 				},
-				{ // OR logic
+				{ // OR logic for ROSA
 					From: []netv1.NetworkPolicyPeer{
 						{ // need this for access dashboard
 							NamespaceSelector: &metav1.LabelSelector{
 								MatchLabels: map[string]string{
 									"kubernetes.io/metadata.name": "openshift-ingress",
+								},
+							},
+						},
+					},
+				},
+				{ // OR logic for PSI
+					From: []netv1.NetworkPolicyPeer{
+						{ // need this for access dashboard
+							NamespaceSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"kubernetes.io/metadata.name": "openshift-host-network",
 								},
 							},
 						},
