@@ -81,14 +81,6 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return ctrl.Result{}, err
 	}
 
-	if len(instances.Items) > 1 {
-		message := fmt.Sprintf("only one instance of DataScienceCluster object is allowed. Update existing instance %s", req.Name)
-		err := errors.New(message)
-		_ = r.reportError(err, &instances.Items[0], message)
-
-		return ctrl.Result{}, err
-	}
-
 	if len(instances.Items) == 0 {
 		// Request object not found, could have been deleted after reconcile request.
 		// Owned objects are automatically garbage collected. For additional cleanup logic use operatorUninstall function.
@@ -101,6 +93,19 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	instance := &instances.Items[0]
+
+	if len(instances.Items) > 1 {
+		message := fmt.Sprintf("only one instance of DataScienceCluster object is allowed. Update existing instance %s", req.Name)
+		err := errors.New(message)
+		_ = r.reportError(err, instance, message)
+
+		_, _ = r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
+			status.SetErrorCondition(&saved.Status.Conditions, status.DuplicateDataScienceCluster, message)
+			saved.Status.Phase = status.PhaseError
+		})
+
+		return ctrl.Result{}, err
+	}
 
 	var err error
 
@@ -132,7 +137,12 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		dscInitializationSpec := dsciInstances.Items[0].Spec
 		dscInitializationSpec.DeepCopyInto(r.DataScienceCluster.DSCISpec)
 	default:
-		return ctrl.Result{}, errors.New("only one instance of DSCInitialization object is allowed")
+		message := "only one instance of DSCInitialization object is allowed"
+		_, _ = r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
+			status.SetErrorCondition(&saved.Status.Conditions, status.DuplicateDSCInitialization, message)
+			saved.Status.Phase = status.PhaseError
+		})
+		return ctrl.Result{}, errors.New(message)
 	}
 
 	allComponents, err := getAllComponents(&instance.Spec.Components)

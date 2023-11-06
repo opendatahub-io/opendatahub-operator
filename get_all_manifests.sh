@@ -4,7 +4,6 @@ set -e
 GITHUB_URL="https://github.com/"
 
 # component: dsp, kserve, dashbaord, cf/ray. in the format of "repo-org:repo-name:branch-name:source-folder:target-folder"
-# TODO: odh-mm-monitoring, etc
 declare -A COMPONENT_MANIFESTS=(
     ["codeflare"]="opendatahub-io:codeflare-operator:main:config:codeflare"
     ["ray"]="opendatahub-io:kuberay:master:ray-operator/config:ray"
