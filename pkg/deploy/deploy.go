@@ -403,24 +403,44 @@ func SubscriptionExists(cli client.Client, namespace string, name string) (bool,
 	return true, nil
 }
 
-// OperatorExists checks if an Operator with 'operatorPrefix' is installed.
-// Return true if found it, false if not.
-// if we need to check exact version of the operator installed, can append vX.Y.Z later.
-func OperatorExists(cli client.Client, operatorPrefix string) (bool, error) {
+// OperatorExists checks if Operator(list) with 'operatorPrefix' is installed.
+// installed set to true: we expect operator to be installed, installed set to false: we do not want opreator pre-installed
+// If we need to check exact version of the operator installed, can append vX.Y.Z later.
+func OperatorExists(cli client.Client, componentName string, installed bool, operatorPrefixList ...string) (bool, error) {
+	expectedOps := len(operatorPrefixList)
+
 	opConditionList := &ofapiv2.OperatorConditionList{}
 	if err := cli.List(context.TODO(), opConditionList); err != nil {
 		if !apierrs.IsNotFound(err) { // real error to run List()
 			return false, err
 		}
+		return false, err
 	} else {
-		for _, opCondition := range opConditionList.Items {
-			if strings.HasPrefix(opCondition.Name, operatorPrefix) {
+		var match int
+		if installed { // e.g kserver
+			for _, opCondition := range opConditionList.Items {
+				for _, operatorPrefix := range operatorPrefixList {
+					if strings.HasPrefix(opCondition.Name, operatorPrefix) {
+						match++
+					}
+				}
+			}
+			if expectedOps == match { // when all dependent operators are found
 				return true, nil
 			}
+			return false, fmt.Errorf("please install all dependent operators %s before enabling %s component", operatorPrefixList, componentName)
+		} else { // e.g CFO
+			for _, opCondition := range opConditionList.Items {
+				for _, operatorPrefix := range operatorPrefixList {
+					if strings.HasPrefix(opCondition.Name, operatorPrefix) {
+						return false, fmt.Errorf("please uninstall all dependent operators %s before enabling %s component",
+							operatorPrefixList, componentName)
+					}
+				}
+			}
+			return true, nil
 		}
 	}
-
-	return false, nil
 }
 
 // TODO : Add function to cleanup code created as part of pre install and post install task of a component

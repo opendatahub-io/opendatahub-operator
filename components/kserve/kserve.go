@@ -2,7 +2,6 @@
 package kserve
 
 import (
-	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -105,19 +104,8 @@ func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dsci
 		}
 
 		// check on dependent operators
-		if found, err := deploy.OperatorExists(cli, ServiceMeshOperator); err != nil {
+		if _, err := deploy.OperatorExists(cli, ComponentName, true, ServiceMeshOperator, ServerlessOperator); err != nil {
 			return err
-		} else if !found {
-			return fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
-				ServiceMeshOperator, ComponentName)
-		}
-
-		// check on dependent operators might be in multiple namespaces
-		if found, err := deploy.OperatorExists(cli, ServerlessOperator); err != nil {
-			return err
-		} else if !found {
-			return fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
-				ServerlessOperator, ComponentName)
 		}
 
 		if err := k.configureServerless(dscispec); err != nil {

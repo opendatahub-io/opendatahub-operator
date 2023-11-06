@@ -148,7 +148,7 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error {
 		if tc.testDsc.Spec.Components.Kserve.ManagementState == operatorv1.Managed {
 			if err != nil {
 				// depedent operator error, as expected
-				if strings.Contains(err.Error(), "Please install the operator before enabling component") {
+				if strings.Contains(err.Error(), "please install all dependent operators") {
 					t.Logf("expected error: %v", err.Error())
 				} else {
 					require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Kserve.GetComponentName())
@@ -197,7 +197,6 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error {
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.CodeFlare))
 		if tc.testDsc.Spec.Components.CodeFlare.ManagementState == operatorv1.Managed {
 			if err != nil {
-				// dependent operator error, as expected
 				{
 					require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.CodeFlare.GetComponentName())
 				}
@@ -270,7 +269,7 @@ func (tc *testContext) testApplicationCreation(component components.ComponentInt
 		} else { // when no deployment is found
 			// check Reconcile failed with missing dependent operator error
 			for _, Condition := range tc.testDsc.Status.Conditions {
-				if strings.Contains(Condition.Message, "Please install the operator before enabling "+component.GetComponentName()) {
+				if strings.Contains(Condition.Message, "all dependent operators ") {
 					return true, err
 				}
 			}

@@ -3,7 +3,6 @@
 package codeflare
 
 import (
-	"fmt"
 	"path/filepath"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -75,11 +74,8 @@ func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, d
 			dependentOperator = RHCodeflareOperator
 		}
 
-		if found, err := deploy.OperatorExists(cli, dependentOperator); err != nil {
+		if _, err := deploy.OperatorExists(cli, ComponentName, false, dependentOperator); err != nil {
 			return err
-		} else if found {
-			return fmt.Errorf("operator %s  found. Please uninstall the operator before enabling %s component",
-				dependentOperator, ComponentName)
 		}
 
 		// Update image parameters only when we do not have customized manifests set
