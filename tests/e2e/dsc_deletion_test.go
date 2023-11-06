@@ -6,14 +6,15 @@ import (
 	"log"
 	"testing"
 
-	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 )
 
 func deletionTestSuite(t *testing.T) {
@@ -57,7 +58,7 @@ func (tc *testContext) testApplicationDeletion(component components.ComponentInt
 
 	if err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (done bool, err error) {
 		appList, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(ctx, metav1.ListOptions{
-			LabelSelector: "app.kubernetes.io/part-of=" + component.GetComponentName(),
+			LabelSelector: "app.opendatahub.io/" + component.GetComponentName(),
 		})
 		if err != nil {
 			log.Printf("error listing component deployments :%v. Trying again...", err)

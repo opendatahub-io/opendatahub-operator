@@ -20,12 +20,8 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
-	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	datascienceclustercontrollers "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
-	dscicontr "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
-	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
+	"os"
+
 	addonv1alpha1 "github.com/openshift/addon-operator/apis/addons/v1alpha1"
 	ocv1 "github.com/openshift/api/oauth/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -44,15 +40,20 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	"os"
-	client2 "sigs.k8s.io/controller-runtime/pkg/client"
-
-	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
-	// to ensure that exec-entrypoint and run can make use of them.
-	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
+	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	datascienceclustercontrollers "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
+	dscicontr "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
 
 var (
@@ -167,7 +168,7 @@ func main() {
 	_, disableDSCConfig := os.LookupEnv("DISABLE_DSC_CONFIG")
 	if !disableDSCConfig {
 		// Create DSCInitialization CR if it's not present
-		client := mgr.GetClient()
+		c := mgr.GetClient()
 		releaseDscInitialization := &dsci.DSCInitialization{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "DSCInitialization",
@@ -184,7 +185,7 @@ func main() {
 				},
 			},
 		}
-		err = client.Create(context.TODO(), releaseDscInitialization)
+		err = c.Create(context.TODO(), releaseDscInitialization)
 		switch {
 		case err == nil:
 			setupLog.Info("created DscInitialization resource")
@@ -195,8 +196,8 @@ func main() {
 			if err != nil {
 				setupLog.Error(err, "failed to get DscInitialization custom resource data")
 			}
-			err = client.Patch(context.TODO(), releaseDscInitialization, client2.RawPatch(types.ApplyPatchType, data),
-				client2.ForceOwnership, client2.FieldOwner("opendatahub-operator"))
+			err = c.Patch(context.TODO(), releaseDscInitialization, client.RawPatch(types.ApplyPatchType, data),
+				client.ForceOwnership, client.FieldOwner("opendatahub-operator"))
 			if err != nil {
 				setupLog.Error(err, "failed to update DscInitialization custom resource")
 			}
@@ -204,6 +205,31 @@ func main() {
 			setupLog.Error(err, "failed to create DscInitialization custom resource")
 			os.Exit(1)
 		}
+	}
+
+	// Create new uncached client to run initial setup
+	setupCfg, err := config.GetConfig()
+	if err != nil {
+		setupLog.Error(err, "error getting config for setup")
+		os.Exit(1)
+	}
+
+	setupClient, err := client.New(setupCfg, client.Options{Scheme: scheme})
+	if err != nil {
+		setupLog.Error(err, "error getting client for setup")
+		os.Exit(1)
+	}
+	// Get operator platform
+	platform, err := deploy.GetPlatform(setupClient)
+	if err != nil {
+		setupLog.Error(err, "error getting client for setup")
+		os.Exit(1)
+	}
+
+	// Apply update from legacy operator
+	if err = upgrade.UpdateFromLegacyVersion(setupClient, platform); err != nil {
+		setupLog.Error(err, "unable to update from legacy operator version")
+		os.Exit(1)
 	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

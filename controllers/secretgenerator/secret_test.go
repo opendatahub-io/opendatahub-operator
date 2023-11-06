@@ -84,7 +84,7 @@ func TestNewSecret(t *testing.T) {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			secret, err := newSecret(tc.annotations)
+			secret, err := NewSecretFrom(tc.annotations)
 			if err != nil {
 				if err.Error() != tc.err.Error() {
 					t.Errorf("Expected error: %v, got: %v\n",

@@ -8,8 +8,6 @@ import (
 	"testing"
 	"time"
 
-	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
@@ -18,6 +16,9 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
+
+	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 )
 
 func creationTestSuite(t *testing.T) {
@@ -194,9 +195,7 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error {
 		if tc.testDsc.Spec.Components.CodeFlare.ManagementState == operatorv1.Managed {
 			if err != nil {
 				// dependent operator error, as expected
-				if strings.Contains(err.Error(), "Please install the operator before enabling component") {
-					t.Logf("expected error: %v", err.Error())
-				} else {
+				{
 					require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.CodeFlare.GetComponentName())
 				}
 			}

@@ -7,8 +7,6 @@ import (
 	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
-
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	ocuserv1 "github.com/openshift/api/user/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
@@ -20,6 +18,8 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 )
 
 var (
@@ -66,9 +66,11 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 			r.Log.Error(err, "Unable to fetch namespace", "name", name)
 			return err
 		}
-	} else if (dscInit.Spec.Monitoring.ManagementState == operatorv1.Managed) && dscInit.Spec.Monitoring.Namespace == name {
+	} else if dscInit.Spec.Monitoring.ManagementState == operatorv1.Managed {
+		r.Log.Info("Patching application namespace for Managed cluster", "name", name)
+		labelPatch := `{"metadata":{"labels":{"openshift.io/cluster-monitoring":"true","pod-security.kubernetes.io/enforce":"baseline","opendatahub.io/generated-namespace": "true"}}}` //nolint
 		err = r.Patch(ctx, foundNamespace, client.RawPatch(types.MergePatchType,
-			[]byte(`{"metadata": {"labels": {"openshift.io/cluster-monitoring": "true"}}}`)))
+			[]byte(labelPatch)))
 		if err != nil {
 			return err
 		}
@@ -98,6 +100,14 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 				}
 			} else {
 				r.Log.Error(err, "Unable to fetch monitoring namespace", "name", monitoringName)
+				return err
+			}
+		} else { // force to patch monitoring namespace with label for cluster-monitoring
+			r.Log.Info("Patching monitoring namespace for Managed cluster", "name", monitoringName)
+			labelPatch := `{"metadata":{"labels":{"openshift.io/cluster-monitoring":"true","pod-security.kubernetes.io/enforce":"baseline","opendatahub.io/generated-namespace": "true"}}}` //nolint
+
+			err = r.Patch(ctx, foundMonitoringNamespace, client.RawPatch(types.MergePatchType, []byte(labelPatch)))
+			if err != nil {
 				return err
 			}
 		}
@@ -204,12 +214,23 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.
 						},
 					},
 				},
-				{ // OR logic
+				{ // OR logic for ROSA
 					From: []netv1.NetworkPolicyPeer{
-						{ // need this for access dashboard
+						{ // need this to access dashboard
 							NamespaceSelector: &metav1.LabelSelector{
 								MatchLabels: map[string]string{
 									"kubernetes.io/metadata.name": "openshift-ingress",
+								},
+							},
+						},
+					},
+				},
+				{ // OR logic for PSI
+					From: []netv1.NetworkPolicyPeer{
+						{ // need this to access dashboard
+							NamespaceSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"kubernetes.io/metadata.name": "openshift-host-network",
 								},
 							},
 						},

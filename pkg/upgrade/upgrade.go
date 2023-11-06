@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	olmclientset "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/operators/v1alpha1"
@@ -20,6 +19,7 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
 	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
@@ -139,7 +139,7 @@ func HasDeleteConfigMap(c client.Client) bool {
 
 // createDefaultDSC creates a default instance of DSC.
 // Note: When the platform is not Managed, and a DSC instance already exists, the function doesn't re-create/update the resource.
-func createDefaultDSC(cli client.Client, platform deploy.Platform) error {
+func CreateDefaultDSC(cli client.Client, platform deploy.Platform) error {
 	releaseDataScienceCluster := &dsc.DataScienceCluster{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DataScienceCluster",
@@ -204,7 +204,7 @@ func createDefaultDSC(cli client.Client, platform deploy.Platform) error {
 func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform) error {
 	// If platform is Managed, remove Kfdefs and create default dsc
 	if platform == deploy.ManagedRhods {
-		err := createDefaultDSC(cli, platform)
+		err := CreateDefaultDSC(cli, platform)
 		if err != nil {
 			return err
 		}
@@ -216,37 +216,21 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform) error 
 		return nil
 	}
 
-	// If KfDef CRD is not found, we see it as a cluster not pre-installed v1 operator	// Check if kfdef are deployed
-	kfdefCrd := &apiextv1.CustomResourceDefinition{}
-	err := cli.Get(context.TODO(), client.ObjectKey{Name: "kfdefs.kfdef.apps.kubeflow.org"}, kfdefCrd)
-	if err != nil {
-		if apierrs.IsNotFound(err) {
-			// If no Crd found, return, since its a new Installation
-			return nil
-		} else {
-			return fmt.Errorf("error retrieving kfdef CRD : %v", err)
-		}
-	}
-
-	// If KfDef Instances found, and no DSC instances are found in Self-managed, that means this is an upgrade path from
-	// legacy version. Create a default DSC instance
-	kfDefList := &kfdefv1.KfDefList{}
-	err = cli.List(context.TODO(), kfDefList)
-	if err != nil {
-		if apierrs.IsNotFound(err) {
-			// If no KfDefs, do nothing and return
-			return nil
-		} else {
-			return fmt.Errorf("error getting list of kfdefs: %v", err)
-		}
-	}
-	if len(kfDefList.Items) > 0 {
-		err := createDefaultDSC(cli, platform)
+	if platform == deploy.SelfManagedRhods {
+		kfDefList, err := getKfDefInstances(cli)
 		if err != nil {
-			return err
+			return fmt.Errorf("error getting kfdef instances: %v", err)
 		}
+
+		if len(kfDefList.Items) > 0 {
+			err := CreateDefaultDSC(cli, platform)
+			if err != nil {
+				return err
+			}
+		}
+		return err
 	}
-	return err
+	return nil
 }
 
 func GetOperatorNamespace() (string, error) {
@@ -261,28 +245,12 @@ func GetOperatorNamespace() (string, error) {
 
 func RemoveKfDefInstances(cli client.Client, platform deploy.Platform) error {
 	// Check if kfdef are deployed
-	kfdefCrd := &apiextv1.CustomResourceDefinition{}
-
-	err := cli.Get(context.TODO(), client.ObjectKey{Name: "kfdefs.kfdef.apps.kubeflow.org"}, kfdefCrd)
+	expectedKfDefList, err := getKfDefInstances(cli)
 	if err != nil {
-		if apierrs.IsNotFound(err) {
-			// If no Crd found, return, since its a new Installation
-			return nil
-		} else {
-			return fmt.Errorf("error retrieving kfdef CRD : %v", err)
-		}
-	} else {
-		expectedKfDefList := &kfdefv1.KfDefList{}
-		err := cli.List(context.TODO(), expectedKfDefList)
-		if err != nil {
-			if apierrs.IsNotFound(err) {
-				// If no KfDefs, do nothing and return
-				return nil
-			} else {
-				return fmt.Errorf("error getting list of kfdefs: %v", err)
-			}
-		}
-		// Delete kfdefs
+		return err
+	}
+	// Delete kfdefs
+	if len(expectedKfDefList.Items) > 0 {
 		for _, kfdef := range expectedKfDefList.Items {
 			// Remove finalizer
 			updatedKfDef := &kfdef
@@ -297,6 +265,7 @@ func RemoveKfDefInstances(cli client.Client, platform deploy.Platform) error {
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -349,4 +318,32 @@ func getClusterServiceVersion(cfg *rest.Config, watchNameSpace string) (*ofapi.C
 		}
 	}
 	return nil, nil
+}
+
+func getKfDefInstances(c client.Client) (*kfdefv1.KfDefList, error) {
+	// If KfDef CRD is not found, we see it as a cluster not pre-installed v1 operator	// Check if kfdef are deployed
+	kfdefCrd := &apiextv1.CustomResourceDefinition{}
+	err := c.Get(context.TODO(), client.ObjectKey{Name: "kfdefs.kfdef.apps.kubeflow.org"}, kfdefCrd)
+	if err != nil {
+		if apierrs.IsNotFound(err) {
+			// If no Crd found, return, since its a new Installation
+			return nil, nil
+		} else {
+			return nil, fmt.Errorf("error retrieving kfdef CRD : %v", err)
+		}
+	}
+
+	// If KfDef Instances found, and no DSC instances are found in Self-managed, that means this is an upgrade path from
+	// legacy version. Create a default DSC instance
+	kfDefList := &kfdefv1.KfDefList{}
+	err = c.List(context.TODO(), kfDefList)
+	if err != nil {
+		if apierrs.IsNotFound(err) {
+			// If no KfDefs, do nothing and return
+			return nil, nil
+		} else {
+			return nil, fmt.Errorf("error getting list of kfdefs: %v", err)
+		}
+	}
+	return kfDefList, nil
 }

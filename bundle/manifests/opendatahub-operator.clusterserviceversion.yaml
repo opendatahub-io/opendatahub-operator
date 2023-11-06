@@ -121,7 +121,7 @@ metadata:
     operators.operatorframework.io/internal-objects: '[dscinitialization.opendatahub.io]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/opendatahub-io/opendatahub-operator
-  name: opendatahub-operator.v2.1.0
+  name: opendatahub-operator.v2.4.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -157,6 +157,9 @@ spec:
           resource
         displayName: Conditions
         path: conditions
+      version: v1
+    - kind: FeatureTracker
+      name: featuretrackers.dscinitialization.opendatahub.io
       version: v1
   description: "The Open Data Hub is a machine-learning-as-a-service platform built
     on Red Hat's Kubernetes-based OpenShift® Container Platform. Open Data Hub integrates
@@ -560,7 +563,10 @@ spec:
           resources:
           - endpoints
           verbs:
+          - create
+          - delete
           - list
+          - update
           - watch
         - apiGroups:
           - ""
@@ -805,6 +811,18 @@ spec:
           - patch
           - update
         - apiGroups:
+          - dscinitialization.opendatahub.io
+          resources:
+          - featuretrackers
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
           - events.k8s.io
           resources:
           - events
@@ -962,6 +980,46 @@ spec:
         - apiGroups:
           - monitoring.coreos.com
           resources:
+          - alertmanagerconfigs
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - patch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
+          - alertmanagers
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - patch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
+          - alertmanagers/finalizers
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - patch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
+          - alertmanagers/status
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - patch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
           - podmonitors
           verbs:
           - create
@@ -974,10 +1032,41 @@ spec:
         - apiGroups:
           - monitoring.coreos.com
           resources:
+          - probes
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - patch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
           - prometheuses
           verbs:
           - create
           - delete
+          - deletecollection
+          - get
+          - patch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
+          - prometheuses/finalizers
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - patch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
+          - prometheuses/status
+          verbs:
+          - create
+          - delete
+          - deletecollection
           - get
           - patch
         - apiGroups:
@@ -987,6 +1076,7 @@ spec:
           verbs:
           - create
           - delete
+          - deletecollection
           - get
           - patch
         - apiGroups:
@@ -996,11 +1086,42 @@ spec:
           verbs:
           - create
           - delete
+          - deletecollection
           - get
           - list
           - patch
           - update
           - watch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
+          - thanosrulers
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - patch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
+          - thanosrulers/finalizers
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - patch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
+          - thanosrulers/status
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - patch
         - apiGroups:
           - networking.istio.io
           resources:
@@ -1647,11 +1768,11 @@ spec:
   maintainers:
   - email: opendatahub@redhat.com
     name: Open Data Hub Maintainers
-  maturity: alpha
+  maturity: stable
   minKubeVersion: 1.22.0
   provider:
     name: ODH
   selector:
     matchLabels:
       component: opendatahub-operator
-  version: 2.1.0
+  version: 2.4.0
