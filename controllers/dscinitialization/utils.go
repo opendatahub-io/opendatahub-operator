@@ -273,6 +273,7 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.
 			Name:      name,
 			Namespace: name,
 		}, foundNetworkPolicy)
+
 		if err != nil {
 			if apierrs.IsNotFound(err) {
 				// Set Controller reference

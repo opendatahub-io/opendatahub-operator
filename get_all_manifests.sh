@@ -10,7 +10,7 @@ MANIFESTS_TARBALL_URL="${GITHUB_URL}/${MANIFEST_ORG}/odh-manifests/tarball/${MAN
 
 
 # component: dsp, kserve, dashbaord, cf/ray. in the format of "repo-org:repo-name:branch-name:source-folder:target-folder"
-# TODO: kserve, mm, trustyai, dashbaord, nbc,odh-mm-monitoring, etc
+
 declare -A COMPONENT_MANIFESTS=(
     ["codeflare"]="red-hat-data-services:codeflare-operator:rhods-2.4:config:codeflare"
     ["ray"]="red-hat-data-services:kuberay:rhods-2.4:ray-operator/config:ray"
@@ -50,7 +50,6 @@ if [ "$#" -ge 1 ]; then
     done
 fi
 
-<<<<<<< HEAD
 # pre-cleanup local env
 rm -fr ./odh-manifests/* ./.odh-manifests-tmp/
 
