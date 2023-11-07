@@ -39,9 +39,6 @@ type CertSpec struct {
 }
 
 type AuthSpec struct {
-	// Name of the authorization provider used for Service Mesh.
-	// +kubebuilder:default=authorino
-	Name string `json:"name,omitempty"`
 	// Namespace where it is deployed.
 	// +kubebuilder:default=auth-provider
 	Namespace string `json:"namespace,omitempty"`
@@ -66,15 +63,4 @@ type AuthorinoSpec struct {
 	// Image allows to define a custom container image to be used when deploying Authorino's instance.
 	// +kubebuilder:default="quay.io/kuadrant/authorino:v0.13.0"
 	Image string `json:"image,omitempty"`
-}
-
-// TODO move logic to sth like management state
-// IsValid returns true if the spec is a valid and complete.
-// If invalid it provides message with the reasons.
-func (s *ServiceMeshSpec) IsValid() (bool, string) {
-	if s.Auth.Name != "authorino" {
-		return false, "currently only Authorino is available as authorization layer"
-	}
-
-	return true, ""
 }
