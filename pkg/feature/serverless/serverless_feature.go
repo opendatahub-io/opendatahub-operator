@@ -1,22 +1,20 @@
 package serverless
 
 import (
-	"context"
-	"errors"
 	"path"
 	"path/filepath"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
 	ctrlLog "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 )
 
-const templatesDir = "templates/serverless"
+const (
+	knativeServingNamespace = "knative-serving"
+	templatesDir            = "templates/serverless"
+)
 
 var log = ctrlLog.Log.WithName("features")
 
@@ -25,8 +23,6 @@ func ConfigureServerlessFeatures(s *feature.FeaturesInitializer) error {
 	if err := feature.CopyEmbeddedFiles(templatesDir, rootDir); err != nil {
 		return err
 	}
-
-	serverlessSpec := s.Serverless
 
 	servingDeployment, err := feature.CreateFeature("serverless-serving-deployment").
 		For(s.DSCInitializationSpec).
@@ -37,10 +33,10 @@ func ConfigureServerlessFeatures(s *feature.FeaturesInitializer) error {
 			EnsureServerlessOperatorInstalled,
 			EnsureServerlessAbsent,
 			servicemesh.EnsureServiceMeshInstalled,
-			feature.CreateNamespace(serverlessSpec.Serving.Namespace),
+			feature.CreateNamespace(knativeServingNamespace),
 		).
 		PostConditions(
-			feature.WaitForPodsToBeReady(serverlessSpec.Serving.Namespace),
+			feature.WaitForPodsToBeReady(knativeServingNamespace),
 		).
 		Load()
 	if err != nil {
@@ -52,12 +48,9 @@ func ConfigureServerlessFeatures(s *feature.FeaturesInitializer) error {
 		For(s.DSCInitializationSpec).
 		PreConditions(
 			// Check serverless is installed
-			feature.WaitForResourceToBeCreated(serverlessSpec.Serving.Namespace, schema.GroupVersionResource{
-				Group:    "operator.knative.dev",
-				Version:  "v1beta1",
-				Resource: "knativeservings",
-			}),
+			feature.WaitForResourceToBeCreated(knativeServingNamespace, gvr.KnativeServing),
 		).
+		WithData(ServingIngressDomain).
 		WithResources(ServingCertificateResource).
 		Manifests(
 			path.Join(rootDir, templatesDir, "serving-istio-gateways"),
@@ -69,23 +62,4 @@ func ConfigureServerlessFeatures(s *feature.FeaturesInitializer) error {
 	s.Features = append(s.Features, servingIstioGateways)
 
 	return nil
-}
-
-func GetDomain(dynamicClient dynamic.Interface) (string, error) {
-	gvrIngress := schema.GroupVersionResource{
-		Group:    "config.openshift.io",
-		Version:  "v1",
-		Resource: "ingresses",
-	}
-
-	cluster, err := dynamicClient.Resource(gvrIngress).Get(context.TODO(), "cluster", metav1.GetOptions{})
-	if err != nil {
-		return "", err
-	}
-
-	domain, found, err := unstructured.NestedString(cluster.Object, "spec", "domain")
-	if !found {
-		return "", errors.New("spec.domain not found")
-	}
-	return domain, err
 }

@@ -8,11 +8,11 @@ import (
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/dynamic"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 )
 
 const (
@@ -31,9 +31,7 @@ func EnsureServiceMeshOperatorInstalled(f *feature.Feature) error {
 }
 
 func EnsureServiceMeshInstalled(f *feature.Feature) error {
-	if err := feature.EnsureCRDIsInstalled("servicemeshcontrolplanes.maistra.io")(f); err != nil {
-		log.Info("Failed to find the pre-requisite Service Mesh Control Plane CRD, please ensure Service Mesh Operator is installed.", "feature", f.Name)
-
+	if err := EnsureServiceMeshOperatorInstalled(f); err != nil {
 		return err
 	}
 
@@ -67,13 +65,7 @@ func WaitForControlPlaneToBeReady(feature *feature.Feature) error {
 }
 
 func CheckControlPlaneComponentReadiness(dynamicClient dynamic.Interface, smcp, smcpNs string) (bool, error) {
-	smcpgvr := schema.GroupVersionResource{
-		Group:    "maistra.io",
-		Version:  "v2",
-		Resource: "servicemeshcontrolplanes",
-	}
-
-	unstructObj, err := dynamicClient.Resource(smcpgvr).Namespace(smcpNs).Get(context.TODO(), smcp, metav1.GetOptions{})
+	unstructObj, err := dynamicClient.Resource(gvr.SMCP).Namespace(smcpNs).Get(context.TODO(), smcp, metav1.GetOptions{})
 	if err != nil {
 		log.Info("failed to find Service Mesh Control Plane", "control-plane", smcp, "namespace", smcpNs)
 

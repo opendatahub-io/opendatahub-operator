@@ -8,10 +8,10 @@ type ServiceMeshSpec struct {
 	// +kubebuilder:default=Removed
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 	// Mesh holds configuration of Service Mesh used by Opendatahub.
-	Mesh MeshSpec `json:"mesh,omitempty"`
+	Mesh ControlPlaneSpec `json:"controlPlane,omitempty"`
 }
 
-type MeshSpec struct {
+type ControlPlaneSpec struct {
 	// Name is a name Service Mesh Control Plane. Defaults to "minimal".
 	// +kubebuilder:default=data-science-smcp
 	Name string `json:"name,omitempty"`

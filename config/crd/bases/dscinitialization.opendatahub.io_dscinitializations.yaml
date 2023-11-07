@@ -136,23 +136,12 @@ spec:
                               domain used for the certificate request.
                             type: string
                         type: object
-                      localGatewayServiceName:
-                        default: knative-local-gateway
-                        description: LocalGatewayServiceName allows to customize the
-                          name of the Kubernetes Service that is going to be created
-                          for intra-cluster requests. The service is created in the
-                          Service Mesh namespace.
-                        type: string
                       name:
                         default: knative-serving
                         description: Name specifies the name of the KNativeServing
                           resource that is going to be created to instruct the KNative
-                          Operator to deploy KNative serving components.
-                        type: string
-                      namespace:
-                        default: knative-serving
-                        description: Namespace specifies the namespace where the KNativeServing
-                          resource is going to be created.
+                          Operator to deploy KNative serving components. This resource
+                          is created in the "knative-serving" namespace.
                         type: string
                     type: object
                 type: object
@@ -164,14 +153,7 @@ spec:
                   user experience; e.g. it provides unified authentication giving
                   a Single Sign On experience.
                 properties:
-                  managementState:
-                    default: Removed
-                    enum:
-                    - Managed
-                    - Removed
-                    pattern: ^(Managed|Unmanaged|Force|Removed)$
-                    type: string
-                  mesh:
+                  controlPlane:
                     description: Mesh holds configuration of Service Mesh used by
                       Opendatahub.
                     properties:
@@ -206,6 +188,13 @@ spec:
                           deployed. Defaults to "istio-system".
                         type: string
                     type: object
+                  managementState:
+                    default: Removed
+                    enum:
+                    - Managed
+                    - Removed
+                    pattern: ^(Managed|Unmanaged|Force|Removed)$
+                    type: string
                 type: object
             required:
             - applicationsNamespace

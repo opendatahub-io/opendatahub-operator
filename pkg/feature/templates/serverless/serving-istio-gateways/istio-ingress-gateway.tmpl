@@ -2,13 +2,13 @@ apiVersion: networking.istio.io/v1beta1
 kind: Gateway
 metadata:
   name: knative-ingress-gateway
-  namespace: {{ .Serving.Namespace }}
+  namespace: knative-serving
 spec:
   selector:
     knative: ingressgateway
   servers:
     - hosts:
-        - '*' # TODO: Use .Serving.IngressGateway.Domain || Ingress Domain
+        - '{{ .KnativeIngressDomain }}'
       port:
         name: https
         number: 443

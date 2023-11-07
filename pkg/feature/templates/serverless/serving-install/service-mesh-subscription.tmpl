@@ -2,7 +2,7 @@ apiVersion: maistra.io/v1
 kind: ServiceMeshMember
 metadata:
   name: default
-  namespace: {{ .Serving.Namespace }}
+  namespace: knative-serving
 spec:
   controlPlaneRef:
     namespace: {{ .Mesh.Namespace }}

@@ -25,17 +25,9 @@ type ServerlessSpec struct {
 type ServingSpec struct {
 	// Name specifies the name of the KNativeServing resource that is going to be
 	// created to instruct the KNative Operator to deploy KNative serving components.
+	// This resource is created in the "knative-serving" namespace.
 	// +kubebuilder:default=knative-serving
 	Name string `json:"name,omitempty"`
-	// Namespace specifies the namespace where the KNativeServing resource is going
-	// to be created.
-	// +kubebuilder:default=knative-serving
-	Namespace string `json:"namespace,omitempty"`
-	// LocalGatewayServiceName allows to customize the name of the Kubernetes Service that
-	// is going to be created for intra-cluster requests. The service is created in the
-	// Service Mesh namespace.
-	// +kubebuilder:default=knative-local-gateway
-	LocalGatewayServiceName string `json:"localGatewayServiceName,omitempty"`
 	// IngressGateway allows to customize some parameters for the Istio Ingress Gateway
 	// that is bound to KNative-Serving.
 	IngressGateway IngressGatewaySpec `json:"ingressGateway,omitempty"`
@@ -43,10 +35,6 @@ type ServingSpec struct {
 
 // IngressGatewaySpec represents the configuration of the KNative Ingress Gateway.
 type IngressGatewaySpec struct {
-	// GatewaySelector specifies the label selector to choose the Istio Ingress Gateway to use
-	// for intercepting incoming requests. If unset, the selector knative=ingressgateway is used.
-	// GatewaySelector map[string]string `json:"selector,omitempty"`
-
 	// Domain specifies the DNS name for intercepting ingress requests coming from
 	// outside the cluster. Most likely, you will want to use a wildcard name,
 	// like *.example.com. If not set, the domain of the OpenShift Ingress is used.

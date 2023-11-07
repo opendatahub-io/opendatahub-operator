@@ -1,22 +1,30 @@
 package serverless
 
 import (
-	"fmt"
-	"strings"
+	"context"
+
+	"github.com/pkg/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/client-go/dynamic"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 )
 
 func ServingCertificateResource(f *feature.Feature) error {
-	domain := strings.TrimSpace(f.Spec.Serving.IngressGateway.Domain)
-	if len(domain) == 0 {
-		var errDomain error
-		domain, errDomain = GetDomain(f.DynamicClient)
-		if errDomain != nil {
-			return fmt.Errorf("failed to fetch OpenShift domain to generate certificate for Serverless: %w", errDomain)
-		}
+	return f.CreateSelfSignedCertificate(f.Spec.Serving.IngressGateway.Certificate, f.Spec.KnativeIngressDomain, f.Spec.Mesh.Namespace)
+}
 
-		domain = "*." + domain
+func GetDomain(dynamicClient dynamic.Interface) (string, error) {
+	cluster, err := dynamicClient.Resource(gvr.OpenshiftIngress).Get(context.TODO(), "cluster", metav1.GetOptions{})
+	if err != nil {
+		return "", err
 	}
-	return f.CreateSelfSignedCertificate(f.Spec.Serving.IngressGateway.Certificate, domain, f.Spec.Mesh.Namespace)
+
+	domain, found, err := unstructured.NestedString(cluster.Object, "spec", "domain")
+	if !found {
+		return "", errors.New("spec.domain not found")
+	}
+	return domain, err
 }

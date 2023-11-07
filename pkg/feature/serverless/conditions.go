@@ -5,19 +5,13 @@ import (
 	"fmt"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 )
 
 func EnsureServerlessAbsent(f *feature.Feature) error {
-	servingGvr := schema.GroupVersionResource{
-		Group:    "operator.knative.dev",
-		Version:  "v1beta1",
-		Resource: "knativeservings",
-	}
-
-	list, err := f.DynamicClient.Resource(servingGvr).Namespace("").List(context.TODO(), v1.ListOptions{})
+	list, err := f.DynamicClient.Resource(gvr.KnativeServing).Namespace("").List(context.TODO(), v1.ListOptions{})
 	if err != nil {
 		return err
 	}

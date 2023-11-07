@@ -9,10 +9,11 @@ import (
 type Spec struct {
 	*v1.ServiceMeshSpec
 	*v1.ServerlessSpec
-	OAuth        OAuth
-	AppNamespace string
-	Domain       string
-	Tracker      *v1.FeatureTracker
+	OAuth                OAuth
+	AppNamespace         string
+	Domain               string
+	KnativeIngressDomain string
+	Tracker              *v1.FeatureTracker
 }
 
 type OAuth struct {

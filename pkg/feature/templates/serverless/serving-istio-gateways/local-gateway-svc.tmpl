@@ -3,7 +3,7 @@ kind: Service
 metadata:
   labels:
     experimental.istio.io/disable-gateway-port-translation: "true"
-  name: {{ .Serving.LocalGatewayServiceName }} # knative-local-gateway
+  name: knative-local-gateway
   namespace: {{ .Mesh.Namespace }}
 spec:
   ports:
