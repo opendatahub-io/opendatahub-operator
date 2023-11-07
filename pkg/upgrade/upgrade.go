@@ -2,7 +2,6 @@ package upgrade
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -15,7 +14,6 @@ import (
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -144,13 +142,21 @@ func HasDeleteConfigMap(c client.Client) bool {
 // createDefaultDSC creates a default instance of DSC.
 // Note: When the platform is not Managed, and a DSC instance already exists, the function doesn't re-create/update the resource.
 func CreateDefaultDSC(cli client.Client, platform deploy.Platform) error {
+	// Set the default DSC name depending on the platform
+	var DSCName string
+	if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
+		DSCName = "rhods"
+	} else {
+		DSCName = "default"
+	}
+
 	releaseDataScienceCluster := &dsc.DataScienceCluster{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DataScienceCluster",
 			APIVersion: "datasciencecluster.opendatahub.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "default",
+			Name: DSCName,
 		},
 		Spec: dsc.DataScienceClusterSpec{
 			Components: dsc.Components{
@@ -170,13 +176,13 @@ func CreateDefaultDSC(cli client.Client, platform deploy.Platform) error {
 					Component: components.Component{ManagementState: operatorv1.Removed},
 				},
 				CodeFlare: codeflare.CodeFlare{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+					Component: components.Component{ManagementState: operatorv1.Removed},
 				},
 				Ray: ray.Ray{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+					Component: components.Component{ManagementState: operatorv1.Removed},
 				},
 				TrustyAI: trustyai.TrustyAI{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+					Component: components.Component{ManagementState: operatorv1.Removed},
 				},
 			},
 		},
@@ -186,25 +192,10 @@ func CreateDefaultDSC(cli client.Client, platform deploy.Platform) error {
 	case err == nil:
 		fmt.Printf("created DataScienceCluster resource")
 	case apierrs.IsAlreadyExists(err):
-		// Update if already exists
-		if platform == deploy.ManagedRhods {
-			fmt.Printf("DataScienceCluster resource already exists in Managed. Updating it.")
-			data, err := json.Marshal(releaseDataScienceCluster)
-			if err != nil {
-				return fmt.Errorf("failed to get DataScienceCluster custom resource data: %v", err)
-			}
-			err = cli.Patch(context.TODO(), releaseDataScienceCluster, client.RawPatch(types.ApplyPatchType, data),
-				client.ForceOwnership, client.FieldOwner("opendatahub-operator"))
-			if err != nil {
-				return fmt.Errorf("failed to update DataScienceCluster custom resource:%v", err)
-			}
-		} else {
-			fmt.Printf("DataScienceCluster resource already exists. It will not be updated with default DSC.")
-
-			return nil
-		}
+		// Do not update the DSC if it already exists
+		fmt.Printf("DataScienceCluster resource already exists. It will not be updated with default DSC.")
+		return nil
 	default:
-
 		return fmt.Errorf("failed to create DataScienceCluster custom resource: %v", err)
 	}
 
