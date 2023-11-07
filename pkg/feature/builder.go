@@ -141,6 +141,15 @@ func (fb *featureBuilder) WithResources(resources ...Action) *featureBuilder {
 	return fb
 }
 
+func (fb *featureBuilder) EnabledWhen(enabled func(f *Feature) bool) *featureBuilder {
+	fb.builders = append(fb.builders, func(f *Feature) error {
+		f.Enabled = enabled(f)
+
+		return nil
+	})
+	return fb
+}
+
 func (fb *featureBuilder) Load() (*Feature, error) {
 	feature := &Feature{
 		Name:    fb.name,
