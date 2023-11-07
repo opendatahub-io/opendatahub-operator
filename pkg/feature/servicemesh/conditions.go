@@ -50,11 +50,12 @@ func EnsureServiceMeshInstalled(f *feature.Feature) error {
 }
 
 func WaitForControlPlaneToBeReady(feature *feature.Feature) error {
-	return wait.PollUntilContextTimeout(context.TODO(), interval, duration, false, func(ctx context.Context) (bool, error) {
-		smcp := feature.Spec.Mesh.Name
-		smcpNs := feature.Spec.Mesh.Namespace
+	smcp := feature.Spec.Mesh.Name
+	smcpNs := feature.Spec.Mesh.Namespace
 
-		log.Info("waiting for control plane components to be ready", "feature", feature.Name, "control-plane", smcp, "namespace", smcpNs, "duration (s)", duration.Seconds())
+	log.Info("waiting for control plane components to be ready", "feature", feature.Name, "control-plane", smcp, "namespace", smcpNs, "duration (s)", duration.Seconds())
+
+	return wait.PollUntilContextTimeout(context.TODO(), interval, duration, false, func(ctx context.Context) (bool, error) {
 		ready, err := CheckControlPlaneComponentReadiness(feature.DynamicClient, smcp, smcpNs)
 
 		if ready {

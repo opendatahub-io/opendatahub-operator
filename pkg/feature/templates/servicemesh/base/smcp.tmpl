@@ -16,11 +16,11 @@ spec:
       enabled: false
     jaeger:
       name: jaeger
-  #security:
-  #  dataPlane:
-  #    mtls: true # otherwise inference-graph will not work. We use PeerAuthentication resources to force mTLS
-  #  identity:
-  #    type: ThirdParty
+  security:
+    dataPlane:
+      mtls: true # otherwise inference-graph will not work. We use PeerAuthentication resources to force mTLS
+    identity:
+      type: {{ .Mesh.IdentityType }}
   techPreview:
     meshConfig:
       defaultConfig:

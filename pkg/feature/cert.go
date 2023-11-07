@@ -25,30 +25,32 @@ import (
 var seededRand = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 func (f *Feature) CreateSelfSignedCertificate(certificate v1.CertificateSpec, domain, namespace string) error {
-	if certificate.Generate == "SelfSigned" {
-		meta := metav1.ObjectMeta{
-			Name:      certificate.SecretName,
-			Namespace: namespace,
-			OwnerReferences: []metav1.OwnerReference{
-				f.OwnerReference(),
-			},
-		}
+	if certificate.Type != v1.SelfSigned {
+		return nil
+	}
 
-		cert, err := GenerateSelfSignedCertificateAsSecret(domain, meta)
-		if err != nil {
-			return errors.WithStack(err)
-		}
+	meta := metav1.ObjectMeta{
+		Name:      certificate.SecretName,
+		Namespace: namespace,
+		OwnerReferences: []metav1.OwnerReference{
+			f.OwnerReference(),
+		},
+	}
 
-		if err != nil {
-			return errors.WithStack(err)
-		}
+	cert, err := GenerateSelfSignedCertificateAsSecret(domain, meta)
+	if err != nil {
+		return errors.WithStack(err)
+	}
 
-		_, err = f.Clientset.CoreV1().
-			Secrets(namespace).
-			Create(context.TODO(), cert, metav1.CreateOptions{})
-		if err != nil && !k8serrors.IsAlreadyExists(err) {
-			return errors.WithStack(err)
-		}
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	_, err = f.Clientset.CoreV1().
+		Secrets(namespace).
+		Create(context.TODO(), cert, metav1.CreateOptions{})
+	if err != nil && !k8serrors.IsAlreadyExists(err) {
+		return errors.WithStack(err)
 	}
 
 	return nil

@@ -3,10 +3,8 @@ package serverless
 import (
 	"context"
 	"errors"
-	"fmt"
 	"path"
 	"path/filepath"
-	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -60,21 +58,7 @@ func ConfigureServerlessFeatures(s *feature.FeaturesInitializer) error {
 				Resource: "knativeservings",
 			}),
 		).
-		WithResources(
-			func(f *feature.Feature) error {
-				domain := strings.TrimSpace(f.Spec.Serving.IngressGateway.Domain)
-				if len(domain) == 0 {
-					var errDomain error
-					domain, errDomain = GetDomain(f.DynamicClient)
-					if errDomain != nil {
-						return fmt.Errorf("failed to fetch OpenShift domain to generate certificate for Serverless: %w", errDomain)
-					}
-
-					domain = "*." + domain
-				}
-				return f.CreateSelfSignedCertificate(f.Spec.Serving.IngressGateway.Certificate, domain, f.Spec.Mesh.Namespace)
-			},
-		).
+		WithResources(ServingCertificateResource).
 		Manifests(
 			path.Join(rootDir, templatesDir, "serving-istio-gateways"),
 		).
@@ -83,21 +67,6 @@ func ConfigureServerlessFeatures(s *feature.FeaturesInitializer) error {
 		return err
 	}
 	s.Features = append(s.Features, servingIstioGateways)
-
-	return nil
-}
-
-// TODO
-func EnsureServerlessAbsent(f *feature.Feature) error {
-	return nil
-}
-
-func EnsureServerlessOperatorInstalled(f *feature.Feature) error {
-	if err := feature.EnsureCRDIsInstalled("knativeservings.operator.knative.dev")(f); err != nil {
-		log.Info("Failed to find the pre-requisite KNative Serving Operator CRD, please ensure Serverless Operator is installed.", "feature", f.Name)
-
-		return err
-	}
 
 	return nil
 }
@@ -111,7 +80,7 @@ func GetDomain(dynamicClient dynamic.Interface) (string, error) {
 
 	cluster, err := dynamicClient.Resource(gvrIngress).Get(context.TODO(), "cluster", metav1.GetOptions{})
 	if err != nil {
-		panic(err.Error())
+		return "", err
 	}
 
 	domain, found, err := unstructured.NestedString(cluster.Object, "spec", "domain")

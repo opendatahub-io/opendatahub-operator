@@ -1,7 +1,7 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: {{ .Mesh.Name }}-istiod-monitor
+  name: {{ .Mesh.Name }}-pilot-monitor
   namespace: {{ .Mesh.Namespace }}
 spec:
   targetLabels:

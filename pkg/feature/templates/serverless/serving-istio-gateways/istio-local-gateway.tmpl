@@ -4,12 +4,14 @@ metadata:
   name: knative-local-gateway
   namespace: {{ .Serving.Namespace }}
 spec:
-  selector: # TODO
+  selector:
     knative: ingressgateway
   servers:
-    - hosts: # TODO
+    - hosts:
         - '*.svc.cluster.local'
       port:
-        name: http
+        name: https
         number: 8081
-        protocol: HTTP
+        protocol: HTTPS
+      tls:
+        mode: ISTIO_MUTUAL

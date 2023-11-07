@@ -21,7 +21,7 @@ func ConfigureServiceMeshFeatures(s *feature.FeaturesInitializer) error {
 
 	serviceMeshSpec := s.ServiceMesh
 
-	smcpCreation, errSmcp := feature.CreateFeature("control-plane-creation").
+	smcpCreation, errSmcp := feature.CreateFeature("mesh-control-plane-creation").
 		For(s.DSCInitializationSpec).
 		Manifests(
 			path.Join(rootDir, templatesDir, "/base"),
@@ -40,7 +40,7 @@ func ConfigureServiceMeshFeatures(s *feature.FeaturesInitializer) error {
 	s.Features = append(s.Features, smcpCreation)
 
 	if serviceMeshSpec.Mesh.MetricsCollection == "Istio" {
-		metricsCollection, errMetrics := feature.CreateFeature("istio-metrics-collection").
+		metricsCollection, errMetrics := feature.CreateFeature("mesh-metrics-collection").
 			For(s.DSCInitializationSpec).
 			Manifests(
 				path.Join(rootDir, templatesDir, "metrics-collection"),

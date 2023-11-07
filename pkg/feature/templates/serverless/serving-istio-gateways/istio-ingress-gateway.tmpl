@@ -4,15 +4,15 @@ metadata:
   name: knative-ingress-gateway
   namespace: {{ .Serving.Namespace }}
 spec:
-  selector: # TODO
+  selector:
     knative: ingressgateway
   servers:
     - hosts:
-        - '*' # TODO
+        - '*' # TODO: Use .Serving.IngressGateway.Domain || Ingress Domain
       port:
         name: https
         number: 443
         protocol: HTTPS
-      tls: # TODO
+      tls:
         credentialName: {{ .Serving.IngressGateway.Certificate.SecretName }}
         mode: SIMPLE

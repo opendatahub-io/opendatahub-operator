@@ -107,25 +107,24 @@ spec:
                               the location of the TLS certificate and if a certificate
                               would be generated.
                             properties:
-                              generate:
-                                default: SelfSigned
-                                description: Generate specifies if the TLS certificate
-                                  should be generated automatically using an own private
-                                  key. The private key is going to be stored in a
-                                  secret with the same name as the TLS certificate
-                                  plus the "-key" suffix (e.g. knative-serving-cert-key).
-                                  If this value is set to None, pre-existence of the
-                                  TLS Secret (SecretName) with a valid certificate
-                                  is assumed.
-                                enum:
-                                - SelfSigned
-                                - None
-                                type: string
                               secretName:
                                 default: knative-serving-cert
                                 description: SecretName specifies the name of the
                                   Kubernetes Secret resource that contains a TLS certificate
                                   secure HTTP communications for the KNative network.
+                                type: string
+                              type:
+                                default: SelfSigned
+                                description: 'Type specifies if the TLS certificate
+                                  should be generated automatically, or if the certificate
+                                  is provided by the user. Allowed values are: * SelfSigned:
+                                  A certificate is going to be generated using an
+                                  own private key. * Provided: Pre-existence of the
+                                  TLS Secret (see SecretName) with a valid certificate
+                                  is assumed.'
+                                enum:
+                                - SelfSigned
+                                - Provided
                                 type: string
                             type: object
                           domain:
@@ -176,6 +175,15 @@ spec:
                     description: Mesh holds configuration of Service Mesh used by
                       Opendatahub.
                     properties:
+                      identityType:
+                        default: Kubernetes
+                        description: IdentityType specifies the identity implementation
+                          used in the Mesh. For ROSA clusters, you would need to set
+                          this to ThirdParty.
+                        enum:
+                        - Kubernetes
+                        - ThirdParty
+                        type: string
                       monitoring:
                         default: Istio
                         description: MetricsCollection specifies if metrics from components

@@ -2,6 +2,13 @@ package v1
 
 import operatorv1 "github.com/openshift/api/operator/v1"
 
+type CertType string
+
+const (
+	SelfSigned CertType = "SelfSigned"
+	Provided   CertType = "Provided"
+)
+
 // ServerlessSpec configures KNative components used in Open Data Hub. Specifically,
 // KNative is used to enable single model serving (KServe).
 type ServerlessSpec struct {
@@ -57,12 +64,11 @@ type CertificateSpec struct {
 	// TLS certificate secure HTTP communications for the KNative network.
 	// +kubebuilder:default=knative-serving-cert
 	SecretName string `json:"secretName,omitempty"`
-	// Generate specifies if the TLS certificate should be generated automatically using an own private
-	// key. The private key is going to be stored in a secret with the same name as the
-	// TLS certificate plus the "-key" suffix (e.g. knative-serving-cert-key).
-	// If this value is set to None, pre-existence of the TLS Secret (SecretName) with a
-	// valid certificate is assumed.
-	// +kubebuilder:validation:Enum=SelfSigned;None
+	// Type specifies if the TLS certificate should be generated automatically, or if the certificate
+	// is provided by the user. Allowed values are:
+	// * SelfSigned: A certificate is going to be generated using an own private key.
+	// * Provided: Pre-existence of the TLS Secret (see SecretName) with a valid certificate is assumed.
+	// +kubebuilder:validation:Enum=SelfSigned;Provided
 	// +kubebuilder:default=SelfSigned
-	Generate string `json:"generate,omitempty"`
+	Type CertType `json:"type,omitempty"`
 }

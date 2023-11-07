@@ -25,4 +25,9 @@ type MeshSpec struct {
 	// +kubebuilder:validation:Enum=Istio;None
 	// +kubebuilder:default=Istio
 	MetricsCollection string `json:"monitoring,omitempty"`
+	// IdentityType specifies the identity implementation used in the Mesh. For ROSA
+	// clusters, you would need to set this to ThirdParty.
+	// +kubebuilder:validation:Enum=Kubernetes;ThirdParty
+	// +kubebuilder:default=Kubernetes
+	IdentityType string `json:"identityType,omitempty"`
 }
