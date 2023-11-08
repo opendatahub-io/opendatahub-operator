@@ -32,6 +32,7 @@ func CreateCleaner(c client.Client, config *rest.Config, timeout, interval time.
 	if err != nil {
 		panic(err)
 	}
+
 	return &Cleaner{
 		clientset: k8sClient,
 		client:    c,
@@ -109,6 +110,7 @@ func (c *Cleaner) DeleteAll(objects ...client.Object) {
 				// We have to use the k8s.io/client-go library here to expose
 				// ability to patch the /finalize subresource on the namespace
 				_, err = c.clientset.CoreV1().Namespaces().Finalize(context.Background(), ns, metav1.UpdateOptions{})
+
 				return err
 			}, c.timeout, c.interval).Should(Succeed())
 		}
@@ -118,6 +120,7 @@ func (c *Cleaner) DeleteAll(objects ...client.Object) {
 			if err := c.client.Get(context.Background(), key, obj); err != nil {
 				return apierrors.ReasonForError(err)
 			}
+
 			return ""
 		}, c.timeout, c.interval).Should(Equal(metav1.StatusReasonNotFound))
 	}
@@ -127,5 +130,6 @@ func ignoreMethodNotAllowed(err error) error {
 	if apierrors.ReasonForError(err) == metav1.StatusReasonMethodNotAllowed {
 		return nil
 	}
+
 	return err
 }

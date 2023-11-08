@@ -138,6 +138,7 @@ func createNamespace(name string) *v1.Namespace {
 func newDSCInitializationSpec(ns string) *dscv1.DSCInitializationSpec {
 	spec := dscv1.DSCInitializationSpec{}
 	spec.ApplicationsNamespace = ns
+
 	return &spec
 }
 

@@ -565,6 +565,7 @@ spec:
           verbs:
           - create
           - delete
+          - get
           - list
           - update
           - watch
@@ -1683,6 +1684,10 @@ spec:
                   initialDelaySeconds: 15
                   periodSeconds: 20
                 name: manager
+                ports:
+                - containerPort: 8080
+                  name: http
+                  protocol: TCP
                 readinessProbe:
                   httpGet:
                     path: /readyz

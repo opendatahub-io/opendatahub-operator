@@ -34,6 +34,7 @@ func loadManifestsFrom(path string) ([]manifest, error) {
 			patch:    strings.Contains(basePath, ".patch"),
 			template: filepath.Ext(path) == ".tmpl",
 		})
+
 		return nil
 	}); err != nil {
 		return nil, errors.WithStack(err)

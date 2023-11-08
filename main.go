@@ -49,7 +49,7 @@ import (
 	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
 	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	datascienceclustercontrollers "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
+	dscontr "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
 	dscicontr "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -78,10 +78,9 @@ func init() {
 	utilruntime.Must(ocuserv1.Install(scheme))
 	utilruntime.Must(ofapiv2.AddToScheme(scheme))
 	utilruntime.Must(kfdefv1.AddToScheme(scheme))
-	//+kubebuilder:scaffold:scheme
 }
 
-func main() {
+func main() { //nolint:funlen
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
@@ -139,12 +138,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&datascienceclustercontrollers.DataScienceClusterReconciler{
+	if err = (&dscontr.DataScienceClusterReconciler{
 		Client:     mgr.GetClient(),
 		Scheme:     mgr.GetScheme(),
 		RestConfig: mgr.GetConfig(),
 		Log:        ctrl.Log.WithName("controllers").WithName("DataScienceCluster"),
-		DataScienceCluster: &datascienceclustercontrollers.DataScienceClusterConfig{
+		DataScienceCluster: &dscontr.DataScienceClusterConfig{
 			DSCISpec: &dsci.DSCInitializationSpec{
 				ApplicationsNamespace: dscApplicationsNamespace,
 			},
@@ -163,7 +162,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	//+kubebuilder:scaffold:builder
 	// Check if user opted for disabling DSC configuration
 	_, disableDSCConfig := os.LookupEnv("DISABLE_DSC_CONFIG")
 	if !disableDSCConfig {
@@ -206,7 +204,6 @@ func main() {
 			os.Exit(1)
 		}
 	}
-
 	// Create new uncached client to run initial setup
 	setupCfg, err := config.GetConfig()
 	if err != nil {

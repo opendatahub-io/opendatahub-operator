@@ -54,7 +54,7 @@ const (
 
 // DownloadManifests function performs following tasks:
 // 1. It takes component URI and only downloads folder specified by component.ContextDir field
-// 2. It saves the manifests in the odh-manifests/component-name/ folder
+// 2. It saves the manifests in the odh-manifests/component-name/ folder.
 func DownloadManifests(componentName string, manifestConfig components.ManifestsConfig) error {
 	// Get the component repo from the given url
 	// e.g  https://github.com/example/tarball/master
@@ -110,6 +110,7 @@ func DownloadManifests(componentName string, manifestConfig components.Manifests
 				if err != nil {
 					return fmt.Errorf("error creating directory:%v", err)
 				}
+
 				continue
 			}
 
@@ -123,10 +124,12 @@ func DownloadManifests(componentName string, manifestConfig components.Manifests
 					fmt.Println("Error downloading file contents:", err)
 				}
 				file.Close()
+
 				continue
 			}
 		}
 	}
+
 	return err
 }
 
@@ -257,6 +260,7 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 		if err = ctrl.SetControllerReference(owner, metav1.Object(obj), cli.Scheme()); err != nil {
 			return err
 		}
+
 		return cli.Create(ctx, obj)
 	}
 
@@ -305,6 +309,7 @@ func ApplyParams(componentPath string, imageParamsMap map[string]string, isUpdat
 			// params.env doesn't exist, do not apply any changes
 			return nil
 		}
+
 		return err
 	}
 	backupPath := envFilePath + ".bak"
@@ -347,6 +352,7 @@ func ApplyParams(componentPath string, imageParamsMap map[string]string, isUpdat
 	if err != nil {
 		// If create fails, try to restore the backup file
 		_ = os.Rename(backupPath, envFilePath)
+
 		return err
 	}
 	defer file.Close()
@@ -366,12 +372,14 @@ func ApplyParams(componentPath string, imageParamsMap map[string]string, isUpdat
 			fmt.Printf("Failed to restore file from backup: %v", renameErr)
 		}
 		fmt.Printf("Failed to write to file: %v", err)
+
 		return err
 	}
 
 	// cleanup backup file
 	if err := os.Remove(backupPath); err != nil {
 		fmt.Printf("Failed to remove backup file: %v", err)
+
 		return err
 	}
 
@@ -394,7 +402,7 @@ func SubscriptionExists(cli client.Client, namespace string, name string) (bool,
 
 // OperatorExists checks if an Operator with 'operatorPrefix' is installed.
 // Return true if found it, false if not.
-// TODO: if we need to check exact version of the operator installed, can append vX.Y.Z later.
+// if we need to check exact version of the operator installed, can append vX.Y.Z later.
 func OperatorExists(cli client.Client, operatorPrefix string) (bool, error) {
 	opConditionList := &ofapiv2.OperatorConditionList{}
 	if err := cli.List(context.TODO(), opConditionList); err != nil {
