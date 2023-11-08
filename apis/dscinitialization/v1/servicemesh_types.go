@@ -12,7 +12,7 @@ type ServiceMeshSpec struct {
 }
 
 type ControlPlaneSpec struct {
-	// Name is a name Service Mesh Control Plane. Defaults to "minimal".
+	// Name is a name Service Mesh Control Plane. Defaults to "data-science-smcp".
 	// +kubebuilder:default=data-science-smcp
 	Name string `json:"name,omitempty"`
 	// Namespace is a namespace where Service Mesh is deployed. Defaults to "istio-system".
