@@ -158,6 +158,15 @@ func (f *Feature) addCleanup(cleanupFuncs ...Action) {
 	f.cleanups = append(f.cleanups, cleanupFuncs...)
 }
 
+func (f *Feature) ApplyManifest(filename string) error {
+	m := loadManifestFrom(filename)
+	if err := m.processTemplate(f.Spec); err != nil {
+		return err
+	}
+
+	return f.apply(m)
+}
+
 type apply func(filename string) error
 
 func (f *Feature) apply(m manifest) error {

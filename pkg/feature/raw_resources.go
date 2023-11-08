@@ -79,15 +79,6 @@ func (f *Feature) createResourceFromFile(filename string) error {
 	return nil
 }
 
-func (f *Feature) ApplyManifest(filename string) error {
-	m := loadManifestFrom(filename)
-	if err := m.processTemplate(f.Spec); err != nil {
-		return err
-	}
-
-	return f.apply(m)
-}
-
 func (f *Feature) patchResourceFromFile(filename string) error {
 	data, err := os.ReadFile(filename)
 	if err != nil {
