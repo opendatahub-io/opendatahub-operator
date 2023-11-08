@@ -15,7 +15,7 @@ metadata:
               "app.kubernetes.io/name": "datasciencecluster",
               "app.kubernetes.io/part-of": "opendatahub-operator"
             },
-            "name": "default"
+            "name": "default-dsc"
           },
           "spec": {
             "components": {
@@ -57,7 +57,7 @@ metadata:
               "app.kubernetes.io/name": "dscinitialization",
               "app.kubernetes.io/part-of": "opendatahub-operator"
             },
-            "name": "default"
+            "name": "default-dsci"
           },
           "spec": {
             "applicationsNamespace": "opendatahub",

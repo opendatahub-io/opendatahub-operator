@@ -7,7 +7,7 @@ metadata:
     app.kubernetes.io/part-of: opendatahub-operator
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/created-by: opendatahub-operator
-  name: default
+  name: default-dsci
 spec:
   monitoring:
     managementState: "Managed"

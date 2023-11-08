@@ -2,6 +2,7 @@ package upgrade
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -143,20 +145,13 @@ func HasDeleteConfigMap(c client.Client) bool {
 // Note: When the platform is not Managed, and a DSC instance already exists, the function doesn't re-create/update the resource.
 func CreateDefaultDSC(cli client.Client, platform deploy.Platform) error {
 	// Set the default DSC name depending on the platform
-	var DSCName string
-	if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
-		DSCName = "rhods"
-	} else {
-		DSCName = "default"
-	}
-
 	releaseDataScienceCluster := &dsc.DataScienceCluster{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DataScienceCluster",
 			APIVersion: "datasciencecluster.opendatahub.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: DSCName,
+			Name: "default-dsc",
 		},
 		Spec: dsc.DataScienceClusterSpec{
 			Components: dsc.Components{
@@ -199,6 +194,60 @@ func CreateDefaultDSC(cli client.Client, platform deploy.Platform) error {
 		return fmt.Errorf("failed to create DataScienceCluster custom resource: %v", err)
 	}
 
+	return nil
+}
+
+// createDefaultDSCI creates a default instance of DSCI
+// If there exists an instance already, it patches the DSCISpec with default values
+// Note: DSCI CR modifcations are not supported, as it is the initial prereq setting for the components
+func CreateDefaultDSCI(cli client.Client, platform deploy.Platform, appNamespace, monNamespace string) error {
+	defaultDsciSpec := &dsci.DSCInitializationSpec{
+		ApplicationsNamespace: appNamespace,
+		Monitoring: dsci.Monitoring{
+			ManagementState: operatorv1.Managed,
+			Namespace:       monNamespace,
+		},
+	}
+
+	defaultDsci := &dsci.DSCInitialization{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "DSCInitialization",
+			APIVersion: "dscinitialization.opendatahub.io/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "default-dsci",
+		},
+		Spec: *defaultDsciSpec,
+	}
+
+	instances := &dsci.DSCInitializationList{}
+	if err := cli.List(context.TODO(), instances); err != nil {
+		return err
+	}
+
+	switch {
+	case len(instances.Items) > 1:
+		return fmt.Errorf("only one instance of DSCInitialization object is allowed. Please delete other instances ")
+	case len(instances.Items) == 1:
+		if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
+			data, err := json.Marshal(defaultDsciSpec)
+			if err != nil {
+				return err
+			}
+			err = cli.Patch(context.TODO(), defaultDsci, client.RawPatch(types.ApplyPatchType, data),
+				client.ForceOwnership, client.FieldOwner("opendatahub-operator"))
+			if err != nil {
+				return err
+			}
+		} else {
+			return nil
+		}
+	case len(instances.Items) == 0:
+		err := cli.Create(context.TODO(), defaultDsci)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
