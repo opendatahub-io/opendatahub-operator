@@ -278,16 +278,16 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 				r.Log.Info("Monitoring enabled, won't apply changes", "cluster", "ODH Mode")
 			}
 		}
-    
-    // Apply Service Mesh configurations
-    if errServiceMesh := r.configureServiceMesh(instance); errServiceMesh != nil {
-      return reconcile.Result{}, errServiceMesh
-    }
 
-    // Apply Serverless configurations
-    if errServerless := r.configureServerless(instance); errServerless != nil {
-      return reconcile.Result{}, errServerless
-    }
+		// Apply Service Mesh configurations
+		if errServiceMesh := r.configureServiceMesh(instance); errServiceMesh != nil {
+			return reconcile.Result{}, errServiceMesh
+		}
+
+		// Apply Serverless configurations
+		if errServerless := r.configureServerless(instance); errServerless != nil {
+			return reconcile.Result{}, errServerless
+		}
 
 		// Finish reconciling
 		_, err = r.updateStatus(ctx, instance, func(saved *dsciv1.DSCInitialization) {
@@ -386,9 +386,9 @@ func (r *DSCInitializationReconciler) configureServerless(instance *dsciv1.DSCIn
 
 			return err
 		}
-  }	
-  
-  return nil
+	}
+
+	return nil
 }
 
 var SecretContentChangedPredicate = predicate.Funcs{

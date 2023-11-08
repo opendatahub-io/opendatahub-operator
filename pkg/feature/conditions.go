@@ -44,7 +44,7 @@ func WaitForPodsToBeReady(namespace string) Action {
 						if condition.Type == corev1.PodReady {
 							if condition.Status != corev1.ConditionTrue {
 								podReady = false
-                
+
 								break
 							}
 						}
