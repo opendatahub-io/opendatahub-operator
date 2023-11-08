@@ -34,13 +34,8 @@ func loadManifestsFrom(path string) ([]manifest, error) {
 		if info.IsDir() {
 			return nil
 		}
-		basePath := filepath.Base(path)
-		manifests = append(manifests, manifest{
-			name:     basePath,
-			path:     path,
-			patch:    strings.Contains(basePath, ".patch"),
-			template: filepath.Ext(path) == ".tmpl",
-		})
+		m := loadManifestFrom(path)
+		manifests = append(manifests, m)
 
 		return nil
 	}); err != nil {
@@ -48,6 +43,17 @@ func loadManifestsFrom(path string) ([]manifest, error) {
 	}
 
 	return manifests, nil
+}
+
+func loadManifestFrom(path string) manifest {
+	basePath := filepath.Base(path)
+	m := manifest{
+		name:     basePath,
+		path:     path,
+		patch:    strings.Contains(basePath, ".patch"),
+		template: filepath.Ext(path) == ".tmpl",
+	}
+	return m
 }
 
 func (m *manifest) targetPath() string {

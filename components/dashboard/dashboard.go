@@ -104,7 +104,6 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 			if err := d.deployCRDsForPlatform(cli, owner, dscispec.ApplicationsNamespace, platform); err != nil {
 				return fmt.Errorf("failed to deploy %s crds %s: %v", ComponentName, PathCRDs, err)
 			}
-
 		}
 
 		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {

@@ -103,13 +103,21 @@ func defineServiceMeshFeatures(f *feature.FeaturesInitializer) error {
 		).
 		WithData(servicemesh.ClusterDetails).
 		PreConditions(
-			feature.CreateNamespace(serviceMeshSpec.Auth.Namespace),
 			feature.EnsureCRDIsInstalled("authconfigs.authorino.kuadrant.io"),
 			servicemesh.EnsureServiceMeshInstalled,
+			feature.CreateNamespace(serviceMeshSpec.Auth.Namespace),
 		).
 		PostConditions(
 			feature.WaitForPodsToBeReady(serviceMeshSpec.Mesh.Namespace),
 			feature.WaitForPodsToBeReady(serviceMeshSpec.Auth.Namespace),
+			func(f *feature.Feature) error {
+				// We do not have the control over deployment resource creation.
+				// It is created by Authorino operator using Authorino CR
+				//
+				// To make it part of Service Mesh we have to patch it with injection
+				// enabled instead, otherwise it will not have proxy pod injected.
+				return f.ApplyManifest(path.Join(rootDir, feature.AuthDir, "deployment.injection.patch.tmpl"))
+			},
 		).
 		OnDelete(servicemesh.RemoveExtensionProvider).
 		Load(); err != nil {
