@@ -347,7 +347,7 @@ func (r *DSCInitializationReconciler) updateStatus(ctx context.Context, original
 	return saved, err
 }
 
-func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsci.DSCInitialization) error {
+func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsciv1.DSCInitialization) error {
 	if instance.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
 		serviceMeshInitializer := feature.NewFeaturesInitializer(&instance.Spec, servicemesh.ConfigureServiceMeshFeatures)
 
@@ -369,7 +369,7 @@ func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsci.DSCIni
 	return nil
 }
 
-func (r *DSCInitializationReconciler) configureServerless(instance *dsci.DSCInitialization) error {
+func (r *DSCInitializationReconciler) configureServerless(instance *dsciv1.DSCInitialization) error {
 	if instance.Spec.Serverless.ManagementState == operatorv1.Managed {
 		serverlessInitializer := feature.NewFeaturesInitializer(&instance.Spec, serverless.ConfigureServerlessFeatures)
 
