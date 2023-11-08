@@ -73,19 +73,11 @@ const (
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:funlen
 	r.Log.Info("Reconciling DataScienceCluster resources", "Request.Name", req.Name)
 
 	instances := &dsc.DataScienceClusterList{}
 	if err := r.Client.List(ctx, instances); err != nil {
-		return ctrl.Result{}, err
-	}
-
-	if len(instances.Items) > 1 {
-		message := fmt.Sprintf("only one instance of DataScienceCluster object is allowed. Update existing instance %s", req.Name)
-		err := errors.New(message)
-		_ = r.reportError(err, &instances.Items[0], message)
-
 		return ctrl.Result{}, err
 	}
 
@@ -97,10 +89,24 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 			return reconcile.Result{}, fmt.Errorf("error while operator uninstall: %v",
 				upgrade.OperatorUninstall(r.Client, r.RestConfig))
 		}
+
 		return ctrl.Result{}, nil
 	}
 
 	instance := &instances.Items[0]
+
+	if len(instances.Items) > 1 {
+		message := fmt.Sprintf("only one instance of DataScienceCluster object is allowed. Update existing instance %s", req.Name)
+		err := errors.New(message)
+		_ = r.reportError(err, instance, message)
+
+		_, _ = r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
+			status.SetErrorCondition(&saved.Status.Conditions, status.DuplicateDataScienceCluster, message)
+			saved.Status.Phase = status.PhaseError
+		})
+
+		return ctrl.Result{}, err
+	}
 
 	var err error
 
@@ -110,6 +116,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	if err != nil {
 		r.Log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization Request.Name", req.Name)
 		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to retrieve DSCInitialization instance")
+
 		return ctrl.Result{}, err
 	}
 
@@ -124,6 +131,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		})
 		if err != nil {
 			r.reportError(err, instance, "failed to update DataScienceCluster condition")
+
 			return ctrl.Result{}, err
 		} else {
 			return ctrl.Result{}, nil
@@ -132,7 +140,13 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		dscInitializationSpec := dsciInstances.Items[0].Spec
 		dscInitializationSpec.DeepCopyInto(r.DataScienceCluster.DSCISpec)
 	default:
-		return ctrl.Result{}, errors.New("only one instance of DSCInitialization object is allowed")
+		message := "only one instance of DSCInitialization object is allowed"
+		_, _ = r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
+			status.SetErrorCondition(&saved.Status.Conditions, status.DuplicateDSCInitialization, message)
+			saved.Status.Phase = status.PhaseError
+		})
+
+		return ctrl.Result{}, errors.New(message)
 	}
 
 	allComponents, err := getAllComponents(&instance.Spec.Components)
@@ -165,6 +179,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 			// if delete configmap exists, requeue the request to handle operator uninstall
 			return reconcile.Result{Requeue: true}, nil
 		}
+
 		return ctrl.Result{}, nil
 	}
 
@@ -178,6 +193,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		})
 		if err != nil {
 			_ = r.reportError(err, instance, fmt.Sprintf("failed to add conditions to status of DataScienceCluster resource name %s", req.Name))
+
 			return ctrl.Result{}, err
 		}
 	}
@@ -186,6 +202,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	instance, err = r.updateComponents(ctx, instance)
 	if err != nil {
 		_ = r.reportError(err, instance, "error updating list of components in the CR")
+
 		return ctrl.Result{}, err
 	}
 
@@ -208,10 +225,12 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		})
 		if err != nil {
 			r.Log.Error(err, "failed to update DataScienceCluster conditions with incompleted reconciliation")
+
 			return ctrl.Result{}, err
 		}
 		r.Recorder.Eventf(instance, corev1.EventTypeNormal, "DataScienceClusterComponentFailures",
 			"DataScienceCluster instance %s created, but have some failures in component %v", instance.Name, componentErrors)
+
 		return ctrl.Result{RequeueAfter: time.Second * 30}, componentErrors
 	}
 
@@ -222,6 +241,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	})
 	if err != nil {
 		r.Log.Error(err, "failed to update DataScienceCluster conditions after successfully completed reconciliation")
+
 		return ctrl.Result{}, err
 	}
 
@@ -263,6 +283,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 				status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileFailed, fmt.Sprintf("Component removal failed: %v", err), corev1.ConditionFalse)
 			}
 		})
+
 		return instance, err
 	} else {
 		// reconciliation succeeded: update status accordingly
@@ -279,9 +300,11 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 		})
 		if err != nil {
 			instance = r.reportError(err, instance, "failed to update DataScienceCluster status after reconciling "+componentName)
+
 			return instance, err
 		}
 	}
+
 	return instance, nil
 }
 
@@ -340,6 +363,7 @@ func (r *DataScienceClusterReconciler) updateStatus(ctx context.Context, origina
 		// so that RetryOnConflict can identify it correctly.
 		return err
 	})
+
 	return saved, err
 }
 
@@ -357,6 +381,7 @@ func (r *DataScienceClusterReconciler) updateComponents(ctx context.Context, ori
 		// so that RetryOnConflict can identify it correctly.
 		return err
 	})
+
 	return saved, err
 }
 
@@ -378,6 +403,7 @@ func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(a client
 				return nil
 			}
 		}
+
 		return []reconcile.Request{{
 			NamespacedName: types.NamespacedName{Name: instanceList.Items[0].Name},
 		}}
@@ -386,6 +412,7 @@ func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(a client
 			NamespacedName: types.NamespacedName{Name: "default"},
 		}}
 	}
+
 	return nil
 }
 

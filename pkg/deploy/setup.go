@@ -17,7 +17,7 @@ const (
 	SelfManagedRhods Platform = "Red Hat OpenShift Data Science"
 	// OpenDataHub defines display name in csv.
 	OpenDataHub Platform = "Open Data Hub Operator"
-	// Unknown indicates that operator is not deployed using OLM
+	// Unknown indicates that operator is not deployed using OLM.
 	Unknown Platform = ""
 )
 
@@ -43,6 +43,7 @@ func isSelfManaged(cli client.Client) (Platform, error) {
 			}
 		}
 	}
+
 	return Unknown, nil
 }
 
@@ -55,6 +56,7 @@ func isManagedRHODS(cli client.Client) (Platform, error) {
 		if apierrs.IsNotFound(err) {
 			return "", nil
 		}
+
 		return "", err
 	} else {
 		expectedCatlogSource := &ofapi.CatalogSourceList{}
@@ -73,6 +75,7 @@ func isManagedRHODS(cli client.Client) (Platform, error) {
 				}
 			}
 		}
+
 		return "", nil
 	}
 }

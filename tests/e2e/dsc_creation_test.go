@@ -61,6 +61,7 @@ func (tc *testContext) testDSCCreation() error {
 		if len(existingDSCList.Items) > 0 {
 			// Use DSC instance if it already exists
 			tc.testDsc = &existingDSCList.Items[0]
+
 			return nil
 		}
 	}
@@ -73,6 +74,7 @@ func (tc *testContext) testDSCCreation() error {
 				if creationErr != nil {
 					log.Printf("error creating DSC resource %v: %v, trying again",
 						tc.testDsc.Name, creationErr)
+
 					return false, nil
 				} else {
 					return true, nil
@@ -85,6 +87,7 @@ func (tc *testContext) testDSCCreation() error {
 			return fmt.Errorf("error getting e2e-test DSC %s: %v", tc.testDsc.Name, err)
 		}
 	}
+
 	return nil
 }
 
@@ -247,6 +250,7 @@ func (tc *testContext) testApplicationCreation(component components.ComponentInt
 		})
 		if err != nil {
 			log.Printf("error listing application deployments :%v. Trying again...", err)
+
 			return false, fmt.Errorf("error listing application deployments :%v. Trying again", err)
 		}
 		if len(appList.Items) != 0 {
@@ -260,6 +264,7 @@ func (tc *testContext) testApplicationCreation(component components.ComponentInt
 				return true, nil
 			} else {
 				log.Printf("waiting for application deployments to be in Ready state.")
+
 				return false, nil
 			}
 		} else { // when no deployment is found
@@ -269,12 +274,14 @@ func (tc *testContext) testApplicationCreation(component components.ComponentInt
 					return true, err
 				}
 			}
+
 			return false, nil
 		}
 	})
 	if err != nil {
 		return err
 	}
+
 	return err
 }
 
@@ -293,6 +300,7 @@ func (tc *testContext) testOwnerrefrences() error {
 				appDeployments.Items[0].OwnerReferences)
 		}
 	}
+
 	return nil
 }
 
@@ -326,8 +334,8 @@ func (tc *testContext) testUpdateComponentReconcile() error {
 			return fmt.Errorf("failed to patch replicas : expect to be %v but got %v", patchedReplica.Spec.Replicas, retrievedDep.Spec.Replicas)
 		}
 
-		// Sleep for 20 seconds to allow the operator to reconcile
-		time.Sleep(2 * tc.resourceRetryInterval)
+		// Sleep for 40 seconds to allow the operator to reconcile
+		time.Sleep(4 * tc.resourceRetryInterval)
 		revertedDep, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).Get(context.TODO(), testDeployment.Name, metav1.GetOptions{})
 		if err != nil {
 			return fmt.Errorf("error getting component resource after reconcile: %w", err)
@@ -378,19 +386,21 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 		if err != nil {
 			return fmt.Errorf("error updating component from 'enabled: true' to 'enabled: false': %w", err)
 		}
+
 		return nil
 	})
 	if err != nil {
 		return fmt.Errorf("error after retry %w", err)
 	}
 
-	// Sleep for 20 seconds to allow the operator to reconcile
-	time.Sleep(2 * tc.resourceRetryInterval)
+	// Sleep for 40 seconds to allow the operator to reconcile
+	time.Sleep(4 * tc.resourceRetryInterval)
 	_, err = tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).Get(context.TODO(), dashboardDeploymentName, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return nil // correct result: should not find deployment after we disable it already
 		}
+
 		return fmt.Errorf("error getting component resource after reconcile: %w", err)
 	} else {
 		return fmt.Errorf("component %v is disabled, should not get its deployment %v from NS %v any more",

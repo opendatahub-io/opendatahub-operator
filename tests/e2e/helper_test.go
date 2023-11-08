@@ -33,6 +33,7 @@ func (tc *testContext) waitForControllerDeployment(name string, replicas int32) 
 				return false, nil
 			}
 			log.Printf("Failed to get %s controller deployment", name)
+
 			return false, err
 		}
 
@@ -45,8 +46,10 @@ func (tc *testContext) waitForControllerDeployment(name string, replicas int32) 
 		}
 
 		log.Printf("Error in %s deployment", name)
+
 		return false, nil
 	})
+
 	return err
 }
 
@@ -101,6 +104,7 @@ func setupDSCInstance() *dsc.DataScienceCluster {
 			},
 		},
 	}
+
 	return dscTest
 }
 
@@ -116,6 +120,7 @@ func (tc *testContext) validateCRD(crdName string) error {
 				return false, nil
 			}
 			log.Printf("Failed to get CRD %s", crdName)
+
 			return false, err
 		}
 
@@ -127,7 +132,9 @@ func (tc *testContext) validateCRD(crdName string) error {
 			}
 		}
 		log.Printf("Error to get CRD %s condition's matching", crdName)
+
 		return false, nil
 	})
+
 	return err
 }

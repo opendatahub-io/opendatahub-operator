@@ -32,7 +32,7 @@ var (
 // - Pod security labels for baseline permissions
 // - ConfigMap  'odh-common-config'
 // - Network Policies 'opendatahub' that allow traffic between the ODH namespaces
-// - RoleBinding 'opendatahub'
+// - RoleBinding 'opendatahub'.
 func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, dscInit *dsci.DSCInitialization, name string) error {
 	// Expected namespace for the given name
 	desiredNamespace := &corev1.Namespace{
@@ -60,10 +60,12 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 			err = r.Create(ctx, desiredNamespace)
 			if err != nil && !apierrs.IsAlreadyExists(err) {
 				r.Log.Error(err, "Unable to create namespace", "name", name)
+
 				return err
 			}
 		} else {
 			r.Log.Error(err, "Unable to fetch namespace", "name", name)
+
 			return err
 		}
 	} else if dscInit.Spec.Monitoring.ManagementState == operatorv1.Managed {
@@ -96,10 +98,12 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 				err = r.Create(ctx, desiredMonitoringNamespace)
 				if err != nil && !apierrs.IsAlreadyExists(err) {
 					r.Log.Error(err, "Unable to create namespace", "name", monitoringName)
+
 					return err
 				}
 			} else {
 				r.Log.Error(err, "Unable to fetch monitoring namespace", "name", monitoringName)
+
 				return err
 			}
 		} else { // force to patch monitoring namespace with label for cluster-monitoring
@@ -117,6 +121,7 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 	err = r.reconcileDefaultNetworkPolicy(ctx, name, dscInit)
 	if err != nil {
 		r.Log.Error(err, "error reconciling network policy ", "name", name)
+
 		return err
 	}
 
@@ -124,6 +129,7 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 	err = r.createOdhCommonConfigMap(ctx, name, dscInit)
 	if err != nil {
 		r.Log.Error(err, "error creating configmap", "name", "odh-common-config")
+
 		return err
 	}
 
@@ -131,8 +137,10 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 	err = r.createDefaultRoleBinding(ctx, name, dscInit)
 	if err != nil {
 		r.Log.Error(err, "error creating rolebinding", "name", name)
+
 		return err
 	}
+
 	return nil
 }
 
@@ -173,6 +181,7 @@ func (r *DSCInitializationReconciler) createDefaultRoleBinding(ctx context.Conte
 			err = ctrl.SetControllerReference(dscInit, desiredRoleBinding, r.Scheme)
 			if err != nil {
 				r.Log.Error(err, "Unable to add OwnerReference to the rolebinding")
+
 				return err
 			}
 			err = r.Client.Create(ctx, desiredRoleBinding)
@@ -183,6 +192,7 @@ func (r *DSCInitializationReconciler) createDefaultRoleBinding(ctx context.Conte
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -214,12 +224,23 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.
 						},
 					},
 				},
-				{ // OR logic
+				{ // OR logic for ROSA
 					From: []netv1.NetworkPolicyPeer{
-						{ // need this for access dashboard
+						{ // need this to access dashboard
 							NamespaceSelector: &metav1.LabelSelector{
 								MatchLabels: map[string]string{
 									"kubernetes.io/metadata.name": "openshift-ingress",
+								},
+							},
+						},
+					},
+				},
+				{ // OR logic for PSI
+					From: []netv1.NetworkPolicyPeer{
+						{ // need this to access dashboard
+							NamespaceSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"kubernetes.io/metadata.name": "openshift-host-network",
 								},
 							},
 						},
@@ -245,6 +266,7 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.
 			err = ctrl.SetControllerReference(dscInit, desiredNetworkPolicy, r.Scheme)
 			if err != nil {
 				r.Log.Error(err, "Unable to add OwnerReference to the Network policy")
+
 				return err
 			}
 			err = r.Client.Create(ctx, desiredNetworkPolicy)
@@ -273,10 +295,12 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.
 			// Reconcile labels and spec field
 			foundNetworkPolicy.Spec = desiredNetworkPolicy.Spec
 			foundNetworkPolicy.ObjectMeta.Labels = desiredNetworkPolicy.ObjectMeta.Labels
+
 			return r.Update(ctx, foundNetworkPolicy)
 		})
 		if err != nil {
 			r.Log.Error(err, "Unable to reconcile the Network Policy")
+
 			return err
 		}
 	}
@@ -291,7 +315,7 @@ func CompareNotebookNetworkPolicies(np1 netv1.NetworkPolicy, np2 netv1.NetworkPo
 		reflect.DeepEqual(np1.Spec, np2.Spec)
 }
 
-func (r *DSCInitializationReconciler) waitForManagedSecret(ctx context.Context, name, namespace string) (*corev1.Secret, error) {
+func (r *DSCInitializationReconciler) waitForManagedSecret(ctx context.Context, name string, namespace string) (*corev1.Secret, error) {
 	managedSecret := &corev1.Secret{}
 	err := wait.PollUntilContextTimeout(ctx, resourceInterval, resourceTimeout, false, func(ctx context.Context) (done bool, err error) {
 		err = r.Client.Get(ctx, client.ObjectKey{
@@ -303,6 +327,7 @@ func (r *DSCInitializationReconciler) waitForManagedSecret(ctx context.Context, 
 			if apierrs.IsNotFound(err) {
 				return false, nil
 			}
+
 			return false, err
 		} else {
 			return true, nil
@@ -354,6 +379,7 @@ func (r *DSCInitializationReconciler) createOdhCommonConfigMap(ctx context.Conte
 			err = ctrl.SetControllerReference(dscInit, foundConfigMap, r.Scheme)
 			if err != nil {
 				r.Log.Error(err, "Unable to add OwnerReference to the odh-common-config ConfigMap")
+
 				return err
 			}
 			err = r.Client.Create(ctx, desiredConfigMap)
@@ -364,6 +390,7 @@ func (r *DSCInitializationReconciler) createOdhCommonConfigMap(ctx context.Conte
 			return err
 		}
 	}
+
 	return nil
 }
 

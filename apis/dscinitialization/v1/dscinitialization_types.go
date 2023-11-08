@@ -129,9 +129,8 @@ type DSCInitializationList struct {
 type FeatureTracker struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec   FeatureTrackerSpec   `json:"spec,omitempty"`
-	Status FeatureTrackerStatus `json:"status,omitempty"`
+	Spec              FeatureTrackerSpec   `json:"spec,omitempty"`
+	Status            FeatureTrackerStatus `json:"status,omitempty"`
 }
 
 func (s *FeatureTracker) ToOwnerReference() metav1.OwnerReference {

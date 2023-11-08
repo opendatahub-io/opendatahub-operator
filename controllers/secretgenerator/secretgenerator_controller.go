@@ -69,6 +69,7 @@ func (r *SecretGeneratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			if _, found := e.Object.GetAnnotations()[SECRET_NAME_ANNOTATION]; found {
 				return true
 			}
+
 			return false
 		},
 		GenericFunc: func(e event.GenericEvent) bool {
@@ -78,6 +79,7 @@ func (r *SecretGeneratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			if _, found := e.Object.GetAnnotations()[SECRET_NAME_ANNOTATION]; found {
 				return true
 			}
+
 			return false
 		},
 		UpdateFunc: func(e event.UpdateEvent) bool {
@@ -90,6 +92,7 @@ func (r *SecretGeneratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&source.Kind{Type: &v1.Secret{}}, handler.EnqueueRequestsFromMapFunc(
 			func(a client.Object) []reconcile.Request {
 				namespacedName := types.NamespacedName{Name: a.GetName(), Namespace: a.GetNamespace()}
+
 				return []reconcile.Request{{NamespacedName: namespacedName}}
 			}), builder.WithPredicates(predicates)).WithEventFilter(predicates).
 		Complete(r)
@@ -108,6 +111,7 @@ func (r *SecretGeneratorReconciler) Reconcile(ctx context.Context, request ctrl.
 			// If Secret is deleted, delete OAuthClient if exists
 			err = r.deleteOAuthClient(ctx, request.Name)
 		}
+
 		return ctrl.Result{}, err
 	}
 
@@ -137,6 +141,7 @@ func (r *SecretGeneratorReconciler) Reconcile(ctx context.Context, request ctrl.
 			secret, err := NewSecretFrom(foundSecret.GetAnnotations())
 			if err != nil {
 				secGenLog.Error(err, "error creating secret")
+
 				return ctrl.Result{}, err
 			}
 
@@ -153,6 +158,7 @@ func (r *SecretGeneratorReconciler) Reconcile(ctx context.Context, request ctrl.
 				oauthClientRoute, err := r.getRoute(ctx, secret.OAuthClientRoute, request.Namespace)
 				if err != nil {
 					secGenLog.Error(err, "Unable to retrieve route", "route-name", secret.OAuthClientRoute)
+
 					return ctrl.Result{}, err
 				}
 				// Generate OAuthClient for the generated secret
@@ -161,6 +167,7 @@ func (r *SecretGeneratorReconciler) Reconcile(ctx context.Context, request ctrl.
 				if err != nil {
 					secGenLog.Error(err, "error creating oauth client resource. Recreate the Secret", "secret-name",
 						foundSecret.Name)
+
 					return ctrl.Result{}, err
 				}
 			}
@@ -186,6 +193,7 @@ func (r *SecretGeneratorReconciler) getRoute(ctx context.Context, name string, n
 			if apierrs.IsNotFound(err) {
 				return false, nil
 			}
+
 			return false, err
 		}
 		if route.Spec.Host == "" {
@@ -197,6 +205,7 @@ func (r *SecretGeneratorReconciler) getRoute(ctx context.Context, name string, n
 	if err != nil {
 		return nil, err
 	}
+
 	return route, err
 }
 
@@ -219,9 +228,11 @@ func (r *SecretGeneratorReconciler) createOAuthClient(ctx context.Context, name 
 	if err != nil {
 		if apierrs.IsAlreadyExists(err) {
 			secGenLog.Info("OAuth client resource already exists", "name", oauthClient.Name)
+
 			return nil
 		}
 	}
+
 	return err
 }
 
@@ -235,6 +246,7 @@ func (r *SecretGeneratorReconciler) deleteOAuthClient(ctx context.Context, secre
 		if apierrs.IsNotFound(err) {
 			return nil
 		}
+
 		return err
 	}
 

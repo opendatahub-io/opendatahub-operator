@@ -72,7 +72,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.1.0
-    createdAt: "2023-10-30T14:38:57Z"
+    createdAt: "2023-8-23T00:00:00Z"
     olm.skipRange: '>=1.0.0 <2.0.0'
     operatorframework.io/initialization-resource: |-
       {
@@ -117,11 +117,11 @@ metadata:
           }
         }
       }
-    operators.operatorframework.io/builder: operator-sdk-v1.32.0
+    operators.operatorframework.io/builder: operator-sdk-v1.24.1
     operators.operatorframework.io/internal-objects: '[dscinitialization.opendatahub.io]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/opendatahub-io/opendatahub-operator
-  name: opendatahub-operator.v2.1.0
+  name: opendatahub-operator.v2.4.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -565,6 +565,7 @@ spec:
           verbs:
           - create
           - delete
+          - get
           - list
           - update
           - watch
@@ -1683,6 +1684,10 @@ spec:
                   initialDelaySeconds: 15
                   periodSeconds: 20
                 name: manager
+                ports:
+                - containerPort: 8080
+                  name: http
+                  protocol: TCP
                 readinessProbe:
                   httpGet:
                     path: /readyz
@@ -1768,11 +1773,11 @@ spec:
   maintainers:
   - email: opendatahub@redhat.com
     name: Open Data Hub Maintainers
-  maturity: alpha
+  maturity: stable
   minKubeVersion: 1.22.0
   provider:
     name: ODH
   selector:
     matchLabels:
       component: opendatahub-operator
-  version: 2.1.0
+  version: 2.4.0

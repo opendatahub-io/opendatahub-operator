@@ -44,6 +44,7 @@ func WaitForPodsToBeReady(namespace string) Action {
 						if condition.Type == corev1.PodReady {
 							if condition.Status != corev1.ConditionTrue {
 								podReady = false
+                
 								break
 							}
 						}
@@ -73,15 +74,18 @@ func WaitForResourceToBeCreated(namespace string, gvr schema.GroupVersionResourc
 			resources, err := feature.DynamicClient.Resource(gvr).Namespace(namespace).List(context.TODO(), metav1.ListOptions{Limit: 1})
 			if err != nil {
 				log.Error(err, "failed waiting for resource", "namespace", namespace, "resource", gvr)
+
 				return false, err
 			}
 
 			if len(resources.Items) > 0 {
 				log.Info("resource created", "namespace", namespace, "resource", gvr)
+
 				return true, nil
 			}
 
 			log.Info("still waiting for resource", "namespace", namespace, "resource", gvr)
+
 			return false, nil
 		})
 	}
