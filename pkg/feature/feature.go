@@ -39,7 +39,7 @@ type Feature struct {
 	loaders        []Action
 }
 
-// Action is a func type which can be used for different purposes while having access to Feature struct
+// Action is a func type which can be used for different purposes while having access to Feature struct.
 type Action func(feature *Feature) error
 
 func (f *Feature) Apply() error {

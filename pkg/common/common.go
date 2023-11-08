@@ -18,10 +18,16 @@ limitations under the License.
 package common
 
 import (
+	"context"
+	"crypto/sha256"
+	b64 "encoding/base64"
 	"fmt"
 	"os"
 	"regexp"
 	"strings"
+
+	routev1 "github.com/openshift/api/route/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // ReplaceInFile replaces content in the given file either by plain strings or regex patterns based on the content.
@@ -43,6 +49,25 @@ func ReplaceInFile(fileName string, replacements map[string]string) error {
 	}
 
 	// Write the modified content back to the file
+	err = os.WriteFile(fileName, []byte(newContent), 0)
+	if err != nil {
+		return fmt.Errorf("failed to write to file: %w", err)
+	}
+
+	return nil
+}
+
+// MatchLineInFile use the 'key' of the replacements as match pattern and replace the line with 'value'.
+func MatchLineInFile(fileName string, replacements map[string]string) error {
+	fileContent, err := os.ReadFile(fileName)
+	if err != nil {
+		return fmt.Errorf("failed to read file: %w", err)
+	}
+	newContent := string(fileContent)
+	for matchPattern, NewValue := range replacements {
+		re := regexp.MustCompile(matchPattern + `(.*)`)
+		newContent = re.ReplaceAllString(newContent, NewValue)
+	}
 	err = os.WriteFile(fileName, []byte(newContent), 0)
 	if err != nil {
 		return fmt.Errorf("failed to write to file: %w", err)
@@ -75,5 +100,37 @@ func TrimToRFC1123Name(input string) string {
 
 func isAlphanumeric(char byte) bool {
 	regex := regexp.MustCompile(`^[A-Za-z0-9]$`)
+
 	return regex.Match([]byte{char})
+}
+
+// encode configmap data and return in base64.
+func GetMonitoringData(data string) (string, error) {
+	// Create a new SHA-256 hash object
+	hash := sha256.New()
+
+	// Write the input data to the hash object
+	_, err := hash.Write([]byte(data))
+	if err != nil {
+		return "", err
+	}
+
+	// Get the computed hash sum
+	hashSum := hash.Sum(nil)
+
+	// Encode the hash sum to Base64
+	encodedData := b64.StdEncoding.EncodeToString(hashSum)
+
+	return encodedData, nil
+}
+
+// Use openshift-console namespace to get host domain.
+func GetDomain(cli client.Client, name string, namespace string) (string, error) {
+	consoleRoute := &routev1.Route{}
+	if err := cli.Get(context.TODO(), client.ObjectKey{Name: name, Namespace: namespace}, consoleRoute); err != nil {
+		return "", fmt.Errorf("error getting %s route URL: %w", name, err)
+	}
+	domainIndex := strings.Index(consoleRoute.Spec.Host, ".")
+
+	return consoleRoute.Spec.Host[domainIndex+1:], nil
 }

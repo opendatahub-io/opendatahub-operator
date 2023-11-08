@@ -50,6 +50,7 @@ func (tc *testContext) testDSCDeletion() error {
 			return fmt.Errorf("error getting DSC instance :%w", err)
 		}
 	}
+
 	return nil
 }
 
@@ -62,6 +63,7 @@ func (tc *testContext) testApplicationDeletion(component components.ComponentInt
 		})
 		if err != nil {
 			log.Printf("error listing component deployments :%v. Trying again...", err)
+
 			return false, err
 		}
 		if len(appList.Items) != 0 {

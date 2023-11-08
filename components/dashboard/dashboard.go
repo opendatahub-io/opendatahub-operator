@@ -13,7 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
@@ -69,6 +69,7 @@ func (d *Dashboard) OverrideManifests(platform string) error {
 			Path = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
 		}
 	}
+
 	return nil
 }
 
@@ -76,17 +77,21 @@ func (d *Dashboard) GetComponentName() string {
 	return ComponentName
 }
 
-func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
+func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
 	var imageParamMap = map[string]string{
 		"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
 	}
+	enabled := d.GetManagementState() == operatorv1.Managed
+	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
+
 	platform, err := deploy.GetPlatform(cli)
 	if err != nil {
 		return err
 	}
 
-	enabled := d.GetManagementState() == operatorv1.Managed
+	// Update Default rolebinding
 	if enabled {
+		// Download manifests and update paths
 		if err := d.OverrideManifests(string(platform)); err != nil {
 			return err
 		}
@@ -95,9 +100,13 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 			if err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "odh-dashboard"); err != nil {
 				return err
 			}
-
+			// Deploy CRDs
 			if err := d.deployCRDsForPlatform(cli, owner, dscispec.ApplicationsNamespace, platform); err != nil {
-				return fmt.Errorf("failed to deploy dashboard crds %s: %v", PathCRDs, err)
+				return fmt.Errorf("failed to deploy %s crds %s: %v", ComponentName, PathCRDs, err)
+			}
+
+			if err := d.configureServiceMesh(cli, owner, dscispec); err != nil {
+				return err
 			}
 		}
 
@@ -105,11 +114,11 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 			if err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "rhods-dashboard"); err != nil {
 				return err
 			}
-
+			// Deploy CRDs
 			if err := d.deployCRDsForPlatform(cli, owner, dscispec.ApplicationsNamespace, platform); err != nil {
-				return fmt.Errorf("failed to deploy dashboard crds %s: %v", PathCRDs, err)
+				return fmt.Errorf("failed to deploy %s crds %s: %v", ComponentNameSupported, PathCRDs, err)
 			}
-
+			// Apply RHODS specific configs
 			if err := d.applyRhodsSpecificConfigs(cli, owner, dscispec.ApplicationsNamespace, platform); err != nil {
 				return err
 			}
@@ -148,25 +157,32 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 			sectionTitle = "OpenShift Self Managed Services"
 		}
 
-		if err := d.deployISVManifests(cli, owner, dscispec.ApplicationsNamespace, ComponentNameSupported, platform); err != nil {
+		if err := d.deployISVManifests(cli, owner, ComponentNameSupported, dscispec.ApplicationsNamespace, platform); err != nil {
 			return err
 		}
 
 		if err := d.deployConsoleLink(cli, owner, dscispec.ApplicationsNamespace, ComponentNameSupported, sectionTitle); err != nil {
 			return err
 		}
-	}
-
-	if enabled {
-		if err := d.configureServiceMesh(cli, owner, dscispec); err != nil {
-			return err
+		// CloudService Monitoring handling
+		if platform == deploy.ManagedRhods {
+			if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentNameSupported); err != nil {
+				return err
+			}
+			if err = deploy.DeployManifestsFromPath(cli, owner,
+				filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
+				dscispec.Monitoring.Namespace,
+				ComponentName+"prometheus", true); err != nil {
+				return err
+			}
 		}
+		return nil
+	default:
+		return nil
 	}
-
-	return nil
 }
 
-func (d *Dashboard) Cleanup(cli client.Client, dscispec *dsci.DSCInitializationSpec) error {
+func (d *Dashboard) Cleanup(cli client.Client, dscispec *dsciv1.DSCInitializationSpec) error {
 	shouldConfigureServiceMesh, err := deploy.ShouldConfigureServiceMesh(cli, dscispec)
 	if err != nil {
 		return err
@@ -199,6 +215,7 @@ func (d *Dashboard) deployCRDsForPlatform(cli client.Client, owner metav1.Object
 	}
 
 	enabled := d.ManagementState == operatorv1.Managed
+
 	return deploy.DeployManifestsFromPath(cli, owner, PathCRDs, namespace, componentName, enabled)
 }
 
@@ -267,7 +284,7 @@ func (d *Dashboard) deployConsoleLink(cli client.Client, owner metav1.Object, na
 	}
 
 	enabled := d.ManagementState == operatorv1.Managed
-	err = deploy.DeployManifestsFromPath(cli, owner, pathConsoleLink, namespace, componentName, enabled)
+	err = deploy.DeployManifestsFromPath(cli, owner, PathConsoleLink, namespace, componentName, enabled)
 	if err != nil {
 		return fmt.Errorf("failed to set dashboard consolelink from %s: %w", PathConsoleLink, err)
 	}

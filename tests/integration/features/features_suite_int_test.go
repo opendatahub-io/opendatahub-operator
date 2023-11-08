@@ -48,6 +48,7 @@ var _ = BeforeSuite(func() {
 	projectDir, err := envtestutil.FindProjectRoot()
 	if err != nil {
 		fmt.Printf("Error finding project root: %v\n", err)
+
 		return
 	}
 
