@@ -45,11 +45,6 @@ type Components struct {
 	// Workbenches component configuration.
 	Workbenches workbenches.Workbenches `json:"workbenches,omitempty"`
 
-	// ModelMeshServing component configuration.
-	// Require CodeFlare Operator to be installed before enable component
-	// Does not support enabled Kserve at the same time
-	ModelMeshServing modelmeshserving.ModelMeshServing `json:"modelmeshserving,omitempty"`
-
 	// DataServicePipeline component configuration.
 	// Require OpenShift Pipelines Operator to be installed before enable component
 	DataSciencePipelines datasciencepipelines.DataSciencePipelines `json:"datasciencepipelines,omitempty"`
@@ -58,6 +53,11 @@ type Components struct {
 	// Require OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component
 	// Does not support enabled ModelMeshServing at the same time
 	Kserve kserve.Kserve `json:"kserve,omitempty"`
+
+	// ModelMeshServing component configuration.
+	// Require CodeFlare Operator to be installed before enable component
+	// Does not support enabled Kserve at the same time
+	ModelMeshServing modelmeshserving.ModelMeshServing `json:"modelmeshserving,omitempty"`
 
 	// CodeFlare component configuration.
 	// Require CodeFlare Operator to be installed before enable component

@@ -32,9 +32,9 @@ func (in *Components) DeepCopyInto(out *Components) {
 	*out = *in
 	in.Dashboard.DeepCopyInto(&out.Dashboard)
 	in.Workbenches.DeepCopyInto(&out.Workbenches)
-	in.ModelMeshServing.DeepCopyInto(&out.ModelMeshServing)
 	in.DataSciencePipelines.DeepCopyInto(&out.DataSciencePipelines)
 	in.Kserve.DeepCopyInto(&out.Kserve)
+	in.ModelMeshServing.DeepCopyInto(&out.ModelMeshServing)
 	in.CodeFlare.DeepCopyInto(&out.CodeFlare)
 	in.Ray.DeepCopyInto(&out.Ray)
 	in.TrustyAI.DeepCopyInto(&out.TrustyAI)
