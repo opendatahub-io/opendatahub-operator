@@ -105,9 +105,6 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 				return fmt.Errorf("failed to deploy %s crds %s: %v", ComponentName, PathCRDs, err)
 			}
 
-			if err := d.configureServiceMesh(cli, owner, dscispec); err != nil {
-				return err
-			}
 		}
 
 		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
@@ -140,6 +137,10 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 			base = PathServiceMesh
 		}
 		if err = deploy.DeployManifestsFromPath(cli, owner, base, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+			return err
+		}
+
+		if err := d.configureServiceMesh(cli, owner, dscispec); err != nil {
 			return err
 		}
 
