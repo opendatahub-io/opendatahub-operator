@@ -5,5 +5,5 @@ metadata:
   namespace: knative-serving
 spec:
   controlPlaneRef:
-    namespace: {{ .Mesh.Namespace }}
-    name: {{ .Mesh.Name }}
+    namespace: {{ .ControlPlane.Namespace }}
+    name: {{ .ControlPlane.Name }}

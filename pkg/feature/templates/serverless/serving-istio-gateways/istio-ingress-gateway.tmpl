@@ -14,5 +14,5 @@ spec:
         number: 443
         protocol: HTTPS
       tls:
-        credentialName: {{ .Serving.IngressGateway.Certificate.SecretName }}
+        credentialName: {{ .KnativeCertificateSecret }}
         mode: SIMPLE

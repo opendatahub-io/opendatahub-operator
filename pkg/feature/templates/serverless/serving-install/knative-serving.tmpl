@@ -20,4 +20,4 @@ spec:
       enabled: true
   config:
     istio:
-      local-gateway.knative-serving.knative-local-gateway: "knative-local-gateway.{{ .Mesh.Namespace }}.svc.cluster.local"
+      local-gateway.knative-serving.knative-local-gateway: "knative-local-gateway.{{ .ControlPlane.Namespace }}.svc.cluster.local"

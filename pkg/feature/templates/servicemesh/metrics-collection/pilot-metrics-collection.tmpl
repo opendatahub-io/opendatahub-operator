@@ -1,8 +1,8 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: {{ .Mesh.Name }}-pilot-monitor
-  namespace: {{ .Mesh.Namespace }}
+  name: {{ .ControlPlane.Name }}-pilot-monitor
+  namespace: {{ .ControlPlane.Namespace }}
 spec:
   targetLabels:
   - app

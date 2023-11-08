@@ -8,7 +8,7 @@ type ServiceMeshSpec struct {
 	// +kubebuilder:default=Removed
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 	// Mesh holds configuration of Service Mesh used by Opendatahub.
-	Mesh ControlPlaneSpec `json:"controlPlane,omitempty"`
+	ControlPlane ControlPlaneSpec `json:"controlPlane,omitempty"`
 }
 
 type ControlPlaneSpec struct {
@@ -24,7 +24,7 @@ type ControlPlaneSpec struct {
 	// to "None" will disable metrics collection.
 	// +kubebuilder:validation:Enum=Istio;None
 	// +kubebuilder:default=Istio
-	MetricsCollection string `json:"monitoring,omitempty"`
+	MetricsCollection string `json:"metricsCollection,omitempty"`
 	// IdentityType specifies the identity implementation used in the Mesh. For ROSA
 	// clusters, you would need to set this to ThirdParty.
 	// +kubebuilder:validation:Enum=Kubernetes;ThirdParty

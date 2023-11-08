@@ -35,8 +35,8 @@ func EnsureServiceMeshInstalled(f *feature.Feature) error {
 		return err
 	}
 
-	smcp := f.Spec.Mesh.Name
-	smcpNs := f.Spec.Mesh.Namespace
+	smcp := f.Spec.ControlPlane.Name
+	smcpNs := f.Spec.ControlPlane.Namespace
 
 	if err := WaitForControlPlaneToBeReady(f); err != nil {
 		log.Error(err, "failed waiting for control plane being ready", "feature", f.Name, "control-plane", smcp, "namespace", smcpNs)
@@ -48,8 +48,8 @@ func EnsureServiceMeshInstalled(f *feature.Feature) error {
 }
 
 func WaitForControlPlaneToBeReady(feature *feature.Feature) error {
-	smcp := feature.Spec.Mesh.Name
-	smcpNs := feature.Spec.Mesh.Namespace
+	smcp := feature.Spec.ControlPlane.Name
+	smcpNs := feature.Spec.ControlPlane.Namespace
 
 	log.Info("waiting for control plane components to be ready", "feature", feature.Name, "control-plane", smcp, "namespace", smcpNs, "duration (s)", duration.Seconds())
 

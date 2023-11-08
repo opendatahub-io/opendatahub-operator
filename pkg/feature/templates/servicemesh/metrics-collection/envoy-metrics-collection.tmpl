@@ -1,8 +1,8 @@
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
-  name: {{ .Mesh.Name }}-envoy-monitor
-  namespace: {{ .Mesh.Namespace }}
+  name: {{ .ControlPlane.Name }}-envoy-monitor
+  namespace: {{ .ControlPlane.Namespace }}
 spec:
   selector:
     matchExpressions:

@@ -1,8 +1,8 @@
 apiVersion: maistra.io/v2
 kind: ServiceMeshControlPlane
 metadata:
-  name: {{ .Mesh.Name }}
-  namespace: {{ .Mesh.Namespace }}
+  name: {{ .ControlPlane.Name }}
+  namespace: {{ .ControlPlane.Namespace }}
 spec:
   tracing:
     type: None
@@ -20,7 +20,7 @@ spec:
     dataPlane:
       mtls: true # otherwise inference-graph will not work. We use PeerAuthentication resources to force mTLS
     identity:
-      type: {{ .Mesh.IdentityType }}
+      type: {{ .ControlPlane.IdentityType }}
   techPreview:
     meshConfig:
       defaultConfig:

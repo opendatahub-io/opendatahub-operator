@@ -28,10 +28,10 @@ func ConfigureServiceMeshFeatures(s *feature.FeaturesInitializer) error {
 		).
 		PreConditions(
 			EnsureServiceMeshOperatorInstalled,
-			feature.CreateNamespace(serviceMeshSpec.Mesh.Namespace),
+			feature.CreateNamespace(serviceMeshSpec.ControlPlane.Namespace),
 		).
 		PostConditions(
-			feature.WaitForPodsToBeReady(serviceMeshSpec.Mesh.Namespace),
+			feature.WaitForPodsToBeReady(serviceMeshSpec.ControlPlane.Namespace),
 		).
 		Load()
 	if errSmcp != nil {
@@ -39,7 +39,7 @@ func ConfigureServiceMeshFeatures(s *feature.FeaturesInitializer) error {
 	}
 	s.Features = append(s.Features, smcpCreation)
 
-	if serviceMeshSpec.Mesh.MetricsCollection == "Istio" {
+	if serviceMeshSpec.ControlPlane.MetricsCollection == "Istio" {
 		metricsCollection, errMetrics := feature.CreateFeature("mesh-metrics-collection").
 			For(s.DSCInitializationSpec).
 			Manifests(

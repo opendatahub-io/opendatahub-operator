@@ -50,7 +50,7 @@ func ConfigureServerlessFeatures(s *feature.FeaturesInitializer) error {
 			// Check serverless is installed
 			feature.WaitForResourceToBeCreated(knativeServingNamespace, gvr.KnativeServing),
 		).
-		WithData(ServingIngressDomain).
+		WithData(ServingDefaultValues, ServingIngressDomain).
 		WithResources(ServingCertificateResource).
 		Manifests(
 			path.Join(rootDir, templatesDir, "serving-istio-gateways"),

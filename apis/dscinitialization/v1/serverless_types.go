@@ -40,17 +40,17 @@ type IngressGatewaySpec struct {
 	// like *.example.com. If not set, the domain of the OpenShift Ingress is used.
 	// If you choose to generate a certificate, this is the domain used for the certificate request.
 	Domain string `json:"domain,omitempty"`
-	// Certificate specifies configuration about the location of the TLS certificate and
-	// if a certificate would be generated.
+	// Certificate specifies configuration of the TLS certificate securing communications of
+	// the KNative Istio Ingress Gateway. In this configuration, the default value for SecretName
+	// is knative-serving-cert.
 	Certificate CertificateSpec `json:"certificate,omitempty"`
 }
 
 // CertificateSpec represents the specification of the certificate securing communications of
-// the Istio Ingress Gateway for the KNative network.
+// an Istio Gateway.
 type CertificateSpec struct {
 	// SecretName specifies the name of the Kubernetes Secret resource that contains a
 	// TLS certificate secure HTTP communications for the KNative network.
-	// +kubebuilder:default=knative-serving-cert
 	SecretName string `json:"secretName,omitempty"`
 	// Type specifies if the TLS certificate should be generated automatically, or if the certificate
 	// is provided by the user. Allowed values are:

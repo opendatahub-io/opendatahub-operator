@@ -103,12 +103,12 @@ spec:
                           for the Istio Ingress Gateway that is bound to KNative-Serving.
                         properties:
                           certificate:
-                            description: Certificate specifies configuration about
-                              the location of the TLS certificate and if a certificate
-                              would be generated.
+                            description: Certificate specifies configuration of the
+                              TLS certificate securing communications of the KNative
+                              Istio Ingress Gateway. In this configuration, the default
+                              value for SecretName is knative-serving-cert.
                             properties:
                               secretName:
-                                default: knative-serving-cert
                                 description: SecretName specifies the name of the
                                   Kubernetes Secret resource that contains a TLS certificate
                                   secure HTTP communications for the KNative network.
@@ -166,7 +166,7 @@ spec:
                         - Kubernetes
                         - ThirdParty
                         type: string
-                      monitoring:
+                      metricsCollection:
                         default: Istio
                         description: MetricsCollection specifies if metrics from components
                           on the Mesh namespace should be collected. Setting the value
@@ -180,7 +180,7 @@ spec:
                       name:
                         default: data-science-smcp
                         description: Name is a name Service Mesh Control Plane. Defaults
-                          to "minimal".
+                          to "data-science-smcp".
                         type: string
                       namespace:
                         default: istio-system
