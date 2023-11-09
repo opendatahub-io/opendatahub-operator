@@ -22,6 +22,8 @@ import (
 	"net/http"
 
 	admissionv1 "k8s.io/api/admission/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -56,6 +58,54 @@ func (w *OpenDataHubWebhook) InjectClient(c client.Client) error {
 	return nil
 }
 
+func (w *OpenDataHubWebhook) checkDupCreation(ctx context.Context, req admission.Request) admission.Response {
+	if req.Operation != admissionv1.Create {
+		return admission.Allowed(fmt.Sprintf("duplication check: skipping %v request", req.Operation))
+	}
+
+	switch req.Kind.Kind {
+	case "DataScienceCluster":
+	case "DSCInitialization":
+	default:
+		log.Info("Got wrong kind", "kind", req.Kind.Kind)
+		return admission.Errored(http.StatusBadRequest, nil)
+	}
+
+	gvk := schema.GroupVersionKind{
+		Group:   req.Kind.Group,
+		Version: req.Kind.Version,
+		Kind:    req.Kind.Kind,
+	}
+
+	list := &unstructured.UnstructuredList{}
+	list.SetGroupVersionKind(gvk)
+
+	if err := w.client.List(ctx, list); err != nil {
+		return admission.Errored(http.StatusBadRequest, err)
+	}
+
+	// if len == 1 now creation of #2 is being handled
+	if len(list.Items) > 0 {
+		return admission.Denied(fmt.Sprintf("Only one instance of %s object is allowed", req.Kind.Kind))
+	}
+
+	return admission.Allowed(fmt.Sprintf("%s duplication check passed", req.Kind.Kind))
+}
+
 func (w *OpenDataHubWebhook) Handle(ctx context.Context, req admission.Request) admission.Response {
-	return admission.ValidationResponse(true, "")
+	var resp admission.Response
+
+	// Handle only Create and Update
+	if req.Operation == admissionv1.Delete || req.Operation == admissionv1.Connect {
+		msg := fmt.Sprintf("ODH skipping %v request", req.Operation)
+		log.Info(msg)
+		return admission.Allowed(msg)
+	}
+
+	resp = w.checkDupCreation(ctx, req)
+	if !resp.Allowed {
+		return resp
+	}
+
+	return admission.Allowed(fmt.Sprintf("%s allowed", req.Kind.Kind))
 }
