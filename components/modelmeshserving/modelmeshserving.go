@@ -163,7 +163,6 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 		}
 	}
 	return nil
-
 }
 
 func (m *ModelMeshServing) DeepCopyInto(target *ModelMeshServing) {
