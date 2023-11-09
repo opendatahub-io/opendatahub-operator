@@ -12,7 +12,8 @@ import (
 )
 
 // CreateNamespace will create namespace with the given name if it does not exist yet and sets feature as an owner of it.
-// This way we ensure that when the feature is cleaned up, the namespace will be deleted as well.
+// This way we ensure that when the feature is cleaned up, the namespace will be deleted as well. If the namespace
+// already exists, no action will be performed.
 func CreateNamespace(namespace string) Action {
 	return func(f *Feature) error {
 		// Despite the cluster.CreateNamespace function already checks if the target
