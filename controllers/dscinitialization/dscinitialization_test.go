@@ -29,8 +29,7 @@ const (
 var _ = Describe("DataScienceCluster initialization", func() {
 	Context("Creation of related resources", func() {
 		// must be default as instance name, or it will break
-		const monitoringNamespace = "test-monitoring-ns"
-		const applicationName = "rhods-setup"
+		const applicationName = "default-dsci"
 		BeforeEach(func() {
 			// when
 			desiredDsci := createDSCI(applicationName, operatorv1.Managed, monitoringNamespace)
@@ -101,7 +100,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 	Context("Monitoring Resource", func() {
 		AfterEach(cleanupResources)
 		const monitoringNamespace2 = "test-monitoring-ns2"
-		const applicationName = "default"
+		const applicationName = "default-dsci"
 		It("Should not create monitoring namespace if monitoring is disabled", func() {
 			// when
 			desiredDsci := createDSCI(applicationName, operatorv1.Removed, monitoringNamespace2)
@@ -127,20 +126,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 
 	Context("Handling existing resources", func() {
 		AfterEach(cleanupResources)
-		const monitoringNamespace = "test-monitoring-ns"
-		const applicationName = "default"
-
-		It("Should not create DSCI instance if name not 'default'", func() {
-			wrongApplicationName := "default2"
-			// when
-			desiredDsci := createDSCI(wrongApplicationName, operatorv1.Managed, monitoringNamespace)
-			Expect(k8sClient.Create(context.Background(), desiredDsci)).Should(Succeed())
-			foundDsciList := &dsci.DSCInitializationList{}
-
-			// then
-			Expect(len(foundDsciList.Items)).To(Equal(0))
-			Eventually(dscInitializationIsReady(wrongApplicationName, workingNamespace, desiredDsci), timeout, interval).Should(BeFalse())
-		})
+		const applicationName = "default-dsci"
 
 		It("Should not have more than one DSCI instance in the cluster", func() {
 
