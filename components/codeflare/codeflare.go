@@ -51,7 +51,7 @@ func (c *CodeFlare) GetComponentName() string {
 // Verifies that CodeFlare implements ComponentInterface.
 var _ components.ComponentInterface = (*CodeFlare)(nil)
 
-func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
+func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
 	var imageParamMap = map[string]string{
 		"odh-codeflare-operator-controller-image": "RELATED_IMAGE_ODH_CODEFLARE_OPERATOR_IMAGE", // no need mcad, embedded in cfo
 		"namespace": dscispec.ApplicationsNamespace,

@@ -72,7 +72,7 @@ func (k *Kserve) GetComponentName() string {
 // Verifies that Kserve implements ComponentInterface.
 var _ components.ComponentInterface = (*Kserve)(nil)
 
-func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
+func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
 	// paramMap for Kserve to use.
 	var imageParamMap = map[string]string{}
 

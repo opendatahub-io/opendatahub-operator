@@ -5,6 +5,8 @@ package dashboard
 import (
 	"context"
 	"fmt"
+	v1 "k8s.io/api/core/v1"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"path/filepath"
 	"strings"
 
@@ -73,7 +75,7 @@ func (d *Dashboard) GetComponentName() string {
 // Verifies that Dashboard implements ComponentInterface.
 var _ components.ComponentInterface = (*Dashboard)(nil)
 
-func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
+func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, currentComponentStatus bool) error {
 	var imageParamMap = map[string]string{
 		"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
 	}
@@ -87,6 +89,10 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 
 	// Update Default rolebinding
 	if enabled {
+
+		if err := d.cleanOauthClientSecrets(cli, dscispec, currentComponentStatus); err != nil {
+			return err
+		}
 		// Download manifests and update paths
 		if err := d.OverrideManifests(string(platform)); err != nil {
 			return err
@@ -257,5 +263,30 @@ func (d *Dashboard) deployConsoleLink(cli client.Client, owner metav1.Object, na
 		return fmt.Errorf("failed to set dashboard consolelink from %s: %w", PathConsoleLink, err)
 	}
 
+	return nil
+}
+
+func (d *Dashboard) cleanOauthClientSecrets(cli client.Client, dscispec *dsciv1.DSCInitializationSpec, currentComponentStatus bool) error {
+	// Remove previous oauth-client secrets
+	// Check if component is going from state of `Not Installed --> Installed`
+	// Assumption: Component is currently set to enabled
+	if !currentComponentStatus {
+		// Delete client secrets from previous installation
+		oauthClientSecret := &v1.Secret{}
+		err := cli.Get(context.TODO(), client.ObjectKey{
+			Namespace: dscispec.ApplicationsNamespace,
+			Name:      "dashboard-oauth-client",
+		}, oauthClientSecret)
+		if err != nil {
+			if !apierrs.IsNotFound(err) {
+				return err
+			}
+		} else {
+			err := cli.Delete(context.TODO(), oauthClientSecret)
+			if err != nil {
+				return fmt.Errorf("error deleting oauth client secret: %v", err)
+			}
+		}
+	}
 	return nil
 }
