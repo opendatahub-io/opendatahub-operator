@@ -77,7 +77,7 @@ func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, d
 
 		if found, err := deploy.OperatorExists(cli, dependentOperator); err != nil {
 			return err
-		} else if !found {
+		} else if found {
 			return fmt.Errorf("operator %s  found. Please uninstall the operator before enabling %s component",
 				dependentOperator, ComponentName)
 		}
