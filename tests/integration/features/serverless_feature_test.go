@@ -2,18 +2,26 @@ package features_test
 
 import (
 	"context"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/serverless"
-	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
+
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/serverless"
+	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+)
+
+const (
+	testNamespacePrefix = "test-ns"
+	testDomainFooCom    = "*.foo.com"
 )
 
 const knativeServingCrd = `apiVersion: apiextensions.k8s.io/v1beta1
@@ -110,8 +118,7 @@ var _ = Describe("Serverless feature", func() {
 				Expect(serverless.EnsureServerlessAbsent(testFeature)).ToNot(HaveOccurred())
 			})
 			It("KNative serving absence check should fail when serving is present", func() {
-				ns := "test-ns"
-				ns = envtestutil.AppendRandomNameTo(ns)
+				ns := envtestutil.AppendRandomNameTo(testNamespacePrefix)
 				nsResource := createNamespace(ns)
 				Expect(envTestClient.Create(context.TODO(), nsResource)).ToNot(HaveOccurred())
 				defer objectCleaner.DeleteAll(nsResource)
@@ -152,23 +159,22 @@ var _ = Describe("Serverless feature", func() {
 				Expect(testFeature.Spec.KnativeIngressDomain).To(Equal("*.foo.io"))
 			})
 			It("should use user value when set in the DSCI", func() {
-				testFeature.Spec.Serving.IngressGateway.Domain = "*.foo.com"
+				testFeature.Spec.Serving.IngressGateway.Domain = testDomainFooCom
 				Expect(serverless.ServingIngressDomain(testFeature)).ToNot(HaveOccurred())
-				Expect(testFeature.Spec.KnativeIngressDomain).To(Equal("*.foo.com"))
+				Expect(testFeature.Spec.KnativeIngressDomain).To(Equal(testDomainFooCom))
 			})
 		})
 	})
 	Describe("resources", func() {
 		It("should create a TLS secret if certificate is SelfSigned", func() {
-			ns := "test-ns"
-			ns = envtestutil.AppendRandomNameTo(ns)
+			ns := envtestutil.AppendRandomNameTo(testNamespacePrefix)
 			nsResource := createNamespace(ns)
 			Expect(envTestClient.Create(context.TODO(), nsResource)).ToNot(HaveOccurred())
 			defer objectCleaner.DeleteAll(nsResource)
 
 			testFeature.Spec.ControlPlane.Namespace = nsResource.Name
 			testFeature.Spec.Serving.IngressGateway.Certificate.Type = dsciv1.SelfSigned
-			testFeature.Spec.Serving.IngressGateway.Domain = "*.foo.com"
+			testFeature.Spec.Serving.IngressGateway.Domain = testDomainFooCom
 			Expect(serverless.ServingDefaultValues(testFeature)).ToNot(HaveOccurred())
 			Expect(serverless.ServingIngressDomain(testFeature)).ToNot(HaveOccurred())
 
@@ -179,8 +185,7 @@ var _ = Describe("Serverless feature", func() {
 			Expect(secret).ToNot(BeNil())
 		})
 		It("should not create any TLS secret if certificate is user provided", func() {
-			ns := "test-ns"
-			ns = envtestutil.AppendRandomNameTo(ns)
+			ns := envtestutil.AppendRandomNameTo(testNamespacePrefix)
 			nsResource := createNamespace(ns)
 			Expect(envTestClient.Create(context.TODO(), nsResource)).ToNot(HaveOccurred())
 			defer objectCleaner.DeleteAll(nsResource)
