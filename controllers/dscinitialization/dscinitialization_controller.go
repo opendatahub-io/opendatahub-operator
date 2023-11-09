@@ -310,11 +310,12 @@ func (r *DSCInitializationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.ServiceAccount{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&corev1.Service{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&routev1.Route{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
-		Watches(&source.Kind{Type: &dscv1.DataScienceCluster{}}, handler.EnqueueRequestsFromMapFunc(r.watchDSCResrouce), builder.WithPredicates(DSCDeletionPredicate)).
-		Watches(&source.Kind{Type: &corev1.Secret{}}, handler.EnqueueRequestsFromMapFunc(r.watchMonitoringSecretResrouce), builder.WithPredicates(SecretContentChangedPredicate)).
-		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchMonitoringConfigMapResrouce), builder.WithPredicates(CMContentChangedPredicate)).
+		Watches(&source.Kind{Type: &dscv1.DataScienceCluster{}}, handler.EnqueueRequestsFromMapFunc(r.watchDSCResource), builder.WithPredicates(DSCDeletionPredicate)).
+		Watches(&source.Kind{Type: &corev1.Secret{}}, handler.EnqueueRequestsFromMapFunc(r.watchMonitoringSecretResource), builder.WithPredicates(SecretContentChangedPredicate)).
+		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchMonitoringConfigMapResource), builder.WithPredicates(CMContentChangedPredicate)).
 		Complete(r)
 }
+
 func (r *DSCInitializationReconciler) updateStatus(ctx context.Context, original *dsciv1.DSCInitialization, update func(saved *dsciv1.DSCInitialization),
 ) (*dsciv1.DSCInitialization, error) {
 	saved := &dsciv1.DSCInitialization{}
@@ -341,6 +342,7 @@ var SecretContentChangedPredicate = predicate.Funcs{
 		return !reflect.DeepEqual(oldSecret.Data, newSecret.Data)
 	},
 }
+
 var CMContentChangedPredicate = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
 		oldCM := e.ObjectOld.(*corev1.ConfigMap)
@@ -357,7 +359,7 @@ var DSCDeletionPredicate = predicate.Funcs{
 	},
 }
 
-func (r *DSCInitializationReconciler) watchMonitoringConfigMapResrouce(a client.Object) (requests []reconcile.Request) {
+func (r *DSCInitializationReconciler) watchMonitoringConfigMapResource(a client.Object) (requests []reconcile.Request) {
 	if a.GetName() == "prometheus" && a.GetNamespace() == "redhat-ods-monitoring" {
 		r.Log.Info("Found monitoring configmap has updated, start reconcile")
 
@@ -367,7 +369,7 @@ func (r *DSCInitializationReconciler) watchMonitoringConfigMapResrouce(a client.
 	}
 }
 
-func (r *DSCInitializationReconciler) watchMonitoringSecretResrouce(a client.Object) (requests []reconcile.Request) {
+func (r *DSCInitializationReconciler) watchMonitoringSecretResource(a client.Object) (requests []reconcile.Request) {
 	operatorNs, err := upgrade.GetOperatorNamespace()
 	if err != nil {
 		return nil
@@ -381,7 +383,7 @@ func (r *DSCInitializationReconciler) watchMonitoringSecretResrouce(a client.Obj
 	}
 }
 
-func (r *DSCInitializationReconciler) watchDSCResrouce(_ client.Object) (requests []reconcile.Request) {
+func (r *DSCInitializationReconciler) watchDSCResource(_ client.Object) (requests []reconcile.Request) {
 	instanceList := &dscv1.DataScienceClusterList{}
 	if err := r.Client.List(context.TODO(), instanceList); err != nil {
 		// do not handle if cannot get list
