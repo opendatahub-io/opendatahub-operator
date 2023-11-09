@@ -83,33 +83,18 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return ctrl.Result{}, err
 	}
 
-	if len(instances.Items) > 1 {
-		// check if multiple instances of DSCInitialization, exit with error
-		message := fmt.Sprintf("only one instance of DSCInitialization object is allowed. Update existing instance name %s", req.Name)
-
-		return ctrl.Result{}, errors.New(message)
-	}
-
-	if len(instances.Items) == 0 {
-		// DSCInitialization instance not found
+	var instance *dsciv1.DSCInitialization
+	switch {
+	case len(instances.Items) == 0:
 		return ctrl.Result{}, nil
-	}
-
-	instance := &instances.Items[0]
-	if instance.Name != "default" {
-		message := fmt.Sprintf("Should update existing instance name %s to 'default'", instance.Name)
-
-		return ctrl.Result{}, errors.New(message)
-	}
-
-	if len(instances.Items) > 1 {
+	case len(instances.Items) == 1:
+		instance = &instances.Items[0]
+	case len(instances.Items) > 1:
 		message := fmt.Sprintf("only one instance of DSCInitialization object is allowed. Update existing instance name %s", req.Name)
-
 		_, _ = r.updateStatus(ctx, instance, func(saved *dsciv1.DSCInitialization) {
 			status.SetErrorCondition(&saved.Status.Conditions, status.DuplicateDSCInitialization, message)
 			saved.Status.Phase = status.PhaseError
 		})
-
 		return ctrl.Result{}, errors.New(message)
 	}
 
