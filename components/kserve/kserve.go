@@ -93,7 +93,9 @@ func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dsci
 	}
 
 	if !enabled {
-		k.removeServerlessFeatures(dscispec)
+		if err := k.removeServerlessFeatures(dscispec); err != nil {
+			return err
+		}
 	}
 
 	if enabled {
