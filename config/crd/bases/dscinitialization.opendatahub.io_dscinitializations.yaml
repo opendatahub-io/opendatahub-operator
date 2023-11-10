@@ -92,15 +92,6 @@ spec:
                     description: ControlPlane holds configuration of Service Mesh
                       used by Opendatahub.
                     properties:
-                      identityType:
-                        default: Kubernetes
-                        description: IdentityType specifies the identity implementation
-                          used in the Mesh. For ROSA clusters, you would need to set
-                          this to ThirdParty.
-                        enum:
-                        - Kubernetes
-                        - ThirdParty
-                        type: string
                       metricsCollection:
                         default: Istio
                         description: MetricsCollection specifies if metrics from components

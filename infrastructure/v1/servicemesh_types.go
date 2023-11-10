@@ -25,11 +25,6 @@ type ControlPlaneSpec struct {
 	// +kubebuilder:validation:Enum=Istio;None
 	// +kubebuilder:default=Istio
 	MetricsCollection string `json:"metricsCollection,omitempty"`
-	// IdentityType specifies the identity implementation used in the Mesh. For ROSA
-	// clusters, you would need to set this to ThirdParty.
-	// +kubebuilder:validation:Enum=Kubernetes;ThirdParty
-	// +kubebuilder:default=Kubernetes
-	IdentityType string `json:"identityType,omitempty"`
 }
 
 // IngressGatewaySpec represents the configuration of the Ingress Gateways.

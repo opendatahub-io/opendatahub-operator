@@ -262,6 +262,7 @@ spec:
                             type: object
                           managementState:
                             default: Removed
+                            description: TODO remove
                             enum:
                             - Managed
                             - Removed
