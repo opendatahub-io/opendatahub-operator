@@ -2,7 +2,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.9.2
+    controller-gen.kubebuilder.io/version: v0.13.0
   creationTimestamp: null
   name: dscinitializations.dscinitialization.opendatahub.io
 spec:
@@ -78,6 +78,57 @@ spec:
                   namespace:
                     default: opendatahub
                     description: Namespace for monitoring if it is enabled
+                    type: string
+                type: object
+              serviceMesh:
+                description: Configures Service Mesh as networking layer for Data
+                  Science Clusters components. The Service Mesh is a mandatory prerequisite
+                  for single model serving (KServe) and you should review this configuration
+                  if you are planning to use KServe. For other components, it enhances
+                  user experience; e.g. it provides unified authentication giving
+                  a Single Sign On experience.
+                properties:
+                  controlPlane:
+                    description: ControlPlane holds configuration of Service Mesh
+                      used by Opendatahub.
+                    properties:
+                      identityType:
+                        default: Kubernetes
+                        description: IdentityType specifies the identity implementation
+                          used in the Mesh. For ROSA clusters, you would need to set
+                          this to ThirdParty.
+                        enum:
+                        - Kubernetes
+                        - ThirdParty
+                        type: string
+                      metricsCollection:
+                        default: Istio
+                        description: MetricsCollection specifies if metrics from components
+                          on the Mesh namespace should be collected. Setting the value
+                          to "Istio" will collect metrics from the control plane and
+                          any proxies on the Mesh namespace (like gateway pods). Setting
+                          to "None" will disable metrics collection.
+                        enum:
+                        - Istio
+                        - None
+                        type: string
+                      name:
+                        default: data-science-smcp
+                        description: Name is a name Service Mesh Control Plane. Defaults
+                          to "data-science-smcp".
+                        type: string
+                      namespace:
+                        default: istio-system
+                        description: Namespace is a namespace where Service Mesh is
+                          deployed. Defaults to "istio-system".
+                        type: string
+                    type: object
+                  managementState:
+                    default: Removed
+                    enum:
+                    - Managed
+                    - Removed
+                    pattern: ^(Managed|Unmanaged|Force|Removed)$
                     type: string
                 type: object
             required:

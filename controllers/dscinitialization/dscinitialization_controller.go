@@ -49,9 +49,6 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/serverless"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
 
@@ -71,7 +68,7 @@ type DSCInitializationReconciler struct {
 // +kubebuilder:rbac:groups="dscinitialization.opendatahub.io",resources=dscinitializations/status,verbs=get;update;patch;delete
 // +kubebuilder:rbac:groups="dscinitialization.opendatahub.io",resources=dscinitializations/finalizers,verbs=get;update;patch;delete
 // +kubebuilder:rbac:groups="dscinitialization.opendatahub.io",resources=dscinitializations,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="dscinitialization.opendatahub.io",resources=featuretrackers,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="features.opendatahub.io",resources=featuretrackers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="kfdef.apps.kubeflow.org",resources=kfdefs,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile contains controller logic specific to DSCInitialization instance updates.
@@ -111,7 +108,9 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 	} else {
 		r.Log.Info("Finalization DSCInitialization start deleting instance", "name", instance.Name, "finalizer", finalizerName)
-		// Add cleanup logic here
+		if err := r.removeServiceMesh(instance); err != nil {
+			return reconcile.Result{}, err
+		}
 		if controllerutil.ContainsFinalizer(instance, finalizerName) {
 			controllerutil.RemoveFinalizer(instance, finalizerName)
 			if err := r.Update(ctx, instance); err != nil {
@@ -269,11 +268,6 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			return reconcile.Result{}, errServiceMesh
 		}
 
-		// Apply Serverless configurations
-		if errServerless := r.configureServerless(instance); errServerless != nil {
-			return reconcile.Result{}, errServerless
-		}
-
 		// Finish reconciling
 		_, err = r.updateStatus(ctx, instance, func(saved *dsciv1.DSCInitialization) {
 			status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, status.ReconcileCompletedMessage)
@@ -330,50 +324,6 @@ func (r *DSCInitializationReconciler) updateStatus(ctx context.Context, original
 	})
 
 	return saved, err
-}
-
-func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsciv1.DSCInitialization) error {
-	if instance.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
-		serviceMeshInitializer := feature.NewFeaturesInitializer(&instance.Spec, servicemesh.ConfigureServiceMeshFeatures)
-
-		if err := serviceMeshInitializer.Prepare(); err != nil {
-			r.Log.Error(err, "failed configuring service mesh resources")
-			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed configuring service mesh resources")
-
-			return err
-		}
-
-		if err := serviceMeshInitializer.Apply(); err != nil {
-			r.Log.Error(err, "failed applying service mesh resources")
-			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed applying service mesh resources")
-
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (r *DSCInitializationReconciler) configureServerless(instance *dsciv1.DSCInitialization) error {
-	if instance.Spec.Serverless.ManagementState == operatorv1.Managed {
-		serverlessInitializer := feature.NewFeaturesInitializer(&instance.Spec, serverless.ConfigureServerlessFeatures)
-
-		if err := serverlessInitializer.Prepare(); err != nil {
-			r.Log.Error(err, "failed configuring serverless resources")
-			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed configuring serverless resources")
-
-			return err
-		}
-
-		if err := serverlessInitializer.Apply(); err != nil {
-			r.Log.Error(err, "failed applying serverless resources")
-			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed applying serverless resources")
-
-			return err
-		}
-	}
-
-	return nil
 }
 
 var SecretContentChangedPredicate = predicate.Funcs{

@@ -2,7 +2,6 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  creationTimestamp: null
   name: controller-manager-role
 rules:
 - apiGroups:
@@ -633,18 +632,6 @@ rules:
   - patch
   - update
 - apiGroups:
-  - dscinitialization.opendatahub.io
-  resources:
-  - featuretrackers
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
   - events.k8s.io
   resources:
   - events
@@ -675,6 +662,18 @@ rules:
   - replicasets
   verbs:
   - '*'
+- apiGroups:
+  - features.opendatahub.io
+  resources:
+  - featuretrackers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - image.openshift.io
   resources:

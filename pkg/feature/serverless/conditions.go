@@ -5,10 +5,13 @@ import (
 	"fmt"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	ctrlLog "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 )
+
+var log = ctrlLog.Log.WithName("features")
 
 func EnsureServerlessAbsent(f *feature.Feature) error {
 	list, err := f.DynamicClient.Resource(gvr.KnativeServing).Namespace("").List(context.TODO(), v1.ListOptions{})

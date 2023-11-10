@@ -1,12 +1,11 @@
-package serverless
+package kserve
 
 import (
 	"path"
 	"path/filepath"
 
-	ctrlLog "sigs.k8s.io/controller-runtime/pkg/log"
-
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/serverless"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 )
@@ -16,9 +15,7 @@ const (
 	templatesDir            = "templates/serverless"
 )
 
-var log = ctrlLog.Log.WithName("features")
-
-func ConfigureServerlessFeatures(s *feature.FeaturesInitializer) error {
+func (k *Kserve) configureServerlessFeatures(s *feature.FeaturesInitializer) error {
 	var rootDir = filepath.Join(feature.BaseOutputDir, s.DSCInitializationSpec.ApplicationsNamespace)
 	if err := feature.CopyEmbeddedFiles(templatesDir, rootDir); err != nil {
 		return err
@@ -29,9 +26,10 @@ func ConfigureServerlessFeatures(s *feature.FeaturesInitializer) error {
 		Manifests(
 			path.Join(rootDir, templatesDir, "serving-install"),
 		).
+		WithData(PopulateComponentSettings(k)).
 		PreConditions(
-			EnsureServerlessOperatorInstalled,
-			EnsureServerlessAbsent,
+			serverless.EnsureServerlessOperatorInstalled,
+			serverless.EnsureServerlessAbsent,
 			servicemesh.EnsureServiceMeshInstalled,
 			feature.CreateNamespace(knativeServingNamespace),
 		).
@@ -50,8 +48,12 @@ func ConfigureServerlessFeatures(s *feature.FeaturesInitializer) error {
 			// Check serverless is installed
 			feature.WaitForResourceToBeCreated(knativeServingNamespace, gvr.KnativeServing),
 		).
-		WithData(ServingDefaultValues, ServingIngressDomain).
-		WithResources(ServingCertificateResource).
+		WithData(
+			serverless.ServingDefaultValues,
+			serverless.ServingIngressDomain,
+			PopulateComponentSettings(k),
+		).
+		WithResources(serverless.ServingCertificateResource).
 		Manifests(
 			path.Join(rootDir, templatesDir, "serving-istio-gateways"),
 		).
@@ -62,4 +64,11 @@ func ConfigureServerlessFeatures(s *feature.FeaturesInitializer) error {
 	s.Features = append(s.Features, servingIstioGateways)
 
 	return nil
+}
+
+func PopulateComponentSettings(k *Kserve) feature.Action {
+	return func(f *feature.Feature) error {
+		f.Spec.Serving = &k.Serving
+		return nil
+	}
 }

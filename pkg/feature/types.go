@@ -3,18 +3,19 @@ package feature
 import (
 	"strings"
 
-	v1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/infrastructure/v1"
 )
 
 type Spec struct {
-	*v1.ServiceMeshSpec
-	*v1.ServerlessSpec
+	*infrav1.ServiceMeshSpec
+	Serving                  *infrav1.ServingSpec
 	OAuth                    OAuth
 	AppNamespace             string
 	Domain                   string
 	KnativeCertificateSecret string
 	KnativeIngressDomain     string
-	Tracker                  *v1.FeatureTracker
+	Tracker                  *featurev1.FeatureTracker
 }
 
 type OAuth struct {

@@ -7,7 +7,7 @@ type ServiceMeshSpec struct {
 	// +kubebuilder:validation:Enum=Managed;Removed
 	// +kubebuilder:default=Removed
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
-	// Mesh holds configuration of Service Mesh used by Opendatahub.
+	// ControlPlane holds configuration of Service Mesh used by Opendatahub.
 	ControlPlane ControlPlaneSpec `json:"controlPlane,omitempty"`
 }
 
@@ -30,4 +30,16 @@ type ControlPlaneSpec struct {
 	// +kubebuilder:validation:Enum=Kubernetes;ThirdParty
 	// +kubebuilder:default=Kubernetes
 	IdentityType string `json:"identityType,omitempty"`
+}
+
+// IngressGatewaySpec represents the configuration of the Ingress Gateways.
+type IngressGatewaySpec struct {
+	// Domain specifies the DNS name for intercepting ingress requests coming from
+	// outside the cluster. Most likely, you will want to use a wildcard name,
+	// like *.example.com. If not set, the domain of the OpenShift Ingress is used.
+	// If you choose to generate a certificate, this is the domain used for the certificate request.
+	Domain string `json:"domain,omitempty"` // TODO remove?
+	// Certificate specifies configuration of the TLS certificate securing communications of
+	// the for Ingress Gateway.
+	Certificate CertificateSpec `json:"certificate,omitempty"`
 }

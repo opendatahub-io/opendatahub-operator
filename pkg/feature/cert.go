@@ -19,13 +19,13 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/infrastructure/v1"
 )
 
 var seededRand = rand.New(rand.NewSource(time.Now().UnixNano()))
 
-func (f *Feature) CreateSelfSignedCertificate(secretName string, certificateType dsciv1.CertType, domain, namespace string) error {
-	if certificateType != dsciv1.SelfSigned {
+func (f *Feature) CreateSelfSignedCertificate(secretName string, certificateType infrav1.CertType, domain, namespace string) error {
+	if certificateType != infrav1.SelfSigned {
 		return nil
 	}
 
