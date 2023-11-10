@@ -104,7 +104,6 @@ func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dsci
 			return err
 		}
 
-		// TODO do we need those checks if features have same logic included?
 		// check on dependent operators
 		if found, err := deploy.OperatorExists(cli, ServiceMeshOperator); err != nil {
 			return err
