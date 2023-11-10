@@ -92,6 +92,10 @@ func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dsci
 		return err
 	}
 
+	if !enabled {
+		k.removeServerlessFeatures(dscispec)
+	}
+
 	if enabled {
 		// Download manifests and update paths
 		if err = k.OverrideManifests(string(platform)); err != nil {
@@ -161,19 +165,7 @@ func (k *Kserve) DeepCopyInto(target *Kserve) {
 }
 
 func (k *Kserve) Cleanup(_ client.Client, instance *dsciv1.DSCInitializationSpec) error {
-	if k.Serving.ManagementState == operatorv1.Managed {
-		serverlessInitializer := feature.NewFeaturesInitializer(instance, k.configureServerlessFeatures)
-
-		if err := serverlessInitializer.Prepare(); err != nil {
-			return err
-		}
-
-		if err := serverlessInitializer.Delete(); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return k.removeServerlessFeatures(instance)
 }
 
 func (k *Kserve) configureServerless(instance *dsciv1.DSCInitializationSpec) error {
@@ -189,5 +181,18 @@ func (k *Kserve) configureServerless(instance *dsciv1.DSCInitializationSpec) err
 		}
 	}
 
+	return nil
+}
+
+func (k *Kserve) removeServerlessFeatures(instance *dsciv1.DSCInitializationSpec) error {
+	serverlessInitializer := feature.NewFeaturesInitializer(instance, k.configureServerlessFeatures)
+
+	if err := serverlessInitializer.Prepare(); err != nil {
+		return err
+	}
+
+	if err := serverlessInitializer.Delete(); err != nil {
+		return err
+	}
 	return nil
 }
