@@ -80,7 +80,7 @@ func (f *Feature) Apply() error {
 			return errors.WithStack(err)
 		}
 
-		log.Info("applying manifest", "feature", f.Name, "path", m.targetPath())
+		log.Info("converted template to manifest", "feature", f.Name, "path", m.targetPath())
 	}
 
 	if err := f.applyManifests(); err != nil {
