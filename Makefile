@@ -177,17 +177,26 @@ ifndef ignore-not-found
   ignore-not-found = false
 endif
 
+.PHONY: prepare
+prepare: manifests kustomize manager-kustomization
+
+# phony target for the case of changing IMG variable
+.PHONY: manager-kustomization
+manager-kustomization: config/manager/kustomization.yaml.in
+	cd config/manager \
+		&& cp -f kustomization.yaml.in kustomization.yaml \
+		&& $(KUSTOMIZE) edit set image controller=$(IMG)
+
 .PHONY: install
-install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.
+install: prepare ## Install CRDs into the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/crd | kubectl apply -f -
 
 .PHONY: uninstall
-uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
+uninstall: prepare ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/crd | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: deploy
-deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
+deploy: prepare ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/default | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
 
 .PHONY: undeploy
@@ -227,9 +236,8 @@ $(GOLANGCI_LINT): $(LOCALBIN)
 
 BUNDLE_DIR ?= "bundle"
 .PHONY: bundle
-bundle: manifests kustomize operator-sdk ## Generate bundle manifests and metadata, then validate generated files.
+bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then validate generated files.
 	$(OPERATOR_SDK) generate kustomize manifests -q
-	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
 	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS)
 	$(OPERATOR_SDK) bundle validate ./$(BUNDLE_DIR)
 	mv bundle.Dockerfile Dockerfiles/
