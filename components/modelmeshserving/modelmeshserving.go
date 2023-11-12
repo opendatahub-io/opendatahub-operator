@@ -2,7 +2,6 @@
 package modelmeshserving
 
 import (
-	"context"
 	"path/filepath"
 	"strings"
 
@@ -134,15 +133,6 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 		} else {
 			return err
 		}
-	}
-
-	// Get monitoring namespace
-	dscInit := &dsciv1.DSCInitialization{}
-	err = cli.Get(context.TODO(), client.ObjectKey{
-		Name: "default",
-	}, dscInit)
-	if err != nil {
-		return err
 	}
 
 	// CloudService Monitoring handling
