@@ -48,8 +48,8 @@ func (r *DSCInitializationReconciler) removeServiceMesh(instance *dsciv1.DSCInit
 		}
 
 		if err := serviceMeshInitializer.Delete(); err != nil {
-			r.Log.Error(err, "failed applying service mesh resources")
-			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed applying service mesh resources")
+			r.Log.Error(err, "failed deleting service mesh resources")
+			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed deleting service mesh resources")
 
 			return err
 		}

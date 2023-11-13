@@ -33,7 +33,7 @@ type IngressGatewaySpec struct {
 	// outside the cluster. Most likely, you will want to use a wildcard name,
 	// like *.example.com. If not set, the domain of the OpenShift Ingress is used.
 	// If you choose to generate a certificate, this is the domain used for the certificate request.
-	Domain string `json:"domain,omitempty"` // TODO remove?
+	Domain string `json:"domain,omitempty"`
 	// Certificate specifies configuration of the TLS certificate securing communications of
 	// the for Ingress Gateway.
 	Certificate CertificateSpec `json:"certificate,omitempty"`
