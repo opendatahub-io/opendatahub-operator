@@ -2,7 +2,6 @@
 package modelmeshserving
 
 import (
-	"context"
 	"path/filepath"
 	"strings"
 
@@ -67,7 +66,7 @@ func (m *ModelMeshServing) GetComponentName() string {
 // Verifies that Dashboard implements ComponentInterface.
 var _ components.ComponentInterface = (*ModelMeshServing)(nil)
 
-func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
+func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
 	var imageParamMap = map[string]string{
 		"odh-mm-rest-proxy":             "RELATED_IMAGE_ODH_MM_REST_PROXY_IMAGE",
 		"odh-modelmesh-runtime-adapter": "RELATED_IMAGE_ODH_MODELMESH_RUNTIME_ADAPTER_IMAGE",
@@ -134,15 +133,6 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 		} else {
 			return err
 		}
-	}
-
-	// Get monitoring namespace
-	dscInit := &dsciv1.DSCInitialization{}
-	err = cli.Get(context.TODO(), client.ObjectKey{
-		Name: "default",
-	}, dscInit)
-	if err != nil {
-		return err
 	}
 
 	// CloudService Monitoring handling
