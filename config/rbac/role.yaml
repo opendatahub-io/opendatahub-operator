@@ -301,6 +301,12 @@ rules:
   - list
   - watch
 - apiGroups:
+  - config.openshift.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+- apiGroups:
   - console.openshift.io
   resources:
   - consolelinks
@@ -627,18 +633,6 @@ rules:
   - patch
   - update
 - apiGroups:
-  - dscinitialization.opendatahub.io
-  resources:
-  - featuretrackers
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
   - events.k8s.io
   resources:
   - events
@@ -669,6 +663,18 @@ rules:
   - replicasets
   verbs:
   - '*'
+- apiGroups:
+  - features.opendatahub.io
+  resources:
+  - featuretrackers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - image.openshift.io
   resources:
@@ -947,6 +953,12 @@ rules:
 - apiGroups:
   - networking.istio.io
   resources:
+  - gateways
+  verbs:
+  - '*'
+- apiGroups:
+  - networking.istio.io
+  resources:
   - virtualservices
   verbs:
   - '*'
@@ -1015,6 +1027,12 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - operator.knative.dev
+  resources:
+  - knativeservings
+  verbs:
+  - '*'
 - apiGroups:
   - operator.openshift.io
   resources:

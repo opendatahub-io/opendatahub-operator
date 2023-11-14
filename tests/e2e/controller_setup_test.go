@@ -24,6 +24,7 @@ import (
 
 	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 )
 
 var (
@@ -105,6 +106,7 @@ func TestOdhOperator(t *testing.T) {
 	utilruntime.Must(autoscalingv1.AddToScheme(scheme))
 	utilruntime.Must(dsci.AddToScheme(scheme))
 	utilruntime.Must(dsc.AddToScheme(scheme))
+	utilruntime.Must(featurev1.AddToScheme(scheme))
 	utilruntime.Must(monitoringv1.AddToScheme(scheme))
 
 	// individual test suites after the operator is running

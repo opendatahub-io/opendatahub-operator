@@ -10,6 +10,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	v1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/infrastructure/v1"
 )
 
 type partialBuilder func(f *Feature) error
@@ -26,7 +27,9 @@ func CreateFeature(name string) *featureBuilder {
 func (fb *featureBuilder) For(spec *v1.DSCInitializationSpec) *featureBuilder {
 	createSpec := func(f *Feature) error {
 		f.Spec = &Spec{
-			AppNamespace: spec.ApplicationsNamespace,
+			ServiceMeshSpec: &spec.ServiceMesh,
+			Serving:         &infrav1.ServingSpec{},
+			AppNamespace:    spec.ApplicationsNamespace,
 		}
 
 		return nil

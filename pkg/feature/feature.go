@@ -15,7 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlLog "sigs.k8s.io/controller-runtime/pkg/log"
 
-	v1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 )
@@ -196,9 +196,9 @@ func (f *Feature) OwnerReference() metav1.OwnerReference {
 // It's a cluster-scoped resource. Once created, there's a cleanup hook added which will be invoked on deletion, resulting
 // in removal of all owned resources which belong to this Feature.
 func (f *Feature) createResourceTracker() error {
-	tracker := &v1.FeatureTracker{
+	tracker := &featurev1.FeatureTracker{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: "dscinitialization.opendatahub.io/v1",
+			APIVersion: "features.opendatahub.io/v1",
 			Kind:       "FeatureTracker",
 		},
 		ObjectMeta: metav1.ObjectMeta{
@@ -223,7 +223,7 @@ func (f *Feature) createResourceTracker() error {
 		return err
 	}
 
-	f.Spec.Tracker = &v1.FeatureTracker{}
+	f.Spec.Tracker = &featurev1.FeatureTracker{}
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(foundTracker.Object, f.Spec.Tracker); err != nil {
 		return err
 	}
