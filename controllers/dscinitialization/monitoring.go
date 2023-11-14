@@ -448,11 +448,12 @@ func (r *DSCInitializationReconciler) configureCommonMonitoring(dsciInit *dsci.D
 
 		return err
 	}
+	// do not set monitoring namespace here, it is hardcoded by manifests
 	if err := deploy.DeployManifestsFromPath(
 		r.Client,
 		dsciInit,
 		monitoringBasePath,
-		dsciInit.Spec.Monitoring.Namespace,
+		"",
 		"monitoring-base",
 		dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed); err != nil {
 		r.Log.Error(err, "error to deploy manifests under "+monitoringBasePath)
