@@ -47,7 +47,7 @@ func (r *Ray) GetComponentName() string {
 // Verifies that Ray implements ComponentInterface.
 var _ components.ComponentInterface = (*Ray)(nil)
 
-func (r *Ray) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
+func (r *Ray) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
 	var imageParamMap = map[string]string{
 		"odh-kuberay-operator-controller-image": "RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE",
 		"namespace":                             dscispec.ApplicationsNamespace,

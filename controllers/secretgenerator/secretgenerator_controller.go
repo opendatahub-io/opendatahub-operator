@@ -19,6 +19,7 @@ package secretgenerator
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -218,7 +219,16 @@ func (r *SecretGeneratorReconciler) createOAuthClient(ctx context.Context, name 
 	err := r.Client.Create(ctx, oauthClient)
 	if err != nil {
 		if apierrs.IsAlreadyExists(err) {
-			secGenLog.Info("OAuth client resource already exists", "name", oauthClient.Name)
+			secGenLog.Info("OAuth client resource already exists, patch it", "name", oauthClient.Name)
+			data, err := json.Marshal(oauthClient)
+			if err != nil {
+				return fmt.Errorf("failed to get DataScienceCluster custom resource data: %v", err)
+			}
+			err = r.Client.Patch(context.TODO(), oauthClient, client.RawPatch(types.ApplyPatchType, data),
+				client.ForceOwnership, client.FieldOwner("opendatahub-operator"))
+			if err != nil {
+				return err
+			}
 			return nil
 		}
 	}
