@@ -9,6 +9,7 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,17 +22,22 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
 
+// +kubebuilder:rbac:groups="route.openshift.io",resources=routers/metrics,verbs=get
+// +kubebuilder:rbac:groups="route.openshift.io",resources=routers/federate,verbs=get
+// +kubebuilder:rbac:groups="image.openshift.io",resources=registry/metrics,verbs=get
+
 var (
 	ComponentName           = "monitoring"
 	alertManagerPath        = filepath.Join(deploy.DefaultManifestPath, ComponentName, "alertmanager")
 	prometheusManifestsPath = filepath.Join(deploy.DefaultManifestPath, ComponentName, "prometheus", "base")
 	prometheusConfigPath    = filepath.Join(deploy.DefaultManifestPath, ComponentName, "prometheus", "apps")
+	networkpolicyPath       = filepath.Join(deploy.DefaultManifestPath, ComponentName, "networkpolicy")
 	NameConsoleLink         = "console"
 	NamespaceConsoleLink    = "openshift-console"
 )
 
 // only when reconcile on DSCI CR, initial set to true
-// if reconcile from monitoring, initial set to false, skip blackbox and rolebinding.
+// if reconcile from monitoring, initial set to false, skip blackbox and rolebinding
 func (r *DSCInitializationReconciler) configureManagedMonitoring(ctx context.Context, dscInit *dsci.DSCInitialization, initial string) error {
 	if initial == "init" {
 		// configure Blackbox exporter
@@ -46,7 +52,6 @@ func (r *DSCInitializationReconciler) configureManagedMonitoring(ctx context.Con
 			})
 		if err != nil {
 			r.Log.Error(err, "error to remove previous enabled component rules")
-
 			return err
 		}
 	}
@@ -69,7 +74,6 @@ func (r *DSCInitializationReconciler) configureManagedMonitoring(ctx context.Con
 	}
 
 	r.Log.Info("Success: finish config managed monitoring stack!")
-
 	return nil
 }
 
@@ -78,7 +82,6 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 	deadmansnitchSecret, err := r.waitForManagedSecret(ctx, "redhat-rhods-deadmanssnitch", dsciInit.Spec.Monitoring.Namespace)
 	if err != nil {
 		r.Log.Error(err, "error getting deadmansnitch secret from namespace "+dsciInit.Spec.Monitoring.Namespace)
-
 		return err
 	}
 	// r.Log.Info("Success: got deadmansnitch secret")
@@ -87,7 +90,6 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 	pagerDutySecret, err := r.waitForManagedSecret(ctx, "redhat-rhods-pagerduty", dsciInit.Spec.Monitoring.Namespace)
 	if err != nil {
 		r.Log.Error(err, "error getting pagerduty secret from namespace "+dsciInit.Spec.Monitoring.Namespace)
-
 		return err
 	}
 	// r.Log.Info("Success: got pagerduty secret")
@@ -96,7 +98,6 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 	smtpSecret, err := r.waitForManagedSecret(ctx, "redhat-rhods-smtp", dsciInit.Spec.Monitoring.Namespace)
 	if err != nil {
 		r.Log.Error(err, "error getting smtp secret from namespace "+dsciInit.Spec.Monitoring.Namespace)
-
 		return err
 	}
 	// r.Log.Info("Success: got smtp secret")
@@ -111,19 +112,46 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 			"<smtp_port>":       string(smtpSecret.Data["port"]),
 			"<smtp_username>":   string(smtpSecret.Data["username"]),
 			"<smtp_password>":   string(smtpSecret.Data["password"]),
-			"@devshift.net":     "@rhmw.io",
 		})
 	if err != nil {
 		r.Log.Error(err, "error to inject data to alertmanager-configs.yaml")
-
 		return err
 	}
 	// r.Log.Info("Success: inject alertmanage-configs.yaml")
 
+	// special handling for dev-mod
+	consolelinkDomain, err := common.GetDomain(r.Client, NameConsoleLink, NamespaceConsoleLink)
+	if err != nil {
+		return fmt.Errorf("error getting console route URL : %v", err)
+	}
+	if strings.Contains(consolelinkDomain, "devshift.org") {
+		r.Log.Info("inject alertmanage-configs.yaml for dev mode1")
+		err = common.ReplaceStringsInFile(filepath.Join(alertManagerPath, "alertmanager-configs.yaml"),
+			map[string]string{
+				"@devshift.net": "@rhmw.io",
+			})
+		if err != nil {
+			r.Log.Error(err, "error to replace data for dev mode1 to alertmanager-configs.yaml")
+			return err
+		}
+	}
+	if strings.Contains(consolelinkDomain, "aisrhods") {
+		r.Log.Info("inject alertmanage-configs.yaml for dev mode2")
+		err = common.ReplaceStringsInFile(filepath.Join(alertManagerPath, "alertmanager-configs.yaml"),
+			map[string]string{
+				"receiver: PagerDuty": "receiver: alerts-sink",
+			})
+		if err != nil {
+			r.Log.Error(err, "error to replace data for dev mode2 to alertmanager-configs.yaml")
+			return err
+		}
+	}
+
+	// r.Log.Info("Success: inject alertmanage-configs.yaml for dev mode")
+
 	operatorNs, err := upgrade.GetOperatorNamespace()
 	if err != nil {
 		r.Log.Error(err, "error getting operator namespace for smtp secret")
-
 		return err
 	}
 	// Get SMTP receiver email secret (assume operator namespace for managed service is not configurable)
@@ -139,14 +167,12 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 		},
 	); err != nil {
 		r.Log.Error(err, "error to update with new notification-email")
-
 		return err
 	}
 	// r.Log.Info("Success: update alertmanage-configs.yaml with email")
 	err = deploy.DeployManifestsFromPath(r.Client, dsciInit, alertManagerPath, dsciInit.Spec.Monitoring.Namespace, "alertmanager", true)
 	if err != nil {
 		r.Log.Error(err, "error to deploy manifests", "path", alertManagerPath)
-
 		return err
 	}
 	// r.Log.Info("Success: update alertmanager with manifests")
@@ -154,37 +180,35 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 	// Create alertmanager-proxy secret
 	if err := createMonitoringProxySecret(r.Client, "alertmanager-proxy", dsciInit); err != nil {
 		r.Log.Error(err, "error to create secret alertmanager-proxy")
-
 		return err
 	}
 	// r.Log.Info("Success: create alertmanager-proxy secret")
 	return nil
 }
 
-func configurePrometheus(ctx context.Context, dsciInit *dsci.DSCInitialization, r *DSCInitializationReconciler) error { //nolint:funlen
+func configurePrometheus(ctx context.Context, dsciInit *dsci.DSCInitialization, r *DSCInitializationReconciler) error {
 	// Update rolebinding-viewer
-	if err := common.ReplaceStringsInFile(filepath.Join(prometheusManifestsPath, "prometheus-rolebinding-viewer.yaml"),
+	err := common.ReplaceStringsInFile(filepath.Join(prometheusManifestsPath, "prometheus-rolebinding-viewer.yaml"),
 		map[string]string{
 			"<odh_monitoring_project>": dsciInit.Spec.Monitoring.Namespace,
-		}); err != nil {
+		})
+	if err != nil {
 		r.Log.Error(err, "error to inject data to prometheus-rolebinding-viewer.yaml")
-
 		return err
 	}
-
 	// Update prometheus-config for dashboard, dsp and workbench
 	consolelinkDomain, err := common.GetDomain(r.Client, NameConsoleLink, NamespaceConsoleLink)
 	if err != nil {
 		return fmt.Errorf("error getting console route URL : %v", err)
 	} else {
-		if err = common.ReplaceStringsInFile(filepath.Join(prometheusConfigPath, "prometheus-configs.yaml"),
+		err = common.ReplaceStringsInFile(filepath.Join(prometheusConfigPath, "prometheus-configs.yaml"),
 			map[string]string{
 				"<odh_application_namespace>": dsciInit.Spec.ApplicationsNamespace,
 				"<odh_monitoring_project>":    dsciInit.Spec.Monitoring.Namespace,
 				"<console_domain>":            consolelinkDomain,
-			}); err != nil {
+			})
+		if err != nil {
 			r.Log.Error(err, "error to inject data to prometheus-configs.yaml")
-
 			return err
 		}
 	}
@@ -198,90 +222,115 @@ func configurePrometheus(ctx context.Context, dsciInit *dsci.DSCInitialization, 
 		"prometheus",
 		dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed); err != nil {
 		r.Log.Error(err, "error to deploy manifests for prometheus configs", "path", prometheusConfigPath)
-
 		return err
 	}
+	// r.Log.Info("Success: create prometheus configmap 'prometheus'")
 
 	// Get prometheus configmap
 	prometheusConfigMap := &corev1.ConfigMap{}
-	if err = r.Client.Get(ctx, client.ObjectKey{
+	err = r.Client.Get(ctx, client.ObjectKey{
 		Namespace: dsciInit.Spec.Monitoring.Namespace,
 		Name:      "prometheus",
-	}, prometheusConfigMap); err != nil {
+	}, prometheusConfigMap)
+	if err != nil {
 		r.Log.Error(err, "error to get configmap 'prometheus'")
-
 		return err
 	}
+	// r.Log.Info("Success: got prometheus configmap")
 
 	// Get encoded prometheus data from configmap 'prometheus'
 	prometheusData, err := common.GetMonitoringData(fmt.Sprint(prometheusConfigMap.Data))
 	if err != nil {
 		r.Log.Error(err, "error to get prometheus data")
-
 		return err
 	}
+	// r.Log.Info("Success: read encoded prometheus data from prometheus.yml in configmap")
 
 	// Get alertmanager host
 	alertmanagerRoute := &routev1.Route{}
-	if err = r.Client.Get(ctx, client.ObjectKey{
+	err = r.Client.Get(ctx, client.ObjectKey{
 		Namespace: dsciInit.Spec.Monitoring.Namespace,
 		Name:      "alertmanager",
-	}, alertmanagerRoute); err != nil {
+	}, alertmanagerRoute)
+	if err != nil {
 		r.Log.Error(err, "error to get alertmanager route")
-
 		return err
 	}
+	// r.Log.Info("Success: got alertmanager route")
 
 	// Get alertmanager configmap
 	alertManagerConfigMap := &corev1.ConfigMap{}
-	if err = r.Client.Get(ctx, client.ObjectKey{
+	err = r.Client.Get(ctx, client.ObjectKey{
 		Namespace: dsciInit.Spec.Monitoring.Namespace,
 		Name:      "alertmanager",
-	}, alertManagerConfigMap); err != nil {
+	}, alertManagerConfigMap)
+	if err != nil {
 		r.Log.Error(err, "error to get configmap 'alertmanager'")
-
 		return err
 	}
+	// r.Log.Info("Success: got configmap 'alertmanager'")
 
 	alertmanagerData, err := common.GetMonitoringData(alertManagerConfigMap.Data["alertmanager.yml"])
 	if err != nil {
 		r.Log.Error(err, "error to get encoded alertmanager data from alertmanager.yml")
-
 		return err
 	}
+	// r.Log.Info("Success: read alertmanager data from alertmanage.yml")
 
 	// Update prometheus deployment with alertmanager and prometheus data
-	if err = common.ReplaceStringsInFile(filepath.Join(prometheusManifestsPath, "prometheus-deployment.yaml"),
+	err = common.ReplaceStringsInFile(filepath.Join(prometheusManifestsPath, "prometheus-deployment.yaml"),
 		map[string]string{
 			"<set_alertmanager_host>": alertmanagerRoute.Spec.Host,
-		}); err != nil {
+		})
+	if err != nil {
 		r.Log.Error(err, "error to inject set_alertmanager_host to prometheus-deployment.yaml")
-
 		return err
 	}
-
-	if err = common.MatchLineInFile(filepath.Join(prometheusManifestsPath, "prometheus-deployment.yaml"),
+	// r.Log.Info("Success: update set_alertmanager_host in prometheus-deployment.yaml")
+	err = common.MatchLineInFile(filepath.Join(prometheusManifestsPath, "prometheus-deployment.yaml"),
 		map[string]string{
 			"alertmanager: ": "alertmanager: " + alertmanagerData,
 			"prometheus: ":   "prometheus: " + prometheusData,
-		}); err != nil {
+		})
+	if err != nil {
 		r.Log.Error(err, "error to update annotations in prometheus-deployment.yaml")
-
 		return err
 	}
+	// r.Log.Info("Success: update annotations in prometheus-deployment.yaml")
 
 	// final apply prometheus manifests including prometheus deployment
-	err = deploy.DeployManifestsFromPath(r.Client, dsciInit, prometheusManifestsPath, dsciInit.Spec.Monitoring.Namespace, "prometheus", true)
+	// Check if Prometheus deployment from legacy version exists(check for initContainer)
+	// Need to delete wait-for-deployment initContainer
+	existingPromDep := &appsv1.Deployment{}
+	err = r.Client.Get(context.TODO(), client.ObjectKey{
+		Namespace: dsciInit.Spec.Monitoring.Namespace,
+		Name:      "prometheus",
+	}, existingPromDep)
+	if err != nil {
+		if !apierrs.IsNotFound(err) {
+			return err
+		}
+	}
+	if len(existingPromDep.Spec.Template.Spec.InitContainers) > 0 {
+		err = r.Client.Delete(context.TODO(), existingPromDep)
+		if err != nil {
+			return fmt.Errorf("error deleting legacy prometheus deployment %v", err)
+		}
+	}
+
+	err = deploy.DeployManifestsFromPath(r.Client, dsciInit, prometheusManifestsPath,
+		dsciInit.Spec.Monitoring.Namespace, "prometheus", true)
 	if err != nil {
 		r.Log.Error(err, "error to deploy manifests for prometheus", "path", prometheusManifestsPath)
-
 		return err
 	}
 
 	// Create prometheus-proxy secret
-	err = createMonitoringProxySecret(r.Client, "prometheus-proxy", dsciInit)
-
-	return err
+	if err := createMonitoringProxySecret(r.Client, "prometheus-proxy", dsciInit); err != nil {
+		return err
+	}
+	// r.Log.Info("Success: create prometheus-proxy secret")
+	return nil
 }
 
 func configureBlackboxExporter(ctx context.Context, dsciInit *dsci.DSCInitialization, r *DSCInitializationReconciler) error {
@@ -293,6 +342,25 @@ func configureBlackboxExporter(ctx context.Context, dsciInit *dsci.DSCInitializa
 		}
 	}
 
+	// Check if Blackbox exporter deployment from legacy version exists(check for initContainer)
+	// Need to delete wait-for-deployment initContainer
+	existingBlackboxExp := &appsv1.Deployment{}
+	err = r.Client.Get(context.TODO(), client.ObjectKey{
+		Namespace: dsciInit.Spec.Monitoring.Namespace,
+		Name:      "blackbox-exporter",
+	}, existingBlackboxExp)
+	if err != nil {
+		if !apierrs.IsNotFound(err) {
+			return err
+		}
+	}
+	if len(existingBlackboxExp.Spec.Template.Spec.InitContainers) > 0 {
+		err = r.Client.Delete(context.TODO(), existingBlackboxExp)
+		if err != nil {
+			return fmt.Errorf("error deleting legacy blackbox deployment %v", err)
+		}
+	}
+
 	blackBoxPath := filepath.Join(deploy.DefaultManifestPath, "monitoring", "blackbox-exporter")
 	if apierrs.IsNotFound(err) || strings.Contains(consoleRoute.Spec.Host, "redhat.com") {
 		if err := deploy.DeployManifestsFromPath(r.Client,
@@ -301,8 +369,7 @@ func configureBlackboxExporter(ctx context.Context, dsciInit *dsci.DSCInitializa
 			dsciInit.Spec.Monitoring.Namespace,
 			"blackbox-exporter",
 			dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed); err != nil {
-			r.Log.Error(err, "error to deploy manifests: "+err.Error())
-
+			r.Log.Error(err, "error to deploy manifests: %w", err)
 			return err
 		}
 	} else {
@@ -312,12 +379,10 @@ func configureBlackboxExporter(ctx context.Context, dsciInit *dsci.DSCInitializa
 			dsciInit.Spec.Monitoring.Namespace,
 			"blackbox-exporter",
 			dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed); err != nil {
-			r.Log.Error(err, "error to deploy manifests: "+err.Error())
-
+			r.Log.Error(err, "error to deploy manifests: %w", err)
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -354,7 +419,6 @@ func createMonitoringProxySecret(cli client.Client, name string, dsciInit *dsci.
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -369,12 +433,11 @@ func (r *DSCInitializationReconciler) configureCommonMonitoring(dsciInit *dsci.D
 		"segment-io",
 		dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed); err != nil {
 		r.Log.Error(err, "error to deploy manifests under "+segmentPath)
-
 		return err
 	}
-
 	// configure monitoring base
-	err := common.ReplaceStringsInFile(filepath.Join(deploy.DefaultManifestPath, "monitoring", "base", "rhods-servicemonitor.yaml"),
+	monitoringBasePath := filepath.Join(deploy.DefaultManifestPath, "monitoring", "base")
+	err := common.ReplaceStringsInFile(filepath.Join(monitoringBasePath, "rhods-servicemonitor.yaml"),
 		map[string]string{
 			"<odh_monitoring_project>": dsciInit.Spec.Monitoring.Namespace,
 		})
@@ -383,8 +446,7 @@ func (r *DSCInitializationReconciler) configureCommonMonitoring(dsciInit *dsci.D
 
 		return err
 	}
-	monitoringBasePath := filepath.Join(deploy.DefaultManifestPath, "monitoring", "base")
-	if err = deploy.DeployManifestsFromPath(
+	if err := deploy.DeployManifestsFromPath(
 		r.Client,
 		dsciInit,
 		monitoringBasePath,
@@ -392,9 +454,7 @@ func (r *DSCInitializationReconciler) configureCommonMonitoring(dsciInit *dsci.D
 		"monitoring-base",
 		dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed); err != nil {
 		r.Log.Error(err, "error to deploy manifests under "+monitoringBasePath)
-
 		return err
 	}
-
 	return nil
 }

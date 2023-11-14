@@ -220,6 +220,14 @@ func CreateDefaultDSCI(cli client.Client, platform deploy.Platform, appNamespace
 		Spec: *defaultDsciSpec,
 	}
 
+	patchedDSCI := &dsci.DSCInitialization{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "DSCInitialization",
+			APIVersion: "dscinitialization.opendatahub.io/v1",
+		},
+		Spec: *defaultDsciSpec,
+	}
+
 	instances := &dsci.DSCInitializationList{}
 	if err := cli.List(context.TODO(), instances); err != nil {
 		return err
@@ -227,14 +235,16 @@ func CreateDefaultDSCI(cli client.Client, platform deploy.Platform, appNamespace
 
 	switch {
 	case len(instances.Items) > 1:
-		return fmt.Errorf("only one instance of DSCInitialization object is allowed. Please delete other instances ")
+		fmt.Printf("only one instance of DSCInitialization object is allowed. Please delete other instances ")
+		return nil
 	case len(instances.Items) == 1:
 		if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
-			data, err := json.Marshal(defaultDsciSpec)
+			data, err := json.Marshal(patchedDSCI)
 			if err != nil {
 				return err
 			}
-			err = cli.Patch(context.TODO(), defaultDsci, client.RawPatch(types.ApplyPatchType, data),
+			existingDSCI := &instances.Items[0]
+			err = cli.Patch(context.TODO(), existingDSCI, client.RawPatch(types.ApplyPatchType, data),
 				client.ForceOwnership, client.FieldOwner("opendatahub-operator"))
 			if err != nil {
 				return err

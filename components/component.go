@@ -75,7 +75,7 @@ type ManifestsConfig struct {
 }
 
 type ComponentInterface interface {
-	ReconcileComponent(cli client.Client, owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec) error
+	ReconcileComponent(cli client.Client, owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec, currentComponentStatus bool) error
 	Cleanup(cli client.Client, DSCISpec *dsciv1.DSCInitializationSpec) error
 	GetComponentName() string
 	GetManagementState() operatorv1.ManagementState
@@ -100,7 +100,6 @@ func (c *Component) UpdatePrometheusConfig(_ client.Client, enable bool, compone
 		Data struct {
 			PrometheusYML      string `yaml:"prometheus.yml"`
 			OperatorRules      string `yaml:"operator-recording.rules"`
-			OperatorARules     string `yaml:"operator-alerting.rules"`
 			DeadManSnitchRules string `yaml:"deadmanssnitch-alerting.rules"`
 			CFRRules           string `yaml:"codeflare-recording.rules"`
 			CRARules           string `yaml:"codeflare-alerting.rules"`
