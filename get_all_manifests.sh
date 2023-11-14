@@ -8,9 +8,8 @@ MANIFEST_ORG="red-hat-data-services"
 MANIFEST_RELEASE="master"
 MANIFESTS_TARBALL_URL="${GITHUB_URL}/${MANIFEST_ORG}/odh-manifests/tarball/${MANIFEST_RELEASE}"
 
-
-# component: dsp, kserve, dashbaord, cf/ray. in the format of "repo-org:repo-name:branch-name:source-folder:target-folder"
-
+# component: notebook, dsp, kserve, dashbaord, cf/ray, trustyai, modelmesh.
+# in the format of "repo-org:repo-name:branch-name:source-folder:target-folder".
 declare -A COMPONENT_MANIFESTS=(
     ["codeflare"]="red-hat-data-services:codeflare-operator:rhods-2.4:config:codeflare"
     ["ray"]="red-hat-data-services:kuberay:rhods-2.4:ray-operator/config:ray"

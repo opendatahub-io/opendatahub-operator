@@ -3,11 +3,12 @@ package dscinitialization
 import (
 	"context"
 	"crypto/rand"
+	ocuserv1 "github.com/openshift/api/user/v1"
+	"k8s.io/client-go/util/retry"
 	"reflect"
 	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
-	ocuserv1 "github.com/openshift/api/user/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	authv1 "k8s.io/api/rbac/v1"
@@ -15,12 +16,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
 
 var (
@@ -105,11 +107,37 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 			}
 		} else { // force to patch monitoring namespace with label for cluster-monitoring
 			r.Log.Info("Patching monitoring namespace for Managed cluster", "name", monitoringName)
-			labelPatch := `{"metadata":{"labels":{"openshift.io/cluster-monitoring":"true","pod-security.kubernetes.io/enforce":"baseline","opendatahub.io/generated-namespace": "true"}}}` //nolint
+			labelPatch := `{"metadata":{"labels":{"openshift.io/cluster-monitoring":"true", "pod-security.kubernetes.io/enforce":"baseline","opendatahub.io/generated-namespace": "true"}}}`
 
 			err = r.Patch(ctx, foundMonitoringNamespace, client.RawPatch(types.MergePatchType, []byte(labelPatch)))
 			if err != nil {
 				return err
+			}
+		}
+	}
+
+	// Patch downstream Operator Namespace if it is monitoring enabled
+	if dscInit.Spec.Monitoring.ManagementState == operatorv1.Managed {
+		platform, err := deploy.GetPlatform(r.Client)
+		if err != nil {
+			return err
+		}
+		if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
+			operatorNs, err := upgrade.GetOperatorNamespace()
+			if err != nil {
+				r.Log.Error(err, "error getting operator namespace")
+				return err
+			}
+			r.Log.Info("Patching operator namespace for Managed cluster", "name", operatorNs)
+			labelPatch := `{"metadata":{"labels":{"pod-security.kubernetes.io/enforce":"baseline"}}}`
+			operatorNamespace := &corev1.Namespace{}
+			if err := r.Get(ctx, client.ObjectKey{Name: operatorNs}, operatorNamespace); err != nil {
+				return err
+			} else {
+				err = r.Patch(ctx, operatorNamespace, client.RawPatch(types.MergePatchType, []byte(labelPatch)))
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -239,7 +267,7 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.
 					},
 					{ // OR logic for ROSA
 						From: []netv1.NetworkPolicyPeer{
-							{ // need this for access dashboard
+							{ // need this to access dashboard
 								NamespaceSelector: &metav1.LabelSelector{
 									MatchLabels: map[string]string{
 										"kubernetes.io/metadata.name": "openshift-ingress",
@@ -250,7 +278,7 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.
 					},
 					{ // OR logic for PSI
 						From: []netv1.NetworkPolicyPeer{
-							{ // need this for access dashboard
+							{ // need this to access dashboard
 								NamespaceSelector: &metav1.LabelSelector{
 									MatchLabels: map[string]string{
 										"kubernetes.io/metadata.name": "openshift-host-network",
@@ -273,7 +301,6 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.
 			Name:      name,
 			Namespace: name,
 		}, foundNetworkPolicy)
-
 		if err != nil {
 			if apierrs.IsNotFound(err) {
 				// Set Controller reference
