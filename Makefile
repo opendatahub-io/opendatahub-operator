@@ -18,6 +18,7 @@ IMG ?= REPLACE_IMAGE
 BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
 
 IMAGE_BUILDER ?= podman
+IMAGE_PLATFORM = linux/amd64 # used for *image-build with $(IMAGE_BUILDER)
 OPERATOR_NAMESPACE ?= opendatahub-operator-system
 
 
@@ -161,9 +162,15 @@ build: generate fmt vet ## Build manager binary.
 run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./main.go
 
+.PHONY: image-build-common
+image-build-common:
+	$(IMAGE_BUILDER) build --no-cache --platform $(IMAGE_PLATFORM) \
+		--build-arg GOLANG_VERSION=$(TOOLBOX_GOLANG_VERSION) \
+		-f Dockerfiles/$(DOCKERFILE)  $(IMAGE_BUILD_FLAGS) -t $(IMG) .
+
 .PHONY: image-build
-image-build: # unit-test ## Build image with the manager.
-	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/Dockerfile  ${IMAGE_BUILD_FLAGS} -t $(IMG) .
+image-build: DOCKERFILE=Dockerfile
+image-build: unit-test image-build-common ## Build image with the manager.
 
 .PHONY: image-push
 image-push: ## Push image with the manager.
@@ -171,6 +178,10 @@ image-push: ## Push image with the manager.
 
 .PHONY: image
 image: image-build image-push ## Build and push image with the manager.
+
+.PHONY: debug-image-build
+debug-image-build: DOCKERFILE=debug.Dockerfile
+debug-image-build: image-build-common ## Build debug image (with dlv)
 
 ##@ Deployment
 
@@ -186,10 +197,18 @@ install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~
 uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/crd | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
-.PHONY: deploy
-deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+.PHONY: deploy-common
+deploy-common: manifests kustomize
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
-	$(KUSTOMIZE) build config/default | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
+	$(KUSTOMIZE) build config/$(CONFIG) | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
+
+.PHONY: deploy
+deploy: CONFIG=default
+deploy: deploy-common  ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+
+.PHONY: debug-deploy
+debug-deploy: CONFIG=debug
+debug-deploy: deploy-common ## Deploy debug controller to the K8s cluster specified in ~/.kube/config.
 
 .PHONY: undeploy
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.

@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opendatahub-operator-controller-manager
+  namespace: opendatahub-operator-system
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+      - command:
+        - /dlv
+        args:
+        - exec
+        - --listen=:2345
+        - --headless
+        - --api-version=2
+        - --log=true
+        - --continue=true
+        - --accept-multiclient
+        - /manager
+        - --
+        - --health-probe-bind-address=:8081
+        - --metrics-bind-address=0.0.0.0:8080
+        - --leader-elect
+        name: manager
