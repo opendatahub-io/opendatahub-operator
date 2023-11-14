@@ -25,6 +25,10 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="operators.coreos.com",resources=operatorconditions,verbs=get;list;watch
 
 /* This is for operator */
+// +kubebuilder:rbac:groups="apiregistration.k8s.io",resources=apiservices,verbs=get;list;watch
+
+// +kubebuilder:rbac:groups="apps",resources=daemonsets,verbs=get;list;watch
+
 // +kubebuilder:rbac:groups="operators.coreos.com",resources=catalogsources,verbs=get;list;watch
 
 // +kubebuilder:rbac:groups="apiextensions.k8s.io",resources=customresourcedefinitions,verbs=get;list;watch
@@ -128,7 +132,7 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="integreatly.org",resources=rhmis,verbs=list;watch;patch;delete
 
 // +kubebuilder:rbac:groups="image.openshift.io",resources=imagestreams,verbs=patch;create;update;delete
-// +kubebuilder:rbac:groups="image.openshift.io",resources=imagestreams,verbs=create;list;watch;patch;delete
+// +kubebuilder:rbac:groups="image.openshift.io",resources=imagestreams,verbs=create;list;watch;patch;delete;get
 
 // +kubebuilder:rbac:groups="extensions",resources=replicasets,verbs=*
 // +kubebuilder:rbac:groups="extensions",resources=ingresses,verbs=list;watch;patch;delete;get

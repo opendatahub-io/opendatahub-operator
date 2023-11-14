@@ -22,7 +22,8 @@ require (
 	k8s.io/apiextensions-apiserver v0.28.2
 	k8s.io/apimachinery v0.28.2
 	k8s.io/client-go v11.0.0+incompatible
-	sigs.k8s.io/controller-runtime v0.14.6
+	k8s.io/kube-aggregator v0.25.3
+	sigs.k8s.io/controller-runtime v0.16.1
 	sigs.k8s.io/kustomize/api v0.13.4
 	sigs.k8s.io/kustomize/kyaml v0.14.2
 )
