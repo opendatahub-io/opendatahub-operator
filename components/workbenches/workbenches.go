@@ -28,9 +28,10 @@ var (
 	notebookImagesPathSupported         = deploy.DefaultManifestPath + "/jupyterhub/notebook-images/overlays/additional"
 )
 
-// Verifies that Workbenches implements ComponentInterface.
+// Verifies that Workbench implements ComponentInterface.
 var _ components.ComponentInterface = (*Workbenches)(nil)
 
+// Workbenches struct holds the configuration for the Workbenches component.
 // +kubebuilder:object:generate=true
 type Workbenches struct {
 	components.Component `json:""`

@@ -42,9 +42,10 @@ var (
 	ProjectController        = "odh-project-controller"
 )
 
-// Verifies that Dashboard implements ComponentInterface
+// Verifies that Dashboard implements ComponentInterface.
 var _ components.ComponentInterface = (*Dashboard)(nil)
 
+// Dashboard struct holds the configuration for the Dashboard component.
 // +kubebuilder:object:generate=true
 type Dashboard struct {
 	components.Component `json:""`
@@ -139,6 +140,7 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 	switch {
 	case platform == deploy.OpenDataHub, platform == deploy.Unknown:
 		base := Path
+		// TODO re-evaluate
 		if dscispec.ServiceMesh.ManagementState == operatorv1.Managed {
 			base = PathServiceMesh
 		}

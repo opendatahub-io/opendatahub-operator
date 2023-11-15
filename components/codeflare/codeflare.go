@@ -22,6 +22,10 @@ var (
 	RHCodeflareOperator = "rhods-codeflare-operator"
 )
 
+// Verifies that CodeFlare implements ComponentInterface.
+var _ components.ComponentInterface = (*CodeFlare)(nil)
+
+// CodeFlare struct holds the configuration for the CodeFlare component.
 // +kubebuilder:object:generate=true
 type CodeFlare struct {
 	components.Component `json:""`
@@ -48,9 +52,6 @@ func (c *CodeFlare) OverrideManifests(_ string) error {
 func (c *CodeFlare) GetComponentName() string {
 	return ComponentName
 }
-
-// Verifies that CodeFlare implements ComponentInterface.
-var _ components.ComponentInterface = (*CodeFlare)(nil)
 
 func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
 	var imageParamMap = map[string]string{

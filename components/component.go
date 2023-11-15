@@ -14,6 +14,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 )
 
+// Component struct defines the basis for each OpenDataHub component configuration.
 // +kubebuilder:object:generate=true
 type Component struct {
 	// Set to one of the following values:

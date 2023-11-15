@@ -18,6 +18,10 @@ var (
 	Path          = deploy.DefaultManifestPath + "/" + "trustyai-service-operator/base"
 )
 
+// Verifies that TrustyAI implements ComponentInterface.
+var _ components.ComponentInterface = (*TrustyAI)(nil)
+
+// TrustyAI struct holds the configuration for the TrustyAI component.
 // +kubebuilder:object:generate=true
 type TrustyAI struct {
 	components.Component `json:""`
@@ -44,9 +48,6 @@ func (t *TrustyAI) OverrideManifests(_ string) error {
 func (t *TrustyAI) GetComponentName() string {
 	return ComponentName
 }
-
-// Verifies that TrustyAI implements ComponentInterface.
-var _ components.ComponentInterface = (*TrustyAI)(nil)
 
 func (t *TrustyAI) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
 	var imageParamMap = map[string]string{
