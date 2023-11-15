@@ -46,7 +46,6 @@ type Components struct {
 	Workbenches workbenches.Workbenches `json:"workbenches,omitempty"`
 
 	// ModelMeshServing component configuration.
-	// If CodeFlare Operator is not already installed, it'll be installed on the fly.
 	// Does not support enabled Kserve at the same time
 	ModelMeshServing modelmeshserving.ModelMeshServing `json:"modelmeshserving,omitempty"`
 
@@ -60,11 +59,10 @@ type Components struct {
 	Kserve kserve.Kserve `json:"kserve,omitempty"`
 
 	// CodeFlare component configuration.
-	// If CodeFlare Operator is not already installed, it'll be installed on the fly.
+	// If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabled component.
 	CodeFlare codeflare.CodeFlare `json:"codeflare,omitempty"`
 
 	// Ray component configuration.
-	// If CodeFlare Operator is not already installed, it'll be installed on the fly.
 	Ray ray.Ray `json:"ray,omitempty"`
 
 	// TrustyAI component configuration.
