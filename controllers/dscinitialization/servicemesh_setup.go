@@ -73,7 +73,7 @@ func configureServiceMeshFeatures(s *feature.FeaturesInitializer) error {
 		).
 		PreConditions(
 			servicemesh.EnsureServiceMeshOperatorInstalled,
-			feature.CreateNamespace(serviceMeshSpec.ControlPlane.Namespace),
+			feature.CreateNamespaceIfNotExists(serviceMeshSpec.ControlPlane.Namespace),
 		).
 		PostConditions(
 			feature.WaitForPodsToBeReady(serviceMeshSpec.ControlPlane.Namespace),
