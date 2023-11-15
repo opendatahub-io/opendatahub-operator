@@ -43,7 +43,8 @@ spec:
                 properties:
                   codeflare:
                     description: CodeFlare component configuration. If CodeFlare Operator
-                      is not already installed, it'll be installed on the fly.
+                      has been installed in the cluster, it should be uninstalled
+                      first before enabled component.
                     properties:
                       devFlags:
                         description: Add developer fields
@@ -278,9 +279,8 @@ spec:
                         type: object
                     type: object
                   modelmeshserving:
-                    description: ModelMeshServing component configuration. If CodeFlare
-                      Operator is not already installed, it'll be installed on the
-                      fly. Does not support enabled Kserve at the same time
+                    description: ModelMeshServing component configuration. Does not
+                      support enabled Kserve at the same time
                     properties:
                       devFlags:
                         description: Add developer fields
@@ -323,8 +323,7 @@ spec:
                         type: string
                     type: object
                   ray:
-                    description: Ray component configuration. If CodeFlare Operator
-                      is not already installed, it'll be installed on the fly.
+                    description: Ray component configuration.
                     properties:
                       devFlags:
                         description: Add developer fields
