@@ -10,6 +10,7 @@ import (
 
 	routev1 "github.com/openshift/api/route/v1"
 	"github.com/pkg/errors"
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -23,6 +24,7 @@ import (
 
 	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 )
 
 var (
@@ -104,6 +106,8 @@ func TestOdhOperator(t *testing.T) {
 	utilruntime.Must(autoscalingv1.AddToScheme(scheme))
 	utilruntime.Must(dsci.AddToScheme(scheme))
 	utilruntime.Must(dsc.AddToScheme(scheme))
+	utilruntime.Must(featurev1.AddToScheme(scheme))
+	utilruntime.Must(monitoringv1.AddToScheme(scheme))
 
 	// individual test suites after the operator is running
 	if !t.Run("validate operator pod is running", testODHOperatorValidation) {

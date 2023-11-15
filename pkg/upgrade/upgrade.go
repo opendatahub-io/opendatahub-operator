@@ -159,13 +159,13 @@ func CreateDefaultDSC(cli client.Client, platform deploy.Platform) error {
 					Component: components.Component{ManagementState: operatorv1.Managed},
 				},
 				ModelMeshServing: modelmeshserving.ModelMeshServing{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+					Component: components.Component{ManagementState: operatorv1.Removed},
 				},
 				DataSciencePipelines: datasciencepipelines.DataSciencePipelines{
 					Component: components.Component{ManagementState: operatorv1.Managed},
 				},
 				Kserve: kserve.Kserve{
-					Component: components.Component{ManagementState: operatorv1.Removed},
+					Component: components.Component{ManagementState: operatorv1.Managed},
 				},
 				CodeFlare: codeflare.CodeFlare{
 					Component: components.Component{ManagementState: operatorv1.Removed},

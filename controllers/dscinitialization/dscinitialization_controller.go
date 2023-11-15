@@ -68,7 +68,7 @@ type DSCInitializationReconciler struct {
 // +kubebuilder:rbac:groups="dscinitialization.opendatahub.io",resources=dscinitializations/status,verbs=get;update;patch;delete
 // +kubebuilder:rbac:groups="dscinitialization.opendatahub.io",resources=dscinitializations/finalizers,verbs=get;update;patch;delete
 // +kubebuilder:rbac:groups="dscinitialization.opendatahub.io",resources=dscinitializations,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="dscinitialization.opendatahub.io",resources=featuretrackers,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="features.opendatahub.io",resources=featuretrackers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="kfdef.apps.kubeflow.org",resources=kfdefs,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile contains controller logic specific to DSCInitialization instance updates.
@@ -109,7 +109,9 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 	} else {
 		r.Log.Info("Finalization DSCInitialization start deleting instance", "name", instance.Name, "finalizer", finalizerName)
-		// Add cleanup logic here
+		if err := r.removeServiceMesh(instance); err != nil {
+			return reconcile.Result{}, err
+		}
 		if controllerutil.ContainsFinalizer(instance, finalizerName) {
 			controllerutil.RemoveFinalizer(instance, finalizerName)
 			if err := r.Update(ctx, instance); err != nil {
@@ -245,6 +247,11 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
 				r.Log.Info("Monitoring enabled, won't apply changes", "cluster", "ODH Mode")
 			}
+		}
+
+		// Apply Service Mesh configurations
+		if errServiceMesh := r.configureServiceMesh(instance); errServiceMesh != nil {
+			return reconcile.Result{}, errServiceMesh
 		}
 
 		// Finish reconciling

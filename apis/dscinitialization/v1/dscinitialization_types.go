@@ -21,6 +21,8 @@ import (
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/infrastructure/v1"
 )
 
 // +operator-sdk:csv:customresourcedefinitions:order=1
@@ -35,9 +37,17 @@ type DSCInitializationSpec struct {
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=2
 	// +optional
 	Monitoring Monitoring `json:"monitoring,omitempty"`
+	// Configures Service Mesh as networking layer for Data Science Clusters components.
+	// The Service Mesh is a mandatory prerequisite for single model serving (KServe) and
+	// you should review this configuration if you are planning to use KServe.
+	// For other components, it enhances user experience; e.g. it provides unified
+	// authentication giving a Single Sign On experience.
+	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=3
+	// +optional
+	ServiceMesh infrav1.ServiceMeshSpec `json:"serviceMesh,omitempty"`
 	// Internal development useful field to test customizations.
 	// This is not recommended to be used in production environment.
-	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=3
+	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=4
 	// +optional
 	DevFlags DevFlags `json:"devFlags,omitempty"`
 }
@@ -107,51 +117,9 @@ type DSCInitializationList struct {
 	Items           []DSCInitialization `json:"items"`
 }
 
-// FeatureTracker is a cluster-scoped resource for tracking objects
-// created through Features API for Data Science Platform.
-// It's primarily used as owner reference for resources created across namespaces so that they can be
-// garbage collected by Kubernetes when they're not needed anymore.
-// +kubebuilder:object:root=true
-// +kubebuilder:resource:scope=Cluster
-type FeatureTracker struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec   FeatureTrackerSpec   `json:"spec,omitempty"`
-	Status FeatureTrackerStatus `json:"status,omitempty"`
-}
-
-func (s *FeatureTracker) ToOwnerReference() metav1.OwnerReference {
-	return metav1.OwnerReference{
-		APIVersion: s.APIVersion,
-		Kind:       s.Kind,
-		Name:       s.Name,
-		UID:        s.UID,
-	}
-}
-
-// FeatureTrackerSpec defines the desired state of FeatureTracker.
-type FeatureTrackerSpec struct {
-}
-
-// FeatureTrackerStatus defines the observed state of FeatureTracker.
-type FeatureTrackerStatus struct {
-}
-
-// +kubebuilder:object:root=true
-
-// FeatureTrackerList contains a list of FeatureTracker.
-type FeatureTrackerList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []FeatureTracker `json:"items"`
-}
-
 func init() {
 	SchemeBuilder.Register(
 		&DSCInitialization{},
 		&DSCInitializationList{},
-		&FeatureTracker{},
-		&FeatureTrackerList{},
 	)
 }

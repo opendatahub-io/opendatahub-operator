@@ -1,0 +1,17 @@
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: knative-local-gateway
+  namespace: knative-serving
+spec:
+  selector:
+    knative: ingressgateway
+  servers:
+    - hosts:
+        - '*.svc.cluster.local'
+      port:
+        name: https
+        number: 8081
+        protocol: HTTPS
+      tls:
+        mode: ISTIO_MUTUAL

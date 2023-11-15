@@ -10,6 +10,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+const BaseOutputDir = "/tmp/odh-operator"
+
 type manifest struct {
 	name,
 	path string

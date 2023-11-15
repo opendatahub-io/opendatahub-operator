@@ -244,10 +244,16 @@ func cleanupResources() {
 	defaultNamespace := client.InNamespace(workingNamespace)
 	appNamespace := client.InNamespace(applicationNamespace)
 	Expect(k8sClient.DeleteAllOf(context.TODO(), &dsci.DSCInitialization{}, defaultNamespace)).To(Succeed())
+
 	Expect(k8sClient.DeleteAllOf(context.TODO(), &netv1.NetworkPolicy{}, appNamespace)).To(Succeed())
 	Expect(k8sClient.DeleteAllOf(context.TODO(), &corev1.ConfigMap{}, appNamespace)).To(Succeed())
 	Expect(k8sClient.DeleteAllOf(context.TODO(), &authv1.RoleBinding{}, appNamespace)).To(Succeed())
+	Expect(k8sClient.DeleteAllOf(context.TODO(), &authv1.ClusterRoleBinding{}, appNamespace)).To(Succeed())
+
 	Eventually(noInstanceExistsIn(workingNamespace, &dsci.DSCInitializationList{}), timeout, interval).Should(BeTrue())
+	Eventually(noInstanceExistsIn(applicationNamespace, &authv1.ClusterRoleBindingList{}), timeout, interval).Should(BeTrue())
+	Eventually(noInstanceExistsIn(applicationNamespace, &authv1.RoleBindingList{}), timeout, interval).Should(BeTrue())
+	Eventually(noInstanceExistsIn(applicationNamespace, &corev1.ConfigMapList{}), timeout, interval).Should(BeTrue())
 }
 
 func noInstanceExistsIn(namespace string, list client.ObjectList) func() bool {

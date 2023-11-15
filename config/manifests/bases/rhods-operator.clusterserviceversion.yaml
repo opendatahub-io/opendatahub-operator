@@ -81,6 +81,13 @@ spec:
       - description: Enable monitoring on specified namespace
         displayName: Monitoring
         path: monitoring
+      - description: Configures Service Mesh as networking layer for Data Science
+          Clusters components. The Service Mesh is a mandatory prerequisite for single
+          model serving (KServe) and you should review this configuration if you are
+          planning to use KServe. For other components, it enhances user experience;
+          e.g. it provides unified authentication giving a Single Sign On experience.
+        displayName: Service Mesh
+        path: serviceMesh
       - description: Internal development useful field to test customizations. This
           is not recommended to be used in production environment.
         displayName: Dev Flags

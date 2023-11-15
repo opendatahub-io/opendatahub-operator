@@ -37,11 +37,16 @@ func WaitForPodsToBeReady(namespace string) Action {
 
 			for _, pod := range podList.Items {
 				podReady := true
-				for _, condition := range pod.Status.Conditions {
-					if condition.Type == corev1.PodReady {
-						if condition.Status != corev1.ConditionTrue {
-							podReady = false
-							break
+				// Consider a "PodSucceeded" as ready, since these will never will
+				// be in Ready condition (i.e. Jobs that already completed).
+				if pod.Status.Phase != corev1.PodSucceeded {
+					for _, condition := range pod.Status.Conditions {
+						if condition.Type == corev1.PodReady {
+							if condition.Status != corev1.ConditionTrue {
+								podReady = false
+
+								break
+							}
 						}
 					}
 				}
