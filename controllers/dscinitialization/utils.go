@@ -3,12 +3,11 @@ package dscinitialization
 import (
 	"context"
 	"crypto/rand"
-	ocuserv1 "github.com/openshift/api/user/v1"
-	"k8s.io/client-go/util/retry"
 	"reflect"
 	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	ocuserv1 "github.com/openshift/api/user/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	authv1 "k8s.io/api/rbac/v1"
@@ -16,12 +15,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
 
