@@ -2,14 +2,16 @@ package components
 
 import (
 	"fmt"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"os"
+	"path/filepath"
+	"strings"
+
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"os"
-	"path/filepath"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"strings"
+
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 )
 
 type Component struct {
@@ -37,6 +39,11 @@ func (c *Component) GetManagementState() operatorv1.ManagementState {
 
 func (c *Component) SetImageParamsMap(imageMap map[string]string) map[string]string {
 	return imageMap
+}
+
+func (c *Component) Cleanup(_ client.Client, _ *dsciv1.DSCInitializationSpec) error {
+	// noop
+	return nil
 }
 
 // DevFlags defines list of fields that can be used by developers to test customizations. This is not recommended
@@ -68,7 +75,8 @@ type ManifestsConfig struct {
 }
 
 type ComponentInterface interface {
-	ReconcileComponent(cli client.Client, owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec) error
+	ReconcileComponent(cli client.Client, owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec, currentComponentStatus bool) error
+	Cleanup(cli client.Client, DSCISpec *dsciv1.DSCInitializationSpec) error
 	GetComponentName() string
 	GetManagementState() operatorv1.ManagementState
 	SetImageParamsMap(imageMap map[string]string) map[string]string

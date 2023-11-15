@@ -2,23 +2,22 @@
 package modelmeshserving
 
 import (
-	"context"
 	"path/filepath"
 	"strings"
 
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 var (
 	ComponentName          = "model-mesh"
 	Path                   = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/odh"
-	monitoringPath         = deploy.DefaultManifestPath + "/" + "modelmesh-monitoring/base"
 	DependentComponentName = "odh-model-controller"
 	DependentPath          = deploy.DefaultManifestPath + "/" + DependentComponentName + "/base"
 )
@@ -66,7 +65,7 @@ func (m *ModelMeshServing) GetComponentName() string {
 // Verifies that Dashboard implements ComponentInterface.
 var _ components.ComponentInterface = (*ModelMeshServing)(nil)
 
-func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
+func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
 	var imageParamMap = map[string]string{
 		"odh-mm-rest-proxy":             "RELATED_IMAGE_ODH_MM_REST_PROXY_IMAGE",
 		"odh-modelmesh-runtime-adapter": "RELATED_IMAGE_ODH_MODELMESH_RUNTIME_ADAPTER_IMAGE",
@@ -94,8 +93,11 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 			return err
 		}
 
-		err := common.UpdatePodSecurityRolebinding(cli, []string{"modelmesh", "modelmesh-controller", "odh-prometheus-operator", "prometheus-custom"}, dscispec.ApplicationsNamespace)
-		if err != nil {
+		if err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace,
+			"modelmesh",
+			"modelmesh-controller",
+			"odh-prometheus-operator",
+			"prometheus-custom"); err != nil {
 			return err
 		}
 		// Update image parameters
@@ -113,7 +115,7 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 
 	// For odh-model-controller
 	if enabled {
-		err := common.UpdatePodSecurityRolebinding(cli, []string{"odh-model-controller"}, dscispec.ApplicationsNamespace)
+		err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "odh-model-controller")
 		if err != nil {
 			return err
 		}
@@ -130,26 +132,6 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 		} else {
 			return err
 		}
-	}
-
-	// Get monitoring namespace
-	dscInit := &dsciv1.DSCInitialization{}
-	err = cli.Get(context.TODO(), client.ObjectKey{
-		Name: "rhods-setup",
-	}, dscInit)
-	if err != nil {
-		return err
-	}
-	var monitoringNamespace string
-	if dscInit.Spec.Monitoring.Namespace != "" {
-		monitoringNamespace = dscInit.Spec.Monitoring.Namespace
-	} else {
-		monitoringNamespace = dscispec.ApplicationsNamespace
-	}
-
-	// If modelmesh is deployed successfully, deploy modelmesh-monitoring
-	if err = deploy.DeployManifestsFromPath(cli, owner, monitoringPath, monitoringNamespace, ComponentName, enabled); err != nil {
-		return err
 	}
 
 	// CloudService Monitoring handling

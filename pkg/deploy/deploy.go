@@ -30,12 +30,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"golang.org/x/exp/maps"
-
-	"github.com/opendatahub-io/opendatahub-operator/v2/components"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins"
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
+	"golang.org/x/exp/maps"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -46,6 +43,9 @@ import (
 	"sigs.k8s.io/kustomize/api/krusty"
 	"sigs.k8s.io/kustomize/api/resmap"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins"
 )
 
 const (
@@ -261,8 +261,11 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 	// Create the resource if it doesn't exist and component is enabled
 	if apierrs.IsNotFound(err) {
 		// Set the owner reference for garbage collection
-		if err = ctrl.SetControllerReference(owner, metav1.Object(obj), cli.Scheme()); err != nil {
-			return err
+		// Skip set on CRD, e.g we should not delete notebook CRD if we delete DSC instance
+		if found.GetKind() != "CustomResourceDefinition" {
+			if err = ctrl.SetControllerReference(owner, metav1.Object(obj), cli.Scheme()); err != nil {
+				return err
+			}
 		}
 		return cli.Create(ctx, obj)
 	}

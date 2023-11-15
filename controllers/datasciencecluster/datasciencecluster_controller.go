@@ -21,38 +21,40 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/client-go/rest"
 	"reflect"
 	"time"
 
 	"github.com/go-logr/logr"
-	v1 "github.com/openshift/api/operator/v1"
-
 	"github.com/hashicorp/go-multierror"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/source"
-
+	ocappsv1 "github.com/openshift/api/apps/v1"
+	ocbuildv1 "github.com/openshift/api/build/v1"
+	ocimgv1 "github.com/openshift/api/image/v1"
+	v1 "github.com/openshift/api/operator/v1"
+	admv1 "k8s.io/api/admissionregistration/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	netv1 "k8s.io/api/networking/v1"
+	authv1 "k8s.io/api/rbac/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
+	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
-	netv1 "k8s.io/api/networking/v1"
-	authv1 "k8s.io/api/rbac/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
-
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
 
 // DataScienceClusterReconciler reconciles a DataScienceCluster object.
@@ -71,21 +73,17 @@ type DataScienceClusterConfig struct {
 	DSCISpec *dsci.DSCInitializationSpec
 }
 
+const (
+	finalizerName = "datasciencecluster.opendatahub.io/finalizer"
+)
+
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	r.Log.Info("Reconciling DataScienceCluster resources", "Request.Namespace", req.Namespace, "Request.Name", req.Name)
+	r.Log.Info("Reconciling DataScienceCluster resources", "Request.Name", req.Name)
 
 	instances := &dsc.DataScienceClusterList{}
 	if err := r.Client.List(ctx, instances); err != nil {
-		return ctrl.Result{}, err
-	}
-
-	if len(instances.Items) > 1 {
-		message := fmt.Sprintf("only one instance of DataScienceCluster object is allowed. Update existing instance on namespace %s and name %s", req.Namespace, req.Name)
-		err := errors.New(message)
-		_ = r.reportError(err, &instances.Items[0], message)
-
 		return ctrl.Result{}, err
 	}
 
@@ -102,44 +100,26 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	instance := &instances.Items[0]
 
-	if instance.GetDeletionTimestamp() != nil {
-		r.Log.Info("DataScienceCluster instance is deleted.", "name", instance.Name)
-		if upgrade.HasDeleteConfigMap(r.Client) {
-			// if delete configmap exists, requeue the request to handle operator uninstall
-			return reconcile.Result{Requeue: true}, nil
-		}
-		return ctrl.Result{}, nil
+	if len(instances.Items) > 1 {
+		message := fmt.Sprintf("only one instance of DataScienceCluster object is allowed. Update existing instance %s", req.Name)
+		err := errors.New(message)
+		_ = r.reportError(err, instance, message)
+
+		_, _ = r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
+			status.SetErrorCondition(&saved.Status.Conditions, status.DuplicateDataScienceCluster, message)
+			saved.Status.Phase = status.PhaseError
+		})
+
+		return ctrl.Result{}, err
 	}
 
 	var err error
-	// Start reconciling
-	if instance.Status.Conditions == nil {
-		reason := status.ReconcileInit
-		message := "Initializing DataScienceCluster resource"
-		instance, err = r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
-			status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
-			saved.Status.Phase = status.PhaseProgressing
-		})
-		if err != nil {
-			_ = r.reportError(err, instance, fmt.Sprintf("failed to add conditions to status of DataScienceCluster resource on namespace %s and name %s", req.Namespace, req.Name))
-			return ctrl.Result{}, err
-		}
-	}
 
-	// If Deletion configmap is found, reconcile to trigger operatorUninstall
-	if upgrade.HasDeleteConfigMap(r.Client) {
-		if err := r.Client.Delete(context.TODO(), instance); err != nil {
-			if !apierrs.IsNotFound(err) {
-				return reconcile.Result{}, err
-			}
-		}
-		return reconcile.Result{Requeue: true}, nil
-	}
 	// Verify a valid DSCInitialization instance is created
 	dsciInstances := &dsci.DSCInitializationList{}
 	err = r.Client.List(ctx, dsciInstances)
 	if err != nil {
-		r.Log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
+		r.Log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization Request.Name", req.Name)
 		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to retrieve DSCInitialization instance")
 		return ctrl.Result{}, err
 	}
@@ -163,7 +143,59 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		dscInitializationSpec := dsciInstances.Items[0].Spec
 		dscInitializationSpec.DeepCopyInto(r.DataScienceCluster.DSCISpec)
 	default:
-		return ctrl.Result{}, errors.New("only one instance of DSCInitialization object is allowed")
+		message := "only one instance of DSCInitialization object is allowed"
+		_, _ = r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
+			status.SetErrorCondition(&saved.Status.Conditions, status.DuplicateDSCInitialization, message)
+			saved.Status.Phase = status.PhaseError
+		})
+		return ctrl.Result{}, errors.New(message)
+	}
+
+	allComponents, err := getAllComponents(&instance.Spec.Components)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	if instance.ObjectMeta.DeletionTimestamp.IsZero() {
+		if !controllerutil.ContainsFinalizer(instance, finalizerName) {
+			r.Log.Info("Adding finalizer for DataScienceCluster", "name", instance.Name, "finalizer", finalizerName)
+			controllerutil.AddFinalizer(instance, finalizerName)
+			if err := r.Update(ctx, instance); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+	} else {
+		r.Log.Info("Finalization DataScienceCluster start deleting instance", "name", instance.Name, "finalizer", finalizerName)
+		for _, component := range allComponents {
+			if err := component.Cleanup(r.Client, r.DataScienceCluster.DSCISpec); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+		if controllerutil.ContainsFinalizer(instance, finalizerName) {
+			controllerutil.RemoveFinalizer(instance, finalizerName)
+			if err := r.Update(ctx, instance); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+		if upgrade.HasDeleteConfigMap(r.Client) {
+			// if delete configmap exists, requeue the request to handle operator uninstall
+			return reconcile.Result{Requeue: true}, nil
+		}
+		return ctrl.Result{}, nil
+	}
+
+	// Start reconciling
+	if instance.Status.Conditions == nil {
+		reason := status.ReconcileInit
+		message := "Initializing DataScienceCluster resource"
+		instance, err = r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
+			status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
+			saved.Status.Phase = status.PhaseProgressing
+		})
+		if err != nil {
+			_ = r.reportError(err, instance, fmt.Sprintf("failed to add conditions to status of DataScienceCluster resource name %s", req.Name))
+			return ctrl.Result{}, err
+		}
 	}
 
 	// Ensure all omitted components show up as explicitly disabled
@@ -176,14 +208,8 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	// Initialize error list, instead of returning errors after every component is deployed
 	var componentErrors *multierror.Error
 
-	allComponents, err := getAllComponents(&instance.Spec.Components)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-
 	for _, component := range allComponents {
 		if instance, err = r.reconcileSubComponent(ctx, instance, component); err != nil {
-			// no need to log any errors as this is done in the reconcileSubComponent method
 			componentErrors = multierror.Append(componentErrors, err)
 		}
 	}
@@ -202,7 +228,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 		r.Recorder.Eventf(instance, corev1.EventTypeNormal, "DataScienceClusterComponentFailures",
 			"DataScienceCluster instance %s created, but have some failures in component %v", instance.Name, componentErrors)
-		return ctrl.Result{RequeueAfter: time.Second * 10}, componentErrors
+		return ctrl.Result{RequeueAfter: time.Second * 30}, componentErrors
 	}
 
 	// finalize reconciliation
@@ -220,25 +246,6 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		"DataScienceCluster instance %s created and deployed successfully", instance.Name)
 
 	return ctrl.Result{}, nil
-}
-
-func getAllComponents(c *dsc.Components) ([]components.ComponentInterface, error) {
-	var allComponents []components.ComponentInterface
-
-	definedComponents := reflect.ValueOf(c).Elem()
-	for i := 0; i < definedComponents.NumField(); i++ {
-		c := definedComponents.Field(i)
-		if c.CanAddr() {
-			component, ok := c.Addr().Interface().(components.ComponentInterface)
-			if !ok {
-				return allComponents, errors.New("this is not a pointer to ComponentInterface")
-			}
-
-			allComponents = append(allComponents, component)
-		}
-	}
-
-	return allComponents, nil
 }
 
 func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context, instance *dsc.DataScienceCluster,
@@ -260,7 +267,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 	}
 
 	// Reconcile component
-	err = component.ReconcileComponent(r.Client, instance, r.DataScienceCluster.DSCISpec)
+	err = component.ReconcileComponent(r.Client, instance, r.DataScienceCluster.DSCISpec, instance.Status.InstalledComponents[componentName])
 
 	if err != nil {
 		// reconciliation failed: log errors, raise event and update status accordingly
@@ -324,6 +331,19 @@ func (r *DataScienceClusterReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		Owns(&appsv1.Deployment{}).
 		Owns(&appsv1.ReplicaSet{}).
 		Owns(&corev1.Pod{}).
+		Owns(&corev1.PersistentVolumeClaim{}).
+		Owns(&corev1.Service{}).
+		Owns(&appsv1.DaemonSet{}).
+		Owns(&appsv1.StatefulSet{}).
+		Owns(&ocappsv1.DeploymentConfig{}).
+		Owns(&ocimgv1.ImageStream{}).
+		Owns(&ocbuildv1.BuildConfig{}).
+		Owns(&apiextensionsv1.CustomResourceDefinition{}).
+		Owns(&apiregistrationv1.APIService{}).
+		Owns(&netv1.Ingress{}).
+		Owns(&admv1.MutatingWebhookConfiguration{}).
+		Owns(&admv1.ValidatingWebhookConfiguration{}).
+		Owns(&corev1.ServiceAccount{}).
 		Watches(&source.Kind{Type: &dsci.DSCInitialization{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources)).
 		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources)).
 		// this predicates prevents meaningless reconciliations from being triggered
@@ -396,4 +416,23 @@ func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(a client
 		}}
 	}
 	return nil
+}
+
+func getAllComponents(c *dsc.Components) ([]components.ComponentInterface, error) {
+	var allComponents []components.ComponentInterface
+
+	definedComponents := reflect.ValueOf(c).Elem()
+	for i := 0; i < definedComponents.NumField(); i++ {
+		c := definedComponents.Field(i)
+		if c.CanAddr() {
+			component, ok := c.Addr().Interface().(components.ComponentInterface)
+			if !ok {
+				return allComponents, errors.New("this is not a pointer to ComponentInterface")
+			}
+
+			allComponents = append(allComponents, component)
+		}
+	}
+
+	return allComponents, nil
 }

@@ -15,7 +15,7 @@ metadata:
               "app.kubernetes.io/name": "datasciencecluster",
               "app.kubernetes.io/part-of": "rhods-operator"
             },
-            "name": "rhods"
+            "name": "default-dsc"
           },
           "spec": {
             "components": {
@@ -57,7 +57,7 @@ metadata:
               "app.kubernetes.io/name": "dscinitialization",
               "app.kubernetes.io/part-of": "rhods-operator"
             },
-            "name": "rhods-setup"
+            "name": "default-dsci"
           },
           "spec": {
             "applicationsNamespace": "redhat-ods-applications",
@@ -157,6 +157,9 @@ spec:
           resource
         displayName: Conditions
         path: conditions
+      version: v1
+    - kind: FeatureTracker
+      name: featuretrackers.dscinitialization.opendatahub.io
       version: v1
   description: |-
     Red Hat OpenShift Data Science (RHODS) is a complete platform for the entire lifecycle of your AI/ML projects. It is the flagship product of OpenShift AI.
@@ -559,7 +562,10 @@ spec:
           resources:
           - endpoints
           verbs:
+          - create
+          - delete
           - list
+          - update
           - watch
         - apiGroups:
           - ""
@@ -804,6 +810,18 @@ spec:
           - patch
           - update
         - apiGroups:
+          - dscinitialization.opendatahub.io
+          resources:
+          - featuretrackers
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
           - events.k8s.io
           resources:
           - events
@@ -967,6 +985,46 @@ spec:
         - apiGroups:
           - monitoring.coreos.com
           resources:
+          - alertmanagerconfigs
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - patch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
+          - alertmanagers
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - patch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
+          - alertmanagers/finalizers
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - patch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
+          - alertmanagers/status
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - patch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
           - podmonitors
           verbs:
           - create
@@ -979,10 +1037,41 @@ spec:
         - apiGroups:
           - monitoring.coreos.com
           resources:
+          - probes
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - patch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
           - prometheuses
           verbs:
           - create
           - delete
+          - deletecollection
+          - get
+          - patch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
+          - prometheuses/finalizers
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - patch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
+          - prometheuses/status
+          verbs:
+          - create
+          - delete
+          - deletecollection
           - get
           - patch
         - apiGroups:
@@ -992,6 +1081,7 @@ spec:
           verbs:
           - create
           - delete
+          - deletecollection
           - get
           - patch
         - apiGroups:
@@ -1001,11 +1091,42 @@ spec:
           verbs:
           - create
           - delete
+          - deletecollection
           - get
           - list
           - patch
           - update
           - watch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
+          - thanosrulers
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - patch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
+          - thanosrulers/finalizers
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - patch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
+          - thanosrulers/status
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - patch
         - apiGroups:
           - networking.istio.io
           resources:

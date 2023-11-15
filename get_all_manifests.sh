@@ -8,8 +8,8 @@ MANIFEST_ORG="red-hat-data-services"
 MANIFEST_RELEASE="master"
 MANIFESTS_TARBALL_URL="${GITHUB_URL}/${MANIFEST_ORG}/odh-manifests/tarball/${MANIFEST_RELEASE}"
 
-# component: dsp, kserve, dashbaord, cf/ray. in the format of "repo-org:repo-name:branch-name:source-folder:target-folder"
-# TODO: kserve, mm, trustyai, dashbaord, nbc,odh-mm-monitoring, etc
+# component: notebook, dsp, kserve, dashbaord, cf/ray, trustyai, modelmesh.
+# in the format of "repo-org:repo-name:branch-name:source-folder:target-folder".
 declare -A COMPONENT_MANIFESTS=(
     ["codeflare"]="red-hat-data-services:codeflare-operator:rhods-2.4:config:codeflare"
     ["ray"]="red-hat-data-services:kuberay:rhods-2.4:ray-operator/config:ray"
@@ -21,7 +21,8 @@ declare -A COMPONENT_MANIFESTS=(
     ["trustyai"]="red-hat-data-services:trustyai-service-operator:rhods-2.4:config:trustyai-service-operator"
 #    ["model-mesh"]="red-hat-data-services:modelmesh-serving:release-0.11.0:config:model-mesh"
 #    ["odh-model-controller"]="red-hat-data-services:odh-model-controller:release-0.11.0:config:odh-model-controller"
-#    ["kserve"]="red-hat-data-services:kserve:release-v0.11.0:config:kserve"
+    ["kserve"]="red-hat-data-services:kserve:release-v0.11.0:config:kserve"
+
 )
 
 # Allow overwriting repo using flags component=repo

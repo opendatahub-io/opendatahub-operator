@@ -3,22 +3,22 @@ package kserve
 
 import (
 	"fmt"
-
 	"path/filepath"
 	"strings"
 
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 var (
 	ComponentName          = "kserve"
-	Path                   = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
+	Path                   = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/odh"
 	DependentComponentName = "odh-model-controller"
 	DependentPath          = deploy.DefaultManifestPath + "/" + DependentComponentName + "/base"
 	ServiceMeshOperator    = "servicemeshoperator"
@@ -53,7 +53,7 @@ func (k *Kserve) OverrideManifests(_ string) error {
 					return err
 				}
 				// If overlay is defined, update paths
-				defaultKustomizePath := "base"
+				defaultKustomizePath := "overlays/odh"
 				if subcomponent.SourcePath != "" {
 					defaultKustomizePath = subcomponent.SourcePath
 				}
@@ -71,7 +71,7 @@ func (k *Kserve) GetComponentName() string {
 // Verifies that Kserve implements ComponentInterface.
 var _ components.ComponentInterface = (*Kserve)(nil)
 
-func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
+func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
 	// paramMap for Kserve to use.
 	var imageParamMap = map[string]string{}
 
@@ -122,8 +122,7 @@ func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dsci
 
 	// For odh-model-controller
 	if enabled {
-		err := common.UpdatePodSecurityRolebinding(cli, []string{"odh-model-controller"}, dscispec.ApplicationsNamespace)
-		if err != nil {
+		if err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "odh-model-controller"); err != nil {
 			return err
 		}
 		// Update image parameters for odh-model-controller

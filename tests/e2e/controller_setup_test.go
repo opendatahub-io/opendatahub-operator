@@ -4,25 +4,25 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"os"
 	"testing"
 	"time"
-
-	"k8s.io/apimachinery/pkg/types"
 
 	routev1 "github.com/openshift/api/route/v1"
 	"github.com/pkg/errors"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	k8sclient "k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlruntime "sigs.k8s.io/controller-runtime/pkg/client/config"
+
+	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 )
 
 var (
@@ -78,9 +78,9 @@ func NewTestContext() (*testContext, error) {
 
 	// Get Applications namespace from DSCInitialization instance
 	dscInit := &dsci.DSCInitialization{}
-	err = custClient.Get(context.TODO(), types.NamespacedName{Name: "rhods-setup"}, dscInit)
+	err = custClient.Get(context.TODO(), types.NamespacedName{Name: "default-dsci"}, dscInit)
 	if err != nil {
-		return nil, errors.Wrap(err, "error getting DSCInitialization instance 'rhods-setup'")
+		return nil, errors.Wrap(err, "error getting DSCInitialization instance")
 	}
 
 	return &testContext{

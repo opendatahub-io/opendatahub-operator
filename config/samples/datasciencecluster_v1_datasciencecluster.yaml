@@ -1,7 +1,7 @@
 apiVersion: datasciencecluster.opendatahub.io/v1
 kind: DataScienceCluster
 metadata:
-  name: rhods
+  name: default-dsc
   labels:
     app.kubernetes.io/name: datasciencecluster
     app.kubernetes.io/instance: rhods

@@ -4,25 +4,23 @@ import (
 	"context"
 	b64 "encoding/base64"
 	"fmt"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
-
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
-	operatorv1 "github.com/openshift/api/operator/v1"
-	routev1 "github.com/openshift/api/route/v1"
-	corev1 "k8s.io/api/core/v1"
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	// "k8s.io/apimachinery/pkg/runtime"
-
 	"path/filepath"
 	"strings"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
+	routev1 "github.com/openshift/api/route/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
 
 // +kubebuilder:rbac:groups="route.openshift.io",resources=routers/metrics,verbs=get
@@ -70,7 +68,7 @@ func (r *DSCInitializationReconciler) configureManagedMonitoring(ctx context.Con
 	}
 
 	if initial == "init" {
-		err := common.UpdatePodSecurityRolebinding(r.Client, []string{"redhat-ods-monitoring"}, dscInit.Spec.Monitoring.Namespace)
+		err := cluster.UpdatePodSecurityRolebinding(r.Client, dscInit.Spec.Monitoring.Namespace, "redhat-ods-monitoring")
 		if err != nil {
 			return fmt.Errorf("error to update monitoring security rolebinding: %w", err)
 		}
@@ -128,6 +126,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 		return fmt.Errorf("error getting console route URL : %v", err)
 	}
 	if strings.Contains(consolelinkDomain, "devshift.org") {
+		r.Log.Info("inject alertmanage-configs.yaml for dev mode1")
 		err = common.ReplaceStringsInFile(filepath.Join(alertManagerPath, "alertmanager-configs.yaml"),
 			map[string]string{
 				"@devshift.net": "@rhmw.io",
@@ -138,6 +137,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 		}
 	}
 	if strings.Contains(consolelinkDomain, "aisrhods") {
+		r.Log.Info("inject alertmanage-configs.yaml for dev mode2")
 		err = common.ReplaceStringsInFile(filepath.Join(alertManagerPath, "alertmanager-configs.yaml"),
 			map[string]string{
 				"receiver: PagerDuty": "receiver: alerts-sink",
@@ -300,7 +300,27 @@ func configurePrometheus(ctx context.Context, dsciInit *dsci.DSCInitialization, 
 	// r.Log.Info("Success: update annotations in prometheus-deployment.yaml")
 
 	// final apply prometheus manifests including prometheus deployment
-	err = deploy.DeployManifestsFromPath(r.Client, dsciInit, prometheusManifestsPath, dsciInit.Spec.Monitoring.Namespace, "prometheus", true)
+	// Check if Prometheus deployment from legacy version exists(check for initContainer)
+	// Need to delete wait-for-deployment initContainer
+	existingPromDep := &appsv1.Deployment{}
+	err = r.Client.Get(context.TODO(), client.ObjectKey{
+		Namespace: dsciInit.Spec.Monitoring.Namespace,
+		Name:      "prometheus",
+	}, existingPromDep)
+	if err != nil {
+		if !apierrs.IsNotFound(err) {
+			return err
+		}
+	}
+	if len(existingPromDep.Spec.Template.Spec.InitContainers) > 0 {
+		err = r.Client.Delete(context.TODO(), existingPromDep)
+		if err != nil {
+			return fmt.Errorf("error deleting legacy prometheus deployment %v", err)
+		}
+	}
+
+	err = deploy.DeployManifestsFromPath(r.Client, dsciInit, prometheusManifestsPath,
+		dsciInit.Spec.Monitoring.Namespace, "prometheus", true)
 	if err != nil {
 		r.Log.Error(err, "error to deploy manifests for prometheus", "path", prometheusManifestsPath)
 		return err
@@ -320,6 +340,25 @@ func configureBlackboxExporter(ctx context.Context, dsciInit *dsci.DSCInitializa
 	if err != nil {
 		if !apierrs.IsNotFound(err) {
 			return err
+		}
+	}
+
+	// Check if Blackbox exporter deployment from legacy version exists(check for initContainer)
+	// Need to delete wait-for-deployment initContainer
+	existingBlackboxExp := &appsv1.Deployment{}
+	err = r.Client.Get(context.TODO(), client.ObjectKey{
+		Namespace: dsciInit.Spec.Monitoring.Namespace,
+		Name:      "blackbox-exporter",
+	}, existingBlackboxExp)
+	if err != nil {
+		if !apierrs.IsNotFound(err) {
+			return err
+		}
+	}
+	if len(existingBlackboxExp.Spec.Template.Spec.InitContainers) > 0 {
+		err = r.Client.Delete(context.TODO(), existingBlackboxExp)
+		if err != nil {
+			return fmt.Errorf("error deleting legacy blackbox deployment %v", err)
 		}
 	}
 
@@ -399,11 +438,21 @@ func (r *DSCInitializationReconciler) configureCommonMonitoring(dsciInit *dsci.D
 	}
 	// configure monitoring base
 	monitoringBasePath := filepath.Join(deploy.DefaultManifestPath, "monitoring", "base")
+	err := common.ReplaceStringsInFile(filepath.Join(monitoringBasePath, "rhods-servicemonitor.yaml"),
+		map[string]string{
+			"<odh_monitoring_project>": dsciInit.Spec.Monitoring.Namespace,
+		})
+	if err != nil {
+		r.Log.Error(err, "error to inject namespace to common monitoring")
+
+		return err
+	}
+	// do not set monitoring namespace here, it is hardcoded by manifests
 	if err := deploy.DeployManifestsFromPath(
 		r.Client,
 		dsciInit,
 		monitoringBasePath,
-		dsciInit.Spec.Monitoring.Namespace,
+		"",
 		"monitoring-base",
 		dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed); err != nil {
 		r.Log.Error(err, "error to deploy manifests under "+monitoringBasePath)

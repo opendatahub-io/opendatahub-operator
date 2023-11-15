@@ -7,9 +7,10 @@ metadata:
     app.kubernetes.io/part-of: rhods-operator
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/created-by: rhods-operator
-  name: rhods-setup
+  name: default-dsci
 spec:
   monitoring:
     managementState: "Managed"
     namespace: 'redhat-ods-monitoring'
   applicationsNamespace: 'redhat-ods-applications'
+

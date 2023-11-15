@@ -9,15 +9,17 @@ import (
 	"strings"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	routev1 "github.com/openshift/api/route/v1"
+	v1 "k8s.io/api/core/v1"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-
-	routev1 "github.com/openshift/api/route/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var (
@@ -72,7 +74,8 @@ func (d *Dashboard) GetComponentName() string {
 // Verifies that Dashboard implements ComponentInterface.
 var _ components.ComponentInterface = (*Dashboard)(nil)
 
-func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
+//nolint:gocyclo
+func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, currentComponentStatus bool) error {
 	var imageParamMap = map[string]string{
 		"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
 	}
@@ -86,13 +89,16 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 
 	// Update Default rolebinding
 	if enabled {
+		if err := d.cleanOauthClientSecrets(cli, dscispec, currentComponentStatus); err != nil {
+			return err
+		}
 		// Download manifests and update paths
 		if err := d.OverrideManifests(string(platform)); err != nil {
 			return err
 		}
 
 		if platform == deploy.OpenDataHub || platform == "" {
-			err := common.UpdatePodSecurityRolebinding(cli, []string{ComponentName}, dscispec.ApplicationsNamespace)
+			err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "odh-dashboard")
 			if err != nil {
 				return err
 			}
@@ -103,7 +109,7 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 		}
 
 		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
-			err := common.UpdatePodSecurityRolebinding(cli, []string{ComponentNameSupported}, dscispec.ApplicationsNamespace)
+			err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "rhods-dashboard")
 			if err != nil {
 				return err
 			}
@@ -204,7 +210,7 @@ func (d *Dashboard) applyRhodsSpecificConfigs(cli client.Client, owner metav1.Ob
 		return fmt.Errorf("failed to set dashboard OVMS from %s: %w", PathOVMS, err)
 	}
 
-	if err := common.CreateSecret(cli, "anaconda-ce-access", namespace); err != nil {
+	if err := cluster.CreateSecret(cli, "anaconda-ce-access", namespace); err != nil {
 		return fmt.Errorf("failed to create access-secret for anaconda: %w", err)
 	}
 
@@ -254,5 +260,30 @@ func (d *Dashboard) deployConsoleLink(cli client.Client, owner metav1.Object, na
 		return fmt.Errorf("failed to set dashboard consolelink from %s: %w", PathConsoleLink, err)
 	}
 
+	return nil
+}
+
+func (d *Dashboard) cleanOauthClientSecrets(cli client.Client, dscispec *dsciv1.DSCInitializationSpec, currentComponentStatus bool) error {
+	// Remove previous oauth-client secrets
+	// Check if component is going from state of `Not Installed --> Installed`
+	// Assumption: Component is currently set to enabled
+	if !currentComponentStatus {
+		// Delete client secrets from previous installation
+		oauthClientSecret := &v1.Secret{}
+		err := cli.Get(context.TODO(), client.ObjectKey{
+			Namespace: dscispec.ApplicationsNamespace,
+			Name:      "dashboard-oauth-client",
+		}, oauthClientSecret)
+		if err != nil {
+			if !apierrs.IsNotFound(err) {
+				return err
+			}
+		} else {
+			err := cli.Delete(context.TODO(), oauthClientSecret)
+			if err != nil {
+				return fmt.Errorf("error deleting oauth client secret: %v", err)
+			}
+		}
+	}
 	return nil
 }
