@@ -31,7 +31,7 @@ func (k *Kserve) configureServerlessFeatures(s *feature.FeaturesInitializer) err
 			serverless.EnsureServerlessOperatorInstalled,
 			serverless.EnsureServerlessAbsent,
 			servicemesh.EnsureServiceMeshInstalled,
-			feature.CreateNamespace(knativeServingNamespace),
+			feature.CreateNamespaceIfNotExists(knativeServingNamespace),
 		).
 		PostConditions(
 			feature.WaitForPodsToBeReady(knativeServingNamespace),

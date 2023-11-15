@@ -31,6 +31,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
@@ -38,8 +39,7 @@ const (
 	// DeleteConfigMapLabel is the label for configMap used to trigger operator uninstall
 	// TODO: Label should be updated if addon name changes
 	DeleteConfigMapLabel = "api.openshift.com/addon-managed-odh-delete"
-	// odhGeneratedNamespaceLabel is the label added to all the namespaces genereated by odh-deployer
-	odhGeneratedNamespaceLabel = "opendatahub.io/generated-namespace"
+	// odhGeneratedNamespaceLabel is the label added to all the namespaces genereated by odh-deployer.
 )
 
 // OperatorUninstall deletes all the externally generated resources. This includes monitoring resources and applications
@@ -63,7 +63,7 @@ func OperatorUninstall(cli client.Client, cfg *rest.Config) error {
 	// Delete generated namespaces by the operator
 	generatedNamespaces := &corev1.NamespaceList{}
 	nsOptions := []client.ListOption{
-		client.MatchingLabels{odhGeneratedNamespaceLabel: "true"},
+		client.MatchingLabels{cluster.ODHGeneratedNamespaceLabel: "true"},
 	}
 	if err := cli.List(context.TODO(), generatedNamespaces, nsOptions...); err != nil {
 		if !apierrs.IsNotFound(err) {

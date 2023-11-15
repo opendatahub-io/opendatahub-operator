@@ -22,6 +22,11 @@ var (
 	DependentPath          = deploy.DefaultManifestPath + "/" + DependentComponentName + "/base"
 )
 
+// Verifies that Dashboard implements ComponentInterface.
+var _ components.ComponentInterface = (*ModelMeshServing)(nil)
+
+// ModelMeshServing struct holds the configuration for the ModelMeshServing component.
+// +kubebuilder:object:generate=true
 type ModelMeshServing struct {
 	components.Component `json:""`
 }
@@ -61,9 +66,6 @@ func (m *ModelMeshServing) OverrideManifests(_ string) error {
 func (m *ModelMeshServing) GetComponentName() string {
 	return ComponentName
 }
-
-// Verifies that Dashboard implements ComponentInterface.
-var _ components.ComponentInterface = (*ModelMeshServing)(nil)
 
 func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
 	var imageParamMap = map[string]string{
@@ -153,9 +155,4 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 		}
 	}
 	return nil
-}
-
-func (m *ModelMeshServing) DeepCopyInto(target *ModelMeshServing) {
-	*target = *m
-	target.Component = m.Component
 }

@@ -38,6 +38,11 @@ var (
 	PathAnaconda           = deploy.DefaultManifestPath + "/partners/anaconda/base/"
 )
 
+// Verifies that Dashboard implements ComponentInterface.
+var _ components.ComponentInterface = (*Dashboard)(nil)
+
+// Dashboard struct holds the configuration for the Dashboard component.
+// +kubebuilder:object:generate=true
 type Dashboard struct {
 	components.Component `json:""`
 }
@@ -70,9 +75,6 @@ func (d *Dashboard) OverrideManifests(platform string) error {
 func (d *Dashboard) GetComponentName() string {
 	return ComponentName
 }
-
-// Verifies that Dashboard implements ComponentInterface.
-var _ components.ComponentInterface = (*Dashboard)(nil)
 
 //nolint:gocyclo
 func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, currentComponentStatus bool) error {
@@ -173,11 +175,6 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 	default:
 		return nil
 	}
-}
-
-func (d *Dashboard) DeepCopyInto(target *Dashboard) {
-	*target = *d
-	target.Component = d.Component
 }
 
 func (d *Dashboard) deployCRDsForPlatform(cli client.Client, owner metav1.Object, namespace string, platform deploy.Platform) error {

@@ -41,8 +41,9 @@ spec:
                 description: Override and fine tune specific component configurations.
                 properties:
                   codeflare:
-                    description: CodeFlare component configuration. Require CodeFlare
-                      Operator to be installed before enable component
+                    description: CodeFlare component configuration. If CodeFlare Operator
+                      has been installed in the cluster, it should be uninstalled
+                      first before enabled component.
                     properties:
                       devFlags:
                         description: Add developer fields
@@ -277,9 +278,8 @@ spec:
                         type: object
                     type: object
                   modelmeshserving:
-                    description: ModelMeshServing component configuration. Require
-                      CodeFlare Operator to be installed before enable component Does
-                      not support enabled Kserve at the same time
+                    description: ModelMeshServing component configuration. Does not
+                      support enabled Kserve at the same time
                     properties:
                       devFlags:
                         description: Add developer fields
@@ -322,8 +322,7 @@ spec:
                         type: string
                     type: object
                   ray:
-                    description: Ray component configuration. Require CodeFlare Operator
-                      to be installed before enable component
+                    description: Ray component configuration.
                     properties:
                       devFlags:
                         description: Add developer fields

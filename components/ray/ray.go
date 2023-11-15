@@ -19,6 +19,11 @@ var (
 	RayPath       = deploy.DefaultManifestPath + "/" + ComponentName + "/openshift"
 )
 
+// Verifies that Ray implements ComponentInterface.
+var _ components.ComponentInterface = (*Ray)(nil)
+
+// Ray struct holds the configuration for the Ray component.
+// +kubebuilder:object:generate=true
 type Ray struct {
 	components.Component `json:""`
 }
@@ -43,9 +48,6 @@ func (r *Ray) OverrideManifests(_ string) error {
 func (r *Ray) GetComponentName() string {
 	return ComponentName
 }
-
-// Verifies that Ray implements ComponentInterface.
-var _ components.ComponentInterface = (*Ray)(nil)
 
 func (r *Ray) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
 	var imageParamMap = map[string]string{
@@ -89,9 +91,4 @@ func (r *Ray) ReconcileComponent(cli client.Client, owner metav1.Object, dscispe
 		}
 	}
 	return nil
-}
-
-func (r *Ray) DeepCopyInto(target *Ray) {
-	*target = *r
-	target.Component = r.Component
 }

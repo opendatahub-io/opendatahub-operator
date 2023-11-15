@@ -27,6 +27,11 @@ var (
 	ServerlessOperator     = "serverless-operator"
 )
 
+// Verifies that Kserve implements ComponentInterface.
+var _ components.ComponentInterface = (*Kserve)(nil)
+
+// Kserve struct holds the configuration for the Kserve component.
+// +kubebuilder:object:generate=true
 type Kserve struct {
 	components.Component `json:""`
 	// Serving configures the KNative-Serving stack used for model serving. A Service
@@ -72,9 +77,6 @@ func (k *Kserve) OverrideManifests(_ string) error {
 func (k *Kserve) GetComponentName() string {
 	return ComponentName
 }
-
-// Verifies that Kserve implements ComponentInterface.
-var _ components.ComponentInterface = (*Kserve)(nil)
 
 func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
 	// paramMap for Kserve to use.
@@ -157,11 +159,6 @@ func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dsci
 	}
 
 	return nil
-}
-
-func (k *Kserve) DeepCopyInto(target *Kserve) {
-	*target = *k
-	target.Component = k.Component
 }
 
 func (k *Kserve) Cleanup(_ client.Client, instance *dsciv1.DSCInitializationSpec) error {

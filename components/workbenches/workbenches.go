@@ -26,6 +26,11 @@ var (
 	notebookImagesPathSupported = deploy.DefaultManifestPath + "/jupyterhub/notebooks/base"
 )
 
+// Verifies that Workbench implements ComponentInterface.
+var _ components.ComponentInterface = (*Workbenches)(nil)
+
+// Workbenches struct holds the configuration for the Workbenches component.
+// +kubebuilder:object:generate=true
 type Workbenches struct {
 	components.Component `json:""`
 }
@@ -88,9 +93,6 @@ func (w *Workbenches) GetComponentName() string {
 	return ComponentName
 }
 
-// Verifies that Workbench implements ComponentInterface.
-var _ components.ComponentInterface = (*Workbenches)(nil)
-
 func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec, _ bool) error {
 	var imageParamMap = map[string]string{
 		"odh-notebook-controller-image":    "RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE",
@@ -115,7 +117,7 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 		}
 
 		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
-			_, err := cluster.CreateNamespace(cli, "rhods-notebooks")
+			_, err := cluster.CreateNamespace(cli, "rhods-notebooks", cluster.WithLabels(cluster.ODHGeneratedNamespaceLabel, "true"))
 			if err != nil {
 				// no need to log error as it was already logged in createOdhNamespace
 				return err
@@ -177,9 +179,4 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 		}
 	}
 	return nil
-}
-
-func (w *Workbenches) DeepCopyInto(target *Workbenches) {
-	*target = *w
-	target.Component = w.Component
 }
