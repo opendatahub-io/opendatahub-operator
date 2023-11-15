@@ -2,6 +2,7 @@
 package kserve
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -160,7 +161,7 @@ func (k *Kserve) Cleanup(_ client.Client, instance *dsciv1.DSCInitializationSpec
 func (k *Kserve) configureServerless(instance *dsciv1.DSCInitializationSpec) error {
 	if k.Serving.ManagementState == operatorv1.Managed {
 		if instance.ServiceMesh.ManagementState != operatorv1.Managed {
-			return fmt.Errorf("service mesh is not configure in DataScienceInitialization cluster but required by KServe serving")
+			return fmt.Errorf("serviceMesh is not Managed in DSCI instance but required by KServe serving")
 		}
 
 		serverlessInitializer := feature.NewFeaturesInitializer(instance, k.configureServerlessFeatures)

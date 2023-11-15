@@ -403,11 +403,12 @@ func SubscriptionExists(cli client.Client, namespace string, name string) (bool,
 	return true, nil
 }
 
-// OperatorExists checks if Operator(list) with 'operatorPrefix' is installed.
-// installed set to true: we expect operator to be installed, installed set to false: we do not want opreator pre-installed
+// OperatorExists checks if Operator(list) with 'operatorPrefix' should exist or not in the cluster.
+// isExpected set to true: we expect all operator to exist in the cluster.
+// isExpected set to false: we do not want any listed opreators exist in the cluster.
 // If we need to check exact version of the operator installed, can append vX.Y.Z later.
-func OperatorExists(cli client.Client, componentName string, installed bool, operatorPrefixList ...string) (bool, error) {
-	expectedOps := len(operatorPrefixList)
+func OperatorExists(cli client.Client, componentName string, isExpected bool, operatorPrefixes ...string) (bool, error) {
+	expectedOps := len(operatorPrefixes)
 
 	opConditionList := &ofapiv2.OperatorConditionList{}
 	if err := cli.List(context.TODO(), opConditionList); err != nil {
@@ -417,9 +418,9 @@ func OperatorExists(cli client.Client, componentName string, installed bool, ope
 		return false, err
 	} else {
 		var match int
-		if installed { // e.g kserver
+		if isExpected { // e.g kserver
 			for _, opCondition := range opConditionList.Items {
-				for _, operatorPrefix := range operatorPrefixList {
+				for _, operatorPrefix := range operatorPrefixes {
 					if strings.HasPrefix(opCondition.Name, operatorPrefix) {
 						match++
 					}
@@ -428,13 +429,13 @@ func OperatorExists(cli client.Client, componentName string, installed bool, ope
 			if expectedOps == match { // when all dependent operators are found
 				return true, nil
 			}
-			return false, fmt.Errorf("please install all dependent operators %s before enabling %s component", operatorPrefixList, componentName)
+			return false, fmt.Errorf("please install all dependent operators %s before enabling %s component", operatorPrefixes, componentName)
 		} else { // e.g CFO
 			for _, opCondition := range opConditionList.Items {
-				for _, operatorPrefix := range operatorPrefixList {
+				for _, operatorPrefix := range operatorPrefixes {
 					if strings.HasPrefix(opCondition.Name, operatorPrefix) {
 						return false, fmt.Errorf("please uninstall all dependent operators %s before enabling %s component",
-							operatorPrefixList, componentName)
+							operatorPrefixes, componentName)
 					}
 				}
 			}
