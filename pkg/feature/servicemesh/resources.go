@@ -11,15 +11,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
+	v1 "github.com/opendatahub-io/opendatahub-operator/v2/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 )
 
+// TODO rework (dupl)
 func SelfSignedCertificate(f *feature.Feature) error {
-	if f.Spec.Mesh.Certificate.Generate {
+	if f.Spec.ControlPlane.Certificate.Type == v1.SelfSigned {
 		meta := metav1.ObjectMeta{
-			Name:      f.Spec.Mesh.Certificate.Name,
-			Namespace: f.Spec.Mesh.Namespace,
+			Name:      f.Spec.ControlPlane.Certificate.SecretName,
+			Namespace: f.Spec.ControlPlane.Namespace,
 			OwnerReferences: []metav1.OwnerReference{
 				f.OwnerReference(),
 			},
@@ -35,7 +37,7 @@ func SelfSignedCertificate(f *feature.Feature) error {
 		}
 
 		_, err = f.Clientset.CoreV1().
-			Secrets(f.Spec.Mesh.Namespace).
+			Secrets(f.Spec.ControlPlane.Namespace).
 			Create(context.TODO(), cert, metav1.CreateOptions{})
 		if err != nil && !k8serrors.IsAlreadyExists(err) {
 			return errors.WithStack(err)
@@ -48,7 +50,7 @@ func SelfSignedCertificate(f *feature.Feature) error {
 func EnvoyOAuthSecrets(feature *feature.Feature) error {
 	objectMeta := metav1.ObjectMeta{
 		Name:      feature.Spec.AppNamespace + "-oauth2-tokens",
-		Namespace: feature.Spec.Mesh.Namespace,
+		Namespace: feature.Spec.ControlPlane.Namespace,
 		OwnerReferences: []metav1.OwnerReference{
 			feature.OwnerReference(),
 		},
@@ -70,7 +72,7 @@ func EnvoyOAuthSecrets(feature *feature.Feature) error {
 }
 
 func ConfigMaps(feature *feature.Feature) error {
-	meshConfig := feature.Spec.Mesh
+	meshConfig := feature.Spec.ControlPlane
 	if err := feature.CreateConfigMap("service-mesh-refs",
 		map[string]string{
 			"CONTROL_PLANE_NAME": meshConfig.Name,

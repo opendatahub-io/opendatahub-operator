@@ -5,8 +5,5 @@ kind: Kustomization
 resources:
 - datasciencecluster_v1_datasciencecluster.yaml
 - dscinitialization_v1_dscinitialization.yaml
-- opendatahub_v1alpha1_odhdashboardconfigs.yaml
-- dashboard_v1_odhdocuments.yaml
-- dashboard_v1_odhapplications.yaml
-- console_v1_odhquickstarts.yaml
+- featuretracker_v1_features.yaml
 #+kubebuilder:scaffold:manifestskustomizesamples

@@ -59,7 +59,7 @@ func (d *Dashboard) defineServiceMeshFeatures(dscispec *dsci.DSCInitializationSp
 				feature.WaitForResourceToBeCreated(dscispec.ApplicationsNamespace, gvr.ODHDashboardConfigGVR),
 			).
 			PostConditions(
-				feature.WaitForPodsToBeReady(dscispec.ServiceMesh.Mesh.Namespace),
+				feature.WaitForPodsToBeReady(dscispec.ServiceMesh.ControlPlane.Namespace),
 			).
 			OnDelete(servicemesh.DisabledInDashboard).
 			Load()

@@ -19,6 +19,7 @@ var (
 	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
 )
 
+// +kubebuilder:object:generate=true
 type DataSciencePipelines struct {
 	components.Component `json:""`
 }
@@ -48,7 +49,7 @@ func (d *DataSciencePipelines) GetComponentName() string {
 // Verifies that Dashboard implements ComponentInterface.
 var _ components.ComponentInterface = (*DataSciencePipelines)(nil)
 
-func (d *DataSciencePipelines) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
+func (d *DataSciencePipelines) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
 	var imageParamMap = map[string]string{
 		"IMAGES_APISERVER":         "RELATED_IMAGE_ODH_ML_PIPELINES_API_SERVER_IMAGE",
 		"IMAGES_ARTIFACT":          "RELATED_IMAGE_ODH_ML_PIPELINES_ARTIFACT_MANAGER_IMAGE",
@@ -98,9 +99,4 @@ func (d *DataSciencePipelines) ReconcileComponent(cli client.Client, owner metav
 	}
 
 	return nil
-}
-
-func (d *DataSciencePipelines) DeepCopyInto(target *DataSciencePipelines) {
-	*target = *d
-	target.Component = d.Component
 }

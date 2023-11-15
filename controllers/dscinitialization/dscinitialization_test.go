@@ -28,7 +28,7 @@ const (
 var _ = Describe("DataScienceCluster initialization", func() {
 	Context("Creation of related resources", func() {
 		// must be default as instance name, or it will break
-		const applicationName = "default"
+		const applicationName = "default-dsci"
 		BeforeEach(func() {
 			// when
 			desiredDsci := createDSCI(applicationName, operatorv1.Managed, monitoringNamespace)
@@ -92,7 +92,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 	Context("Monitoring Resource", func() {
 		AfterEach(cleanupResources)
 		const monitoringNamespace2 = "test-monitoring-ns2"
-		const applicationName = "default"
+		const applicationName = "default-dsci"
 		It("Should not create monitoring namespace if monitoring is disabled", func() {
 			// when
 			desiredDsci := createDSCI(applicationName, operatorv1.Removed, monitoringNamespace2)
@@ -118,19 +118,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 
 	Context("Handling existing resources", func() {
 		AfterEach(cleanupResources)
-		const applicationName = "default"
-
-		It("Should not create DSCI instance if name not 'default'", func() {
-			wrongApplicationName := "default2"
-			// when
-			desiredDsci := createDSCI(wrongApplicationName, operatorv1.Managed, monitoringNamespace)
-			Expect(k8sClient.Create(context.Background(), desiredDsci)).Should(Succeed())
-			foundDsciList := &dsci.DSCInitializationList{}
-
-			// then
-			Expect(len(foundDsciList.Items)).To(Equal(0))
-			Eventually(dscInitializationIsReady(wrongApplicationName, workingNamespace, desiredDsci), timeout, interval).Should(BeFalse())
-		})
+		const applicationName = "default-dsci"
 
 		It("Should not have more than one DSCI instance in the cluster", func() {
 
@@ -245,10 +233,16 @@ func cleanupResources() {
 	defaultNamespace := client.InNamespace(workingNamespace)
 	appNamespace := client.InNamespace(applicationNamespace)
 	Expect(k8sClient.DeleteAllOf(context.TODO(), &dsci.DSCInitialization{}, defaultNamespace)).To(Succeed())
+
 	Expect(k8sClient.DeleteAllOf(context.TODO(), &netv1.NetworkPolicy{}, appNamespace)).To(Succeed())
 	Expect(k8sClient.DeleteAllOf(context.TODO(), &corev1.ConfigMap{}, appNamespace)).To(Succeed())
 	Expect(k8sClient.DeleteAllOf(context.TODO(), &authv1.RoleBinding{}, appNamespace)).To(Succeed())
+	Expect(k8sClient.DeleteAllOf(context.TODO(), &authv1.ClusterRoleBinding{}, appNamespace)).To(Succeed())
+
 	Eventually(noInstanceExistsIn(workingNamespace, &dsci.DSCInitializationList{}), timeout, interval).Should(BeTrue())
+	Eventually(noInstanceExistsIn(applicationNamespace, &authv1.ClusterRoleBindingList{}), timeout, interval).Should(BeTrue())
+	Eventually(noInstanceExistsIn(applicationNamespace, &authv1.RoleBindingList{}), timeout, interval).Should(BeTrue())
+	Eventually(noInstanceExistsIn(applicationNamespace, &corev1.ConfigMapList{}), timeout, interval).Should(BeTrue())
 }
 
 func noInstanceExistsIn(namespace string, list client.ObjectList) func() bool {

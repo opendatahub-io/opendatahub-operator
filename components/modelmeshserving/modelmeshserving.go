@@ -2,7 +2,6 @@
 package modelmeshserving
 
 import (
-	"context"
 	"path/filepath"
 	"strings"
 
@@ -23,6 +22,7 @@ var (
 	DependentPath          = deploy.DefaultManifestPath + "/" + DependentComponentName + "/base"
 )
 
+// +kubebuilder:object:generate=true
 type ModelMeshServing struct {
 	components.Component `json:""`
 }
@@ -67,7 +67,7 @@ func (m *ModelMeshServing) GetComponentName() string {
 // Verifies that Dashboard implements ComponentInterface.
 var _ components.ComponentInterface = (*ModelMeshServing)(nil)
 
-func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
+func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
 	var imageParamMap = map[string]string{
 		"odh-mm-rest-proxy":             "RELATED_IMAGE_ODH_MM_REST_PROXY_IMAGE",
 		"odh-modelmesh-runtime-adapter": "RELATED_IMAGE_ODH_MODELMESH_RUNTIME_ADAPTER_IMAGE",
@@ -136,15 +136,6 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 		}
 	}
 
-	// Get monitoring namespace
-	dscInit := &dsciv1.DSCInitialization{}
-	err = cli.Get(context.TODO(), client.ObjectKey{
-		Name: "default",
-	}, dscInit)
-	if err != nil {
-		return err
-	}
-
 	// CloudService Monitoring handling
 	if platform == deploy.ManagedRhods {
 		// first model-mesh rules
@@ -164,9 +155,4 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 	}
 
 	return nil
-}
-
-func (m *ModelMeshServing) DeepCopyInto(target *ModelMeshServing) {
-	*target = *m
-	target.Component = m.Component
 }

@@ -18,8 +18,8 @@ var log = ctrlLog.Log.WithName("features")
 func RemoveTokenVolumes(f *feature.Feature) error {
 	tokenVolume := fmt.Sprintf("%s-oauth2-tokens", f.Spec.AppNamespace)
 
-	meshNs := f.Spec.Mesh.Namespace
-	meshName := f.Spec.Mesh.Name
+	meshNs := f.Spec.ControlPlane.Namespace
+	meshName := f.Spec.ControlPlane.Name
 
 	smcp, err := f.DynamicClient.Resource(gvr.SMCP).Namespace(meshNs).Get(context.TODO(), meshName, metav1.GetOptions{})
 	if err != nil {
@@ -88,7 +88,7 @@ func RemoveOAuthClient(f *feature.Feature) error {
 func RemoveExtensionProvider(f *feature.Feature) error {
 	ossmAuthzProvider := fmt.Sprintf("%s-odh-auth-provider", f.Spec.AppNamespace)
 
-	mesh := f.Spec.Mesh
+	mesh := f.Spec.ControlPlane
 
 	smcp, err := f.DynamicClient.Resource(gvr.SMCP).
 		Namespace(mesh.Namespace).

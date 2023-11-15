@@ -84,6 +84,22 @@ rules:
   - patch
   - watch
 - apiGroups:
+  - apiregistration.k8s.io
+  resources:
+  - apiservices
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - daemonsets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - apps
   resources:
   - deployments
@@ -639,18 +655,6 @@ rules:
   - patch
   - update
 - apiGroups:
-  - dscinitialization.opendatahub.io
-  resources:
-  - featuretrackers
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
   - events.k8s.io
   resources:
   - events
@@ -682,12 +686,25 @@ rules:
   verbs:
   - '*'
 - apiGroups:
+  - features.opendatahub.io
+  resources:
+  - featuretrackers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - image.openshift.io
   resources:
   - imagestreams
   verbs:
   - create
   - delete
+  - get
   - list
   - patch
   - update
@@ -696,6 +713,12 @@ rules:
   - image.openshift.io
   resources:
   - imagestreamtags
+  verbs:
+  - get
+- apiGroups:
+  - image.openshift.io
+  resources:
+  - registry/metrics
   verbs:
   - get
 - apiGroups:
@@ -1040,6 +1063,12 @@ rules:
   verbs:
   - '*'
 - apiGroups:
+  - operator.knative.dev
+  resources:
+  - knativeservings
+  verbs:
+  - '*'
+- apiGroups:
   - operator.openshift.io
   resources:
   - consoles
@@ -1149,6 +1178,18 @@ rules:
   - roles
   verbs:
   - '*'
+- apiGroups:
+  - route.openshift.io
+  resources:
+  - routers/federate
+  verbs:
+  - get
+- apiGroups:
+  - route.openshift.io
+  resources:
+  - routers/metrics
+  verbs:
+  - get
 - apiGroups:
   - route.openshift.io
   resources:

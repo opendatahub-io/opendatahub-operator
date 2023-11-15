@@ -12,8 +12,10 @@ import (
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 )
 
 var (
@@ -25,8 +27,12 @@ var (
 	ServerlessOperator     = "serverless-operator"
 )
 
+// +kubebuilder:object:generate=true
 type Kserve struct {
 	components.Component `json:""`
+	// Serving configures the KNative-Serving stack used for model serving. A Service
+	// Mesh (Istio) is prerequisite, since it is used as networking layer.
+	Serving infrav1.ServingSpec `json:"serving,omitempty"`
 }
 
 func (k *Kserve) OverrideManifests(_ string) error {
@@ -72,7 +78,7 @@ func (k *Kserve) GetComponentName() string {
 // Verifies that Kserve implements ComponentInterface.
 var _ components.ComponentInterface = (*Kserve)(nil)
 
-func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
+func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
 	// paramMap for Kserve to use.
 	var imageParamMap = map[string]string{}
 
@@ -85,6 +91,12 @@ func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dsci
 	platform, err := deploy.GetPlatform(cli)
 	if err != nil {
 		return err
+	}
+
+	if !enabled {
+		if err := k.removeServerlessFeatures(dscispec); err != nil {
+			return err
+		}
 	}
 
 	if enabled {
@@ -107,6 +119,10 @@ func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dsci
 		} else if !found {
 			return fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
 				ServerlessOperator, ComponentName)
+		}
+
+		if err := k.configureServerless(dscispec); err != nil {
+			return err
 		}
 
 		// Update image parameters only when we do not have customized manifests set
@@ -145,7 +161,39 @@ func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dsci
 	return nil
 }
 
-func (k *Kserve) DeepCopyInto(target *Kserve) {
-	*target = *k
-	target.Component = k.Component
+func (k *Kserve) Cleanup(_ client.Client, instance *dsciv1.DSCInitializationSpec) error {
+	return k.removeServerlessFeatures(instance)
+}
+
+func (k *Kserve) configureServerless(instance *dsciv1.DSCInitializationSpec) error {
+	if k.Serving.ManagementState == operatorv1.Managed {
+		if instance.ServiceMesh.ManagementState != operatorv1.Managed {
+			return fmt.Errorf("service mesh is not configure in DataScienceInitialization cluster but required by KServe serving")
+		}
+
+		serverlessInitializer := feature.NewFeaturesInitializer(instance, k.configureServerlessFeatures)
+
+		if err := serverlessInitializer.Prepare(); err != nil {
+			return err
+		}
+
+		if err := serverlessInitializer.Apply(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (k *Kserve) removeServerlessFeatures(instance *dsciv1.DSCInitializationSpec) error {
+	serverlessInitializer := feature.NewFeaturesInitializer(instance, k.configureServerlessFeatures)
+
+	if err := serverlessInitializer.Prepare(); err != nil {
+		return err
+	}
+
+	if err := serverlessInitializer.Delete(); err != nil {
+		return err
+	}
+	return nil
 }

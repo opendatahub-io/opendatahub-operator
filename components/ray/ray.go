@@ -19,6 +19,7 @@ var (
 	RayPath       = deploy.DefaultManifestPath + "/" + ComponentName + "/openshift"
 )
 
+// +kubebuilder:object:generate=true
 type Ray struct {
 	components.Component `json:""`
 }
@@ -48,7 +49,7 @@ func (r *Ray) GetComponentName() string {
 // Verifies that Ray implements ComponentInterface.
 var _ components.ComponentInterface = (*Ray)(nil)
 
-func (r *Ray) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
+func (r *Ray) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
 	var imageParamMap = map[string]string{
 		"odh-kuberay-operator-controller-image": "RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE",
 		"namespace":                             dscispec.ApplicationsNamespace,
@@ -91,9 +92,4 @@ func (r *Ray) ReconcileComponent(cli client.Client, owner metav1.Object, dscispe
 	}
 
 	return nil
-}
-
-func (r *Ray) DeepCopyInto(target *Ray) {
-	*target = *r
-	target.Component = r.Component
 }

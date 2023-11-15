@@ -17,29 +17,28 @@ limitations under the License.
 package main
 
 import (
-	"context"
-	"encoding/json"
 	"flag"
 	"os"
 
 	addonv1alpha1 "github.com/openshift/addon-operator/apis/addons/v1alpha1"
+	ocappsv1 "github.com/openshift/api/apps/v1"
+	ocbuildv1 "github.com/openshift/api/build/v1"
+	ocimgv1 "github.com/openshift/api/image/v1"
 	ocv1 "github.com/openshift/api/oauth/v1"
-	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	ocuserv1 "github.com/openshift/api/user/v1"
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
+	admv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	authv1 "k8s.io/api/rbac/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
@@ -78,6 +77,12 @@ func init() {
 	utilruntime.Must(ocuserv1.Install(scheme))
 	utilruntime.Must(ofapiv2.AddToScheme(scheme))
 	utilruntime.Must(kfdefv1.AddToScheme(scheme))
+	utilruntime.Must(ocappsv1.AddToScheme(scheme))
+	utilruntime.Must(ocbuildv1.AddToScheme(scheme))
+	utilruntime.Must(ocimgv1.AddToScheme(scheme))
+	utilruntime.Must(apiextv1.AddToScheme(scheme))
+	utilruntime.Must(admv1.AddToScheme(scheme))
+	utilruntime.Must(apiregistrationv1.AddToScheme(scheme))
 }
 
 func main() { //nolint:funlen
@@ -162,48 +167,6 @@ func main() { //nolint:funlen
 		os.Exit(1)
 	}
 
-	// Check if user opted for disabling DSC configuration
-	_, disableDSCConfig := os.LookupEnv("DISABLE_DSC_CONFIG")
-	if !disableDSCConfig {
-		// Create DSCInitialization CR if it's not present
-		c := mgr.GetClient()
-		releaseDscInitialization := &dsci.DSCInitialization{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "DSCInitialization",
-				APIVersion: "dscinitialization.opendatahub.io/v1",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "default",
-			},
-			Spec: dsci.DSCInitializationSpec{
-				ApplicationsNamespace: dscApplicationsNamespace,
-				Monitoring: dsci.Monitoring{
-					ManagementState: operatorv1.Managed,
-					Namespace:       dscMonitoringNamespace,
-				},
-			},
-		}
-		err = c.Create(context.TODO(), releaseDscInitialization)
-		switch {
-		case err == nil:
-			setupLog.Info("created DscInitialization resource")
-		case errors.IsAlreadyExists(err):
-			// Update if already exists
-			setupLog.Info("DscInitialization resource already exists. Updating it.")
-			data, err := json.Marshal(releaseDscInitialization)
-			if err != nil {
-				setupLog.Error(err, "failed to get DscInitialization custom resource data")
-			}
-			err = c.Patch(context.TODO(), releaseDscInitialization, client.RawPatch(types.ApplyPatchType, data),
-				client.ForceOwnership, client.FieldOwner("opendatahub-operator"))
-			if err != nil {
-				setupLog.Error(err, "failed to update DscInitialization custom resource")
-			}
-		default:
-			setupLog.Error(err, "failed to create DscInitialization custom resource")
-			os.Exit(1)
-		}
-	}
 	// Create new uncached client to run initial setup
 	setupCfg, err := config.GetConfig()
 	if err != nil {
@@ -223,10 +186,17 @@ func main() { //nolint:funlen
 		os.Exit(1)
 	}
 
+	// Check if user opted for disabling DSC configuration
+	_, disableDSCConfig := os.LookupEnv("DISABLE_DSC_CONFIG")
+	if !disableDSCConfig {
+		if err = upgrade.CreateDefaultDSCI(setupClient, platform, dscApplicationsNamespace, dscMonitoringNamespace); err != nil {
+			setupLog.Error(err, "unable to create initial setup for the operator")
+		}
+	}
+
 	// Apply update from legacy operator
 	if err = upgrade.UpdateFromLegacyVersion(setupClient, platform); err != nil {
 		setupLog.Error(err, "unable to update from legacy operator version")
-		os.Exit(1)
 	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

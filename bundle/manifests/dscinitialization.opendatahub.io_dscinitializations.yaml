@@ -81,7 +81,12 @@ spec:
                     type: string
                 type: object
               serviceMesh:
-                description: Enable Service Mesh for Data Science Clusters
+                description: Configures Service Mesh as networking layer for Data
+                  Science Clusters components. The Service Mesh is a mandatory prerequisite
+                  for single model serving (KServe) and you should review this configuration
+                  if you are planning to use KServe. For other components, it enhances
+                  user experience; e.g. it provides unified authentication giving
+                  a Single Sign On experience.
                 properties:
                   auth:
                     description: Auth holds configuration of authentication and authorization
@@ -120,14 +125,35 @@ spec:
                               provider should be called.
                             type: string
                         type: object
-                      name:
-                        default: authorino
-                        description: Name of the authorization provider used for Service
-                          Mesh.
-                        type: string
                       namespace:
                         default: auth-provider
                         description: Namespace where it is deployed.
+                        type: string
+                    type: object
+                  controlPlane:
+                    description: ControlPlane holds configuration of Service Mesh
+                      used by Opendatahub.
+                    properties:
+                      metricsCollection:
+                        default: Istio
+                        description: MetricsCollection specifies if metrics from components
+                          on the Mesh namespace should be collected. Setting the value
+                          to "Istio" will collect metrics from the control plane and
+                          any proxies on the Mesh namespace (like gateway pods). Setting
+                          to "None" will disable metrics collection.
+                        enum:
+                        - Istio
+                        - None
+                        type: string
+                      name:
+                        default: data-science-smcp
+                        description: Name is a name Service Mesh Control Plane. Defaults
+                          to "data-science-smcp".
+                        type: string
+                      namespace:
+                        default: istio-system
+                        description: Namespace is a namespace where Service Mesh is
+                          deployed. Defaults to "istio-system".
                         type: string
                     type: object
                   managementState:
@@ -137,38 +163,6 @@ spec:
                     - Removed
                     pattern: ^(Managed|Unmanaged|Force|Removed)$
                     type: string
-                  mesh:
-                    description: Mesh holds configuration of Service Mesh used by
-                      Opendatahub.
-                    properties:
-                      certificate:
-                        description: Certificate allows to define how to use certificates
-                          for the Service Mesh communication.
-                        properties:
-                          generate:
-                            default: true
-                            description: Generate indicates if the certificate should
-                              be generated. If set to false it will assume certificate
-                              with the given name is made available as a secret in
-                              Service Mesh namespace.
-                            type: boolean
-                          name:
-                            default: opendatahub-dashboard-cert
-                            description: Name of the certificate to be used by Service
-                              Mesh.
-                            type: string
-                        type: object
-                      name:
-                        default: basic
-                        description: Name is a name Service Mesh Control Plan. Defaults
-                          to "basic".
-                        type: string
-                      namespace:
-                        default: istio-system
-                        description: Namespace is a namespace where Service Mesh is
-                          deployed. Defaults to "istio-system".
-                        type: string
-                    type: object
                 type: object
             required:
             - applicationsNamespace

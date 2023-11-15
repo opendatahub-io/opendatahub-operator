@@ -17,6 +17,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
@@ -141,7 +142,7 @@ var _ = Describe("Ensuring service mesh is set up correctly", func() {
 	var (
 		objectCleaner    *envtestutil.Cleaner
 		dsciSpec         *dscv1.DSCInitializationSpec
-		serviceMeshSpec  *dscv1.ServiceMeshSpec
+		serviceMeshSpec  *infrav1.ServiceMeshSpec
 		serviceMeshCheck *feature.Feature
 		name             = "test-name"
 		namespace        = "test-namespace"
@@ -152,8 +153,8 @@ var _ = Describe("Ensuring service mesh is set up correctly", func() {
 		var err error
 		serviceMeshSpec = &dsciSpec.ServiceMesh
 
-		serviceMeshSpec.Mesh.Name = name
-		serviceMeshSpec.Mesh.Namespace = namespace
+		serviceMeshSpec.ControlPlane.Name = name
+		serviceMeshSpec.ControlPlane.Namespace = namespace
 
 		serviceMeshCheck, err = feature.CreateFeature("datascience-project-migration").
 			For(dsciSpec).
@@ -274,7 +275,7 @@ var _ = Describe("Cleanup operations", func() {
 		var (
 			objectCleaner   *envtestutil.Cleaner
 			dsciSpec        *dscv1.DSCInitializationSpec
-			serviceMeshSpec *dscv1.ServiceMeshSpec
+			serviceMeshSpec *infrav1.ServiceMeshSpec
 			namespace       = "test"
 			name            = "minimal"
 		)
@@ -286,8 +287,8 @@ var _ = Describe("Cleanup operations", func() {
 
 			serviceMeshSpec = &dsciSpec.ServiceMesh
 
-			serviceMeshSpec.Mesh.Name = name
-			serviceMeshSpec.Mesh.Namespace = namespace
+			serviceMeshSpec.ControlPlane.Name = name
+			serviceMeshSpec.ControlPlane.Namespace = namespace
 		})
 
 		It("should be able to remove mounted secret volumes on cleanup", func() {

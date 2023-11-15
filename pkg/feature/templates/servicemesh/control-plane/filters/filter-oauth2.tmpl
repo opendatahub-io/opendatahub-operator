@@ -2,7 +2,7 @@ apiVersion: networking.istio.io/v1alpha3
 kind: EnvoyFilter
 metadata:
   name: oauth2-ingress
-  namespace: {{ .Mesh.Namespace }}
+  namespace: {{ .ControlPlane.Namespace }}
   labels:
     name: oauth2-envoy
     app: odh

@@ -13,7 +13,7 @@ spec:
       protocol: HTTPS
     tls:
       mode: SIMPLE
-      credentialName: {{ .Mesh.Certificate.Name }}
+      credentialName: {{ .ControlPlane.Certificate.Name }}
     hosts:
     - "{{ .AppNamespace }}.{{ .Domain }}"
   - port:

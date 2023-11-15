@@ -14,6 +14,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 )
 
+// +kubebuilder:object:generate=true
 type Component struct {
 	// Set to one of the following values:
 	//
@@ -48,6 +49,7 @@ func (c *Component) SetImageParamsMap(imageMap map[string]string) map[string]str
 
 // DevFlags defines list of fields that can be used by developers to test customizations. This is not recommended
 // to be used in production environment.
+// +kubebuilder:object:generate=true
 type DevFlags struct {
 	// List of custom manifests for the given component
 	// +optional
@@ -75,7 +77,7 @@ type ManifestsConfig struct {
 }
 
 type ComponentInterface interface {
-	ReconcileComponent(cli client.Client, owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec) error
+	ReconcileComponent(cli client.Client, owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec, currentComponentStatus bool) error
 	Cleanup(cli client.Client, DSCISpec *dsciv1.DSCInitializationSpec) error
 	GetComponentName() string
 	GetManagementState() operatorv1.ManagementState
@@ -100,7 +102,6 @@ func (c *Component) UpdatePrometheusConfig(_ client.Client, enable bool, compone
 		Data struct {
 			PrometheusYML      string `yaml:"prometheus.yml"`
 			OperatorRules      string `yaml:"operator-recording.rules"`
-			OperatorARules     string `yaml:"operator-alerting.rules"`
 			DeadManSnitchRules string `yaml:"deadmanssnitch-alerting.rules"`
 			CFRRules           string `yaml:"codeflare-recording.rules"`
 			CRARules           string `yaml:"codeflare-alerting.rules"`

@@ -5,6 +5,6 @@ metadata:
   namespace: {{ .Auth.Namespace }}
 spec:
   controlPlaneRef:
-    namespace: {{ .Mesh.Namespace }}
-    name: {{ .Mesh.Name }}
+    namespace: {{ .ControlPlane.Namespace }}
+    name: {{ .ControlPlane.Name }}
 

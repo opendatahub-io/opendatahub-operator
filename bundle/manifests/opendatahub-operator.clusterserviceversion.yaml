@@ -15,7 +15,7 @@ metadata:
               "app.kubernetes.io/name": "datasciencecluster",
               "app.kubernetes.io/part-of": "opendatahub-operator"
             },
-            "name": "default"
+            "name": "default-dsc"
           },
           "spec": {
             "components": {
@@ -57,7 +57,7 @@ metadata:
               "app.kubernetes.io/name": "dscinitialization",
               "app.kubernetes.io/part-of": "opendatahub-operator"
             },
-            "name": "default"
+            "name": "default-dsci"
           },
           "spec": {
             "applicationsNamespace": "opendatahub",
@@ -65,6 +65,20 @@ metadata:
               "managementState": "Managed",
               "namespace": "opendatahub"
             }
+          }
+        },
+        {
+          "apiVersion": "features.opendatahub.io/v1",
+          "kind": "FeatureTracker",
+          "metadata": {
+            "labels": {
+              "app.kubernetes.io/created-by": "opendatahub-operator",
+              "app.kubernetes.io/instance": "default-feature",
+              "app.kubernetes.io/managed-by": "kustomize",
+              "app.kubernetes.io/name": "featuretracker",
+              "app.kubernetes.io/part-of": "opendatahub-operator"
+            },
+            "name": "default-feature"
           }
         }
       ]
@@ -148,7 +162,11 @@ spec:
       - description: Enable monitoring on specified namespace
         displayName: Monitoring
         path: monitoring
-      - description: Enable Service Mesh for Data Science Clusters
+      - description: Configures Service Mesh as networking layer for Data Science
+          Clusters components. The Service Mesh is a mandatory prerequisite for single
+          model serving (KServe) and you should review this configuration if you are
+          planning to use KServe. For other components, it enhances user experience;
+          e.g. it provides unified authentication giving a Single Sign On experience.
         displayName: Service Mesh
         path: serviceMesh
       - description: Internal development useful field to test customizations. This
@@ -162,7 +180,7 @@ spec:
         path: conditions
       version: v1
     - kind: FeatureTracker
-      name: featuretrackers.dscinitialization.opendatahub.io
+      name: featuretrackers.features.opendatahub.io
       version: v1
   description: "The Open Data Hub is a machine-learning-as-a-service platform built
     on Red Hat's Kubernetes-based OpenShift® Container Platform. Open Data Hub integrates
@@ -270,6 +288,22 @@ spec:
           - get
           - list
           - patch
+          - watch
+        - apiGroups:
+          - apiregistration.k8s.io
+          resources:
+          - apiservices
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - apps
+          resources:
+          - daemonsets
+          verbs:
+          - get
+          - list
           - watch
         - apiGroups:
           - apps
@@ -827,30 +861,6 @@ spec:
           - patch
           - update
         - apiGroups:
-          - dscinitialization.opendatahub.io
-          resources:
-          - featuretrackers
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - dscinitialization.opendatahub.io
-          resources:
-          - servicemeshresourcetrackers
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
           - events.k8s.io
           resources:
           - events
@@ -882,12 +892,25 @@ spec:
           verbs:
           - '*'
         - apiGroups:
+          - features.opendatahub.io
+          resources:
+          - featuretrackers
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
           - image.openshift.io
           resources:
           - imagestreams
           verbs:
           - create
           - delete
+          - get
           - list
           - patch
           - update
@@ -896,6 +919,12 @@ spec:
           - image.openshift.io
           resources:
           - imagestreamtags
+          verbs:
+          - get
+        - apiGroups:
+          - image.openshift.io
+          resources:
+          - registry/metrics
           verbs:
           - get
         - apiGroups:
@@ -1240,6 +1269,12 @@ spec:
           verbs:
           - '*'
         - apiGroups:
+          - operator.knative.dev
+          resources:
+          - knativeservings
+          verbs:
+          - '*'
+        - apiGroups:
           - operator.openshift.io
           resources:
           - consoles
@@ -1349,6 +1384,18 @@ spec:
           - roles
           verbs:
           - '*'
+        - apiGroups:
+          - route.openshift.io
+          resources:
+          - routers/federate
+          verbs:
+          - get
+        - apiGroups:
+          - route.openshift.io
+          resources:
+          - routers/metrics
+          verbs:
+          - get
         - apiGroups:
           - route.openshift.io
           resources:

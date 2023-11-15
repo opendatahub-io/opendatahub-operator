@@ -14,7 +14,8 @@ const (
 	BaseDir         = "templates/servicemesh/"
 	ControlPlaneDir = BaseDir + "control-plane"
 	AuthDir         = BaseDir + "authorino"
-	BaseOutputDir   = "/tmp/servicemesh-manifests/"
+	MonitoringDir   = BaseDir + "monitoring"
+	BaseOutputDir   = "/tmp/opendatahub-manifests/"
 )
 
 type manifest struct {
@@ -53,6 +54,7 @@ func loadManifestFrom(path string) manifest {
 		patch:    strings.Contains(basePath, ".patch"),
 		template: filepath.Ext(path) == ".tmpl",
 	}
+
 	return m
 }
 

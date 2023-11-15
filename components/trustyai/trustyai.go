@@ -18,6 +18,7 @@ var (
 	Path          = deploy.DefaultManifestPath + "/" + "trustyai-service-operator/base"
 )
 
+// +kubebuilder:object:generate=true
 type TrustyAI struct {
 	components.Component `json:""`
 }
@@ -47,7 +48,7 @@ func (t *TrustyAI) GetComponentName() string {
 // Verifies that TrustyAI implements ComponentInterface.
 var _ components.ComponentInterface = (*TrustyAI)(nil)
 
-func (t *TrustyAI) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
+func (t *TrustyAI) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
 	var imageParamMap = map[string]string{
 		"trustyaiServiceImage":  "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE",
 		"trustyaiOperatorImage": "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE",
@@ -75,9 +76,4 @@ func (t *TrustyAI) ReconcileComponent(cli client.Client, owner metav1.Object, ds
 	err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, t.GetComponentName(), enabled)
 
 	return err
-}
-
-func (t *TrustyAI) DeepCopyInto(target *TrustyAI) {
-	*target = *t
-	target.Component = t.Component
 }

@@ -68,7 +68,7 @@ type DSCInitializationReconciler struct {
 // +kubebuilder:rbac:groups="dscinitialization.opendatahub.io",resources=dscinitializations/status,verbs=get;update;patch;delete
 // +kubebuilder:rbac:groups="dscinitialization.opendatahub.io",resources=dscinitializations/finalizers,verbs=get;update;patch;delete
 // +kubebuilder:rbac:groups="dscinitialization.opendatahub.io",resources=dscinitializations,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="dscinitialization.opendatahub.io",resources=featuretrackers,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="features.opendatahub.io",resources=featuretrackers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="kfdef.apps.kubeflow.org",resources=kfdefs,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile contains controller logic specific to DSCInitialization instance updates.
@@ -83,33 +83,18 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return ctrl.Result{}, err
 	}
 
-	if len(instances.Items) > 1 {
-		// check if multiple instances of DSCInitialization, exit with error
-		message := fmt.Sprintf("only one instance of DSCInitialization object is allowed. Update existing instance name %s", req.Name)
-
-		return ctrl.Result{}, errors.New(message)
-	}
-
-	if len(instances.Items) == 0 {
-		// DSCInitialization instance not found
+	var instance *dsciv1.DSCInitialization
+	switch {
+	case len(instances.Items) == 0:
 		return ctrl.Result{}, nil
-	}
-
-	instance := &instances.Items[0]
-	if instance.Name != "default" {
-		message := fmt.Sprintf("Should update existing instance name %s to 'default'", instance.Name)
-
-		return ctrl.Result{}, errors.New(message)
-	}
-
-	if len(instances.Items) > 1 {
+	case len(instances.Items) == 1:
+		instance = &instances.Items[0]
+	case len(instances.Items) > 1:
 		message := fmt.Sprintf("only one instance of DSCInitialization object is allowed. Update existing instance name %s", req.Name)
-
 		_, _ = r.updateStatus(ctx, instance, func(saved *dsciv1.DSCInitialization) {
 			status.SetErrorCondition(&saved.Status.Conditions, status.DuplicateDSCInitialization, message)
 			saved.Status.Phase = status.PhaseError
 		})
-
 		return ctrl.Result{}, errors.New(message)
 	}
 
@@ -123,9 +108,10 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 	} else {
 		r.Log.Info("Finalization DSCInitialization start deleting instance", "name", instance.Name, "finalizer", finalizerName)
-		if err := r.cleanupServiceMesh(instance); err != nil {
+		if err := r.removeServiceMesh(instance); err != nil {
 			return ctrl.Result{}, err
 		}
+
 		if controllerutil.ContainsFinalizer(instance, finalizerName) {
 			controllerutil.RemoveFinalizer(instance, finalizerName)
 			if err := r.Update(ctx, instance); err != nil {
@@ -277,6 +263,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			}
 		}
 
+		// Apply Service Mesh configurations
 		if errServiceMesh := r.configureServiceMesh(instance); errServiceMesh != nil {
 			return reconcile.Result{}, errServiceMesh
 		}
@@ -315,11 +302,12 @@ func (r *DSCInitializationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.ServiceAccount{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&corev1.Service{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&routev1.Route{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
-		Watches(&source.Kind{Type: &dscv1.DataScienceCluster{}}, handler.EnqueueRequestsFromMapFunc(r.watchDSCResrouce), builder.WithPredicates(DSCDeletionPredicate)).
-		Watches(&source.Kind{Type: &corev1.Secret{}}, handler.EnqueueRequestsFromMapFunc(r.watchMonitoringSecretResrouce), builder.WithPredicates(SecretContentChangedPredicate)).
-		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchMonitoringConfigMapResrouce), builder.WithPredicates(CMContentChangedPredicate)).
+		Watches(&source.Kind{Type: &dscv1.DataScienceCluster{}}, handler.EnqueueRequestsFromMapFunc(r.watchDSCResource), builder.WithPredicates(DSCDeletionPredicate)).
+		Watches(&source.Kind{Type: &corev1.Secret{}}, handler.EnqueueRequestsFromMapFunc(r.watchMonitoringSecretResource), builder.WithPredicates(SecretContentChangedPredicate)).
+		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchMonitoringConfigMapResource), builder.WithPredicates(CMContentChangedPredicate)).
 		Complete(r)
 }
+
 func (r *DSCInitializationReconciler) updateStatus(ctx context.Context, original *dsciv1.DSCInitialization, update func(saved *dsciv1.DSCInitialization),
 ) (*dsciv1.DSCInitialization, error) {
 	saved := &dsciv1.DSCInitialization{}
@@ -346,6 +334,7 @@ var SecretContentChangedPredicate = predicate.Funcs{
 		return !reflect.DeepEqual(oldSecret.Data, newSecret.Data)
 	},
 }
+
 var CMContentChangedPredicate = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
 		oldCM := e.ObjectOld.(*corev1.ConfigMap)
@@ -362,7 +351,7 @@ var DSCDeletionPredicate = predicate.Funcs{
 	},
 }
 
-func (r *DSCInitializationReconciler) watchMonitoringConfigMapResrouce(a client.Object) (requests []reconcile.Request) {
+func (r *DSCInitializationReconciler) watchMonitoringConfigMapResource(a client.Object) (requests []reconcile.Request) {
 	if a.GetName() == "prometheus" && a.GetNamespace() == "redhat-ods-monitoring" {
 		r.Log.Info("Found monitoring configmap has updated, start reconcile")
 
@@ -372,7 +361,7 @@ func (r *DSCInitializationReconciler) watchMonitoringConfigMapResrouce(a client.
 	}
 }
 
-func (r *DSCInitializationReconciler) watchMonitoringSecretResrouce(a client.Object) (requests []reconcile.Request) {
+func (r *DSCInitializationReconciler) watchMonitoringSecretResource(a client.Object) (requests []reconcile.Request) {
 	operatorNs, err := upgrade.GetOperatorNamespace()
 	if err != nil {
 		return nil
@@ -386,7 +375,7 @@ func (r *DSCInitializationReconciler) watchMonitoringSecretResrouce(a client.Obj
 	}
 }
 
-func (r *DSCInitializationReconciler) watchDSCResrouce(_ client.Object) (requests []reconcile.Request) {
+func (r *DSCInitializationReconciler) watchDSCResource(_ client.Object) (requests []reconcile.Request) {
 	instanceList := &dscv1.DataScienceClusterList{}
 	if err := r.Client.List(context.TODO(), instanceList); err != nil {
 		// do not handle if cannot get list

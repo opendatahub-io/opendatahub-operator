@@ -2,7 +2,7 @@ apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
   name: {{ .AppNamespace }}-odh-gateway
-  namespace: {{ .Mesh.Namespace }}
+  namespace: {{ .ControlPlane.Namespace }}
   labels:
     app: odh-dashboard
     app.kubernetes.io/part-of: odh-dashboard

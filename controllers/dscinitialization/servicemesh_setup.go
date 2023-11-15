@@ -4,9 +4,10 @@ import (
 	"path"
 	"path/filepath"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
@@ -19,6 +20,41 @@ func defineServiceMeshFeatures(f *feature.FeaturesInitializer) error {
 	}
 
 	serviceMeshSpec := f.ServiceMesh
+
+	smcpCreation, errSmcp := feature.CreateFeature("mesh-control-plane-creation").
+		For(f.DSCInitializationSpec).
+		Manifests(
+			path.Join(rootDir, feature.ControlPlaneDir, "base", "control-plane.tmpl"),
+		).
+		PreConditions(
+			servicemesh.EnsureServiceMeshOperatorInstalled,
+			feature.CreateNamespace(serviceMeshSpec.ControlPlane.Namespace),
+		).
+		PostConditions(
+			feature.WaitForPodsToBeReady(serviceMeshSpec.ControlPlane.Namespace),
+		).
+		Load()
+	if errSmcp != nil {
+		return errSmcp
+	}
+	f.Features = append(f.Features, smcpCreation)
+
+	if serviceMeshSpec.ControlPlane.MetricsCollection == "Istio" {
+		metricsCollection, errMetrics := feature.CreateFeature("service-mesh-monitoring").
+			For(f.DSCInitializationSpec).
+			Manifests(
+				path.Join(rootDir, feature.MonitoringDir),
+			).
+			PreConditions(
+				servicemesh.EnsureServiceMeshInstalled,
+			).
+			Load()
+		if errMetrics != nil {
+			return errMetrics
+		}
+
+		f.Features = append(f.Features, metricsCollection)
+	}
 
 	if oauth, err := feature.CreateFeature("control-plane-configure-oauth").
 		For(f.DSCInitializationSpec).
@@ -36,7 +72,7 @@ func defineServiceMeshFeatures(f *feature.FeaturesInitializer) error {
 			servicemesh.EnsureServiceMeshInstalled,
 		).
 		PostConditions(
-			feature.WaitForPodsToBeReady(serviceMeshSpec.Mesh.Namespace),
+			feature.WaitForPodsToBeReady(serviceMeshSpec.ControlPlane.Namespace),
 		).
 		OnDelete(
 			servicemesh.RemoveOAuthClient,
@@ -76,7 +112,7 @@ func defineServiceMeshFeatures(f *feature.FeaturesInitializer) error {
 		).
 		WithData(servicemesh.ClusterDetails).
 		PostConditions(
-			feature.WaitForPodsToBeReady(serviceMeshSpec.Mesh.Namespace),
+			feature.WaitForPodsToBeReady(serviceMeshSpec.ControlPlane.Namespace),
 		).
 		Load(); err != nil {
 		return err
@@ -108,7 +144,7 @@ func defineServiceMeshFeatures(f *feature.FeaturesInitializer) error {
 			feature.CreateNamespace(serviceMeshSpec.Auth.Namespace),
 		).
 		PostConditions(
-			feature.WaitForPodsToBeReady(serviceMeshSpec.Mesh.Namespace),
+			feature.WaitForPodsToBeReady(serviceMeshSpec.ControlPlane.Namespace),
 			feature.WaitForPodsToBeReady(serviceMeshSpec.Auth.Namespace),
 			func(f *feature.Feature) error {
 				// We do not have the control over deployment resource creation.
@@ -129,7 +165,7 @@ func defineServiceMeshFeatures(f *feature.FeaturesInitializer) error {
 	return nil
 }
 
-func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsci.DSCInitialization) error {
+func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsciv1.DSCInitialization) error {
 	shouldConfigureServiceMesh, err := deploy.ShouldConfigureServiceMesh(r.Client, &instance.Spec)
 	if err != nil {
 		return err
@@ -156,18 +192,21 @@ func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsci.DSCIni
 	return nil
 }
 
-func (r *DSCInitializationReconciler) cleanupServiceMesh(instance *dsci.DSCInitialization) error {
-	shouldConfigureServiceMesh, err := deploy.ShouldConfigureServiceMesh(r.Client, &instance.Spec)
-	if err != nil {
-		return err
-	}
-
-	if shouldConfigureServiceMesh {
+func (r *DSCInitializationReconciler) removeServiceMesh(instance *dsciv1.DSCInitialization) error {
+	if instance.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
 		serviceMeshInitializer := feature.NewFeaturesInitializer(&instance.Spec, defineServiceMeshFeatures)
+
 		if err := serviceMeshInitializer.Prepare(); err != nil {
+			r.Log.Error(err, "failed configuring service mesh resources")
+			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed configuring service mesh resources")
+
 			return err
 		}
+
 		if err := serviceMeshInitializer.Delete(); err != nil {
+			r.Log.Error(err, "failed deleting service mesh resources")
+			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed deleting service mesh resources")
+
 			return err
 		}
 	}

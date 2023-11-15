@@ -2,8 +2,8 @@
 # since it depends on service name and namespace that are out of this kustomize package.
 # It should be run by config/default
 resources:
+- bases/features.opendatahub.io_featuretrackers.yaml
 - bases/dscinitialization.opendatahub.io_dscinitializations.yaml
-- bases/dscinitialization.opendatahub.io_featuretrackers.yaml
 - bases/datasciencecluster.opendatahub.io_datascienceclusters.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 

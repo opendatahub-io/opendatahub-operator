@@ -1,41 +1,47 @@
 package v1
 
-import (
-	operatorv1 "github.com/openshift/api/operator/v1"
-)
+import operatorv1 "github.com/openshift/api/operator/v1"
 
 // ServiceMeshSpec configures Service Mesh.
 type ServiceMeshSpec struct {
 	// +kubebuilder:validation:Enum=Managed;Removed
 	// +kubebuilder:default=Removed
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
-	// Mesh holds configuration of Service Mesh used by Opendatahub.
-	Mesh MeshSpec `json:"mesh,omitempty"`
+	// ControlPlane holds configuration of Service Mesh used by Opendatahub.
+	ControlPlane ControlPlaneSpec `json:"controlPlane,omitempty"`
 	// Auth holds configuration of authentication and authorization services
 	// used by Service Mesh in Opendatahub.
 	Auth AuthSpec `json:"auth,omitempty"`
 }
 
-type MeshSpec struct {
-	// Name is a name Service Mesh Control Plan. Defaults to "basic".
-	// +kubebuilder:default=basic
+type ControlPlaneSpec struct {
+	// Name is a name Service Mesh Control Plane. Defaults to "data-science-smcp".
+	// +kubebuilder:default=data-science-smcp
 	Name string `json:"name,omitempty"`
 	// Namespace is a namespace where Service Mesh is deployed. Defaults to "istio-system".
 	// +kubebuilder:default=istio-system
 	Namespace string `json:"namespace,omitempty"`
-	// Certificate allows to define how to use certificates for the Service Mesh communication.
-	Certificate CertSpec `json:"certificate,omitempty"`
+	// MetricsCollection specifies if metrics from components on the Mesh namespace
+	// should be collected. Setting the value to "Istio" will collect metrics from the
+	// control plane and any proxies on the Mesh namespace (like gateway pods). Setting
+	// to "None" will disable metrics collection.
+	// +kubebuilder:validation:Enum=Istio;None
+	// +kubebuilder:default=Istio
+	MetricsCollection string `json:"metricsCollection,omitempty"`
+	// Certificate specifies configuration of the TLS certificate securing communications within the mesh.
+	Certificate CertificateSpec `json:"certificate,omitempty"`
 }
 
-type CertSpec struct {
-	// Name of the certificate to be used by Service Mesh.
-	// +kubebuilder:default=opendatahub-dashboard-cert
-	Name string `json:"name,omitempty"`
-	// Generate indicates if the certificate should be generated. If set to false
-	// it will assume certificate with the given name is made available as a secret
-	// in Service Mesh namespace.
-	// +kubebuilder:default=true
-	Generate bool `json:"generate,omitempty"`
+// IngressGatewaySpec represents the configuration of the Ingress Gateways.
+type IngressGatewaySpec struct {
+	// Domain specifies the DNS name for intercepting ingress requests coming from
+	// outside the cluster. Most likely, you will want to use a wildcard name,
+	// like *.example.com. If not set, the domain of the OpenShift Ingress is used.
+	// If you choose to generate a certificate, this is the domain used for the certificate request.
+	Domain string `json:"domain,omitempty"`
+	// Certificate specifies configuration of the TLS certificate securing communications of
+	// the for Ingress Gateway.
+	Certificate CertificateSpec `json:"certificate,omitempty"`
 }
 
 type AuthSpec struct {
