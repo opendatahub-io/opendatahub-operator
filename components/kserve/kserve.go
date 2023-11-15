@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -98,28 +99,16 @@ func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dsci
 		if err := k.removeServerlessFeatures(dscispec); err != nil {
 			return err
 		}
-	}
-
-	if enabled {
+	} else {
 		// Download manifests and update paths
 		if err = k.OverrideManifests(string(platform)); err != nil {
 			return err
 		}
 
-		// check on dependent operators
-		if found, err := deploy.OperatorExists(cli, ServiceMeshOperator); err != nil {
-			return err
-		} else if !found {
-			return fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
-				ServiceMeshOperator, ComponentName)
-		}
-
-		// check on dependent operators might be in multiple namespaces
-		if found, err := deploy.OperatorExists(cli, ServerlessOperator); err != nil {
-			return err
-		} else if !found {
-			return fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
-				ServerlessOperator, ComponentName)
+		// check on dependent operators if all installed in cluster
+		dependOpsErrors := checkDepedentOps(cli).ErrorOrNil()
+		if dependOpsErrors != nil {
+			return dependOpsErrors
 		}
 
 		if err := k.configureServerless(dscispec); err != nil {
@@ -169,7 +158,7 @@ func (k *Kserve) Cleanup(_ client.Client, instance *dsciv1.DSCInitializationSpec
 func (k *Kserve) configureServerless(instance *dsciv1.DSCInitializationSpec) error {
 	if k.Serving.ManagementState == operatorv1.Managed {
 		if instance.ServiceMesh.ManagementState != operatorv1.Managed {
-			return fmt.Errorf("service mesh is not configure in DataScienceInitialization cluster but required by KServe serving")
+			return fmt.Errorf("serviceMesh is not configured as Managaed in DSCI instance but required by KServe serving")
 		}
 
 		serverlessInitializer := feature.NewFeaturesInitializer(instance, k.configureServerlessFeatures)
@@ -197,4 +186,25 @@ func (k *Kserve) removeServerlessFeatures(instance *dsciv1.DSCInitializationSpec
 		return err
 	}
 	return nil
+}
+
+func checkDepedentOps(cli client.Client) *multierror.Error {
+	var multiErr *multierror.Error
+
+	if found, err := deploy.OperatorExists(cli, ServiceMeshOperator); err != nil {
+		multiErr = multierror.Append(multiErr, err)
+	} else if !found {
+		err = fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
+			ServiceMeshOperator, ComponentName)
+		multiErr = multierror.Append(multiErr, err)
+	}
+
+	if found, err := deploy.OperatorExists(cli, ServerlessOperator); err != nil {
+		multiErr = multierror.Append(multiErr, err)
+	} else if !found {
+		err = fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
+			ServerlessOperator, ComponentName)
+		multiErr = multierror.Append(multiErr, err)
+	}
+	return multiErr
 }

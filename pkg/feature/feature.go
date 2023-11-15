@@ -116,8 +116,7 @@ func (f *Feature) Cleanup() error {
 func (f *Feature) applyManifests() error {
 	var applyErrors *multierror.Error
 	for _, m := range f.manifests {
-		err := f.apply(m)
-		applyErrors = multierror.Append(applyErrors, err)
+		applyErrors = multierror.Append(applyErrors, f.apply(m))
 	}
 
 	return applyErrors.ErrorOrNil()
