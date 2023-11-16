@@ -28,7 +28,7 @@ func defineServiceMeshFeatures(f *feature.FeaturesInitializer) error {
 		).
 		PreConditions(
 			servicemesh.EnsureServiceMeshOperatorInstalled,
-			feature.CreateNamespace(serviceMeshSpec.ControlPlane.Namespace),
+			feature.CreateNamespaceIfNotExists(serviceMeshSpec.ControlPlane.Namespace),
 		).
 		PostConditions(
 			feature.WaitForPodsToBeReady(serviceMeshSpec.ControlPlane.Namespace),
@@ -141,7 +141,7 @@ func defineServiceMeshFeatures(f *feature.FeaturesInitializer) error {
 		PreConditions(
 			feature.EnsureCRDIsInstalled("authconfigs.authorino.kuadrant.io"),
 			servicemesh.EnsureServiceMeshInstalled,
-			feature.CreateNamespace(serviceMeshSpec.Auth.Namespace),
+			feature.CreateNamespaceIfNotExists(serviceMeshSpec.Auth.Namespace),
 		).
 		PostConditions(
 			feature.WaitForPodsToBeReady(serviceMeshSpec.ControlPlane.Namespace),

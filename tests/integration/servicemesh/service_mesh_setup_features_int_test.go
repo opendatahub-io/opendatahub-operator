@@ -64,7 +64,7 @@ var _ = Describe("preconditions", func() {
 			defer objectCleaner.DeleteAll(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
 
 			// when
-			err = feature.CreateNamespace(namespace)(testFeature)
+			err = feature.CreateNamespaceIfNotExists(namespace)(testFeature)
 
 			// then
 			Expect(err).ToNot(HaveOccurred())
@@ -77,7 +77,7 @@ var _ = Describe("preconditions", func() {
 			defer objectCleaner.DeleteAll(ns)
 
 			// when
-			err := feature.CreateNamespace(namespace)(testFeature)
+			err := feature.CreateNamespaceIfNotExists(namespace)(testFeature)
 
 			// then
 			Expect(err).ToNot(HaveOccurred())

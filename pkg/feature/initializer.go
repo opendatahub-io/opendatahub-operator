@@ -34,8 +34,7 @@ func (f *FeaturesInitializer) Apply() error {
 	var applyErrors *multierror.Error
 
 	for _, f := range f.Features {
-		err := f.Apply()
-		applyErrors = multierror.Append(applyErrors, err)
+		applyErrors = multierror.Append(applyErrors, f.Apply())
 	}
 
 	return applyErrors.ErrorOrNil()
