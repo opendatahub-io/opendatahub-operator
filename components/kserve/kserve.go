@@ -106,9 +106,9 @@ func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dsci
 		}
 
 		// check on dependent operators if all installed in cluster
-		dependOpsErrors := checkDepedentOps(cli).ErrorOrNil()
-		if dependOpsErrors != nil {
-			return dependOpsErrors
+		// dependent operators set in checkRequiredOperatorsInstalled()
+		if err := checkRequiredOperatorsInstalled(cli); err != nil {
+			return err
 		}
 
 		if err := k.configureServerless(dscispec); err != nil {
@@ -188,23 +188,21 @@ func (k *Kserve) removeServerlessFeatures(instance *dsciv1.DSCInitializationSpec
 	return nil
 }
 
-func checkDepedentOps(cli client.Client) *multierror.Error {
+func checkRequiredOperatorsInstalled(cli client.Client) error {
 	var multiErr *multierror.Error
 
-	if found, err := deploy.OperatorExists(cli, ServiceMeshOperator); err != nil {
-		multiErr = multierror.Append(multiErr, err)
-	} else if !found {
-		err = fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
-			ServiceMeshOperator, ComponentName)
-		multiErr = multierror.Append(multiErr, err)
+	checkAndAppendError := func(operatorName string) {
+		if found, err := deploy.OperatorExists(cli, operatorName); err != nil {
+			multiErr = multierror.Append(multiErr, err)
+		} else if !found {
+			err = fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
+				operatorName, ComponentName)
+			multiErr = multierror.Append(multiErr, err)
+		}
 	}
 
-	if found, err := deploy.OperatorExists(cli, ServerlessOperator); err != nil {
-		multiErr = multierror.Append(multiErr, err)
-	} else if !found {
-		err = fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
-			ServerlessOperator, ComponentName)
-		multiErr = multierror.Append(multiErr, err)
-	}
-	return multiErr
+	checkAndAppendError(ServiceMeshOperator)
+	checkAndAppendError(ServerlessOperator)
+
+	return multiErr.ErrorOrNil()
 }
