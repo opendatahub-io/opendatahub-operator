@@ -8,21 +8,21 @@ metadata:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: controller-manager
+  name: manager
   namespace: system
   labels:
-    control-plane: controller-manager
+    control-plane: opendatahub-operator
 spec:
   selector:
     matchLabels:
-      control-plane: controller-manager
+      control-plane: opendatahub-operator
   replicas: 1
   template:
     metadata:
       annotations:
         kubectl.kubernetes.io/default-container: manager
       labels:
-        control-plane: controller-manager
+        control-plane: opendatahub-operator
     spec:
       securityContext:
         runAsNonRoot: true

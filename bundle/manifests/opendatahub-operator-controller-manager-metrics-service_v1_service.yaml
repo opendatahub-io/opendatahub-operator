@@ -3,7 +3,7 @@ kind: Service
 metadata:
   creationTimestamp: null
   labels:
-    control-plane: controller-manager
+    control-plane: opendatahub-operator
   name: opendatahub-operator-controller-manager-metrics-service
 spec:
   ports:
@@ -12,6 +12,6 @@ spec:
     protocol: TCP
     targetPort: 8080
   selector:
-    control-plane: controller-manager
+    control-plane: opendatahub-operator
 status:
   loadBalancer: {}
