@@ -109,8 +109,6 @@ func TestOdhOperator(t *testing.T) {
 	utilruntime.Must(featurev1.AddToScheme(scheme))
 	utilruntime.Must(monitoringv1.AddToScheme(scheme))
 
-	// t.Run("remove components by using labeled configmap", cfgMapDeletionTestSuite)
-
 	// individual test suites after the operator is running
 	if !t.Run("validate operator pod is running", testODHOperatorValidation) {
 		return
