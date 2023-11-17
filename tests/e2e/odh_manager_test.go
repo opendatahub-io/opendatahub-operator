@@ -16,7 +16,7 @@ func testODHOperatorValidation(t *testing.T) {
 
 func (tc *testContext) testODHDeployment(t *testing.T) {
 	// Verify if the operator deployment is created
-	require.NoErrorf(t, tc.waitForControllerDeployment("opendatahub-operator-controller-manager", 1),
+	require.NoErrorf(t, tc.waitForControllerDeployment("opendatahub-operator-manager", 1),
 		"error in validating odh operator deployment")
 }
 
