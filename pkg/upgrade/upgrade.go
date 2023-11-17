@@ -18,6 +18,7 @@ import (
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -263,15 +264,27 @@ func CreateDefaultDSCI(cli client.Client, platform deploy.Platform, appNamespace
 	return nil
 }
 
-func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform) error {
+func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS string) error {
+	const (
+		resourceInterval = 10 * time.Second
+		resourceTimeout  = 1 * time.Minute
+	)
+
 	// If platform is Managed, remove Kfdefs and create default dsc
 	if platform == deploy.ManagedRhods {
-		fmt.Println("Call deleteDeloyments in managed cluster")
-		if e := deleteDeployments(cli); e != nil {
-			return fmt.Errorf("error deleting deployment: %w", e)
-		}
-		err := CreateDefaultDSC(cli, platform)
+		fmt.Println("starting deletion of Deloyments in managed cluster")
+		err := wait.PollUntilContextTimeout(context.TODO(), resourceInterval, resourceTimeout, false, func(ctx context.Context) (done bool, err error) {
+			if e := deleteDeployments(cli, appNS); e != nil {
+				return false, fmt.Errorf("error deleting deployment: %w", e)
+			} else {
+				return true, nil
+			}
+		})
 		if err != nil {
+			return err
+		}
+
+		if err = CreateDefaultDSC(cli, platform); err != nil {
 			return err
 		}
 
@@ -290,8 +303,8 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform) error 
 		}
 
 		if len(kfDefList.Items) > 0 {
-			fmt.Println("Call deleteDeloyments in self-managed cluster")
-			if e := deleteDeployments(cli); e != nil {
+			fmt.Println("Starting deletion of Deloyments in self-managed cluster")
+			if e := deleteDeployments(cli, appNS); e != nil {
 				return fmt.Errorf("error deleting deployment: %w", e)
 			}
 			err := CreateDefaultDSC(cli, platform)
@@ -303,6 +316,26 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform) error 
 		return err
 	}
 
+	// this block should be removed after testing
+	// if platform == deploy.OpenDataHub || platform == deploy.Unknown {
+	// 	kfDefList, err := getKfDefInstances(cli)
+	// 	if err != nil {
+	// 		return fmt.Errorf("error getting kfdef instances: : %w", err)
+	// 	}
+
+	// 	if len(kfDefList.Items) > 0 {
+	// 		fmt.Println("Call deleteDeloyments in ODH cluster")
+	// 		if e := deleteDeployments(cli, appNS); e != nil {
+	// 			return fmt.Errorf("error deleting deployment: %w", e)
+	// 		}
+	// 		err := CreateDefaultDSC(cli, platform)
+	// 		if err != nil {
+	// 			return err
+	// 		}
+	// 	}
+
+	// 	return err
+	// }
 	return nil
 }
 
@@ -426,7 +459,7 @@ func getKfDefInstances(c client.Client) (*kfdefv1.KfDefList, error) {
 	return kfDefList, nil
 }
 
-func deleteDeployments(cli client.Client) error {
+func deleteDeployments(cli client.Client, applicationNamespace string) error {
 	// In v2, Deployment selectors use a label "app.opendatahub.io/<componentName>" which is
 	// not present in v1. Since label selectors are immutable, we need to delete the existing
 	// deployments and recreated them.
@@ -434,21 +467,27 @@ func deleteDeployments(cli client.Client) error {
 	// Delete Deployment objects
 
 	var multiErr *multierror.Error
-
 	deployments := &appsv1.DeploymentList{}
 	listOpts := &client.ListOptions{
-		Namespace: "rhods-ods-applications",
+		Namespace: applicationNamespace,
 	}
-	err := cli.List(context.TODO(), deployments, listOpts)
-	if err != nil {
+	if err := cli.List(context.TODO(), deployments, listOpts); err != nil {
 		return err
-	} else {
-		for _, deployment := range deployments.Items {
-			err = cli.Delete(context.TODO(), &deployment, []client.DeleteOption{}...)
-			if err != nil {
-				multiErr = multierror.Append(multiErr, err)
+	}
+	// filter deployment which has the new label to limit that we do not over kill other deployment
+	// this logic can be used even when upgrade from v2.4 to v2.5 without remove it
+	for _, deployment := range deployments.Items {
+		// fmt.Println("start with deployment " + deployment.Name)
+		selectorLabels := deployment.Spec.Selector.MatchLabels
+		for label := range selectorLabels {
+			if strings.Contains(label, "app.opendatahub.io/") {
+				// this deployment has the new label, this is a v2 to v2 upgrade
+				// there is no need to recreate it, as labels are matching
+				continue
 			}
 		}
+		multiErr = multierror.Append(multiErr, cli.Delete(context.TODO(), &deployment))
 	}
+
 	return multiErr.ErrorOrNil()
 }

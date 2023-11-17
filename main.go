@@ -195,7 +195,7 @@ func main() { //nolint:funlen
 	}
 
 	// Apply update from legacy operator
-	if err = upgrade.UpdateFromLegacyVersion(setupClient, platform); err != nil {
+	if err = upgrade.UpdateFromLegacyVersion(setupClient, platform, dscApplicationsNamespace); err != nil {
 		setupLog.Error(err, "unable to update from legacy operator version")
 	}
 

@@ -11,7 +11,7 @@ func ApplyAddLabelsPlugin(componentName string, resMap resmap.ResMap) error {
 	nsplug := builtins.LabelTransformerPlugin{
 		Labels: map[string]string{
 			"app.opendatahub.io/" + componentName: "true",
-			"app.kubernetes.io/part-of": componentName,
+			"app.kubernetes.io/part-of":           componentName,
 		},
 		FieldSpecs: []types.FieldSpec{
 			{

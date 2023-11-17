@@ -214,7 +214,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 		// Apply update from legacy operator
 		// TODO: Update upgrade logic to get components through KfDef
-		if err = upgrade.UpdateFromLegacyVersion(r.Client, platform); err != nil {
+		if err = upgrade.UpdateFromLegacyVersion(r.Client, platform, r.ApplicationsNamespace); err != nil {
 			r.Log.Error(err, "unable to update from legacy operator version")
 
 			return reconcile.Result{}, err
