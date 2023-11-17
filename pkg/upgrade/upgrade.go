@@ -8,9 +8,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	olmclientset "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/operators/v1alpha1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
@@ -264,6 +266,10 @@ func CreateDefaultDSCI(cli client.Client, platform deploy.Platform, appNamespace
 func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform) error {
 	// If platform is Managed, remove Kfdefs and create default dsc
 	if platform == deploy.ManagedRhods {
+		fmt.Println("Call deleteDeloyments in managed cluster")
+		if e := deleteDeployments(cli); e != nil {
+			return fmt.Errorf("error deleting deployment: %w", e)
+		}
 		err := CreateDefaultDSC(cli, platform)
 		if err != nil {
 			return err
@@ -280,10 +286,14 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform) error 
 	if platform == deploy.SelfManagedRhods {
 		kfDefList, err := getKfDefInstances(cli)
 		if err != nil {
-			return fmt.Errorf("error getting kfdef instances: %v", err)
+			return fmt.Errorf("error getting kfdef instances: : %w", err)
 		}
 
 		if len(kfDefList.Items) > 0 {
+			fmt.Println("Call deleteDeloyments in self-managed cluster")
+			if e := deleteDeployments(cli); e != nil {
+				return fmt.Errorf("error deleting deployment: %w", e)
+			}
 			err := CreateDefaultDSC(cli, platform)
 			if err != nil {
 				return err
@@ -414,4 +424,31 @@ func getKfDefInstances(c client.Client) (*kfdefv1.KfDefList, error) {
 	}
 
 	return kfDefList, nil
+}
+
+func deleteDeployments(cli client.Client) error {
+	// In v2, Deployment selectors use a label "app.opendatahub.io/<componentName>" which is
+	// not present in v1. Since label selectors are immutable, we need to delete the existing
+	// deployments and recreated them.
+
+	// Delete Deployment objects
+
+	var multiErr *multierror.Error
+
+	deployments := &appsv1.DeploymentList{}
+	listOpts := &client.ListOptions{
+		Namespace: "rhods-ods-applications",
+	}
+	err := cli.List(context.TODO(), deployments, listOpts)
+	if err != nil {
+		return err
+	} else {
+		for _, deployment := range deployments.Items {
+			err = cli.Delete(context.TODO(), &deployment, []client.DeleteOption{}...)
+			if err != nil {
+				multiErr = multierror.Append(multiErr, err)
+			}
+		}
+	}
+	return multiErr.ErrorOrNil()
 }
