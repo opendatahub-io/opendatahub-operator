@@ -265,31 +265,18 @@ func CreateDefaultDSCI(cli client.Client, platform deploy.Platform, appNamespace
 }
 
 func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS string) error {
-	const (
-		resourceInterval = 10 * time.Second
-		resourceTimeout  = 1 * time.Minute
-	)
-
 	// If platform is Managed, remove Kfdefs and create default dsc
 	if platform == deploy.ManagedRhods {
 		fmt.Println("starting deletion of Deloyments in managed cluster")
-		err := wait.PollUntilContextTimeout(context.TODO(), resourceInterval, resourceTimeout, false, func(ctx context.Context) (done bool, err error) {
-			if e := deleteDeployments(cli, appNS); e != nil {
-				return false, fmt.Errorf("error deleting deployment: %w", e)
-			} else {
-				return true, nil
-			}
-		})
-		if err != nil {
+		if err := deleteDeployments(cli, appNS); err != nil {
 			return err
 		}
 
-		if err = CreateDefaultDSC(cli, platform); err != nil {
+		if err := CreateDefaultDSC(cli, platform); err != nil {
 			return err
 		}
 
-		err = RemoveKfDefInstances(cli, platform)
-		if err != nil {
+		if err := RemoveKfDefInstances(cli, platform); err != nil {
 			return err
 		}
 
@@ -304,11 +291,10 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 
 		if len(kfDefList.Items) > 0 {
 			fmt.Println("Starting deletion of Deloyments in self-managed cluster")
-			if e := deleteDeployments(cli, appNS); e != nil {
-				return fmt.Errorf("error deleting deployment: %w", e)
+			if err = deleteDeployments(cli, appNS); err != nil {
+				return fmt.Errorf("error deleting deployment: %w", err)
 			}
-			err := CreateDefaultDSC(cli, platform)
-			if err != nil {
+			if err = CreateDefaultDSC(cli, platform); err != nil {
 				return err
 			}
 		}
@@ -463,19 +449,33 @@ func deleteDeployments(cli client.Client, applicationNamespace string) error {
 	// In v2, Deployment selectors use a label "app.opendatahub.io/<componentName>" which is
 	// not present in v1. Since label selectors are immutable, we need to delete the existing
 	// deployments and recreated them.
+	// because we can't proceed if a deployment is not deleted, we use exponential backoff
+	// to retry the deletion until it succeeds
+	err := wait.ExponentialBackoffWithContext(context.TODO(), wait.Backoff{
+		Duration: 1 * time.Second,
+		Factor:   2.0,
+		Jitter:   0.1,
+		Cap:      1 * time.Minute,
+	}, func(_ context.Context) (bool, error) {
+		done, err := deleteDeploymentsAndCheck(cli, applicationNamespace)
+		return done, err
+	})
+	return err
+}
 
+func deleteDeploymentsAndCheck(cli client.Client, applicationNamespace string) (bool, error) {
 	// Delete Deployment objects
-
 	var multiErr *multierror.Error
 	deployments := &appsv1.DeploymentList{}
 	listOpts := &client.ListOptions{
 		Namespace: applicationNamespace,
 	}
 	if err := cli.List(context.TODO(), deployments, listOpts); err != nil {
-		return err
+		return false, nil
 	}
 	// filter deployment which has the new label to limit that we do not over kill other deployment
 	// this logic can be used even when upgrade from v2.4 to v2.5 without remove it
+	markedForDeletion := []appsv1.Deployment{}
 	for _, deployment := range deployments.Items {
 		// fmt.Println("start with deployment " + deployment.Name)
 		selectorLabels := deployment.Spec.Selector.MatchLabels
@@ -486,8 +486,27 @@ func deleteDeployments(cli client.Client, applicationNamespace string) error {
 				continue
 			}
 		}
+		markedForDeletion = append(markedForDeletion, deployment)
 		multiErr = multierror.Append(multiErr, cli.Delete(context.TODO(), &deployment))
 	}
 
-	return multiErr.ErrorOrNil()
+	for _, deployment := range markedForDeletion {
+		if e := cli.Get(context.TODO(), client.ObjectKey{
+			Namespace: deployment.Namespace,
+			Name:      deployment.Name,
+		}, &deployment); e != nil {
+			if apierrs.IsNotFound(e) {
+				// resource has been successfully deleted
+				continue
+			} else {
+				// unexpected error, report it
+				multiErr = multierror.Append(multiErr, cli.Delete(context.TODO(), &deployment))
+			}
+		} else {
+			// resource still exists, wait for it to be deleted
+			return false, nil
+		}
+	}
+
+	return true, multiErr.ErrorOrNil()
 }
