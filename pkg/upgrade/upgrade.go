@@ -379,11 +379,11 @@ func getClusterServiceVersion(cfg *rest.Config, watchNameSpace string) (*ofapi.C
 func getKfDefInstances(c client.Client) (*kfdefv1.KfDefList, error) {
 	// If KfDef CRD is not found, we see it as a cluster not pre-installed v1 operator	// Check if kfdef are deployed
 	kfdefCrd := &apiextv1.CustomResourceDefinition{}
-	err := c.Get(context.TODO(), client.ObjectKey{Name: "kfdefs.kfdef.apps.kubeflow.org"}, kfdefCrd)
-	if err != nil {
+	if err := c.Get(context.TODO(), client.ObjectKey{Name: "kfdefs.kfdef.apps.kubeflow.org"}, kfdefCrd); err != nil {
 		if apierrs.IsNotFound(err) {
 			// If no Crd found, return, since its a new Installation
-			return nil, nil
+			// return empty list
+			return &kfdefv1.KfDefList{}, nil
 		} else {
 			return nil, fmt.Errorf("error retrieving kfdef CRD : %v", err)
 		}
@@ -392,7 +392,7 @@ func getKfDefInstances(c client.Client) (*kfdefv1.KfDefList, error) {
 	// If KfDef Instances found, and no DSC instances are found in Self-managed, that means this is an upgrade path from
 	// legacy version. Create a default DSC instance
 	kfDefList := &kfdefv1.KfDefList{}
-	err = c.List(context.TODO(), kfDefList)
+	err := c.List(context.TODO(), kfDefList)
 	if err != nil {
 		if apierrs.IsNotFound(err) {
 			// If no KfDefs, do nothing and return
