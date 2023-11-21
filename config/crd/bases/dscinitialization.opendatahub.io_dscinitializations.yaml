@@ -85,9 +85,7 @@ spec:
                 description: Configures Service Mesh as networking layer for Data
                   Science Clusters components. The Service Mesh is a mandatory prerequisite
                   for single model serving (KServe) and you should review this configuration
-                  if you are planning to use KServe. For other components, it enhances
-                  user experience; e.g. it provides unified authentication giving
-                  a Single Sign On experience.
+                  if you are planning to use KServe.
                 properties:
                   auth:
                     description: Auth holds configuration of authentication and authorization
@@ -135,6 +133,28 @@ spec:
                     description: ControlPlane holds configuration of Service Mesh
                       used by Opendatahub.
                     properties:
+                      certificate:
+                        description: Certificate specifies configuration of the TLS
+                          certificate securing communications within the mesh.
+                        properties:
+                          secretName:
+                            description: SecretName specifies the name of the Kubernetes
+                              Secret resource that contains a TLS certificate secure
+                              HTTP communications for the KNative network.
+                            type: string
+                          type:
+                            default: SelfSigned
+                            description: 'Type specifies if the TLS certificate should
+                              be generated automatically, or if the certificate is
+                              provided by the user. Allowed values are: * SelfSigned:
+                              A certificate is going to be generated using an own
+                              private key. * Provided: Pre-existence of the TLS Secret
+                              (see SecretName) with a valid certificate is assumed.'
+                            enum:
+                            - SelfSigned
+                            - Provided
+                            type: string
+                        type: object
                       metricsCollection:
                         default: Istio
                         description: MetricsCollection specifies if metrics from components
