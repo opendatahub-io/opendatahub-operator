@@ -48,7 +48,7 @@ func (d *Dashboard) defineServiceMeshFeatures(dscispec *dsci.DSCInitializationSp
 			return err
 		}
 
-		createMeshResources, err := feature.CreateFeature("create-service-mesh-routing-resources-for-dashboard").
+		createMeshResources, err := feature.CreateFeature("dashboard-create-service-mesh-routing-resources").
 			For(dscispec).
 			Manifests(
 				path.Join(rootDir, feature.ControlPlaneDir, "components", d.GetComponentName()),

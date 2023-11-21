@@ -21,7 +21,7 @@ func defineServiceMeshFeatures(f *feature.FeaturesInitializer) error {
 
 	serviceMeshSpec := f.ServiceMesh
 
-	smcpCreation, errSmcp := feature.CreateFeature("mesh-control-plane-creation").
+	smcpCreation, errSmcp := feature.CreateFeature("service-mesh-control-plane-creation").
 		For(f.DSCInitializationSpec).
 		Manifests(
 			path.Join(rootDir, feature.ControlPlaneDir, "base", "control-plane.tmpl"),
@@ -56,7 +56,7 @@ func defineServiceMeshFeatures(f *feature.FeaturesInitializer) error {
 		f.Features = append(f.Features, metricsCollection)
 	}
 
-	if oauth, err := feature.CreateFeature("control-plane-configure-oauth").
+	if oauth, err := feature.CreateFeature("service-mesh-control-plane-configure-oauth").
 		For(f.DSCInitializationSpec).
 		Manifests(
 			path.Join(rootDir, feature.ControlPlaneDir, "base"),
@@ -105,7 +105,7 @@ func defineServiceMeshFeatures(f *feature.FeaturesInitializer) error {
 		f.Features = append(f.Features, serviceMesh)
 	}
 
-	if gatewayRoute, err := feature.CreateFeature("create-gateway-route").
+	if gatewayRoute, err := feature.CreateFeature("service-mesh-create-gateway-route").
 		For(f.DSCInitializationSpec).
 		Manifests(
 			path.Join(rootDir, feature.ControlPlaneDir, "routing"),
@@ -129,7 +129,7 @@ func defineServiceMeshFeatures(f *feature.FeaturesInitializer) error {
 		f.Features = append(f.Features, dataScienceProjects)
 	}
 
-	if extAuthz, err := feature.CreateFeature("control-plane-setup-external-authorization").
+	if extAuthz, err := feature.CreateFeature("service-mesh-control-plane-setup-external-authorization").
 		For(f.DSCInitializationSpec).
 		Manifests(
 			path.Join(rootDir, feature.AuthDir, "auth-smm.tmpl"),
