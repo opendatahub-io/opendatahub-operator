@@ -119,6 +119,9 @@ func TestOdhOperator(t *testing.T) {
 	// Run deletion if skipDeletion is not set
 	if !skipDeletion {
 		t.Run("delete components", deletionTestSuite)
+
+		// This test case recreates entire DSC again and deletes afterward
+		t.Run("remove components by using labeled configmap", cfgMapDeletionTestSuite)
 	}
 }
 
