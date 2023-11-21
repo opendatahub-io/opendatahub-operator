@@ -187,6 +187,15 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 		return ctrl.Result{}, nil
 	default:
+		// Check namespace is not exist, then create
+		namespace := instance.Spec.ApplicationsNamespace
+		r.Log.Info("Standard Reconciling workflow to create namespaces")
+		err = r.createOdhNamespace(ctx, instance, namespace)
+		if err != nil {
+			// no need to log error as it was already logged in createOdhNamespace
+			return reconcile.Result{}, err
+		}
+
 		// Start reconciling
 		if instance.Status.Conditions == nil {
 			reason := status.ReconcileInit
@@ -202,22 +211,6 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 				return reconcile.Result{}, err
 			}
-		}
-
-		// Check namespace is not exist, then create
-		namespace := instance.Spec.ApplicationsNamespace
-		r.Log.Info("Standard Reconciling workflow to create namespaces")
-		if err = r.createOdhNamespace(ctx, instance, namespace); err != nil {
-			// no need to log error as it was already logged in createOdhNamespace
-			return reconcile.Result{}, err
-		}
-
-		// Apply update from legacy operator
-		// TODO: Update upgrade logic to get components through KfDef
-		if err = upgrade.UpdateFromLegacyVersion(r.Client, platform); err != nil {
-			r.Log.Error(err, "unable to update from legacy operator version")
-
-			return reconcile.Result{}, err
 		}
 
 		switch platform {
