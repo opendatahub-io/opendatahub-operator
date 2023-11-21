@@ -2,11 +2,24 @@ package servicemesh
 
 import (
 	"github.com/pkg/errors"
+	"strings"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 )
+
+const DefaultCertificateSecretName = "opendatahub-cert"
+
+func DefaultValues(f *feature.Feature) error {
+	certificateSecretName := strings.TrimSpace(f.Spec.ControlPlane.Certificate.SecretName)
+	if len(certificateSecretName) == 0 {
+		certificateSecretName = DefaultCertificateSecretName
+	}
+
+	f.Spec.ControlPlane.Certificate.SecretName = certificateSecretName
+	return nil
+}
 
 func ClusterDetails(f *feature.Feature) error {
 	data := f.Spec

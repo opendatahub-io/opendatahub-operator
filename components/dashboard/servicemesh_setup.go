@@ -54,7 +54,10 @@ func (d *Dashboard) defineServiceMeshFeatures(dscispec *dsci.DSCInitializationSp
 				path.Join(rootDir, feature.ControlPlaneDir, "components", d.GetComponentName()),
 			).
 			WithResources(servicemesh.EnabledInDashboard).
-			WithData(servicemesh.ClusterDetails).
+			WithData(
+				servicemesh.DefaultValues,
+				servicemesh.ClusterDetails,
+			).
 			PreConditions(
 				feature.WaitForResourceToBeCreated(dscispec.ApplicationsNamespace, gvr.ODHDashboardConfigGVR),
 			).

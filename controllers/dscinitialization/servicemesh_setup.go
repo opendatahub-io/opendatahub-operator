@@ -64,6 +64,7 @@ func defineServiceMeshFeatures(f *feature.FeaturesInitializer) error {
 			path.Join(rootDir, feature.ControlPlaneDir, "filters"),
 		).
 		WithResources(
+			servicemesh.DefaultValues,
 			servicemesh.SelfSignedCertificate,
 			servicemesh.EnvoyOAuthSecrets,
 		).
