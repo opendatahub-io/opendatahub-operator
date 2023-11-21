@@ -138,6 +138,7 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 	if enabled {
 		if dscispec.DevFlags.ManifestsUri == "" && len(w.DevFlags.Manifests) == 0 {
 			if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
+				// for kf-notebook-controller image
 				if err := deploy.ApplyParams(notebookControllerPath, w.SetImageParamsMap(imageParamMap), false); err != nil {
 					return err
 				}

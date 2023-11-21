@@ -144,9 +144,10 @@ func main() {
 	}
 
 	if err = (&datascienceclustercontrollers.DataScienceClusterReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		Log:    ctrl.Log.WithName("controllers").WithName("DataScienceCluster"),
+		Client:     mgr.GetClient(),
+		Scheme:     mgr.GetScheme(),
+		RestConfig: mgr.GetConfig(),
+		Log:        ctrl.Log.WithName("controllers").WithName("DataScienceCluster"),
 		DataScienceCluster: &datascienceclustercontrollers.DataScienceClusterConfig{
 			DSCISpec: &dsci.DSCInitializationSpec{
 				ApplicationsNamespace: dscApplicationsNamespace,
@@ -181,7 +182,7 @@ func main() {
 	// Get operator platform
 	platform, err := deploy.GetPlatform(setupClient)
 	if err != nil {
-		setupLog.Error(err, "error getting client for setup")
+		setupLog.Error(err, "error getting platform")
 		os.Exit(1)
 	}
 
@@ -194,7 +195,7 @@ func main() {
 	}
 
 	// Apply update from legacy operator
-	if err = upgrade.UpdateFromLegacyVersion(setupClient, platform); err != nil {
+	if err = upgrade.UpdateFromLegacyVersion(setupClient, platform, dscApplicationsNamespace, dscMonitoringNamespace); err != nil {
 		setupLog.Error(err, "unable to update from legacy operator version")
 	}
 

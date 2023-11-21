@@ -106,7 +106,7 @@ func (c *Component) UpdatePrometheusConfig(cli client.Client, enable bool, compo
 			DeadManSnitchRules string `yaml:"deadmanssnitch-alerting.rules"`
 			CFRRules           string `yaml:"codeflare-recording.rules"`
 			CRARules           string `yaml:"codeflare-alerting.rules"`
-			DashboardRRules    string `yaml:"rhods-dashboard-recording.rule"`
+			DashboardRRules    string `yaml:"rhods-dashboard-recording.rules"`
 			DashboardARules    string `yaml:"rhods-dashboard-alerting.rules"`
 			DSPRRules          string `yaml:"data-science-pipelines-operator-recording.rules"`
 			DSPARules          string `yaml:"data-science-pipelines-operator-alerting.rules"`
