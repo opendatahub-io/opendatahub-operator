@@ -117,8 +117,8 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 
 	// For odh-model-controller
 	if enabled {
-		err := cluster.UpdatePodSecurityRolebinding(cli, "odh-model-controller", dscispec.ApplicationsNamespace)
-		if err != nil {
+		if err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace,
+			"odh-model-controller"); err != nil {
 			return err
 		}
 		// Update image parameters for odh-model-controller
