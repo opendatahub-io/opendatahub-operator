@@ -84,6 +84,9 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      replicas:
+                        description: Override replica count for component
+                        type: integer
                     type: object
                   dashboard:
                     description: Dashboard component configuration.
@@ -127,6 +130,9 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      replicas:
+                        description: Override replica count for component
+                        type: integer
                     type: object
                   datasciencepipelines:
                     description: DataServicePipeline component configuration. Require
@@ -171,6 +177,9 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      replicas:
+                        description: Override replica count for component
+                        type: integer
                     type: object
                   kserve:
                     description: Kserve component configuration. Require OpenShift
@@ -217,6 +226,9 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      replicas:
+                        description: Override replica count for component
+                        type: integer
                       serving:
                         description: Serving configures the KNative-Serving stack
                           used for model serving. A Service Mesh (Istio) is prerequisite,
@@ -320,6 +332,9 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      replicas:
+                        description: Override replica count for component
+                        type: integer
                     type: object
                   ray:
                     description: Ray component configuration.
@@ -363,6 +378,9 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      replicas:
+                        description: Override replica count for component
+                        type: integer
                     type: object
                   trustyai:
                     description: TrustyAI component configuration.
@@ -406,6 +424,9 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      replicas:
+                        description: Override replica count for component
+                        type: integer
                     type: object
                   workbenches:
                     description: Workbenches component configuration.
@@ -449,6 +470,9 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      replicas:
+                        description: Override replica count for component
+                        type: integer
                     type: object
                 type: object
             type: object
