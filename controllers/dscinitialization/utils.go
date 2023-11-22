@@ -222,19 +222,19 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.
 	}
 	if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
 		// Deploy networkpolicy for operator namespace
-		err = deploy.DeployManifestsFromPath(r.Client, dscInit, networkpolicyPath+"/operator", "redhat-ods-operator", "networkpolicy", true)
+		err = deploy.DeployManifestsFromPath(r.Client, dscInit, networkpolicyPath+"/operator", "redhat-ods-operator", "networkpolicy", true, nil)
 		if err != nil {
 			r.Log.Error(err, "error to set networkpolicy in operator namespace", "path", networkpolicyPath)
 			return err
 		}
 		// Deploy networkpolicy for monitoring namespace
-		err = deploy.DeployManifestsFromPath(r.Client, dscInit, networkpolicyPath+"/monitoring", dscInit.Spec.Monitoring.Namespace, "networkpolicy", true)
+		err = deploy.DeployManifestsFromPath(r.Client, dscInit, networkpolicyPath+"/monitoring", dscInit.Spec.Monitoring.Namespace, "networkpolicy", true, nil)
 		if err != nil {
 			r.Log.Error(err, "error to set networkpolicy in monitroing namespace", "path", networkpolicyPath)
 			return err
 		}
 		// Deploy networkpolicy for applications namespace
-		err = deploy.DeployManifestsFromPath(r.Client, dscInit, networkpolicyPath+"/applications", dscInit.Spec.ApplicationsNamespace, "networkpolicy", true)
+		err = deploy.DeployManifestsFromPath(r.Client, dscInit, networkpolicyPath+"/applications", dscInit.Spec.ApplicationsNamespace, "networkpolicy", true, nil)
 		if err != nil {
 			r.Log.Error(err, "error to set networkpolicy in applications namespace", "path", networkpolicyPath)
 			return err

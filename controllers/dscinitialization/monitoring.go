@@ -170,7 +170,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 		return err
 	}
 	// r.Log.Info("Success: update alertmanage-configs.yaml with email")
-	err = deploy.DeployManifestsFromPath(r.Client, dsciInit, alertManagerPath, dsciInit.Spec.Monitoring.Namespace, "alertmanager", true)
+	err = deploy.DeployManifestsFromPath(r.Client, dsciInit, alertManagerPath, dsciInit.Spec.Monitoring.Namespace, "alertmanager", true, nil)
 	if err != nil {
 		r.Log.Error(err, "error to deploy manifests", "path", alertManagerPath)
 		return err
@@ -220,7 +220,8 @@ func configurePrometheus(ctx context.Context, dsciInit *dsci.DSCInitialization, 
 		prometheusConfigPath,
 		dsciInit.Spec.Monitoring.Namespace,
 		"prometheus",
-		dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed); err != nil {
+		dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed,
+		nil); err != nil {
 		r.Log.Error(err, "error to deploy manifests for prometheus configs", "path", prometheusConfigPath)
 		return err
 	}
@@ -319,7 +320,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsci.DSCInitialization, 
 	}
 
 	err = deploy.DeployManifestsFromPath(r.Client, dsciInit, prometheusManifestsPath,
-		dsciInit.Spec.Monitoring.Namespace, "prometheus", true)
+		dsciInit.Spec.Monitoring.Namespace, "prometheus", true, nil)
 	if err != nil {
 		r.Log.Error(err, "error to deploy manifests for prometheus", "path", prometheusManifestsPath)
 		return err
@@ -368,7 +369,8 @@ func configureBlackboxExporter(ctx context.Context, dsciInit *dsci.DSCInitializa
 			filepath.Join(blackBoxPath, "internal"),
 			dsciInit.Spec.Monitoring.Namespace,
 			"blackbox-exporter",
-			dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed); err != nil {
+			dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed,
+			nil); err != nil {
 			r.Log.Error(err, "error to deploy manifests: %w", err)
 			return err
 		}
@@ -378,7 +380,8 @@ func configureBlackboxExporter(ctx context.Context, dsciInit *dsci.DSCInitializa
 			filepath.Join(blackBoxPath, "external"),
 			dsciInit.Spec.Monitoring.Namespace,
 			"blackbox-exporter",
-			dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed); err != nil {
+			dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed,
+			nil); err != nil {
 			r.Log.Error(err, "error to deploy manifests: %w", err)
 			return err
 		}
@@ -431,7 +434,8 @@ func (r *DSCInitializationReconciler) configureCommonMonitoring(dsciInit *dsci.D
 		segmentPath,
 		dsciInit.Spec.ApplicationsNamespace,
 		"segment-io",
-		dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed); err != nil {
+		dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed,
+		nil); err != nil {
 		r.Log.Error(err, "error to deploy manifests under "+segmentPath)
 		return err
 	}
@@ -453,7 +457,8 @@ func (r *DSCInitializationReconciler) configureCommonMonitoring(dsciInit *dsci.D
 		monitoringBasePath,
 		"",
 		"monitoring-base",
-		dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed); err != nil {
+		dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed,
+		nil); err != nil {
 		r.Log.Error(err, "error to deploy manifests under "+monitoringBasePath)
 		return err
 	}

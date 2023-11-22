@@ -133,7 +133,8 @@ func DownloadManifests(componentName string, manifestConfig components.Manifests
 	return err
 }
 
-func DeployManifestsFromPath(cli client.Client, owner metav1.Object, manifestPath string, namespace string, componentName string, componentEnabled bool) error {
+func DeployManifestsFromPath(cli client.Client, owner metav1.Object, manifestPath string, namespace string,
+	componentName string, componentEnabled bool, c components.ComponentInterface) error {
 	// Render the Kustomize manifests
 	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
 	fs := filesys.MakeFsOnDisk()

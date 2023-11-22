@@ -136,12 +136,12 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 
 	// Deploy odh-dashboard manifests
 	if platform == deploy.OpenDataHub || platform == "" {
-		if err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+		if err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled, d); err != nil {
 			return err
 		}
 	} else if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
 		// Apply authentication overlay
-		if err := deploy.DeployManifestsFromPath(cli, owner, PathSupported, dscispec.ApplicationsNamespace, ComponentNameSupported, enabled); err != nil {
+		if err := deploy.DeployManifestsFromPath(cli, owner, PathSupported, dscispec.ApplicationsNamespace, ComponentNameSupported, enabled, d); err != nil {
 			return err
 		}
 	}
@@ -168,7 +168,7 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 			if err = deploy.DeployManifestsFromPath(cli, owner,
 				filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
 				dscispec.Monitoring.Namespace,
-				ComponentName+"prometheus", true); err != nil {
+				ComponentName+"prometheus", true, nil); err != nil {
 				return err
 			}
 		}
@@ -187,7 +187,7 @@ func (d *Dashboard) deployCRDsForPlatform(cli client.Client, owner metav1.Object
 
 	enabled := d.ManagementState == operatorv1.Managed
 
-	return deploy.DeployManifestsFromPath(cli, owner, PathCRDs, namespace, componentName, enabled)
+	return deploy.DeployManifestsFromPath(cli, owner, PathCRDs, namespace, componentName, enabled, d)
 }
 
 func (d *Dashboard) applyRhodsSpecificConfigs(cli client.Client, owner metav1.Object, namespace string, platform deploy.Platform) error {
@@ -202,11 +202,11 @@ func (d *Dashboard) applyRhodsSpecificConfigs(cli client.Client, owner metav1.Ob
 	}
 
 	enabled := d.ManagementState == operatorv1.Managed
-	if err := deploy.DeployManifestsFromPath(cli, owner, PathODHDashboardConfig, namespace, ComponentNameSupported, enabled); err != nil {
+	if err := deploy.DeployManifestsFromPath(cli, owner, PathODHDashboardConfig, namespace, ComponentNameSupported, enabled, d); err != nil {
 		return fmt.Errorf("failed to set dashboard config from %s: %w", PathODHDashboardConfig, err)
 	}
 
-	if err := deploy.DeployManifestsFromPath(cli, owner, PathOVMS, namespace, ComponentNameSupported, enabled); err != nil {
+	if err := deploy.DeployManifestsFromPath(cli, owner, PathOVMS, namespace, ComponentNameSupported, enabled, d); err != nil {
 		return fmt.Errorf("failed to set dashboard OVMS from %s: %w", PathOVMS, err)
 	}
 
@@ -214,7 +214,7 @@ func (d *Dashboard) applyRhodsSpecificConfigs(cli client.Client, owner metav1.Ob
 		return fmt.Errorf("failed to create access-secret for anaconda: %w", err)
 	}
 
-	return deploy.DeployManifestsFromPath(cli, owner, PathAnaconda, namespace, ComponentNameSupported, enabled)
+	return deploy.DeployManifestsFromPath(cli, owner, PathAnaconda, namespace, ComponentNameSupported, enabled, d)
 }
 
 func (d *Dashboard) deployISVManifests(cli client.Client, owner metav1.Object, componentName, namespace string, platform deploy.Platform) error {
@@ -229,7 +229,7 @@ func (d *Dashboard) deployISVManifests(cli client.Client, owner metav1.Object, c
 	}
 
 	enabled := d.ManagementState == operatorv1.Managed
-	if err := deploy.DeployManifestsFromPath(cli, owner, path, namespace, componentName, enabled); err != nil {
+	if err := deploy.DeployManifestsFromPath(cli, owner, path, namespace, componentName, enabled, d); err != nil {
 		return fmt.Errorf("failed to set dashboard ISV from %s: %w", path, err)
 	}
 
@@ -255,7 +255,7 @@ func (d *Dashboard) deployConsoleLink(cli client.Client, owner metav1.Object, na
 	}
 
 	enabled := d.ManagementState == operatorv1.Managed
-	err = deploy.DeployManifestsFromPath(cli, owner, PathConsoleLink, namespace, componentName, enabled)
+	err = deploy.DeployManifestsFromPath(cli, owner, PathConsoleLink, namespace, componentName, enabled, d)
 	if err != nil {
 		return fmt.Errorf("failed to set dashboard consolelink from %s: %w", PathConsoleLink, err)
 	}

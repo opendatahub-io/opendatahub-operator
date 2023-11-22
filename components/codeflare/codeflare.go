@@ -96,7 +96,7 @@ func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, d
 	if err := deploy.DeployManifestsFromPath(cli, owner,
 		CodeflarePath,
 		dscispec.ApplicationsNamespace,
-		ComponentName, enabled); err != nil {
+		ComponentName, enabled, c); err != nil {
 		return err
 	}
 
@@ -109,7 +109,7 @@ func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, d
 		if err = deploy.DeployManifestsFromPath(cli, owner,
 			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
 			dscispec.Monitoring.Namespace,
-			ComponentName+"prometheus", true); err != nil {
+			ComponentName+"prometheus", true, c); err != nil {
 			return err
 		}
 	}

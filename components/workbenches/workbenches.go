@@ -131,7 +131,7 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 		}
 	}
 
-	if err = deploy.DeployManifestsFromPath(cli, owner, notebookControllerPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+	if err = deploy.DeployManifestsFromPath(cli, owner, notebookControllerPath, dscispec.ApplicationsNamespace, ComponentName, enabled, w); err != nil {
 		return err
 	}
 
@@ -157,7 +157,7 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 		if err = deploy.DeployManifestsFromPath(cli, owner,
 			kfnotebookControllerPath,
 			dscispec.ApplicationsNamespace,
-			ComponentName, enabled); err != nil {
+			ComponentName, enabled, w); err != nil {
 			return err
 		}
 		manifestsPath = notebookImagesPath
@@ -167,7 +167,7 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 	if err = deploy.DeployManifestsFromPath(cli, owner,
 		manifestsPath,
 		dscispec.ApplicationsNamespace,
-		ComponentName, enabled); err != nil {
+		ComponentName, enabled, w); err != nil {
 		return err
 	}
 	// CloudService Monitoring handling
@@ -178,7 +178,7 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 		if err = deploy.DeployManifestsFromPath(cli, owner,
 			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
 			dscispec.Monitoring.Namespace,
-			ComponentName+"prometheus", true); err != nil {
+			ComponentName+"prometheus", true, nil); err != nil {
 			return err
 		}
 	}
