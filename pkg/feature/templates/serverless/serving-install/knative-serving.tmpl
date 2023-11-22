@@ -21,3 +21,5 @@ spec:
   config:
     istio:
       local-gateway.knative-serving.knative-local-gateway: "knative-local-gateway.{{ .ControlPlane.Namespace }}.svc.cluster.local"
+    network:
+      domainTemplate: "{{.Name}}.{{.Namespace}}.{{.Domain}}"
