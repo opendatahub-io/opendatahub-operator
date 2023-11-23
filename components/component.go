@@ -33,6 +33,14 @@ type Component struct {
 	// +optional
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=2
 	DevFlags DevFlags `json:"devFlags,omitempty"`
+
+	// Override replica count for component
+	// +optional
+	Replicas *int `json:"replicas,omitempty"`
+}
+
+func (c *Component) GetReplicas() *int {
+	return c.Replicas
 }
 
 func (c *Component) GetManagementState() operatorv1.ManagementState {
@@ -85,6 +93,7 @@ type ComponentInterface interface {
 	SetImageParamsMap(imageMap map[string]string) map[string]string
 	OverrideManifests(platform string) error
 	UpdatePrometheusConfig(cli client.Client, enable bool, component string) error
+	GetReplicas() *int
 }
 
 // UpdatePrometheusConfig update prometheus-configs.yaml to include/exclude <component>.rules

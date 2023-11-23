@@ -165,6 +165,12 @@ func DeployManifestsFromPath(cli client.Client, owner metav1.Object, manifestPat
 		return err
 	}
 
+	if c != nil {
+		if err := plugins.AdjustReplicas(componentName, resMap, c); err != nil {
+			return err
+		}
+	}
+
 	objs, err := getResources(resMap)
 	if err != nil {
 		return err
