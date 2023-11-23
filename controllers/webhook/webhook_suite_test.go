@@ -25,9 +25,9 @@ import (
 	"testing"
 	"time"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	admissionv1beta1 "k8s.io/api/admission/v1beta1"
-
-	//+kubebuilder:scaffold:imports
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -37,9 +37,24 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/dashboard"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/webhook"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+)
+
+const (
+	namespace = "webhook-test-ns"
+	nameBase  = "webhook-test-dsc"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
@@ -132,3 +147,65 @@ var _ = AfterSuite(func() {
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
 })
+
+var _ = Describe("DSC/DSCI webhook", func() {
+	It("Should block creation of second instance", func() {
+		dscSpec := newDSC(nameBase+"-1", namespace)
+		Expect(k8sClient.Create(context.Background(), dscSpec)).Should(Succeed())
+		dscSpec = newDSC(nameBase+"-2", namespace)
+		Expect(k8sClient.Create(context.Background(), dscSpec)).ShouldNot(Succeed())
+	})
+})
+
+func newDSC(name string, namespace string) *dsc.DataScienceCluster {
+	return &dsc.DataScienceCluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: dsc.DataScienceClusterSpec{
+			Components: dsc.Components{
+				Dashboard: dashboard.Dashboard{
+					Component: components.Component{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				Workbenches: workbenches.Workbenches{
+					Component: components.Component{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				ModelMeshServing: modelmeshserving.ModelMeshServing{
+					Component: components.Component{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				DataSciencePipelines: datasciencepipelines.DataSciencePipelines{
+					Component: components.Component{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				Kserve: kserve.Kserve{
+					Component: components.Component{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				CodeFlare: codeflare.CodeFlare{
+					Component: components.Component{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				Ray: ray.Ray{
+					Component: components.Component{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				TrustyAI: trustyai.TrustyAI{
+					Component: components.Component{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+			},
+		},
+	}
+}

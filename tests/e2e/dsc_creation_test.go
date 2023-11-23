@@ -34,9 +34,17 @@ func creationTestSuite(t *testing.T) {
 			err = testCtx.testDSCICreation()
 			require.NoError(t, err, "error creating DSCI CR")
 		})
+		t.Run("Creation of more than one of DSCInitialization instance", func(t *testing.T) {
+			err = testCtx.testDSCIDuplication()
+			require.Error(t, err, "able to create another DSCInitialization instance")
+		})
 		t.Run("Creation of DataScienceCluster instance", func(t *testing.T) {
 			err = testCtx.testDSCCreation()
 			require.NoError(t, err, "error creating DataScienceCluster instance")
+		})
+		t.Run("Creation of more than one of DataScienceCluster instance", func(t *testing.T) {
+			err = testCtx.testDSCDuplication()
+			require.Error(t, err, "able to create another DataScienceCluster instance")
 		})
 		t.Run("Validate all deployed components", func(t *testing.T) {
 			err = testCtx.testAllApplicationCreation(t)
@@ -134,6 +142,38 @@ func (tc *testContext) testDSCCreation() error {
 	}
 
 	return nil
+}
+
+func (tc *testContext) testDSCIDuplication() error {
+	existing := &dsci.DSCInitializationList{}
+
+	err := tc.customClient.List(tc.ctx, existing)
+	if err != nil {
+		return err
+	}
+
+	if len(existing.Items) == 0 {
+		return fmt.Errorf("DSCI has not been installed")
+	}
+
+	dup := setupDSCICR("e2e-test-dsci-dup")
+	return tc.customClient.Create(tc.ctx, dup)
+}
+
+func (tc *testContext) testDSCDuplication() error {
+	existing := &dsc.DataScienceClusterList{}
+
+	err := tc.customClient.List(tc.ctx, existing)
+	if err != nil {
+		return err
+	}
+
+	if len(existing.Items) == 0 {
+		return fmt.Errorf("DSC has not been installed")
+	}
+
+	dup := setupDSCInstance("e2e-test-dup")
+	return tc.customClient.Create(tc.ctx, dup)
 }
 
 func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint:funlen,thelper
