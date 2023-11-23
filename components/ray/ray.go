@@ -86,7 +86,7 @@ func (r *Ray) ReconcileComponent(cli client.Client, owner metav1.Object, dscispe
 		if err = deploy.DeployManifestsFromPath(cli, owner,
 			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
 			dscispec.Monitoring.Namespace,
-			ComponentName+"prometheus", true); err != nil {
+			"prometheus", true); err != nil {
 			return err
 		}
 	}
