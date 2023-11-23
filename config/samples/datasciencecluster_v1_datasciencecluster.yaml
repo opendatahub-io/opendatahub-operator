@@ -17,9 +17,9 @@ spec:
     datasciencepipelines:
       managementState: "Managed"
     kserve:
-      managementState: "Removed"
-    modelmeshserving:
       managementState: "Managed"
+    modelmeshserving:
+      managementState: "Removed"
     ray:
       managementState: "Removed"
     workbenches:
