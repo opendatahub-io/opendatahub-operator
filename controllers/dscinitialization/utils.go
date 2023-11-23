@@ -186,7 +186,7 @@ func (r *DSCInitializationReconciler) createDefaultRoleBinding(ctx context.Conte
 		RoleRef: authv1.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
 			Kind:     "ClusterRole",
-			Name:     "system:openshift:scc:anyuid",
+			Name:     "system:openshift:scc:restricted-v2",
 		},
 	}
 

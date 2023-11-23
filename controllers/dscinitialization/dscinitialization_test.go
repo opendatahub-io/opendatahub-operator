@@ -70,7 +70,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			expectedRoleRef := authv1.RoleRef{
 				APIGroup: "rbac.authorization.k8s.io",
 				Kind:     "ClusterRole",
-				Name:     "system:openshift:scc:anyuid",
+				Name:     "system:openshift:scc:restricted-v2",
 			}
 			Expect(foundRoleBinding.Name).To(Equal(applicationNamespace))
 			Expect(foundRoleBinding.Namespace).To(Equal(applicationNamespace))
