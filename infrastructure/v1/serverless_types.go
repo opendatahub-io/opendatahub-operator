@@ -8,7 +8,7 @@ import (
 // bindings with the Service Mesh.
 type ServingSpec struct {
 	// +kubebuilder:validation:Enum=Managed;Removed
-	// +kubebuilder:default=Removed
+	// +kubebuilder:default=Managed
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 	// Name specifies the name of the KNativeServing resource that is going to be
 	// created to instruct the KNative Operator to deploy KNative serving components.

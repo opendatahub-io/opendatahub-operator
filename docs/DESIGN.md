@@ -53,13 +53,15 @@ To deploy ODH components seamlessly, ODH operator will watch two CRDs:
           datasciencepipelines:
             managementState: Managed
           kserve:
-            managementState: Removed
-          modelmeshserving:
             managementState: Managed
+          modelmeshserving:
+            managementState: Removed
           ray:
             managementState: Removed
           workbenches:
             managementState: Managed
+          trustyai:
+            managementState: Removed
     ```
 
 2. Enable only Dashboard and Workbenches(Jupyter Notebooks)

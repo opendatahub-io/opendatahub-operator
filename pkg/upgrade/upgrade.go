@@ -275,6 +275,7 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 		if err := deleteResource(cli, montNamespace, "statefulset"); err != nil {
 			return err
 		}
+		fmt.Println("creating default DSC CR")
 		if err := CreateDefaultDSC(cli, platform); err != nil {
 			return err
 		}
@@ -323,6 +324,7 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 			if err := deleteResource(cli, montNamespace, "statefulset"); err != nil {
 				return err
 			}
+			// create default DSC
 			if err = CreateDefaultDSC(cli, platform); err != nil {
 				return err
 			}

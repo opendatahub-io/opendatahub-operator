@@ -203,6 +203,8 @@ spec:
       managementState: Managed
     workbenches:
       managementState: Managed
+    trustyai:
+      managementState: Managed
 ```
 
 2. Enable only Dashboard and Workbenches
