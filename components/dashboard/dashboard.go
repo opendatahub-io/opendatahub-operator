@@ -178,7 +178,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 			if err = deploy.DeployManifestsFromPath(cli, owner,
 				filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
 				dscispec.Monitoring.Namespace,
-				ComponentName+"prometheus", true); err != nil {
+				"prometheus", true); err != nil {
 				return err
 			}
 		}
