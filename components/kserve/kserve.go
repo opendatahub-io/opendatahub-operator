@@ -2,6 +2,7 @@
 package kserve
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -80,7 +82,7 @@ func (k *Kserve) GetComponentName() string {
 	return ComponentName
 }
 
-func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
+func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resConf *rest.Config, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
 	// paramMap for Kserve to use.
 	var imageParamMap = map[string]string{}
 

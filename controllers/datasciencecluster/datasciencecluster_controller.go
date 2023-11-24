@@ -272,7 +272,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 	}
 
 	// Reconcile component
-	err = component.ReconcileComponent(r.Client, instance, r.DataScienceCluster.DSCISpec, instance.Status.InstalledComponents[componentName])
+	err = component.ReconcileComponent(ctx, r.Client, r.RestConfig, instance, r.DataScienceCluster.DSCISpec, instance.Status.InstalledComponents[componentName])
 
 	if err != nil {
 		// reconciliation failed: log errors, raise event and update status accordingly
