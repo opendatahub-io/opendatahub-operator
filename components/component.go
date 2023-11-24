@@ -1,7 +1,9 @@
 package components
 
 import (
+	"context"
 	"fmt"
+	"k8s.io/client-go/rest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -78,7 +80,7 @@ type ManifestsConfig struct {
 }
 
 type ComponentInterface interface {
-	ReconcileComponent(cli client.Client, owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec, currentComponentStatus bool) error
+	ReconcileComponent(ctx context.Context, cli client.Client, resConf *rest.Config, owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec, currentComponentExist bool) error
 	Cleanup(cli client.Client, DSCISpec *dsciv1.DSCInitializationSpec) error
 	GetComponentName() string
 	GetManagementState() operatorv1.ManagementState
