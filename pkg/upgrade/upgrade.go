@@ -245,7 +245,7 @@ func CreateDefaultDSCI(cli client.Client, platform deploy.Platform, appNamespace
 			}
 			existingDSCI := &instances.Items[0]
 			err = cli.Patch(context.TODO(), existingDSCI, client.RawPatch(types.ApplyPatchType, data),
-				client.ForceOwnership, client.FieldOwner("opendatahub-operator"))
+				client.ForceOwnership, client.FieldOwner("rhods-operator"))
 			if err != nil {
 				return err
 			}
