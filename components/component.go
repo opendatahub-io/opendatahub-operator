@@ -1,6 +1,7 @@
 package components
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -78,13 +80,14 @@ type ManifestsConfig struct {
 }
 
 type ComponentInterface interface {
-	ReconcileComponent(cli client.Client, owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec, currentComponentStatus bool) error
+	ReconcileComponent(ctx context.Context, cli client.Client, resConf *rest.Config, owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec, currentComponentStatus bool) error
 	Cleanup(cli client.Client, DSCISpec *dsciv1.DSCInitializationSpec) error
 	GetComponentName() string
 	GetManagementState() operatorv1.ManagementState
 	SetImageParamsMap(imageMap map[string]string) map[string]string
 	OverrideManifests(platform string) error
 	UpdatePrometheusConfig(cli client.Client, enable bool, component string) error
+	// WaitForDeploymentAvailable(ctx context.Context, r *rest.Config, c string, n string, i int, t int) error
 }
 
 // UpdatePrometheusConfig update prometheus-configs.yaml to include/exclude <component>.rules
@@ -181,3 +184,34 @@ func (c *Component) UpdatePrometheusConfig(cli client.Client, enable bool, compo
 	}
 	return nil
 }
+
+// WaitForDeploymentAvailable to check if component deployment from 'namepsace' is ready within 'timeout' before apply prometheus rules for the component
+// func (c *Component) WaitForDeploymentAvailable(ctx context.Context, restConfig *rest.Config, componentName string, namespace string, interval int, timeout int) error {
+// 	resourceInterval := time.Duration(interval) * time.Second
+// 	resourceTimeout := time.Duration(timeout) * time.Minute
+// 	return wait.PollUntilContextTimeout(context.TODO(), resourceInterval, resourceTimeout, true, func(ctx context.Context) (bool, error) {
+// 		clientset, err := kubernetes.NewForConfig(restConfig)
+// 		if err != nil {
+// 			return false, fmt.Errorf("error getting client %w", err)
+// 		}
+// 		componentDeploymentList, err := clientset.AppsV1().Deployments(namespace).List(context.TODO(), metav1.ListOptions{
+// 			LabelSelector: "app.opendatahub.io/" + componentName,
+// 		})
+// 		if err != nil {
+// 			if errors.IsNotFound(err) {
+// 				return false, nil
+// 			}
+// 		}
+// 		isReady := false
+// 		if len(componentDeploymentList.Items) != 0 {
+// 			for _, deployment := range componentDeploymentList.Items {
+// 				if deployment.Status.ReadyReplicas == deployment.Status.Replicas {
+// 					isReady = true
+// 				} else {
+// 					isReady = false
+// 				}
+// 			}
+// 		}
+// 		return isReady, nil
+// 	})
+// }

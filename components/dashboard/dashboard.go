@@ -13,6 +13,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -20,6 +21,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/monitoring"
 )
 
 var (
@@ -77,7 +79,13 @@ func (d *Dashboard) GetComponentName() string {
 }
 
 //nolint:gocyclo
-func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, currentComponentStatus bool) error {
+func (d *Dashboard) ReconcileComponent(ctx context.Context,
+	cli client.Client,
+	resConf *rest.Config,
+	owner metav1.Object,
+	dscispec *dsciv1.DSCInitializationSpec,
+	currentComponentStatus bool,
+) error {
 	var imageParamMap = map[string]string{
 		"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
 	}
@@ -161,6 +169,14 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 		}
 		// CloudService Monitoring handling
 		if platform == deploy.ManagedRhods {
+			if enabled {
+				// first check if the service is up, so prometheus wont fire alerts when it is just startup
+				if err := monitoring.WaitForDeploymentAvailable(ctx, resConf, ComponentNameSupported, dscispec.ApplicationsNamespace, 20, 3); err != nil {
+					return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
+				}
+				fmt.Printf("deployment for %s is done, updating monitoing rules", ComponentNameSupported)
+			}
+
 			if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentNameSupported); err != nil {
 				return err
 			}

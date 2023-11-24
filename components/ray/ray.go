@@ -3,15 +3,19 @@
 package ray
 
 import (
+	"context"
+	"fmt"
 	"path/filepath"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/monitoring"
 )
 
 var (
@@ -49,7 +53,7 @@ func (r *Ray) GetComponentName() string {
 	return ComponentName
 }
 
-func (r *Ray) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
+func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, resConf *rest.Config, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
 	var imageParamMap = map[string]string{
 		"odh-kuberay-operator-controller-image": "RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE",
 		"namespace":                             dscispec.ApplicationsNamespace,
@@ -80,6 +84,13 @@ func (r *Ray) ReconcileComponent(cli client.Client, owner metav1.Object, dscispe
 	}
 	// CloudService Monitoring handling
 	if platform == deploy.ManagedRhods {
+		if enabled {
+			// first check if the service is up, so prometheus wont fire alerts when it is just startup
+			if err := monitoring.WaitForDeploymentAvailable(ctx, resConf, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
+				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
+			}
+			fmt.Printf("deployment for %s is done, updating monitoing rules", ComponentName)
+		}
 		if err := r.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
 		}
