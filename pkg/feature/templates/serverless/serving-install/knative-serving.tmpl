@@ -19,5 +19,9 @@ spec:
     istio:
       enabled: true
   config:
+    features:
+      kubernetes.podspec-affinity: enabled
+      kubernetes.podspec-nodeselector: enabled
+      kubernetes.podspec-tolerations: enabled
     istio:
       local-gateway.knative-serving.knative-local-gateway: "knative-local-gateway.{{ .ControlPlane.Namespace }}.svc.cluster.local"
