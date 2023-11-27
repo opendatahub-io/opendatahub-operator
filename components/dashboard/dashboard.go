@@ -295,9 +295,10 @@ func (d *Dashboard) cleanOauthClient(cli client.Client, dscispec *dsciv1.DSCInit
 			if !apierrs.IsNotFound(err) {
 				return fmt.Errorf("error getting secret %s: %w", name, err)
 			}
-		}
-		if err := cli.Delete(context.TODO(), oauthClientSecret); err != nil {
-			return fmt.Errorf("error deleting secret %s in namespace %s : %w", name, dscispec.ApplicationsNamespace, err)
+		} else {
+			if err := cli.Delete(context.TODO(), oauthClientSecret); err != nil {
+				return fmt.Errorf("error deleting secret %s in namespace %s : %w", name, dscispec.ApplicationsNamespace, err)
+			}
 		}
 	}
 	return nil
