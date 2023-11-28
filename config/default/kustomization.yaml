@@ -12,8 +12,9 @@ namespace: opendatahub-operator-system
 namePrefix: opendatahub-operator-
 
 # Labels to add to all resources and selectors.
-#labels:
-#  someName: someValue
+commonLabels:
+  app.kubernetes.io/name: opendatahub-operator
+  app.kubernetes.io/part-of: opendatahub
 
 resources:
 - ../crd

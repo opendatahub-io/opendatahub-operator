@@ -4,7 +4,7 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   labels:
-    control-plane: controller-manager
+    control-plane: opendatahub-operator
   name: controller-manager-metrics-monitor
   namespace: system
 spec:
@@ -17,4 +17,6 @@ spec:
         insecureSkipVerify: true
   selector:
     matchLabels:
-      control-plane: controller-manager
+      app.kubernetes.io/name: opendatahub-operator
+      app.kubernetes.io/part-of: opendatahub
+      control-plane: opendatahub-operator
