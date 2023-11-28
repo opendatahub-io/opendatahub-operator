@@ -8,6 +8,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	v1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/infrastructure/v1"
@@ -158,7 +159,7 @@ func (fb *featureBuilder) Load() (*Feature, error) {
 	// UsingConfig builder wasn't called while constructing this feature.
 	// Get default settings and create needed clients.
 	if feature.Client == nil {
-		config, err := rest.InClusterConfig()
+		restCfg, err := config.GetConfig()
 		if errors.Is(err, rest.ErrNotInCluster) {
 			// rollback to local kubeconfig - this can be helpful when running the process locally i.e. while debugging
 			kubeconfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
@@ -166,7 +167,7 @@ func (fb *featureBuilder) Load() (*Feature, error) {
 				&clientcmd.ConfigOverrides{},
 			)
 
-			config, err = kubeconfig.ClientConfig()
+			restCfg, err = kubeconfig.ClientConfig()
 			if err != nil {
 				return nil, err
 			}
@@ -174,7 +175,7 @@ func (fb *featureBuilder) Load() (*Feature, error) {
 			return nil, err
 		}
 
-		if err := createClients(config)(feature); err != nil {
+		if err := createClients(restCfg)(feature); err != nil {
 			return nil, err
 		}
 	}
