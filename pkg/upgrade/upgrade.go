@@ -163,7 +163,7 @@ func CreateDefaultDSC(cli client.Client, platform deploy.Platform) error {
 					Component: components.Component{ManagementState: operatorv1.Managed},
 				},
 				ModelMeshServing: modelmeshserving.ModelMeshServing{
-					Component: components.Component{ManagementState: operatorv1.Removed},
+					Component: components.Component{ManagementState: operatorv1.Managed},
 				},
 				DataSciencePipelines: datasciencepipelines.DataSciencePipelines{
 					Component: components.Component{ManagementState: operatorv1.Managed},
