@@ -3,6 +3,28 @@ This operator is the primary operator for Open Data Hub. It is responsible for e
 Jupyter Notebooks, Modelmesh serving, Datascience pipelines etc. The operator makes use of `DataScienceCluster` CRD to deploy
 and configure these applications.
 
+### Table of contents
+- [Usage](#usage)
+  - [Installation](#installation)
+- [Dev Preview](#dev-preview)
+  - [Developer Guide](#developer-guide)
+    - [Pre-requisites](#pre-requisites)
+    - [Download manifests](#download-manifests)
+    - [Structure of `COMPONENT_MANIFESTS`](#structure-of-component_manifests)
+    - [Workflow](#workflow)
+    - [Local Storage](#local-storage)
+    - [Adding New Components](#adding-new-components)
+    - [Customizing Manifests Source](#customizing-manifests-source)
+      - [for local development](#for-local-development)
+      - [for build operator image](#for-build-operator-image)
+    - [Build Image](#build-image)
+    - [Deployment](#deployment)
+  - [Test with customized manifests](#test-with-customized-manifests)
+  - [Example DataScienceCluster](#example-datasciencecluster)
+  - [Run functional Tests](#run-functional-tests)
+  - [Run e2e Tests](#run-e2e-tests)
+  - [Troubleshooting](#troubleshooting)
+
 ## Usage
 
 ### Installation
