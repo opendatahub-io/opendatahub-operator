@@ -35,6 +35,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -169,7 +170,18 @@ func CreateDefaultDSC(cli client.Client, platform deploy.Platform) error {
 					Component: components.Component{ManagementState: operatorv1.Managed},
 				},
 				Kserve: kserve.Kserve{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+					Component: components.Component{
+						ManagementState: operatorv1.Managed,
+					},
+					Serving: infrav1.ServingSpec{
+						ManagementState: operatorv1.Managed,
+						Name:            "knative-serving",
+						IngressGateway: infrav1.IngressGatewaySpec{
+							Certificate: infrav1.CertificateSpec{
+								Type: "SelfSigned",
+							},
+						},
+					},
 				},
 				CodeFlare: codeflare.CodeFlare{
 					Component: components.Component{ManagementState: operatorv1.Removed},
