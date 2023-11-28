@@ -6,7 +6,6 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
@@ -169,18 +168,7 @@ func (fb *featureBuilder) Load() (*Feature, error) {
 	// Get default settings and create needed clients.
 	if feature.Client == nil {
 		restCfg, err := config.GetConfig()
-		if errors.Is(err, rest.ErrNotInCluster) {
-			// rollback to local kubeconfig - this can be helpful when running the process locally i.e. while debugging
-			kubeconfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-				&clientcmd.ClientConfigLoadingRules{ExplicitPath: clientcmd.RecommendedHomeFile},
-				&clientcmd.ConfigOverrides{},
-			)
-
-			restCfg, err = kubeconfig.ClientConfig()
-			if err != nil {
-				return nil, err
-			}
-		} else if err != nil {
+		if err != nil {
 			return nil, err
 		}
 

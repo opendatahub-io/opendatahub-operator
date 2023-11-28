@@ -2,14 +2,14 @@ package cluster
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
+	"k8s.io/client-go/rest"
 	"net/http"
 	"net/url"
 	"os"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"strconv"
 	"strings"
 
@@ -45,20 +45,17 @@ func GetOAuthServerDetails() (*simplejson.Json, error) {
 	return simplejson.NewJson(response)
 }
 
-const saCert = "/run/secrets/kubernetes.io/serviceaccount/ca.crt"
-
 func request(method string, url string) ([]byte, error) {
-	certPool, err := createCertPool()
+
+	restCfg, err := config.GetConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	client := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				RootCAs: certPool,
-			},
-		}}
+	client, err := rest.HTTPClientFor(restCfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP client, error: %s", err)
+	}
 
 	request, err := http.NewRequest(method, getKubeAPIURLWithPath(url).String(), nil)
 	if err != nil {
@@ -67,7 +64,7 @@ func request(method string, url string) ([]byte, error) {
 
 	response, err := client.Do(request)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get api endpoint %s, error: %s", url, err)
+		return nil, fmt.Errorf("failed to call api endpoint %s, error: %s", url, err)
 	}
 
 	defer response.Body.Close()
@@ -78,18 +75,6 @@ func request(method string, url string) ([]byte, error) {
 	}
 
 	return body, nil
-}
-
-func createCertPool() (*x509.CertPool, error) {
-	certPool := x509.NewCertPool()
-	cert, err := os.ReadFile(saCert)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to get root CA certificates: %s", err)
-	}
-
-	certPool.AppendCertsFromPEM(cert)
-	return certPool, err
 }
 
 func getKubernetesServiceHost() string {
