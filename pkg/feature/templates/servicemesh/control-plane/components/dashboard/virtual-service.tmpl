@@ -1,11 +1,11 @@
 apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
 metadata:
-  name: odh-dashboard
+  name: odh-dashboard-vs
   namespace: {{ .AppNamespace }}
 spec:
   gateways:
-  - odh-gateway
+  - opendatahub-gateway
   hosts:
   - "{{ .AppNamespace }}.{{ .Domain }}"
   http:

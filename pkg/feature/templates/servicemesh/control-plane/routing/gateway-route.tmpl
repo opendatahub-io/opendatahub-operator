@@ -6,8 +6,6 @@ metadata:
   labels:
     app: odh-dashboard
     app.kubernetes.io/part-of: odh-dashboard
-    maistra.io/gateway-name: {{ .AppNamespace }}-odh-gateway
-    maistra.io/gateway-namespace: {{ .AppNamespace }}
 spec:
   host: {{ .AppNamespace }}.{{ .Domain }} 
   to:
