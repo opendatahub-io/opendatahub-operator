@@ -264,7 +264,7 @@ func CreateDefaultDSCI(cli client.Client, platform deploy.Platform, appNamespace
 func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS string, montNamespace string) error {
 	// If platform is Managed, remove Kfdefs and create default dsc
 	if platform == deploy.ManagedRhods {
-		fmt.Println("starting deletion of Deloyments in managed cluster")
+		fmt.Println("starting deletion of Deployment in managed cluster")
 		if err := deleteResource(cli, appNS, "deployment"); err != nil {
 			return err
 		}
@@ -288,7 +288,7 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 	}
 
 	if platform == deploy.SelfManagedRhods {
-		fmt.Println("starting deletion of Deloyments in selfmanaged cluster")
+		fmt.Println("starting deletion of Deployment in selfmanaged cluster")
 		// If KfDef CRD is not found, we see it as a cluster not pre-installed v1 operator	// Check if kfdef are deployed
 		kfdefCrd := &apiextv1.CustomResourceDefinition{}
 		if err := cli.Get(context.TODO(), client.ObjectKey{Name: "kfdefs.kfdef.apps.kubeflow.org"}, kfdefCrd); err != nil {
