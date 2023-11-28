@@ -35,6 +35,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -162,7 +163,18 @@ func CreateDefaultDSC(cli client.Client, platform deploy.Platform) error {
 					Component: components.Component{ManagementState: operatorv1.Managed},
 				},
 				Kserve: kserve.Kserve{
-					Component: components.Component{ManagementState: operatorv1.Removed},
+					Component: components.Component{
+						ManagementState: operatorv1.Managed,
+					},
+					Serving: infrav1.ServingSpec{
+						ManagementState: operatorv1.Managed,
+						Name:            "knative-serving",
+						IngressGateway: infrav1.IngressGatewaySpec{
+							Certificate: infrav1.CertificateSpec{
+								Type: "SelfSigned",
+							},
+						},
+					},
 				},
 				CodeFlare: codeflare.CodeFlare{
 					Component: components.Component{ManagementState: operatorv1.Removed},
@@ -436,30 +448,6 @@ func getClusterServiceVersion(cfg *rest.Config, watchNameSpace string) (*ofapi.C
 	return nil, nil
 }
 
-<<<<<<< HEAD
-func getKfDefInstances(c client.Client) (*kfdefv1.KfDefList, error) {
-	// If KfDef CRD is not found, we see it as a cluster not pre-installed v1 operator
-	// Check if kfdef are deployed
-	kfdefCrd := &apiextv1.CustomResourceDefinition{}
-	if err := c.Get(context.TODO(), client.ObjectKey{Name: "kfdefs.kfdef.apps.kubeflow.org"}, kfdefCrd); err != nil {
-		if apierrs.IsNotFound(err) {
-			// If no Crd found, return, since its a new Installation
-			// return empty list
-			return &kfdefv1.KfDefList{}, nil
-		} else {
-			return nil, fmt.Errorf("error retrieving kfdef CRD : %v", err)
-		}
-	}
-
-	// If KfDef Instances found, and no DSC instances are found in Self-managed, that means this is an upgrade path from
-	// legacy version. Create a default DSC instance
-	kfDefList := &kfdefv1.KfDefList{}
-	if err := c.List(context.TODO(), kfDefList); err != nil {
-		return &kfdefv1.KfDefList{}, fmt.Errorf("error getting list of kfdefs: %v", err)
-	}
-
-	return kfDefList, nil
-=======
 func deleteResource(cli client.Client, namespace string, resourceType string) error {
 	// In v2, Deployment selectors use a label "app.opendatahub.io/<componentName>" which is
 	// not present in v1. Since label selectors are immutable, we need to delete the existing
@@ -596,5 +584,4 @@ func deleteStatefulsetsAndCheck(ctx context.Context, cli client.Client, namespac
 	}
 
 	return true, multiErr.ErrorOrNil()
->>>>>>> 7525f99d ([backport]: changes from rhods_2.4 to rhods_2.5 (#129))
 }
