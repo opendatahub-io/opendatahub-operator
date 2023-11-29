@@ -32,7 +32,7 @@ metadata:
                 "managementState": "Managed"
               },
               "modelmeshserving": {
-                "managementState": "Managed"
+                "managementState": "Removed"
               },
               "ray": {
                 "managementState": "Removed"
@@ -64,14 +64,6 @@ metadata:
             "monitoring": {
               "managementState": "Managed",
               "namespace": "redhat-ods-monitoring"
-            },
-            "serviceMesh": {
-              "controlPlane": {
-                "metricsCollection": "Istio",
-                "name": "data-science-smcp",
-                "namespace": "istio-system"
-              },
-              "managementState": "Managed"
             }
           }
         },

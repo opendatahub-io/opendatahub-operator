@@ -19,7 +19,7 @@ spec:
     kserve:
       managementState: "Managed"
     modelmeshserving:
-      managementState: "Managed"
+      managementState: "Removed"
     ray:
       managementState: "Removed"
     workbenches:
