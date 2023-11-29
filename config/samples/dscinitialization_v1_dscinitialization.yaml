@@ -13,3 +13,4 @@ spec:
     managementState: "Managed"
     namespace: 'opendatahub'
   applicationsNamespace: 'opendatahub'
+
