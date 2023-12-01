@@ -1,4 +1,4 @@
-apiVersion: authorino.kuadrant.io/v1beta1
+apiVersion: authorino.kuadrant.io/v1beta2
 kind: AuthConfig
 metadata:
   name: odh-dashboard-protection
@@ -7,40 +7,68 @@ metadata:
     {{ ReplaceChar .Auth.Authorino.Label "=" ": " }}
 spec:
   hosts:
-  - {{.AppNamespace}}.{{ .Domain }}
-  identity:
-  - name: kubernetes-users
-    kubernetes:
-      audiences: 
+  - {{ .AppNamespace }}.{{ .Domain }}
+  authentication:
+    cluster-users:
+      kubernetesTokenReview:
+        audiences:
 {{- range .Auth.Authorino.Audiences }}
-      - "{{ . }}"
+        - "{{ . }}"
 {{- end }}
+
   authorization:
-  - name: k8s-rbac-only-service-viewers
-    kubernetes:
-      user:
-        valueFrom: { authJSON: auth.identity.username }
-      resourceAttributes:
-        namespace:
-          value: {{ .AppNamespace }}
-        group:
-          value: ""
-        resource:
-          value: services
-        name:
-          value: odh-dashboard
-        verb:
-          value: get
+
+    dashboard-access:
+      kubernetesSubjectAccessReview:
+        resourceAttributes:
+          group:
+            value: ""
+          name:
+            value: odh-dashboard
+          namespace:
+            value: {{ .AppNamespace }}
+          resource:
+            value: services
+          verb:
+            value: get
+        user:
+          selector: auth.identity.user.username
+      when:
+      - operator: neq
+        selector: context.request.http.path.@extract:{"sep":"/","pos":1}
+        value: notebook
+
+    notebook-access:
+      kubernetesSubjectAccessReview:
+        resourceAttributes:
+          group:
+            value: kubeflow.org
+          name:
+            value: ""
+          namespace:
+            selector: context.request.http.path.@extract:{"sep":"/","pos":2}
+          resource:
+            value: notebooks
+          verb:
+            value: get
+        user:
+          selector: auth.identity.user.username
+      when:
+      - operator: eq
+        selector: context.request.http.path.@extract:{"sep":"/","pos":1}
+        value: notebook
+
   response:
-  - name: x-auth-data
-    json:
-      properties:
-      - name: username
-        valueFrom: { authJSON: auth.identity.username }
-  denyWith:
-    unauthenticated:      
+    success:
+      headers:
+        x-auth-data:
+          json:
+            properties:
+              username:
+                selector: auth.identity.username
+    unauthenticated:
       message:
-        value: "Access denied"
+        value: Access denied
     unauthorized:
       message:
-        value: "Unauthorized"
+        value: Unauthorized
