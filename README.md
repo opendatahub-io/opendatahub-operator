@@ -96,8 +96,8 @@ make image-build
 By default, building an image without any local changes(as a clean build)
 This is what the production build system is doing.
 
-In order to build an image with local `odh-manifests` folder, to set `IMAGE_BUILD_FLAGS ="--build-arg USE_LOCAL=true"` in make.
-e.g `make image-build -e IMAGE_BUILD_FLAGS="--build-arg USE_LOCAL=true"`
+In order to build an image with local `odh-manifests` folder, to set `IMAGE_BUILD_FLAGS ="--build-arg FETCH_MANIFESTS=false"` in make.
+e.g `make image-build -e IMAGE_BUILD_FLAGS="--build-arg FETCH_MANIFESTS=false"`
 
 #### Build Image
 
