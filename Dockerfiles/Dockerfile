@@ -1,6 +1,4 @@
 ARG GOLANG_VERSION=1.19
-ARG FETCH_MANIFESTS=true
-ARG OVERWRITE_MANIFESTS=""
 
 ################################################################################
 FROM registry.access.redhat.com/ubi8/toolbox as manifests
