@@ -84,7 +84,7 @@ SHELL = /usr/bin/env bash -o pipefail
 E2E_TEST_FLAGS = "--skip-deletion=false" -timeout 15m # See README.md, default go test timeout 10m
 
 # Default image-build is to not use local odh-manifests folder
-IMAGE_BUILD_FLAGS ?= --build-arg FETCH_MANIFESTS=true
+IMAGE_BUILD_FLAGS = --build-arg FETCH_MANIFESTS=true
 
 .PHONY: all
 all: build
