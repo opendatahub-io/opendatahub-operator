@@ -67,6 +67,6 @@ type AuthorinoSpec struct {
 	// +kubebuilder:default=authorino/topic=odh
 	Label string `json:"label,omitempty"`
 	// Image allows to define a custom container image to be used when deploying Authorino's instance.
-	// +kubebuilder:default="quay.io/kuadrant/authorino:v0.13.0"
+	// +kubebuilder:default="quay.io/kuadrant/authorino:v0.16.0"
 	Image string `json:"image,omitempty"`
 }

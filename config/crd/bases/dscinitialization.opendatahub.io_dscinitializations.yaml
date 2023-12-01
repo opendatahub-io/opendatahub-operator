@@ -109,7 +109,7 @@ spec:
                               type: string
                             type: array
                           image:
-                            default: quay.io/kuadrant/authorino:v0.13.0
+                            default: quay.io/kuadrant/authorino:v0.16.0
                             description: Image allows to define a custom container
                               image to be used when deploying Authorino's instance.
                             type: string
