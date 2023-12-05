@@ -14,6 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/dashboard"
@@ -51,10 +52,26 @@ func (tc *testContext) waitForControllerDeployment(name string, replicas int32) 
 	return err
 }
 
+func setupDSCICR() *dsci.DSCInitialization {
+	dsciTest := &dsci.DSCInitialization{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "e2e-test-dsci",
+		},
+		Spec: dsci.DSCInitializationSpec{
+			ApplicationsNamespace: "opendatahub",
+			Monitoring: dsci.Monitoring{
+				ManagementState: "Managed",
+				Namespace:       "opendatahub",
+			},
+		},
+	}
+	return dsciTest
+}
+
 func setupDSCInstance() *dsc.DataScienceCluster {
 	dscTest := &dsc.DataScienceCluster{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "e2e-test",
+			Name: "e2e-test-dsc",
 		},
 		Spec: dsc.DataScienceClusterSpec{
 			Components: dsc.Components{
