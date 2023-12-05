@@ -110,5 +110,9 @@ func (tc *testContext) testAllApplicationDeletion() error {
 		return err
 	}
 
+	if err := tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.ModelRegistry)); err != nil {
+		return err
+	}
+
 	return nil
 }

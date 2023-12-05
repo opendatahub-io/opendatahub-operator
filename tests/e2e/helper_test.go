@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"context"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
 	"log"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -114,6 +115,11 @@ func setupDSCInstance() *dsc.DataScienceCluster {
 					},
 				},
 				TrustyAI: trustyai.TrustyAI{
+					Component: components.Component{
+						ManagementState: operatorv1.Managed,
+					},
+				},
+				ModelRegistry: modelregistry.ModelRegistry{
 					Component: components.Component{
 						ManagementState: operatorv1.Managed,
 					},

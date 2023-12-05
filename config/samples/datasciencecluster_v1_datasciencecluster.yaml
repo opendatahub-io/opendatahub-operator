@@ -36,3 +36,5 @@ spec:
       managementState: "Managed"
     trustyai:
       managementState: "Managed"
+    modelregistry:
+      managementState: "Removed"
