@@ -15,7 +15,7 @@ import (
 
 var (
 	ComponentName = "model-registry-operator"
-	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/default"
+	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/odh"
 )
 
 // Verifies that ModelRegistry implements ComponentInterface.
@@ -35,7 +35,7 @@ func (m *ModelRegistry) OverrideManifests(_ string) error {
 			return err
 		}
 		// If overlay is defined, update paths
-		defaultKustomizePath := "default"
+		defaultKustomizePath := "overlays/odh"
 		if manifestConfig.SourcePath != "" {
 			defaultKustomizePath = manifestConfig.SourcePath
 		}
