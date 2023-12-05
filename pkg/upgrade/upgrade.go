@@ -3,6 +3,7 @@ package upgrade
 import (
 	"context"
 	"fmt"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
 	"os"
 	"strings"
 	"time"
@@ -171,6 +172,9 @@ func CreateDefaultDSC(cli client.Client, _ deploy.Platform) error {
 					Component: components.Component{ManagementState: operatorv1.Removed},
 				},
 				TrustyAI: trustyai.TrustyAI{
+					Component: components.Component{ManagementState: operatorv1.Removed},
+				},
+				ModelRegistry: modelregistry.ModelRegistry{
 					Component: components.Component{ManagementState: operatorv1.Removed},
 				},
 			},
