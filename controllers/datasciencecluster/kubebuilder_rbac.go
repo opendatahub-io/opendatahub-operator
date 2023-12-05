@@ -35,8 +35,6 @@ package datasciencecluster
 /* This is for operator */
 // +kubebuilder:rbac:groups="apiregistration.k8s.io",resources=apiservices,verbs=get;list;watch
 
-// +kubebuilder:rbac:groups="apps",resources=daemonsets,verbs=get;list;watch
-
 // +kubebuilder:rbac:groups="operators.coreos.com",resources=catalogsources,verbs=get;list;watch
 
 // +kubebuilder:rbac:groups="apiextensions.k8s.io",resources=customresourcedefinitions,verbs=get;list;watch

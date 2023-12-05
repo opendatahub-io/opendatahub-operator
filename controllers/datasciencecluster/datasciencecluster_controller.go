@@ -35,7 +35,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	authv1 "k8s.io/api/rbac/v1"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
@@ -345,16 +344,12 @@ func (r *DataScienceClusterReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		Owns(&authv1.ClusterRole{}).
 		Owns(&authv1.ClusterRoleBinding{}).
 		Owns(&appsv1.Deployment{}).
-		Owns(&appsv1.ReplicaSet{}).
-		Owns(&corev1.Pod{}).
 		Owns(&corev1.PersistentVolumeClaim{}).
 		Owns(&corev1.Service{}).
-		Owns(&appsv1.DaemonSet{}).
 		Owns(&appsv1.StatefulSet{}).
 		Owns(&ocappsv1.DeploymentConfig{}).
 		Owns(&ocimgv1.ImageStream{}).
 		Owns(&ocbuildv1.BuildConfig{}).
-		Owns(&apiextensionsv1.CustomResourceDefinition{}).
 		Owns(&apiregistrationv1.APIService{}).
 		Owns(&netv1.Ingress{}).
 		Owns(&admv1.MutatingWebhookConfiguration{}).
