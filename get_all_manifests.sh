@@ -17,7 +17,7 @@ declare -A COMPONENT_MANIFESTS=(
     ["model-mesh"]="opendatahub-io:modelmesh-serving:release-0.11.0:config:model-mesh"
     ["odh-model-controller"]="opendatahub-io:odh-model-controller:release-0.11.0:config:odh-model-controller"
     ["kserve"]="opendatahub-io:kserve:release-v0.11.0:config:kserve"
-    ["modelregistry"]="opendatahub-io:model-registry-operator:main:config:model-registry-operator"
+    ["model-registry-operator"]="opendatahub-io:model-registry-operator:main:config:model-registry-operator"
 )
 
 # Allow overwriting repo using flags component=repo

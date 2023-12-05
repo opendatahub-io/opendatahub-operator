@@ -2,7 +2,6 @@ package e2e_test
 
 import (
 	"context"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
 	"log"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -22,6 +21,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
