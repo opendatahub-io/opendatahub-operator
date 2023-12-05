@@ -629,6 +629,7 @@ data:
       smtp_require_tls: true
 
     # The root route on which each incoming alert enters.
+    # TODO: check why need email_to
     route:
       group_by: ['alertname', 'cluster', 'service', 'job', 'email_to']
 

@@ -35,10 +35,10 @@ metadata:
               "managementState": "Managed"
             },
             "kserve": {
-              "managementState": "Removed"
+              "managementState": "Managed"
             },
             "modelmeshserving": {
-              "managementState": "Managed"
+              "managementState": "Removed"
             },
             "ray": {
               "managementState": "Removed"
@@ -47,7 +47,7 @@ metadata:
               "managementState": "Managed"
             },
             "trustyai": {
-              "managementState": "Managed"
+              "managementState": "Removed"
             }
           }
         }

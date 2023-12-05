@@ -92,7 +92,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		instance = &instances.Items[0]
 	case len(instances.Items) > 1:
 		message := fmt.Sprintf("only one instance of DSCInitialization object is allowed. Update existing instance name %s", req.Name)
-		_, _ = r.updateStatus(ctx, instance, func(saved *dsciv1.DSCInitialization) {
+		_, _ = r.updateStatus(ctx, &instances.Items[0], func(saved *dsciv1.DSCInitialization) {
 			status.SetErrorCondition(&saved.Status.Conditions, status.DuplicateDSCInitialization, message)
 			saved.Status.Phase = status.PhaseError
 		})
@@ -185,6 +185,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	default:
 		// Check namespace is not exist, then create
 		namespace := instance.Spec.ApplicationsNamespace
+		r.Log.Info("Standard Reconciling workflow to create namespaces")
 		err = r.createOdhNamespace(ctx, instance, namespace)
 		if err != nil {
 			// no need to log error as it was already logged in createOdhNamespace

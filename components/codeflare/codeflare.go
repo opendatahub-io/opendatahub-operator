@@ -3,16 +3,19 @@
 package codeflare
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/monitoring"
 )
 
 var (
@@ -52,7 +55,7 @@ func (c *CodeFlare) GetComponentName() string {
 	return ComponentName
 }
 
-func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
+func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, resConf *rest.Config, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
 	var imageParamMap = map[string]string{
 		"odh-codeflare-operator-controller-image": "RELATED_IMAGE_ODH_CODEFLARE_OPERATOR_IMAGE", // no need mcad, embedded in cfo
 		"namespace": dscispec.ApplicationsNamespace,
@@ -77,7 +80,7 @@ func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, d
 		}
 
 		if found, err := deploy.OperatorExists(cli, dependentOperator); err != nil {
-			return err
+			return fmt.Errorf("operator exists throws error %v", err)
 		} else if found {
 			return fmt.Errorf("operator %s  found. Please uninstall the operator before enabling %s component",
 				dependentOperator, ComponentName)
@@ -101,6 +104,14 @@ func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, d
 
 	// CloudServiceMonitoring handling
 	if platform == deploy.ManagedRhods {
+		if enabled {
+			// first check if the service is up, so prometheus wont fire alerts when it is just startup
+			if err := monitoring.WaitForDeploymentAvailable(ctx, resConf, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
+				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
+			}
+			fmt.Printf("deployment for %s is done, updating monitoing rules", ComponentName)
+		}
+
 		// inject prometheus codeflare*.rules in to /opt/manifests/monitoring/prometheus/prometheus-configs.yaml
 		if err = c.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
@@ -108,7 +119,7 @@ func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, d
 		if err = deploy.DeployManifestsFromPath(cli, owner,
 			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
 			dscispec.Monitoring.Namespace,
-			ComponentName+"prometheus", true); err != nil {
+			"prometheus", true); err != nil {
 			return err
 		}
 	}

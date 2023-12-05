@@ -4,3 +4,5 @@ resources:
 - cluster-monitor-rolebinding.yaml
 - rhods-prometheusrules.yaml
 - rhods-servicemonitor.yaml
+- rhods-prometheus-role.yaml
+- rhods-prometheus-rolebinding.yaml

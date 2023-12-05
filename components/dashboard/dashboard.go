@@ -13,6 +13,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -20,6 +21,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/monitoring"
 )
 
 var (
@@ -77,7 +79,13 @@ func (d *Dashboard) GetComponentName() string {
 }
 
 //nolint:gocyclo
-func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, currentComponentStatus bool) error {
+func (d *Dashboard) ReconcileComponent(ctx context.Context,
+	cli client.Client,
+	resConf *rest.Config,
+	owner metav1.Object,
+	dscispec *dsciv1.DSCInitializationSpec,
+	currentComponentExist bool,
+) error {
 	var imageParamMap = map[string]string{
 		"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
 	}
@@ -91,9 +99,11 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 
 	// Update Default rolebinding
 	if enabled {
-		if err := d.cleanOauthClientSecrets(cli, dscispec, currentComponentStatus); err != nil {
+		// cleanup OAuth client related secret and CR if dashboard is in 'installed falas' status
+		if err := d.cleanOauthClient(cli, dscispec, currentComponentExist); err != nil {
 			return err
 		}
+
 		// Download manifests and update paths
 		if err := d.OverrideManifests(string(platform)); err != nil {
 			return err
@@ -161,13 +171,21 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 		}
 		// CloudService Monitoring handling
 		if platform == deploy.ManagedRhods {
+			if enabled {
+				// first check if the service is up, so prometheus wont fire alerts when it is just startup
+				if err := monitoring.WaitForDeploymentAvailable(ctx, resConf, ComponentNameSupported, dscispec.ApplicationsNamespace, 20, 3); err != nil {
+					return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
+				}
+				fmt.Printf("deployment for %s is done, updating monitoing rules", ComponentNameSupported)
+			}
+
 			if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentNameSupported); err != nil {
 				return err
 			}
 			if err = deploy.DeployManifestsFromPath(cli, owner,
 				filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
 				dscispec.Monitoring.Namespace,
-				ComponentName+"prometheus", true); err != nil {
+				"prometheus", true); err != nil {
 				return err
 			}
 		}
@@ -260,25 +278,26 @@ func (d *Dashboard) deployConsoleLink(cli client.Client, owner metav1.Object, na
 	return nil
 }
 
-func (d *Dashboard) cleanOauthClientSecrets(cli client.Client, dscispec *dsciv1.DSCInitializationSpec, currentComponentStatus bool) error {
+func (d *Dashboard) cleanOauthClient(cli client.Client, dscispec *dsciv1.DSCInitializationSpec, currentComponentExist bool) error {
 	// Remove previous oauth-client secrets
 	// Check if component is going from state of `Not Installed --> Installed`
 	// Assumption: Component is currently set to enabled
-	if !currentComponentStatus {
+	name := "dashboard-oauth-client"
+	if !currentComponentExist {
+		fmt.Println("Cleanup any left secret")
 		// Delete client secrets from previous installation
 		oauthClientSecret := &v1.Secret{}
 		err := cli.Get(context.TODO(), client.ObjectKey{
 			Namespace: dscispec.ApplicationsNamespace,
-			Name:      "dashboard-oauth-client",
+			Name:      name,
 		}, oauthClientSecret)
 		if err != nil {
 			if !apierrs.IsNotFound(err) {
-				return err
+				return fmt.Errorf("error getting secret %s: %w", name, err)
 			}
 		} else {
-			err := cli.Delete(context.TODO(), oauthClientSecret)
-			if err != nil {
-				return fmt.Errorf("error deleting oauth client secret: %v", err)
+			if err := cli.Delete(context.TODO(), oauthClientSecret); err != nil {
+				return fmt.Errorf("error deleting secret %s in namespace %s : %w", name, dscispec.ApplicationsNamespace, err)
 			}
 		}
 	}

@@ -6,7 +6,7 @@ metadata:
   labels:
     name: alertmanager
   name: alertmanager
-  namespace: "redhat-ods-monitoring"
+  namespace: redhat-ods-monitoring
 spec:
   ports:
     - name: alertmanager

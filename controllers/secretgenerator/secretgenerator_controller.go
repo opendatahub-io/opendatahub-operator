@@ -75,6 +75,8 @@ func (r *SecretGeneratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		GenericFunc: func(e event.GenericEvent) bool {
 			return false
 		},
+		// this only watch for secret deletion if has with annotation
+		// e.g dashboard-oauth-client but not dashboard-oauth-client-generated
 		DeleteFunc: func(e event.DeleteEvent) bool {
 			if _, found := e.Object.GetAnnotations()[SECRET_NAME_ANNOTATION]; found {
 				return true
@@ -137,7 +139,7 @@ func (r *SecretGeneratorReconciler) Reconcile(ctx context.Context, request ctrl.
 
 			secret, err := NewSecretFrom(foundSecret.GetAnnotations())
 			if err != nil {
-				secGenLog.Error(err, "error creating secret")
+				secGenLog.Error(err, "error creating secret %s in %s", generatedSecret.Name, generatedSecret.Namespace)
 				return ctrl.Result{}, err
 			}
 
@@ -149,15 +151,18 @@ func (r *SecretGeneratorReconciler) Reconcile(ctx context.Context, request ctrl.
 			if err != nil {
 				return ctrl.Result{}, err
 			}
+			secGenLog.Info("Done generating secret in namespace",
+				"secret", generatedSecret.Name, "namespace", generatedSecret.Namespace)
+			// check if annotation oauth-client-route exists
 			if secret.OAuthClientRoute != "" {
 				// Get OauthClient Route
 				oauthClientRoute, err := r.getRoute(ctx, secret.OAuthClientRoute, request.Namespace)
 				if err != nil {
-					secGenLog.Error(err, "Unable to retrieve route", "route-name", secret.OAuthClientRoute)
+					secGenLog.Error(err, "Unable to retrieve route from OAuthClient", "route-name", secret.OAuthClientRoute)
 					return ctrl.Result{}, err
 				}
 				// Generate OAuthClient for the generated secret
-				secGenLog.Info("Generating an oauth client resource for route", "route-name", oauthClientRoute.Name)
+				secGenLog.Info("Generating an OAuthClient CR for route", "route-name", oauthClientRoute.Name)
 				err = r.createOAuthClient(ctx, foundSecret.Name, secret.Value, oauthClientRoute.Spec.Host)
 				if err != nil {
 					secGenLog.Error(err, "error creating oauth client resource. Recreate the Secret", "secret-name",
@@ -206,7 +211,7 @@ func (r *SecretGeneratorReconciler) createOAuthClient(ctx context.Context, name 
 	oauthClient := &ocv1.OAuthClient{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "OAuthClient",
-			APIVersion: "v1",
+			APIVersion: "oauth.openshift.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -222,12 +227,11 @@ func (r *SecretGeneratorReconciler) createOAuthClient(ctx context.Context, name 
 			secGenLog.Info("OAuth client resource already exists, patch it", "name", oauthClient.Name)
 			data, err := json.Marshal(oauthClient)
 			if err != nil {
-				return fmt.Errorf("failed to get DataScienceCluster custom resource data: %v", err)
+				return fmt.Errorf("failed to get DataScienceCluster CR data: %w", err)
 			}
-			err = r.Client.Patch(context.TODO(), oauthClient, client.RawPatch(types.ApplyPatchType, data),
-				client.ForceOwnership, client.FieldOwner("opendatahub-operator"))
-			if err != nil {
-				return err
+			if err = r.Client.Patch(context.TODO(), oauthClient, client.RawPatch(types.ApplyPatchType, data),
+				client.ForceOwnership, client.FieldOwner("rhods-operator")); err != nil {
+				return fmt.Errorf("failed to patch existing OAuthClient CR: %w", err)
 			}
 			return nil
 		}
@@ -248,9 +252,8 @@ func (r *SecretGeneratorReconciler) deleteOAuthClient(ctx context.Context, secre
 		return err
 	}
 
-	err = r.Client.Delete(ctx, oauthClient)
-	if err != nil {
-		return fmt.Errorf("error deleting OAuthClient %v", oauthClient.Name)
+	if err = r.Client.Delete(ctx, oauthClient); err != nil {
+		return fmt.Errorf("error deleting OAuthClient %s: %w", oauthClient.Name, err)
 	}
 
 	return nil

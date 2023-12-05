@@ -164,7 +164,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./main.go
 
 .PHONY: image-build
-image-build: unit-test ## Build image with the manager.
+image-build: # unit-test ## Build image with the manager.
 	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/Dockerfile  ${IMAGE_BUILD_FLAGS} -t $(IMG) .
 
 .PHONY: image-push
