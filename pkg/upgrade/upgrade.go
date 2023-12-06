@@ -235,6 +235,7 @@ func CreateDefaultDSCI(cli client.Client, platform deploy.Platform, appNamespace
 		fmt.Printf("DSCInitialization resource already exists. It will not be updated with default DSCI.")
 		return nil
 	case len(instances.Items) == 0:
+		fmt.Printf("create default DSCI CR.")
 		err := cli.Create(context.TODO(), defaultDsci)
 		if err != nil {
 			return err

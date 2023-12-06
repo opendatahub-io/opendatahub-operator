@@ -4,8 +4,8 @@ import operatorv1 "github.com/openshift/api/operator/v1"
 
 // ServiceMeshSpec configures Service Mesh.
 type ServiceMeshSpec struct {
-	// +kubebuilder:validation:Enum=Managed;Removed
-	// +kubebuilder:default=Managed
+	// +kubebuilder:validation:Enum=Managed;Unmanaged;Removed
+	// +kubebuilder:default=Removed
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 	// ControlPlane holds configuration of Service Mesh used by Opendatahub.
 	ControlPlane ControlPlaneSpec `json:"controlPlane,omitempty"`
