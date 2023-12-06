@@ -109,7 +109,7 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, r
 			if err := monitoring.WaitForDeploymentAvailable(ctx, resConf, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
 				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 			}
-			fmt.Printf("deployment for %s is done, updating monitoing rules", ComponentName)
+			fmt.Printf("deployment for %s is done, updating monitoring rules\n", ComponentName)
 		}
 
 		// inject prometheus codeflare*.rules in to /opt/manifests/monitoring/prometheus/prometheus-configs.yaml

@@ -53,6 +53,8 @@ rm -fr ./odh-manifests/* ./.odh-manifests-tmp/
 mkdir -p ./.odh-manifests-tmp/ ./odh-manifests/
 wget -q -c ${MANIFESTS_TARBALL_URL} -O - | tar -zxv -C ./.odh-manifests-tmp/ --strip-components 1 > /dev/null
 
+# mm-monitroing
+cp -r ./.odh-manifests-tmp/modelmesh-monitoring/ ./odh-manifests
 
 # Dashboard
 cp -r ./.odh-manifests-tmp/odh-dashboard/ ./odh-manifests/dashboard

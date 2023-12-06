@@ -2,7 +2,6 @@ package upgrade
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	// "reflect"
@@ -18,7 +17,6 @@ import (
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -35,6 +33,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -163,7 +162,7 @@ func CreateDefaultDSC(cli client.Client, platform deploy.Platform) error {
 					Component: components.Component{ManagementState: operatorv1.Managed},
 				},
 				ModelMeshServing: modelmeshserving.ModelMeshServing{
-					Component: components.Component{ManagementState: operatorv1.Removed},
+					Component: components.Component{ManagementState: operatorv1.Managed},
 				},
 				DataSciencePipelines: datasciencepipelines.DataSciencePipelines{
 					Component: components.Component{ManagementState: operatorv1.Managed},
@@ -207,6 +206,14 @@ func CreateDefaultDSCI(cli client.Client, platform deploy.Platform, appNamespace
 			ManagementState: operatorv1.Managed,
 			Namespace:       monNamespace,
 		},
+		ServiceMesh: infrav1.ServiceMeshSpec{
+			ManagementState: "Managed",
+			ControlPlane: infrav1.ControlPlaneSpec{
+				Name:              "data-science-smcp",
+				Namespace:         "istio-system",
+				MetricsCollection: "Istio",
+			},
+		},
 	}
 
 	defaultDsci := &dsci.DSCInitialization{
@@ -216,14 +223,6 @@ func CreateDefaultDSCI(cli client.Client, platform deploy.Platform, appNamespace
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "default-dsci",
-		},
-		Spec: *defaultDsciSpec,
-	}
-
-	patchedDSCI := &dsci.DSCInitialization{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "DSCInitialization",
-			APIVersion: "dscinitialization.opendatahub.io/v1",
 		},
 		Spec: *defaultDsciSpec,
 	}
@@ -238,20 +237,9 @@ func CreateDefaultDSCI(cli client.Client, platform deploy.Platform, appNamespace
 		fmt.Printf("only one instance of DSCInitialization object is allowed. Please delete other instances ")
 		return nil
 	case len(instances.Items) == 1:
-		if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
-			data, err := json.Marshal(patchedDSCI)
-			if err != nil {
-				return err
-			}
-			existingDSCI := &instances.Items[0]
-			err = cli.Patch(context.TODO(), existingDSCI, client.RawPatch(types.ApplyPatchType, data),
-				client.ForceOwnership, client.FieldOwner("rhods-operator"))
-			if err != nil {
-				return err
-			}
-		} else {
-			return nil
-		}
+		// Do not patch/update if DSCI already exists.
+		fmt.Printf("DSCInitialization resource already exists. It will not be updated with default DSCI.")
+		return nil
 	case len(instances.Items) == 0:
 		err := cli.Create(context.TODO(), defaultDsci)
 		if err != nil {
