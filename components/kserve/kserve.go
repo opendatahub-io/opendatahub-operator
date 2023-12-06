@@ -159,7 +159,7 @@ func (k *Kserve) Cleanup(_ client.Client, instance *dsciv1.DSCInitializationSpec
 func (k *Kserve) configureServerless(instance *dsciv1.DSCInitializationSpec) error {
 	if k.Serving.ManagementState == operatorv1.Managed {
 		if instance.ServiceMesh.ManagementState != operatorv1.Managed {
-			return fmt.Errorf("serviceMesh is not configured as Managaed in DSCI instance but required by KServe serving")
+			fmt.Println("ServiceMesh is not configured as Managed in DSCI instance")
 		}
 
 		serverlessInitializer := feature.NewFeaturesInitializer(instance, k.configureServerlessFeatures)
