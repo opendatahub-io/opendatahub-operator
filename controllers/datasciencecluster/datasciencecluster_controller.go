@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -334,6 +335,58 @@ var configMapPredicates = predicate.Funcs{
 	},
 }
 
+// a workaround for 2.5 due to odh-model-controller serivceaccount keeps updates with label
+var saPredicates = predicate.Funcs{
+	UpdateFunc: func(e event.UpdateEvent) bool {
+		if e.ObjectNew.GetName() == "odh-model-controller" && e.ObjectNew.GetNamespace() == "redhat-ods-applications" {
+			return false
+		}
+		return true
+	},
+}
+
+// a workaround for 2.5 due to modelmesh-servingruntime.serving.kserve.io keeps updates
+var modelMeshwebhookPredicates = predicate.Funcs{
+	UpdateFunc: func(e event.UpdateEvent) bool {
+		return e.ObjectNew.GetName() != "modelmesh-servingruntime.serving.kserve.io"
+	},
+}
+
+var modelMeshRolePredicates = predicate.Funcs{
+	UpdateFunc: func(e event.UpdateEvent) bool {
+		notAllowedNames := []string{"leader-election-role", "proxy-role", "metrics-reader", "kserve-prometheus-k8s", "odh-model-controller-role"}
+		for _, notallowedName := range notAllowedNames {
+			if e.ObjectNew.GetName() == notallowedName {
+				return false
+			}
+		}
+		return true
+	},
+}
+
+var modelMeshRBPredicates = predicate.Funcs{
+	UpdateFunc: func(e event.UpdateEvent) bool {
+		notAllowedNames := []string{"leader-election-rolebinding", "proxy-rolebinding", "odh-model-controller-rolebinding-opendatahub"}
+		for _, notallowedName := range notAllowedNames {
+			if e.ObjectNew.GetName() == notallowedName {
+				return false
+			}
+		}
+		return true
+	},
+}
+
+// ignore label updates if it is from application namespace
+var modelMeshGeneralPredicates = predicate.Funcs{
+	UpdateFunc: func(e event.UpdateEvent) bool {
+		if strings.Contains(e.ObjectNew.GetName(), "odh-model-controller") || strings.Contains(e.ObjectNew.GetName(), "kserve") {
+			return false
+		} else {
+			return true
+		}
+	},
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *DataScienceClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
@@ -342,21 +395,22 @@ func (r *DataScienceClusterReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		Owns(&corev1.Secret{}).
 		Owns(&corev1.ConfigMap{}, builder.WithPredicates(configMapPredicates)).
 		Owns(&netv1.NetworkPolicy{}).
-		Owns(&authv1.Role{}).
-		Owns(&authv1.RoleBinding{}).
-		Owns(&authv1.ClusterRole{}).
-		Owns(&authv1.ClusterRoleBinding{}).
+		Owns(&authv1.Role{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, modelMeshRolePredicates))).
+		Owns(&authv1.RoleBinding{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, modelMeshRBPredicates))).
+		Owns(&authv1.ClusterRole{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, modelMeshRolePredicates))).
+		Owns(&authv1.ClusterRoleBinding{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, modelMeshRBPredicates))).
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.PersistentVolumeClaim{}).
-		Owns(&corev1.Service{}).
+		Owns(&corev1.Service{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, modelMeshGeneralPredicates))).
+		Owns(&appsv1.DaemonSet{}).
 		Owns(&appsv1.StatefulSet{}).
 		Owns(&ocimgv1.ImageStream{}).
 		Owns(&ocbuildv1.BuildConfig{}).
 		Owns(&apiregistrationv1.APIService{}).
 		Owns(&netv1.Ingress{}).
 		Owns(&admv1.MutatingWebhookConfiguration{}).
-		Owns(&admv1.ValidatingWebhookConfiguration{}).
-		Owns(&corev1.ServiceAccount{}).
+		Owns(&admv1.ValidatingWebhookConfiguration{}, builder.WithPredicates(modelMeshwebhookPredicates)).
+		Owns(&corev1.ServiceAccount{}, builder.WithPredicates(saPredicates)).
 		Watches(&source.Kind{Type: &dsci.DSCInitialization{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources)).
 		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources), builder.WithPredicates(configMapPredicates)).
 		// this predicates prevents meaningless reconciliations from being triggered

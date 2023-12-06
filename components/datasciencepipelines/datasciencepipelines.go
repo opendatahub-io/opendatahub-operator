@@ -104,7 +104,7 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 			if err := monitoring.WaitForDeploymentAvailable(ctx, resConf, ComponentName, dscispec.ApplicationsNamespace, 10, 1); err != nil {
 				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 			}
-			fmt.Printf("deployment for %s is done, updating monitoing rules", ComponentName)
+			fmt.Printf("deployment for %s is done, updating monitoring rules\n", ComponentName)
 		}
 
 		if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {

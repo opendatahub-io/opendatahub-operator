@@ -30,7 +30,7 @@ func WaitForDeploymentAvailable(ctx context.Context, restConfig *rest.Config, co
 			}
 		}
 		isReady := false
-		fmt.Printf("we are waiting for %d deployment ready  for component %s\n", len(componentDeploymentList.Items), componentName)
+		fmt.Printf("waiting for %d deployment to be ready for %s\n", len(componentDeploymentList.Items), componentName)
 		if len(componentDeploymentList.Items) != 0 {
 			for _, deployment := range componentDeploymentList.Items {
 				if deployment.Status.ReadyReplicas == deployment.Status.Replicas {

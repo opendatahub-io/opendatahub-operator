@@ -22,6 +22,7 @@ import (
 var (
 	ComponentName          = "model-mesh"
 	Path                   = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/odh"
+	monitoringPath         = deploy.DefaultManifestPath + "/" + "modelmesh-monitoring/base"
 	DependentComponentName = "odh-model-controller"
 	DependentPath          = deploy.DefaultManifestPath + "/" + DependentComponentName + "/base"
 )
@@ -147,25 +148,31 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 		}
 	}
 
+	// Get monitoring namespace
+	var monitoringNamespace string
+	if dscispec.Monitoring.Namespace != "" {
+		monitoringNamespace = dscispec.Monitoring.Namespace
+	} else {
+		monitoringNamespace = dscispec.ApplicationsNamespace
+	}
+
+	// Ensure we do not deploy modelmesh-monitoring if it has been there from previous releases
+	if err = deploy.DeployManifestsFromPath(cli, owner, monitoringPath, monitoringNamespace, ComponentName, false); err != nil {
+		return err
+	}
+
 	// CloudService Monitoring handling
 	if platform == deploy.ManagedRhods {
 		if enabled {
-			// first check if the 1st service is up, so prometheus wont fire alerts when it is just startup
+			// first check if service is up, so prometheus wont fire alerts when it is just startup
 			if err := monitoring.WaitForDeploymentAvailable(ctx, resConf, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
 				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 			}
-			fmt.Printf("deployment for %s is done, updating monitoing rules", ComponentName)
+			fmt.Printf("deployment for %s is done, updating monitoring rules\n", ComponentName)
 		}
 		// first model-mesh rules
 		if err := m.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
-		}
-		if enabled {
-			// then check if the 2nd service is up, so prometheus wont fire alerts when it is just startup
-			if err := monitoring.WaitForDeploymentAvailable(ctx, resConf, DependentComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
-				return fmt.Errorf("deployment %s is not ready to server: %w", DependentComponentName, err)
-			}
-			fmt.Printf("deployment for %s is done, updating monitoing rules", DependentComponentName)
 		}
 		// then odh-model-controller rules
 		if err := m.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, DependentComponentName); err != nil {

@@ -182,7 +182,7 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 			if err := monitoring.WaitForDeploymentAvailable(ctx, resConf, ComponentName, dscispec.ApplicationsNamespace, 10, 1); err != nil {
 				return fmt.Errorf("deployments for %s are not ready to server: %w", ComponentName, err)
 			}
-			fmt.Printf("deployments for %s are done, updating monitoing rules", ComponentName)
+			fmt.Printf("deployments for %s are done, updating monitoring rules\n", ComponentName)
 		}
 		if err := w.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
