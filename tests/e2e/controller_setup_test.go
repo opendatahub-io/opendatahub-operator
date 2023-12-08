@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/pkg/errors"
 	"os"
 	"testing"
 	"time"
@@ -48,6 +49,8 @@ type testContext struct {
 	resourceCreationTimeout time.Duration
 	// test DataScienceCluster instance
 	testDsc *dsc.DataScienceCluster
+	// test DSCI CR because we do not create it in ODH by default
+	testDSCI *dsci.DSCInitialization
 	// time interval to check for resource creation
 	resourceRetryInterval time.Duration
 	// context for accessing resources
@@ -94,6 +97,7 @@ func NewTestContext() (*testContext, error) { //nolint:golint,revive // Only use
 		resourceRetryInterval:   time.Second * 10,
 		ctx:                     context.TODO(),
 		testDsc:                 testDSC,
+		testDSCI:                testDSCI,
 	}, nil
 }
 
