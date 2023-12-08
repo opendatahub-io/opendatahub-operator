@@ -94,14 +94,6 @@ rules:
 - apiGroups:
   - apps
   resources:
-  - daemonsets
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - apps
-  resources:
   - deployments
   verbs:
   - '*'
@@ -123,30 +115,6 @@ rules:
   - statefulsets
   verbs:
   - '*'
-- apiGroups:
-  - apps.openshift.io
-  resources:
-  - deploymentconfigs
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - apps.openshift.io
-  resources:
-  - deploymentconfigs/instantiate
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
 - apiGroups:
   - argoproj.io
   resources:
@@ -482,16 +450,24 @@ rules:
   resources:
   - secrets
   verbs:
-  - '*'
   - create
-  - get
+  - delete
+  - list
+  - patch
+  - update
   - watch
 - apiGroups:
   - ""
   resources:
   - secrets/finalizers
   verbs:
-  - '*'
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - ""
   resources:
@@ -1028,10 +1004,13 @@ rules:
   resources:
   - oauthclients
   verbs:
-  - '*'
   - create
   - delete
   - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - opendatahub.io
   resources:
