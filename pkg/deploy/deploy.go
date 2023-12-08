@@ -234,7 +234,9 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 		}
 
 		existingOwnerReferences := obj.GetOwnerReferences()
-		if existingOwnerReferences == nil {
+		selector := "app.opendatahub.io/" + componentName
+		// only removed the resource with our label applied, not the same name resource maually created by user
+		if existingOwnerReferences == nil && resourceLabels[selector] == "true" {
 			return cli.Delete(ctx, found)
 		} else if len(existingOwnerReferences) > 0 {
 			for _, owner := range existingOwnerReferences {
