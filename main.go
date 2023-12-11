@@ -199,6 +199,10 @@ func main() { //nolint:funlen
 		setupLog.Error(err, "unable to update from legacy operator version")
 	}
 
+	if err = upgrade.CleanupExistingResource(mgr.GetConfig(), dscApplicationsNamespace); err != nil {
+		setupLog.Error(err, "unable to perform cleanup")
+	}
+
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")
 		os.Exit(1)

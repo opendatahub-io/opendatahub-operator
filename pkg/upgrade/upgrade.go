@@ -16,7 +16,9 @@ import (
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -35,6 +37,7 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 )
 
 const (
@@ -313,6 +316,11 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 	return nil
 }
 
+// Special handling for cleanup dashboard jupyterhub CR.
+func CleanupExistingResource(config *rest.Config, appNS string) error {
+	return removOdhApplicationsCR(config, gvr.JupyterhubApp, "jupyterhub", appNS)
+}
+
 func GetOperatorNamespace() (string, error) {
 	data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
 	if err == nil {
@@ -388,6 +396,22 @@ func removeCsv(c client.Client, r *rest.Config) error {
 		fmt.Printf("Clusterserviceversion %s deleted as a part of uninstall.\n", operatorCsv.Name)
 	}
 	fmt.Printf("No clusterserviceversion for the operator found.\n")
+
+	return nil
+}
+
+func removOdhApplicationsCR(cfg *rest.Config, resource schema.GroupVersionResource, instanceName string, applicationNS string) error {
+	dynamicClient, err := dynamic.NewForConfig(cfg)
+	if err != nil {
+		return err
+	}
+	if err = dynamicClient.Resource(resource).Namespace(applicationNS).Delete(context.TODO(), instanceName, metav1.DeleteOptions{}); err != nil {
+		if apierrs.IsNotFound(err) {
+			fmt.Printf("%s does not exist in %s, nothing to prune\n", instanceName, applicationNS)
+			return nil
+		}
+		return fmt.Errorf("error deleting %s : %w", instanceName, err)
+	}
 
 	return nil
 }
