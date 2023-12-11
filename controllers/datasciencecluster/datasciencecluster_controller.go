@@ -21,12 +21,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/hashicorp/go-multierror"
 	"reflect"
 	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/hashicorp/go-multierror"
 	ocbuildv1 "github.com/openshift/api/build/v1"
 	ocimgv1 "github.com/openshift/api/image/v1"
 	v1 "github.com/openshift/api/operator/v1"
@@ -470,7 +470,6 @@ func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(a client
 		} else {
 			return nil
 		}
-
 	}
 
 	return nil
