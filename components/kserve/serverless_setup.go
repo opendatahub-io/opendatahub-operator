@@ -11,14 +11,13 @@ import (
 
 const (
 	knativeServingNamespace = "knative-serving"
-	templatesDir            = "templates/serverless"
 )
 
 func (k *Kserve) configureServerlessFeatures(s *feature.FeaturesInitializer) error {
 	servingDeployment, err := feature.CreateFeature("serverless-serving-deployment").
 		For(s.DSCInitializationSpec).
 		Manifests(
-			path.Join(templatesDir, "serving-install"),
+			path.Join(feature.ServerlessDir, "serving-install"),
 		).
 		WithData(PopulateComponentSettings(k)).
 		PreConditions(
@@ -49,7 +48,7 @@ func (k *Kserve) configureServerlessFeatures(s *feature.FeaturesInitializer) err
 		).
 		WithResources(serverless.ServingCertificateResource).
 		Manifests(
-			path.Join(templatesDir, "serving-istio-gateways"),
+			path.Join(feature.ServerlessDir, "serving-istio-gateways"),
 		).
 		Load()
 	if err != nil {

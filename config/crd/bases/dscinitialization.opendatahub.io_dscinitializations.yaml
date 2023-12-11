@@ -89,6 +89,48 @@ spec:
                   user experience; e.g. it provides unified authentication giving
                   a Single Sign On experience.
                 properties:
+                  auth:
+                    description: Auth holds configuration of authentication and authorization
+                      services used by Service Mesh in Opendatahub.
+                    properties:
+                      authorino:
+                        description: Authorino holds configuration of Authorino service
+                          used as external authorization provider.
+                        properties:
+                          audiences:
+                            default:
+                            - https://kubernetes.default.svc
+                            description: Audiences is a list of the identifiers that
+                              the resource server presented with the token identifies
+                              as. Audience-aware token authenticators will verify
+                              that the token was intended for at least one of the
+                              audiences in this list. If no audiences are provided,
+                              the audience will default to the audience of the Kubernetes
+                              apiserver (kubernetes.default.svc).
+                            items:
+                              type: string
+                            type: array
+                          image:
+                            default: quay.io/kuadrant/authorino:v0.16.0
+                            description: Image allows to define a custom container
+                              image to be used when deploying Authorino's instance.
+                            type: string
+                          label:
+                            default: authorino/topic=odh
+                            description: Label narrows amount of AuthConfigs to process
+                              by Authorino service.
+                            type: string
+                          name:
+                            default: authorino-mesh-authz-provider
+                            description: Name specifies how external authorization
+                              provider should be called.
+                            type: string
+                        type: object
+                      namespace:
+                        default: auth-provider
+                        description: Namespace where it is deployed.
+                        type: string
+                    type: object
                   controlPlane:
                     description: ControlPlane holds configuration of Service Mesh
                       used by Opendatahub.

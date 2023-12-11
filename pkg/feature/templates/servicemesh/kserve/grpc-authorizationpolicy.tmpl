@@ -1,0 +1,19 @@
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: kserve-predicator
+  namespace: {{ .ControlPlane.Namespace }}
+spec:
+  action: CUSTOM
+  provider:
+    name: opendatahub-odh-auth-provider
+  rules:
+  - to:
+    - operation:
+        notPaths:
+        - /healthz*
+        ports:
+        - "8013"
+  selector:
+    matchLabels:
+      component: predictor

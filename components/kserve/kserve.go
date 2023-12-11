@@ -4,6 +4,7 @@ package kserve
 import (
 	"context"
 	"fmt"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/monitoring"
 )
 
@@ -163,6 +165,12 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resC
 			return err
 		}
 	}
+
+	if enabled {
+		if err := k.configureServiceMesh(cli, dscispec); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -228,4 +236,45 @@ func checkDepedentOps(cli client.Client) *multierror.Error {
 		multiErr = multierror.Append(multiErr, err)
 	}
 	return multiErr
+}
+
+func (k *Kserve) configureServiceMesh(cli client.Client, dscispec *dsciv1.DSCInitializationSpec) error {
+	shouldConfigureServiceMesh, err := deploy.ShouldConfigureServiceMesh(cli, dscispec)
+	if err != nil {
+		return err
+	}
+
+	if shouldConfigureServiceMesh {
+		serviceMeshInitializer := feature.NewFeaturesInitializer(dscispec, k.defineServiceMeshFeatures(dscispec))
+
+		if err := serviceMeshInitializer.Prepare(); err != nil {
+			return err
+		}
+
+		if err := serviceMeshInitializer.Apply(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (k *Kserve) defineServiceMeshFeatures(dscispec *dsciv1.DSCInitializationSpec) feature.DefinedFeatures {
+	return func(s *feature.FeaturesInitializer) error {
+		kserve, err := feature.CreateFeature("configure-kserve-for-external-authz").
+			For(dscispec).
+			Manifests(
+				path.Join(feature.KServeDir),
+			).
+			WithData(servicemesh.ClusterDetails).
+			Load()
+
+		if err != nil {
+			return err
+		}
+
+		s.Features = append(s.Features, kserve)
+
+		return nil
+	}
 }

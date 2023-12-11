@@ -9,6 +9,9 @@ type ServiceMeshSpec struct {
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 	// ControlPlane holds configuration of Service Mesh used by Opendatahub.
 	ControlPlane ControlPlaneSpec `json:"controlPlane,omitempty"`
+	// Auth holds configuration of authentication and authorization services
+	// used by Service Mesh in Opendatahub.
+	Auth AuthSpec `json:"auth,omitempty"`
 }
 
 type ControlPlaneSpec struct {
@@ -37,4 +40,31 @@ type IngressGatewaySpec struct {
 	// Certificate specifies configuration of the TLS certificate securing communications of
 	// the for Ingress Gateway.
 	Certificate CertificateSpec `json:"certificate,omitempty"`
+}
+
+type AuthSpec struct {
+	// Namespace where it is deployed.
+	// +kubebuilder:default=auth-provider
+	Namespace string `json:"namespace,omitempty"`
+	// Authorino holds configuration of Authorino service used as external authorization provider.
+	Authorino AuthorinoSpec `json:"authorino,omitempty"`
+}
+
+type AuthorinoSpec struct {
+	// Name specifies how external authorization provider should be called.
+	// +kubebuilder:default=authorino-mesh-authz-provider
+	Name string `json:"name,omitempty"`
+	// Audiences is a list of the identifiers that the resource server presented
+	// with the token identifies as. Audience-aware token authenticators will verify
+	// that the token was intended for at least one of the audiences in this list.
+	// If no audiences are provided, the audience will default to the audience of the
+	// Kubernetes apiserver (kubernetes.default.svc).
+	// +kubebuilder:default={"https://kubernetes.default.svc"}
+	Audiences []string `json:"audiences,omitempty"`
+	// Label narrows amount of AuthConfigs to process by Authorino service.
+	// +kubebuilder:default=authorino/topic=odh
+	Label string `json:"label,omitempty"`
+	// Image allows to define a custom container image to be used when deploying Authorino's instance.
+	// +kubebuilder:default="quay.io/kuadrant/authorino:v0.16.0"
+	Image string `json:"image,omitempty"`
 }
