@@ -402,7 +402,6 @@ func (r *DataScienceClusterReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.PersistentVolumeClaim{}).
 		Owns(&corev1.Service{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, modelMeshGeneralPredicates))).
-		Owns(&appsv1.DaemonSet{}).
 		Owns(&appsv1.StatefulSet{}).
 		Owns(&ocimgv1.ImageStream{}).
 		Owns(&ocbuildv1.BuildConfig{}).
