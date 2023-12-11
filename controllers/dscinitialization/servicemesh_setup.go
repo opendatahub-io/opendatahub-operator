@@ -15,20 +15,25 @@ import (
 const templatesDir = "templates/servicemesh"
 
 func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsciv1.DSCInitialization) error {
-	if instance.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
+	switch instance.Spec.ServiceMesh.ManagementState {
+	case operatorv1.Managed:
 		serviceMeshInitializer := feature.NewFeaturesInitializer(&instance.Spec, configureServiceMeshFeatures)
-
 		if err := serviceMeshInitializer.Prepare(); err != nil {
 			r.Log.Error(err, "failed configuring service mesh resources")
 			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed configuring service mesh resources")
-
 			return err
 		}
 
 		if err := serviceMeshInitializer.Apply(); err != nil {
 			r.Log.Error(err, "failed applying service mesh resources")
 			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed applying service mesh resources")
-
+			return err
+		}
+	case operatorv1.Unmanaged:
+		r.Log.Info("ServiceMesh CR is not configured by the operator, we won't do anything")
+	case operatorv1.Removed:
+		r.Log.Info("existing ServiceMesh CR (owned by operator) will be removed")
+		if err := r.removeServiceMesh(instance); err != nil {
 			return err
 		}
 	}
@@ -37,6 +42,7 @@ func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsciv1.DSCI
 }
 
 func (r *DSCInitializationReconciler) removeServiceMesh(instance *dsciv1.DSCInitialization) error {
+	// on condition of Managed, do not handle Removed when set to Removed it tigger DSCI reconcile to cleanup
 	if instance.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
 		serviceMeshInitializer := feature.NewFeaturesInitializer(&instance.Spec, configureServiceMeshFeatures)
 

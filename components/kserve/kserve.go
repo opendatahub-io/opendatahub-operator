@@ -158,11 +158,22 @@ func (k *Kserve) Cleanup(_ client.Client, instance *dsciv1.DSCInitializationSpec
 }
 
 func (k *Kserve) configureServerless(instance *dsciv1.DSCInitializationSpec) error {
-	if k.Serving.ManagementState == operatorv1.Managed {
-		if instance.ServiceMesh.ManagementState != operatorv1.Managed {
-			fmt.Println("ServiceMesh is not configured as Managed in DSCI instance")
+	switch k.Serving.ManagementState {
+	case operatorv1.Unmanaged: // Bring your own CR
+		fmt.Println("Serverless CR is not configured by the operator, we won't do anything")
+
+	case operatorv1.Removed: // we remove serving CR
+		fmt.Println("existing ServiceMesh CR (owned by operator) will be removed")
+		if err := k.removeServerlessFeatures(instance); err != nil {
+			return err
 		}
 
+	case operatorv1.Managed: // standard workflow to create CR
+		switch instance.ServiceMesh.ManagementState {
+		case operatorv1.Unmanaged, operatorv1.Removed:
+			return fmt.Errorf("ServiceMesh is need to set to 'Managaed' in DSCI CR, it is required by KServe serving field")
+		}
+		// create serving
 		serverlessInitializer := feature.NewFeaturesInitializer(instance, k.configureServerlessFeatures)
 
 		if err := serverlessInitializer.Prepare(); err != nil {
@@ -173,7 +184,6 @@ func (k *Kserve) configureServerless(instance *dsciv1.DSCInitializationSpec) err
 			return err
 		}
 	}
-
 	return nil
 }
 
