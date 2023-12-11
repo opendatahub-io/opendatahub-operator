@@ -87,7 +87,6 @@ type ComponentInterface interface {
 	SetImageParamsMap(imageMap map[string]string) map[string]string
 	OverrideManifests(platform string) error
 	UpdatePrometheusConfig(cli client.Client, enable bool, component string) error
-	// WaitForDeploymentAvailable(ctx context.Context, r *rest.Config, c string, n string, i int, t int) error
 }
 
 // UpdatePrometheusConfig update prometheus-configs.yaml to include/exclude <component>.rules
@@ -120,6 +119,8 @@ func (c *Component) UpdatePrometheusConfig(_ client.Client, enable bool, compone
 			RayARules          string `yaml:"ray-alerting.rules"`
 			WorkbenchesRRules  string `yaml:"workbenches-recording.rules"`
 			WorkbenchesARules  string `yaml:"workbenches-alerting.rules"`
+			KserveRRules       string `yaml:"kserve-recording.rules"`
+			KserveARules       string `yaml:"kserve-alerting.rules"`
 		} `yaml:"data"`
 	}
 	var configMap ConfigMap
@@ -184,34 +185,3 @@ func (c *Component) UpdatePrometheusConfig(_ client.Client, enable bool, compone
 
 	return err
 }
-
-// WaitForDeploymentAvailable to check if component deployment from 'namepsace' is ready within 'timeout' before apply prometheus rules for the component
-// func (c *Component) WaitForDeploymentAvailable(ctx context.Context, restConfig *rest.Config, componentName string, namespace string, interval int, timeout int) error {
-// 	resourceInterval := time.Duration(interval) * time.Second
-// 	resourceTimeout := time.Duration(timeout) * time.Minute
-// 	return wait.PollUntilContextTimeout(context.TODO(), resourceInterval, resourceTimeout, true, func(ctx context.Context) (bool, error) {
-// 		clientset, err := kubernetes.NewForConfig(restConfig)
-// 		if err != nil {
-// 			return false, fmt.Errorf("error getting client %w", err)
-// 		}
-// 		componentDeploymentList, err := clientset.AppsV1().Deployments(namespace).List(context.TODO(), metav1.ListOptions{
-// 			LabelSelector: "app.opendatahub.io/" + componentName,
-// 		})
-// 		if err != nil {
-// 			if errors.IsNotFound(err) {
-// 				return false, nil
-// 			}
-// 		}
-// 		isReady := false
-// 		if len(componentDeploymentList.Items) != 0 {
-// 			for _, deployment := range componentDeploymentList.Items {
-// 				if deployment.Status.ReadyReplicas == deployment.Status.Replicas {
-// 					isReady = true
-// 				} else {
-// 					isReady = false
-// 				}
-// 			}
-// 		}
-// 		return isReady, nil
-// 	})
-// }
