@@ -338,7 +338,7 @@ var configMapPredicates = predicate.Funcs{
 // a workaround for 2.5 due to odh-model-controller serivceaccount keeps updates with label
 var saPredicates = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
-		if e.ObjectNew.GetName() == "odh-model-controller" && ( e.ObjectNew.GetNamespace() == "redhat-ods-applications" || e.ObjectNew.GetNamespace() == "opendatahub" ){
+		if e.ObjectNew.GetName() == "odh-model-controller" && (e.ObjectNew.GetNamespace() == "redhat-ods-applications" || e.ObjectNew.GetNamespace() == "opendatahub") {
 			return false
 		}
 		return true
