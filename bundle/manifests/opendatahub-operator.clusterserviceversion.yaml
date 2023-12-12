@@ -29,7 +29,16 @@ metadata:
                 "managementState": "Managed"
               },
               "kserve": {
-                "managementState": "Removed"
+                "managementState": "Managed",
+                "serving": {
+                  "ingressGateway": {
+                    "certificate": {
+                      "type": "SelfSigned"
+                    }
+                  },
+                  "managementState": "Managed",
+                  "name": "knative-serving"
+                }
               },
               "modelmeshserving": {
                 "managementState": "Managed"
@@ -64,6 +73,14 @@ metadata:
             "monitoring": {
               "managementState": "Managed",
               "namespace": "opendatahub"
+            },
+            "serviceMesh": {
+              "controlPlane": {
+                "metricsCollection": "Istio",
+                "name": "data-science-smcp",
+                "namespace": "istio-system"
+              },
+              "managementState": "Managed"
             }
           }
         },
