@@ -119,6 +119,7 @@ spec:
                     default: Removed
                     enum:
                     - Managed
+                    - Unmanaged
                     - Removed
                     pattern: ^(Managed|Unmanaged|Force|Removed)$
                     type: string

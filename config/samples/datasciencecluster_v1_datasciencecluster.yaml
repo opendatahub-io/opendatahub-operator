@@ -16,8 +16,18 @@ spec:
       managementState: "Managed"
     datasciencepipelines:
       managementState: "Managed"
-    kserve:
-      managementState: "Removed"
+    kserve: {
+      managementState: "Managed",
+      serving: {
+        ingressGateway: {
+          certificate: {
+            type: SelfSigned
+          }
+        },
+        name: "knative-serving",
+        managementState: "Managed"
+      }
+    }
     modelmeshserving:
       managementState: "Managed"
     ray:

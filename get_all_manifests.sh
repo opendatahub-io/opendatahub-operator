@@ -46,6 +46,7 @@ fi
 TMP_DIR=$(mktemp -d -t "odh-manifests.XXXXXXXXXX")
 trap '{ rm -rf -- "$TMP_DIR"; }' EXIT
 
+
 for key in "${!COMPONENT_MANIFESTS[@]}"; do
     echo -e "\033[32mCloning repo \033[33m${key}\033[32m:\033[0m ${COMPONENT_MANIFESTS[$key]}"
     IFS=':' read -r -a repo_info <<< "${COMPONENT_MANIFESTS[$key]}"
