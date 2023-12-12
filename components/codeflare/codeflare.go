@@ -109,7 +109,7 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, r
 		if enabled {
 			// first check if the service is up, so prometheus wont fire alerts when it is just startup
 			if err := monitoring.WaitForDeploymentAvailable(ctx, resConf, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
-				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
+				return fmt.Errorf("deployment for %s is not done: %w", ComponentName, err)
 			}
 			fmt.Printf("deployment for %s is done, updating monitoring rules\n", ComponentName)
 		}

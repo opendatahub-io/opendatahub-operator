@@ -37,7 +37,6 @@ can be found [here](https://github.com/opendatahub-io/opendatahub-operator/tree/
       GetManagementState() operatorv1.ManagementState
       SetImageParamsMap(imageMap map[string]string) map[string]string
       UpdatePrometheusConfig(cli client.Client, enable bool, component string) error
-      WaitForDeploymentAvailable(ctx context.Context, r *rest.Config, c string, n string, i int, t int) error
     }
     ```
 ### Add reconcile and Events
