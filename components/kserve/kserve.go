@@ -19,6 +19,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/monitoring"
 )
 
 var (
@@ -92,6 +93,7 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resC
 	}
 
 	enabled := k.GetManagementState() == operatorv1.Managed
+	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 	platform, err := deploy.GetPlatform(cli)
 	if err != nil {
 		return err
@@ -149,7 +151,20 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resC
 			return err
 		}
 	}
-
+	// CloudService Monitoring handling
+	if platform == deploy.ManagedRhods {
+		if enabled {
+			// first check if the service is up, so prometheus wont fire alerts when it is just startup
+			if err := monitoring.WaitForDeploymentAvailable(ctx, resConf, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
+				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
+			}
+			fmt.Printf("deployment for %s is done, updating monitoing rules", ComponentName)
+		}
+		// kesrve rules
+		if err := k.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
