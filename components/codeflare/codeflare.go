@@ -49,6 +49,7 @@ func (c *CodeFlare) OverrideManifests(_ string) error {
 		}
 		CodeflarePath = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
 	}
+
 	return nil
 }
 
