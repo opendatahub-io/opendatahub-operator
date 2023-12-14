@@ -45,34 +45,32 @@ type Kserve struct {
 
 func (k *Kserve) OverrideManifests(_ string) error {
 	// Download manifests if defined by devflags
-	if len(k.DevFlags.Manifests) != 0 {
-		// Go through each manifests and set the overlays if defined
-		for _, subcomponent := range k.DevFlags.Manifests {
-			if strings.Contains(subcomponent.URI, DependentComponentName) {
-				// Download subcomponent
-				if err := deploy.DownloadManifests(DependentComponentName, subcomponent); err != nil {
-					return err
-				}
-				// If overlay is defined, update paths
-				defaultKustomizePath := "base"
-				if subcomponent.SourcePath != "" {
-					defaultKustomizePath = subcomponent.SourcePath
-				}
-				DependentPath = filepath.Join(deploy.DefaultManifestPath, DependentComponentName, defaultKustomizePath)
+	// Go through each manifests and set the overlays if defined
+	for _, subcomponent := range k.DevFlags.Manifests {
+		if strings.Contains(subcomponent.URI, DependentComponentName) {
+			// Download subcomponent
+			if err := deploy.DownloadManifests(DependentComponentName, subcomponent); err != nil {
+				return err
 			}
+			// If overlay is defined, update paths
+			defaultKustomizePath := "base"
+			if subcomponent.SourcePath != "" {
+				defaultKustomizePath = subcomponent.SourcePath
+			}
+			DependentPath = filepath.Join(deploy.DefaultManifestPath, DependentComponentName, defaultKustomizePath)
+		}
 
-			if strings.Contains(subcomponent.URI, ComponentName) {
-				// Download subcomponent
-				if err := deploy.DownloadManifests(ComponentName, subcomponent); err != nil {
-					return err
-				}
-				// If overlay is defined, update paths
-				defaultKustomizePath := "overlays/odh"
-				if subcomponent.SourcePath != "" {
-					defaultKustomizePath = subcomponent.SourcePath
-				}
-				Path = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
+		if strings.Contains(subcomponent.URI, ComponentName) {
+			// Download subcomponent
+			if err := deploy.DownloadManifests(ComponentName, subcomponent); err != nil {
+				return err
 			}
+			// If overlay is defined, update paths
+			defaultKustomizePath := "overlays/odh"
+			if subcomponent.SourcePath != "" {
+				defaultKustomizePath = subcomponent.SourcePath
+			}
+			Path = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
 		}
 	}
 
@@ -104,11 +102,12 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resC
 			return err
 		}
 	} else {
-		// Download manifests and update paths
-		if err = k.OverrideManifests(string(platform)); err != nil {
-			return err
+		if k.DevFlags != nil {
+			// Download manifests and update paths
+			if err = k.OverrideManifests(string(platform)); err != nil {
+				return err
+			}
 		}
-
 		// check on dependent operators if all installed in cluster
 		dependOpsErrors := checkDepedentOps(cli).ErrorOrNil()
 		if dependOpsErrors != nil {
@@ -120,7 +119,7 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resC
 		}
 
 		// Update image parameters only when we do not have customized manifests set
-		if dscispec.DevFlags.ManifestsUri == "" && len(k.DevFlags.Manifests) == 0 {
+		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (k.DevFlags == nil || len(k.DevFlags.Manifests) == 0) {
 			if err := deploy.ApplyParams(Path, k.SetImageParamsMap(imageParamMap), false); err != nil {
 				return err
 			}
@@ -137,7 +136,7 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resC
 			return err
 		}
 		// Update image parameters for odh-model-controller
-		if dscispec.DevFlags.ManifestsUri == "" && len(k.DevFlags.Manifests) == 0 {
+		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (k.DevFlags == nil || len(k.DevFlags.Manifests) == 0) {
 			if err := deploy.ApplyParams(DependentPath, k.SetImageParamsMap(dependentParamMap), false); err != nil {
 				return err
 			}
