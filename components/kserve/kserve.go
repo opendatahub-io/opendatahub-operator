@@ -173,7 +173,6 @@ func (k *Kserve) configureServerless(instance *dsciv1.DSCInitializationSpec) err
 		case operatorv1.Unmanaged, operatorv1.Removed:
 			return fmt.Errorf("ServiceMesh is need to set to 'Managaed' in DSCI CR, it is required by KServe serving field")
 		}
-		// create serving
 		serverlessInitializer := feature.NewFeaturesInitializer(instance, k.configureServerlessFeatures)
 
 		if err := serverlessInitializer.Prepare(); err != nil {
