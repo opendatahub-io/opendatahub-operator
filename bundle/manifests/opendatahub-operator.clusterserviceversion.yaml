@@ -279,6 +279,7 @@ spec:
           verbs:
           - create
           - delete
+          - get
           - list
           - patch
           - update
@@ -675,6 +676,7 @@ spec:
           verbs:
           - create
           - delete
+          - get
           - list
           - patch
           - update
