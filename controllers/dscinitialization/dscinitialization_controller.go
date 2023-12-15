@@ -91,23 +91,22 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		instance = &instances.Items[0]
 	case len(instances.Items) > 1:
 		// find out the one by created timestamp and use it as the default one
-		markedWrongDSCI := []dsciv1.DSCInitialization{}
 		earliestDSCI := &instances.Items[0]
 		for _, instance := range instances.Items {
 			currentDSCI := instance
 			if currentDSCI.CreationTimestamp.Before(&earliestDSCI.CreationTimestamp) || currentDSCI.CreationTimestamp.Equal(&earliestDSCI.CreationTimestamp) {
 				earliestDSCI = &currentDSCI
-			} else {
-				markedWrongDSCI = append(markedWrongDSCI, currentDSCI)
 			}
 		}
 		message := fmt.Sprintf("only one instance of DSCInitialization object is allowed. Please delete other instances than %s", earliestDSCI.Name)
 		// update all instances Message and Status
-		for _, deletionInstance := range markedWrongDSCI {
-			_, _ = r.updateStatus(ctx, &deletionInstance, func(saved *dsciv1.DSCInitialization) {
-				status.SetErrorCondition(&saved.Status.Conditions, status.DuplicateDSCInitialization, message)
-				saved.Status.Phase = status.PhaseError
-			})
+		for _, deletionInstance := range instances.Items {
+			if deletionInstance.Name != earliestDSCI.Name {
+				_, _ = r.updateStatus(ctx, &deletionInstance, func(saved *dsciv1.DSCInitialization) {
+					status.SetErrorCondition(&saved.Status.Conditions, status.DuplicateDSCInitialization, message)
+					saved.Status.Phase = status.PhaseError
+				})
+			}
 		}
 
 		return ctrl.Result{}, errors.New(message)
