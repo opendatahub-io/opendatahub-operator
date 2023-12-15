@@ -94,7 +94,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		earliestDSCI := &instances.Items[0]
 		for _, instance := range instances.Items {
 			currentDSCI := instance
-			if currentDSCI.CreationTimestamp.Before(&earliestDSCI.CreationTimestamp) || currentDSCI.CreationTimestamp.Equal(&earliestDSCI.CreationTimestamp) {
+			if currentDSCI.CreationTimestamp.Before(&earliestDSCI.CreationTimestamp) {
 				earliestDSCI = &currentDSCI
 			}
 		}
