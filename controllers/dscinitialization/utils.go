@@ -270,7 +270,7 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.
 							{ // need this for access dashboard
 								NamespaceSelector: &metav1.LabelSelector{
 									MatchLabels: map[string]string{
-										"kubernetes.io/metadata.name": "openshift-ingress",
+										"network.openshift.io/policy-group": "ingress",
 									},
 								},
 							},
