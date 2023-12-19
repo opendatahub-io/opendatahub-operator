@@ -2,6 +2,7 @@ package feature
 
 import (
 	"context"
+	"io/fs"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
@@ -31,7 +32,9 @@ type Feature struct {
 	DynamicClient dynamic.Interface
 	Client        client.Client
 
-	manifests      []manifest
+	fsys      fs.FS
+	manifests []manifest
+
 	cleanups       []Action
 	resources      []Action
 	preconditions  []Action
@@ -67,7 +70,7 @@ func (f *Feature) Apply() error {
 		return multiErr.ErrorOrNil()
 	}
 
-	// create or update resources
+	// Create or update resources
 	for _, resource := range f.resources {
 		if err := resource(f); err != nil {
 			return err
@@ -75,27 +78,24 @@ func (f *Feature) Apply() error {
 	}
 
 	// Process and apply manifests
-	for _, m := range f.manifests {
-		if err := m.processTemplate(f.Spec); err != nil {
+	for i, m := range f.manifests {
+		if err := m.processTemplate(f.fsys, f.Spec); err != nil {
 			return errors.WithStack(err)
 		}
 
-		log.Info("converted template to manifest", "feature", f.Name, "path", m.targetPath())
+		f.manifests[i] = m
 	}
 
 	if err := f.applyManifests(); err != nil {
 		return err
 	}
 
+	// Check all postconditions and collect errors
 	for _, postcondition := range f.postconditions {
 		multiErr = multierror.Append(multiErr, postcondition(f))
 	}
 
-	if multiErr.ErrorOrNil() != nil {
-		return multiErr.ErrorOrNil()
-	}
-
-	return nil
+	return multiErr.ErrorOrNil()
 }
 
 func (f *Feature) Cleanup() error {
@@ -157,27 +157,36 @@ func (f *Feature) addCleanup(cleanupFuncs ...Action) {
 	f.cleanups = append(f.cleanups, cleanupFuncs...)
 }
 
-type apply func(filename string) error
+func (f *Feature) ApplyManifest(filename string) error {
+	m := loadManifestFrom(filename)
+	if err := m.processTemplate(f.fsys, f.Spec); err != nil {
+		return err
+	}
+
+	return f.apply(m)
+}
+
+type apply func(data string) error
 
 func (f *Feature) apply(m manifest) error {
 	var applier apply
 	targetPath := m.targetPath()
 
 	if m.patch {
-		applier = func(filename string) error {
+		applier = func(data string) error {
 			log.Info("patching using manifest", "feature", f.Name, "name", m.name, "path", targetPath)
 
-			return f.patchResourceFromFile(filename)
+			return f.patchResources(data)
 		}
 	} else {
-		applier = func(filename string) error {
+		applier = func(data string) error {
 			log.Info("applying manifest", "feature", f.Name, "name", m.name, "path", targetPath)
 
-			return f.createResourceFromFile(filename)
+			return f.createResources(data)
 		}
 	}
 
-	if err := applier(targetPath); err != nil {
+	if err := applier(m.processedContent); err != nil {
 		log.Error(err, "failed to create resource", "feature", f.Name, "name", m.name, "path", targetPath)
 
 		return err
