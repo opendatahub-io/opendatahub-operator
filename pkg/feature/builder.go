@@ -1,6 +1,8 @@
 package feature
 
 import (
+	"io/fs"
+
 	"github.com/pkg/errors"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/client-go/dynamic"
@@ -79,7 +81,7 @@ func (fb *featureBuilder) Manifests(paths ...string) *featureBuilder {
 		var manifests []manifest
 
 		for _, path := range paths {
-			manifests, err = loadManifestsFrom(path)
+			manifests, err = loadManifestsFrom(f.fsys, path)
 			if err != nil {
 				return errors.WithStack(err)
 			}
@@ -156,6 +158,7 @@ func (fb *featureBuilder) Load() (*Feature, error) {
 	feature := &Feature{
 		Name:    fb.name,
 		Enabled: true,
+		fsys:    embeddedFiles,
 	}
 
 	for i := range fb.builders {
@@ -184,4 +187,16 @@ func (fb *featureBuilder) Load() (*Feature, error) {
 	}
 
 	return feature, nil
+}
+
+// ManifestSource sets the root file system (fs.FS) from which manifest paths are loaded
+// If ManifestSource is not called in the builder chain, the default source will be the embeddedFiles.
+func (fb *featureBuilder) ManifestSource(fsys fs.FS) *featureBuilder {
+	fb.builders = append(fb.builders, func(f *Feature) error {
+		f.fsys = fsys
+
+		return nil
+	})
+
+	return fb
 }

@@ -5,11 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"k8s.io/client-go/rest"
 	"net/http"
 	"net/url"
 	"os"
-	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"strconv"
 	"strings"
 
@@ -17,6 +15,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 )
@@ -46,7 +46,6 @@ func GetOAuthServerDetails() (*simplejson.Json, error) {
 }
 
 func request(method string, url string) ([]byte, error) {
-
 	restCfg, err := config.GetConfig()
 	if err != nil {
 		return nil, err

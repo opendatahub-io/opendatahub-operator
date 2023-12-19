@@ -2,7 +2,6 @@ package dashboard
 
 import (
 	"path"
-	"path/filepath"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -43,15 +42,10 @@ func (d *Dashboard) configureServiceMesh(cli client.Client, owner metav1.Object,
 
 func (d *Dashboard) defineServiceMeshFeatures(dscispec *dsci.DSCInitializationSpec) feature.DefinedFeatures {
 	return func(s *feature.FeaturesInitializer) error {
-		var rootDir = filepath.Join(feature.BaseOutputDir, dscispec.ApplicationsNamespace)
-		if err := feature.CopyEmbeddedFiles("templates", rootDir); err != nil {
-			return err
-		}
-
 		createMeshResources, err := feature.CreateFeature("dashboard-create-service-mesh-routing-resources").
 			For(dscispec).
 			Manifests(
-				path.Join(rootDir, feature.ControlPlaneDir, "components", d.GetComponentName()),
+				path.Join(feature.ControlPlaneDir, "components", d.GetComponentName()),
 			).
 			WithResources(servicemesh.EnabledInDashboard).
 			WithData(

@@ -2,6 +2,7 @@ package servicemesh_test
 
 import (
 	"context"
+	"embed"
 	"io"
 	"os"
 	"path"
@@ -27,9 +28,14 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+//go:embed test-templates
+var testEmbeddedFiles embed.FS
+
 const (
-	timeout  = 5 * time.Second
-	interval = 250 * time.Millisecond
+	timeout            = 5 * time.Second
+	interval           = 250 * time.Millisecond
+	authorinoName      = "authorino"
+	authorinoNamespace = "test-provider"
 )
 
 var _ = Describe("preconditions", func() {
@@ -301,7 +307,7 @@ var _ = Describe("Cleanup operations", func() {
 
 			controlPlaneWithSecretVolumes, err := feature.CreateFeature("control-plane-with-secret-volumes").
 				For(dsciSpec).
-				Manifests(fromTestTmpDir(path.Join(feature.ControlPlaneDir, "base/control-plane-ingress.patch.tmpl"))).
+				Manifests(path.Join(feature.ControlPlaneDir, "base/control-plane-ingress.patch.tmpl")).
 				UsingConfig(envTest.Config).
 				Load()
 
@@ -328,14 +334,14 @@ var _ = Describe("Cleanup operations", func() {
 			Expect(envTestClient.Create(context.Background(), ns)).To(Succeed())
 			defer objectCleaner.DeleteAll(ns)
 
-			serviceMeshSpec.Auth.Namespace = "test-provider"
-			serviceMeshSpec.Auth.Authorino.Name = "authorino"
+			serviceMeshSpec.Auth.Namespace = authorinoNamespace
+			serviceMeshSpec.Auth.Authorino.Name = authorinoName
 
 			createServiceMeshControlPlane(name, namespace)
 
 			controlPlaneWithExtAuthzProvider, err := feature.CreateFeature("control-plane-with-external-authz-provider").
 				For(dsciSpec).
-				Manifests(fromTestTmpDir(path.Join(feature.AuthDir, "mesh-authz-ext-provider.patch.tmpl"))).
+				Manifests(path.Join(feature.AuthDir, "mesh-authz-ext-provider.patch.tmpl")).
 				UsingConfig(envTest.Config).
 				Load()
 
@@ -372,6 +378,110 @@ var _ = Describe("Cleanup operations", func() {
 
 	})
 
+})
+
+var _ = Describe("Alternate Manifest source", func() {
+
+	Context("using a non-default manifest source", func() {
+
+		var (
+			objectCleaner   *envtestutil.Cleaner
+			dsciSpec        *dscv1.DSCInitializationSpec
+			serviceMeshSpec *infrav1.ServiceMeshSpec
+			namespace       = "test"
+			name            = "minimal"
+		)
+
+		BeforeEach(func() {
+			objectCleaner = envtestutil.CreateCleaner(envTestClient, envTest.Config, timeout, interval)
+
+			dsciSpec = newDSCInitializationSpec(namespace)
+
+			serviceMeshSpec = &dsciSpec.ServiceMesh
+
+			serviceMeshSpec.ControlPlane.Name = name
+			serviceMeshSpec.ControlPlane.Namespace = namespace
+		})
+
+		It("should be able to use manifests embedded from different location", func() {
+			// given
+			ns := createNamespace(namespace)
+			Expect(envTestClient.Create(context.Background(), ns)).To(Succeed())
+			defer objectCleaner.DeleteAll(ns)
+
+			serviceMeshSpec.Auth.Namespace = authorinoNamespace
+			serviceMeshSpec.Auth.Authorino.Name = authorinoName
+
+			createServiceMeshControlPlane(name, namespace)
+
+			controlPlaneWithExtAuthzProvider, err := feature.CreateFeature("external-manifests-control-plane-with-external-authz-provider").
+				For(dsciSpec).
+				ManifestSource(testEmbeddedFiles).
+				Manifests(path.Join("test-templates", "authorino", "mesh-authz-ext-provider.patch.tmpl")).
+				UsingConfig(envTest.Config).
+				Load()
+
+			Expect(err).ToNot(HaveOccurred())
+
+			// when
+			By("verifying extension provider has been added after applying feature", func() {
+				Expect(controlPlaneWithExtAuthzProvider.Apply()).To(Succeed())
+				serviceMeshControlPlane, err := getServiceMeshControlPlane(envTest.Config, namespace, name)
+				Expect(err).ToNot(HaveOccurred())
+
+				extensionProviders, found, err := unstructured.NestedSlice(serviceMeshControlPlane.Object, "spec", "techPreview", "meshConfig", "extensionProviders")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(found).To(BeTrue())
+
+				extensionProvider := extensionProviders[0].(map[string]interface{})
+				Expect(extensionProvider["name"]).To(Equal("test-odh-different-auth-provider"))
+				Expect(extensionProvider["envoyExtAuthzGrpc"].(map[string]interface{})["service"]).To(Equal("authorino-authorino-authorization.test-provider.svc.cluster.local"))
+			})
+
+		})
+
+		It("should be able to use an actual file system", func() {
+			// given
+			tempDir := GinkgoT().TempDir()
+
+			ns := createNamespace(namespace)
+			Expect(envTestClient.Create(context.Background(), ns)).To(Succeed())
+			defer objectCleaner.DeleteAll(ns)
+
+			serviceMeshSpec.Auth.Namespace = authorinoNamespace
+			serviceMeshSpec.Auth.Authorino.Name = authorinoName
+
+			patchTemplate := path.Join(feature.AuthDir, "mesh-authz-ext-provider.patch.tmpl")
+			copyEmbeddedTemplatesTo(tempDir, patchTemplate)
+
+			createServiceMeshControlPlane(name, namespace)
+
+			controlPlaneWithExtAuthzProvider, err := feature.CreateFeature("external-manifests-control-plane-with-external-authz-provider").
+				For(dsciSpec).
+				ManifestSource(os.DirFS(tempDir)).
+				Manifests(patchTemplate). // must be relative to root DirFS defined above
+				UsingConfig(envTest.Config).
+				Load()
+
+			Expect(err).ToNot(HaveOccurred())
+
+			// when
+			By("verifying extension provider has been added after applying feature", func() {
+				Expect(controlPlaneWithExtAuthzProvider.Apply()).To(Succeed())
+				serviceMeshControlPlane, err := getServiceMeshControlPlane(envTest.Config, namespace, name)
+				Expect(err).ToNot(HaveOccurred())
+
+				extensionProviders, found, err := unstructured.NestedSlice(serviceMeshControlPlane.Object, "spec", "techPreview", "meshConfig", "extensionProviders")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(found).To(BeTrue())
+
+				extensionProvider := extensionProviders[0].(map[string]interface{})
+				Expect(extensionProvider["name"]).To(Equal("test-odh-auth-provider"))
+				Expect(extensionProvider["envoyExtAuthzGrpc"].(map[string]interface{})["service"]).To(Equal("authorino-authorino-authorization.test-provider.svc.cluster.local"))
+			})
+
+		})
+	})
 })
 
 func createServiceMeshControlPlane(name, namespace string) {
@@ -492,22 +602,17 @@ func getNamespace(namespace string) (*v1.Namespace, error) {
 	return ns, err
 }
 
-func fromTestTmpDir(fileName string) string {
+func copyEmbeddedTemplatesTo(tmpDir string, templatePaths ...string) {
 	root, err := envtestutil.FindProjectRoot()
 	Expect(err).ToNot(HaveOccurred())
 
-	tmpDir := filepath.Join(os.TempDir(), envtestutil.RandomUUIDName(16))
-	if err := os.Mkdir(tmpDir, os.ModePerm); err != nil {
-		Fail(err.Error())
+	for _, templatePath := range templatePaths {
+		src := path.Join(root, "pkg", "feature", templatePath)
+		dest := path.Join(tmpDir, templatePath)
+		if err := copyFile(src, dest); err != nil {
+			Fail(err.Error())
+		}
 	}
-
-	src := path.Join(root, "pkg", "feature", fileName)
-	dest := path.Join(tmpDir, fileName)
-	if err := copyFile(src, dest); err != nil {
-		Fail(err.Error())
-	}
-
-	return dest
 }
 
 func copyFile(src, dst string) error {
