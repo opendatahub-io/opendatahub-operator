@@ -2,10 +2,12 @@
 package modelregistry
 
 import (
+	"context"
 	"path/filepath"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -49,7 +51,8 @@ func (m *ModelRegistry) GetComponentName() string {
 	return ComponentName
 }
 
-func (m *ModelRegistry) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
+func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Client, resConf *rest.Config,
+	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
 	var imageParamMap = map[string]string{
 		"IMAGES_MODELREGISTRY_OPERATOR": "RELATED_IMAGE_ODH_MODELREGISTRY_OPERATOR_IMAGE",
 		"IMAGES_GRPC_SERVICE":           "RELATED_IMAGE_ODH_MODELREGISTRY_GRPC_SERVICE_IMAGE",
