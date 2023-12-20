@@ -257,13 +257,9 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint
 		t.Parallel()
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.ModelRegistry))
 		if tc.testDsc.Spec.Components.ModelRegistry.ManagementState == operatorv1.Managed {
-			if err != nil {
-				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.ModelRegistry.GetComponentName())
-			}
+			require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.ModelRegistry.GetComponentName())
 		} else {
-			if err == nil {
-				require.NoError(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.ModelRegistry.GetComponentName())
-			}
+			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.ModelRegistry.GetComponentName())
 		}
 	})
 
