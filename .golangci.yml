@@ -45,6 +45,7 @@ linters:
 
 issues:
   exclude-rules:
-    - path: tests/e2e/(.+)_test\.go
+    - path: tests/*/(.+)_test\.go
       linters:
         - typecheck
+        - dupl
