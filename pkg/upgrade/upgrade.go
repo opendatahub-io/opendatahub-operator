@@ -2,9 +2,9 @@ package upgrade
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
+	// "reflect"
 	"strings"
 	"time"
 
@@ -12,11 +12,12 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	olmclientset "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/operators/v1alpha1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -159,7 +161,7 @@ func CreateDefaultDSC(cli client.Client, platform deploy.Platform) error {
 					Component: components.Component{ManagementState: operatorv1.Managed},
 				},
 				Kserve: kserve.Kserve{
-					Component: components.Component{ManagementState: operatorv1.Removed},
+					Component: components.Component{ManagementState: operatorv1.Managed},
 				},
 				CodeFlare: codeflare.CodeFlare{
 					Component: components.Component{ManagementState: operatorv1.Removed},
@@ -198,6 +200,14 @@ func CreateDefaultDSCI(cli client.Client, platform deploy.Platform, appNamespace
 			ManagementState: operatorv1.Managed,
 			Namespace:       monNamespace,
 		},
+		ServiceMesh: infrav1.ServiceMeshSpec{
+			ManagementState: "Managed",
+			ControlPlane: infrav1.ControlPlaneSpec{
+				Name:              "data-science-smcp",
+				Namespace:         "istio-system",
+				MetricsCollection: "Istio",
+			},
+		},
 	}
 
 	defaultDsci := &dsci.DSCInitialization{
@@ -207,14 +217,6 @@ func CreateDefaultDSCI(cli client.Client, platform deploy.Platform, appNamespace
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "default-dsci",
-		},
-		Spec: *defaultDsciSpec,
-	}
-
-	patchedDSCI := &dsci.DSCInitialization{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "DSCInitialization",
-			APIVersion: "dscinitialization.opendatahub.io/v1",
 		},
 		Spec: *defaultDsciSpec,
 	}
@@ -229,21 +231,11 @@ func CreateDefaultDSCI(cli client.Client, platform deploy.Platform, appNamespace
 		fmt.Printf("only one instance of DSCInitialization object is allowed. Please delete other instances.\n")
 		return nil
 	case len(instances.Items) == 1:
-		if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
-			data, err := json.Marshal(patchedDSCI)
-			if err != nil {
-				return err
-			}
-			existingDSCI := &instances.Items[0]
-			err = cli.Patch(context.TODO(), existingDSCI, client.RawPatch(types.ApplyPatchType, data),
-				client.ForceOwnership, client.FieldOwner("opendatahub-operator"))
-			if err != nil {
-				return err
-			}
-		} else {
-			return nil
-		}
+		// Do not patch/update if DSCI already exists.
+		fmt.Printf("DSCInitialization resource already exists. It will not be updated with default DSCI.")
+		return nil
 	case len(instances.Items) == 0:
+		fmt.Printf("create default DSCI CR.")
 		err := cli.Create(context.TODO(), defaultDsci)
 		if err != nil {
 			return err
@@ -252,16 +244,26 @@ func CreateDefaultDSCI(cli client.Client, platform deploy.Platform, appNamespace
 	return nil
 }
 
-func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform) error {
+func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS string, montNamespace string) error {
 	// If platform is Managed, remove Kfdefs and create default dsc
 	if platform == deploy.ManagedRhods {
-		err := CreateDefaultDSC(cli, platform)
-		if err != nil {
+		fmt.Println("starting deletion of Deployment in managed cluster")
+		if err := deleteResource(cli, appNS, "deployment"); err != nil {
+			return err
+		}
+		// this is for the modelmesh monitoring part from v1 to v2
+		if err := deleteResource(cli, montNamespace, "deployment"); err != nil {
+			return err
+		}
+		if err := deleteResource(cli, montNamespace, "statefulset"); err != nil {
+			return err
+		}
+		fmt.Println("creating default DSC CR")
+		if err := CreateDefaultDSC(cli, platform); err != nil {
 			return err
 		}
 
-		err = RemoveKfDefInstances(cli, platform)
-		if err != nil {
+		if err := RemoveKfDefInstances(cli, platform); err != nil {
 			return err
 		}
 
@@ -269,14 +271,44 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform) error 
 	}
 
 	if platform == deploy.SelfManagedRhods {
-		kfDefList, err := getKfDefInstances(cli)
-		if err != nil {
-			return fmt.Errorf("error getting kfdef instances: %v", err)
+		fmt.Println("starting deletion of Deployment in selfmanaged cluster")
+		// If KfDef CRD is not found, we see it as a cluster not pre-installed v1 operator	// Check if kfdef are deployed
+		kfdefCrd := &apiextv1.CustomResourceDefinition{}
+		if err := cli.Get(context.TODO(), client.ObjectKey{Name: "kfdefs.kfdef.apps.kubeflow.org"}, kfdefCrd); err != nil {
+			if apierrs.IsNotFound(err) {
+				// If no Crd found, return, since its a new Installation
+				// return empty list
+				return nil
+			} else {
+				return fmt.Errorf("error retrieving kfdef CRD : %v", err)
+			}
 		}
 
+		// If KfDef Instances found, and no DSC instances are found in Self-managed, that means this is an upgrade path from
+		// legacy version. Create a default DSC instance
+		kfDefList := &kfdefv1.KfDefList{}
+		err := cli.List(context.TODO(), kfDefList)
+		if err != nil {
+			if apierrs.IsNotFound(err) {
+				// If no KfDefs, do nothing and return
+				return nil
+			} else {
+				return fmt.Errorf("error getting kfdef instances: : %w", err)
+			}
+		}
 		if len(kfDefList.Items) > 0 {
-			err := CreateDefaultDSC(cli, platform)
-			if err != nil {
+			if err = deleteResource(cli, appNS, "deployment"); err != nil {
+				return fmt.Errorf("error deleting deployment: %w", err)
+			}
+			// this is for the modelmesh monitoring part from v1 to v2
+			if err := deleteResource(cli, montNamespace, "deployment"); err != nil {
+				return err
+			}
+			if err := deleteResource(cli, montNamespace, "statefulset"); err != nil {
+				return err
+			}
+			// create default DSC
+			if err = CreateDefaultDSC(cli, platform); err != nil {
 				return err
 			}
 		}
@@ -300,12 +332,28 @@ func GetOperatorNamespace() (string, error) {
 
 func RemoveKfDefInstances(cli client.Client, platform deploy.Platform) error {
 	// Check if kfdef are deployed
-	expectedKfDefList, err := getKfDefInstances(cli)
+	kfdefCrd := &apiextv1.CustomResourceDefinition{}
+
+	err := cli.Get(context.TODO(), client.ObjectKey{Name: "kfdefs.kfdef.apps.kubeflow.org"}, kfdefCrd)
 	if err != nil {
-		return err
-	}
-	// Delete kfdefs
-	if len(expectedKfDefList.Items) > 0 {
+		if apierrs.IsNotFound(err) {
+			// If no Crd found, return, since its a new Installation
+			return nil
+		} else {
+			return fmt.Errorf("error retrieving kfdef CRD : %v", err)
+		}
+	} else {
+		expectedKfDefList := &kfdefv1.KfDefList{}
+		err := cli.List(context.TODO(), expectedKfDefList)
+		if err != nil {
+			if apierrs.IsNotFound(err) {
+				// If no KfDefs, do nothing and return
+				return nil
+			} else {
+				return fmt.Errorf("error getting list of kfdefs: %v", err)
+			}
+		}
+		// Delete kfdefs
 		for _, kfdef := range expectedKfDefList.Items {
 			// Remove finalizer
 			updatedKfDef := &kfdef
@@ -320,7 +368,6 @@ func RemoveKfDefInstances(cli client.Client, platform deploy.Platform) error {
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -378,26 +425,140 @@ func getClusterServiceVersion(cfg *rest.Config, watchNameSpace string) (*ofapi.C
 	return nil, nil
 }
 
-func getKfDefInstances(c client.Client) (*kfdefv1.KfDefList, error) {
-	// If KfDef CRD is not found, we see it as a cluster not pre-installed v1 operator
-	// Check if kfdef are deployed
-	kfdefCrd := &apiextv1.CustomResourceDefinition{}
-	if err := c.Get(context.TODO(), client.ObjectKey{Name: "kfdefs.kfdef.apps.kubeflow.org"}, kfdefCrd); err != nil {
-		if apierrs.IsNotFound(err) {
-			// If no Crd found, return, since its a new Installation
-			// return empty list
-			return &kfdefv1.KfDefList{}, nil
-		} else {
-			return nil, fmt.Errorf("error retrieving kfdef CRD : %v", err)
+func deleteResource(cli client.Client, namespace string, resourceType string) error {
+	// In v2, Deployment selectors use a label "app.opendatahub.io/<componentName>" which is
+	// not present in v1. Since label selectors are immutable, we need to delete the existing
+	// deployments and recreated them.
+	// because we can't proceed if a deployment is not deleted, we use exponential backoff
+	// to retry the deletion until it succeeds
+	var err error
+	switch resourceType {
+	case "deployment":
+		err = wait.ExponentialBackoffWithContext(context.TODO(), wait.Backoff{
+			// 5, 10, ,20, 40 then timeout
+			Duration: 5 * time.Second,
+			Factor:   2.0,
+			Jitter:   0.1,
+			Steps:    4,
+			Cap:      1 * time.Minute,
+		}, func(ctx context.Context) (bool, error) {
+			done, err := deleteDeploymentsAndCheck(ctx, cli, namespace)
+			return done, err
+		})
+	case "statefulset":
+		err = wait.ExponentialBackoffWithContext(context.TODO(), wait.Backoff{
+			// 10, 20 then timeout
+			Duration: 10 * time.Second,
+			Factor:   2.0,
+			Jitter:   0.1,
+			Steps:    2,
+			Cap:      1 * time.Minute,
+		}, func(ctx context.Context) (bool, error) {
+			done, err := deleteStatefulsetsAndCheck(ctx, cli, namespace)
+			return done, err
+		})
+	}
+	return err
+}
+
+func deleteDeploymentsAndCheck(ctx context.Context, cli client.Client, namespace string) (bool, error) { //nolint
+	// Delete Deployment objects
+	var multiErr *multierror.Error
+	deployments := &appsv1.DeploymentList{}
+	listOpts := &client.ListOptions{
+		Namespace: namespace,
+	}
+
+	if err := cli.List(ctx, deployments, listOpts); err != nil {
+		return false, nil
+	}
+	// filter deployment which has the new label to limit that we do not over kill other deployment
+	// this logic can be used even when upgrade from v2.4 to v2.5 without remove it
+	markedForDeletion := []appsv1.Deployment{}
+	for _, deployment := range deployments.Items {
+		v2 := false
+		selectorLabels := deployment.Spec.Selector.MatchLabels
+		for label := range selectorLabels {
+			if strings.Contains(label, "app.opendatahub.io/") {
+				// this deployment has the new label, this is a v2 to v2 upgrade
+				// there is no need to recreate it, as labels are matching
+				v2 = true
+				continue
+			}
+		}
+		if !v2 {
+			markedForDeletion = append(markedForDeletion, deployment)
+			multiErr = multierror.Append(multiErr, cli.Delete(ctx, &deployment))
 		}
 	}
 
-	// If KfDef Instances found, and no DSC instances are found in Self-managed, that means this is an upgrade path from
-	// legacy version. Create a default DSC instance
-	kfDefList := &kfdefv1.KfDefList{}
-	if err := c.List(context.TODO(), kfDefList); err != nil {
-		return &kfdefv1.KfDefList{}, fmt.Errorf("error getting list of kfdefs: %v", err)
+	for _, deployment := range markedForDeletion {
+		if e := cli.Get(ctx, client.ObjectKey{
+			Namespace: namespace,
+			Name:      deployment.Name,
+		}, &deployment); e != nil {
+			if apierrs.IsNotFound(e) {
+				// resource has been successfully deleted
+				continue
+			} else {
+				// unexpected error, report it
+				multiErr = multierror.Append(multiErr, e)
+			}
+		} else {
+			// resource still exists, wait for it to be deleted
+			return false, nil
+		}
 	}
 
-	return kfDefList, nil
+	return true, multiErr.ErrorOrNil()
+}
+
+func deleteStatefulsetsAndCheck(ctx context.Context, cli client.Client, namespace string) (bool, error) { //nolint
+	// Delete statefulset objects
+	var multiErr *multierror.Error
+	statefulsets := &appsv1.StatefulSetList{}
+	listOpts := &client.ListOptions{
+		Namespace: namespace,
+	}
+
+	if err := cli.List(ctx, statefulsets, listOpts); err != nil {
+		return false, nil
+	}
+
+	// even only we have one item to delete to avoid nil point still use range
+	markedForDeletion := []appsv1.StatefulSet{}
+	for _, statefulset := range statefulsets.Items {
+		v2 := false
+		selectorLabels := statefulset.Spec.Selector.MatchLabels
+		for label := range selectorLabels {
+			if strings.Contains(label, "app.opendatahub.io/") {
+				v2 = true
+				continue
+			}
+		}
+		if !v2 {
+			markedForDeletion = append(markedForDeletion, statefulset)
+			multiErr = multierror.Append(multiErr, cli.Delete(ctx, &statefulset))
+		}
+	}
+
+	for _, statefulset := range markedForDeletion {
+		if e := cli.Get(ctx, client.ObjectKey{
+			Namespace: namespace,
+			Name:      statefulset.Name,
+		}, &statefulset); e != nil {
+			if apierrs.IsNotFound(e) {
+				// resource has been successfully deleted
+				continue
+			} else {
+				// unexpected error, report it
+				multiErr = multierror.Append(multiErr, e)
+			}
+		} else {
+			// resource still exists, wait for it to be deleted
+			return false, nil
+		}
+	}
+
+	return true, multiErr.ErrorOrNil()
 }

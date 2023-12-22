@@ -2,17 +2,21 @@
 package modelmeshserving
 
 import (
+	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/monitoring"
 )
 
 var (
@@ -60,7 +64,6 @@ func (m *ModelMeshServing) OverrideManifests(_ string) error {
 			Path = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
 		}
 	}
-
 	return nil
 }
 
@@ -68,7 +71,13 @@ func (m *ModelMeshServing) GetComponentName() string {
 	return ComponentName
 }
 
-func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
+func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
+	cli client.Client,
+	resConf *rest.Config,
+	owner metav1.Object,
+	dscispec *dsciv1.DSCInitializationSpec,
+	_ bool,
+) error {
 	var imageParamMap = map[string]string{
 		"odh-mm-rest-proxy":             "RELATED_IMAGE_ODH_MM_REST_PROXY_IMAGE",
 		"odh-modelmesh-runtime-adapter": "RELATED_IMAGE_ODH_MODELMESH_RUNTIME_ADAPTER_IMAGE",
@@ -91,9 +100,11 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 
 	// Update Default rolebinding
 	if enabled {
-		// Download manifests and update paths
-		if err = m.OverrideManifests(string(platform)); err != nil {
-			return err
+		if m.DevFlags != nil {
+			// Download manifests and update paths
+			if err = m.OverrideManifests(string(platform)); err != nil {
+				return err
+			}
 		}
 
 		if err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace,
@@ -104,7 +115,7 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 			return err
 		}
 		// Update image parameters
-		if dscispec.DevFlags.ManifestsUri == "" && len(m.DevFlags.Manifests) == 0 {
+		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (m.DevFlags == nil || len(m.DevFlags.Manifests) == 0) {
 			if err := deploy.ApplyParams(Path, m.SetImageParamsMap(imageParamMap), false); err != nil {
 				return err
 			}
@@ -118,12 +129,12 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 
 	// For odh-model-controller
 	if enabled {
-		err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "odh-model-controller")
-		if err != nil {
+		if err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace,
+			"odh-model-controller"); err != nil {
 			return err
 		}
 		// Update image parameters for odh-model-controller
-		if dscispec.DevFlags.ManifestsUri == "" {
+		if dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "" {
 			if err := deploy.ApplyParams(DependentPath, m.SetImageParamsMap(dependentImageParamMap), false); err != nil {
 				return err
 			}
@@ -139,6 +150,13 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 
 	// CloudService Monitoring handling
 	if platform == deploy.ManagedRhods {
+		if enabled {
+			// first check if service is up, so prometheus wont fire alerts when it is just startup
+			if err := monitoring.WaitForDeploymentAvailable(ctx, resConf, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
+				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
+			}
+			fmt.Printf("deployment for %s is done, updating monitoring rules\n", ComponentName)
+		}
 		// first model-mesh rules
 		if err := m.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
@@ -150,7 +168,7 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 		if err = deploy.DeployManifestsFromPath(cli, owner,
 			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
 			dscispec.Monitoring.Namespace,
-			ComponentName+"prometheus", true); err != nil {
+			"prometheus", true); err != nil {
 			return err
 		}
 	}

@@ -19,6 +19,8 @@ spec:
   security:
     dataPlane:
       mtls: true # otherwise inference-graph will not work. We use PeerAuthentication resources to force mTLS
+    identity:
+      type: ThirdParty
   techPreview:
     meshConfig:
       defaultConfig:

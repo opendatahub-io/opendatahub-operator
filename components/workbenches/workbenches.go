@@ -2,11 +2,14 @@
 package workbenches
 
 import (
+	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -14,6 +17,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/monitoring"
 )
 
 var (
@@ -39,56 +43,53 @@ type Workbenches struct {
 
 func (w *Workbenches) OverrideManifests(platform string) error {
 	// Download manifests if defined by devflags
-	if len(w.DevFlags.Manifests) != 0 {
-		// Go through each manifest and set the overlays if defined
-		for _, subcomponent := range w.DevFlags.Manifests {
-			if strings.Contains(subcomponent.URI, DependentComponentName) {
-				// Download subcomponent
-				if err := deploy.DownloadManifests(DependentComponentName, subcomponent); err != nil {
-					return err
-				}
-				// If overlay is defined, update paths
-				defaultKustomizePath := "overlays/additional"
-				defaultKustomizePathSupported := "notebook-images/overlays/additional"
-				if subcomponent.SourcePath != "" {
-					defaultKustomizePath = subcomponent.SourcePath
-					defaultKustomizePathSupported = subcomponent.SourcePath
-				}
-				if platform == string(deploy.ManagedRhods) || platform == string(deploy.SelfManagedRhods) {
-					notebookImagesPathSupported = filepath.Join(deploy.DefaultManifestPath, "jupyterhub", defaultKustomizePathSupported)
-				} else {
-					notebookImagesPath = filepath.Join(deploy.DefaultManifestPath, DependentComponentName, defaultKustomizePath)
-				}
+	// Go through each manifest and set the overlays if defined
+	for _, subcomponent := range w.DevFlags.Manifests {
+		if strings.Contains(subcomponent.URI, DependentComponentName) {
+			// Download subcomponent
+			if err := deploy.DownloadManifests(DependentComponentName, subcomponent); err != nil {
+				return err
 			}
-
-			if strings.Contains(subcomponent.ContextDir, "components/odh-notebook-controller") {
-				// Download subcomponent
-				if err := deploy.DownloadManifests("odh-notebook-controller/odh-notebook-controller", subcomponent); err != nil {
-					return err
-				}
-				// If overlay is defined, update paths
-				defaultKustomizePathNbc := "base"
-				if subcomponent.SourcePath != "" {
-					defaultKustomizePathNbc = subcomponent.SourcePath
-				}
-				notebookControllerPath = filepath.Join(deploy.DefaultManifestPath, "odh-notebook-controller/odh-notebook-controller", defaultKustomizePathNbc)
+			// If overlay is defined, update paths
+			defaultKustomizePath := "overlays/additional"
+			defaultKustomizePathSupported := "notebook-images/overlays/additional"
+			if subcomponent.SourcePath != "" {
+				defaultKustomizePath = subcomponent.SourcePath
+				defaultKustomizePathSupported = subcomponent.SourcePath
 			}
-
-			if strings.Contains(subcomponent.ContextDir, "components/notebook-controller") {
-				// Download subcomponent
-				if err := deploy.DownloadManifests("odh-notebook-controller/kf-notebook-controller", subcomponent); err != nil {
-					return err
-				}
-				// If overlay is defined, update paths
-				defaultKustomizePathKfNbc := "overlays/openshift"
-				if subcomponent.SourcePath != "" {
-					defaultKustomizePathKfNbc = subcomponent.SourcePath
-				}
-				kfnotebookControllerPath = filepath.Join(deploy.DefaultManifestPath, "odh-notebook-controller/kf-notebook-controller", defaultKustomizePathKfNbc)
+			if platform == string(deploy.ManagedRhods) || platform == string(deploy.SelfManagedRhods) {
+				notebookImagesPathSupported = filepath.Join(deploy.DefaultManifestPath, "jupyterhub", defaultKustomizePathSupported)
+			} else {
+				notebookImagesPath = filepath.Join(deploy.DefaultManifestPath, DependentComponentName, defaultKustomizePath)
 			}
 		}
-	}
 
+		if strings.Contains(subcomponent.ContextDir, "components/odh-notebook-controller") {
+			// Download subcomponent
+			if err := deploy.DownloadManifests("odh-notebook-controller/odh-notebook-controller", subcomponent); err != nil {
+				return err
+			}
+			// If overlay is defined, update paths
+			defaultKustomizePathNbc := "base"
+			if subcomponent.SourcePath != "" {
+				defaultKustomizePathNbc = subcomponent.SourcePath
+			}
+			notebookControllerPath = filepath.Join(deploy.DefaultManifestPath, "odh-notebook-controller/odh-notebook-controller", defaultKustomizePathNbc)
+		}
+
+		if strings.Contains(subcomponent.ContextDir, "components/notebook-controller") {
+			// Download subcomponent
+			if err := deploy.DownloadManifests("odh-notebook-controller/kf-notebook-controller", subcomponent); err != nil {
+				return err
+			}
+			// If overlay is defined, update paths
+			defaultKustomizePathKfNbc := "overlays/openshift"
+			if subcomponent.SourcePath != "" {
+				defaultKustomizePathKfNbc = subcomponent.SourcePath
+			}
+			kfnotebookControllerPath = filepath.Join(deploy.DefaultManifestPath, "odh-notebook-controller/kf-notebook-controller", defaultKustomizePathKfNbc)
+		}
+	}
 	return nil
 }
 
@@ -96,7 +97,7 @@ func (w *Workbenches) GetComponentName() string {
 	return ComponentName
 }
 
-func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec, _ bool) error {
+func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client, resConf *rest.Config, owner metav1.Object, dscispec *dsci.DSCInitializationSpec, _ bool) error {
 	var imageParamMap = map[string]string{
 		"odh-notebook-controller-image":    "RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE",
 		"odh-kf-notebook-controller-image": "RELATED_IMAGE_ODH_KF_NOTEBOOK_CONTROLLER_IMAGE",
@@ -105,7 +106,6 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 	// Set default notebooks namespace
 	// Create rhods-notebooks namespace in managed platforms
 	enabled := w.GetManagementState() == operatorv1.Managed
-	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 	platform, err := deploy.GetPlatform(cli)
 	if err != nil {
 		return err
@@ -114,11 +114,12 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 	// Set default notebooks namespace
 	// Create rhods-notebooks namespace in managed platforms
 	if enabled {
-		// Download manifests and update paths
-		if err = w.OverrideManifests(string(platform)); err != nil {
-			return err
+		if w.DevFlags != nil {
+			// Download manifests and update paths
+			if err = w.OverrideManifests(string(platform)); err != nil {
+				return err
+			}
 		}
-
 		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
 			if _, err := cluster.CreateNamespace(cli, "rhods-notebooks", cluster.WithLabels(cluster.ODHGeneratedNamespaceLabel, "true")); err != nil {
 				// no need to log error as it was already logged in createOdhNamespace
@@ -146,7 +147,7 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 
 	// Update image parameters for nbc in downstream
 	if enabled {
-		if dscispec.DevFlags.ManifestsUri == "" && len(w.DevFlags.Manifests) == 0 {
+		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (w.DevFlags == nil || len(w.DevFlags.Manifests) == 0) {
 			if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
 				// for kf-notebook-controller image
 				if err := deploy.ApplyParams(notebookControllerPath, w.SetImageParamsMap(imageParamMap), false); err != nil {
@@ -161,7 +162,7 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 	}
 
 	var manifestsPath string
-	if platform == deploy.OpenDataHub || platform == "" {
+	if platform == deploy.OpenDataHub || platform == deploy.Unknown {
 		path := kfnotebookControllerPath
 		if shouldConfigureServiceMesh {
 			path = kfnotebookControllerServiceMeshPath
@@ -185,16 +186,34 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 	}
 	// CloudService Monitoring handling
 	if platform == deploy.ManagedRhods {
-		if err := w.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
-			return err
-		}
-		if err = deploy.DeployManifestsFromPath(cli, owner,
-			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
-			dscispec.Monitoring.Namespace,
-			ComponentName+"prometheus", true); err != nil {
-			return err
+		err2 := w.configureMonitoring(ctx, cli, resConf, owner, dscispec)
+		if err2 != nil {
+			return err2
 		}
 	}
 
+	return nil
+}
+
+func (w *Workbenches) configureMonitoring(ctx context.Context, cli client.Client, resConf *rest.Config, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
+	enabled := w.GetManagementState() == operatorv1.Managed
+	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
+	if enabled {
+		// first check if the service is up, so prometheus wont fire alerts when it is just startup
+		// only 1 replica set timeout to 1min
+		if err := monitoring.WaitForDeploymentAvailable(ctx, resConf, ComponentName, dscispec.ApplicationsNamespace, 10, 1); err != nil {
+			return fmt.Errorf("deployments for %s are not ready to server: %w", ComponentName, err)
+		}
+		fmt.Printf("deployments for %s are done, updating monitoring rules\n", ComponentName)
+	}
+	if err := w.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
+		return err
+	}
+	if err := deploy.DeployManifestsFromPath(cli, owner,
+		filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
+		dscispec.Monitoring.Namespace,
+		"prometheus", true); err != nil {
+		return err
+	}
 	return nil
 }

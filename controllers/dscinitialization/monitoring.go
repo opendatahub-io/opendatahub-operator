@@ -47,9 +47,18 @@ func (r *DSCInitializationReconciler) configureManagedMonitoring(ctx context.Con
 		}
 	}
 	if initial == "revertbackup" {
+		// TODO: implement with a better solution
+		// to have - before component name is to filter out the real rules file line
+		// e.g line of "workbenches-recording.rules: |"
 		err := common.MatchLineInFile(filepath.Join(prometheusConfigPath, "prometheus-configs.yaml"),
 			map[string]string{
-				"*.rules: ": "",
+				"(.*)-(.*)workbenches(.*).rules":                     "",
+				"(.*)-(.*)rhods-dashboard(.*).rules":                 "",
+				"(.*)-(.*)codeflare(.*).rules":                       "",
+				"(.*)-(.*)data-science-pipelines-operator(.*).rules": "",
+				"(.*)-(.*)model-mesh(.*).rules":                      "",
+				"(.*)-(.*)odh-model-controller(.*).rules":            "",
+				"(.*)-(.*)ray(.*).rules":                             "",
 			})
 		if err != nil {
 			r.Log.Error(err, "error to remove previous enabled component rules")

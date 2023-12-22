@@ -11,11 +11,17 @@ func ApplyAddLabelsPlugin(componentName string, resMap resmap.ResMap) error {
 	nsplug := builtins.LabelTransformerPlugin{
 		Labels: map[string]string{
 			"app.opendatahub.io/" + componentName: "true",
+			"app.kubernetes.io/part-of":           componentName,
 		},
 		FieldSpecs: []types.FieldSpec{
 			{
 				Gvk:                resid.Gvk{Kind: "Deployment"},
 				Path:               "spec/template/metadata/labels",
+				CreateIfNotPresent: true,
+			},
+			{
+				Gvk:                resid.Gvk{Kind: "Deployment"},
+				Path:               "spec/selector/matchLabels",
 				CreateIfNotPresent: true,
 			},
 			{
