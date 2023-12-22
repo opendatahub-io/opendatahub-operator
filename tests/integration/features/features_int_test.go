@@ -2,19 +2,24 @@ package features_test
 
 import (
 	"context"
+	"fmt"
 	"time"
 
+	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
+	k8stypes "k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	. "github.com/opendatahub-io/opendatahub-operator/v2/tests/assertions"
 )
 
 const (
@@ -127,6 +132,74 @@ var _ = Describe("preconditions", func() {
 
 })
 
+var _ = Describe("feature trackers", func() {
+	Context("ensuring feature trackers indicate status and phase", func() {
+
+		var (
+			dsciSpec *dscv1.DSCInitializationSpec
+		)
+
+		BeforeEach(func() {
+			dsciSpec = newDSCInitializationSpec("default")
+		})
+
+		It("should indicate successful installation in FeatureTracker", func() {
+			// given example CRD installed into env
+			name := "test-resources.openshift.io"
+			verificationFeature, err := feature.CreateFeature("crd-verification").
+				For(dsciSpec).
+				UsingConfig(envTest.Config).
+				PreConditions(feature.EnsureCRDIsInstalled(name)).
+				Load()
+			Expect(err).ToNot(HaveOccurred())
+
+			// when
+			Expect(verificationFeature.Apply()).To(Succeed())
+
+			// then
+			featureTracker := getFeatureTracker("default-crd-verification")
+			Expect(featureTracker.Status.Conditions).To(HaveCondition(conditionsv1.ConditionAvailable, v1.ConditionTrue, featurev1.ConditionPhaseFeatureCreated))
+		})
+
+		It("should indicate failure in preconditions", func() {
+			// given
+			name := "non-existing-resource.non-existing-group.io"
+			verificationFeature, err := feature.CreateFeature("crd-verification").
+				For(dsciSpec).
+				UsingConfig(envTest.Config).
+				PreConditions(feature.EnsureCRDIsInstalled(name)).
+				Load()
+			Expect(err).ToNot(HaveOccurred())
+
+			// when
+			Expect(verificationFeature.Apply()).ToNot(Succeed())
+
+			// then
+			featureTracker := getFeatureTracker("default-crd-verification")
+			Expect(featureTracker.Status.Conditions).To(HaveCondition(conditionsv1.ConditionDegraded, v1.ConditionTrue, featurev1.ConditionPhasePreConditions))
+		})
+
+		It("should indicate failure in post-conditions", func() {
+			// given
+			verificationFeature, err := feature.CreateFeature("post-condition-failure").
+				For(dsciSpec).
+				UsingConfig(envTest.Config).
+				PostConditions(func(f *feature.Feature) error {
+					return fmt.Errorf("always fail")
+				}).
+				Load()
+			Expect(err).ToNot(HaveOccurred())
+
+			// when
+			Expect(verificationFeature.Apply()).ToNot(Succeed())
+
+			// then
+			featureTracker := getFeatureTracker("default-post-condition-failure")
+			Expect(featureTracker.Status.Conditions).To(HaveCondition(conditionsv1.ConditionDegraded, v1.ConditionTrue, featurev1.ConditionPhasePostConditions))
+		})
+	})
+})
+
 func createNamespace(name string) *v1.Namespace {
 	return &v1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -144,7 +217,18 @@ func newDSCInitializationSpec(ns string) *dscv1.DSCInitializationSpec {
 
 func getNamespace(namespace string) (*v1.Namespace, error) {
 	ns := createNamespace(namespace)
-	err := envTestClient.Get(context.Background(), types.NamespacedName{Name: namespace}, ns)
+	err := envTestClient.Get(context.Background(), k8stypes.NamespacedName{Name: namespace}, ns)
 
 	return ns, err
+}
+
+func getFeatureTracker(name string) *featurev1.FeatureTracker {
+	tracker := &featurev1.FeatureTracker{}
+	err := envTestClient.Get(context.Background(), client.ObjectKey{
+		Name: name,
+	}, tracker)
+
+	Expect(err).ToNot(HaveOccurred())
+
+	return tracker
 }
