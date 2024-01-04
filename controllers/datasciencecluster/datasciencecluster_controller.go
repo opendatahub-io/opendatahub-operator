@@ -22,11 +22,11 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
-	ocappsv1 "github.com/openshift/api/apps/v1"
 	ocbuildv1 "github.com/openshift/api/build/v1"
 	ocimgv1 "github.com/openshift/api/image/v1"
 	v1 "github.com/openshift/api/operator/v1"
@@ -35,7 +35,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	authv1 "k8s.io/api/rbac/v1"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
@@ -43,8 +42,10 @@ import (
 	"k8s.io/client-go/util/retry"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -94,8 +95,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		// Return and don't requeue
 		if upgrade.HasDeleteConfigMap(r.Client) {
 			if uninstallErr := upgrade.OperatorUninstall(r.Client, r.RestConfig); uninstallErr != nil {
-				return ctrl.Result{}, fmt.Errorf("error while operator uninstall: %v",
-					uninstallErr)
+				return ctrl.Result{}, fmt.Errorf("error while operator uninstall: %v", uninstallErr)
 			}
 		}
 
@@ -207,14 +207,6 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 	}
 
-	// Ensure all omitted components show up as explicitly disabled
-	instance, err = r.updateComponents(ctx, instance)
-	if err != nil {
-		_ = r.reportError(err, instance, "error updating list of components in the CR")
-
-		return ctrl.Result{}, err
-	}
-
 	// Initialize error list, instead of returning errors after every component is deployed
 	var componentErrors *multierror.Error
 
@@ -265,6 +257,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 	component components.ComponentInterface,
 ) (*dsc.DataScienceCluster, error) {
 	componentName := component.GetComponentName()
+
 	enabled := component.GetManagementState() == v1.Managed
 	// First set conditions to reflect a component is about to be reconciled
 	instance, err := r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
@@ -280,7 +273,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 	}
 
 	// Reconcile component
-	err = component.ReconcileComponent(r.Client, instance, r.DataScienceCluster.DSCISpec, instance.Status.InstalledComponents[componentName])
+	err = component.ReconcileComponent(ctx, r.Client, r.RestConfig, instance, r.DataScienceCluster.DSCISpec, instance.Status.InstalledComponents[componentName])
 
 	if err != nil {
 		// reconciliation failed: log errors, raise event and update status accordingly
@@ -332,36 +325,93 @@ func (r *DataScienceClusterReconciler) reportError(err error, instance *dsc.Data
 	return instance
 }
 
+var configMapPredicates = predicate.Funcs{
+	UpdateFunc: func(e event.UpdateEvent) bool {
+		// Do not reconcile on prometheus configmap update, since it is handled by DSCI
+		if e.ObjectNew.GetName() == "prometheus" && e.ObjectNew.GetNamespace() == "redhat-ods-monitoring" {
+			return false
+		}
+		return true
+	},
+}
+
+// a workaround for 2.5 due to odh-model-controller serivceaccount keeps updates with label
+var saPredicates = predicate.Funcs{
+	UpdateFunc: func(e event.UpdateEvent) bool {
+		if e.ObjectNew.GetName() == "odh-model-controller" && (e.ObjectNew.GetNamespace() == "redhat-ods-applications" || e.ObjectNew.GetNamespace() == "opendatahub") {
+			return false
+		}
+		return true
+	},
+}
+
+// a workaround for 2.5 due to modelmesh-servingruntime.serving.kserve.io keeps updates
+var modelMeshwebhookPredicates = predicate.Funcs{
+	UpdateFunc: func(e event.UpdateEvent) bool {
+		return e.ObjectNew.GetName() != "modelmesh-servingruntime.serving.kserve.io"
+	},
+}
+
+var modelMeshRolePredicates = predicate.Funcs{
+	UpdateFunc: func(e event.UpdateEvent) bool {
+		notAllowedNames := []string{"leader-election-role", "proxy-role", "metrics-reader", "kserve-prometheus-k8s", "odh-model-controller-role"}
+		for _, notallowedName := range notAllowedNames {
+			if e.ObjectNew.GetName() == notallowedName {
+				return false
+			}
+		}
+		return true
+	},
+}
+
+var modelMeshRBPredicates = predicate.Funcs{
+	UpdateFunc: func(e event.UpdateEvent) bool {
+		notAllowedNames := []string{"leader-election-rolebinding", "proxy-rolebinding", "odh-model-controller-rolebinding-opendatahub"}
+		for _, notallowedName := range notAllowedNames {
+			if e.ObjectNew.GetName() == notallowedName {
+				return false
+			}
+		}
+		return true
+	},
+}
+
+// ignore label updates if it is from application namespace
+var modelMeshGeneralPredicates = predicate.Funcs{
+	UpdateFunc: func(e event.UpdateEvent) bool {
+		if strings.Contains(e.ObjectNew.GetName(), "odh-model-controller") || strings.Contains(e.ObjectNew.GetName(), "kserve") {
+			return false
+		} else {
+			return true
+		}
+	},
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *DataScienceClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&dsc.DataScienceCluster{}).
 		Owns(&corev1.Namespace{}).
 		Owns(&corev1.Secret{}).
-		Owns(&corev1.ConfigMap{}).
+		Owns(&corev1.ConfigMap{}, builder.WithPredicates(configMapPredicates)).
 		Owns(&netv1.NetworkPolicy{}).
-		Owns(&authv1.Role{}).
-		Owns(&authv1.RoleBinding{}).
-		Owns(&authv1.ClusterRole{}).
-		Owns(&authv1.ClusterRoleBinding{}).
+		Owns(&authv1.Role{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, modelMeshRolePredicates))).
+		Owns(&authv1.RoleBinding{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, modelMeshRBPredicates))).
+		Owns(&authv1.ClusterRole{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, modelMeshRolePredicates))).
+		Owns(&authv1.ClusterRoleBinding{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, modelMeshRBPredicates))).
 		Owns(&appsv1.Deployment{}).
-		Owns(&appsv1.ReplicaSet{}).
-		Owns(&corev1.Pod{}).
 		Owns(&corev1.PersistentVolumeClaim{}).
-		Owns(&corev1.Service{}).
-		Owns(&appsv1.DaemonSet{}).
+		Owns(&corev1.Service{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, modelMeshGeneralPredicates))).
 		Owns(&appsv1.StatefulSet{}).
-		Owns(&ocappsv1.DeploymentConfig{}).
 		Owns(&ocimgv1.ImageStream{}).
 		Owns(&ocbuildv1.BuildConfig{}).
-		Owns(&apiextensionsv1.CustomResourceDefinition{}).
 		Owns(&apiregistrationv1.APIService{}).
 		Owns(&netv1.Ingress{}).
 		Owns(&admv1.MutatingWebhookConfiguration{}).
-		Owns(&admv1.ValidatingWebhookConfiguration{}).
-		Owns(&corev1.ServiceAccount{}).
+		Owns(&admv1.ValidatingWebhookConfiguration{}, builder.WithPredicates(modelMeshwebhookPredicates)).
+		Owns(&corev1.ServiceAccount{}, builder.WithPredicates(saPredicates)).
 		Watches(&source.Kind{Type: &dsci.DSCInitialization{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources)).
-		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources)).
+		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources), builder.WithPredicates(configMapPredicates)).
 		// this predicates prevents meaningless reconciliations from being triggered
 		WithEventFilter(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{})).
 		Complete(r)
@@ -389,50 +439,36 @@ func (r *DataScienceClusterReconciler) updateStatus(ctx context.Context, origina
 	return saved, err
 }
 
-func (r *DataScienceClusterReconciler) updateComponents(ctx context.Context, original *dsc.DataScienceCluster) (*dsc.DataScienceCluster, error) {
-	saved := &dsc.DataScienceCluster{}
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		err := r.Client.Get(ctx, client.ObjectKeyFromObject(original), saved)
-		if err != nil {
-			return err
-		}
-
-		// Try to update
-		err = r.Client.Update(context.TODO(), saved)
-		// Return err itself here (not wrapped inside another error)
-		// so that RetryOnConflict can identify it correctly.
-		return err
-	})
-
-	return saved, err
-}
-
 func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(a client.Object) (requests []reconcile.Request) {
 	instanceList := &dsc.DataScienceClusterList{}
 	err := r.Client.List(context.TODO(), instanceList)
 	if err != nil {
 		return nil
 	}
-	if len(instanceList.Items) == 1 {
-		// Trigger reconcile function when uninstall configmap is created
-		if a.GetObjectKind().GroupVersionKind().Kind == "ConfigMap" {
-			labels := a.GetLabels()
-			if val, ok := labels[upgrade.DeleteConfigMapLabel]; ok && val == "true" {
-				return []reconcile.Request{{
-					NamespacedName: types.NamespacedName{Name: instanceList.Items[0].Name},
-				}}
-			} else {
-				return nil
-			}
-		}
+	var requestName string
+	switch {
+	case len(instanceList.Items) == 1:
+		requestName = instanceList.Items[0].Name
+	case len(instanceList.Items) == 0:
+		requestName = "default-dsc"
+	default:
+		return nil
+	}
 
-		return []reconcile.Request{{
-			NamespacedName: types.NamespacedName{Name: instanceList.Items[0].Name},
-		}}
-	} else if len(instanceList.Items) == 0 {
-		return []reconcile.Request{{
-			NamespacedName: types.NamespacedName{Name: "default"},
-		}}
+	// Trigger reconcile function when uninstall configmap is created
+	operatorNs, err := upgrade.GetOperatorNamespace()
+	if err != nil {
+		return nil
+	}
+	if a.GetNamespace() == operatorNs {
+		labels := a.GetLabels()
+		if val, ok := labels[upgrade.DeleteConfigMapLabel]; ok && val == "true" {
+			return []reconcile.Request{{
+				NamespacedName: types.NamespacedName{Name: requestName},
+			}}
+		} else {
+			return nil
+		}
 	}
 
 	return nil

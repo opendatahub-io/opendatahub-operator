@@ -43,10 +43,12 @@ if [ "$#" -ge 1 ]; then
     done
 fi
 
-# R.I.P, odh-manifests
+TMP_DIR=$(mktemp -d -t "odh-manifests.XXXXXXXXXX")
+trap '{ rm -rf -- "$TMP_DIR"; }' EXIT
+
 
 for key in "${!COMPONENT_MANIFESTS[@]}"; do
-    echo "Cloning repo ${key}: ${COMPONENT_MANIFESTS[$key]}"
+    echo -e "\033[32mCloning repo \033[33m${key}\033[32m:\033[0m ${COMPONENT_MANIFESTS[$key]}"
     IFS=':' read -r -a repo_info <<< "${COMPONENT_MANIFESTS[$key]}"
 
     repo_org="${repo_info[0]}"
@@ -55,10 +57,12 @@ for key in "${!COMPONENT_MANIFESTS[@]}"; do
     source_path="${repo_info[3]}"
     target_path="${repo_info[4]}"
 
-    repo_url="${GITHUB_URL}/${repo_org}/${repo_name}.git"
-    rm -rf ./.${repo_name}
-    git clone --depth 1 --branch ${repo_branch} ${repo_url} ./.${repo_name}
+    repo_url="${GITHUB_URL}/${repo_org}/${repo_name}"
+    repo_dir=${TMP_DIR}/${key}
+    mkdir -p ${repo_dir}
+    git clone -q --depth 1 --branch ${repo_branch} ${repo_url} ${repo_dir}
+
     mkdir -p ./odh-manifests/${target_path}
-    cp -rf ./.${repo_name}/${source_path}/* ./odh-manifests/${target_path}
-    rm -rf ./.${repo_name}
+    cp -rf ${repo_dir}/${source_path}/* ./odh-manifests/${target_path}
+
 done

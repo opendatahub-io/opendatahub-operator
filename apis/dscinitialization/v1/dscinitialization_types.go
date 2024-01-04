@@ -49,7 +49,7 @@ type DSCInitializationSpec struct {
 	// This is not recommended to be used in production environment.
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=4
 	// +optional
-	DevFlags DevFlags `json:"devFlags,omitempty"`
+	DevFlags *DevFlags `json:"devFlags,omitempty"`
 }
 
 type Monitoring struct {

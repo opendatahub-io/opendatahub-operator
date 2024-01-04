@@ -29,7 +29,16 @@ metadata:
                 "managementState": "Managed"
               },
               "kserve": {
-                "managementState": "Removed"
+                "managementState": "Managed",
+                "serving": {
+                  "ingressGateway": {
+                    "certificate": {
+                      "type": "SelfSigned"
+                    }
+                  },
+                  "managementState": "Managed",
+                  "name": "knative-serving"
+                }
               },
               "modelmeshserving": {
                 "managementState": "Managed"
@@ -64,6 +73,14 @@ metadata:
             "monitoring": {
               "managementState": "Managed",
               "namespace": "opendatahub"
+            },
+            "serviceMesh": {
+              "controlPlane": {
+                "metricsCollection": "Istio",
+                "name": "data-science-smcp",
+                "namespace": "istio-system"
+              },
+              "managementState": "Managed"
             }
           }
         },
@@ -262,6 +279,7 @@ spec:
           verbs:
           - create
           - delete
+          - get
           - list
           - patch
           - update
@@ -300,14 +318,6 @@ spec:
         - apiGroups:
           - apps
           resources:
-          - daemonsets
-          verbs:
-          - get
-          - list
-          - watch
-        - apiGroups:
-          - apps
-          resources:
           - deployments
           verbs:
           - '*'
@@ -329,30 +339,6 @@ spec:
           - statefulsets
           verbs:
           - '*'
-        - apiGroups:
-          - apps.openshift.io
-          resources:
-          - deploymentconfigs
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - apps.openshift.io
-          resources:
-          - deploymentconfigs/instantiate
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
         - apiGroups:
           - argoproj.io
           resources:
@@ -688,16 +674,25 @@ spec:
           resources:
           - secrets
           verbs:
-          - '*'
           - create
+          - delete
           - get
+          - list
+          - patch
+          - update
           - watch
         - apiGroups:
           - ""
           resources:
           - secrets/finalizers
           verbs:
-          - '*'
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
         - apiGroups:
           - ""
           resources:
@@ -1234,10 +1229,13 @@ spec:
           resources:
           - oauthclients
           verbs:
-          - '*'
           - create
           - delete
           - get
+          - list
+          - patch
+          - update
+          - watch
         - apiGroups:
           - opendatahub.io
           resources:

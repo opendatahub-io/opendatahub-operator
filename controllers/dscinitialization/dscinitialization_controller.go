@@ -90,11 +90,25 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	case len(instances.Items) == 1:
 		instance = &instances.Items[0]
 	case len(instances.Items) > 1:
-		message := fmt.Sprintf("only one instance of DSCInitialization object is allowed. Update existing instance name %s", req.Name)
-		_, _ = r.updateStatus(ctx, instance, func(saved *dsciv1.DSCInitialization) {
-			status.SetErrorCondition(&saved.Status.Conditions, status.DuplicateDSCInitialization, message)
-			saved.Status.Phase = status.PhaseError
-		})
+		// find out the one by created timestamp and use it as the default one
+		earliestDSCI := &instances.Items[0]
+		for _, instance := range instances.Items {
+			currentDSCI := instance
+			if currentDSCI.CreationTimestamp.Before(&earliestDSCI.CreationTimestamp) {
+				earliestDSCI = &currentDSCI
+			}
+		}
+		message := fmt.Sprintf("only one instance of DSCInitialization object is allowed. Please delete other instances than %s", earliestDSCI.Name)
+		// update all instances Message and Status
+		for _, deletionInstance := range instances.Items {
+			if deletionInstance.Name != earliestDSCI.Name {
+				_, _ = r.updateStatus(ctx, &deletionInstance, func(saved *dsciv1.DSCInitialization) {
+					status.SetErrorCondition(&saved.Status.Conditions, status.DuplicateDSCInitialization, message)
+					saved.Status.Phase = status.PhaseError
+				})
+			}
+		}
+
 		return ctrl.Result{}, errors.New(message)
 	}
 
@@ -187,6 +201,15 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 		return ctrl.Result{}, nil
 	default:
+		// Check namespace is not exist, then create
+		namespace := instance.Spec.ApplicationsNamespace
+		r.Log.Info("Standard Reconciling workflow to create namespaces")
+		err = r.createOdhNamespace(ctx, instance, namespace)
+		if err != nil {
+			// no need to log error as it was already logged in createOdhNamespace
+			return reconcile.Result{}, err
+		}
+
 		// Start reconciling
 		if instance.Status.Conditions == nil {
 			reason := status.ReconcileInit
@@ -202,22 +225,6 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 				return reconcile.Result{}, err
 			}
-		}
-
-		// Check namespace is not exist, then create
-		namespace := instance.Spec.ApplicationsNamespace
-		r.Log.Info("Standard Reconciling workflow to create namespaces")
-		if err = r.createOdhNamespace(ctx, instance, namespace); err != nil {
-			// no need to log error as it was already logged in createOdhNamespace
-			return reconcile.Result{}, err
-		}
-
-		// Apply update from legacy operator
-		// TODO: Update upgrade logic to get components through KfDef
-		if err = upgrade.UpdateFromLegacyVersion(r.Client, platform); err != nil {
-			r.Log.Error(err, "unable to update from legacy operator version")
-
-			return reconcile.Result{}, err
 		}
 
 		switch platform {
@@ -297,8 +304,6 @@ func (r *DSCInitializationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&authv1.ClusterRole{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&authv1.ClusterRoleBinding{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&appsv1.Deployment{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
-		Owns(&appsv1.ReplicaSet{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
-		Owns(&corev1.Pod{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&corev1.ServiceAccount{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&corev1.Service{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&routev1.Route{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
