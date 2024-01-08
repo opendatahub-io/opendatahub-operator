@@ -48,30 +48,13 @@ func (fb *featureBuilder) UsingConfig(config *rest.Config) *featureBuilder {
 	return fb
 }
 
-func createClients(config *rest.Config) partialBuilder {
-	return func(f *Feature) error {
-		var err error
-		f.Clientset, err = kubernetes.NewForConfig(config)
-		if err != nil {
-			return err
-		}
-
-		f.DynamicClient, err = dynamic.NewForConfig(config)
-		if err != nil {
-			return err
-		}
-
-		f.Client, err = client.New(config, client.Options{})
-		if err != nil {
-			return errors.WithStack(err)
-		}
-
-		if err := apiextv1.AddToScheme(f.Client.Scheme()); err != nil {
-			return err
-		}
+func (fb *featureBuilder) EnabledWhen(enabled func(f *Feature) bool) *featureBuilder {
+	fb.builders = append(fb.builders, func(f *Feature) error {
+		f.Enabled = enabled(f)
 
 		return nil
-	}
+	})
+	return fb
 }
 
 func (fb *featureBuilder) Manifests(paths ...string) *featureBuilder {
@@ -187,4 +170,30 @@ func (fb *featureBuilder) Load() (*Feature, error) {
 	}
 
 	return feature, nil
+}
+
+func createClients(config *rest.Config) partialBuilder {
+	return func(f *Feature) error {
+		var err error
+		f.Clientset, err = kubernetes.NewForConfig(config)
+		if err != nil {
+			return err
+		}
+
+		f.DynamicClient, err = dynamic.NewForConfig(config)
+		if err != nil {
+			return err
+		}
+
+		f.Client, err = client.New(config, client.Options{})
+		if err != nil {
+			return errors.WithStack(err)
+		}
+
+		if err := apiextv1.AddToScheme(f.Client.Scheme()); err != nil {
+			return err
+		}
+
+		return nil
+	}
 }
