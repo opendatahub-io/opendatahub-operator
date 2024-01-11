@@ -53,24 +53,24 @@ func request(method string, url string) ([]byte, error) {
 
 	client, err := rest.HTTPClientFor(restCfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create HTTP client, error: %s", err)
+		return nil, fmt.Errorf("failed to create HTTP client, error: %w", err)
 	}
 
-	request, err := http.NewRequest(method, getKubeAPIURLWithPath(url).String(), nil)
+	request, err := http.NewRequestWithContext(context.Background(), method, getKubeAPIURLWithPath(url).String(), nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get api endpoint %s, error: %s", url, err)
+		return nil, fmt.Errorf("failed to get api endpoint %s, error: %w", url, err)
 	}
 
 	response, err := client.Do(request)
 	if err != nil {
-		return nil, fmt.Errorf("failed to call api endpoint %s, error: %s", url, err)
+		return nil, fmt.Errorf("failed to call api endpoint %s, error: %w", url, err)
 	}
 
 	defer response.Body.Close()
 
 	body, err := io.ReadAll(response.Body)
 	if err != nil || response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to get api endpoint %s, error: %s", url, err)
+		return nil, fmt.Errorf("failed to get api endpoint %s, error: %w", url, err)
 	}
 
 	return body, nil

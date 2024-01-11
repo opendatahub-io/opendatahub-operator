@@ -50,7 +50,7 @@ func defineServiceMeshFeatures(f *feature.FeaturesInitializer) error {
 		f.Features = append(f.Features, metricsCollection)
 	}
 
-	if oauth, err := feature.CreateFeature("service-mesh-control-plane-configure-oauth").
+	oauth, err := feature.CreateFeature("service-mesh-control-plane-configure-oauth").
 		For(f.DSCInitializationSpec).
 		Manifests(
 			path.Join(feature.ControlPlaneDir, "base"),
@@ -72,35 +72,40 @@ func defineServiceMeshFeatures(f *feature.FeaturesInitializer) error {
 		OnDelete(
 			servicemesh.RemoveOAuthClient,
 			servicemesh.RemoveTokenVolumes,
-		).Load(); err != nil {
+		).Load()
+
+	if err != nil {
 		return err
-	} else {
-		f.Features = append(f.Features, oauth)
 	}
 
-	if cfMaps, err := feature.CreateFeature("shared-config-maps").
+	f.Features = append(f.Features, oauth)
+
+	cfMaps, err := feature.CreateFeature("shared-config-maps").
 		For(f.DSCInitializationSpec).
 		WithResources(servicemesh.ConfigMaps).
-		Load(); err != nil {
+		Load()
+
+	if err != nil {
 		return err
-	} else {
-		f.Features = append(f.Features, cfMaps)
 	}
 
-	if serviceMesh, err := feature.CreateFeature("app-add-namespace-to-service-mesh").
+	f.Features = append(f.Features, cfMaps)
+
+	serviceMesh, err := feature.CreateFeature("app-add-namespace-to-service-mesh").
 		For(f.DSCInitializationSpec).
 		Manifests(
 			path.Join(feature.ControlPlaneDir, "smm.tmpl"),
 			path.Join(feature.ControlPlaneDir, "namespace.patch.tmpl"),
 		).
 		WithData(servicemesh.ClusterDetails).
-		Load(); err != nil {
+		Load()
+	if err != nil {
 		return err
-	} else {
-		f.Features = append(f.Features, serviceMesh)
 	}
 
-	if gatewayRoute, err := feature.CreateFeature("service-mesh-create-gateway-route").
+	f.Features = append(f.Features, serviceMesh)
+
+	gatewayRoute, err := feature.CreateFeature("service-mesh-create-gateway-route").
 		For(f.DSCInitializationSpec).
 		Manifests(
 			path.Join(feature.ControlPlaneDir, "routing"),
@@ -109,22 +114,25 @@ func defineServiceMeshFeatures(f *feature.FeaturesInitializer) error {
 		PostConditions(
 			feature.WaitForPodsToBeReady(serviceMeshSpec.ControlPlane.Namespace),
 		).
-		Load(); err != nil {
+		Load()
+	if err != nil {
 		return err
-	} else {
-		f.Features = append(f.Features, gatewayRoute)
 	}
 
-	if dataScienceProjects, err := feature.CreateFeature("app-migrate-data-science-projects").
+	f.Features = append(f.Features, gatewayRoute)
+
+	dataScienceProjects, err := feature.CreateFeature("app-migrate-data-science-projects").
 		For(f.DSCInitializationSpec).
 		WithResources(servicemesh.MigratedDataScienceProjects).
-		Load(); err != nil {
+		Load()
+
+	if err != nil {
 		return err
-	} else {
-		f.Features = append(f.Features, dataScienceProjects)
 	}
 
-	if extAuthz, err := feature.CreateFeature("service-mesh-control-plane-setup-external-authorization").
+	f.Features = append(f.Features, dataScienceProjects)
+
+	extAuthz, err := feature.CreateFeature("service-mesh-control-plane-setup-external-authorization").
 		For(f.DSCInitializationSpec).
 		Manifests(
 			path.Join(feature.AuthDir, "auth-smm.tmpl"),
@@ -151,11 +159,13 @@ func defineServiceMeshFeatures(f *feature.FeaturesInitializer) error {
 			},
 		).
 		OnDelete(servicemesh.RemoveExtensionProvider).
-		Load(); err != nil {
+		Load()
+
+	if err != nil {
 		return err
-	} else {
-		f.Features = append(f.Features, extAuthz)
 	}
+
+	f.Features = append(f.Features, extAuthz)
 
 	return nil
 }

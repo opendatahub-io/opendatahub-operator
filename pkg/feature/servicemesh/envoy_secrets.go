@@ -12,6 +12,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 )
 
+//nolint:gosec //reason no hardcoded credentials, template placeholder
 const tokenSecret = `
 resources:
 - "@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret"
@@ -21,6 +22,7 @@ resources:
       inline_string: "{{ .Secret }}"
 `
 
+//nolint:gosec //reason no hardcoded credentials, template placeholder
 const hmacSecret = `
 resources:
 - "@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret"
@@ -53,13 +55,13 @@ func createEnvoySecret(oAuth feature.OAuth, objectMeta metav1.ObjectMeta) (*core
 func processInlineTemplate(templateString string, data interface{}) ([]byte, error) {
 	tmpl, err := template.New("inline-template").Parse(templateString)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing template: %v", err)
+		return nil, fmt.Errorf("error parsing template: %w", err)
 	}
 
 	var output bytes.Buffer
 	err = tmpl.Execute(&output, data)
 	if err != nil {
-		return nil, fmt.Errorf("error executing template: %v", err)
+		return nil, fmt.Errorf("error executing template: %w", err)
 	}
 
 	return output.Bytes(), nil

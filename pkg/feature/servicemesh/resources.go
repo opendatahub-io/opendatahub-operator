@@ -16,7 +16,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 )
 
-// TODO rework (dupl)
+// TODO rework (dupl).
 func SelfSignedCertificate(f *feature.Feature) error {
 	if f.Spec.ControlPlane.Certificate.Type == v1.SelfSigned {
 		meta := metav1.ObjectMeta{
@@ -121,11 +121,17 @@ func setServiceMeshDisabledFlag(disabled bool) feature.Action {
 		if config.Object["spec"] == nil {
 			config.Object["spec"] = map[string]interface{}{}
 		}
-		spec := config.Object["spec"].(map[string]interface{})
+		spec, ok := config.Object["spec"].(map[string]interface{})
+		if !ok {
+			return errors.New("unable to cast .spec to map[string]interface{}")
+		}
 		if spec["dashboardConfig"] == nil {
 			spec["dashboardConfig"] = map[string]interface{}{}
 		}
-		dashboardConfig := spec["dashboardConfig"].(map[string]interface{})
+		dashboardConfig, ok := spec["dashboardConfig"].(map[string]interface{})
+		if !ok {
+			return errors.New("unable to cast .dashboardConfig to map[string]interface{}")
+		}
 		dashboardConfig["disableServiceMesh"] = disabled
 
 		if _, err := feature.DynamicClient.Resource(gvr.ODHDashboardConfigGVR).
@@ -148,12 +154,13 @@ func MigratedDataScienceProjects(feature *feature.Feature) error {
 
 	namespaces, err := namespaceClient.List(context.TODO(), metav1.ListOptions{LabelSelector: selector.String()})
 	if err != nil {
-		return fmt.Errorf("failed to get namespaces: %v", err)
+		return fmt.Errorf("failed to get namespaces: %w", err)
 	}
 
 	var result *multierror.Error
 
-	for _, namespace := range namespaces.Items {
+	for i := range namespaces.Items {
+		namespace := namespaces.Items[i]
 		annotations := namespace.GetAnnotations()
 		if annotations == nil {
 			annotations = map[string]string{}

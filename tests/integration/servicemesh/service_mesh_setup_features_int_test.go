@@ -535,7 +535,7 @@ func newDSCInitializationSpec(ns string) *dscv1.DSCInitializationSpec {
 	return &spec
 }
 
-// createSMCPInCluster uses dynamic client to create a dummy SMCP resource for testing
+// createSMCPInCluster uses dynamic client to create a dummy SMCP resource for testing.
 func createSMCPInCluster(cfg *rest.Config, smcpObj *unstructured.Unstructured, namespace string) error {
 	dynamicClient, err := dynamic.NewForConfig(cfg)
 	if err != nil {

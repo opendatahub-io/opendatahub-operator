@@ -25,7 +25,7 @@ var (
 	DependentComponentName = "notebooks"
 	// manifests for nbc in ODH and downstream + downstream use it for imageparams.
 	notebookControllerPath = deploy.DefaultManifestPath + "/odh-notebook-controller/odh-notebook-controller/base"
-	// manifests for ODH nbc
+	// manifests for ODH nbc.
 	kfnotebookControllerPath            = deploy.DefaultManifestPath + "/odh-notebook-controller/kf-notebook-controller/overlays/openshift"
 	kfnotebookControllerServiceMeshPath = deploy.DefaultManifestPath + "/odh-notebook-controller/kf-notebook-controller/overlays/service-mesh"
 	notebookImagesPath                  = deploy.DefaultManifestPath + "/notebooks/overlays/additional"
@@ -184,12 +184,10 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 		ComponentName, enabled); err != nil {
 		return err
 	}
+
 	// CloudService Monitoring handling
 	if platform == deploy.ManagedRhods {
-		err2 := w.configureMonitoring(ctx, cli, resConf, owner, dscispec)
-		if err2 != nil {
-			return err2
-		}
+		return w.configureMonitoring(ctx, cli, resConf, owner, dscispec)
 	}
 
 	return nil
@@ -209,11 +207,9 @@ func (w *Workbenches) configureMonitoring(ctx context.Context, cli client.Client
 	if err := w.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
 		return err
 	}
-	if err := deploy.DeployManifestsFromPath(cli, owner,
+
+	return deploy.DeployManifestsFromPath(cli, owner,
 		filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
 		dscispec.Monitoring.Namespace,
-		"prometheus", true); err != nil {
-		return err
-	}
-	return nil
+		"prometheus", true)
 }

@@ -41,15 +41,16 @@ linters:
     - forbidigo
     - gochecknoglobals # Prevents use of global vars.
     - gofumpt
-    - gomnd # Doesnot allow hardcoded numbers
-    - gomoddirectives # Doesnot allow replace in go mod file
+    - golint # archived
+    - gomnd # Does not allow hardcoded numbers
+    - gomoddirectives # Does not allow replace in go mod file
     - interfacer
     - nestif
     - nilnil
     - nosnakecase # snakecase is used in a lot of places. Need to check if that is required.
     - paralleltest # [too many false positives] detects missing usage of t.Parallel() method in your Go test
     - tagliatelle
-    - varnamelen # doesnot allow shorter names like c,k etc. But golang prefers short named vars.
+    - varnamelen # does not allow shorter names like c,k etc. But golang prefers short named vars.
     - wsl # [too strict and mostly code is not more readable] whitespace linter forces you to use empty lines
     - wrapcheck # check if this is required. Prevents direct return of err.
 
@@ -70,3 +71,5 @@ issues:
       linters:
         - typecheck
         - dupl
+        - errcheck
+        - forcetypeassert

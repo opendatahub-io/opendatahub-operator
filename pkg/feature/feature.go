@@ -47,7 +47,7 @@ type Feature struct {
 // Action is a func type which can be used for different purposes while having access to Feature struct.
 type Action func(feature *Feature) error
 
-func (f *Feature) Apply() (err error) {
+func (f *Feature) Apply() (err error) { //nolint:nonamedreturns //reason we use this error value in deferred update of the status
 	if !f.Enabled {
 		log.Info("feature is disabled, skipping.", "feature", f.Name)
 

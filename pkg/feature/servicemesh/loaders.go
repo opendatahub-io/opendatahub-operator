@@ -10,7 +10,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 )
 
-const DefaultCertificateSecretName = "opendatahub-cert"
+const DefaultCertificateSecretName = "opendatahub-cert" //nolint:gosec //reason false-positive. it is a name of the secret, not the value.
 
 func DefaultValues(f *feature.Feature) error {
 	certificateSecretName := strings.TrimSpace(f.Spec.ControlPlane.Certificate.SecretName)
