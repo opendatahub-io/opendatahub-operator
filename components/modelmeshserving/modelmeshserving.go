@@ -141,9 +141,8 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 		}
 	}
 	if err := deploy.DeployManifestsFromPath(cli, owner, DependentPath, dscispec.ApplicationsNamespace, m.GetComponentName(), enabled); err != nil {
-		if strings.Contains(err.Error(), "spec.selector") && strings.Contains(err.Error(), "field is immutable") {
-			// ignore this error
-		} else {
+		// explicitly ignore error if error contains keywords "spec.selector" and "field is immutable" and return all other error.
+		if !strings.Contains(err.Error(), "spec.selector") || !strings.Contains(err.Error(), "field is immutable") {
 			return err
 		}
 	}

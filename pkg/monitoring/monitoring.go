@@ -12,14 +12,14 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-// WaitForDeploymentAvailable to check if component deployment from 'namepsace' is ready within 'timeout' before apply prometheus rules for the component
-func WaitForDeploymentAvailable(ctx context.Context, restConfig *rest.Config, componentName string, namespace string, interval int, timeout int) error {
+// WaitForDeploymentAvailable to check if component deployment from 'namepsace' is ready within 'timeout' before apply prometheus rules for the component.
+func WaitForDeploymentAvailable(_ context.Context, restConfig *rest.Config, componentName string, namespace string, interval int, timeout int) error {
 	resourceInterval := time.Duration(interval) * time.Second
 	resourceTimeout := time.Duration(timeout) * time.Minute
 	return wait.PollUntilContextTimeout(context.TODO(), resourceInterval, resourceTimeout, true, func(ctx context.Context) (bool, error) {
 		clientset, err := kubernetes.NewForConfig(restConfig)
 		if err != nil {
-			return false, fmt.Errorf("error getting client %v", err)
+			return false, fmt.Errorf("error getting client %w", err)
 		}
 		componentDeploymentList, err := clientset.AppsV1().Deployments(namespace).List(context.TODO(), metav1.ListOptions{
 			LabelSelector: "app.opendatahub.io/" + componentName,

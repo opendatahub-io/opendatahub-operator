@@ -150,7 +150,7 @@ func createServiceMeshControlPlane(name, namespace string) {
 	Expect(createSMCPInCluster(envTest.Config, serviceMeshControlPlane, namespace)).To(Succeed())
 }
 
-// createSMCPInCluster uses dynamic client to create a dummy SMCP resource for testing
+// createSMCPInCluster uses dynamic client to create a dummy SMCP resource for testing.
 func createSMCPInCluster(cfg *rest.Config, smcpObj *unstructured.Unstructured, namespace string) error {
 	dynamicClient, err := dynamic.NewForConfig(cfg)
 	if err != nil {

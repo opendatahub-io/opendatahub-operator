@@ -35,7 +35,7 @@ var (
 // - Pod security labels for baseline permissions
 // - ConfigMap  'odh-common-config'
 // - Network Policies 'opendatahub' that allow traffic between the ODH namespaces
-// - RoleBinding 'opendatahub'
+// - RoleBinding 'opendatahub'.
 func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, dscInit *dsci.DSCInitialization, name string) error {
 	platform, err := deploy.GetPlatform(r.Client)
 	if err != nil {
@@ -74,8 +74,8 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 			return err
 		}
 	} else if dscInit.Spec.Monitoring.ManagementState == operatorv1.Managed {
-		r.Log.Info("Patching application namespace", "name", name)
-		labelPatch := `{"metadata":{"labels":{"openshift.io/cluster-monitoring":"true","pod-security.kubernetes.io/enforce":"baseline","opendatahub.io/generated-namespace": "true"}}}` //nolint
+		r.Log.Info("Patching application namespace for Managed cluster", "name", name)
+		labelPatch := `{"metadata":{"labels":{"openshift.io/cluster-monitoring":"true","pod-security.kubernetes.io/enforce":"baseline","opendatahub.io/generated-namespace": "true"}}}`
 		err = r.Patch(ctx, foundNamespace, client.RawPatch(types.MergePatchType,
 			[]byte(labelPatch)))
 		if err != nil {
@@ -133,11 +133,10 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 			operatorNamespace := &corev1.Namespace{}
 			if err := r.Get(ctx, client.ObjectKey{Name: operatorNs}, operatorNamespace); err != nil {
 				return err
-			} else {
-				err = r.Patch(ctx, operatorNamespace, client.RawPatch(types.MergePatchType, []byte(labelPatch)))
-				if err != nil {
-					return err
-				}
+			}
+			err = r.Patch(ctx, operatorNamespace, client.RawPatch(types.MergePatchType, []byte(labelPatch)))
+			if err != nil {
+				return err
 			}
 		}
 	}
@@ -355,8 +354,8 @@ func CompareNotebookNetworkPolicies(np1 netv1.NetworkPolicy, np2 netv1.NetworkPo
 
 func (r *DSCInitializationReconciler) waitForManagedSecret(ctx context.Context, name string, namespace string) (*corev1.Secret, error) {
 	managedSecret := &corev1.Secret{}
-	err := wait.PollUntilContextTimeout(ctx, resourceInterval, resourceTimeout, false, func(ctx context.Context) (done bool, err error) {
-		err = r.Client.Get(ctx, client.ObjectKey{
+	err := wait.PollUntilContextTimeout(ctx, resourceInterval, resourceTimeout, false, func(ctx context.Context) (bool, error) {
+		err := r.Client.Get(ctx, client.ObjectKey{
 			Namespace: namespace,
 			Name:      name,
 		}, managedSecret)
@@ -366,9 +365,8 @@ func (r *DSCInitializationReconciler) waitForManagedSecret(ctx context.Context, 
 				return false, nil
 			}
 			return false, err
-		} else {
-			return true, nil
 		}
+		return true, nil
 	})
 
 	return managedSecret, err
@@ -382,8 +380,7 @@ func GenerateRandomHex(length int) ([]byte, error) {
 	randomBytes := make([]byte, numBytes)
 
 	// Read random bytes from the crypto/rand source
-	_, err := rand.Read(randomBytes)
-	if err != nil {
+	if _, err := rand.Read(randomBytes); err != nil {
 		return nil, err
 	}
 
