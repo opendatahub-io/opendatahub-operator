@@ -67,25 +67,26 @@ func (m *manifest) targetPath() string {
 	return fmt.Sprintf("%s%s", m.path[:len(m.path)-len(filepath.Ext(m.path))], ".yaml")
 }
 
-func (m *manifest) processTemplate(fsys fs.FS, data interface{}) error {
+func (m *manifest) process(fsys fs.FS, data interface{}) error {
+	manifestFile, err := fsys.Open(m.path)
+	if err != nil {
+		log.Error(err, "Failed to open manifest file", "path", m.path)
+		return err
+	}
+	defer manifestFile.Close()
+
+	content, err := io.ReadAll(manifestFile)
+	if err != nil {
+		log.Error(err, "Failed to read manifest file", "path", m.path)
+		return err
+	}
+
 	if !m.template {
+		m.processedContent = string(content)
 		return nil
 	}
 
-	templateFile, err := fsys.Open(m.path)
-	if err != nil {
-		log.Error(err, "Failed to open template file", "path", m.path)
-		return err
-	}
-	defer templateFile.Close()
-
-	templateContent, err := io.ReadAll(templateFile)
-	if err != nil {
-		log.Error(err, "Failed to read template file", "path", m.path)
-		return err
-	}
-
-	tmpl, err := template.New(m.name).Funcs(template.FuncMap{"ReplaceChar": ReplaceChar}).Parse(string(templateContent))
+	tmpl, err := template.New(m.name).Funcs(template.FuncMap{"ReplaceChar": ReplaceChar}).Parse(string(content))
 	if err != nil {
 		log.Error(err, "Failed to template for file", "path", m.path)
 		return err
