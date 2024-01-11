@@ -35,6 +35,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	authv1 "k8s.io/api/rbac/v1"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
@@ -103,6 +104,17 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	instance := &instances.Items[0]
+
+	// If DSC CR exist and deletion CM exist
+	// delete DSC CR and let reconcile requeue
+	if upgrade.HasDeleteConfigMap(r.Client) {
+		if err := r.Client.Delete(context.TODO(), instance); err != nil {
+			if !apierrs.IsNotFound(err) {
+				return reconcile.Result{}, err
+			}
+		}
+		return reconcile.Result{Requeue: true}, nil
+	}
 
 	if len(instances.Items) > 1 {
 		message := fmt.Sprintf("only one instance of DataScienceCluster object is allowed. Update existing instance %s", req.Name)
