@@ -21,7 +21,7 @@ type featureBuilder struct {
 	builders []partialBuilder
 }
 
-func CreateFeature(name string) *featureBuilder {
+func CreateFeature(name string) *featureBuilder { //nolint:golint,revive //No need to export featureBuilder.
 	return &featureBuilder{name: name}
 }
 
@@ -66,7 +66,7 @@ func createClients(config *rest.Config) partialBuilder {
 			return errors.WithStack(err)
 		}
 
-		if err := apiextv1.AddToScheme(f.Client.Scheme()); err != nil {
+		if err := apiextv1.AddToScheme(f.Client.Scheme()); err != nil { //nolint:revive,nolintlint
 			return err
 		}
 

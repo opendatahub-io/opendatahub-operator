@@ -60,7 +60,7 @@ var (
 	setupLog = ctrl.Log.WithName("setup")
 )
 
-func init() {
+func init() { //nolint:gochecknoinits
 	//+kubebuilder:scaffold:scheme
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(dsci.AddToScheme(scheme))

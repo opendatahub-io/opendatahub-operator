@@ -82,7 +82,7 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, r
 		}
 
 		if found, err := deploy.OperatorExists(cli, dependentOperator); err != nil {
-			return fmt.Errorf("operator exists throws error %v", err)
+			return fmt.Errorf("operator exists throws error %w", err)
 		} else if found {
 			return fmt.Errorf("operator %s is found. Please uninstall the operator before enabling %s component",
 				dependentOperator, ComponentName)
@@ -97,7 +97,7 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, r
 	}
 
 	// Deploy Codeflare
-	if err := deploy.DeployManifestsFromPath(cli, owner,
+	if err := deploy.DeployManifestsFromPath(cli, owner, //nolint:revive,nolintlint
 		CodeflarePath,
 		dscispec.ApplicationsNamespace,
 		ComponentName, enabled); err != nil {
