@@ -41,6 +41,18 @@ spec:
             type: object
           spec:
             description: FeatureTrackerSpec defines the desired state of FeatureTracker.
+            properties:
+              appNamespace:
+                type: string
+              origin:
+                description: Origin describes the type of object that created the
+                  related Feature to this FeatureTracker.
+                properties:
+                  name:
+                    type: string
+                  type:
+                    type: string
+                type: object
             type: object
           status:
             description: FeatureTrackerStatus defines the observed state of FeatureTracker.

@@ -8,8 +8,10 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 
@@ -39,9 +41,10 @@ var _ = Describe("preconditions", func() {
 			namespace = envtestutil.AppendRandomNameTo(testFeatureName)
 
 			dsciSpec := newDSCInitializationSpec(namespace)
+			origin := envtestutil.NewOrigin(featurev1.DSCIType, "default")
 			var err error
 			testFeature, err = feature.CreateFeature(testFeatureName).
-				For(dsciSpec).
+				For(dsciSpec, origin).
 				UsingConfig(envTest.Config).
 				Load()
 			Expect(err).ToNot(HaveOccurred())
@@ -79,10 +82,12 @@ var _ = Describe("preconditions", func() {
 		var (
 			dsciSpec            *dscv1.DSCInitializationSpec
 			verificationFeature *feature.Feature
+			origin              featurev1.Origin
 		)
 
 		BeforeEach(func() {
 			dsciSpec = newDSCInitializationSpec("default")
+			origin = envtestutil.NewOrigin(featurev1.DSCIType, "default")
 		})
 
 		It("should successfully check for existing CRD", func() {
@@ -91,7 +96,7 @@ var _ = Describe("preconditions", func() {
 
 			var err error
 			verificationFeature, err = feature.CreateFeature("CRD verification").
-				For(dsciSpec).
+				For(dsciSpec, origin).
 				UsingConfig(envTest.Config).
 				PreConditions(feature.EnsureCRDIsInstalled(name)).
 				Load()
@@ -110,7 +115,7 @@ var _ = Describe("preconditions", func() {
 
 			var err error
 			verificationFeature, err = feature.CreateFeature("CRD verification").
-				For(dsciSpec).
+				For(dsciSpec, origin).
 				UsingConfig(envTest.Config).
 				PreConditions(feature.EnsureCRDIsInstalled(name)).
 				Load()
@@ -127,12 +132,71 @@ var _ = Describe("preconditions", func() {
 
 })
 
+var _ = Describe("feature trackers", func() {
+	Context("ensuring feature trackers indicate status and phase", func() {
+
+		var (
+			dsciSpec *dscv1.DSCInitializationSpec
+			origin   featurev1.Origin
+		)
+
+		BeforeEach(func() {
+			dsciSpec = newDSCInitializationSpec("default")
+			origin = envtestutil.NewOrigin(featurev1.DSCIType, "default")
+
+		})
+
+		It("should correctly indicate origin in the feature tracker", func() {
+			verificationFeature, err := feature.CreateFeature("empty-feature").
+				For(dsciSpec, origin).
+				UsingConfig(envTest.Config).
+				Load()
+			Expect(err).ToNot(HaveOccurred())
+
+			// when
+			Expect(verificationFeature.Apply()).To(Succeed())
+
+			// then
+			featureTracker := getFeatureTracker("default-empty-feature")
+			Expect(featureTracker.Spec.Origin.Name).To(Equal("default"))
+			Expect(featureTracker.Spec.Origin.Type).To(Equal(featurev1.DSCIType))
+		})
+
+		It("should correctly indicate app namespace in the feature tracker", func() {
+			verificationFeature, err := feature.CreateFeature("empty-feature").
+				For(dsciSpec, origin).
+				UsingConfig(envTest.Config).
+				Load()
+			Expect(err).ToNot(HaveOccurred())
+
+			// when
+			Expect(verificationFeature.Apply()).To(Succeed())
+
+			// then
+			featureTracker := getFeatureTracker("default-empty-feature")
+			Expect(featureTracker.Spec.AppNamespace).To(Equal("default"))
+		})
+	})
+
+})
+
 func createNamespace(name string) *v1.Namespace {
 	return &v1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
 	}
+}
+
+func getFeatureTracker(name string) *featurev1.FeatureTracker {
+	tracker := &featurev1.FeatureTracker{}
+	err := envTestClient.Get(context.Background(), client.ObjectKey{
+		Name: name,
+	}, tracker)
+
+	Expect(err).ToNot(HaveOccurred())
+
+	return tracker
 }
 
 func newDSCInitializationSpec(ns string) *dscv1.DSCInitializationSpec {

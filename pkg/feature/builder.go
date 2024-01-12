@@ -11,6 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	v1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/infrastructure/v1"
 )
 
@@ -26,11 +27,12 @@ func CreateFeature(name string) *featureBuilder { //nolint:golint,revive //No ne
 	return &featureBuilder{name: name}
 }
 
-func (fb *featureBuilder) For(spec *v1.DSCInitializationSpec) *featureBuilder {
+func (fb *featureBuilder) For(spec *v1.DSCInitializationSpec, origin featurev1.Origin) *featureBuilder {
 	createSpec := func(f *Feature) error {
 		f.Spec = &Spec{
 			ServiceMeshSpec: &spec.ServiceMesh,
 			Serving:         &infrav1.ServingSpec{},
+			Origin:          &origin,
 			AppNamespace:    spec.ApplicationsNamespace,
 		}
 
