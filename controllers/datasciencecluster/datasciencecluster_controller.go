@@ -106,8 +106,13 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	instance := &instances.Items[0]
 
 	// If DSC CR exist and deletion CM exist
-	// delete DSC CR and let reconcile requeue
+	// cleanup finalizer first then delete DSC CR and let reconcile requeue
 	if upgrade.HasDeleteConfigMap(r.Client) {
+		if controllerutil.ContainsFinalizer(instance, finalizerName) {
+			if controllerutil.RemoveFinalizer(instance, finalizerName) {
+				fmt.Println("Removed finalizer: "+ finalizerName)
+			}
+		}
 		if err := r.Client.Delete(context.TODO(), instance); err != nil {
 			if !apierrs.IsNotFound(err) {
 				return reconcile.Result{}, err
