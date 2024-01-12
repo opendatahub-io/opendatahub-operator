@@ -172,7 +172,7 @@ var _ = Describe("Manifest sources", func() {
 			// then
 			service, err := getService("knative-local-gateway", "service-ns")
 			Expect(err).ToNot(HaveOccurred())
-			Expect(service).ToNot(BeNil())
+			Expect(service.Name).To(Equal("knative-local-gateway"))
 		})
 
 		It("should be able to process an embedded YAML file from the default location", func() {
@@ -190,12 +190,12 @@ var _ = Describe("Manifest sources", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			// when
-			By("verifying gateway is created after applying feature", func() {
-				Expect(createGateway.Apply()).To(Succeed())
-				gateway, err := getGateway(envTest.Config, "knative-serving", "knative-local-gateway")
-				Expect(err).ToNot(HaveOccurred())
-				Expect(gateway).ToNot(BeNil())
-			})
+			Expect(createGateway.Apply()).To(Succeed())
+
+			// then
+			gateway, err := getGateway(envTest.Config, "knative-serving", "knative-local-gateway")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(gateway).ToNot(BeNil())
 		})
 
 		It("should be able to process an embedded file from a non default location", func() {
@@ -209,12 +209,12 @@ var _ = Describe("Manifest sources", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			// when
-			By("verifying namespace is created after applying feature", func() {
-				Expect(createNs.Apply()).To(Succeed())
-				namespace, err := getNamespace("embedded-test-ns")
-				Expect(err).ToNot(HaveOccurred())
-				Expect(namespace).ToNot(BeNil())
-			})
+			Expect(createNs.Apply()).To(Succeed())
+
+			// then
+			namespace, err := getNamespace("embedded-test-ns")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(namespace.Name).To(Equal("embedded-test-ns"))
 		})
 
 		It("should source manifests from a specified temporary directory within the file system", func() {
@@ -238,12 +238,12 @@ metadata:
 			Expect(err).ToNot(HaveOccurred())
 
 			// when
-			By("verifying namespace is created after applying feature", func() {
-				Expect(createNs.Apply()).To(Succeed())
-				namespace, err := getNamespace("real-file-test-ns")
-				Expect(err).ToNot(HaveOccurred())
-				Expect(namespace).ToNot(BeNil())
-			})
+			Expect(createNs.Apply()).To(Succeed())
+
+			// then
+			namespace, err := getNamespace("real-file-test-ns")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(namespace.Name).To(Equal("real-file-test-ns"))
 		})
 	})
 })
