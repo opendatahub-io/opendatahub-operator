@@ -1,0 +1,8 @@
+kind: OAuthClient           
+apiVersion: oauth.openshift.io/v1
+metadata:
+ name: {{ .AppNamespace }}-oauth2-client
+secret: "{{ .OAuth.ClientSecret }}"
+redirectURIs:
+- "https://{{ .AppNamespace }}.{{ .Domain}}" 
+grantMethod: prompt

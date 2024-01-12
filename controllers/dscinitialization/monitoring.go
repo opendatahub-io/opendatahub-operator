@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
@@ -76,7 +77,7 @@ func (r *DSCInitializationReconciler) configureManagedMonitoring(ctx context.Con
 	}
 
 	if initial == "init" {
-		err := common.UpdatePodSecurityRolebinding(r.Client, []string{"redhat-ods-monitoring"}, dscInit.Spec.Monitoring.Namespace)
+		err := cluster.UpdatePodSecurityRolebinding(r.Client, dscInit.Spec.Monitoring.Namespace, "redhat-ods-monitoring")
 		if err != nil {
 			return fmt.Errorf("error to update monitoring security rolebinding: %w", err)
 		}
@@ -113,7 +114,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 
 	// Replace variables in alertmanager configmap for the initial time
 	// TODO: Following variables can later be exposed by the API
-	err = common.ReplaceStringsInFile(filepath.Join(alertManagerPath, "alertmanager-configs.yaml"),
+	err = common.ReplaceInFile(filepath.Join(alertManagerPath, "alertmanager-configs.yaml"),
 		map[string]string{
 			"<snitch_url>":      string(deadmansnitchSecret.Data["SNITCH_URL"]),
 			"<pagerduty_token>": string(pagerDutySecret.Data["PAGERDUTY_KEY"]),
@@ -135,7 +136,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 	}
 	if strings.Contains(consolelinkDomain, "devshift.org") {
 		r.Log.Info("inject alertmanage-configs.yaml for dev mode1")
-		err = common.ReplaceStringsInFile(filepath.Join(alertManagerPath, "alertmanager-configs.yaml"),
+		err = common.ReplaceInFile(filepath.Join(alertManagerPath, "alertmanager-configs.yaml"),
 			map[string]string{
 				"@devshift.net": "@rhmw.io",
 			})
@@ -146,7 +147,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 	}
 	if strings.Contains(consolelinkDomain, "aisrhods") {
 		r.Log.Info("inject alertmanage-configs.yaml for dev mode2")
-		err = common.ReplaceStringsInFile(filepath.Join(alertManagerPath, "alertmanager-configs.yaml"),
+		err = common.ReplaceInFile(filepath.Join(alertManagerPath, "alertmanager-configs.yaml"),
 			map[string]string{
 				"receiver: PagerDuty": "receiver: alerts-sink",
 			})
@@ -197,7 +198,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 
 func configurePrometheus(ctx context.Context, dsciInit *dsci.DSCInitialization, r *DSCInitializationReconciler) error {
 	// Update rolebinding-viewer
-	err := common.ReplaceStringsInFile(filepath.Join(prometheusManifestsPath, "prometheus-rolebinding-viewer.yaml"),
+	err := common.ReplaceInFile(filepath.Join(prometheusManifestsPath, "prometheus-rolebinding-viewer.yaml"),
 		map[string]string{
 			"<odh_monitoring_project>": dsciInit.Spec.Monitoring.Namespace,
 		})
@@ -210,7 +211,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsci.DSCInitialization, 
 	if err != nil {
 		return fmt.Errorf("error getting console route URL : %w", err)
 	}
-	err = common.ReplaceStringsInFile(filepath.Join(prometheusConfigPath, "prometheus-configs.yaml"),
+	err = common.ReplaceInFile(filepath.Join(prometheusConfigPath, "prometheus-configs.yaml"),
 		map[string]string{
 			"<odh_application_namespace>": dsciInit.Spec.ApplicationsNamespace,
 			"<odh_monitoring_project>":    dsciInit.Spec.Monitoring.Namespace,
@@ -286,7 +287,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsci.DSCInitialization, 
 	// r.Log.Info("Success: read alertmanager data from alertmanage.yml")
 
 	// Update prometheus deployment with alertmanager and prometheus data
-	err = common.ReplaceStringsInFile(filepath.Join(prometheusManifestsPath, "prometheus-deployment.yaml"),
+	err = common.ReplaceInFile(filepath.Join(prometheusManifestsPath, "prometheus-deployment.yaml"),
 		map[string]string{
 			"<set_alertmanager_host>": alertmanagerRoute.Spec.Host,
 		})
@@ -445,7 +446,7 @@ func (r *DSCInitializationReconciler) configureCommonMonitoring(dsciInit *dsci.D
 	}
 	// configure monitoring base
 	monitoringBasePath := filepath.Join(deploy.DefaultManifestPath, "monitoring", "base")
-	err := common.ReplaceStringsInFile(filepath.Join(monitoringBasePath, "rhods-servicemonitor.yaml"),
+	err := common.ReplaceInFile(filepath.Join(monitoringBasePath, "rhods-servicemonitor.yaml"),
 		map[string]string{
 			"<odh_monitoring_project>": dsciInit.Spec.Monitoring.Namespace,
 		})

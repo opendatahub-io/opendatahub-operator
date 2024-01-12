@@ -86,7 +86,7 @@ E2E_TEST_FLAGS = "--skip-deletion=false" -timeout 15m # See README.md, default g
 # Default image-build is to not use local odh-manifests folder
 # set to "true" to use local instead
 # see target "image-build"
-IMAGE_BUILD_FLAGS = --build-arg USE_LOCAL=false
+IMAGE_BUILD_FLAGS = --build-arg FETCH_MANIFESTS=true
 
 .PHONY: all
 all: build
@@ -304,7 +304,7 @@ toolbox: ## Create a toolbox instance with the proper Golang and Operator SDK ve
 	toolbox create opendatahub-toolbox --image localhost/opendatahub-toolbox:latest
 
 # Run tests.
-TEST_SRC=./controllers/... ./tests/integration/features/...
+TEST_SRC=./controllers/... ./tests/integration/...
 
 .PHONY: envtest
 envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.

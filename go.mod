@@ -3,6 +3,7 @@ module github.com/opendatahub-io/opendatahub-operator/v2
 go 1.19
 
 require (
+	github.com/bitly/go-simplejson v0.5.1
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-logr/logr v1.2.4
 	github.com/hashicorp/go-multierror v1.1.1

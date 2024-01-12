@@ -1,0 +1,15 @@
+apiVersion: operator.authorino.kuadrant.io/v1beta1
+kind: Authorino
+metadata:
+  name: {{ .Auth.Authorino.Name }}
+  namespace: {{ .Auth.Namespace }}
+spec:
+  image: {{ .Auth.Authorino.Image }}
+  authConfigLabelSelectors: {{ .Auth.Authorino.Label }}
+  clusterWide: true
+  listener:
+    tls:
+      enabled: false
+  oidcServer:
+    tls:
+      enabled: false

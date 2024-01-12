@@ -16,6 +16,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -70,6 +71,9 @@ var _ = BeforeSuite(func() {
 	config, err := envTest.Start()
 	Expect(err).NotTo(HaveOccurred())
 	Expect(config).NotTo(BeNil())
+
+	err = featurev1.AddToScheme(testScheme)
+	Expect(err).NotTo(HaveOccurred())
 
 	envTestClient, err = client.New(config, client.Options{Scheme: testScheme})
 	Expect(err).NotTo(HaveOccurred())

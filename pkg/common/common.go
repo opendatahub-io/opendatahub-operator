@@ -27,57 +27,25 @@ import (
 	"strings"
 
 	routev1 "github.com/openshift/api/route/v1"
-	authv1 "k8s.io/api/rbac/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// UpdatePodSecurityRolebinding update default rolebinding which is created in namespace by manifests
-// being used by different components and sre monitoring.
-func UpdatePodSecurityRolebinding(cli client.Client, serviceAccountsList []string, namespace string) error {
-	foundRoleBinding := &authv1.RoleBinding{}
-	err := cli.Get(context.TODO(), client.ObjectKey{Name: namespace, Namespace: namespace}, foundRoleBinding)
-	if err != nil {
-		return err
-	}
-
-	for _, sa := range serviceAccountsList {
-		// Append serviceAccount if not added already
-		if !subjectExistInRoleBinding(foundRoleBinding.Subjects, sa, namespace) {
-			foundRoleBinding.Subjects = append(foundRoleBinding.Subjects, authv1.Subject{
-				Kind:      authv1.ServiceAccountKind,
-				Name:      sa,
-				Namespace: namespace,
-			})
-		}
-	}
-
-	return cli.Update(context.TODO(), foundRoleBinding)
-}
-
-// Internal function used by UpdatePodSecurityRolebinding()
-// Return whether Rolebinding matching service account and namespace exists or not.
-func subjectExistInRoleBinding(subjectList []authv1.Subject, serviceAccountName, namespace string) bool {
-	for _, subject := range subjectList {
-		if subject.Name == serviceAccountName && subject.Namespace == namespace {
-			return true
-		}
-	}
-
-	return false
-}
-
-// ReplaceStringsInFile replaces variable with value in manifests during runtime.
-func ReplaceStringsInFile(fileName string, replacements map[string]string) error {
+// ReplaceInFile replaces content in the given file either by plain strings or regex patterns based on the content.
+func ReplaceInFile(fileName string, replacements map[string]string) error {
 	// Read the contents of the file
 	fileContent, err := os.ReadFile(fileName)
 	if err != nil {
 		return fmt.Errorf("failed to read file: %w", err)
 	}
 
-	// Replace all occurrences of the strings in the map
+	// Replace content using string or regex
 	newContent := string(fileContent)
-	for string1, string2 := range replacements {
-		newContent = strings.ReplaceAll(newContent, string1, string2)
+	for pattern, replacement := range replacements {
+		regexPattern, err := regexp.Compile(pattern)
+		if err != nil {
+			return fmt.Errorf("failed to compile pattern: %w", err)
+		}
+		newContent = regexPattern.ReplaceAllString(newContent, replacement)
 	}
 
 	// Write the modified content back to the file

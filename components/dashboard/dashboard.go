@@ -21,23 +21,27 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/monitoring"
 )
 
 var (
-	ComponentName          = "dashboard"
-	ComponentNameSupported = "rhods-dashboard"
-	Path                   = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
-	PathSupported          = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/rhods"
-	PathISVSM              = deploy.DefaultManifestPath + "/" + ComponentName + "/apps/apps-onprem"
-	PathISVAddOn           = deploy.DefaultManifestPath + "/" + ComponentName + "/apps/apps-addon"
-	PathOVMS               = deploy.DefaultManifestPath + "/" + ComponentName + "/modelserving"
-	PathODHDashboardConfig = deploy.DefaultManifestPath + "/" + ComponentName + "/odhdashboardconfig"
-	PathConsoleLink        = deploy.DefaultManifestPath + "/" + ComponentName + "/consolelink"
-	PathCRDs               = deploy.DefaultManifestPath + "/" + ComponentName + "/crd"
-	NameConsoleLink        = "console"
-	NamespaceConsoleLink   = "openshift-console"
-	PathAnaconda           = deploy.DefaultManifestPath + "/partners/anaconda/base/"
+	ComponentName            = "dashboard"
+	ComponentNameSupported   = "rhods-dashboard"
+	Path                     = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
+	PathServiceMesh          = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/service-mesh"
+	PathSupported            = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/rhods"
+	PathISVSM                = deploy.DefaultManifestPath + "/" + ComponentName + "/apps/apps-onprem"
+	PathISVAddOn             = deploy.DefaultManifestPath + "/" + ComponentName + "/apps/apps-addon"
+	PathOVMS                 = deploy.DefaultManifestPath + "/" + ComponentName + "/modelserving"
+	PathODHDashboardConfig   = deploy.DefaultManifestPath + "/" + ComponentName + "/odhdashboardconfig"
+	PathODHProjectController = deploy.DefaultManifestPath + "/" + ProjectController + "/base"
+	PathConsoleLink          = deploy.DefaultManifestPath + "/" + ComponentName + "/consolelink"
+	PathCRDs                 = deploy.DefaultManifestPath + "/" + ComponentName + "/crd"
+	NameConsoleLink          = "console"
+	NamespaceConsoleLink     = "openshift-console"
+	PathAnaconda             = deploy.DefaultManifestPath + "/partners/anaconda/base/"
+	ProjectController        = "odh-project-controller"
 )
 
 // Verifies that Dashboard implements ComponentInterface.
@@ -110,9 +114,8 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 				return err
 			}
 		}
-		if platform == deploy.OpenDataHub || platform == "" {
-			err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "odh-dashboard")
-			if err != nil {
+		if platform == deploy.OpenDataHub || platform == deploy.Unknown {
+			if err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "odh-dashboard"); err != nil {
 				return err
 			}
 			// Deploy CRDs
@@ -122,8 +125,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		}
 
 		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
-			err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "rhods-dashboard")
-			if err != nil {
+			if err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "rhods-dashboard"); err != nil {
 				return err
 			}
 			// Deploy CRDs
@@ -145,11 +147,22 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 	}
 
 	// Deploy odh-dashboard manifests
-	if platform == deploy.OpenDataHub || platform == "" {
-		if err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+	switch {
+	case platform == deploy.OpenDataHub, platform == deploy.Unknown:
+		base := Path
+		// TODO re-evaluate
+		if dscispec.ServiceMesh.ManagementState == operatorv1.Managed {
+			base = PathServiceMesh
+		}
+		if err = deploy.DeployManifestsFromPath(cli, owner, base, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 			return err
 		}
-	} else if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
+
+		if err := d.configureServiceMesh(cli, owner, dscispec); err != nil {
+			return err
+		}
+
+	case platform == deploy.SelfManagedRhods, platform == deploy.ManagedRhods:
 		// Apply authentication overlay
 		if err := deploy.DeployManifestsFromPath(cli, owner, PathSupported, dscispec.ApplicationsNamespace, ComponentNameSupported, enabled); err != nil {
 			return err
@@ -196,6 +209,27 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 	}
 }
 
+func (d *Dashboard) Cleanup(cli client.Client, dscispec *dsciv1.DSCInitializationSpec) error {
+	shouldConfigureServiceMesh, err := deploy.ShouldConfigureServiceMesh(cli, dscispec)
+	if err != nil {
+		return err
+	}
+
+	if shouldConfigureServiceMesh {
+		serviceMeshInitializer := feature.NewFeaturesInitializer(dscispec, d.defineServiceMeshFeatures(dscispec))
+
+		if err := serviceMeshInitializer.Prepare(); err != nil {
+			return err
+		}
+
+		if err := serviceMeshInitializer.Delete(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (d *Dashboard) deployCRDsForPlatform(cli client.Client, owner metav1.Object, namespace string, platform deploy.Platform) error {
 	componentName := ComponentName
 	if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
@@ -214,7 +248,7 @@ func (d *Dashboard) applyRhodsSpecificConfigs(cli client.Client, owner metav1.Ob
 		deploy.ManagedRhods:     "dedicated-admins",
 	}[platform]
 
-	if err := common.ReplaceStringsInFile(dashboardConfig, map[string]string{"<admin_groups>": adminGroups}); err != nil {
+	if err := common.ReplaceInFile(dashboardConfig, map[string]string{"<admin_groups>": adminGroups}); err != nil {
 		return err
 	}
 
@@ -263,7 +297,7 @@ func (d *Dashboard) deployConsoleLink(cli client.Client, owner metav1.Object, na
 
 	domainIndex := strings.Index(consoleRoute.Spec.Host, ".")
 	consoleLinkDomain := consoleRoute.Spec.Host[domainIndex+1:]
-	err := common.ReplaceStringsInFile(pathConsoleLink, map[string]string{
+	err := common.ReplaceInFile(pathConsoleLink, map[string]string{
 		"<rhods-dashboard-url>": "https://rhods-dashboard-" + namespace + "." + consoleLinkDomain,
 		"<section-title>":       sectionTitle,
 	})

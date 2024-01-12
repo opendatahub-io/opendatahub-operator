@@ -2,7 +2,6 @@ package features_test
 
 import (
 	"context"
-	"fmt"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -189,11 +188,10 @@ func createSMCPInCluster(cfg *rest.Config, smcpObj *unstructured.Unstructured, n
 		return err
 	}
 
-	r, err := dynamicClient.Resource(gvr.SMCP).Namespace(namespace).UpdateStatus(context.TODO(), result, metav1.UpdateOptions{})
+	_, err = dynamicClient.Resource(gvr.SMCP).Namespace(namespace).UpdateStatus(context.TODO(), result, metav1.UpdateOptions{})
 	if err != nil {
 		return err
 	}
-	fmt.Printf("result: %v", r)
 
 	return nil
 }

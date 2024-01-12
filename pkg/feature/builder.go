@@ -1,6 +1,8 @@
 package feature
 
 import (
+	"io/fs"
+
 	"github.com/pkg/errors"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/client-go/dynamic"
@@ -29,9 +31,9 @@ func CreateFeature(name string) *featureBuilder { //nolint:golint,revive //No ne
 func (fb *featureBuilder) For(spec *v1.DSCInitializationSpec) *featureBuilder {
 	createSpec := func(f *Feature) error {
 		f.Spec = &Spec{
+			AppNamespace:    spec.ApplicationsNamespace,
 			ServiceMeshSpec: &spec.ServiceMesh,
 			Serving:         &infrav1.ServingSpec{},
-			AppNamespace:    spec.ApplicationsNamespace,
 		}
 
 		return nil
@@ -80,7 +82,7 @@ func (fb *featureBuilder) Manifests(paths ...string) *featureBuilder {
 		var manifests []manifest
 
 		for _, path := range paths {
-			manifests, err = loadManifestsFrom(path)
+			manifests, err = loadManifestsFrom(f.fsys, path)
 			if err != nil {
 				return errors.WithStack(err)
 			}
@@ -144,10 +146,20 @@ func (fb *featureBuilder) WithResources(resources ...Action) *featureBuilder {
 	return fb
 }
 
+func (fb *featureBuilder) EnabledWhen(enabled func(f *Feature) bool) *featureBuilder {
+	fb.builders = append(fb.builders, func(f *Feature) error {
+		f.Enabled = enabled(f)
+
+		return nil
+	})
+	return fb
+}
+
 func (fb *featureBuilder) Load() (*Feature, error) {
 	feature := &Feature{
 		Name:    fb.name,
 		Enabled: true,
+		fsys:    embeddedFiles,
 	}
 
 	// UsingConfig builder wasn't called while constructing this feature.
@@ -168,8 +180,21 @@ func (fb *featureBuilder) Load() (*Feature, error) {
 		}
 	}
 
+	// UsingConfig builder wasn't called while constructing this feature.
+	// Get default settings and create needed clients.
+	if feature.Client == nil {
+		restCfg, err := config.GetConfig()
+		if err != nil {
+			return nil, err
+		}
+
+		if err := createClients(restCfg)(feature); err != nil {
+			return nil, err
+		}
+	}
+
 	if feature.Enabled {
-		if err := feature.createResourceTracker(); err != nil {
+		if err := feature.createFeatureTracker(); err != nil {
 			return feature, err
 		}
 	}
@@ -195,5 +220,18 @@ func (fb *featureBuilder) withDefaultClient() error {
 	}
 
 	fb.config = restCfg
+
 	return nil
+}
+
+// ManifestSource sets the root file system (fs.FS) from which manifest paths are loaded
+// If ManifestSource is not called in the builder chain, the default source will be the embeddedFiles.
+func (fb *featureBuilder) ManifestSource(fsys fs.FS) *featureBuilder {
+	fb.builders = append(fb.builders, func(f *Feature) error {
+		f.fsys = fsys
+
+		return nil
+	})
+
+	return fb
 }

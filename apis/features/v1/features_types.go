@@ -1,6 +1,9 @@
 package v1
 
-import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+import (
+	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
 
 // FeatureTracker represents a cluster-scoped resource in the Data Science Cluster,
 // specifically designed for monitoring and managing objects created via the internal Features API.
@@ -18,6 +21,16 @@ type FeatureTracker struct {
 	Status            FeatureTrackerStatus `json:"status,omitempty"`
 }
 
+const (
+	ConditionPhaseFeatureCreated   = "FeatureCreated"
+	ConditionPhasePreConditions    = "FeaturePreConditions"
+	ConditionPhaseResourceCreation = "ResourceCreation"
+	ConditionPhaseLoadTemplateData = "LoadTemplateData"
+	ConditionPhaseProcessTemplates = "ProcessTemplates"
+	ConditionPhaseApplyManifests   = "ApplyManifests"
+	ConditionPhasePostConditions   = "FeaturePostConditions"
+)
+
 func (s *FeatureTracker) ToOwnerReference() metav1.OwnerReference {
 	return metav1.OwnerReference{
 		APIVersion: s.APIVersion,
@@ -33,6 +46,8 @@ type FeatureTrackerSpec struct {
 
 // FeatureTrackerStatus defines the observed state of FeatureTracker.
 type FeatureTrackerStatus struct {
+	// +optional
+	Conditions *[]conditionsv1.Condition `json:"conditions,omitempty"`
 }
 
 // +kubebuilder:object:root=true

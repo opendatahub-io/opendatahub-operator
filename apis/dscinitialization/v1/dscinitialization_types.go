@@ -40,8 +40,6 @@ type DSCInitializationSpec struct {
 	// Configures Service Mesh as networking layer for Data Science Clusters components.
 	// The Service Mesh is a mandatory prerequisite for single model serving (KServe) and
 	// you should review this configuration if you are planning to use KServe.
-	// For other components, it enhances user experience; e.g. it provides unified
-	// authentication giving a Single Sign On experience.
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=3
 	// +optional
 	ServiceMesh infrav1.ServiceMeshSpec `json:"serviceMesh,omitempty"`
