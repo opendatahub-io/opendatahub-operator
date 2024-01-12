@@ -25,8 +25,8 @@ type manifest struct {
 func loadManifestsFrom(fsys fs.FS, path string) ([]manifest, error) {
 	var manifests []manifest
 
-	err := fs.WalkDir(fsys, path, func(path string, dirEntry fs.DirEntry, err error) error {
-		_, err = dirEntry.Info()
+	err := fs.WalkDir(fsys, path, func(path string, dirEntry fs.DirEntry, walkErr error) error {
+		_, err := dirEntry.Info()
 		if err != nil {
 			return err
 		}
