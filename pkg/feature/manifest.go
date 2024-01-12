@@ -82,6 +82,8 @@ func (m *manifest) process(fsys fs.FS, data interface{}) error {
 	}
 
 	if !m.template {
+		// If, by convention, the file is not suffixed with `.tmpl` we do not need to trigger template processing.
+		// It's safe to return at this point.
 		m.processedContent = string(content)
 		return nil
 	}

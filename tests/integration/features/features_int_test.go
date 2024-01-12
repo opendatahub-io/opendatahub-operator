@@ -175,7 +175,7 @@ var _ = Describe("Manifest sources", func() {
 			})
 		})
 
-		It("should be able to process an embedded yaml file from the default location", func() {
+		It("should be able to process an embedded YAML file from the default location", func() {
 			// given
 			ns := createNamespace("knative-serving")
 			Expect(envTestClient.Create(context.Background(), ns)).To(Succeed())
@@ -217,7 +217,7 @@ var _ = Describe("Manifest sources", func() {
 			})
 		})
 
-		It("should be able to source manifests from an actual file system", func() {
+		It("should source manifests from a specified temporary directory within the file system", func() {
 			// given
 			tempDir := GinkgoT().TempDir()
 			yamlData := `apiVersion: v1
