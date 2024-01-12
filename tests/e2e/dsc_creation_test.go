@@ -18,6 +18,7 @@ import (
 	"k8s.io/client-go/util/retry"
 
 	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 )
 
@@ -29,6 +30,10 @@ func creationTestSuite(t *testing.T) {
 	testCtx, err := NewTestContext()
 	require.NoError(t, err)
 	t.Run(testCtx.testDsc.Name, func(t *testing.T) {
+		t.Run("Creation of DSCI CR", func(t *testing.T) {
+			err = testCtx.testDSCICreation()
+			require.NoError(t, err, "error creating DSCI CR")
+		})
 		t.Run("Creation of DataScienceCluster instance", func(t *testing.T) {
 			err = testCtx.testDSCCreation()
 			require.NoError(t, err, "error creating DataScienceCluster instance")
@@ -53,7 +58,44 @@ func creationTestSuite(t *testing.T) {
 	})
 }
 
-func (tc *testContext) testDSCCreation() error {
+func (tc *testContext) testDSCICreation() error { //nolint: dupl
+	dscLookupKey := types.NamespacedName{Name: tc.testDsc.Name}
+	createdDSCI := &dsci.DSCInitialization{}
+	existingDSCIList := &dsci.DSCInitializationList{}
+
+	err := tc.customClient.List(tc.ctx, existingDSCIList)
+	if err == nil {
+		// use what you have
+		if len(existingDSCIList.Items) == 1 {
+			tc.testDSCI = &existingDSCIList.Items[0]
+			return nil
+		}
+	}
+	// create one for you
+	err = tc.customClient.Get(tc.ctx, dscLookupKey, createdDSCI)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			nberr := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
+				creationErr := tc.customClient.Create(tc.ctx, tc.testDSCI)
+				if creationErr != nil {
+					log.Printf("error creating DSCI resource %v: %v, trying again",
+						tc.testDSCI.Name, creationErr)
+					return false, nil
+				}
+				return true, nil
+			})
+			if nberr != nil {
+				return fmt.Errorf("error creating e2e-test-dsci DSCI CR %s: %w", tc.testDSCI.Name, nberr)
+			}
+		} else {
+			return fmt.Errorf("error getting e2e-test-dsci DSCI CR %s: %w", tc.testDSCI.Name, err)
+		}
+	}
+
+	return nil
+}
+
+func (tc *testContext) testDSCCreation() error { //nolint: dupl
 	// Create DataScienceCluster resource if not already created
 
 	dscLookupKey := types.NamespacedName{Name: tc.testDsc.Name}
