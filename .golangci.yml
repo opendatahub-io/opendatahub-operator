@@ -1,3 +1,8 @@
+run:
+  deadline: 10m
+  skip-dirs:
+    - apis
+
 linters-settings:
   gocyclo:
     min-complexity: 30
@@ -13,35 +18,51 @@ linters-settings:
       - dot
     skip-generated: false
     custom-order: true
-
+  errcheck:
+    check-type-assertions: true
+  exhaustive:
+    check:
+      - switch
+    default-signifies-exhaustive: true
+  funlen:
+    lines: 100
+    statements: 100
+    ignore-comments: true
+  nolintlint:
+    allow-no-explanation: [ funlen, lll ]
+    require-specific: true
 linters:
-  disable-all: true
-  enable:
-    - bodyclose
-    - dogsled
-    - dupl
-    - errcheck
-    - exportloopref
-    - gci
-    - goconst
-    - gocritic
-    - gocyclo
-    - gofmt
-    - goprintffuncname
-    - gosimple
-    - govet
-    - ineffassign
-    - misspell
-    - nakedret
-    - nolintlint
-    - staticcheck
-    - stylecheck
-    - typecheck
-    - unconvert
-    - unparam
-    - unused
-    - whitespace
-    - lll
+  enable-all: true
+  disable:
+    - containedctx # detects struct contained context.Context field
+    - depguard # [replaced by gomodguard] checks if package imports are in a list of acceptable packages
+    - exhaustivestruct # Prevents empty struct. We use a lot of these so I think it is safe to disable.
+    - exhaustruct # Prevents empty struct. We use a lot of these so I think it is safe to disable.c
+    - forbidigo
+    - gochecknoglobals # Prevents use of global vars.
+    - gofumpt
+    - gomnd # Doesnot allow hardcoded numbers
+    - gomoddirectives # Doesnot allow replace in go mod file
+    - interfacer
+    - nestif
+    - nilnil
+    - nosnakecase # snakecase is used in a lot of places. Need to check if that is required.
+    - paralleltest # [too many false positives] detects missing usage of t.Parallel() method in your Go test
+    - tagliatelle
+    - varnamelen # doesnot allow shorter names like c,k etc. But golang prefers short named vars.
+    - wsl # [too strict and mostly code is not more readable] whitespace linter forces you to use empty lines
+    - wrapcheck # check if this is required. Prevents direct return of err.
+
+    # Need to check
+    - nlreturn # [too strict and mostly code is not more readable] checks for a new line before return and branch statements to increase code clarity
+    - goerr113 # [too strict] checks the errors handling expressions
+    - contextcheck # Requires to pass context to all function.
+    
+    # To be fixed
+    - gocognit # https://github.com/opendatahub-io/opendatahub-operator/issues/709
+    - cyclop   # https://github.com/opendatahub-io/opendatahub-operator/issues/709
+    - funlen   # https://github.com/opendatahub-io/opendatahub-operator/issues/709
+    - godox    # https://github.com/opendatahub-io/opendatahub-operator/issues/699
 
 issues:
   exclude-rules:
