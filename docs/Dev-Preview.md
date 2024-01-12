@@ -86,7 +86,7 @@ metadata:
 spec:
   components:
     codeflare:
-      managementState: Managed
+      managementState: Removed
     dashboard:
       managementState: Managed
     datasciencepipelines:
@@ -94,11 +94,13 @@ spec:
     kserve:
       managementState: Managed
     modelmeshserving:
-      managementState: Managed
+      managementState: Removed
     ray:
-      managementState: Managed
+      managementState: Removed
     workbenches:
       managementState: Managed
+    trustyai:
+      managementState: Removed
 EOF
 ```
 

@@ -13,3 +13,10 @@ spec:
     managementState: "Managed"
     namespace: 'opendatahub'
   applicationsNamespace: 'opendatahub'
+  serviceMesh:
+    controlPlane:
+      metricsCollection: Istio
+      name: data-science-smcp
+      namespace: istio-system
+    managementState: Managed
+

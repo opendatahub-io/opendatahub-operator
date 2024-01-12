@@ -149,6 +149,7 @@ lint: golangci-lint ## Run golangci-lint against code.
 .PHONY: get-manifests
 get-manifests: ## Fetch components manifests from remote git repo
 	./get_all_manifests.sh
+CLEANFILES += odh-manifests/*
 
 ##@ Build
 
@@ -161,7 +162,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./main.go
 
 .PHONY: image-build
-image-build: unit-test ## Build image with the manager.
+image-build: # unit-test ## Build image with the manager.
 	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/Dockerfile  ${IMAGE_BUILD_FLAGS} -t $(IMG) .
 
 .PHONY: image-push
@@ -198,6 +199,7 @@ undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/confi
 LOCALBIN ?= $(shell pwd)/bin
 $(LOCALBIN):
 	mkdir -p $(LOCALBIN)
+CLEANFILES += $(LOCALBIN)
 
 KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"
 .PHONY: kustomize
@@ -315,7 +317,12 @@ test: unit-test e2e-test
 .PHONY: unit-test
 unit-test: envtest
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $(TEST_SRC) -v  -coverprofile cover.out
+CLEANFILES += cover.out
 
 .PHONY: e2e-test
 e2e-test: ## Run e2e tests for the controller
 	go test ./tests/e2e/ -run ^TestOdhOperator -v --operator-namespace=${OPERATOR_NAMESPACE} ${E2E_TEST_FLAGS}
+
+clean:
+	chmod u+w -R $(LOCALBIN) # envtest makes its dir RO
+	rm -rf $(CLEANFILES)

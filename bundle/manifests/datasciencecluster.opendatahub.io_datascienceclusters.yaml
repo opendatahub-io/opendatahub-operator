@@ -262,9 +262,10 @@ spec:
                                 type: string
                             type: object
                           managementState:
-                            default: Removed
+                            default: Managed
                             enum:
                             - Managed
+                            - Unmanaged
                             - Removed
                             pattern: ^(Managed|Unmanaged|Force|Removed)$
                             type: string

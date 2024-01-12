@@ -111,7 +111,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			Eventually(dscInitializationIsReady(applicationName, workingNamespace, foundDsci), timeout, interval).Should(BeTrue())
 			// then
 			foundMonitoringNamespace := &corev1.Namespace{}
-			Eventually(Eventually(namespaceExists(monitoringNamespace2, foundMonitoringNamespace), timeout, interval).Should(BeTrue()), timeout, interval).Should(BeTrue())
+			Eventually(namespaceExists(monitoringNamespace2, foundMonitoringNamespace), timeout, interval).Should(BeTrue())
 			Expect(foundMonitoringNamespace.Name).Should(Equal(monitoringNamespace2))
 		})
 	})
@@ -228,7 +228,6 @@ var _ = Describe("DataScienceCluster initialization", func() {
 	})
 })
 
-// cleanup utility func.
 func cleanupResources() {
 	defaultNamespace := client.InNamespace(workingNamespace)
 	appNamespace := client.InNamespace(applicationNamespace)
@@ -263,7 +262,7 @@ func namespaceExists(ns string, obj client.Object) func() bool {
 	}
 }
 
-func objectExists(ns string, name string, obj client.Object) func() bool { //nolint
+func objectExists(ns string, name string, obj client.Object) func() bool { //nolint:unparam
 	return func() bool {
 		err := k8sClient.Get(context.Background(), client.ObjectKey{Name: ns, Namespace: name}, obj)
 
@@ -291,7 +290,7 @@ func createDSCI(appName string, enableMonitoring operatorv1.ManagementState, mon
 	}
 }
 
-func dscInitializationIsReady(ns string, name string, dsciObj *dsci.DSCInitialization) func() bool { //nolint
+func dscInitializationIsReady(ns string, name string, dsciObj *dsci.DSCInitialization) func() bool { //nolint:unparam
 	return func() bool {
 		_ = k8sClient.Get(context.Background(), client.ObjectKey{Name: ns, Namespace: name}, dsciObj)
 
