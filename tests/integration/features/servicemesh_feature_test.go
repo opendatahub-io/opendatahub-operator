@@ -12,6 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
+	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
@@ -77,8 +78,9 @@ var _ = Describe("Service Mesh feature", func() {
 		namespace := envtestutil.AppendRandomNameTo(testFeatureName)
 
 		dsciSpec := newDSCInitializationSpec(namespace)
+		origin := envtestutil.NewOrigin(featurev1.DSCIType, "default")
 		testFeature, err = feature.CreateFeature(testFeatureName).
-			For(dsciSpec).
+			For(dsciSpec, origin).
 			UsingConfig(envTest.Config).
 			Load()
 

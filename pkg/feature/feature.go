@@ -230,6 +230,10 @@ func (f *Feature) createFeatureTracker() error {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: f.Spec.AppNamespace + "-" + common.TrimToRFC1123Name(f.Name),
 		},
+		Spec: featurev1.FeatureTrackerSpec{
+			Origin:       *f.Spec.Origin,
+			AppNamespace: f.Spec.AppNamespace,
+		},
 	}
 
 	foundTracker, err := f.DynamicClient.Resource(gvr.FeatureTracker).Get(context.TODO(), tracker.Name, metav1.GetOptions{})

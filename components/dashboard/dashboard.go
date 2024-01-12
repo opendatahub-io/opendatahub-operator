@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
@@ -158,7 +159,12 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 			return err
 		}
 
-		if err := d.configureServiceMesh(cli, owner, dscispec); err != nil {
+		origin := featurev1.Origin{
+			Type: featurev1.ComponentType,
+			Name: d.GetComponentName(),
+		}
+
+		if err := d.configureServiceMesh(cli, owner, dscispec, origin); err != nil {
 			return err
 		}
 
@@ -216,7 +222,12 @@ func (d *Dashboard) Cleanup(cli client.Client, dscispec *dsciv1.DSCInitializatio
 	}
 
 	if shouldConfigureServiceMesh {
-		serviceMeshInitializer := feature.NewFeaturesInitializer(dscispec, d.defineServiceMeshFeatures(dscispec))
+		origin := featurev1.Origin{
+			Type: featurev1.ComponentType,
+			Name: d.GetComponentName(),
+		}
+
+		serviceMeshInitializer := feature.NewFeaturesInitializer(dscispec, d.defineServiceMeshFeatures(dscispec, origin))
 
 		if err := serviceMeshInitializer.Prepare(); err != nil {
 			return err

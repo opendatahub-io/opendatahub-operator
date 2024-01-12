@@ -44,9 +44,10 @@ var _ = Describe("preconditions", func() {
 			namespace = envtestutil.AppendRandomNameTo(testFeatureName)
 
 			dsciSpec := newDSCInitializationSpec(namespace)
+			origin := envtestutil.NewOrigin(featurev1.DSCIType, "default")
 			var err error
 			testFeature, err = feature.CreateFeature(testFeatureName).
-				For(dsciSpec).
+				For(dsciSpec, origin).
 				UsingConfig(envTest.Config).
 				Load()
 			Expect(err).ToNot(HaveOccurred())
@@ -84,10 +85,12 @@ var _ = Describe("preconditions", func() {
 		var (
 			dsciSpec            *dscv1.DSCInitializationSpec
 			verificationFeature *feature.Feature
+			origin              featurev1.Origin
 		)
 
 		BeforeEach(func() {
 			dsciSpec = newDSCInitializationSpec("default")
+			origin = envtestutil.NewOrigin(featurev1.DSCIType, "default")
 		})
 
 		It("should successfully check for existing CRD", func() {
@@ -96,7 +99,7 @@ var _ = Describe("preconditions", func() {
 
 			var err error
 			verificationFeature, err = feature.CreateFeature("CRD verification").
-				For(dsciSpec).
+				For(dsciSpec, origin).
 				UsingConfig(envTest.Config).
 				PreConditions(feature.EnsureCRDIsInstalled(name)).
 				Load()
@@ -115,7 +118,7 @@ var _ = Describe("preconditions", func() {
 
 			var err error
 			verificationFeature, err = feature.CreateFeature("CRD verification").
-				For(dsciSpec).
+				For(dsciSpec, origin).
 				UsingConfig(envTest.Config).
 				PreConditions(feature.EnsureCRDIsInstalled(name)).
 				Load()
@@ -137,17 +140,19 @@ var _ = Describe("feature trackers", func() {
 
 		var (
 			dsciSpec *dscv1.DSCInitializationSpec
+			origin   featurev1.Origin
 		)
 
 		BeforeEach(func() {
 			dsciSpec = newDSCInitializationSpec("default")
+			origin = envtestutil.NewOrigin(featurev1.DSCIType, "default")
 		})
 
 		It("should indicate successful installation in FeatureTracker", func() {
 			// given example CRD installed into env
 			name := "test-resources.openshift.io"
 			verificationFeature, err := feature.CreateFeature("crd-verification").
-				For(dsciSpec).
+				For(dsciSpec, origin).
 				UsingConfig(envTest.Config).
 				PreConditions(feature.EnsureCRDIsInstalled(name)).
 				Load()
@@ -165,7 +170,7 @@ var _ = Describe("feature trackers", func() {
 			// given
 			name := "non-existing-resource.non-existing-group.io"
 			verificationFeature, err := feature.CreateFeature("crd-verification").
-				For(dsciSpec).
+				For(dsciSpec, origin).
 				UsingConfig(envTest.Config).
 				PreConditions(feature.EnsureCRDIsInstalled(name)).
 				Load()
@@ -182,7 +187,7 @@ var _ = Describe("feature trackers", func() {
 		It("should indicate failure in post-conditions", func() {
 			// given
 			verificationFeature, err := feature.CreateFeature("post-condition-failure").
-				For(dsciSpec).
+				For(dsciSpec, origin).
 				UsingConfig(envTest.Config).
 				PostConditions(func(f *feature.Feature) error {
 					return fmt.Errorf("always fail")
@@ -196,6 +201,37 @@ var _ = Describe("feature trackers", func() {
 			// then
 			featureTracker := getFeatureTracker("default-post-condition-failure")
 			Expect(featureTracker.Status.Conditions).To(HaveCondition(conditionsv1.ConditionDegraded, v1.ConditionTrue, featurev1.ConditionPhasePostConditions))
+		})
+
+		It("should correctly indicate origin in the feature tracker", func() {
+			verificationFeature, err := feature.CreateFeature("empty-feature").
+				For(dsciSpec, origin).
+				UsingConfig(envTest.Config).
+				Load()
+			Expect(err).ToNot(HaveOccurred())
+
+			// when
+			Expect(verificationFeature.Apply()).To(Succeed())
+
+			// then
+			featureTracker := getFeatureTracker("default-empty-feature")
+			Expect(featureTracker.Spec.Origin.Name).To(Equal("default"))
+			Expect(featureTracker.Spec.Origin.Type).To(Equal(featurev1.DSCIType))
+		})
+
+		It("should correctly indicate app namespace in the feature tracker", func() {
+			verificationFeature, err := feature.CreateFeature("empty-feature").
+				For(dsciSpec, origin).
+				UsingConfig(envTest.Config).
+				Load()
+			Expect(err).ToNot(HaveOccurred())
+
+			// when
+			Expect(verificationFeature.Apply()).To(Succeed())
+
+			// then
+			featureTracker := getFeatureTracker("default-empty-feature")
+			Expect(featureTracker.Spec.AppNamespace).To(Equal("default"))
 		})
 	})
 })

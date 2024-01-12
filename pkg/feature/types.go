@@ -16,6 +16,7 @@ type Spec struct {
 	KnativeCertificateSecret string
 	KnativeIngressDomain     string
 	Tracker                  *featurev1.FeatureTracker
+	Origin                   *featurev1.Origin
 }
 
 type OAuth struct {

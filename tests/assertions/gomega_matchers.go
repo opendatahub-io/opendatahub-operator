@@ -9,7 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-var _ types.GomegaMatcher = (*HaveConditionMatcher)(nil) //nolint:ireturn //reason false-positive. HaveConditionMatcher is a struct, not an interface.
+var _ types.GomegaMatcher = (*HaveConditionMatcher)(nil)
 
 func HaveCondition(conditionType conditionsv1.ConditionType, conditionStatus corev1.ConditionStatus, reason string) *HaveConditionMatcher {
 	return &HaveConditionMatcher{
