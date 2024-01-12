@@ -26,4 +26,10 @@ var (
 		Version:  "v2",
 		Resource: "servicemeshcontrolplanes",
 	}
+
+	NetworkPolicies = schema.GroupVersionResource{
+		Group:    "networking.k8s.io",
+		Version:  "v1",
+		Resource: "networkpolicies",
+	}
 )
