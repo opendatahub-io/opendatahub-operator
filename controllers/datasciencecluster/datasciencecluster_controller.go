@@ -81,7 +81,7 @@ const (
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:funlen
+func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:gocyclo,maintidx
 	r.Log.Info("Reconciling DataScienceCluster resources", "Request.Name", req.Name)
 
 	instances := &dsc.DataScienceClusterList{}
@@ -106,14 +106,18 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	instance := &instances.Items[0]
 
 	// If DSC CR exist and deletion CM exist
-	// cleanup finalizer first then delete DSC CR and let reconcile requeue
+	// delete DSC CR and let reconcile requeue
+	// sometimes with finalzier DSC CR wont get deleted, force to remove finalizer here
 	if upgrade.HasDeleteConfigMap(r.Client) {
 		if controllerutil.ContainsFinalizer(instance, finalizerName) {
 			if controllerutil.RemoveFinalizer(instance, finalizerName) {
-				fmt.Println("Removed finalizer: "+ finalizerName)
+				if err := r.Update(ctx, instance); err != nil {
+					return ctrl.Result{}, err
+				}
+				r.Log.Info("Removed finalizer for DataScienceCluster", "name", instance.Name, "finalizer", finalizerName)
 			}
 		}
-		if err := r.Client.Delete(context.TODO(), instance); err != nil {
+		if err := r.Client.Delete(context.TODO(), instance, []client.DeleteOption{}...); err != nil {
 			if !apierrs.IsNotFound(err) {
 				return reconcile.Result{}, err
 			}
