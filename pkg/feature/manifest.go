@@ -26,6 +26,7 @@ func loadManifestsFrom(fsys fs.FS, path string) ([]manifest, error) {
 	var manifests []manifest
 
 	err := fs.WalkDir(fsys, path, func(path string, dirEntry fs.DirEntry, err error) error {
+		_, err = dirEntry.Info()
 		if err != nil {
 			return err
 		}
@@ -33,12 +34,7 @@ func loadManifestsFrom(fsys fs.FS, path string) ([]manifest, error) {
 		if dirEntry.IsDir() {
 			return nil
 		}
-
-		_, err = fs.ReadFile(fsys, path)
-		if err != nil {
-			return err
-		}
-		m := loadManifestFrom(path)
+		m := createManifestFrom(path)
 		manifests = append(manifests, m)
 
 		return nil
@@ -51,7 +47,7 @@ func loadManifestsFrom(fsys fs.FS, path string) ([]manifest, error) {
 	return manifests, nil
 }
 
-func loadManifestFrom(path string) manifest {
+func createManifestFrom(path string) manifest {
 	basePath := filepath.Base(path)
 	m := manifest{
 		name:     basePath,

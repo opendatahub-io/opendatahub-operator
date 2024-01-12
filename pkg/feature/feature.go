@@ -158,7 +158,7 @@ func (f *Feature) addCleanup(cleanupFuncs ...Action) {
 }
 
 func (f *Feature) ApplyManifest(filename string) error {
-	m := loadManifestFrom(filename)
+	m := createManifestFrom(filename)
 	if err := m.process(f.fsys, f.Spec); err != nil {
 		return err
 	}
