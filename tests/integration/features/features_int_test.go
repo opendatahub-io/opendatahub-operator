@@ -167,12 +167,12 @@ var _ = Describe("Manifest sources", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			// when
-			By("verifying service is created after applying feature", func() {
-				Expect(createService.Apply()).To(Succeed())
-				service, err := getService("knative-local-gateway", "service-ns")
-				Expect(err).ToNot(HaveOccurred())
-				Expect(service).ToNot(BeNil())
-			})
+			Expect(createService.Apply()).To(Succeed())
+
+			// then
+			service, err := getService("knative-local-gateway", "service-ns")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(service).ToNot(BeNil())
 		})
 
 		It("should be able to process an embedded YAML file from the default location", func() {
