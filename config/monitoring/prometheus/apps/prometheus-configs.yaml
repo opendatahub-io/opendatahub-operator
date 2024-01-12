@@ -1459,7 +1459,7 @@ data:
           labels:
             instance: trustyai-service-operator-controller-manager
           record: probe_success:burnrate6h
-    trustyai-alerting.rules: |
+  trustyai-alerting.rules: |
     groups:
       - name: SLOs-probe_success
         rules:
