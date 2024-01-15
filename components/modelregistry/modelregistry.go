@@ -51,7 +51,7 @@ func (m *ModelRegistry) GetComponentName() string {
 	return ComponentName
 }
 
-func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Client, resConf *rest.Config,
+func (m *ModelRegistry) ReconcileComponent(_ context.Context, cli client.Client, _ *rest.Config,
 	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
 	var imageParamMap = map[string]string{
 		"IMAGES_MODELREGISTRY_OPERATOR": "RELATED_IMAGE_ODH_MODELREGISTRY_OPERATOR_IMAGE",
