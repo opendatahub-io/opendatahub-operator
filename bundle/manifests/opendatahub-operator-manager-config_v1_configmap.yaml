@@ -24,4 +24,7 @@ data:
     # leaderElectionReleaseOnCancel: true
 kind: ConfigMap
 metadata:
+  labels:
+    app.kubernetes.io/name: opendatahub-operator
+    app.kubernetes.io/part-of: opendatahub
   name: opendatahub-operator-manager-config
