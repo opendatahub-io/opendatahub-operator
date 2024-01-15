@@ -132,7 +132,7 @@ func (f *Feature) CreateConfigMap(cfgMapName string, data map[string]string) err
 			Name:      cfgMapName,
 			Namespace: f.Spec.AppNamespace,
 			OwnerReferences: []metav1.OwnerReference{
-				f.OwnerReference(),
+				f.AsOwnerReference(),
 			},
 		},
 		Data: data,
@@ -190,7 +190,7 @@ func (f *Feature) apply(m manifest) error {
 	return nil
 }
 
-func (f *Feature) OwnerReference() metav1.OwnerReference {
+func (f *Feature) AsOwnerReference() metav1.OwnerReference {
 	return f.Spec.Tracker.ToOwnerReference()
 }
 

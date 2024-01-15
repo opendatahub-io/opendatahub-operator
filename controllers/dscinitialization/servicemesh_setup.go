@@ -75,7 +75,7 @@ func configureServiceMeshFeatures(s *feature.FeaturesInitializer) error {
 	smcpCreation, errSmcp := feature.CreateFeature("mesh-control-plane-creation").
 		For(s.DSCInitializationSpec).
 		Manifests(
-			path.Join(rootDir, templatesDir, "/base"),
+			path.Join(rootDir, templatesDir, "base", "create-smcp.tmpl"),
 		).
 		PreConditions(
 			servicemesh.EnsureServiceMeshOperatorInstalled,
@@ -89,6 +89,18 @@ func configureServiceMeshFeatures(s *feature.FeaturesInitializer) error {
 		return errSmcp
 	}
 	s.Features = append(s.Features, smcpCreation)
+
+	noDefaultNetworkPolicies, errNp := feature.CreateFeature("mesh-control-plane-no-default-network-policies").
+		For(s.DSCInitializationSpec).
+		Manifests(
+			path.Join(rootDir, templatesDir, "base", "control-plane-disable-networkpolicies.patch.tmpl"),
+		).
+		Load()
+
+	if errNp != nil {
+		return errNp
+	}
+	s.Features = append(s.Features, noDefaultNetworkPolicies)
 
 	if serviceMeshSpec.ControlPlane.MetricsCollection == "Istio" {
 		metricsCollection, errMetrics := feature.CreateFeature("mesh-metrics-collection").

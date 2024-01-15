@@ -55,7 +55,7 @@ func (f *Feature) createResourceFromFile(filename string) error {
 		namespace := u.GetNamespace()
 
 		u.SetOwnerReferences([]metav1.OwnerReference{
-			f.OwnerReference(),
+			f.AsOwnerReference(),
 		})
 
 		log.Info("Creating resource", "name", name)
