@@ -325,3 +325,7 @@ make e2e-test -e OPERATOR_NAMESPACE=<namespace> -e E2E_TEST_FLAGS="--skip-deleti
 ### Troubleshooting
 
 Please refer to [troubleshooting documentation](docs/troubleshooting.md)
+
+### Upgrade testing
+
+Please refer to [upgrade testing documentation](docs/upgrade-testing.md)
