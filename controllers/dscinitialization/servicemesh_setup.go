@@ -98,7 +98,7 @@ func configureServiceMeshFeatures(s *feature.FeaturesInitializer) error {
 		Load()
 
 	if errNp != nil {
-		return errSmcp
+		return errNp
 	}
 	s.Features = append(s.Features, noDefaultNetworkPolicies)
 
