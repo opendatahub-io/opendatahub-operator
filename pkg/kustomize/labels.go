@@ -1,4 +1,4 @@
-package plugins
+package kustomize
 
 import (
 	"sigs.k8s.io/kustomize/api/builtins" //nolint:staticcheck //Remove after package update
@@ -7,7 +7,7 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/resid"
 )
 
-func ApplyAddLabelsPlugin(componentName string, resMap resmap.ResMap) error {
+func AddLabels(componentName string, resMap resmap.ResMap) error {
 	nsplug := builtins.LabelTransformerPlugin{
 		Labels: map[string]string{
 			"app.opendatahub.io/" + componentName: "true",

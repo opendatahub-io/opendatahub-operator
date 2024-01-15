@@ -46,7 +46,7 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/kustomize"
 )
 
 const (
@@ -165,13 +165,11 @@ func DeployManifestsFromPath(cli client.Client, owner metav1.Object, manifestPat
 		return fmt.Errorf("error during resmap resources: %w", err)
 	}
 
-	// Apply NamespaceTransformer Plugin
-	if err := plugins.ApplyNamespacePlugin(namespace, resMap); err != nil {
+	if err := kustomize.TransformNamespace(namespace, resMap); err != nil {
 		return err
 	}
 
-	// Apply LabelTransformer Plugin
-	if err := plugins.ApplyAddLabelsPlugin(componentName, resMap); err != nil {
+	if err := kustomize.AddLabels(componentName, resMap); err != nil {
 		return err
 	}
 

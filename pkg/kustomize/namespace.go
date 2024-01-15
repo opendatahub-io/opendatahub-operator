@@ -1,4 +1,4 @@
-package plugins
+package kustomize
 
 import (
 	"sigs.k8s.io/kustomize/api/builtins" //nolint:staticcheck // Remove after package update
@@ -8,7 +8,7 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/resid"
 )
 
-func ApplyNamespacePlugin(manifestNamespace string, resMap resmap.ResMap) error {
+func TransformNamespace(manifestNamespace string, resMap resmap.ResMap) error {
 	nsplug := builtins.NamespaceTransformerPlugin{
 		ObjectMeta: types.ObjectMeta{
 			Name:      "odh-namespace-plugin",
