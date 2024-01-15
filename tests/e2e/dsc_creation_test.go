@@ -58,7 +58,7 @@ func creationTestSuite(t *testing.T) {
 	})
 }
 
-func (tc *testContext) testDSCICreation() error { //nolint: dupl
+func (tc *testContext) testDSCICreation() error {
 	dscLookupKey := types.NamespacedName{Name: tc.testDsc.Name}
 	createdDSCI := &dsci.DSCInitialization{}
 	existingDSCIList := &dsci.DSCInitializationList{}
@@ -95,7 +95,7 @@ func (tc *testContext) testDSCICreation() error { //nolint: dupl
 	return nil
 }
 
-func (tc *testContext) testDSCCreation() error { //nolint: dupl
+func (tc *testContext) testDSCCreation() error {
 	// Create DataScienceCluster resource if not already created
 
 	dscLookupKey := types.NamespacedName{Name: tc.testDsc.Name}

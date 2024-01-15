@@ -9,6 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+//nolint:nolintlint,ireturn // Reason: returning an interface is necessary for dynamic typing in this context
 func HaveCondition(conditionType conditionsv1.ConditionType, conditionStatus corev1.ConditionStatus, reason string) types.GomegaMatcher {
 	return &HaveConditionMatcher{
 		conditionType:   conditionType,
@@ -23,7 +24,7 @@ type HaveConditionMatcher struct {
 	reason          string
 }
 
-func (h HaveConditionMatcher) Match(actual interface{}) (success bool, err error) {
+func (h HaveConditionMatcher) Match(actual interface{}) (bool, error) {
 	conditions, err := asConditions(actual)
 	if err != nil {
 		return false, err
@@ -53,11 +54,11 @@ func asConditions(actual interface{}) ([]conditionsv1.Condition, error) {
 	return conditions, nil
 }
 
-func (h HaveConditionMatcher) FailureMessage(actual interface{}) (message string) {
+func (h HaveConditionMatcher) FailureMessage(actual interface{}) string {
 	return fmt.Sprintf("Expected %s to be:\n%s", format.Object(actual, 1), h.desiredCondition())
 }
 
-func (h HaveConditionMatcher) NegatedFailureMessage(actual interface{}) (message string) {
+func (h HaveConditionMatcher) NegatedFailureMessage(actual interface{}) string {
 	return fmt.Sprintf("Expected %s to not be:\n%s", format.Object(actual, 1), h.desiredCondition())
 }
 

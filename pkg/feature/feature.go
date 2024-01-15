@@ -44,6 +44,7 @@ type Feature struct {
 // Action is a func type which can be used for different purposes while having access to Feature struct.
 type Action func(feature *Feature) error
 
+//nolint:nonamedreturns // Reason: we use the named return for our defer piece, needed for that.
 func (f *Feature) Apply() (err error) {
 	if !f.Enabled {
 		log.Info("feature is disabled, skipping.", "feature", f.Name)
@@ -51,8 +52,8 @@ func (f *Feature) Apply() (err error) {
 		return nil
 	}
 
-	if err := f.createResourceTracker(); err != nil {
-		return err
+	if trackerErr := f.createFeatureTracker(); err != nil {
+		return trackerErr
 	}
 
 	// Verify all precondition and collect errors
@@ -93,7 +94,7 @@ func (f *Feature) Apply() (err error) {
 	}
 
 	phase = featurev1.ConditionPhaseProcessTemplates
-	for i, m := range f.manifests {
+	for _, m := range f.manifests {
 		if err := m.processTemplate(f.Spec); err != nil {
 			return errors.WithStack(err)
 		}
