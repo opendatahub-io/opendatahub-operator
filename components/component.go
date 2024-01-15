@@ -120,6 +120,8 @@ func (c *Component) UpdatePrometheusConfig(cli client.Client, enable bool, compo
 			RayARules          string `yaml:"ray-alerting.rules"`
 			WorkbenchesRRules  string `yaml:"workbenches-recording.rules"`
 			WorkbenchesARules  string `yaml:"workbenches-alerting.rules"`
+			TrustyAIRRules     string `yaml:"trustyai-recording.rules"`
+			TrustyAIARules     string `yaml:"trustyai-alerting.rules"`
 		} `yaml:"data"`
 	}
 	var configMap ConfigMap

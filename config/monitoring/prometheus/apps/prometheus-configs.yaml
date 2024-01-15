@@ -306,6 +306,25 @@ data:
           target_label: __address__
           replacement: ${1}:8080
 
+    - job_name: 'TrustyAI Controller Manager'
+      honor_labels: true
+      metrics_path: /metrics
+      scheme: http
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - <odh_application_namespace>
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          regex: ^(trustyai-service-operator-controller-manager)$
+          target_label: kubernetes_name
+          action: keep
+        - source_labels: [__address__]
+          regex: (.+):(\d+)
+          target_label: __address__
+          replacement: ${1}:8080          
+
     - job_name: 'RHODS Metrics'
       honor_labels: true
       scheme: http
@@ -1396,3 +1415,87 @@ data:
             severity: warning
             instance: notebook-spawner
         
+  trustyai-recording.rules: |
+    groups:
+      - name: SLOs - TrustyAI Controller Manager
+        rules:
+        - expr: |
+            absent(up{job=~'TrustyAI Controller Manager'}) * 0 or vector(1)
+          labels:
+            instance: trustyai-service-operator-controller-manager
+          record: probe_success
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="trustyai-service-operator-controller-manager"}[1d]))
+          labels:
+            instance: trustyai-service-operator-controller-manager
+          record: probe_success:burnrate1d
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="trustyai-service-operator-controller-manager"}[1h]))
+          labels:
+            instance: trustyai-service-operator-controller-manager
+          record: probe_success:burnrate1h
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="trustyai-service-operator-controller-manager"}[2h]))
+          labels:
+            instance: trustyai-service-operator-controller-manager
+          record: probe_success:burnrate2h
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="trustyai-service-operator-controller-manager"}[30m]))
+          labels:
+            instance: trustyai-service-operator-controller-manager
+          record: probe_success:burnrate30m
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="trustyai-service-operator-controller-manager"}[3d]))
+          labels:
+            instance: trustyai-service-operator-controller-manager
+          record: probe_success:burnrate3d
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="trustyai-service-operator-controller-manager"}[5m]))
+          labels:
+            instance: trustyai-service-operator-controller-manager
+          record: probe_success:burnrate5m
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="trustyai-service-operator-controller-manager"}[6h]))
+          labels:
+            instance: trustyai-service-operator-controller-manager
+          record: probe_success:burnrate6h
+  trustyai-alerting.rules: |
+    groups:
+      - name: SLOs-probe_success
+        rules:
+        - alert: TrustyAI Controller Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhoai-trustyai-controller-probe-success-burn-rate.md"
+            summary: TrustyAI Controller Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate5m{instance=~"trustyai-service-operator-controller-manager"}) by (instance) > (14.40 * (1-0.98000))
+            and
+            sum(probe_success:burnrate1h{instance=~"trustyai-service-operator-controller-manager"}) by (instance) > (14.40 * (1-0.98000))
+          for: 2m
+          labels:
+            severity: critical
+        - alert: TrustyAI Controller Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhoai-trustyai-controller-probe-success-burn-rate.md"
+            summary: TrustyAI Controller Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate30m{instance=~"trustyai-service-operator-controller-manager"}) by (instance) > (6.00 * (1-0.98000))
+            and
+            sum(probe_success:burnrate6h{instance=~"trustyai-service-operator-controller-manager"}) by (instance) > (6.00 * (1-0.98000))
+          for: 15m
+          labels:
+            severity: critical
+        - alert: TrustyAI Controller Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhoai-trustyai-controller-probe-success-burn-rate.md"
+            summary: TrustyAI Controller Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate2h{instance=~"trustyai-service-operator-controller-manager"}) by (instance) > (3.00 * (1-0.98000))
+            and
+            sum(probe_success:burnrate1d{instance=~"trustyai-service-operator-controller-manager"}) by (instance) > (3.00 * (1-0.98000))
+          for: 1h
+          labels:
+            severity: warning
