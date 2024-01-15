@@ -2,10 +2,7 @@ package features_test
 
 import (
 	"context"
-	"io"
-	"os"
 	"path"
-	"path/filepath"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -134,7 +131,7 @@ var _ = Describe("Service Mesh feature", func() {
 
 			controlPlaneWithNetworkPoliciesMgmtDisabled, err := feature.CreateFeature("control-plane-with-disabled-network-policies").
 				For(dsciSpec).
-				Manifests(fromTestTmpDir(path.Join("templates/servicemesh/base", "control-plane-disable-networkpolicies.patch.tmpl"))).
+				Manifests(path.Join("templates/servicemesh/base", "control-plane-disable-networkpolicies.patch.tmpl")).
 				UsingConfig(envTest.Config).
 				Load()
 
@@ -305,43 +302,4 @@ func getServiceMeshControlPlane(cfg *rest.Config, namespace, name string) (*unst
 	}
 
 	return smcp, nil
-}
-
-func fromTestTmpDir(fileName string) string {
-	root, err := envtestutil.FindProjectRoot()
-	Expect(err).ToNot(HaveOccurred())
-
-	tmpDir := filepath.Join(os.TempDir(), envtestutil.RandomUUIDName(16))
-	if err := os.Mkdir(tmpDir, os.ModePerm); err != nil {
-		Fail(err.Error())
-	}
-
-	src := path.Join(root, "pkg", "feature", fileName)
-	dest := path.Join(tmpDir, fileName)
-	if err := copyFile(src, dest); err != nil {
-		Fail(err.Error())
-	}
-
-	return dest
-}
-
-func copyFile(src, dst string) error {
-	source, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer source.Close()
-
-	if err := os.MkdirAll(filepath.Dir(dst), os.ModePerm); err != nil {
-		return err
-	}
-
-	destination, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer destination.Close()
-
-	_, err = io.Copy(destination, source)
-	return err
 }

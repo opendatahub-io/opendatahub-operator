@@ -87,7 +87,7 @@ func configureServiceMeshFeatures(s *feature.FeaturesInitializer) error {
 	noDefaultNetworkPolicies, errNp := feature.CreateFeature("mesh-control-plane-no-default-network-policies").
 		For(s.DSCInitializationSpec).
 		Manifests(
-			path.Join(rootDir, templatesDir, "base", "control-plane-disable-networkpolicies.patch.tmpl"),
+			path.Join(templatesDir, "base", "control-plane-disable-networkpolicies.patch.tmpl"),
 		).
 		Load()
 
