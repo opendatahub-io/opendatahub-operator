@@ -154,7 +154,7 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resC
 	// CloudService Monitoring handling
 	if platform == deploy.ManagedRhods {
 		if enabled {
-			// first check if the service is up, so prometheus wont fire alerts when it is just startup
+			// first check if the service is up, so prometheus won't fire alerts when it is just startup
 			if err := monitoring.WaitForDeploymentAvailable(ctx, resConf, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
 				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 			}
@@ -166,12 +166,8 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resC
 		}
 	}
 
-	if enabled {
-		if err := k.configureServiceMesh(cli, dscispec); err != nil {
-			return err
-		}
-	}
-	return nil
+	configureMeshErr := k.configureServiceMesh(cli, dscispec, enabled)
+	return configureMeshErr
 }
 
 func (k *Kserve) Cleanup(_ client.Client, instance *dsciv1.DSCInitializationSpec) error {
@@ -238,7 +234,11 @@ func checkDepedentOps(cli client.Client) *multierror.Error {
 	return multiErr
 }
 
-func (k *Kserve) configureServiceMesh(cli client.Client, dscispec *dsciv1.DSCInitializationSpec) error {
+func (k *Kserve) configureServiceMesh(cli client.Client, dscispec *dsciv1.DSCInitializationSpec, enabled bool) error {
+	if !enabled {
+		return nil
+	}
+
 	shouldConfigureServiceMesh, err := deploy.ShouldConfigureServiceMesh(cli, dscispec)
 	if err != nil {
 		return err
