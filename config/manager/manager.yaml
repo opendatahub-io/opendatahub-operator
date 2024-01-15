@@ -40,6 +40,9 @@ spec:
       containers:
       - command:
         - /manager
+        env:
+          - name: DISABLE_DSC_CONFIG
+            value: 'true'
         args:
         - --leader-elect
         image: controller:latest

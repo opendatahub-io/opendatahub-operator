@@ -105,49 +105,6 @@ metadata:
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.1.0
     createdAt: "2023-8-23T00:00:00Z"
     olm.skipRange: '>=1.0.0 <2.0.0'
-    operatorframework.io/initialization-resource: |-
-      {
-        "apiVersion": "datasciencecluster.opendatahub.io/v1",
-        "kind": "DataScienceCluster",
-        "metadata": {
-          "name": "default",
-          "labels": {
-            "app.kubernetes.io/name": "datasciencecluster",
-            "app.kubernetes.io/instance": "default",
-            "app.kubernetes.io/part-of": "opendatahub-operator",
-            "app.kubernetes.io/managed-by": "kustomize",
-            "app.kubernetes.io/created-by": "opendatahub-operator"
-          }
-        },
-        "spec": {
-          "components": {
-            "codeflare": {
-              "managementState": "Removed"
-            },
-            "dashboard": {
-              "managementState": "Managed"
-            },
-            "datasciencepipelines": {
-              "managementState": "Managed"
-            },
-            "kserve": {
-              "managementState": "Removed"
-            },
-            "modelmeshserving": {
-              "managementState": "Managed"
-            },
-            "ray": {
-              "managementState": "Removed"
-            },
-            "workbenches": {
-              "managementState": "Managed"
-            },
-            "trustyai": {
-              "managementState": "Removed"
-            }
-          }
-        }
-      }
     operators.operatorframework.io/builder: operator-sdk-v1.24.1
     operators.operatorframework.io/internal-objects: '[dscinitialization.opendatahub.io]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
@@ -1753,6 +1710,9 @@ spec:
                 - --leader-elect
                 command:
                 - /manager
+                env:
+                - name: DISABLE_DSC_CONFIG
+                  value: "true"
                 image: REPLACE_IMAGE:latest
                 imagePullPolicy: Always
                 livenessProbe:

@@ -83,13 +83,16 @@ var _ = Describe("Serverless feature", func() {
 			Load()
 
 		Expect(err).ToNot(HaveOccurred())
+
+		// Creates the actual Feature instance so that associated FeatureTracker is created as well
+		Expect(testFeature.Apply()).To(Succeed())
 	})
 
 	Context("verifying preconditions", func() {
 
 		When("operator is not installed", func() {
 			It("operator presence check should return an error", func() {
-				Expect(serverless.EnsureServerlessOperatorInstalled(testFeature)).To(HaveOccurred())
+				Expect(serverless.EnsureServerlessOperatorInstalled(testFeature)).ToNot(Succeed())
 			})
 		})
 
@@ -99,10 +102,10 @@ var _ = Describe("Serverless feature", func() {
 			BeforeEach(func() {
 				// Create KNativeServing the CRD
 				knativeServingCrdObj = &apiextensionsv1.CustomResourceDefinition{}
-				Expect(yaml.Unmarshal([]byte(knativeServingCrd), knativeServingCrdObj)).ToNot(HaveOccurred())
+				Expect(yaml.Unmarshal([]byte(knativeServingCrd), knativeServingCrdObj)).To(Succeed())
 				c, err := client.New(envTest.Config, client.Options{})
 				Expect(err).ToNot(HaveOccurred())
-				Expect(c.Create(context.TODO(), knativeServingCrdObj)).ToNot(HaveOccurred())
+				Expect(c.Create(context.TODO(), knativeServingCrdObj)).To(Succeed())
 
 				crdOptions := envtest.CRDInstallOptions{PollInterval: interval, MaxTime: timeout}
 				err = envtest.WaitForCRDs(envTest.Config, []*apiextensionsv1.CustomResourceDefinition{knativeServingCrdObj}, crdOptions)
@@ -115,25 +118,25 @@ var _ = Describe("Serverless feature", func() {
 			})
 
 			It("operator presence check should succeed", func() {
-				Expect(serverless.EnsureServerlessOperatorInstalled(testFeature)).ToNot(HaveOccurred())
+				Expect(serverless.EnsureServerlessOperatorInstalled(testFeature)).To(Succeed())
 			})
 
 			It("KNative serving absence check should succeed if serving is not installed", func() {
-				Expect(serverless.EnsureServerlessAbsent(testFeature)).ToNot(HaveOccurred())
+				Expect(serverless.EnsureServerlessAbsent(testFeature)).To(Succeed())
 			})
 
 			It("KNative serving absence check should fail when serving is present", func() {
 				ns := envtestutil.AppendRandomNameTo(testNamespacePrefix)
 				nsResource := createNamespace(ns)
-				Expect(envTestClient.Create(context.TODO(), nsResource)).ToNot(HaveOccurred())
+				Expect(envTestClient.Create(context.TODO(), nsResource)).To(Succeed())
 				defer objectCleaner.DeleteAll(nsResource)
 
 				knativeServing := &unstructured.Unstructured{}
-				Expect(yaml.Unmarshal([]byte(knativeServingInstance), knativeServing)).ToNot(HaveOccurred())
+				Expect(yaml.Unmarshal([]byte(knativeServingInstance), knativeServing)).To(Succeed())
 				knativeServing.SetNamespace(nsResource.Name)
-				Expect(envTestClient.Create(context.TODO(), knativeServing)).ToNot(HaveOccurred())
+				Expect(envTestClient.Create(context.TODO(), knativeServing)).To(Succeed())
 
-				Expect(serverless.EnsureServerlessAbsent(testFeature)).To(HaveOccurred())
+				Expect(serverless.EnsureServerlessAbsent(testFeature)).ToNot(Succeed())
 			})
 		})
 	})
@@ -163,16 +166,16 @@ var _ = Describe("Serverless feature", func() {
 				Expect(yaml.Unmarshal([]byte(openshiftClusterIngress), osIngressResource)).ToNot(HaveOccurred())
 				c, err := client.New(envTest.Config, client.Options{})
 				Expect(err).ToNot(HaveOccurred())
-				Expect(c.Create(context.TODO(), osIngressResource)).ToNot(HaveOccurred())
+				Expect(c.Create(context.TODO(), osIngressResource)).To(Succeed())
 
 				// Default value is blank -> testFeature.Spec.Serving.IngressGateway.Domain = ""
-				Expect(serverless.ServingIngressDomain(testFeature)).ToNot(HaveOccurred())
+				Expect(serverless.ServingIngressDomain(testFeature)).To(Succeed())
 				Expect(testFeature.Spec.KnativeIngressDomain).To(Equal("*.foo.io"))
 			})
 
 			It("should use user value when set in the DSCI", func() {
 				testFeature.Spec.Serving.IngressGateway.Domain = testDomainFooCom
-				Expect(serverless.ServingIngressDomain(testFeature)).ToNot(HaveOccurred())
+				Expect(serverless.ServingIngressDomain(testFeature)).To(Succeed())
 				Expect(testFeature.Spec.KnativeIngressDomain).To(Equal(testDomainFooCom))
 			})
 		})
@@ -183,16 +186,16 @@ var _ = Describe("Serverless feature", func() {
 		It("should create a TLS secret if certificate is SelfSigned", func() {
 			ns := envtestutil.AppendRandomNameTo(testNamespacePrefix)
 			nsResource := createNamespace(ns)
-			Expect(envTestClient.Create(context.TODO(), nsResource)).ToNot(HaveOccurred())
+			Expect(envTestClient.Create(context.TODO(), nsResource)).To(Succeed())
 			defer objectCleaner.DeleteAll(nsResource)
 
 			testFeature.Spec.ControlPlane.Namespace = nsResource.Name
 			testFeature.Spec.Serving.IngressGateway.Certificate.Type = infrav1.SelfSigned
 			testFeature.Spec.Serving.IngressGateway.Domain = testDomainFooCom
-			Expect(serverless.ServingDefaultValues(testFeature)).ToNot(HaveOccurred())
-			Expect(serverless.ServingIngressDomain(testFeature)).ToNot(HaveOccurred())
+			Expect(serverless.ServingDefaultValues(testFeature)).To(Succeed())
+			Expect(serverless.ServingIngressDomain(testFeature)).To(Succeed())
 
-			Expect(serverless.ServingCertificateResource(testFeature)).ToNot(HaveOccurred())
+			Expect(serverless.ServingCertificateResource(testFeature)).To(Succeed())
 
 			secret, err := testFeature.Clientset.CoreV1().Secrets(nsResource.Name).Get(context.TODO(), serverless.DefaultCertificateSecretName, v1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
@@ -202,16 +205,16 @@ var _ = Describe("Serverless feature", func() {
 		It("should not create any TLS secret if certificate is user provided", func() {
 			ns := envtestutil.AppendRandomNameTo(testNamespacePrefix)
 			nsResource := createNamespace(ns)
-			Expect(envTestClient.Create(context.TODO(), nsResource)).ToNot(HaveOccurred())
+			Expect(envTestClient.Create(context.TODO(), nsResource)).To(Succeed())
 			defer objectCleaner.DeleteAll(nsResource)
 
 			testFeature.Spec.ControlPlane.Namespace = nsResource.Name
 			testFeature.Spec.Serving.IngressGateway.Certificate.Type = infrav1.Provided
 			testFeature.Spec.Serving.IngressGateway.Domain = "*.foo.com"
-			Expect(serverless.ServingDefaultValues(testFeature)).ToNot(HaveOccurred())
-			Expect(serverless.ServingIngressDomain(testFeature)).ToNot(HaveOccurred())
+			Expect(serverless.ServingDefaultValues(testFeature)).To(Succeed())
+			Expect(serverless.ServingIngressDomain(testFeature)).To(Succeed())
 
-			Expect(serverless.ServingCertificateResource(testFeature)).ToNot(HaveOccurred())
+			Expect(serverless.ServingCertificateResource(testFeature)).To(Succeed())
 
 			list, err := testFeature.Clientset.CoreV1().Secrets(nsResource.Name).List(context.TODO(), v1.ListOptions{})
 			Expect(err).ToNot(HaveOccurred())
