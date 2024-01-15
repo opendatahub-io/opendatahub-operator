@@ -49,7 +49,7 @@ func (f *Feature) createResources(resources string) error {
 		namespace := u.GetNamespace()
 
 		u.SetOwnerReferences([]metav1.OwnerReference{
-			f.OwnerReference(),
+			f.AsOwnerReference(),
 		})
 
 		log.Info("Creating resource", "name", name)

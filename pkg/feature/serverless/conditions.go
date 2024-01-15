@@ -28,7 +28,7 @@ func EnsureServerlessAbsent(f *feature.Feature) error {
 	}
 
 	servingOwners := list.Items[0].GetOwnerReferences()
-	featureOwner := f.OwnerReference()
+	featureOwner := f.AsOwnerReference()
 	for _, owner := range servingOwners {
 		if owner.APIVersion == featureOwner.APIVersion &&
 			owner.Kind == featureOwner.Kind &&

@@ -52,6 +52,10 @@ func (f *Feature) Apply() error {
 		return nil
 	}
 
+	if err := f.createResourceTracker(); err != nil {
+		return err
+	}
+
 	// Verify all precondition and collect errors
 	var multiErr *multierror.Error
 	for _, precondition := range f.preconditions {
@@ -128,7 +132,7 @@ func (f *Feature) CreateConfigMap(cfgMapName string, data map[string]string) err
 			Name:      cfgMapName,
 			Namespace: f.Spec.AppNamespace,
 			OwnerReferences: []metav1.OwnerReference{
-				f.OwnerReference(),
+				f.AsOwnerReference(),
 			},
 		},
 		Data: data,
@@ -195,7 +199,7 @@ func (f *Feature) apply(m manifest) error {
 	return nil
 }
 
-func (f *Feature) OwnerReference() metav1.OwnerReference {
+func (f *Feature) AsOwnerReference() metav1.OwnerReference {
 	return f.Spec.Tracker.ToOwnerReference()
 }
 
@@ -238,7 +242,9 @@ func (f *Feature) createResourceTracker() error {
 
 	// Register its own cleanup
 	f.addCleanup(func(feature *Feature) error {
-		if err := f.DynamicClient.Resource(gvr.ResourceTracker).Delete(context.TODO(), f.Spec.Tracker.Name, metav1.DeleteOptions{}); err != nil && !k8serrors.IsNotFound(err) {
+		err := f.DynamicClient.Resource(gvr.ResourceTracker).Delete(context.TODO(), f.Spec.Tracker.Name, metav1.DeleteOptions{})
+
+		if !k8serrors.IsNotFound(err) {
 			return err
 		}
 

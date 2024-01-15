@@ -171,12 +171,6 @@ func (fb *featureBuilder) Load() (*Feature, error) {
 		}
 	}
 
-	if feature.Enabled {
-		if err := feature.createResourceTracker(); err != nil {
-			return feature, err
-		}
-	}
-
 	return feature, nil
 }
 
