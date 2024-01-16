@@ -195,7 +195,7 @@ func (fb *featureBuilder) withDefaultClient() error {
 	return nil
 }
 
-// ManifestSource sets the root file system (fs.FS) from which manifest paths are loaded
+// ManifestSource sets the root file system (fsys) from which manifest paths are loaded
 // If ManifestSource is not called in the builder chain, the default source will be the embeddedFiles.
 func (fb *featureBuilder) ManifestSource(fsys fs.FS) *featureBuilder {
 	fb.builders = append(fb.builders, func(f *Feature) error {
