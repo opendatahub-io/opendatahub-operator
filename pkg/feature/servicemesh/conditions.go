@@ -22,7 +22,7 @@ const (
 
 func EnsureServiceMeshOperatorInstalled(f *feature.Feature) error {
 	if err := feature.EnsureCRDIsInstalled("servicemeshcontrolplanes.maistra.io")(f); err != nil {
-		f.Log.Info("Failed to find the pre-requisite Service Mesh Control Plane CRD, please ensure Service Mesh Operator is installed.", "feature", f.Name)
+		f.Log.Info("Failed to find the pre-requisite Service Mesh Control Plane CRD, please ensure Service Mesh Operator is installed.")
 
 		return err
 	}
