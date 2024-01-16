@@ -3,6 +3,8 @@ package feature
 import (
 	"context"
 
+
+	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -20,8 +22,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 )
 
-var log = ctrlLog.Log.WithName("features")
-
 type Feature struct {
 	Name    string
 	Spec    *Spec
@@ -37,6 +37,16 @@ type Feature struct {
 	preconditions  []Action
 	postconditions []Action
 	loaders        []Action
+
+	Log logr.Logger
+}
+
+func newFeature(name string) *Feature {
+	return &Feature{
+		Name:    name,
+		Enabled: true,
+		Log:     ctrlLog.Log.WithName("features").WithValues("feature", name),
+	}
 }
 
 // Action is a func type which can be used for different purposes while having access to Feature struct.
@@ -44,12 +54,13 @@ type Action func(feature *Feature) error
 
 func (f *Feature) Apply() error {
 	if !f.Enabled {
-		log.Info("feature is disabled, skipping.", "feature", f.Name)
+		f.Log.Info("feature is disabled, skipping")
 
 		return nil
 	}
 
 	if err := f.createResourceTracker(); err != nil {
+		f.Log.Error(err, "failed creating resource tracker")
 		return err
 	}
 
@@ -59,44 +70,52 @@ func (f *Feature) Apply() error {
 		multiErr = multierror.Append(multiErr, precondition(f))
 	}
 
-	if multiErr.ErrorOrNil() != nil {
-		return multiErr.ErrorOrNil()
+	preconditionsErr := multiErr.ErrorOrNil()
+	if preconditionsErr != nil {
+		f.Log.Error(preconditionsErr, "failed ensuring preconditions are met")
+		return preconditionsErr
 	}
 
 	// Load necessary data
 	for _, loader := range f.loaders {
 		multiErr = multierror.Append(multiErr, loader(f))
 	}
-	if multiErr.ErrorOrNil() != nil {
-		return multiErr.ErrorOrNil()
+
+	dataLoadErr := multiErr.ErrorOrNil()
+	if dataLoadErr != nil {
+		f.Log.Error(dataLoadErr, "failed loading template data")
+		return dataLoadErr
 	}
 
 	// create or update resources
 	for _, resource := range f.resources {
 		if err := resource(f); err != nil {
-			return err
+			f.Log.Error(err, "failed creating a resource")
+			return errors.WithStack(err)
 		}
 	}
 
 	// Process and apply manifests
 	for _, m := range f.manifests {
 		if err := m.processTemplate(f.Spec); err != nil {
+			f.Log.Error(err, "failed processing a template")
 			return errors.WithStack(err)
 		}
-
-		log.Info("converted template to manifest", "feature", f.Name, "path", m.targetPath())
 	}
 
 	if err := f.applyManifests(); err != nil {
-		return err
+		f.Log.Error(err, "failed applying manifests")
+		return errors.WithStack(err)
 	}
 
 	for _, postcondition := range f.postconditions {
 		multiErr = multierror.Append(multiErr, postcondition(f))
 	}
 
-	if multiErr.ErrorOrNil() != nil {
-		return multiErr.ErrorOrNil()
+	postconditionErr := multiErr.ErrorOrNil()
+	if postconditionErr != nil {
+		f.Log.Error(preconditionsErr, "failed ensuring postconditions are met")
+		return postconditionErr
 	}
 
 	return nil
@@ -104,7 +123,7 @@ func (f *Feature) Apply() error {
 
 func (f *Feature) Cleanup() error {
 	if !f.Enabled {
-		log.Info("feature is disabled, skipping.", "feature", f.Name)
+		f.Log.Info("feature is disabled, skipping")
 
 		return nil
 	}
@@ -114,7 +133,12 @@ func (f *Feature) Cleanup() error {
 		cleanupErrors = multierror.Append(cleanupErrors, cleanupFunc(f))
 	}
 
-	return cleanupErrors.ErrorOrNil()
+	cleanupErr := cleanupErrors.ErrorOrNil()
+	if cleanupErr != nil {
+		f.Log.Error(cleanupErr, "failed performing feature cleanup")
+	}
+
+	return cleanupErr
 }
 
 func (f *Feature) applyManifests() error {
@@ -169,20 +193,20 @@ func (f *Feature) apply(m manifest) error {
 
 	if m.patch {
 		applier = func(filename string) error {
-			log.Info("patching using manifest", "feature", f.Name, "name", m.name, "path", targetPath)
+			f.Log.Info("patching using manifest", "feature", f.Name, "name", m.name, "path", targetPath)
 
 			return f.patchResourceFromFile(filename)
 		}
 	} else {
 		applier = func(filename string) error {
-			log.Info("applying manifest", "feature", f.Name, "name", m.name, "path", targetPath)
+			f.Log.Info("applying manifest", "feature", f.Name, "name", m.name, "path", targetPath)
 
 			return f.createResourceFromFile(filename)
 		}
 	}
 
 	if err := applier(targetPath); err != nil {
-		log.Error(err, "failed to create resource", "feature", f.Name, "name", m.name, "path", targetPath)
+		f.Log.Error(err, "failed to create resource", "feature", f.Name, "name", m.name, "path", targetPath)
 
 		return err
 	}
