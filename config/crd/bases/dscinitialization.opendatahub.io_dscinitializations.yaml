@@ -110,21 +110,6 @@ spec:
                             items:
                               type: string
                             type: array
-                          image:
-                            default: quay.io/kuadrant/authorino:v0.16.0
-                            description: Image allows to define a custom container
-                              image to be used when deploying Authorino's instance.
-                            type: string
-                          label:
-                            default: authorino/topic=odh
-                            description: Label narrows amount of AuthConfigs to process
-                              by Authorino service.
-                            type: string
-                          name:
-                            default: authorino-mesh-authz-provider
-                            description: Name specifies how external authorization
-                              provider should be called.
-                            type: string
                         type: object
                       namespace:
                         default: auth-provider

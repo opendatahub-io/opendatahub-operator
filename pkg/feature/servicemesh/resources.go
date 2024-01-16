@@ -21,8 +21,7 @@ func ConfigMaps(feature *feature.Feature) error {
 	authorinoConfig := feature.Spec.Auth.Authorino
 	if err := feature.CreateConfigMap("auth-refs",
 		map[string]string{
-			"AUTHORINO_LABEL": authorinoConfig.Label,
-			"AUTH_AUDIENCE":   strings.Join(authorinoConfig.Audiences, ","),
+			"AUTH_AUDIENCE": strings.Join(*authorinoConfig.Audiences, ","),
 		}); err != nil {
 		return errors.WithStack(err)
 	}

@@ -40,6 +40,11 @@ func (fb *featureBuilder) For(spec *v1.DSCInitializationSpec) *featureBuilder {
 			ServiceMeshSpec: &spec.ServiceMesh,
 			Serving:         &infrav1.ServingSpec{},
 			AppNamespace:    spec.ApplicationsNamespace,
+			AuthorinoConfigs: AuthorinoConfigs{
+				CrName:         "authorino-mesh-authz-provider",
+				ContainerImage: "quay.io/kuadrant/authorino:v0.16.0",
+				LabelSelectors: "authorino/topic=odh",
+			},
 		}
 
 		return nil

@@ -10,6 +10,7 @@ import (
 type Spec struct {
 	*infrav1.ServiceMeshSpec
 	Serving                  *infrav1.ServingSpec
+	AuthorinoConfigs         AuthorinoConfigs
 	OAuth                    OAuth
 	AppNamespace             string
 	Domain                   string
@@ -25,6 +26,12 @@ type OAuth struct {
 	Port,
 	ClientSecret,
 	Hmac string
+}
+
+type AuthorinoConfigs struct {
+	CrName,
+	ContainerImage,
+	LabelSelectors string
 }
 
 func ReplaceChar(s string, oldChar, newChar string) string {
