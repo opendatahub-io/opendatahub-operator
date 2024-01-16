@@ -112,10 +112,10 @@ func (f *Feature) Apply() error {
 		multiErr = multierror.Append(multiErr, postcondition(f))
 	}
 
-	postconditionErr := multiErr.ErrorOrNil()
-	if postconditionErr != nil {
-		f.Log.Error(preconditionsErr, "failed ensuring postconditions are met")
-		return postconditionErr
+	postconditionsErr := multiErr.ErrorOrNil()
+	if postconditionsErr != nil {
+		f.Log.Error(postconditionsErr, "failed ensuring postconditions are met")
+		return postconditionsErr
 	}
 
 	return nil
