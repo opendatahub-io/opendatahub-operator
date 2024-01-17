@@ -7,10 +7,12 @@ import (
 	"github.com/onsi/gomega/types"
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
+
+	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 )
 
 //nolint:nolintlint,ireturn // Reason: returning an interface is necessary for dynamic typing in this context
-func HaveCondition(conditionType conditionsv1.ConditionType, conditionStatus corev1.ConditionStatus, reason string) types.GomegaMatcher {
+func HaveCondition(conditionType conditionsv1.ConditionType, conditionStatus corev1.ConditionStatus, reason featurev1.ConditionPhase) types.GomegaMatcher {
 	return &HaveConditionMatcher{
 		conditionType:   conditionType,
 		conditionStatus: conditionStatus,
@@ -21,7 +23,7 @@ func HaveCondition(conditionType conditionsv1.ConditionType, conditionStatus cor
 type HaveConditionMatcher struct {
 	conditionType   conditionsv1.ConditionType
 	conditionStatus corev1.ConditionStatus
-	reason          string
+	reason          featurev1.ConditionPhase
 }
 
 func (h HaveConditionMatcher) Match(actual interface{}) (bool, error) {
@@ -32,7 +34,7 @@ func (h HaveConditionMatcher) Match(actual interface{}) (bool, error) {
 
 	desiredCondition := conditionsv1.FindStatusCondition(conditions, h.conditionType)
 
-	return desiredCondition != nil && desiredCondition.Status == h.conditionStatus && desiredCondition.Reason == h.reason, nil
+	return desiredCondition != nil && desiredCondition.Status == h.conditionStatus && desiredCondition.Reason == string(h.reason), nil
 }
 
 func asConditions(actual interface{}) ([]conditionsv1.Condition, error) {
@@ -65,5 +67,5 @@ func (h HaveConditionMatcher) NegatedFailureMessage(actual interface{}) string {
 func (h HaveConditionMatcher) desiredCondition() interface{} {
 	return "Type:   " + string(h.conditionType) + "\n" +
 		"Status: " + string(h.conditionStatus) + "\n" +
-		"Reason: " + h.reason
+		"Reason: " + string(h.reason)
 }

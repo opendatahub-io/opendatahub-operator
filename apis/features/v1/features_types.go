@@ -21,14 +21,16 @@ type FeatureTracker struct {
 	Status            FeatureTrackerStatus `json:"status,omitempty"`
 }
 
+type ConditionPhase string
+
 const (
-	ConditionPhaseFeatureCreated   = "FeatureCreated"
-	ConditionPhasePreConditions    = "FeaturePreConditions"
-	ConditionPhaseResourceCreation = "ResourceCreation"
-	ConditionPhaseLoadTemplateData = "LoadTemplateData"
-	ConditionPhaseProcessTemplates = "ProcessTemplates"
-	ConditionPhaseApplyManifests   = "ApplyManifests"
-	ConditionPhasePostConditions   = "FeaturePostConditions"
+	FeatureCreated   ConditionPhase = "FeatureCreated"
+	PreConditions    ConditionPhase = "FeaturePreConditions"
+	ResourceCreation ConditionPhase = "ResourceCreation"
+	LoadTemplateData ConditionPhase = "LoadTemplateData"
+	ProcessTemplates ConditionPhase = "ProcessTemplates"
+	ApplyManifests   ConditionPhase = "ApplyManifests"
+	PostConditions   ConditionPhase = "FeaturePostConditions"
 )
 
 func (s *FeatureTracker) ToOwnerReference() metav1.OwnerReference {

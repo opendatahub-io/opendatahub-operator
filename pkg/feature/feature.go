@@ -58,8 +58,8 @@ func (f *Feature) Apply() (err error) {
 
 	// Verify all precondition and collect errors
 	var multiErr *multierror.Error
-	var phase string
-	phase = featurev1.ConditionPhaseFeatureCreated
+	var phase featurev1.ConditionPhase
+	phase = featurev1.FeatureCreated
 	f.UpdateFeatureTrackerStatus(conditionsv1.ConditionDegraded, "False", phase, fmt.Sprintf("Applying feature %s", f.Name))
 	defer func() {
 		if err != nil {
@@ -69,7 +69,7 @@ func (f *Feature) Apply() (err error) {
 		}
 	}()
 
-	phase = featurev1.ConditionPhasePreConditions
+	phase = featurev1.PreConditions
 	for _, precondition := range f.preconditions {
 		multiErr = multierror.Append(multiErr, precondition(f))
 	}
@@ -78,7 +78,7 @@ func (f *Feature) Apply() (err error) {
 		return multiErr.ErrorOrNil()
 	}
 
-	phase = featurev1.ConditionPhaseLoadTemplateData
+	phase = featurev1.LoadTemplateData
 	for _, loader := range f.loaders {
 		multiErr = multierror.Append(multiErr, loader(f))
 	}
@@ -86,14 +86,14 @@ func (f *Feature) Apply() (err error) {
 		return multiErr.ErrorOrNil()
 	}
 
-	phase = featurev1.ConditionPhaseResourceCreation
+	phase = featurev1.ResourceCreation
 	for _, resource := range f.resources {
 		if err := resource(f); err != nil {
 			return err
 		}
 	}
 
-	phase = featurev1.ConditionPhaseProcessTemplates
+	phase = featurev1.ProcessTemplates
 	for _, m := range f.manifests {
 		if err := m.processTemplate(f.Spec); err != nil {
 			return errors.WithStack(err)
@@ -102,12 +102,12 @@ func (f *Feature) Apply() (err error) {
 		log.Info("converted template to manifest", "feature", f.Name, "path", m.targetPath())
 	}
 
-	phase = featurev1.ConditionPhaseApplyManifests
+	phase = featurev1.ApplyManifests
 	if err := f.applyManifests(); err != nil {
 		return err
 	}
 
-	phase = featurev1.ConditionPhasePostConditions
+	phase = featurev1.PostConditions
 	for _, postcondition := range f.postconditions {
 		multiErr = multierror.Append(multiErr, postcondition(f))
 	}
@@ -115,7 +115,7 @@ func (f *Feature) Apply() (err error) {
 		return multiErr.ErrorOrNil()
 	}
 
-	phase = featurev1.ConditionPhaseFeatureCreated
+	phase = featurev1.FeatureCreated
 	return nil
 }
 
@@ -262,7 +262,7 @@ func (f *Feature) createFeatureTracker() error {
 	return nil
 }
 
-func (f *Feature) UpdateFeatureTrackerStatus(condType conditionsv1.ConditionType, status corev1.ConditionStatus, reason, message string) {
+func (f *Feature) UpdateFeatureTrackerStatus(condType conditionsv1.ConditionType, status corev1.ConditionStatus, reason featurev1.ConditionPhase, message string) {
 	if f.Spec.Tracker.Status.Conditions == nil {
 		f.Spec.Tracker.Status.Conditions = &[]conditionsv1.Condition{}
 	}
@@ -270,7 +270,7 @@ func (f *Feature) UpdateFeatureTrackerStatus(condType conditionsv1.ConditionType
 	conditionsv1.SetStatusCondition(f.Spec.Tracker.Status.Conditions, conditionsv1.Condition{
 		Type:    condType,
 		Status:  status,
-		Reason:  reason,
+		Reason:  string(reason),
 		Message: message,
 	})
 
