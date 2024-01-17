@@ -26,10 +26,13 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/hashicorp/go-multierror"
 	ocbuildv1 "github.com/openshift/api/build/v1"
 	ocimgv1 "github.com/openshift/api/image/v1"
 	v1 "github.com/openshift/api/operator/v1"
+	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	admv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -427,7 +430,9 @@ func (r *DataScienceClusterReconciler) updateStatus(ctx context.Context, origina
 		update(saved)
 
 		// Try to update
-		err = r.Client.Status().Update(context.TODO(), saved)
+		if isStatusUpdate(&original.Status, &saved.Status) {
+			err = r.Client.Status().Update(context.TODO(), saved)
+		}
 
 		// Return err itself here (not wrapped inside another error)
 		// so that RetryOnConflict can identify it correctly.
@@ -488,4 +493,8 @@ func getAllComponents(c *dsc.Components) ([]components.ComponentInterface, error
 	}
 
 	return allComponents, nil
+}
+
+func isStatusUpdate(original *dsc.DataScienceClusterStatus, saved *dsc.DataScienceClusterStatus) bool {
+	return !cmp.Equal(original, saved, cmpopts.IgnoreFields(conditionsv1.Condition{}, "LastHeartbeatTime", "LastTransitionTime"))
 }
