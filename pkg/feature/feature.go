@@ -80,12 +80,10 @@ func (f *Feature) Apply() error {
 	}
 
 	// Process and apply manifests
-	for i, m := range f.manifests {
-		if err := m.process(f.Spec); err != nil {
+	for i := range f.manifests {
+		if err := f.manifests[i].process(f.Spec); err != nil {
 			return errors.WithStack(err)
 		}
-
-		f.manifests[i] = m
 	}
 
 	if err := f.applyManifests(); err != nil {
