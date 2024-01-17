@@ -59,7 +59,6 @@ func (f *Feature) Apply() error {
 	}
 
 	if err := f.createResourceTracker(); err != nil {
-		f.Log.Error(err, "failed creating resource tracker")
 		return err
 	}
 
@@ -70,7 +69,6 @@ func (f *Feature) Apply() error {
 	}
 
 	if preconditionsErr := multiErr.ErrorOrNil(); preconditionsErr != nil {
-		f.Log.Error(preconditionsErr, "failed ensuring preconditions are met")
 		return preconditionsErr
 	}
 
@@ -80,14 +78,12 @@ func (f *Feature) Apply() error {
 	}
 
 	if dataLoadErr := multiErr.ErrorOrNil(); dataLoadErr != nil {
-		f.Log.Error(dataLoadErr, "failed loading template data")
 		return dataLoadErr
 	}
 
 	// create or update resources
 	for _, resource := range f.resources {
 		if err := resource(f); err != nil {
-			f.Log.Error(err, "failed creating a resource")
 			return errors.WithStack(err)
 		}
 	}
@@ -95,13 +91,11 @@ func (f *Feature) Apply() error {
 	// Process and apply manifests
 	for _, m := range f.manifests {
 		if err := m.processTemplate(f.Spec); err != nil {
-			f.Log.Error(err, "failed processing a template")
 			return errors.WithStack(err)
 		}
 	}
 
 	if err := f.applyManifests(); err != nil {
-		f.Log.Error(err, "failed applying manifests")
 		return errors.WithStack(err)
 	}
 
@@ -109,12 +103,7 @@ func (f *Feature) Apply() error {
 		multiErr = multierror.Append(multiErr, postcondition(f))
 	}
 
-	if postconditionsErr := multiErr.ErrorOrNil(); postconditionsErr != nil {
-		f.Log.Error(postconditionsErr, "failed ensuring postconditions are met")
-		return postconditionsErr
-	}
-
-	return nil
+	return multiErr.ErrorOrNil()
 }
 
 func (f *Feature) Cleanup() error {
