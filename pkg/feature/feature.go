@@ -3,7 +3,6 @@ package feature
 import (
 	"context"
 
-
 	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
@@ -70,8 +69,7 @@ func (f *Feature) Apply() error {
 		multiErr = multierror.Append(multiErr, precondition(f))
 	}
 
-	preconditionsErr := multiErr.ErrorOrNil()
-	if preconditionsErr != nil {
+	if preconditionsErr := multiErr.ErrorOrNil(); preconditionsErr != nil {
 		f.Log.Error(preconditionsErr, "failed ensuring preconditions are met")
 		return preconditionsErr
 	}
@@ -81,8 +79,7 @@ func (f *Feature) Apply() error {
 		multiErr = multierror.Append(multiErr, loader(f))
 	}
 
-	dataLoadErr := multiErr.ErrorOrNil()
-	if dataLoadErr != nil {
+	if dataLoadErr := multiErr.ErrorOrNil(); dataLoadErr != nil {
 		f.Log.Error(dataLoadErr, "failed loading template data")
 		return dataLoadErr
 	}
@@ -112,8 +109,7 @@ func (f *Feature) Apply() error {
 		multiErr = multierror.Append(multiErr, postcondition(f))
 	}
 
-	postconditionsErr := multiErr.ErrorOrNil()
-	if postconditionsErr != nil {
+	if postconditionsErr := multiErr.ErrorOrNil(); postconditionsErr != nil {
 		f.Log.Error(postconditionsErr, "failed ensuring postconditions are met")
 		return postconditionsErr
 	}
