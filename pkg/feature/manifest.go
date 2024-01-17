@@ -20,6 +20,7 @@ type manifest struct {
 	processedContent string
 	template,
 	patch bool
+	fsys fs.FS
 }
 
 func loadManifestsFrom(fsys fs.FS, path string) ([]manifest, error) {
@@ -34,7 +35,7 @@ func loadManifestsFrom(fsys fs.FS, path string) ([]manifest, error) {
 		if dirEntry.IsDir() {
 			return nil
 		}
-		m := createManifestFrom(path)
+		m := createManifestFrom(fsys, path)
 		manifests = append(manifests, m)
 
 		return nil
@@ -47,13 +48,14 @@ func loadManifestsFrom(fsys fs.FS, path string) ([]manifest, error) {
 	return manifests, nil
 }
 
-func createManifestFrom(path string) manifest {
+func createManifestFrom(fsys fs.FS, path string) manifest {
 	basePath := filepath.Base(path)
 	m := manifest{
 		name:     basePath,
 		path:     path,
 		patch:    strings.Contains(basePath, ".patch"),
 		template: filepath.Ext(path) == ".tmpl",
+		fsys:     fsys,
 	}
 
 	return m
@@ -63,8 +65,8 @@ func (m *manifest) targetPath() string {
 	return fmt.Sprintf("%s%s", m.path[:len(m.path)-len(filepath.Ext(m.path))], ".yaml")
 }
 
-func (m *manifest) process(fsys fs.FS, data interface{}) error {
-	manifestFile, err := fsys.Open(m.path)
+func (m *manifest) process(data interface{}) error {
+	manifestFile, err := m.open()
 	if err != nil {
 		log.Error(err, "Failed to open manifest file", "path", m.path)
 		return err
@@ -98,4 +100,8 @@ func (m *manifest) process(fsys fs.FS, data interface{}) error {
 	m.processedContent = buffer.String()
 
 	return nil
+}
+
+func (m *manifest) open() (fs.File, error) {
+	return m.fsys.Open(m.path)
 }

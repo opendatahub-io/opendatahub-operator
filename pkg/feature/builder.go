@@ -22,10 +22,14 @@ type featureBuilder struct {
 	name     string
 	config   *rest.Config
 	builders []partialBuilder
+	fsys     fs.FS
 }
 
 func CreateFeature(name string) *featureBuilder { //nolint:golint,revive //No need to export featureBuilder.
-	return &featureBuilder{name: name}
+	return &featureBuilder{
+		name: name,
+		fsys: embeddedFiles,
+	}
 }
 
 func (fb *featureBuilder) For(spec *v1.DSCInitializationSpec) *featureBuilder {
@@ -82,7 +86,7 @@ func (fb *featureBuilder) Manifests(paths ...string) *featureBuilder {
 		var manifests []manifest
 
 		for _, path := range paths {
-			manifests, err = loadManifestsFrom(f.fsys, path)
+			manifests, err = loadManifestsFrom(fb.fsys, path)
 			if err != nil {
 				return errors.WithStack(err)
 			}
@@ -150,7 +154,6 @@ func (fb *featureBuilder) Load() (*Feature, error) {
 	feature := &Feature{
 		Name:    fb.name,
 		Enabled: true,
-		fsys:    embeddedFiles,
 	}
 
 	// UsingConfig builder wasn't called while constructing this feature.
@@ -198,11 +201,6 @@ func (fb *featureBuilder) withDefaultClient() error {
 // ManifestSource sets the root file system (fsys) from which manifest paths are loaded
 // If ManifestSource is not called in the builder chain, the default source will be the embeddedFiles.
 func (fb *featureBuilder) ManifestSource(fsys fs.FS) *featureBuilder {
-	fb.builders = append(fb.builders, func(f *Feature) error {
-		f.fsys = fsys
-
-		return nil
-	})
-
+	fb.fsys = fsys
 	return fb
 }

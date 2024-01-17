@@ -2,7 +2,6 @@ package feature
 
 import (
 	"context"
-	"io/fs"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
@@ -32,7 +31,6 @@ type Feature struct {
 	DynamicClient dynamic.Interface
 	Client        client.Client
 
-	fsys      fs.FS
 	manifests []manifest
 
 	cleanups       []Action
@@ -83,7 +81,7 @@ func (f *Feature) Apply() error {
 
 	// Process and apply manifests
 	for i, m := range f.manifests {
-		if err := m.process(f.fsys, f.Spec); err != nil {
+		if err := m.process(f.Spec); err != nil {
 			return errors.WithStack(err)
 		}
 
@@ -159,15 +157,6 @@ func (f *Feature) CreateConfigMap(cfgMapName string, data map[string]string) err
 
 func (f *Feature) addCleanup(cleanupFuncs ...Action) {
 	f.cleanups = append(f.cleanups, cleanupFuncs...)
-}
-
-func (f *Feature) ApplyManifest(filename string) error {
-	m := createManifestFrom(filename)
-	if err := m.process(f.fsys, f.Spec); err != nil {
-		return err
-	}
-
-	return f.apply(m)
 }
 
 type apply func(data string) error
