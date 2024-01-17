@@ -2,6 +2,7 @@ package servicemesh
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -67,12 +68,12 @@ func WaitForControlPlaneToBeReady(f *feature.Feature) error {
 func CheckControlPlaneComponentReadiness(dynamicClient dynamic.Interface, smcp, smcpNs string) (bool, error) {
 	unstructObj, err := dynamicClient.Resource(gvr.SMCP).Namespace(smcpNs).Get(context.TODO(), smcp, metav1.GetOptions{})
 	if err != nil {
-		return false, errors.Wrap(err, "failed to find Service Mesh Control Plane")
+		return false, fmt.Errorf("failed to find Service Mesh Control Plane: %w", err)
 	}
 
 	components, found, err := unstructured.NestedMap(unstructObj.Object, "status", "readiness", "components")
 	if err != nil || !found {
-		return false, errors.Wrap(err, "status conditions not found or error in parsing of Service Mesh Control Plane")
+		return false, fmt.Errorf("status conditions not found or error in parsing of Service Mesh Control Plane: %w", err)
 	}
 
 	readyComponents := len(components["ready"].([]interface{}))     //nolint:forcetypeassert
