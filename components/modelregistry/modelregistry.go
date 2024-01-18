@@ -66,9 +66,11 @@ func (m *ModelRegistry) ReconcileComponent(_ context.Context, cli client.Client,
 	}
 
 	if enabled {
-		// Download manifests and update paths
-		if err = m.OverrideManifests(string(platform)); err != nil {
-			return err
+		if m.DevFlags != nil {
+			// Download manifests and update paths
+			if err = m.OverrideManifests(string(platform)); err != nil {
+				return err
+			}
 		}
 
 		if dscispec.DevFlags.ManifestsUri == "" {
