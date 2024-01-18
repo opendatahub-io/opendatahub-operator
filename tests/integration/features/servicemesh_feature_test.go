@@ -95,6 +95,7 @@ var _ = Describe("Service Mesh feature", func() {
 			})
 		})
 	})
+
 })
 
 func installServiceMeshControlPlaneCRD() *apiextensionsv1.CustomResourceDefinition {
