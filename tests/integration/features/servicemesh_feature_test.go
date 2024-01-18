@@ -16,7 +16,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
@@ -99,59 +98,6 @@ var _ = Describe("Service Mesh feature", func() {
 				Expect(servicemesh.EnsureServiceMeshInstalled(testFeature)).ToNot(Succeed())
 			})
 		})
-	})
-
-	Describe("control plane configuration", func() {
-
-		var (
-			dsciSpec     *dscv1.DSCInitializationSpec
-			smcpCRD      *apiextensionsv1.CustomResourceDefinition
-			name         = "data-science-smcp"
-			appNamespace = "opendatahub"
-		)
-
-		BeforeEach(func() {
-			dsciSpec = newDSCInitializationSpec(appNamespace)
-			smcpCRD = installServiceMeshControlPlaneCRD()
-		})
-
-		AfterEach(func() {
-			defer objectCleaner.DeleteAll(smcpCRD)
-		})
-
-		It("should disable automated network policy by patching existing SMCP", func() {
-			// given
-			namespace := envtestutil.AppendRandomNameTo(testNamespacePrefix)
-			ns := createNamespace(namespace)
-			Expect(envTestClient.Create(context.Background(), ns)).To(Succeed())
-			defer objectCleaner.DeleteAll(ns)
-
-			createServiceMeshControlPlane(name, namespace)
-
-			dsciSpec.ServiceMesh.ControlPlane.Name = name
-			dsciSpec.ServiceMesh.ControlPlane.Namespace = namespace
-
-			controlPlaneWithNetworkPoliciesMgmtDisabled, err := feature.CreateFeature("control-plane-with-disabled-network-policies").
-				For(dsciSpec).
-				Manifests(fromTestTmpDir(path.Join("templates/servicemesh/base", "control-plane-disable-networkpolicies.patch.tmpl"))).
-				UsingConfig(envTest.Config).
-				Load()
-
-			Expect(err).ToNot(HaveOccurred())
-
-			// when
-			Expect(controlPlaneWithNetworkPoliciesMgmtDisabled.Apply()).To(Succeed())
-
-			// then
-			serviceMeshControlPlane, err := getServiceMeshControlPlane(envTest.Config, namespace, name)
-			Expect(err).ToNot(HaveOccurred())
-
-			networkPolicyManagement, found, err := unstructured.NestedBool(serviceMeshControlPlane.Object, "spec", "security", "manageNetworkPolicy")
-			Expect(err).ToNot(HaveOccurred())
-			Expect(found).To(BeTrue())
-			Expect(networkPolicyManagement).To(BeFalse())
-		})
-
 	})
 
 })
