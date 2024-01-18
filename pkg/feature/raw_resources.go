@@ -58,11 +58,11 @@ func (f *Feature) createResourceFromFile(filename string) error {
 			f.AsOwnerReference(),
 		})
 
-		log.Info("Creating resource", "name", name)
+		f.Log.Info("Creating resource", "name", name)
 
 		err := f.Client.Get(context.TODO(), k8stypes.NamespacedName{Name: name, Namespace: namespace}, u.DeepCopy())
 		if err == nil {
-			log.Info("Object already exists...")
+			f.Log.Info("Object already exists...")
 
 			continue
 		}
@@ -92,7 +92,7 @@ func (f *Feature) patchResourceFromFile(filename string) error {
 		}
 		u := &unstructured.Unstructured{}
 		if err := yaml.Unmarshal([]byte(str), u); err != nil {
-			log.Error(err, "error unmarshalling yaml")
+			f.Log.Error(err, "error unmarshalling yaml")
 
 			return errors.WithStack(err)
 		}
@@ -108,7 +108,7 @@ func (f *Feature) patchResourceFromFile(filename string) error {
 		// Convert the patch from YAML to JSON
 		patchAsJSON, err := yaml.YAMLToJSON(data)
 		if err != nil {
-			log.Error(err, "error converting yaml to json")
+			f.Log.Error(err, "error converting yaml to json")
 
 			return errors.WithStack(err)
 		}
@@ -117,7 +117,7 @@ func (f *Feature) patchResourceFromFile(filename string) error {
 			Namespace(u.GetNamespace()).
 			Patch(context.TODO(), u.GetName(), k8stypes.MergePatchType, patchAsJSON, metav1.PatchOptions{})
 		if err != nil {
-			log.Error(err, "error patching resource",
+			f.Log.Error(err, "error patching resource",
 				"gvr", fmt.Sprintf("%+v\n", gvr),
 				"patch", fmt.Sprintf("%+v\n", u),
 				"json", fmt.Sprintf("%+v\n", patchAsJSON))
