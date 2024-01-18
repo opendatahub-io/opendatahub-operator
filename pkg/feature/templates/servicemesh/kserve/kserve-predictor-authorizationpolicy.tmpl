@@ -1,7 +1,7 @@
 apiVersion: security.istio.io/v1beta1
 kind: AuthorizationPolicy
 metadata:
-  name: kserve-predicator
+  name: kserve-predictor
   namespace: {{ .ControlPlane.Namespace }}
 spec:
   action: CUSTOM
@@ -12,8 +12,7 @@ spec:
     - operation:
         notPaths:
         - /healthz*
-        ports:
-        - "8013"
+        - /metrics
   selector:
     matchLabels:
       component: predictor
