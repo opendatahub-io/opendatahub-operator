@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	authv1 "k8s.io/api/rbac/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
@@ -118,7 +117,7 @@ func WithLabels(labels ...string) MetaOptions {
 	return func(obj metav1.Object) error {
 		labelsMap, err := extractKeyValues(labels)
 		if err != nil {
-			return errors.Wrap(err, "unable to set labels")
+			return fmt.Errorf("failed unable to set labels: %w", err)
 		}
 
 		obj.SetLabels(labelsMap)
