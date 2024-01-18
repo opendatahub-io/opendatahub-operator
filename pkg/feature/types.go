@@ -29,9 +29,7 @@ type OAuth struct {
 }
 
 type AuthorinoConfigs struct {
-	CrName,
-	ContainerImage,
-	LabelSelectors string
+	Name string
 }
 
 func ReplaceChar(s string, oldChar, newChar string) string {

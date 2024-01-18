@@ -4,13 +4,10 @@ import (
 	"context"
 	"strings"
 
-	operatorv1 "github.com/openshift/api/operator/v1"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 )
 
 const (
@@ -91,15 +88,4 @@ func GetPlatform(cli client.Client) (Platform, error) {
 
 	// check and return whether ODH or self-managed platform
 	return isSelfManaged(cli)
-}
-
-// ShouldConfigureServiceMesh determines if the operator should invoke service-mesh specific setup.
-func ShouldConfigureServiceMesh(cli client.Client, dscispec *dsci.DSCInitializationSpec) (bool, error) {
-	platform, err := GetPlatform(cli)
-	if err != nil {
-		return false, err
-	}
-
-	supportedPlatforms := platform == OpenDataHub || platform == Unknown
-	return dscispec.ServiceMesh.ManagementState == operatorv1.Managed && supportedPlatforms, nil
 }

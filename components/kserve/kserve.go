@@ -166,7 +166,7 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resC
 		}
 	}
 
-	configureMeshErr := k.configureServiceMesh(cli, dscispec, enabled)
+	configureMeshErr := k.configureServiceMesh(dscispec)
 	return configureMeshErr
 }
 
@@ -234,29 +234,18 @@ func checkDepedentOps(cli client.Client) *multierror.Error {
 	return multiErr
 }
 
-func (k *Kserve) configureServiceMesh(cli client.Client, dscispec *dsciv1.DSCInitializationSpec, enabled bool) error {
-	if !enabled {
+func (k *Kserve) configureServiceMesh(dscispec *dsciv1.DSCInitializationSpec) error {
+	if dscispec.ServiceMesh.ManagementState != operatorv1.Managed || k.GetManagementState() != operatorv1.Managed {
 		return nil
 	}
 
-	shouldConfigureServiceMesh, err := deploy.ShouldConfigureServiceMesh(cli, dscispec)
-	if err != nil {
+	serviceMeshInitializer := feature.NewFeaturesInitializer(dscispec, k.defineServiceMeshFeatures(dscispec))
+
+	if err := serviceMeshInitializer.Prepare(); err != nil {
 		return err
 	}
 
-	if shouldConfigureServiceMesh {
-		serviceMeshInitializer := feature.NewFeaturesInitializer(dscispec, k.defineServiceMeshFeatures(dscispec))
-
-		if err := serviceMeshInitializer.Prepare(); err != nil {
-			return err
-		}
-
-		if err := serviceMeshInitializer.Apply(); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return serviceMeshInitializer.Apply()
 }
 
 func (k *Kserve) defineServiceMeshFeatures(dscispec *dsciv1.DSCInitializationSpec) feature.DefinedFeatures {

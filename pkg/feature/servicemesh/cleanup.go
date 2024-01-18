@@ -31,14 +31,14 @@ func RemoveExtensionProvider(f *feature.Feature) error {
 		return err
 	}
 	if !found {
-		log.Info("no extension providers found", "f", f.Name, "control-plane", mesh.Name, "namespace", mesh.Namespace)
+		log.Info("no extension providers found", "feature", f.Name, "control-plane", mesh.Name, "namespace", mesh.Namespace)
 		return nil
 	}
 
 	for i, v := range extensionProviders {
 		extensionProvider, ok := v.(map[string]interface{})
 		if !ok {
-			fmt.Println("Unexpected type for extensionProvider")
+			log.Info("WARN: Unexpected type for extensionProvider")
 			continue
 		}
 

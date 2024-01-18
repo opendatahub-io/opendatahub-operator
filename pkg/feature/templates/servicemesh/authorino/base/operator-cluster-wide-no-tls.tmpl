@@ -1,11 +1,10 @@
 apiVersion: operator.authorino.kuadrant.io/v1beta1
 kind: Authorino
 metadata:
-  name: {{ .AuthorinoConfigs.CrName }}
+  name: {{ .AuthorinoConfigs.Name }}
   namespace: {{ .Auth.Namespace }}
 spec:
-  image: {{ .AuthorinoConfigs.ContainerImage }}
-  authConfigLabelSelectors: {{ .AuthorinoConfigs.LabelSelectors }}
+  authConfigLabelSelectors: authorino/topic=odh
   clusterWide: true
   listener:
     tls:
