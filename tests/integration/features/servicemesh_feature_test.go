@@ -53,7 +53,7 @@ var _ = Describe("Service Mesh feature", func() {
 
 		When("operator is installed", func() {
 
-			It("should faile checking operator presence prerequisite when CRD not installed", func() {
+			It("should fail checking operator presence prerequisite when CRD not installed", func() {
 				Expect(servicemesh.EnsureServiceMeshOperatorInstalled(testFeature)).ToNot(Succeed())
 			})
 

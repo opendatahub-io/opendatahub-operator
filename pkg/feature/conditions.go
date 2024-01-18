@@ -24,11 +24,11 @@ func EnsureCRDIsInstalled(name string) Action {
 }
 
 func WaitForPodsToBeReady(namespace string) Action {
-	return func(feature *Feature) error {
-		log.Info("waiting for pods to become ready", "feature", feature.Name, "namespace", namespace, "duration (s)", duration.Seconds())
+	return func(f *Feature) error {
+		f.Log.Info("waiting for pods to become ready", "namespace", namespace, "duration (s)", duration.Seconds())
 
 		return wait.PollUntilContextTimeout(context.TODO(), interval, duration, false, func(ctx context.Context) (bool, error) {
-			podList, err := feature.Clientset.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{})
+			podList, err := f.Clientset.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{})
 			if err != nil {
 				return false, err
 			}
@@ -63,7 +63,7 @@ func WaitForPodsToBeReady(namespace string) Action {
 			done := readyPods == totalPods
 
 			if done {
-				log.Info("done waiting for pods to become ready", "feature", feature.Name, "namespace", namespace)
+				f.Log.Info("done waiting for pods to become ready", "namespace", namespace)
 			}
 
 			return done, nil
@@ -72,18 +72,20 @@ func WaitForPodsToBeReady(namespace string) Action {
 }
 
 func WaitForResourceToBeCreated(namespace string, gvr schema.GroupVersionResource) Action {
-	return func(feature *Feature) error {
-		log.Info("waiting for resource to be created", "namespace", namespace, "resource", gvr)
+	return func(f *Feature) error {
+		f.Log.Info("waiting for resource to be created", "namespace", namespace, "resource", gvr)
 
 		return wait.PollUntilContextTimeout(context.TODO(), interval, duration, false, func(ctx context.Context) (bool, error) {
-			resources, err := feature.DynamicClient.Resource(gvr).Namespace(namespace).List(context.TODO(), metav1.ListOptions{Limit: 1})
+			resources, err := f.DynamicClient.Resource(gvr).Namespace(namespace).List(context.TODO(), metav1.ListOptions{Limit: 1})
 			if err != nil {
-				log.Error(err, "failed waiting for resource", "namespace", namespace, "resource", gvr)
+				f.Log.Error(err, "failed waiting for resource", "namespace", namespace, "resource", gvr)
+
 				return false, err
 			}
 
 			if len(resources.Items) > 0 {
-				log.Info("resource created", "namespace", namespace, "resource", gvr)
+				f.Log.Info("resource created", "namespace", namespace, "resource", gvr)
+
 				return true, nil
 			}
 

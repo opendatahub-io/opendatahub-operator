@@ -56,9 +56,7 @@ func (m *manifest) processTemplate(data interface{}) error {
 
 	f, err := os.Create(path)
 	if err != nil {
-		log.Error(err, "Failed to create file")
-
-		return err
+		return fmt.Errorf("failed to create file: %w", err)
 	}
 
 	tmpl := template.New(m.name).Funcs(template.FuncMap{"ReplaceChar": ReplaceChar})
