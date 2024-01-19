@@ -73,7 +73,8 @@ func (m *ModelRegistry) ReconcileComponent(_ context.Context, cli client.Client,
 			}
 		}
 
-		if dscispec.DevFlags.ManifestsUri == "" {
+		// Update image parameters only when we do not have customized manifests set
+		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (m.DevFlags == nil || len(m.DevFlags.Manifests) == 0) {
 			if err := deploy.ApplyParams(Path, m.SetImageParamsMap(imageParamMap), false); err != nil {
 				return err
 			}
