@@ -86,7 +86,7 @@ func (m *manifest) process(data interface{}) error {
 
 	tmpl, err := template.New(m.name).Funcs(template.FuncMap{"ReplaceChar": ReplaceChar}).Parse(string(content))
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create file: %w", err)
 	}
 
 	var buffer bytes.Buffer
