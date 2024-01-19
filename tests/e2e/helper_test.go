@@ -1,4 +1,4 @@
-package e2e
+package e2e_test
 
 import (
 	"context"
@@ -26,7 +26,7 @@ import (
 )
 
 func (tc *testContext) waitForControllerDeployment(name string, replicas int32) error {
-	err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (done bool, err error) {
+	err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
 		controllerDeployment, err := tc.kubeClient.AppsV1().Deployments(tc.operatorNamespace).Get(tc.ctx, name, metav1.GetOptions{})
 		if err != nil {
 			if errors.IsNotFound(err) {
@@ -109,8 +109,8 @@ func (tc *testContext) validateCRD(crdName string) error {
 	obj := client.ObjectKey{
 		Name: crdName,
 	}
-	err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (done bool, err error) {
-		err = tc.customClient.Get(context.TODO(), obj, crd)
+	err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
+		err := tc.customClient.Get(context.TODO(), obj, crd)
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return false, nil

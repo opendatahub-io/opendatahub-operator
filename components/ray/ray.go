@@ -67,12 +67,13 @@ func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, resConf
 	}
 
 	if enabled {
-		// Download manifests and update paths
-		if err = r.OverrideManifests(string(platform)); err != nil {
-			return err
+		if r.DevFlags != nil {
+			// Download manifests and update paths
+			if err = r.OverrideManifests(string(platform)); err != nil {
+				return err
+			}
 		}
-
-		if dscispec.DevFlags.ManifestsUri == "" || len(r.DevFlags.Manifests) == 0 {
+		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (r.DevFlags == nil || len(r.DevFlags.Manifests) == 0) {
 			if err := deploy.ApplyParams(RayPath, r.SetImageParamsMap(imageParamMap), true); err != nil {
 				return err
 			}

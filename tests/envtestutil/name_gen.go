@@ -9,10 +9,11 @@ import (
 
 var letters = []rune("abcdefghijklmnopqrstuvwxyz")
 
-func RandomUUIDName(len int) string {
-	uuidBytes := make([]byte, len)
+func RandomUUIDName(numlen int) string {
+	uuidBytes := make([]byte, numlen)
 	_, _ = rand.Read(uuidBytes)
-	return hex.EncodeToString(uuidBytes)[:len]
+
+	return hex.EncodeToString(uuidBytes)[:numlen]
 }
 
 func AppendRandomNameTo(prefix string) string {

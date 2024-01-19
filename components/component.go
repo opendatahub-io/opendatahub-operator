@@ -34,7 +34,7 @@ type Component struct {
 	// Add developer fields
 	// +optional
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=2
-	DevFlags DevFlags `json:"devFlags,omitempty"`
+	DevFlags *DevFlags `json:"devFlags,omitempty"`
 }
 
 func (c *Component) GetManagementState() operatorv1.ManagementState {
@@ -87,12 +87,11 @@ type ComponentInterface interface {
 	SetImageParamsMap(imageMap map[string]string) map[string]string
 	OverrideManifests(platform string) error
 	UpdatePrometheusConfig(cli client.Client, enable bool, component string) error
-	// WaitForDeploymentAvailable(ctx context.Context, r *rest.Config, c string, n string, i int, t int) error
 }
 
 // UpdatePrometheusConfig update prometheus-configs.yaml to include/exclude <component>.rules
-// parameter enable when set to true to add new rules, when set to false to remove existing rules
-func (c *Component) UpdatePrometheusConfig(cli client.Client, enable bool, component string) error {
+// parameter enable when set to true to add new rules, when set to false to remove existing rules.
+func (c *Component) UpdatePrometheusConfig(_ client.Client, enable bool, component string) error {
 	prometheusconfigPath := filepath.Join("/opt/manifests", "monitoring", "prometheus", "apps", "prometheus-configs.yaml")
 
 	// create a struct to mock poremtheus.yml
@@ -122,6 +121,8 @@ func (c *Component) UpdatePrometheusConfig(cli client.Client, enable bool, compo
 			WorkbenchesARules  string `yaml:"workbenches-alerting.rules"`
 			TrustyAIRRules     string `yaml:"trustyai-recording.rules"`
 			TrustyAIARules     string `yaml:"trustyai-alerting.rules"`
+			KserveRRules       string `yaml:"kserve-recording.rules"`
+			KserveARules       string `yaml:"kserve-alerting.rules"`
 		} `yaml:"data"`
 	}
 	var configMap ConfigMap
@@ -181,39 +182,6 @@ func (c *Component) UpdatePrometheusConfig(cli client.Client, enable bool, compo
 	}
 
 	// Write the modified content back to the file
-	if err = os.WriteFile(prometheusconfigPath, newyamlData, 0); err != nil {
-		return err
-	}
-	return nil
+	err = os.WriteFile(prometheusconfigPath, newyamlData, 0)
+	return err
 }
-
-// WaitForDeploymentAvailable to check if component deployment from 'namepsace' is ready within 'timeout' before apply prometheus rules for the component
-// func (c *Component) WaitForDeploymentAvailable(ctx context.Context, restConfig *rest.Config, componentName string, namespace string, interval int, timeout int) error {
-// 	resourceInterval := time.Duration(interval) * time.Second
-// 	resourceTimeout := time.Duration(timeout) * time.Minute
-// 	return wait.PollUntilContextTimeout(context.TODO(), resourceInterval, resourceTimeout, true, func(ctx context.Context) (bool, error) {
-// 		clientset, err := kubernetes.NewForConfig(restConfig)
-// 		if err != nil {
-// 			return false, fmt.Errorf("error getting client %w", err)
-// 		}
-// 		componentDeploymentList, err := clientset.AppsV1().Deployments(namespace).List(context.TODO(), metav1.ListOptions{
-// 			LabelSelector: "app.opendatahub.io/" + componentName,
-// 		})
-// 		if err != nil {
-// 			if errors.IsNotFound(err) {
-// 				return false, nil
-// 			}
-// 		}
-// 		isReady := false
-// 		if len(componentDeploymentList.Items) != 0 {
-// 			for _, deployment := range componentDeploymentList.Items {
-// 				if deployment.Status.ReadyReplicas == deployment.Status.Replicas {
-// 					isReady = true
-// 				} else {
-// 					isReady = false
-// 				}
-// 			}
-// 		}
-// 		return isReady, nil
-// 	})
-// }

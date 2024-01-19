@@ -67,12 +67,13 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, r
 		return err
 	}
 	if enabled {
-		// Download manifests and update paths
-		if err = c.OverrideManifests(string(platform)); err != nil {
-			return err
+		if c.DevFlags != nil {
+			// Download manifests and update paths
+			if err = c.OverrideManifests(string(platform)); err != nil {
+				return err
+			}
 		}
-		// check if the CodeFlare operator is installed
-		// codeflare operator not installed
+		// check if the CodeFlare operator is installed: it should not be installed
 		dependentOperator := CodeflareOperator
 		// overwrite dependent operator if downstream not match upstream
 		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
@@ -80,14 +81,14 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, r
 		}
 
 		if found, err := deploy.OperatorExists(cli, dependentOperator); err != nil {
-			return fmt.Errorf("operator exists throws error %v", err)
+			return fmt.Errorf("operator exists throws error %w", err)
 		} else if found {
-			return fmt.Errorf("operator %s  found. Please uninstall the operator before enabling %s component",
+			return fmt.Errorf("operator %s is found. Please uninstall the operator before enabling %s component",
 				dependentOperator, ComponentName)
 		}
 
 		// Update image parameters only when we do not have customized manifests set
-		if dscispec.DevFlags.ManifestsUri == "" && len(c.DevFlags.Manifests) == 0 {
+		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (c.DevFlags == nil || len(c.DevFlags.Manifests) == 0) {
 			if err := deploy.ApplyParams(CodeflarePath+"/bases", c.SetImageParamsMap(imageParamMap), true); err != nil {
 				return err
 			}
@@ -95,7 +96,7 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, r
 	}
 
 	// Deploy Codeflare
-	if err := deploy.DeployManifestsFromPath(cli, owner,
+	if err := deploy.DeployManifestsFromPath(cli, owner, //nolint:revive,nolintlint
 		CodeflarePath,
 		dscispec.ApplicationsNamespace,
 		ComponentName, enabled); err != nil {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	// "reflect"
 	"strings"
 	"time"
 
@@ -40,7 +39,7 @@ import (
 
 const (
 	// DeleteConfigMapLabel is the label for configMap used to trigger operator uninstall
-	// TODO: Label should be updated if addon name changes
+	// TODO: Label should be updated if addon name changes.
 	DeleteConfigMapLabel = "api.openshift.com/addon-managed-odh-delete"
 	// odhGeneratedNamespaceLabel is the label added to all the namespaces genereated by odh-deployer.
 )
@@ -52,71 +51,65 @@ func OperatorUninstall(cli client.Client, cfg *rest.Config) error {
 	if err != nil {
 		return err
 	}
-	// Delete kfdefs if found
-	err = RemoveKfDefInstances(cli, platform)
-	if err != nil {
+
+	if err := RemoveKfDefInstances(cli, platform); err != nil {
 		return err
 	}
 
-	// Delete DSCInitialization instance
-	err = removeDSCInitialization(cli)
-	if err != nil {
+	if err := removeDSCInitialization(cli); err != nil {
 		return err
 	}
+
 	// Delete generated namespaces by the operator
 	generatedNamespaces := &corev1.NamespaceList{}
 	nsOptions := []client.ListOption{
 		client.MatchingLabels{cluster.ODHGeneratedNamespaceLabel: "true"},
 	}
 	if err := cli.List(context.TODO(), generatedNamespaces, nsOptions...); err != nil {
-		if !apierrs.IsNotFound(err) {
-			return fmt.Errorf("error getting generated namespaces : %v", err)
-		}
+		return fmt.Errorf("error getting generated namespaces : %w", err)
 	}
 
 	// Return if any one of the namespaces is Terminating due to resources that are in process of deletion. (e.g CRDs)
-	if len(generatedNamespaces.Items) != 0 {
-		for _, namespace := range generatedNamespaces.Items {
-			if namespace.Status.Phase == corev1.NamespaceTerminating {
-				return fmt.Errorf("waiting for namespace %v to be deleted", namespace.Name)
-			}
+	for _, namespace := range generatedNamespaces.Items {
+		if namespace.Status.Phase == corev1.NamespaceTerminating {
+			return fmt.Errorf("waiting for namespace %v to be deleted", namespace.Name)
 		}
 	}
 
-	// Delete all the active namespaces
 	for _, namespace := range generatedNamespaces.Items {
+		namespace := namespace
 		if namespace.Status.Phase == corev1.NamespaceActive {
 			if err := cli.Delete(context.TODO(), &namespace, []client.DeleteOption{}...); err != nil {
-				return fmt.Errorf("error deleting namespace %v: %v", namespace.Name, err)
+				return fmt.Errorf("error deleting namespace %v: %w", namespace.Name, err)
 			}
-			fmt.Printf("Namespace %s deleted as a part of uninstall.", namespace.Name)
+			fmt.Printf("Namespace %s deleted as a part of uninstall.\n", namespace.Name)
 		}
 	}
 
 	// Wait for all resources to get cleaned up
 	time.Sleep(10 * time.Second)
-	fmt.Printf("All resources deleted as part of uninstall. Removing the operator csv")
+
+	fmt.Printf("All resources deleted as part of uninstall. Removing the operator csv\n")
+
 	return removeCsv(cli, cfg)
 }
 
 func removeDSCInitialization(cli client.Client) error {
-	// Last check if multiple instances of DSCInitialization exist
 	instanceList := &dsci.DSCInitializationList{}
-	var err error
-	err = cli.List(context.TODO(), instanceList)
-	if err != nil {
+
+	if err := cli.List(context.TODO(), instanceList); err != nil {
 		return err
 	}
 
-	if len(instanceList.Items) != 0 {
-		for _, dsciInstance := range instanceList.Items {
-			err = cli.Delete(context.TODO(), &dsciInstance)
-			if apierrs.IsNotFound(err) {
-				err = nil
-			}
+	var multiErr *multierror.Error
+	for _, dsciInstance := range instanceList.Items {
+		dsciInstance := dsciInstance
+		if err := cli.Delete(context.TODO(), &dsciInstance); !apierrs.IsNotFound(err) {
+			multiErr = multierror.Append(multiErr, err)
 		}
 	}
-	return err
+
+	return multiErr.ErrorOrNil()
 }
 
 // HasDeleteConfigMap returns true if delete configMap is added to the operator namespace by managed-tenants repo.
@@ -143,7 +136,7 @@ func HasDeleteConfigMap(c client.Client) bool {
 
 // createDefaultDSC creates a default instance of DSC.
 // Note: When the platform is not Managed, and a DSC instance already exists, the function doesn't re-create/update the resource.
-func CreateDefaultDSC(cli client.Client, platform deploy.Platform) error {
+func CreateDefaultDSC(cli client.Client, _ deploy.Platform) error {
 	// Set the default DSC name depending on the platform
 	releaseDataScienceCluster := &dsc.DataScienceCluster{
 		TypeMeta: metav1.TypeMeta{
@@ -177,7 +170,7 @@ func CreateDefaultDSC(cli client.Client, platform deploy.Platform) error {
 					Component: components.Component{ManagementState: operatorv1.Removed},
 				},
 				TrustyAI: trustyai.TrustyAI{
-					Component: components.Component{ManagementState: operatorv1.Removed},
+					Component: components.Component{ManagementState: operatorv1.Managed},
 				},
 			},
 		},
@@ -185,21 +178,21 @@ func CreateDefaultDSC(cli client.Client, platform deploy.Platform) error {
 	err := cli.Create(context.TODO(), releaseDataScienceCluster)
 	switch {
 	case err == nil:
-		fmt.Printf("created DataScienceCluster resource")
+		fmt.Printf("created DataScienceCluster resource\n")
 	case apierrs.IsAlreadyExists(err):
 		// Do not update the DSC if it already exists
-		fmt.Printf("DataScienceCluster resource already exists. It will not be updated with default DSC.")
+		fmt.Printf("DataScienceCluster resource already exists. It will not be updated with default DSC.\n")
 		return nil
 	default:
-		return fmt.Errorf("failed to create DataScienceCluster custom resource: %v", err)
+		return fmt.Errorf("failed to create DataScienceCluster custom resource: %w", err)
 	}
 	return nil
 }
 
 // createDefaultDSCI creates a default instance of DSCI
 // If there exists an instance already, it patches the DSCISpec with default values
-// Note: DSCI CR modifcations are not supported, as it is the initial prereq setting for the components
-func CreateDefaultDSCI(cli client.Client, platform deploy.Platform, appNamespace, monNamespace string) error {
+// Note: DSCI CR modifcations are not supported, as it is the initial prereq setting for the components.
+func CreateDefaultDSCI(cli client.Client, _ deploy.Platform, appNamespace, monNamespace string) error {
 	defaultDsciSpec := &dsci.DSCInitializationSpec{
 		ApplicationsNamespace: appNamespace,
 		Monitoring: dsci.Monitoring{
@@ -234,7 +227,7 @@ func CreateDefaultDSCI(cli client.Client, platform deploy.Platform, appNamespace
 
 	switch {
 	case len(instances.Items) > 1:
-		fmt.Printf("only one instance of DSCInitialization object is allowed. Please delete other instances ")
+		fmt.Printf("only one instance of DSCInitialization object is allowed. Please delete other instances.\n")
 		return nil
 	case len(instances.Items) == 1:
 		// Do not patch/update if DSCI already exists.
@@ -268,12 +261,7 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 		if err := CreateDefaultDSC(cli, platform); err != nil {
 			return err
 		}
-
-		if err := RemoveKfDefInstances(cli, platform); err != nil {
-			return err
-		}
-
-		return nil
+		return RemoveKfDefInstances(cli, platform)
 	}
 
 	if platform == deploy.SelfManagedRhods {
@@ -285,9 +273,8 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 				// If no Crd found, return, since its a new Installation
 				// return empty list
 				return nil
-			} else {
-				return fmt.Errorf("error retrieving kfdef CRD : %v", err)
 			}
+			return fmt.Errorf("error retrieving kfdef CRD : %w", err)
 		}
 
 		// If KfDef Instances found, and no DSC instances are found in Self-managed, that means this is an upgrade path from
@@ -298,9 +285,8 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 			if apierrs.IsNotFound(err) {
 				// If no KfDefs, do nothing and return
 				return nil
-			} else {
-				return fmt.Errorf("error getting kfdef instances: : %w", err)
 			}
+			return fmt.Errorf("error getting kfdef instances: : %w", err)
 		}
 		if len(kfDefList.Items) > 0 {
 			if err = deleteResource(cli, appNS, "deployment"); err != nil {
@@ -333,7 +319,7 @@ func GetOperatorNamespace() (string, error) {
 	return "", err
 }
 
-func RemoveKfDefInstances(cli client.Client, platform deploy.Platform) error {
+func RemoveKfDefInstances(cli client.Client, _ deploy.Platform) error {
 	// Check if kfdef are deployed
 	kfdefCrd := &apiextv1.CustomResourceDefinition{}
 
@@ -342,33 +328,31 @@ func RemoveKfDefInstances(cli client.Client, platform deploy.Platform) error {
 		if apierrs.IsNotFound(err) {
 			// If no Crd found, return, since its a new Installation
 			return nil
-		} else {
-			return fmt.Errorf("error retrieving kfdef CRD : %v", err)
 		}
-	} else {
-		expectedKfDefList := &kfdefv1.KfDefList{}
-		err := cli.List(context.TODO(), expectedKfDefList)
+		return fmt.Errorf("error retrieving kfdef CRD : %w", err)
+	}
+	expectedKfDefList := &kfdefv1.KfDefList{}
+	err = cli.List(context.TODO(), expectedKfDefList)
+	if err != nil {
+		if apierrs.IsNotFound(err) {
+			// If no KfDefs, do nothing and return
+			return nil
+		}
+		return fmt.Errorf("error getting list of kfdefs: %w", err)
+	}
+	// Delete kfdefs
+	for _, kfdef := range expectedKfDefList.Items {
+		kfdef := kfdef
+		// Remove finalizer
+		updatedKfDef := &kfdef
+		updatedKfDef.Finalizers = []string{}
+		err = cli.Update(context.TODO(), updatedKfDef)
 		if err != nil {
-			if apierrs.IsNotFound(err) {
-				// If no KfDefs, do nothing and return
-				return nil
-			} else {
-				return fmt.Errorf("error getting list of kfdefs: %v", err)
-			}
+			return fmt.Errorf("error removing finalizers from kfdef %v : %w", kfdef.Name, err)
 		}
-		// Delete kfdefs
-		for _, kfdef := range expectedKfDefList.Items {
-			// Remove finalizer
-			updatedKfDef := &kfdef
-			updatedKfDef.Finalizers = []string{}
-			err = cli.Update(context.TODO(), updatedKfDef)
-			if err != nil {
-				return fmt.Errorf("error removing finalizers from kfdef %v : %v", kfdef.Name, err)
-			}
-			err = cli.Delete(context.TODO(), updatedKfDef)
-			if err != nil {
-				return fmt.Errorf("error deleting kfdef %v : %v", kfdef.Name, err)
-			}
+		err = cli.Delete(context.TODO(), updatedKfDef)
+		if err != nil {
+			return fmt.Errorf("error deleting kfdef %v : %w", kfdef.Name, err)
 		}
 	}
 	return nil
@@ -387,17 +371,19 @@ func removeCsv(c client.Client, r *rest.Config) error {
 	}
 
 	if operatorCsv != nil {
-		fmt.Printf("Deleting csv %s", operatorCsv.Name)
+		fmt.Printf("Deleting csv %s\n", operatorCsv.Name)
 		err = c.Delete(context.TODO(), operatorCsv, []client.DeleteOption{}...)
 		if err != nil {
 			if apierrs.IsNotFound(err) {
 				return nil
 			}
-			return fmt.Errorf("error deleting clusterserviceversion: %v", err)
+
+			return fmt.Errorf("error deleting clusterserviceversion: %w", err)
 		}
-		fmt.Printf("Clusterserviceversion %s deleted as a part of uninstall.", operatorCsv.Name)
+		fmt.Printf("Clusterserviceversion %s deleted as a part of uninstall.\n", operatorCsv.Name)
 	}
-	fmt.Printf("No clusterserviceversion for the operator found.")
+	fmt.Printf("No clusterserviceversion for the operator found.\n")
+
 	return nil
 }
 
@@ -405,7 +391,7 @@ func removeCsv(c client.Client, r *rest.Config) error {
 func getClusterServiceVersion(cfg *rest.Config, watchNameSpace string) (*ofapi.ClusterServiceVersion, error) {
 	operatorClient, err := olmclientset.NewForConfig(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("error getting operator client %v", err)
+		return nil, fmt.Errorf("error getting operator client %w", err)
 	}
 	csvs, err := operatorClient.ClusterServiceVersions(watchNameSpace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
@@ -461,7 +447,7 @@ func deleteResource(cli client.Client, namespace string, resourceType string) er
 	return err
 }
 
-func deleteDeploymentsAndCheck(ctx context.Context, cli client.Client, namespace string) (bool, error) { //nolint
+func deleteDeploymentsAndCheck(ctx context.Context, cli client.Client, namespace string) (bool, error) {
 	// Delete Deployment objects
 	var multiErr *multierror.Error
 	deployments := &appsv1.DeploymentList{}
@@ -470,12 +456,13 @@ func deleteDeploymentsAndCheck(ctx context.Context, cli client.Client, namespace
 	}
 
 	if err := cli.List(ctx, deployments, listOpts); err != nil {
-		return false, nil
+		return false, nil //nolint:nilerr
 	}
 	// filter deployment which has the new label to limit that we do not over kill other deployment
 	// this logic can be used even when upgrade from v2.4 to v2.5 without remove it
 	markedForDeletion := []appsv1.Deployment{}
 	for _, deployment := range deployments.Items {
+		deployment := deployment
 		v2 := false
 		selectorLabels := deployment.Spec.Selector.MatchLabels
 		for label := range selectorLabels {
@@ -493,6 +480,7 @@ func deleteDeploymentsAndCheck(ctx context.Context, cli client.Client, namespace
 	}
 
 	for _, deployment := range markedForDeletion {
+		deployment := deployment
 		if e := cli.Get(ctx, client.ObjectKey{
 			Namespace: namespace,
 			Name:      deployment.Name,
@@ -500,20 +488,18 @@ func deleteDeploymentsAndCheck(ctx context.Context, cli client.Client, namespace
 			if apierrs.IsNotFound(e) {
 				// resource has been successfully deleted
 				continue
-			} else {
-				// unexpected error, report it
-				multiErr = multierror.Append(multiErr, e)
 			}
-		} else {
-			// resource still exists, wait for it to be deleted
-			return false, nil
+			// unexpected error, report it
+			multiErr = multierror.Append(multiErr, e) //nolint:staticcheck,wastedassign
 		}
+		// resource still exists, wait for it to be deleted
+		return false, nil
 	}
 
 	return true, multiErr.ErrorOrNil()
 }
 
-func deleteStatefulsetsAndCheck(ctx context.Context, cli client.Client, namespace string) (bool, error) { //nolint
+func deleteStatefulsetsAndCheck(ctx context.Context, cli client.Client, namespace string) (bool, error) {
 	// Delete statefulset objects
 	var multiErr *multierror.Error
 	statefulsets := &appsv1.StatefulSetList{}
@@ -522,13 +508,14 @@ func deleteStatefulsetsAndCheck(ctx context.Context, cli client.Client, namespac
 	}
 
 	if err := cli.List(ctx, statefulsets, listOpts); err != nil {
-		return false, nil
+		return false, nil //nolint:nilerr
 	}
 
 	// even only we have one item to delete to avoid nil point still use range
 	markedForDeletion := []appsv1.StatefulSet{}
 	for _, statefulset := range statefulsets.Items {
 		v2 := false
+		statefulset := statefulset
 		selectorLabels := statefulset.Spec.Selector.MatchLabels
 		for label := range selectorLabels {
 			if strings.Contains(label, "app.opendatahub.io/") {
@@ -543,6 +530,7 @@ func deleteStatefulsetsAndCheck(ctx context.Context, cli client.Client, namespac
 	}
 
 	for _, statefulset := range markedForDeletion {
+		statefulset := statefulset
 		if e := cli.Get(ctx, client.ObjectKey{
 			Namespace: namespace,
 			Name:      statefulset.Name,
@@ -550,10 +538,9 @@ func deleteStatefulsetsAndCheck(ctx context.Context, cli client.Client, namespac
 			if apierrs.IsNotFound(e) {
 				// resource has been successfully deleted
 				continue
-			} else {
-				// unexpected error, report it
-				multiErr = multierror.Append(multiErr, e)
 			}
+			// unexpected error, report it
+			multiErr = multierror.Append(multiErr, e)
 		} else {
 			// resource still exists, wait for it to be deleted
 			return false, nil

@@ -57,7 +57,7 @@ const (
 )
 
 // DSCInitializationReconciler reconciles a DSCInitialization object.
-type DSCInitializationReconciler struct {
+type DSCInitializationReconciler struct { //nolint:golint,revive // Readability
 	client.Client
 	Scheme                *runtime.Scheme
 	Log                   logr.Logger
@@ -72,9 +72,7 @@ type DSCInitializationReconciler struct {
 // +kubebuilder:rbac:groups="kfdef.apps.kubeflow.org",resources=kfdefs,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile contains controller logic specific to DSCInitialization instance updates.
-
-//nolint:gocyclo
-func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:funlen,gocyclo,maintidx
 	r.Log.Info("Reconciling DSCInitialization.", "DSCInitialization Request.Name", req.Name)
 
 	instances := &dsciv1.DSCInitializationList{}
@@ -91,11 +89,26 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	case len(instances.Items) == 1:
 		instance = &instances.Items[0]
 	case len(instances.Items) > 1:
-		message := fmt.Sprintf("only one instance of DSCInitialization object is allowed. Update existing instance name %s", req.Name)
-		_, _ = r.updateStatus(ctx, &instances.Items[0], func(saved *dsciv1.DSCInitialization) {
-			status.SetErrorCondition(&saved.Status.Conditions, status.DuplicateDSCInitialization, message)
-			saved.Status.Phase = status.PhaseError
-		})
+		// find out the one by created timestamp and use it as the default one
+		earliestDSCI := &instances.Items[0]
+		for _, instance := range instances.Items {
+			currentDSCI := instance
+			if currentDSCI.CreationTimestamp.Before(&earliestDSCI.CreationTimestamp) {
+				earliestDSCI = &currentDSCI
+			}
+		}
+		message := fmt.Sprintf("only one instance of DSCInitialization object is allowed. Please delete other instances than %s", earliestDSCI.Name)
+		// update all instances Message and Status
+		for _, deletionInstance := range instances.Items {
+			deletionInstance := deletionInstance
+			if deletionInstance.Name != earliestDSCI.Name {
+				_, _ = r.updateStatus(ctx, &deletionInstance, func(saved *dsciv1.DSCInitialization) {
+					status.SetErrorCondition(&saved.Status.Conditions, status.DuplicateDSCInitialization, message)
+					saved.Status.Phase = status.PhaseError
+				})
+			}
+		}
+
 		return ctrl.Result{}, errors.New(message)
 	}
 
@@ -215,7 +228,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 				return reconcile.Result{}, err
 			}
 			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
-				r.Log.Info("Monitoring enabled, won't apply changes", "cluster", "Self-Managed RHODS Mode")
+				r.Log.Info("Monitoring enabled, won't apply changes", "cluster", "Self-Managed RHOAI Mode")
 				err = r.configureCommonMonitoring(instance)
 				if err != nil {
 					return reconcile.Result{}, err
@@ -283,8 +296,6 @@ func (r *DSCInitializationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&authv1.ClusterRole{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&authv1.ClusterRoleBinding{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&appsv1.Deployment{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
-		Owns(&appsv1.ReplicaSet{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
-		Owns(&corev1.Pod{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&corev1.ServiceAccount{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&corev1.Service{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&routev1.Route{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
@@ -313,16 +324,18 @@ func (r *DSCInitializationReconciler) updateStatus(ctx context.Context, original
 
 var SecretContentChangedPredicate = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
-		oldSecret := e.ObjectOld.(*corev1.Secret)
-		newSecret := e.ObjectNew.(*corev1.Secret)
+		oldSecret, _ := e.ObjectOld.(*corev1.Secret)
+		newSecret, _ := e.ObjectNew.(*corev1.Secret)
+
 		return !reflect.DeepEqual(oldSecret.Data, newSecret.Data)
 	},
 }
 
 var CMContentChangedPredicate = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
-		oldCM := e.ObjectOld.(*corev1.ConfigMap)
-		newCM := e.ObjectNew.(*corev1.ConfigMap)
+		oldCM, _ := e.ObjectOld.(*corev1.ConfigMap)
+		newCM, _ := e.ObjectNew.(*corev1.ConfigMap)
+
 		return !reflect.DeepEqual(oldCM.Data, newCM.Data)
 	},
 }
@@ -333,33 +346,29 @@ var DSCDeletionPredicate = predicate.Funcs{
 	},
 }
 
-func (r *DSCInitializationReconciler) watchMonitoringConfigMapResource(a client.Object) (requests []reconcile.Request) {
+func (r *DSCInitializationReconciler) watchMonitoringConfigMapResource(a client.Object) []reconcile.Request {
 	if a.GetName() == "prometheus" && a.GetNamespace() == "redhat-ods-monitoring" {
 		r.Log.Info("Found monitoring configmap has updated, start reconcile")
-		return []reconcile.Request{{
-			NamespacedName: types.NamespacedName{Name: "prometheus", Namespace: "redhat-ods-monitoring"},
-		}}
-	} else {
-		return nil
+
+		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "prometheus", Namespace: "redhat-ods-monitoring"}}}
 	}
+	return nil
 }
 
-func (r *DSCInitializationReconciler) watchMonitoringSecretResource(a client.Object) (requests []reconcile.Request) {
+func (r *DSCInitializationReconciler) watchMonitoringSecretResource(a client.Object) []reconcile.Request {
 	operatorNs, err := upgrade.GetOperatorNamespace()
 	if err != nil {
 		return nil
 	}
 	if a.GetName() == "addon-managed-odh-parameters" && a.GetNamespace() == operatorNs {
 		r.Log.Info("Found monitoring secret has updated, start reconcile")
-		return []reconcile.Request{{
-			NamespacedName: types.NamespacedName{Name: "addon-managed-odh-parameters", Namespace: operatorNs},
-		}}
-	} else {
-		return nil
+
+		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "addon-managed-odh-parameters", Namespace: operatorNs}}}
 	}
+	return nil
 }
 
-func (r *DSCInitializationReconciler) watchDSCResource(_ client.Object) (requests []reconcile.Request) {
+func (r *DSCInitializationReconciler) watchDSCResource(_ client.Object) []reconcile.Request {
 	instanceList := &dscv1.DataScienceClusterList{}
 	if err := r.Client.List(context.TODO(), instanceList); err != nil {
 		// do not handle if cannot get list

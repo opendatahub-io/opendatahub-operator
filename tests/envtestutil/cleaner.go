@@ -14,7 +14,7 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	. "github.com/onsi/gomega" //nolint
+	. "github.com/onsi/gomega" //nolint:revive,golint,stylecheck // This is the standard for ginkgo and gomega.
 )
 
 // Cleaner is a struct to perform deletion of resources,
@@ -42,6 +42,7 @@ func CreateCleaner(c client.Client, config *rest.Config, timeout, interval time.
 
 func (c *Cleaner) DeleteAll(objects ...client.Object) {
 	for _, obj := range objects {
+		obj := obj
 		Expect(client.IgnoreNotFound(c.client.Delete(context.Background(), obj))).Should(Succeed())
 
 		if ns, ok := obj.(*corev1.Namespace); ok {

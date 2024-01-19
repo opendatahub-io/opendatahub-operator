@@ -50,7 +50,7 @@ func (t *TrustyAI) GetComponentName() string {
 	return ComponentName
 }
 
-func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client, resConf *rest.Config, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
+func (t *TrustyAI) ReconcileComponent(_ context.Context, cli client.Client, _ *rest.Config, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
 	var imageParamMap = map[string]string{
 		"trustyaiServiceImage":  "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE",
 		"trustyaiOperatorImage": "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE",
@@ -63,12 +63,13 @@ func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client, re
 	}
 
 	if enabled {
-		// Download manifests and update paths
-		if err = t.OverrideManifests(string(platform)); err != nil {
-			return err
+		if t.DevFlags != nil {
+			// Download manifests and update paths
+			if err = t.OverrideManifests(string(platform)); err != nil {
+				return err
+			}
 		}
-
-		if dscispec.DevFlags.ManifestsUri == "" {
+		if dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "" {
 			if err := deploy.ApplyParams(Path, t.SetImageParamsMap(imageParamMap), false); err != nil {
 				return err
 			}

@@ -27,7 +27,6 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
-	ocappsv1 "github.com/openshift/api/apps/v1"
 	ocbuildv1 "github.com/openshift/api/build/v1"
 	ocimgv1 "github.com/openshift/api/image/v1"
 	v1 "github.com/openshift/api/operator/v1"
@@ -60,7 +59,7 @@ import (
 )
 
 // DataScienceClusterReconciler reconciles a DataScienceCluster object.
-type DataScienceClusterReconciler struct {
+type DataScienceClusterReconciler struct { //nolint:golint,revive
 	client.Client
 	Scheme     *runtime.Scheme
 	Log        logr.Logger
@@ -71,7 +70,7 @@ type DataScienceClusterReconciler struct {
 }
 
 // DataScienceClusterConfig passing Spec of DSCI for reconcile DataScienceCluster.
-type DataScienceClusterConfig struct {
+type DataScienceClusterConfig struct { //nolint:golint,revive
 	DSCISpec *dsci.DSCInitializationSpec
 }
 
@@ -91,11 +90,12 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	if len(instances.Items) == 0 {
 		// Request object not found, could have been deleted after reconcile request.
-		// Owned objects are automatically garbage collected. For additional cleanup logic use operatorUninstall function.
+		// Owned objects are automatically garbage collected.
+		// For additional cleanup logic use operatorUninstall function.
 		// Return and don't requeue
 		if upgrade.HasDeleteConfigMap(r.Client) {
 			if uninstallErr := upgrade.OperatorUninstall(r.Client, r.RestConfig); uninstallErr != nil {
-				return ctrl.Result{}, fmt.Errorf("error while operator uninstall: %v", uninstallErr)
+				return ctrl.Result{}, fmt.Errorf("error while operator uninstall: %w", uninstallErr)
 			}
 		}
 
@@ -140,9 +140,8 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		if err != nil {
 			r.reportError(err, instance, "failed to update DataScienceCluster condition")
 			return ctrl.Result{}, err
-		} else {
-			return ctrl.Result{}, nil
 		}
+		return ctrl.Result{}, nil
 	case 1:
 		dscInitializationSpec := dsciInstances.Items[0].Spec
 		dscInitializationSpec.DeepCopyInto(r.DataScienceCluster.DSCISpec)
@@ -278,23 +277,23 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 			}
 		})
 		return instance, err
-	} else {
-		// reconciliation succeeded: update status accordingly
-		instance, err = r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
-			if saved.Status.InstalledComponents == nil {
-				saved.Status.InstalledComponents = make(map[string]bool)
-			}
-			saved.Status.InstalledComponents[componentName] = enabled
-			if enabled {
-				status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileCompleted, "Component reconciled successfully", corev1.ConditionTrue)
-			} else {
-				status.RemoveComponentCondition(&saved.Status.Conditions, componentName)
-			}
-		})
-		if err != nil {
-			instance = r.reportError(err, instance, "failed to update DataScienceCluster status after reconciling "+componentName)
-			return instance, err
+	}
+	// reconciliation succeeded: update status accordingly
+	instance, err = r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
+		if saved.Status.InstalledComponents == nil {
+			saved.Status.InstalledComponents = make(map[string]bool)
 		}
+		saved.Status.InstalledComponents[componentName] = enabled
+		if enabled {
+			status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileCompleted, "Component reconciled successfully", corev1.ConditionTrue)
+		} else {
+			status.RemoveComponentCondition(&saved.Status.Conditions, componentName)
+		}
+	})
+	if err != nil {
+		instance = r.reportError(err, instance, "failed to update DataScienceCluster status after reconciling "+componentName)
+
+		return instance, err
 	}
 	return instance, nil
 }
@@ -324,7 +323,7 @@ var configMapPredicates = predicate.Funcs{
 	},
 }
 
-// a workaround for 2.5 due to odh-model-controller serivceaccount keeps updates with label
+// a workaround for 2.5 due to odh-model-controller serivceaccount keeps updates with label.
 var saPredicates = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
 		if e.ObjectNew.GetName() == "odh-model-controller" && e.ObjectNew.GetNamespace() == "redhat-ods-applications" {
@@ -334,7 +333,7 @@ var saPredicates = predicate.Funcs{
 	},
 }
 
-// a workaround for 2.5 due to modelmesh-servingruntime.serving.kserve.io keeps updates
+// a workaround for 2.5 due to modelmesh-servingruntime.serving.kserve.io keeps updates.
 var modelMeshwebhookPredicates = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
 		return e.ObjectNew.GetName() != "modelmesh-servingruntime.serving.kserve.io"
@@ -365,14 +364,13 @@ var modelMeshRBPredicates = predicate.Funcs{
 	},
 }
 
-// ignore label updates if it is from application namespace
+// ignore label updates if it is from application namespace.
 var modelMeshGeneralPredicates = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
 		if strings.Contains(e.ObjectNew.GetName(), "odh-model-controller") || strings.Contains(e.ObjectNew.GetName(), "kserve") {
 			return false
-		} else {
-			return true
 		}
+		return true
 	},
 }
 
@@ -389,13 +387,9 @@ func (r *DataScienceClusterReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		Owns(&authv1.ClusterRole{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, modelMeshRolePredicates))).
 		Owns(&authv1.ClusterRoleBinding{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, modelMeshRBPredicates))).
 		Owns(&appsv1.Deployment{}).
-		Owns(&appsv1.ReplicaSet{}).
-		Owns(&corev1.Pod{}).
 		Owns(&corev1.PersistentVolumeClaim{}).
 		Owns(&corev1.Service{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, modelMeshGeneralPredicates))).
-		Owns(&appsv1.DaemonSet{}).
 		Owns(&appsv1.StatefulSet{}).
-		Owns(&ocappsv1.DeploymentConfig{}).
 		Owns(&ocimgv1.ImageStream{}).
 		Owns(&ocbuildv1.BuildConfig{}).
 		Owns(&apiregistrationv1.APIService{}).
@@ -431,7 +425,7 @@ func (r *DataScienceClusterReconciler) updateStatus(ctx context.Context, origina
 	return saved, err
 }
 
-func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(a client.Object) (requests []reconcile.Request) {
+func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(a client.Object) []reconcile.Request {
 	instanceList := &dsc.DataScienceClusterList{}
 	err := r.Client.List(context.TODO(), instanceList)
 	if err != nil {
@@ -458,9 +452,8 @@ func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(a client
 			return []reconcile.Request{{
 				NamespacedName: types.NamespacedName{Name: requestName},
 			}}
-		} else {
-			return nil
 		}
+		return nil
 	}
 	return nil
 }

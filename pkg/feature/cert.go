@@ -3,13 +3,12 @@ package feature
 import (
 	"bytes"
 	"context"
-	cryptorand "crypto/rand"
+	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"math/big"
-	"math/rand"
 	"net"
 	"strings"
 	"time"
@@ -22,8 +21,6 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/infrastructure/v1"
 )
 
-var seededRand = rand.New(rand.NewSource(time.Now().UnixNano()))
-
 func (f *Feature) CreateSelfSignedCertificate(secretName string, certificateType infrav1.CertType, domain, namespace string) error {
 	if certificateType != infrav1.SelfSigned {
 		return nil
@@ -33,7 +30,7 @@ func (f *Feature) CreateSelfSignedCertificate(secretName string, certificateType
 		Name:      secretName,
 		Namespace: namespace,
 		OwnerReferences: []metav1.OwnerReference{
-			f.OwnerReference(),
+			f.AsOwnerReference(),
 		},
 	}
 
@@ -72,14 +69,19 @@ func GenerateSelfSignedCertificateAsSecret(addr string, objectMeta metav1.Object
 }
 
 func generateCertificate(addr string) ([]byte, []byte, error) {
-	key, err := rsa.GenerateKey(cryptorand.Reader, 2048)
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		return nil, nil, errors.WithStack(err)
 	}
 
+	seededRand, crypterr := rand.Int(rand.Reader, big.NewInt(time.Now().UnixNano()))
+	if err != nil {
+		return nil, nil, errors.WithStack(crypterr)
+	}
+
 	now := time.Now()
 	tmpl := x509.Certificate{
-		SerialNumber: new(big.Int).SetInt64(seededRand.Int63()),
+		SerialNumber: seededRand,
 		Subject: pkix.Name{
 			CommonName:   addr,
 			Organization: []string{"opendatahub-self-signed"},
@@ -103,7 +105,7 @@ func generateCertificate(addr string) ([]byte, []byte, error) {
 
 	tmpl.DNSNames = append(tmpl.DNSNames, "localhost")
 
-	certDERBytes, err := x509.CreateCertificate(cryptorand.Reader, &tmpl, &tmpl, key.Public(), key)
+	certDERBytes, err := x509.CreateCertificate(rand.Reader, &tmpl, &tmpl, key.Public(), key)
 	if err != nil {
 		return nil, nil, errors.WithStack(err)
 	}

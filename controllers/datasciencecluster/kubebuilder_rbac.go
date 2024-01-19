@@ -35,8 +35,6 @@ package datasciencecluster
 /* This is for operator */
 // +kubebuilder:rbac:groups="apiregistration.k8s.io",resources=apiservices,verbs=get;list;watch
 
-// +kubebuilder:rbac:groups="apps",resources=daemonsets,verbs=get;list;watch
-
 // +kubebuilder:rbac:groups="operators.coreos.com",resources=catalogsources,verbs=get;list;watch
 
 // +kubebuilder:rbac:groups="apiextensions.k8s.io",resources=customresourcedefinitions,verbs=get;list;watch
@@ -90,7 +88,7 @@ package datasciencecluster
 
 // +kubebuilder:rbac:groups="operator.openshift.io",resources=consoles,verbs=list;watch;patch;delete
 
-// +kubebuilder:rbac:groups="oauth.openshift.io",resources=oauthclients,verbs=*
+// +kubebuilder:rbac:groups="oauth.openshift.io",resources=oauthclients,verbs=create;delete;list;watch;update;patch;get
 
 // +kubebuilder:rbac:groups="networking.k8s.io",resources=networkpolicies,verbs=get;create;list;watch;delete;update;patch
 // +kubebuilder:rbac:groups="networking.k8s.io",resources=ingresses,verbs=create;delete;list;update;watch;patch;get
@@ -166,7 +164,8 @@ package datasciencecluster
 
 // +kubebuilder:rbac:groups="core",resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
 
-// +kubebuilder:rbac:groups="core",resources=secrets,verbs=*
+// +kubebuilder:rbac:groups="core",resources=secrets,verbs=create;delete;list;update;watch;patch
+// +kubebuilder:rbac:groups="core",resources=secrets/finalizers,verbs=get;create;watch;update;patch;list;delete
 
 // +kubebuilder:rbac:groups="core",resources=rhmis,verbs=watch;list
 
@@ -200,6 +199,7 @@ package datasciencecluster
 
 // +kubebuilder:rbac:groups="cert-manager.io",resources=certificates;issuers,verbs=create;patch
 
+// OpenVino still need buildconfig
 // +kubebuilder:rbac:groups="build.openshift.io",resources=builds,verbs=create;patch;delete;list;watch
 // +kubebuilder:rbac:groups="build.openshift.io",resources=buildconfigs/instantiate,verbs=create;patch;delete;get;list;watch
 // +kubebuilder:rbac:groups="build.openshift.io",resources=buildconfigs,verbs=list;watch;create;patch;delete
@@ -230,9 +230,6 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="*",resources=deployments,verbs=*
 // +kubebuilder:rbac:groups="extensions",resources=deployments,verbs=*
 
-// +kubebuilder:rbac:groups="apps.openshift.io",resources=deploymentconfigs,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="apps.openshift.io",resources=deploymentconfigs/instantiate,verbs=get;list;watch;create;update;patch;delete
-
 // +kubebuilder:rbac:groups="apiextensions.k8s.io",resources=customresourcedefinitions,verbs=get;list;watch;create;patch;delete
 
 // +kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=validatingwebhookconfigurations,verbs=get;list;watch;create;update;delete;patch
@@ -252,6 +249,6 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="maistra.io",resources=servicemeshmembers,verbs=create;get;list;patch;update;use;watch
 // +kubebuilder:rbac:groups="maistra.io",resources=servicemeshmembers/finalizers,verbs=create;get;list;patch;update;use;watch
 
-/* Only for RHODS */
+/* Only for RHOAI */
 // +kubebuilder:rbac:groups="user.openshift.io",resources=groups,verbs=get;create;list;watch;patch;delete
 // +kubebuilder:rbac:groups="console.openshift.io",resources=consolelinks,verbs=create;get;patch;delete

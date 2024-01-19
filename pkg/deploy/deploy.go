@@ -23,6 +23,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -54,13 +55,17 @@ const (
 
 // DownloadManifests function performs following tasks:
 // 1. It takes component URI and only downloads folder specified by component.ContextDir field
-// 2. It saves the manifests in the odh-manifests/component-name/ folder
+// 2. It saves the manifests in the odh-manifests/component-name/ folder.
 func DownloadManifests(componentName string, manifestConfig components.ManifestsConfig) error {
 	// Get the component repo from the given url
 	// e.g  https://github.com/example/tarball/master
-	resp, err := http.Get(manifestConfig.URI)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, manifestConfig.URI, nil)
 	if err != nil {
-		return fmt.Errorf("error downloading manifests: %v", err)
+		return err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("error downloading manifests: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -71,7 +76,7 @@ func DownloadManifests(componentName string, manifestConfig components.Manifests
 	// Create a new gzip reader
 	gzipReader, err := gzip.NewReader(resp.Body)
 	if err != nil {
-		return fmt.Errorf("error creating gzip reader: %v", err)
+		return fmt.Errorf("error creating gzip reader: %w", err)
 	}
 	defer gzipReader.Close()
 
@@ -82,13 +87,13 @@ func DownloadManifests(componentName string, manifestConfig components.Manifests
 	mode := os.ModePerm
 	err = os.MkdirAll(DefaultManifestPath, mode)
 	if err != nil {
-		return fmt.Errorf("error creating manifests directory : %v", err)
+		return fmt.Errorf("error creating manifests directory : %w", err)
 	}
 
 	// Extract the contents of the TAR archive to the current directory
 	for {
 		header, err := tarReader.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
@@ -108,7 +113,7 @@ func DownloadManifests(componentName string, manifestConfig components.Manifests
 			if header.Typeflag == tar.TypeDir {
 				err = os.MkdirAll(DefaultManifestPath+"/"+componentName+"/"+componentFileRelativePathFound, mode)
 				if err != nil {
-					return fmt.Errorf("error creating directory:%v", err)
+					return fmt.Errorf("error creating directory:%w", err)
 				}
 				continue
 			}
@@ -118,9 +123,15 @@ func DownloadManifests(componentName string, manifestConfig components.Manifests
 				if err != nil {
 					fmt.Println("Error creating file:", err)
 				}
-				_, err = io.Copy(file, tarReader)
-				if err != nil {
-					fmt.Println("Error downloading file contents:", err)
+				for {
+					_, err := io.CopyN(file, tarReader, 1024)
+					if err != nil {
+						if errors.Is(err, io.EOF) {
+							break
+						}
+						fmt.Println("Error downloading file contents:", err)
+						return err
+					}
 				}
 				file.Close()
 				continue
@@ -130,7 +141,7 @@ func DownloadManifests(componentName string, manifestConfig components.Manifests
 	return err
 }
 
-func DeployManifestsFromPath(cli client.Client, owner metav1.Object, manifestPath string, namespace string, componentName string, componentEnabled bool) error {
+func DeployManifestsFromPath(cli client.Client, owner metav1.Object, manifestPath string, namespace string, componentName string, componentEnabled bool) error { //nolint:golint,revive,lll
 	// Render the Kustomize manifests
 	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
 	fs := filesys.MakeFsOnDisk()
@@ -177,7 +188,7 @@ func DeployManifestsFromPath(cli client.Client, owner metav1.Object, manifestPat
 }
 
 func getResources(resMap resmap.ResMap) ([]*unstructured.Unstructured, error) {
-	var resources []*unstructured.Unstructured
+	resources := make([]*unstructured.Unstructured, 0, resMap.Size())
 	for _, res := range resMap.Resources() {
 		u := &unstructured.Unstructured{}
 		err := yaml.Unmarshal([]byte(res.MustYaml()), u)
@@ -205,9 +216,8 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 
 	// Resource exists but component is disabled
 	if !enabled {
-		// Return nil for any errors getting the resource, since the component itself is disabled
 		if err != nil {
-			return nil
+			return nil //nolint:nilerr // Return nil for any errors getting the resource, since the component itself is disabled
 		}
 
 		// Check for shared resources before deletion
@@ -396,9 +406,8 @@ func SubscriptionExists(cli client.Client, namespace string, name string) (bool,
 	if err := cli.Get(context.TODO(), client.ObjectKey{Namespace: namespace, Name: name}, sub); err != nil {
 		if apierrs.IsNotFound(err) {
 			return false, nil
-		} else {
-			return false, err
 		}
+		return false, err
 	}
 
 	return true, nil

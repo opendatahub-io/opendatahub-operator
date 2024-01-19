@@ -1,4 +1,4 @@
-package e2e
+package e2e_test
 
 import (
 	"context"
@@ -55,7 +55,7 @@ type testContext struct {
 	ctx context.Context
 }
 
-func NewTestContext() (*testContext, error) {
+func NewTestContext() (*testContext, error) { //nolint:golint,revive // Only used in tests
 	// GetConfig(): If KUBECONFIG env variable is set, it is used to create
 	// the client, else the inClusterConfig() is used.
 	// Lastly if none of them are set, it uses  $HOME/.kube/config to create the client.
@@ -119,6 +119,9 @@ func TestOdhOperator(t *testing.T) {
 	// Run deletion if skipDeletion is not set
 	if !skipDeletion {
 		t.Run("delete components", deletionTestSuite)
+
+		// This test case recreates entire DSC again and deletes afterward
+		t.Run("remove components by using labeled configmap", cfgMapDeletionTestSuite)
 	}
 }
 

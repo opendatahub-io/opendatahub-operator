@@ -53,7 +53,7 @@ func ReplaceStringsInFile(fileName string, replacements map[string]string) error
 	return nil
 }
 
-// MatchLineInFile use the 'key' of the replacements as match pattern and replace the line with 'value'
+// MatchLineInFile use the 'key' of the replacements as match pattern and replace the line with 'value'.
 func MatchLineInFile(fileName string, replacements map[string]string) error {
 	fileContent, err := os.ReadFile(fileName)
 	if err != nil {
@@ -98,7 +98,7 @@ func isAlphanumeric(char byte) bool {
 	return regex.Match([]byte{char})
 }
 
-// encode configmap data and return in base64
+// encode configmap data and return in base64.
 func GetMonitoringData(data string) (string, error) {
 	// Create a new SHA-256 hash object
 	hash := sha256.New()
@@ -118,7 +118,7 @@ func GetMonitoringData(data string) (string, error) {
 	return encodedData, nil
 }
 
-// Use openshift-console namespace to get host domain
+// Use openshift-console namespace to get host domain.
 func GetDomain(cli client.Client, name string, namespace string) (string, error) {
 	consoleRoute := &routev1.Route{}
 	if err := cli.Get(context.TODO(), client.ObjectKey{Name: name, Namespace: namespace}, consoleRoute); err != nil {

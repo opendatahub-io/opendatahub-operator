@@ -49,7 +49,7 @@ type DSCInitializationSpec struct {
 	// This is not recommended to be used in production environment.
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=4
 	// +optional
-	DevFlags DevFlags `json:"devFlags,omitempty"`
+	DevFlags *DevFlags `json:"devFlags,omitempty"`
 }
 
 type Monitoring struct {
@@ -70,7 +70,7 @@ type Monitoring struct {
 type DevFlags struct {
 	// Custom manifests uri for odh-manifests
 	// +optional
-	ManifestsUri string `json:"manifestsUri,omitempty"` //nolint
+	ManifestsUri string `json:"manifestsUri,omitempty"`
 }
 
 // DSCInitializationStatus defines the observed state of DSCInitialization.

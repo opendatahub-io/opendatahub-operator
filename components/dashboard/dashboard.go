@@ -103,12 +103,12 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		if err := d.cleanOauthClient(cli, dscispec, currentComponentExist); err != nil {
 			return err
 		}
-
-		// Download manifests and update paths
-		if err := d.OverrideManifests(string(platform)); err != nil {
-			return err
+		if d.DevFlags != nil {
+			// Download manifests and update paths
+			if err := d.OverrideManifests(string(platform)); err != nil {
+				return err
+			}
 		}
-
 		if platform == deploy.OpenDataHub || platform == "" {
 			err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "odh-dashboard")
 			if err != nil {
@@ -116,7 +116,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 			}
 			// Deploy CRDs
 			if err := d.deployCRDsForPlatform(cli, owner, dscispec.ApplicationsNamespace, platform); err != nil {
-				return fmt.Errorf("failed to deploy %s crds %s: %v", ComponentName, PathCRDs, err)
+				return fmt.Errorf("failed to deploy %s crds %s: %w", ComponentName, PathCRDs, err)
 			}
 		}
 
@@ -127,16 +127,16 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 			}
 			// Deploy CRDs
 			if err := d.deployCRDsForPlatform(cli, owner, dscispec.ApplicationsNamespace, platform); err != nil {
-				return fmt.Errorf("failed to deploy %s crds %s: %v", ComponentNameSupported, PathCRDs, err)
+				return fmt.Errorf("failed to deploy %s crds %s: %w", ComponentNameSupported, PathCRDs, err)
 			}
-			// Apply RHODS specific configs
+			// Apply RHOAI specific configs
 			if err := d.applyRhodsSpecificConfigs(cli, owner, dscispec.ApplicationsNamespace, platform); err != nil {
 				return err
 			}
 		}
 
 		// Update image parameters (ODH does not use this solution, only downstream)
-		if dscispec.DevFlags.ManifestsUri == "" && len(d.DevFlags.Manifests) == 0 {
+		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (d.DevFlags == nil || len(d.DevFlags.Manifests) == 0) {
 			if err := deploy.ApplyParams(PathSupported, d.SetImageParamsMap(imageParamMap), false); err != nil {
 				return err
 			}
@@ -297,7 +297,7 @@ func (d *Dashboard) cleanOauthClient(cli client.Client, dscispec *dsciv1.DSCInit
 			}
 		} else {
 			if err := cli.Delete(context.TODO(), oauthClientSecret); err != nil {
-				return fmt.Errorf("error deleting secret %s in namespace %s : %w", name, dscispec.ApplicationsNamespace, err)
+				return fmt.Errorf("error deleting oauth client secret: %w", err)
 			}
 		}
 	}

@@ -7,7 +7,7 @@ data:
   default.tmpl: |
     {{ define "email.rhods.subject" }}
         {{ if gt (len .Alerts.Firing) 1 }}
-            Red Hat OpenShift Data Science Notifications
+            Red Hat OpenShift AI Notifications
         {{ else }}
             {{ (index .Alerts.Firing 0).Annotations.summary }}
         {{ end }}
@@ -550,7 +550,7 @@ data:
                                             <td align="center" class="rh-masthead__brand" bgcolor="#151515">
                                                 <a href="https://cloud.redhat.com/" target="_blank"
                                                     class="rh-masthead__brand-link">
-                                                    <img class="rh-masthead__brand-img" src="https://raw.githubusercontent.com/red-hat-data-services/odh-deployer/main/resources/logos/LogoRHODS.png" />
+                                                    <img class="rh-masthead__brand-img" src="https://raw.githubusercontent.com/red-hat-data-services/odh-dashboard/main/frontend/src/images/rhoai-logo.svg" />
                                                 </a>
                                             </td>
                                         </tr>

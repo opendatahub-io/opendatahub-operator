@@ -14,10 +14,10 @@ const (
 	// ManagedRhods defines expected addon catalogsource.
 	ManagedRhods Platform = "addon-managed-odh-catalog"
 	// SelfManagedRhods defines display name in csv.
-	SelfManagedRhods Platform = "Red Hat OpenShift Data Science"
+	SelfManagedRhods Platform = "Red Hat OpenShift AI"
 	// OpenDataHub defines display name in csv.
 	OpenDataHub Platform = "Open Data Hub Operator"
-	// Unknown indicates that operator is not deployed using OLM
+	// Unknown indicates that operator is not deployed using OLM.
 	Unknown Platform = ""
 )
 
@@ -33,7 +33,7 @@ func isSelfManaged(cli client.Client) (Platform, error) {
 	err := cli.List(context.TODO(), clusterCsvs)
 	if err != nil {
 		return "", err
-	} else {
+	} else { //nolint:golint,revive // Readability on else
 		for _, csv := range clusterCsvs.Items {
 			if strings.Contains(csv.Spec.DisplayName, string(OpenDataHub)) {
 				return OpenDataHub, nil
@@ -56,25 +56,24 @@ func isManagedRHODS(cli client.Client) (Platform, error) {
 			return "", nil
 		}
 		return "", err
-	} else {
-		expectedCatlogSource := &ofapi.CatalogSourceList{}
-		err := cli.List(context.TODO(), expectedCatlogSource)
-		if err != nil {
-			if apierrs.IsNotFound(err) {
-				return Unknown, nil
-			} else {
-				return Unknown, err
-			}
-		}
-		if len(expectedCatlogSource.Items) > 0 {
-			for _, cs := range expectedCatlogSource.Items {
-				if cs.Name == string(ManagedRhods) {
-					return ManagedRhods, nil
-				}
-			}
-		}
-		return "", nil
 	}
+	expectedCatlogSource := &ofapi.CatalogSourceList{}
+	err = cli.List(context.TODO(), expectedCatlogSource)
+	if err != nil {
+		if apierrs.IsNotFound(err) {
+			return Unknown, nil
+		}
+		return Unknown, err
+	}
+	if len(expectedCatlogSource.Items) > 0 {
+		for _, cs := range expectedCatlogSource.Items {
+			if cs.Name == string(ManagedRhods) {
+				return ManagedRhods, nil
+			}
+		}
+	}
+
+	return "", nil
 }
 
 func GetPlatform(cli client.Client) (Platform, error) {
