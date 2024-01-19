@@ -289,19 +289,19 @@ func (f *Feature) UpdateFeatureTrackerStatus(condType conditionsv1.ConditionType
 
 	modifiedTracker, err := runtime.DefaultUnstructuredConverter.ToUnstructured(f.Spec.Tracker)
 	if err != nil {
-		log.Error(err, "Error converting modified FeatureTracker to unstructured")
+		f.Log.Error(err, "Error converting modified FeatureTracker to unstructured")
 		return
 	}
 
 	u := unstructured.Unstructured{Object: modifiedTracker}
 	updated, err := f.DynamicClient.Resource(gvr.FeatureTracker).Update(context.TODO(), &u, metav1.UpdateOptions{})
 	if err != nil {
-		log.Error(err, "Error updating FeatureTracker status")
+		f.Log.Error(err, "Error updating FeatureTracker status")
 	}
 
 	var updatedTracker featurev1.FeatureTracker
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(updated.Object, &updatedTracker); err != nil {
-		log.Error(err, "Error converting updated unstructured object to FeatureTracker")
+		f.Log.Error(err, "Error converting updated unstructured object to FeatureTracker")
 		return
 	}
 
