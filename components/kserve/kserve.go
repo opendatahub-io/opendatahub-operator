@@ -166,8 +166,7 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resC
 		}
 	}
 
-	configureMeshErr := k.configureServiceMesh(dscispec)
-	return configureMeshErr
+	return  k.configureServiceMesh(dscispec)
 }
 
 func (k *Kserve) Cleanup(_ client.Client, instance *dsciv1.DSCInitializationSpec) error {

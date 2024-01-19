@@ -4,7 +4,7 @@ metadata:
   name: {{ .AuthorinoConfigs.Name }}
   namespace: {{ .Auth.Namespace }}
 spec:
-  authConfigLabelSelectors: authorino/topic=odh
+  authConfigLabelSelectors: opendatahub.io/authorization-group: default
   clusterWide: true
   listener:
     tls:
