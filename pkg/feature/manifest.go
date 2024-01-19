@@ -68,15 +68,13 @@ func (m *manifest) targetPath() string {
 func (m *manifest) process(data interface{}) error {
 	manifestFile, err := m.open()
 	if err != nil {
-		log.Error(err, "Failed to open manifest file", "path", m.path)
 		return err
 	}
 	defer manifestFile.Close()
 
 	content, err := io.ReadAll(manifestFile)
 	if err != nil {
-		log.Error(err, "Failed to read manifest file", "path", m.path)
-		return err
+		return fmt.Errorf("failed to create file: %w", err)
 	}
 
 	if !m.template {
@@ -88,7 +86,6 @@ func (m *manifest) process(data interface{}) error {
 
 	tmpl, err := template.New(m.name).Funcs(template.FuncMap{"ReplaceChar": ReplaceChar}).Parse(string(content))
 	if err != nil {
-		log.Error(err, "Failed to template for file", "path", m.path)
 		return err
 	}
 

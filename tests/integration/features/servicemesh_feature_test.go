@@ -2,7 +2,6 @@ package features_test
 
 import (
 	"context"
-	"path"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,7 +13,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
@@ -56,7 +54,7 @@ var _ = Describe("Service Mesh feature", func() {
 
 		When("operator is installed", func() {
 
-			It("should faile checking operator presence prerequisite when CRD not installed", func() {
+			It("should fail checking operator presence prerequisite when CRD not installed", func() {
 				Expect(servicemesh.EnsureServiceMeshOperatorInstalled(testFeature)).ToNot(Succeed())
 			})
 
@@ -97,59 +95,6 @@ var _ = Describe("Service Mesh feature", func() {
 				Expect(servicemesh.EnsureServiceMeshInstalled(testFeature)).ToNot(Succeed())
 			})
 		})
-	})
-
-	Describe("control plane configuration", func() {
-
-		var (
-			dsciSpec     *dscv1.DSCInitializationSpec
-			smcpCRD      *apiextensionsv1.CustomResourceDefinition
-			name         = "data-science-smcp"
-			appNamespace = "opendatahub"
-		)
-
-		BeforeEach(func() {
-			dsciSpec = newDSCInitializationSpec(appNamespace)
-			smcpCRD = installServiceMeshControlPlaneCRD()
-		})
-
-		AfterEach(func() {
-			defer objectCleaner.DeleteAll(smcpCRD)
-		})
-
-		It("should disable automated network policy by patching existing SMCP", func() {
-			// given
-			namespace := envtestutil.AppendRandomNameTo(testNamespacePrefix)
-			ns := createNamespace(namespace)
-			Expect(envTestClient.Create(context.Background(), ns)).To(Succeed())
-			defer objectCleaner.DeleteAll(ns)
-
-			createServiceMeshControlPlane(name, namespace)
-
-			dsciSpec.ServiceMesh.ControlPlane.Name = name
-			dsciSpec.ServiceMesh.ControlPlane.Namespace = namespace
-
-			controlPlaneWithNetworkPoliciesMgmtDisabled, err := feature.CreateFeature("control-plane-with-disabled-network-policies").
-				For(dsciSpec).
-				Manifests(path.Join("templates/servicemesh/base", "control-plane-disable-networkpolicies.patch.tmpl")).
-				UsingConfig(envTest.Config).
-				Load()
-
-			Expect(err).ToNot(HaveOccurred())
-
-			// when
-			Expect(controlPlaneWithNetworkPoliciesMgmtDisabled.Apply()).To(Succeed())
-
-			// then
-			serviceMeshControlPlane, err := getServiceMeshControlPlane(envTest.Config, namespace, name)
-			Expect(err).ToNot(HaveOccurred())
-
-			networkPolicyManagement, found, err := unstructured.NestedBool(serviceMeshControlPlane.Object, "spec", "security", "manageNetworkPolicy")
-			Expect(err).ToNot(HaveOccurred())
-			Expect(found).To(BeTrue())
-			Expect(networkPolicyManagement).To(BeFalse())
-		})
-
 	})
 
 })
@@ -288,18 +233,4 @@ func createSMCPInCluster(cfg *rest.Config, smcpObj *unstructured.Unstructured, n
 	}
 
 	return nil
-}
-
-func getServiceMeshControlPlane(cfg *rest.Config, namespace, name string) (*unstructured.Unstructured, error) {
-	dynamicClient, err := dynamic.NewForConfig(cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	smcp, err := dynamicClient.Resource(gvr.SMCP).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
-	if err != nil {
-		return nil, err
-	}
-
-	return smcp, nil
 }

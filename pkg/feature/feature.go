@@ -3,6 +3,7 @@ package feature
 import (
 	"context"
 
+	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -20,8 +21,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 )
 
-var log = ctrlLog.Log.WithName("features")
-
 type Feature struct {
 	Name    string
 	Spec    *Spec
@@ -38,6 +37,16 @@ type Feature struct {
 	preconditions  []Action
 	postconditions []Action
 	loaders        []Action
+
+	Log logr.Logger
+}
+
+func newFeature(name string) *Feature {
+	return &Feature{
+		Name:    name,
+		Enabled: true,
+		Log:     ctrlLog.Log.WithName("features").WithValues("feature", name),
+	}
 }
 
 // Action is a func type which can be used for different purposes while having access to Feature struct.
@@ -45,7 +54,7 @@ type Action func(feature *Feature) error
 
 func (f *Feature) Apply() error {
 	if !f.Enabled {
-		log.Info("feature is disabled, skipping.", "feature", f.Name)
+		f.Log.Info("feature is disabled, skipping")
 
 		return nil
 	}
@@ -60,22 +69,23 @@ func (f *Feature) Apply() error {
 		multiErr = multierror.Append(multiErr, precondition(f))
 	}
 
-	if multiErr.ErrorOrNil() != nil {
-		return multiErr.ErrorOrNil()
+	if preconditionsErr := multiErr.ErrorOrNil(); preconditionsErr != nil {
+		return preconditionsErr
 	}
 
 	// Load necessary data
 	for _, loader := range f.loaders {
 		multiErr = multierror.Append(multiErr, loader(f))
 	}
-	if multiErr.ErrorOrNil() != nil {
-		return multiErr.ErrorOrNil()
+
+	if dataLoadErr := multiErr.ErrorOrNil(); dataLoadErr != nil {
+		return dataLoadErr
 	}
 
 	// Create or update resources
 	for _, resource := range f.resources {
 		if err := resource(f); err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 	}
 
@@ -87,7 +97,7 @@ func (f *Feature) Apply() error {
 	}
 
 	if err := f.applyManifests(); err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	// Check all postconditions and collect errors
@@ -100,7 +110,7 @@ func (f *Feature) Apply() error {
 
 func (f *Feature) Cleanup() error {
 	if !f.Enabled {
-		log.Info("feature is disabled, skipping.", "feature", f.Name)
+		f.Log.Info("feature is disabled, skipping")
 
 		return nil
 	}
@@ -110,7 +120,12 @@ func (f *Feature) Cleanup() error {
 		cleanupErrors = multierror.Append(cleanupErrors, cleanupFunc(f))
 	}
 
-	return cleanupErrors.ErrorOrNil()
+	cleanupErr := cleanupErrors.ErrorOrNil()
+	if cleanupErr != nil {
+		f.Log.Error(cleanupErr, "failed performing feature cleanup")
+	}
+
+	return cleanupErr
 }
 
 func (f *Feature) applyManifests() error {
@@ -165,20 +180,20 @@ func (f *Feature) apply(m manifest) error {
 
 	if m.patch {
 		applier = func(data string) error {
-			log.Info("patching using manifest", "feature", f.Name, "name", m.name, "path", targetPath)
+			f.Log.Info("patching using manifest", "feature", f.Name, "name", m.name, "path", targetPath)
 
 			return f.patchResources(data)
 		}
 	} else {
 		applier = func(data string) error {
-			log.Info("applying manifest", "feature", f.Name, "name", m.name, "path", targetPath)
+			f.Log.Info("applying manifest", "feature", f.Name, "name", m.name, "path", targetPath)
 
 			return f.createResources(data)
 		}
 	}
 
 	if err := applier(m.processedContent); err != nil {
-		log.Error(err, "failed to create resource", "feature", f.Name, "name", m.name, "path", targetPath)
+		f.Log.Error(err, "failed to create resource", "feature", f.Name, "name", m.name, "path", targetPath)
 
 		return err
 	}
