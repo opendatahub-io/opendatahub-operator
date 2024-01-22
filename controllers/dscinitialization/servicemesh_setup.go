@@ -94,7 +94,7 @@ func configureServiceMeshFeatures(dscispec *dsciv1.DSCInitializationSpec, origin
 				feature.WaitForPodsToBeReady(serviceMeshSpec.ControlPlane.Namespace),
 			).
 			Load()
-    
+
 		if errSmcp != nil {
 			return errSmcp
 		}

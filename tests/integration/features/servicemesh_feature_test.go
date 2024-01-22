@@ -12,7 +12,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
@@ -137,21 +136,6 @@ var _ = Describe("Service Mesh feature", func() {
 		})
 	})
 })
-
-func installServiceMeshControlPlaneCRD() *apiextensionsv1.CustomResourceDefinition {
-	// Create SMCP the CRD
-	smcpCrdObj := &apiextensionsv1.CustomResourceDefinition{}
-	Expect(yaml.Unmarshal([]byte(serviceMeshControlPlaneCRD), smcpCrdObj)).To(Succeed())
-	c, err := client.New(envTest.Config, client.Options{})
-	Expect(err).ToNot(HaveOccurred())
-
-	Expect(c.Create(context.TODO(), smcpCrdObj)).To(Succeed())
-
-	crdOptions := envtest.CRDInstallOptions{PollInterval: interval, MaxTime: timeout}
-	Expect(envtest.WaitForCRDs(envTest.Config, []*apiextensionsv1.CustomResourceDefinition{smcpCrdObj}, crdOptions)).To(Succeed())
-
-	return smcpCrdObj
-}
 
 func createServiceMeshControlPlane(name, namespace string) {
 	serviceMeshControlPlane := &unstructured.Unstructured{
