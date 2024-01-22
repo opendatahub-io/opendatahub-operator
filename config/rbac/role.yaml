@@ -95,14 +95,6 @@ rules:
 - apiGroups:
   - apps
   resources:
-  - daemonsets
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - apps
-  resources:
   - deployments
   verbs:
   - '*'
@@ -124,14 +116,6 @@ rules:
   - statefulsets
   verbs:
   - '*'
-- apiGroups:
-  - apps.openshift.io
-  resources:
-  - deploymentconfigs
-  verbs:
-  - get
-  - list
-  - watch
 - apiGroups:
   - argoproj.io
   resources:

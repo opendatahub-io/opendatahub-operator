@@ -233,8 +233,6 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="apps",resources=deployments,verbs=*
 // +kubebuilder:rbac:groups="*",resources=deployments,verbs=*
 // +kubebuilder:rbac:groups="extensions",resources=deployments,verbs=*
-// +kubebuilder:rbac:groups="apps.openshift.io",resources=deploymentconfigs,verbs=get;list;watch
-// +kubebuilder:rbac:groups="apps",resources=daemonsets,verbs=get;list;watch
 
 // +kubebuilder:rbac:groups="apiextensions.k8s.io",resources=customresourcedefinitions,verbs=get;list;watch;create;patch;delete
 
