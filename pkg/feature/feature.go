@@ -13,6 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -276,34 +277,30 @@ func (f *Feature) createFeatureTracker() error {
 }
 
 func (f *Feature) UpdateFeatureTrackerStatus(condType conditionsv1.ConditionType, status corev1.ConditionStatus, reason featurev1.ConditionPhase, message string) {
-	if f.Spec.Tracker.Status.Conditions == nil {
-		f.Spec.Tracker.Status.Conditions = &[]conditionsv1.Condition{}
+	tracker := &featurev1.FeatureTracker{}
+	err := f.Client.Get(context.TODO(), types.NamespacedName{
+		Name: f.Spec.Tracker.Name,
+	}, tracker)
+
+	if err != nil {
+		f.Log.Error(err, "Error fetching FeatureTracker")
 	}
 
-	conditionsv1.SetStatusCondition(f.Spec.Tracker.Status.Conditions, conditionsv1.Condition{
+	// Update the status
+	if tracker.Status.Conditions == nil {
+		tracker.Status.Conditions = &[]conditionsv1.Condition{}
+	}
+	conditionsv1.SetStatusCondition(tracker.Status.Conditions, conditionsv1.Condition{
 		Type:    condType,
 		Status:  status,
 		Reason:  string(reason),
 		Message: message,
 	})
 
-	modifiedTracker, err := runtime.DefaultUnstructuredConverter.ToUnstructured(f.Spec.Tracker)
-	if err != nil {
-		f.Log.Error(err, "Error converting modified FeatureTracker to unstructured")
-		return
-	}
-
-	u := unstructured.Unstructured{Object: modifiedTracker}
-	updated, err := f.DynamicClient.Resource(gvr.FeatureTracker).Update(context.TODO(), &u, metav1.UpdateOptions{})
+	err = f.Client.Status().Update(context.Background(), tracker)
 	if err != nil {
 		f.Log.Error(err, "Error updating FeatureTracker status")
 	}
 
-	var updatedTracker featurev1.FeatureTracker
-	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(updated.Object, &updatedTracker); err != nil {
-		f.Log.Error(err, "Error converting updated unstructured object to FeatureTracker")
-		return
-	}
-
-	f.Spec.Tracker = &updatedTracker
+	f.Spec.Tracker.Status = tracker.Status
 }

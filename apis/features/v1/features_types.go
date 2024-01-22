@@ -14,11 +14,13 @@ import (
 // no longer required.
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Cluster
+// +kubebuilder:subresource:status
 type FeatureTracker struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              FeatureTrackerSpec   `json:"spec,omitempty"`
-	Status            FeatureTrackerStatus `json:"status,omitempty"`
+
+	Spec   FeatureTrackerSpec   `json:"spec,omitempty"`
+	Status FeatureTrackerStatus `json:"status,omitempty"`
 }
 
 type ConditionPhase string
