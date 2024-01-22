@@ -54,7 +54,7 @@ func newFeature(name string) *Feature {
 // Action is a func type which can be used for different purposes while having access to Feature struct.
 type Action func(feature *Feature) error
 
-//nolint:nonamedreturns // Reason: we use the named return for our defer piece, needed for that.
+//nolint:nonamedreturns // Reason: we use the named return to handle errors in a unified fashion through deferred function.
 func (f *Feature) Apply() (err error) {
 	if !f.Enabled {
 		f.Log.Info("feature is disabled, skipping")
