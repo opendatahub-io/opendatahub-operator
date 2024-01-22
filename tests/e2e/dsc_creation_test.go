@@ -298,9 +298,6 @@ func (tc *testContext) testApplicationCreation(component components.ComponentInt
 		}
 		return false, nil
 	})
-	if err != nil {
-		return err
-	}
 
 	return err
 }
