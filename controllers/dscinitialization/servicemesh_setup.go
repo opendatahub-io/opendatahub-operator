@@ -118,11 +118,9 @@ func configureServiceMeshFeatures(s *feature.FeaturesInitializer) error {
 		PreConditions(
 			feature.EnsureCRDIsInstalled("authconfigs.authorino.kuadrant.io"),
 			servicemesh.EnsureServiceMeshInstalled,
-			feature.CreateNamespaceIfNotExists(serviceMeshSpec.Auth.Namespace),
 		).
 		PostConditions(
 			feature.WaitForPodsToBeReady(serviceMeshSpec.ControlPlane.Namespace),
-			feature.WaitForPodsToBeReady(serviceMeshSpec.Auth.Namespace),
 			func(f *feature.Feature) error {
 				// We do not have the control over deployment resource creation.
 				// It is created by Authorino operator using Authorino CR

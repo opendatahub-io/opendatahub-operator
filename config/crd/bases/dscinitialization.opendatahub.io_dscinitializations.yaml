@@ -111,10 +111,6 @@ spec:
                               type: string
                             type: array
                         type: object
-                      namespace:
-                        default: auth-provider
-                        description: Namespace where it is deployed.
-                        type: string
                     type: object
                   controlPlane:
                     description: ControlPlane holds configuration of Service Mesh

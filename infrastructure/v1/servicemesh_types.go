@@ -43,9 +43,6 @@ type IngressGatewaySpec struct {
 }
 
 type AuthSpec struct {
-	// Namespace where it is deployed.
-	// +kubebuilder:default=auth-provider
-	Namespace string `json:"namespace,omitempty"`
 	// Authorino holds configuration of Authorino service used as external authorization provider.
 	Authorino AuthorinoSpec `json:"authorino,omitempty"`
 }
