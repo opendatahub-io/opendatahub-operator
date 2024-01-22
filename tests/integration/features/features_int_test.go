@@ -2,7 +2,6 @@ package features_test
 
 import (
 	"context"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -12,6 +11,7 @@ import (
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 
 	. "github.com/onsi/ginkgo/v2"
