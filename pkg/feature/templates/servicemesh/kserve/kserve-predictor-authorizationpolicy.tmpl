@@ -11,8 +11,9 @@ spec:
   - to:
     - operation:
         notPaths:
-        - /healthz*
+        - /debug/pprof/
         - /metrics
+        - /wait-for-drain
   selector:
     matchLabels:
       component: predictor
