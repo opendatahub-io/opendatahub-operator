@@ -3,6 +3,7 @@ package features_test
 import (
 	"context"
 	"fmt"
+	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"math/rand"
 	"path/filepath"
 	"testing"
@@ -53,6 +54,7 @@ var _ = BeforeSuite(func() {
 	}
 
 	utilruntime.Must(v1.AddToScheme(testScheme))
+	utilruntime.Must(featurev1.AddToScheme(testScheme))
 
 	envTest = &envtest.Environment{
 		CRDInstallOptions: envtest.CRDInstallOptions{

@@ -2,6 +2,7 @@ package features_test
 
 import (
 	"context"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -22,7 +23,7 @@ const (
 	interval = 250 * time.Millisecond
 )
 
-var _ = Describe("preconditions", func() {
+var _ = Describe("feature preconditions", func() {
 
 	Context("namespace existence", func() {
 
@@ -123,6 +124,110 @@ var _ = Describe("preconditions", func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("\"non-existing-resource.non-existing-group.io\" not found"))
 		})
+	})
+})
+
+var _ = Describe("feature cleanup", func() {
+
+	Context("using FeatureTracker and ownership as cleanup strategy", Ordered, func() {
+
+		var (
+			namespace string
+			dsciSpec  *dscv1.DSCInitializationSpec
+		)
+
+		BeforeAll(func() {
+			namespace = envtestutil.AppendRandomNameTo("feature-tracker-test")
+			dsciSpec = newDSCInitializationSpec(namespace)
+		})
+
+		It("should successfully create resource and associated feature tracker", func() {
+			// given
+			createConfigMap, err := feature.CreateFeature("create-cfg-map").
+				For(dsciSpec).
+				UsingConfig(envTest.Config).
+				PreConditions(
+					feature.CreateNamespaceIfNotExists(namespace),
+				).
+				WithResources(func(f *feature.Feature) error {
+					secret := &v1.Secret{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "test-secret",
+							Namespace: namespace,
+							OwnerReferences: []metav1.OwnerReference{
+								f.AsOwnerReference(),
+							},
+						},
+						Data: map[string][]byte{
+							"test": []byte("test"),
+						},
+					}
+
+					_, err := f.Clientset.CoreV1().
+						Secrets(namespace).
+						Create(context.TODO(), secret, metav1.CreateOptions{})
+
+					return err
+				}).
+				Load()
+			Expect(err).ToNot(HaveOccurred())
+
+			// when
+			Expect(createConfigMap.Apply()).To(Succeed())
+
+			// then
+			Expect(createConfigMap.Spec.Tracker).ToNot(BeNil())
+			_, err = createConfigMap.DynamicClient.
+				Resource(gvr.ResourceTracker).
+				Get(context.TODO(), createConfigMap.Spec.Tracker.Name, metav1.GetOptions{})
+
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("should remove feature tracker on clean-up", func() {
+			// given
+			// recreating feature struct again as it would happen in reconcile
+			createConfigMap, err := feature.CreateFeature("create-cfg-map").
+				For(dsciSpec).
+				UsingConfig(envTest.Config).
+				PreConditions(
+					feature.CreateNamespaceIfNotExists(namespace),
+				).
+				WithResources(func(f *feature.Feature) error {
+					secret := &v1.Secret{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "test-secret",
+							Namespace: namespace,
+							OwnerReferences: []metav1.OwnerReference{
+								f.AsOwnerReference(),
+							},
+						},
+						Data: map[string][]byte{
+							"test": []byte("test"),
+						},
+					}
+
+					_, err := f.Clientset.CoreV1().
+						Secrets(namespace).
+						Create(context.TODO(), secret, metav1.CreateOptions{})
+
+					return err
+				}).
+				Load()
+			Expect(err).ToNot(HaveOccurred())
+
+			// when
+			Expect(createConfigMap.Cleanup()).To(Succeed())
+			trackerName := createConfigMap.Spec.Tracker.Name
+
+			// then
+			_, err = createConfigMap.DynamicClient.
+				Resource(gvr.ResourceTracker).
+				Get(context.TODO(), trackerName, metav1.GetOptions{})
+
+			Expect(errors.IsNotFound(err)).To(BeTrue())
+		})
+
 	})
 
 })
