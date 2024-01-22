@@ -1,8 +1,0 @@
-apiVersion: maistra.io/v2
-kind: ServiceMeshControlPlane
-metadata:
-  name: {{ .ControlPlane.Name }}
-  namespace: {{ .ControlPlane.Namespace }}
-spec:
-  security:
-    manageNetworkPolicy: false

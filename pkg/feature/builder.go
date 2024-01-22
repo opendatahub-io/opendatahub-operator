@@ -147,10 +147,7 @@ func (fb *featureBuilder) WithResources(resources ...Action) *featureBuilder {
 }
 
 func (fb *featureBuilder) Load() (*Feature, error) {
-	feature := &Feature{
-		Name:    fb.name,
-		Enabled: true,
-	}
+	feature := newFeature(fb.name)
 
 	// UsingConfig builder wasn't called while constructing this feature.
 	// Get default settings and create needed clients.

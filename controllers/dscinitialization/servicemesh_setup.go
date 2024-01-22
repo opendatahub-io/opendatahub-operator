@@ -94,22 +94,11 @@ func configureServiceMeshFeatures(dscispec *dsciv1.DSCInitializationSpec, origin
 				feature.WaitForPodsToBeReady(serviceMeshSpec.ControlPlane.Namespace),
 			).
 			Load()
+    
 		if errSmcp != nil {
 			return errSmcp
 		}
 		s.Features = append(s.Features, smcpCreation)
-
-		noDefaultNetworkPolicies, errNp := feature.CreateFeature("mesh-control-plane-no-default-network-policies").
-			For(dscispec, origin).
-			Manifests(
-				path.Join(rootDir, templatesDir, "base", "control-plane-disable-networkpolicies.patch.tmpl"),
-			).
-			Load()
-
-		if errNp != nil {
-			return errNp
-		}
-		s.Features = append(s.Features, noDefaultNetworkPolicies)
 
 		if serviceMeshSpec.ControlPlane.MetricsCollection == "Istio" {
 			metricsCollection, errMetrics := feature.CreateFeature("mesh-metrics-collection").
