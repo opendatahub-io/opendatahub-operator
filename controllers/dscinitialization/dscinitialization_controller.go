@@ -21,6 +21,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	"path/filepath"
 	"reflect"
 
@@ -326,7 +329,10 @@ func (r *DSCInitializationReconciler) updateStatus(ctx context.Context, original
 
 		// Return err itself here (not wrapped inside another error)
 		// so that RetryOnConflict can identify it correctly.
-		return r.Client.Status().Update(ctx, saved)
+		if isStatusUpdate(&original.Status, &saved.Status) {
+			return r.Client.Status().Update(ctx, saved)
+		}
+		return nil
 	})
 
 	return saved, err
@@ -392,4 +398,8 @@ func (r *DSCInitializationReconciler) watchDSCResource(_ client.Object) []reconc
 	}
 
 	return nil
+}
+
+func isStatusUpdate(original *dsciv1.DSCInitializationStatus, saved *dsciv1.DSCInitializationStatus) bool {
+	return !cmp.Equal(original, saved, cmpopts.IgnoreFields(conditionsv1.Condition{}, "LastHeartbeatTime", "LastTransitionTime"))
 }
