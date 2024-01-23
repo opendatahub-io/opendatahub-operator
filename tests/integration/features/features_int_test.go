@@ -172,7 +172,7 @@ var _ = Describe("feature cleanup", func() {
 			// then
 			Expect(createConfigMap.Spec.Tracker).ToNot(BeNil())
 			_, err = createConfigMap.DynamicClient.
-				Resource(gvr.ResourceTracker).
+				Resource(gvr.FeatureTracker).
 				Get(context.TODO(), createConfigMap.Spec.Tracker.Name, metav1.GetOptions{})
 
 			Expect(err).ToNot(HaveOccurred())
@@ -197,7 +197,7 @@ var _ = Describe("feature cleanup", func() {
 
 			// then
 			_, err = createConfigMap.DynamicClient.
-				Resource(gvr.ResourceTracker).
+				Resource(gvr.FeatureTracker).
 				Get(context.TODO(), trackerName, metav1.GetOptions{})
 
 			Expect(errors.IsNotFound(err)).To(BeTrue())

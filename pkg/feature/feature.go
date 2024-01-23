@@ -11,12 +11,13 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlLog "sigs.k8s.io/controller-runtime/pkg/log"
-  
-  featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
+
+	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 )
 
 type Feature struct {
@@ -56,7 +57,7 @@ func (f *Feature) Apply() (err error) {
 		return nil
 	}
 
-	if trackerErr := f.createFeatureTracker(); err != nil {
+	if trackerErr := f.createResourceTracker(); err != nil {
 		return trackerErr
 	}
 
@@ -214,4 +215,33 @@ func (f *Feature) apply(m manifest) error {
 
 func (f *Feature) AsOwnerReference() metav1.OwnerReference {
 	return f.Spec.Tracker.ToOwnerReference()
+}
+
+func (f *Feature) UpdateFeatureTrackerStatus(condType conditionsv1.ConditionType, status corev1.ConditionStatus, reason featurev1.FeaturePhase, message string) {
+	tracker := &featurev1.FeatureTracker{}
+	err := f.Client.Get(context.TODO(), types.NamespacedName{
+		Name: f.Spec.Tracker.Name,
+	}, tracker)
+
+	if err != nil {
+		f.Log.Error(err, "Error fetching FeatureTracker")
+	}
+
+	// Update the status
+	if tracker.Status.Conditions == nil {
+		tracker.Status.Conditions = &[]conditionsv1.Condition{}
+	}
+	conditionsv1.SetStatusCondition(tracker.Status.Conditions, conditionsv1.Condition{
+		Type:    condType,
+		Status:  status,
+		Reason:  string(reason),
+		Message: message,
+	})
+
+	err = f.Client.Status().Update(context.Background(), tracker)
+	if err != nil {
+		f.Log.Error(err, "Error updating FeatureTracker status")
+	}
+
+	f.Spec.Tracker.Status = tracker.Status
 }
