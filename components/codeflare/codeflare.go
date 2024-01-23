@@ -20,9 +20,10 @@ import (
 
 var (
 	ComponentName       = "codeflare"
-	CodeflarePath       = deploy.DefaultManifestPath + "/" + ComponentName + "/manager"
+	CodeflarePath       = deploy.DefaultManifestPath + "/" + ComponentName + "/default"
 	CodeflareOperator   = "codeflare-operator"
 	RHCodeflareOperator = "rhods-codeflare-operator"
+	ParamsPath          = deploy.DefaultManifestPath + "/" + ComponentName + "/manager"
 )
 
 // Verifies that CodeFlare implements ComponentInterface.
@@ -42,7 +43,7 @@ func (c *CodeFlare) OverrideManifests(_ string) error {
 			return err
 		}
 		// If overlay is defined, update paths
-		defaultKustomizePath := "manager"
+		defaultKustomizePath := "default"
 		if manifestConfig.SourcePath != "" {
 			defaultKustomizePath = manifestConfig.SourcePath
 		}
@@ -90,7 +91,7 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, r
 
 		// Update image parameters only when we do not have customized manifests set
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (c.DevFlags == nil || len(c.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(CodeflarePath, c.SetImageParamsMap(imageParamMap), true); err != nil {
+			if err := deploy.ApplyParams(ParamsPath, c.SetImageParamsMap(imageParamMap), true); err != nil {
 				return err
 			}
 		}
