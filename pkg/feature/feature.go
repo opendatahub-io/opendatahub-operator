@@ -68,7 +68,7 @@ func (f *Feature) Apply() (err error) {
 
 	// Verify all precondition and collect errors
 	var multiErr *multierror.Error
-	var phase featurev1.ConditionPhase
+	var phase featurev1.FeaturePhase
 	phase = featurev1.FeatureCreated
 	f.UpdateFeatureTrackerStatus(conditionsv1.ConditionDegraded, "False", phase, fmt.Sprintf("Applying feature %s", f.Name))
 	defer func() {
@@ -276,7 +276,7 @@ func (f *Feature) createFeatureTracker() error {
 	return nil
 }
 
-func (f *Feature) UpdateFeatureTrackerStatus(condType conditionsv1.ConditionType, status corev1.ConditionStatus, reason featurev1.ConditionPhase, message string) {
+func (f *Feature) UpdateFeatureTrackerStatus(condType conditionsv1.ConditionType, status corev1.ConditionStatus, reason featurev1.FeaturePhase, message string) {
 	tracker := &featurev1.FeatureTracker{}
 	err := f.Client.Get(context.TODO(), types.NamespacedName{
 		Name: f.Spec.Tracker.Name,

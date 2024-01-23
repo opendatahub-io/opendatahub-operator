@@ -12,7 +12,7 @@ import (
 )
 
 //nolint:nolintlint,ireturn // Reason: returning an interface is necessary for dynamic typing in this context
-func HaveCondition(conditionType conditionsv1.ConditionType, conditionStatus corev1.ConditionStatus, reason featurev1.ConditionPhase) types.GomegaMatcher {
+func HaveCondition(conditionType conditionsv1.ConditionType, conditionStatus corev1.ConditionStatus, reason featurev1.FeaturePhase) types.GomegaMatcher {
 	return &HaveConditionMatcher{
 		conditionType:   conditionType,
 		conditionStatus: conditionStatus,
@@ -23,7 +23,7 @@ func HaveCondition(conditionType conditionsv1.ConditionType, conditionStatus cor
 type HaveConditionMatcher struct {
 	conditionType   conditionsv1.ConditionType
 	conditionStatus corev1.ConditionStatus
-	reason          featurev1.ConditionPhase
+	reason          featurev1.FeaturePhase
 }
 
 func (h HaveConditionMatcher) Match(actual interface{}) (bool, error) {
