@@ -53,7 +53,8 @@ var _ = Describe("feature preconditions", func() {
 			origin := envtestutil.NewOrigin(featurev1.DSCIType, "default")
 			var err error
 			testFeature, err = feature.CreateFeature(testFeatureName).
-				For(dsciSpec, origin).
+				With(dsciSpec).
+				DefinedBy(origin).
 				UsingConfig(envTest.Config).
 				Load()
 			Expect(err).ToNot(HaveOccurred())
@@ -105,7 +106,8 @@ var _ = Describe("feature preconditions", func() {
 
 			var err error
 			verificationFeature, err = feature.CreateFeature("CRD verification").
-				For(dsciSpec, origin).
+				With(dsciSpec).
+				DefinedBy(origin).
 				UsingConfig(envTest.Config).
 				PreConditions(feature.EnsureCRDIsInstalled(name)).
 				Load()
@@ -124,7 +126,8 @@ var _ = Describe("feature preconditions", func() {
 
 			var err error
 			verificationFeature, err = feature.CreateFeature("CRD verification").
-				For(dsciSpec, origin).
+				With(dsciSpec).
+				DefinedBy(origin).
 				UsingConfig(envTest.Config).
 				PreConditions(feature.EnsureCRDIsInstalled(name)).
 				Load()
@@ -159,7 +162,8 @@ var _ = Describe("feature cleanup", func() {
 		It("should successfully create resource and associated feature tracker", func() {
 			// given
 			createConfigMap, err := feature.CreateFeature("create-cfg-map").
-				For(dsciSpec, origin).
+				With(dsciSpec).
+				DefinedBy(origin).
 				UsingConfig(envTest.Config).
 				PreConditions(
 					feature.CreateNamespaceIfNotExists(namespace),
@@ -184,7 +188,8 @@ var _ = Describe("feature cleanup", func() {
 			// recreating feature struct again as it would happen in the reconcile
 			// given
 			createConfigMap, err := feature.CreateFeature("create-cfg-map").
-				For(dsciSpec, origin).
+				With(dsciSpec).
+				DefinedBy(origin).
 				UsingConfig(envTest.Config).
 				PreConditions(
 					feature.CreateNamespaceIfNotExists(namespace),
@@ -224,7 +229,8 @@ var _ = Describe("feature trackers", func() {
 
 		It("should correctly indicate origin in the feature tracker", func() {
 			verificationFeature, err := feature.CreateFeature("empty-feature").
-				For(dsciSpec, origin).
+				With(dsciSpec).
+				DefinedBy(origin).
 				UsingConfig(envTest.Config).
 				Load()
 			Expect(err).ToNot(HaveOccurred())
@@ -240,7 +246,8 @@ var _ = Describe("feature trackers", func() {
 
 		It("should correctly indicate app namespace in the feature tracker", func() {
 			verificationFeature, err := feature.CreateFeature("empty-feature").
-				For(dsciSpec, origin).
+				With(dsciSpec).
+				DefinedBy(origin).
 				UsingConfig(envTest.Config).
 				Load()
 			Expect(err).ToNot(HaveOccurred())
@@ -281,7 +288,8 @@ var _ = Describe("Manifest sources", func() {
 			serviceMeshSpec.ControlPlane.Namespace = "service-ns"
 
 			createService, err := feature.CreateFeature("create-control-plane").
-				For(dsciSpec, origin).
+				With(dsciSpec).
+				DefinedBy(origin).
 				Manifests(path.Join(templatesDir, "serverless", "serving-istio-gateways", "local-gateway-svc.tmpl")).
 				UsingConfig(envTest.Config).
 				Load()
@@ -304,7 +312,8 @@ var _ = Describe("Manifest sources", func() {
 			defer objectCleaner.DeleteAll(ns)
 
 			createGateway, err := feature.CreateFeature("create-gateway").
-				For(dsciSpec, origin).
+				With(dsciSpec).
+				DefinedBy(origin).
 				Manifests(path.Join(templatesDir, "serverless", "serving-istio-gateways", "istio-local-gateway.yaml")).
 				UsingConfig(envTest.Config).
 				Load()
@@ -322,7 +331,8 @@ var _ = Describe("Manifest sources", func() {
 
 		It("should be able to process an embedded file from a non default location", func() {
 			createNs, err := feature.CreateFeature("create-ns").
-				For(dsciSpec, origin).
+				With(dsciSpec).
+				DefinedBy(origin).
 				ManifestSource(testEmbeddedFiles).
 				Manifests(path.Join(templatesDir, "namespace.yaml")).
 				UsingConfig(envTest.Config).
@@ -351,7 +361,8 @@ metadata:
 			Expect(err).ToNot(HaveOccurred())
 
 			createNs, err := feature.CreateFeature("create-ns").
-				For(dsciSpec, origin).
+				With(dsciSpec).
+				DefinedBy(origin).
 				ManifestSource(os.DirFS(tempDir)).
 				Manifests(path.Join("namespace.yaml")). // must be relative to root DirFS defined above
 				UsingConfig(envTest.Config).

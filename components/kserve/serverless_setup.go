@@ -3,8 +3,6 @@ package kserve
 import (
 	"path"
 
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/serverless"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
@@ -16,10 +14,11 @@ const (
 	templatesDir            = "templates/serverless"
 )
 
-func (k *Kserve) configureServerlessFeatures(dscispec *dsci.DSCInitializationSpec, origin featurev1.Origin) feature.DefinedFeatures {
-	return func(s *feature.FeaturesInitializer) error {
+func (k *Kserve) configureServerlessFeatures() feature.DefinedFeatures {
+	return func(initializer *feature.FeaturesInitializer) error {
 		servingDeployment, err := feature.CreateFeature("serverless-serving-deployment").
-			For(dscispec, origin).
+			With(initializer.DSCInitializationSpec).
+			DefinedBy(initializer.Origin).
 			Manifests(
 				path.Join(templatesDir, "serving-install"),
 			).
@@ -37,10 +36,11 @@ func (k *Kserve) configureServerlessFeatures(dscispec *dsci.DSCInitializationSpe
 		if err != nil {
 			return err
 		}
-		s.Features = append(s.Features, servingDeployment)
+		initializer.Features = append(initializer.Features, servingDeployment)
 
 		servingIstioGateways, err := feature.CreateFeature("serverless-serving-gateways").
-			For(dscispec, origin).
+			With(initializer.DSCInitializationSpec).
+			DefinedBy(initializer.Origin).
 			PreConditions(
 				// Check serverless is installed
 				feature.WaitForResourceToBeCreated(knativeServingNamespace, gvr.KnativeServing)).
@@ -57,7 +57,7 @@ func (k *Kserve) configureServerlessFeatures(dscispec *dsci.DSCInitializationSpe
 		if err != nil {
 			return err
 		}
-		s.Features = append(s.Features, servingIstioGateways)
+		initializer.Features = append(initializer.Features, servingIstioGateways)
 		return nil
 	}
 }

@@ -7,7 +7,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 )
@@ -17,11 +16,7 @@ const templatesDir = "templates/servicemesh"
 func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsciv1.DSCInitialization) error {
 	switch instance.Spec.ServiceMesh.ManagementState {
 	case operatorv1.Managed:
-		origin := featurev1.Origin{
-			Type: featurev1.DSCIType,
-			Name: instance.Name,
-		}
-		serviceMeshInitializer := feature.NewFeaturesInitializer(&instance.Spec, configureServiceMeshFeatures(&instance.Spec, origin))
+		serviceMeshInitializer := feature.ClusterFeaturesInitializer(instance, configureServiceMeshFeatures())
 		if err := serviceMeshInitializer.Prepare(); err != nil {
 			r.Log.Error(err, "failed configuring service mesh resources")
 			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed configuring service mesh resources")
@@ -48,11 +43,7 @@ func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsciv1.DSCI
 func (r *DSCInitializationReconciler) removeServiceMesh(instance *dsciv1.DSCInitialization) error {
 	// on condition of Managed, do not handle Removed when set to Removed it trigger DSCI reconcile to cleanup
 	if instance.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
-		origin := featurev1.Origin{
-			Type: featurev1.DSCIType,
-			Name: instance.Name,
-		}
-		serviceMeshInitializer := feature.NewFeaturesInitializer(&instance.Spec, configureServiceMeshFeatures(&instance.Spec, origin))
+		serviceMeshInitializer := feature.ClusterFeaturesInitializer(instance, configureServiceMeshFeatures())
 		if err := serviceMeshInitializer.Prepare(); err != nil {
 			r.Log.Error(err, "failed configuring service mesh resources")
 			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed configuring service mesh resources")
@@ -71,12 +62,13 @@ func (r *DSCInitializationReconciler) removeServiceMesh(instance *dsciv1.DSCInit
 	return nil
 }
 
-func configureServiceMeshFeatures(dscispec *dsciv1.DSCInitializationSpec, origin featurev1.Origin) feature.DefinedFeatures {
-	return func(s *feature.FeaturesInitializer) error {
-		serviceMeshSpec := dscispec.ServiceMesh
+func configureServiceMeshFeatures() feature.DefinedFeatures {
+	return func(initializer *feature.FeaturesInitializer) error {
+		serviceMeshSpec := initializer.DSCInitializationSpec.ServiceMesh
 
 		smcpCreation, errSmcp := feature.CreateFeature("mesh-control-plane-creation").
-			For(dscispec, origin).
+			With(initializer.DSCInitializationSpec).
+			DefinedBy(initializer.Origin).
 			Manifests(
 				path.Join(templatesDir, "base", "create-smcp.tmpl"),
 			).
@@ -92,11 +84,12 @@ func configureServiceMeshFeatures(dscispec *dsciv1.DSCInitializationSpec, origin
 		if errSmcp != nil {
 			return errSmcp
 		}
-		s.Features = append(s.Features, smcpCreation)
+		initializer.Features = append(initializer.Features, smcpCreation)
 
 		if serviceMeshSpec.ControlPlane.MetricsCollection == "Istio" {
 			metricsCollection, errMetrics := feature.CreateFeature("mesh-metrics-collection").
-				For(dscispec, origin).
+				With(initializer.DSCInitializationSpec).
+				DefinedBy(initializer.Origin).
 				Manifests(
 					path.Join(templatesDir, "metrics-collection"),
 				).
@@ -107,7 +100,7 @@ func configureServiceMeshFeatures(dscispec *dsciv1.DSCInitializationSpec, origin
 			if errMetrics != nil {
 				return errMetrics
 			}
-			s.Features = append(s.Features, metricsCollection)
+			initializer.Features = append(initializer.Features, metricsCollection)
 		}
 		return nil
 	}
