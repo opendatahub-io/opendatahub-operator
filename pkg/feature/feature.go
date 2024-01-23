@@ -105,7 +105,7 @@ func (f *Feature) Cleanup() error {
 
 	// Ensure associated FeatureTracker instance has been removed as last one
 	// in the chain of cleanups.
-	f.cleanups = append(f.cleanups, removeFeatureTracker)
+	f.addCleanup(removeFeatureTracker)
 
 	var cleanupErrors *multierror.Error
 	for _, cleanupFunc := range f.cleanups {
