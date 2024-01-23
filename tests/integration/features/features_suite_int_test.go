@@ -54,6 +54,7 @@ var _ = BeforeSuite(func() {
 	}
 
 	utilruntime.Must(v1.AddToScheme(testScheme))
+	utilruntime.Must(featurev1.AddToScheme(testScheme))
 
 	envTest = &envtest.Environment{
 		CRDInstallOptions: envtest.CRDInstallOptions{
