@@ -149,26 +149,7 @@ var _ = Describe("feature cleanup", func() {
 				PreConditions(
 					feature.CreateNamespaceIfNotExists(namespace),
 				).
-				WithResources(func(f *feature.Feature) error {
-					secret := &v1.Secret{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      "test-secret",
-							Namespace: namespace,
-							OwnerReferences: []metav1.OwnerReference{
-								f.AsOwnerReference(),
-							},
-						},
-						Data: map[string][]byte{
-							"test": []byte("test"),
-						},
-					}
-
-					_, err := f.Clientset.CoreV1().
-						Secrets(namespace).
-						Create(context.TODO(), secret, metav1.CreateOptions{})
-
-					return err
-				}).
+				WithResources(createTestSecret(namespace)).
 				Load()
 			Expect(err).ToNot(HaveOccurred())
 
@@ -185,34 +166,15 @@ var _ = Describe("feature cleanup", func() {
 		})
 
 		It("should remove feature tracker on clean-up", func() {
+			// recreating feature struct again as it would happen in the reconcile
 			// given
-			// recreating feature struct again as it would happen in reconcile
 			createConfigMap, err := feature.CreateFeature("create-cfg-map").
 				For(dsciSpec).
 				UsingConfig(envTest.Config).
 				PreConditions(
 					feature.CreateNamespaceIfNotExists(namespace),
 				).
-				WithResources(func(f *feature.Feature) error {
-					secret := &v1.Secret{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      "test-secret",
-							Namespace: namespace,
-							OwnerReferences: []metav1.OwnerReference{
-								f.AsOwnerReference(),
-							},
-						},
-						Data: map[string][]byte{
-							"test": []byte("test"),
-						},
-					}
-
-					_, err := f.Clientset.CoreV1().
-						Secrets(namespace).
-						Create(context.TODO(), secret, metav1.CreateOptions{})
-
-					return err
-				}).
+				WithResources(createTestSecret(namespace)).
 				Load()
 			Expect(err).ToNot(HaveOccurred())
 
@@ -231,6 +193,29 @@ var _ = Describe("feature cleanup", func() {
 	})
 
 })
+
+func createTestSecret(namespace string) func(f *feature.Feature) error {
+	return func(f *feature.Feature) error {
+		secret := &v1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-secret",
+				Namespace: namespace,
+				OwnerReferences: []metav1.OwnerReference{
+					f.AsOwnerReference(),
+				},
+			},
+			Data: map[string][]byte{
+				"test": []byte("test"),
+			},
+		}
+
+		_, err := f.Clientset.CoreV1().
+			Secrets(namespace).
+			Create(context.TODO(), secret, metav1.CreateOptions{})
+
+		return err
+	}
+}
 
 func createNamespace(name string) *v1.Namespace {
 	return &v1.Namespace{
