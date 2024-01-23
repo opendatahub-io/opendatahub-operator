@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/onsi/gomega/gstruct"
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -23,7 +24,6 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	. "github.com/opendatahub-io/opendatahub-operator/v2/tests/assertions"
 )
 
 //go:embed templates
@@ -166,7 +166,13 @@ var _ = Describe("feature trackers", func() {
 
 			// then
 			featureTracker := getFeatureTracker("default-crd-verification")
-			Expect(featureTracker.Status.Conditions).To(HaveCondition(conditionsv1.ConditionAvailable, v1.ConditionTrue, featurev1.FeatureCreated))
+			Expect(*featureTracker.Status.Conditions).To(ContainElement(
+				gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+					"Type":   Equal(conditionsv1.ConditionAvailable),
+					"Status": Equal(v1.ConditionTrue),
+					"Reason": Equal(string(featurev1.FeatureCreated)), // Cast to string for testing.
+				}),
+			))
 		})
 
 		It("should indicate failure in preconditions", func() {
@@ -184,7 +190,13 @@ var _ = Describe("feature trackers", func() {
 
 			// then
 			featureTracker := getFeatureTracker("default-crd-verification")
-			Expect(featureTracker.Status.Conditions).To(HaveCondition(conditionsv1.ConditionDegraded, v1.ConditionTrue, featurev1.PreConditions))
+			Expect(*featureTracker.Status.Conditions).To(ContainElement(
+				gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+					"Type":   Equal(conditionsv1.ConditionDegraded),
+					"Status": Equal(v1.ConditionTrue),
+					"Reason": Equal(string(featurev1.PreConditions)), // Cast to string for testing.
+				}),
+			))
 		})
 
 		It("should indicate failure in post-conditions", func() {
@@ -203,7 +215,13 @@ var _ = Describe("feature trackers", func() {
 
 			// then
 			featureTracker := getFeatureTracker("default-post-condition-failure")
-			Expect(featureTracker.Status.Conditions).To(HaveCondition(conditionsv1.ConditionDegraded, v1.ConditionTrue, featurev1.PostConditions))
+			Expect(*featureTracker.Status.Conditions).To(ContainElement(
+				gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+					"Type":   Equal(conditionsv1.ConditionDegraded),
+					"Status": Equal(v1.ConditionTrue),
+					"Reason": Equal(string(featurev1.PostConditions)), // Cast to string for testing.
+				}),
+			))
 		})
 	})
 })

@@ -54,6 +54,7 @@ var _ = BeforeSuite(func() {
 	}
 
 	utilruntime.Must(v1.AddToScheme(testScheme))
+	utilruntime.Must(featurev1.AddToScheme(testScheme))
 
 	envTest = &envtest.Environment{
 		CRDInstallOptions: envtest.CRDInstallOptions{
@@ -71,9 +72,6 @@ var _ = BeforeSuite(func() {
 	config, err := envTest.Start()
 	Expect(err).NotTo(HaveOccurred())
 	Expect(config).NotTo(BeNil())
-
-	err = featurev1.AddToScheme(testScheme)
-	Expect(err).NotTo(HaveOccurred())
 
 	envTestClient, err = client.New(config, client.Options{Scheme: testScheme})
 	Expect(err).NotTo(HaveOccurred())
