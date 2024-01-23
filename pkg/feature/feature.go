@@ -11,17 +11,12 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlLog "sigs.k8s.io/controller-runtime/pkg/log"
-
-	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
+  
+  featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 )
 
 type Feature struct {
@@ -58,8 +53,6 @@ type Action func(feature *Feature) error
 //nolint:nonamedreturns // Reason: we use the named return to handle errors in a unified fashion through deferred function.
 func (f *Feature) Apply() (err error) {
 	if !f.Enabled {
-		f.Log.Info("feature is disabled, skipping")
-
 		return nil
 	}
 
@@ -131,22 +124,19 @@ func (f *Feature) Apply() (err error) {
 
 func (f *Feature) Cleanup() error {
 	if !f.Enabled {
-		f.Log.Info("feature is disabled, skipping")
-
 		return nil
 	}
+
+	// Ensure associated FeatureTracker instance has been removed as last one
+	// in the chain of cleanups.
+	f.addCleanup(removeFeatureTracker)
 
 	var cleanupErrors *multierror.Error
 	for _, cleanupFunc := range f.cleanups {
 		cleanupErrors = multierror.Append(cleanupErrors, cleanupFunc(f))
 	}
 
-	cleanupErr := cleanupErrors.ErrorOrNil()
-	if cleanupErr != nil {
-		f.Log.Error(cleanupErr, "failed performing feature cleanup")
-	}
-
-	return cleanupErr
+	return cleanupErrors.ErrorOrNil()
 }
 
 func (f *Feature) applyManifests() error {
@@ -224,84 +214,4 @@ func (f *Feature) apply(m manifest) error {
 
 func (f *Feature) AsOwnerReference() metav1.OwnerReference {
 	return f.Spec.Tracker.ToOwnerReference()
-}
-
-// createFeatureTracker instantiates FeatureTracker for a given Feature. All resources created when applying
-// it will have this object attached as an OwnerReference.
-// It's a cluster-scoped resource. Once created, there's a cleanup hook added which will be invoked on deletion, resulting
-// in removal of all owned resources which belong to this Feature.
-func (f *Feature) createFeatureTracker() error {
-	tracker := &featurev1.FeatureTracker{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "features.opendatahub.io/v1",
-			Kind:       "FeatureTracker",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: f.Spec.AppNamespace + "-" + common.TrimToRFC1123Name(f.Name),
-		},
-	}
-
-	foundTracker, err := f.DynamicClient.Resource(gvr.FeatureTracker).Get(context.TODO(), tracker.Name, metav1.GetOptions{})
-	if k8serrors.IsNotFound(err) {
-		unstructuredTracker, err := runtime.DefaultUnstructuredConverter.ToUnstructured(tracker)
-		if err != nil {
-			return err
-		}
-
-		u := unstructured.Unstructured{Object: unstructuredTracker}
-
-		foundTracker, err = f.DynamicClient.Resource(gvr.FeatureTracker).Create(context.TODO(), &u, metav1.CreateOptions{})
-		if err != nil {
-			return err
-		}
-	} else if err != nil {
-		return err
-	}
-
-	f.Spec.Tracker = &featurev1.FeatureTracker{}
-	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(foundTracker.Object, f.Spec.Tracker); err != nil {
-		return err
-	}
-
-	// Register its own cleanup
-	f.addCleanup(func(feature *Feature) error {
-		err := f.DynamicClient.Resource(gvr.FeatureTracker).Delete(context.TODO(), f.Spec.Tracker.Name, metav1.DeleteOptions{})
-
-		if !k8serrors.IsNotFound(err) {
-			return err
-		}
-
-		return nil
-	})
-
-	return nil
-}
-
-func (f *Feature) UpdateFeatureTrackerStatus(condType conditionsv1.ConditionType, status corev1.ConditionStatus, reason featurev1.FeaturePhase, message string) {
-	tracker := &featurev1.FeatureTracker{}
-	err := f.Client.Get(context.TODO(), types.NamespacedName{
-		Name: f.Spec.Tracker.Name,
-	}, tracker)
-
-	if err != nil {
-		f.Log.Error(err, "Error fetching FeatureTracker")
-	}
-
-	// Update the status
-	if tracker.Status.Conditions == nil {
-		tracker.Status.Conditions = &[]conditionsv1.Condition{}
-	}
-	conditionsv1.SetStatusCondition(tracker.Status.Conditions, conditionsv1.Condition{
-		Type:    condType,
-		Status:  status,
-		Reason:  string(reason),
-		Message: message,
-	})
-
-	err = f.Client.Status().Update(context.Background(), tracker)
-	if err != nil {
-		f.Log.Error(err, "Error updating FeatureTracker status")
-	}
-
-	f.Spec.Tracker.Status = tracker.Status
 }

@@ -3,6 +3,7 @@ package feature
 import (
 	"io/fs"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/client-go/dynamic"
@@ -73,14 +74,11 @@ func createClients(config *rest.Config) partialBuilder {
 			return errors.WithStack(err)
 		}
 
-		if err := apiextv1.AddToScheme(f.Client.Scheme()); err != nil { //nolint:revive,nolintlint
-			return err
-		}
-		if err := featurev1.AddToScheme(f.Client.Scheme()); err != nil { //nolint:revive,nolintlint
-			return err
-		}
+		var multiErr *multierror.Error
+		s := f.Client.Scheme()
+		multiErr = multierror.Append(multiErr, featurev1.AddToScheme(s), apiextv1.AddToScheme(s))
 
-		return nil
+		return multiErr.ErrorOrNil()
 	}
 }
 
