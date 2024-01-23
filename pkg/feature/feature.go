@@ -11,7 +11,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -57,7 +56,7 @@ func (f *Feature) Apply() (err error) {
 		return nil
 	}
 
-	if trackerErr := f.createResourceTracker(); err != nil {
+	if trackerErr := f.createFeatureTracker(); err != nil {
 		return trackerErr
 	}
 
@@ -65,12 +64,12 @@ func (f *Feature) Apply() (err error) {
 	var multiErr *multierror.Error
 	var phase featurev1.FeaturePhase
 	phase = featurev1.FeatureCreated
-	f.UpdateFeatureTrackerStatus(conditionsv1.ConditionDegraded, "False", phase, fmt.Sprintf("Applying feature %s", f.Name))
+	f.updateFeatureTrackerStatus(conditionsv1.ConditionDegraded, "False", phase, fmt.Sprintf("Applying feature %s", f.Name))
 	defer func() {
 		if err != nil {
-			f.UpdateFeatureTrackerStatus(conditionsv1.ConditionDegraded, "True", phase, err.Error())
+			f.updateFeatureTrackerStatus(conditionsv1.ConditionDegraded, "True", phase, err.Error())
 		} else {
-			f.UpdateFeatureTrackerStatus(conditionsv1.ConditionAvailable, "True", phase, fmt.Sprintf("Feature %s applied successfully", f.Name))
+			f.updateFeatureTrackerStatus(conditionsv1.ConditionAvailable, "True", phase, fmt.Sprintf("Feature %s applied successfully", f.Name))
 		}
 	}()
 
@@ -217,15 +216,11 @@ func (f *Feature) AsOwnerReference() metav1.OwnerReference {
 	return f.Spec.Tracker.ToOwnerReference()
 }
 
-func (f *Feature) UpdateFeatureTrackerStatus(condType conditionsv1.ConditionType, status corev1.ConditionStatus, reason featurev1.FeaturePhase, message string) {
-	tracker := &featurev1.FeatureTracker{}
-	err := f.Client.Get(context.TODO(), types.NamespacedName{
-		Name: f.Spec.Tracker.Name,
-	}, tracker)
-
-	if err != nil {
-		f.Log.Error(err, "Error fetching FeatureTracker")
-	}
+// updateFeatureTrackerStatus updates conditions of a FeatureTracker.
+// It's deliberately logging errors instead of handing them as it is used in deferred error handling of Feature public API,
+// which is more predictable.
+func (f *Feature) updateFeatureTrackerStatus(condType conditionsv1.ConditionType, status corev1.ConditionStatus, reason featurev1.FeaturePhase, message string) {
+	tracker := f.Spec.Tracker
 
 	// Update the status
 	if tracker.Status.Conditions == nil {
@@ -238,7 +233,7 @@ func (f *Feature) UpdateFeatureTrackerStatus(condType conditionsv1.ConditionType
 		Message: message,
 	})
 
-	err = f.Client.Status().Update(context.Background(), tracker)
+	err := f.Client.Status().Update(context.Background(), tracker)
 	if err != nil {
 		f.Log.Error(err, "Error updating FeatureTracker status")
 	}
