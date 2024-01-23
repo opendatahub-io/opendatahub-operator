@@ -16,7 +16,6 @@ package feature
 import (
 	"context"
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
 
@@ -33,13 +32,9 @@ const (
 	YamlSeparator = "(?m)^---[ \t]*$"
 )
 
-func (f *Feature) createResourceFromFile(filename string) error {
-	data, err := os.ReadFile(filename)
-	if err != nil {
-		return errors.WithStack(err)
-	}
+func (f *Feature) createResources(resources string) error {
 	splitter := regexp.MustCompile(YamlSeparator)
-	objectStrings := splitter.Split(string(data), -1)
+	objectStrings := splitter.Split(resources, -1)
 	for _, str := range objectStrings {
 		if strings.TrimSpace(str) == "" {
 			continue
@@ -78,13 +73,9 @@ func (f *Feature) createResourceFromFile(filename string) error {
 	return nil
 }
 
-func (f *Feature) patchResourceFromFile(filename string) error {
-	data, err := os.ReadFile(filename)
-	if err != nil {
-		return errors.WithStack(err)
-	}
+func (f *Feature) patchResources(resources string) error {
 	splitter := regexp.MustCompile(YamlSeparator)
-	objectStrings := splitter.Split(string(data), -1)
+	objectStrings := splitter.Split(resources, -1)
 	for _, str := range objectStrings {
 		if strings.TrimSpace(str) == "" {
 			continue
@@ -104,8 +95,8 @@ func (f *Feature) patchResourceFromFile(filename string) error {
 			Resource: strings.ToLower(u.GroupVersionKind().Kind) + "s",
 		}
 
-		// Convert the patch from YAML to JSON
-		patchAsJSON, err := yaml.YAMLToJSON(data)
+		// Convert the individual resource patch from YAML to JSON
+		patchAsJSON, err := yaml.YAMLToJSON([]byte(str))
 		if err != nil {
 			f.Log.Error(err, "error converting yaml to json")
 
