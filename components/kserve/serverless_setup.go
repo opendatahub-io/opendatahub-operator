@@ -18,7 +18,6 @@ const (
 
 func (k *Kserve) configureServerlessFeatures(dscispec *dsci.DSCInitializationSpec, origin featurev1.Origin) feature.DefinedFeatures {
 	return func(s *feature.FeaturesInitializer) error {
-
 		servingDeployment, err := feature.CreateFeature("serverless-serving-deployment").
 			For(dscispec, origin).
 			Manifests(

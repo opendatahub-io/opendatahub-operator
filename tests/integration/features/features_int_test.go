@@ -184,7 +184,7 @@ var _ = Describe("feature trackers", func() {
 			Expect(featureTracker.Spec.AppNamespace).To(Equal("default"))
 		})
 	})
-
+})
 
 var _ = Describe("Manifest sources", func() {
 	Context("using various manifest sources", func() {
@@ -192,14 +192,14 @@ var _ = Describe("Manifest sources", func() {
 		var (
 			objectCleaner *envtestutil.Cleaner
 			dsciSpec      *dscv1.DSCInitializationSpec
-      origin   featurev1.Origin
+			origin        featurev1.Origin
 			namespace     = "default"
 		)
 
 		BeforeEach(func() {
 			objectCleaner = envtestutil.CreateCleaner(envTestClient, envTest.Config, timeout, interval)
 			dsciSpec = newDSCInitializationSpec(namespace)
-      origin = envtestutil.NewOrigin(featurev1.DSCIType, "namespace")
+			origin = envtestutil.NewOrigin(featurev1.DSCIType, "namespace")
 		})
 
 		It("should be able to process an embedded template from the default location", func() {

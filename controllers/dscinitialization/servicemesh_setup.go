@@ -73,7 +73,6 @@ func (r *DSCInitializationReconciler) removeServiceMesh(instance *dsciv1.DSCInit
 
 func configureServiceMeshFeatures(dscispec *dsciv1.DSCInitializationSpec, origin featurev1.Origin) feature.DefinedFeatures {
 	return func(s *feature.FeaturesInitializer) error {
-
 		serviceMeshSpec := dscispec.ServiceMesh
 
 		smcpCreation, errSmcp := feature.CreateFeature("mesh-control-plane-creation").
