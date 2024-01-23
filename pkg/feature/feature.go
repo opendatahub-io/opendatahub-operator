@@ -2,11 +2,9 @@ package feature
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
-	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -15,8 +13,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlLog "sigs.k8s.io/controller-runtime/pkg/log"
-
-	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 )
 
 type Feature struct {
@@ -50,29 +46,17 @@ func newFeature(name string) *Feature {
 // Action is a func type which can be used for different purposes while having access to Feature struct.
 type Action func(feature *Feature) error
 
-//nolint:nonamedreturns // Reason: we use the named return to handle errors in a unified fashion through deferred function.
-func (f *Feature) Apply() (err error) {
+func (f *Feature) Apply() error {
 	if !f.Enabled {
 		return nil
 	}
 
-	if trackerErr := f.createFeatureTracker(); err != nil {
-		return trackerErr
+	if err := f.createResourceTracker(); err != nil {
+		return err
 	}
 
 	// Verify all precondition and collect errors
 	var multiErr *multierror.Error
-	phase := featurev1.FeatureCreated
-	f.updateFeatureTrackerStatus(conditionsv1.ConditionProgressing, "True", phase, fmt.Sprintf("Applying feature %s", f.Name))
-	defer func() {
-		if err != nil {
-			f.updateFeatureTrackerStatus(conditionsv1.ConditionDegraded, "True", phase, err.Error())
-		} else {
-			f.updateFeatureTrackerStatus(conditionsv1.ConditionAvailable, "True", phase, fmt.Sprintf("Feature %s applied successfully", f.Name))
-		}
-	}()
-
-	phase = featurev1.PreConditions
 	for _, precondition := range f.preconditions {
 		multiErr = multierror.Append(multiErr, precondition(f))
 	}
@@ -81,7 +65,7 @@ func (f *Feature) Apply() (err error) {
 		return preconditionsErr
 	}
 
-	phase = featurev1.LoadTemplateData
+	// Load necessary data
 	for _, loader := range f.loaders {
 		multiErr = multierror.Append(multiErr, loader(f))
 	}
@@ -104,7 +88,6 @@ func (f *Feature) Apply() (err error) {
 		}
 	}
 
-	phase = featurev1.ApplyManifests
 	if err := f.applyManifests(); err != nil {
 		return errors.WithStack(err)
 	}
@@ -113,12 +96,8 @@ func (f *Feature) Apply() (err error) {
 	for _, postcondition := range f.postconditions {
 		multiErr = multierror.Append(multiErr, postcondition(f))
 	}
-	if multiErr.ErrorOrNil() != nil {
-		return multiErr.ErrorOrNil()
-	}
 
-	phase = featurev1.FeatureCreated
-	return nil
+	return multiErr.ErrorOrNil()
 }
 
 func (f *Feature) Cleanup() error {
@@ -213,29 +192,4 @@ func (f *Feature) apply(m manifest) error {
 
 func (f *Feature) AsOwnerReference() metav1.OwnerReference {
 	return f.Spec.Tracker.ToOwnerReference()
-}
-
-// updateFeatureTrackerStatus updates conditions of a FeatureTracker.
-// It's deliberately logging errors instead of handing them as it is used in deferred error handling of Feature public API,
-// which is more predictable.
-func (f *Feature) updateFeatureTrackerStatus(condType conditionsv1.ConditionType, status corev1.ConditionStatus, reason featurev1.FeaturePhase, message string) {
-	tracker := f.Spec.Tracker
-
-	// Update the status
-	if tracker.Status.Conditions == nil {
-		tracker.Status.Conditions = &[]conditionsv1.Condition{}
-	}
-	conditionsv1.SetStatusCondition(tracker.Status.Conditions, conditionsv1.Condition{
-		Type:    condType,
-		Status:  status,
-		Reason:  string(reason),
-		Message: message,
-	})
-
-	err := f.Client.Status().Update(context.Background(), tracker)
-	if err != nil {
-		f.Log.Error(err, "Error updating FeatureTracker status")
-	}
-
-	f.Spec.Tracker.Status = tracker.Status
 }

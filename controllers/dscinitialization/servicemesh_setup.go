@@ -16,7 +16,7 @@ const templatesDir = "templates/servicemesh"
 func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsciv1.DSCInitialization) error {
 	switch instance.Spec.ServiceMesh.ManagementState {
 	case operatorv1.Managed:
-		serviceMeshInitializer := feature.ClusterFeaturesInitializer(instance, configureServiceMeshFeatures())
+		serviceMeshInitializer := feature.NewFeaturesInitializer(&instance.Spec, configureServiceMeshFeatures)
 		if err := serviceMeshInitializer.Prepare(); err != nil {
 			r.Log.Error(err, "failed configuring service mesh resources")
 			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed configuring service mesh resources")
@@ -43,7 +43,8 @@ func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsciv1.DSCI
 func (r *DSCInitializationReconciler) removeServiceMesh(instance *dsciv1.DSCInitialization) error {
 	// on condition of Managed, do not handle Removed when set to Removed it trigger DSCI reconcile to cleanup
 	if instance.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
-		serviceMeshInitializer := feature.ClusterFeaturesInitializer(instance, configureServiceMeshFeatures())
+		serviceMeshInitializer := feature.NewFeaturesInitializer(&instance.Spec, configureServiceMeshFeatures)
+
 		if err := serviceMeshInitializer.Prepare(); err != nil {
 			r.Log.Error(err, "failed configuring service mesh resources")
 			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed configuring service mesh resources")
@@ -93,28 +94,11 @@ func configureServiceMeshFeatures(s *feature.FeaturesInitializer) error {
 				path.Join(templatesDir, "metrics-collection"),
 			).
 			Load()
-
-		if errSmcp != nil {
-			return errSmcp
+		if errMetrics != nil {
+			return errMetrics
 		}
-		initializer.Features = append(initializer.Features, smcpCreation)
-
-		if serviceMeshSpec.ControlPlane.MetricsCollection == "Istio" {
-			metricsCollection, errMetrics := feature.CreateFeature("mesh-metrics-collection").
-				With(initializer.DSCInitializationSpec).
-				From(initializer.Source).
-				Manifests(
-					path.Join(templatesDir, "metrics-collection"),
-				).
-				PreConditions(
-					servicemesh.EnsureServiceMeshInstalled,
-				).
-				Load()
-			if errMetrics != nil {
-				return errMetrics
-			}
-			initializer.Features = append(initializer.Features, metricsCollection)
-		}
-		return nil
+		s.Features = append(s.Features, metricsCollection)
 	}
+
+	return nil
 }

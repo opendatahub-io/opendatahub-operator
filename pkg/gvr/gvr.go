@@ -15,7 +15,7 @@ var (
 		Resource: "ingresses",
 	}
 
-	FeatureTracker = schema.GroupVersionResource{
+	ResourceTracker = schema.GroupVersionResource{
 		Group:    "features.opendatahub.io",
 		Version:  "v1",
 		Resource: "featuretrackers",

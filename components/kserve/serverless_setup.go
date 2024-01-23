@@ -6,10 +6,12 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/serverless"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 )
 
 const (
-	templatesDir = "templates/serverless"
+	knativeServingNamespace = "knative-serving"
+	templatesDir            = "templates/serverless"
 )
 
 func (k *Kserve) configureServerlessFeatures(s *feature.FeaturesInitializer) error {
@@ -53,6 +55,9 @@ func (k *Kserve) configureServerlessFeatures(s *feature.FeaturesInitializer) err
 	if err != nil {
 		return err
 	}
+	s.Features = append(s.Features, servingIstioGateways)
+
+	return nil
 }
 
 func PopulateComponentSettings(k *Kserve) feature.Action {

@@ -13,10 +13,10 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 )
 
-// createFeatureTracker instantiates FeatureTracker for a given Feature. It's a cluster-scoped resource used
+// createResourceTracker instantiates FeatureTracker for a given Feature. It's a cluster-scoped resource used
 // to track creation and removal of all owned resources which belong to this Feature.
 // All resources which particular feature is composed of will have this object attached as an OwnerReference.
-func (f *Feature) createFeatureTracker() error {
+func (f *Feature) createResourceTracker() error {
 	tracker, err := f.getFeatureTracker()
 	if k8serrors.IsNotFound(err) {
 		if err := f.Client.Create(context.TODO(), tracker); err != nil {
@@ -59,10 +59,6 @@ func (f *Feature) getFeatureTracker() (*featurev1.FeatureTracker, error) {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: f.Spec.AppNamespace + "-" + common.TrimToRFC1123Name(f.Name),
-		},
-		Spec: featurev1.FeatureTrackerSpec{
-			Source:       *f.Spec.Source,
-			AppNamespace: f.Spec.AppNamespace,
 		},
 	}
 

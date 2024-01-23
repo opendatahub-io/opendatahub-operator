@@ -12,17 +12,14 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	. "github.com/onsi/gomega/gstruct"
 )
 
 //go:embed templates
@@ -51,11 +48,9 @@ var _ = Describe("feature preconditions", func() {
 			namespace = envtestutil.AppendRandomNameTo(testFeatureName)
 
 			dsciSpec := newDSCInitializationSpec(namespace)
-			source := envtestutil.NewSource(featurev1.DSCIType, "default")
 			var err error
 			testFeature, err = feature.CreateFeature(testFeatureName).
-				With(dsciSpec).
-				From(source).
+				For(dsciSpec).
 				UsingConfig(envTest.Config).
 				Load()
 			Expect(err).ToNot(HaveOccurred())
@@ -93,12 +88,10 @@ var _ = Describe("feature preconditions", func() {
 		var (
 			dsciSpec            *dscv1.DSCInitializationSpec
 			verificationFeature *feature.Feature
-			source              featurev1.Source
 		)
 
 		BeforeEach(func() {
 			dsciSpec = newDSCInitializationSpec("default")
-			source = envtestutil.NewSource(featurev1.DSCIType, "default")
 		})
 
 		It("should successfully check for existing CRD", func() {
@@ -107,8 +100,7 @@ var _ = Describe("feature preconditions", func() {
 
 			var err error
 			verificationFeature, err = feature.CreateFeature("CRD verification").
-				With(dsciSpec).
-				From(source).
+				For(dsciSpec).
 				UsingConfig(envTest.Config).
 				PreConditions(feature.EnsureCRDIsInstalled(name)).
 				Load()
@@ -127,8 +119,7 @@ var _ = Describe("feature preconditions", func() {
 
 			var err error
 			verificationFeature, err = feature.CreateFeature("CRD verification").
-				With(dsciSpec).
-				From(source).
+				For(dsciSpec).
 				UsingConfig(envTest.Config).
 				PreConditions(feature.EnsureCRDIsInstalled(name)).
 				Load()
@@ -151,20 +142,17 @@ var _ = Describe("feature cleanup", func() {
 		var (
 			namespace string
 			dsciSpec  *dscv1.DSCInitializationSpec
-			source    featurev1.Source
 		)
 
 		BeforeAll(func() {
 			namespace = envtestutil.AppendRandomNameTo("feature-tracker-test")
 			dsciSpec = newDSCInitializationSpec(namespace)
-			source = envtestutil.NewSource(featurev1.DSCIType, "default")
 		})
 
 		It("should successfully create resource and associated feature tracker", func() {
 			// given
 			createConfigMap, err := feature.CreateFeature("create-cfg-map").
-				With(dsciSpec).
-				From(source).
+				For(dsciSpec).
 				UsingConfig(envTest.Config).
 				PreConditions(
 					feature.CreateNamespaceIfNotExists(namespace),
@@ -179,7 +167,7 @@ var _ = Describe("feature cleanup", func() {
 			// then
 			Expect(createConfigMap.Spec.Tracker).ToNot(BeNil())
 			_, err = createConfigMap.DynamicClient.
-				Resource(gvr.FeatureTracker).
+				Resource(gvr.ResourceTracker).
 				Get(context.TODO(), createConfigMap.Spec.Tracker.Name, metav1.GetOptions{})
 
 			Expect(err).ToNot(HaveOccurred())
@@ -189,8 +177,7 @@ var _ = Describe("feature cleanup", func() {
 			// recreating feature struct again as it would happen in the reconcile
 			// given
 			createConfigMap, err := feature.CreateFeature("create-cfg-map").
-				With(dsciSpec).
-				From(source).
+				For(dsciSpec).
 				UsingConfig(envTest.Config).
 				PreConditions(
 					feature.CreateNamespaceIfNotExists(namespace),
@@ -205,7 +192,7 @@ var _ = Describe("feature cleanup", func() {
 
 			// then
 			_, err = createConfigMap.DynamicClient.
-				Resource(gvr.FeatureTracker).
+				Resource(gvr.ResourceTracker).
 				Get(context.TODO(), trackerName, metav1.GetOptions{})
 
 			Expect(errors.IsNotFound(err)).To(BeTrue())
@@ -214,6 +201,29 @@ var _ = Describe("feature cleanup", func() {
 	})
 
 })
+
+func createTestSecret(namespace string) func(f *feature.Feature) error {
+	return func(f *feature.Feature) error {
+		secret := &v1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-secret",
+				Namespace: namespace,
+				OwnerReferences: []metav1.OwnerReference{
+					f.AsOwnerReference(),
+				},
+			},
+			Data: map[string][]byte{
+				"test": []byte("test"),
+			},
+		}
+
+		_, err := f.Clientset.CoreV1().
+			Secrets(namespace).
+			Create(context.TODO(), secret, metav1.CreateOptions{})
+
+		return err
+	}
+}
 
 var _ = Describe("Manifest sources", func() {
 	Context("using various manifest sources", func() {
@@ -336,20 +346,10 @@ func createNamespace(name string) *v1.Namespace {
 	}
 }
 
-func getFeatureTracker(name string) *featurev1.FeatureTracker {
-	tracker := &featurev1.FeatureTracker{}
-	err := envTestClient.Get(context.Background(), client.ObjectKey{
-		Name: name,
-	}, tracker)
-
-	Expect(err).ToNot(HaveOccurred())
-
-	return tracker
-}
-
 func newDSCInitializationSpec(ns string) *dscv1.DSCInitializationSpec {
 	spec := dscv1.DSCInitializationSpec{}
 	spec.ApplicationsNamespace = ns
+
 	return &spec
 }
 

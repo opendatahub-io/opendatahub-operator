@@ -3,6 +3,7 @@ package feature
 import (
 	"io/fs"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/client-go/dynamic"
@@ -33,38 +34,17 @@ func CreateFeature(name string) *featureBuilder { //nolint:golint,revive //No ne
 	}
 }
 
-type featureName struct {
-	name string
-}
-
-func (fn *featureName) With(spec *v1.DSCInitializationSpec) *featureSource {
-	return &featureSource{
-		spec: spec,
-		name: fn.name,
-	}
-}
-
-type featureSource struct {
-	spec *v1.DSCInitializationSpec
-	name string
-}
-
-func (fo *featureSource) From(source featurev1.Source) *featureBuilder {
+func (fb *featureBuilder) For(spec *v1.DSCInitializationSpec) *featureBuilder {
 	createSpec := func(f *Feature) error {
 		f.Spec = &Spec{
-			ServiceMeshSpec: &fo.spec.ServiceMesh,
+			ServiceMeshSpec: &spec.ServiceMesh,
 			Serving:         &infrav1.ServingSpec{},
-			Source:          &source,
-			AppNamespace:    fo.spec.ApplicationsNamespace,
+			AppNamespace:    spec.ApplicationsNamespace,
 		}
 
 		return nil
 	}
 
-	fb := &featureBuilder{
-		name: fo.name,
-		fsys: embeddedFiles,
-	}
 	// Ensures creation of .Spec object is always invoked first
 	fb.builders = append([]partialBuilder{createSpec}, fb.builders...)
 
