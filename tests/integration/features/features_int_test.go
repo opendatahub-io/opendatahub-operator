@@ -2,8 +2,8 @@ package features_test
 
 import (
 	"context"
-	"fmt"
 	"embed"
+	"fmt"
 	"os"
 	"path"
 	"path/filepath"
@@ -352,10 +352,11 @@ func getFeatureTracker(name string) *featurev1.FeatureTracker {
 	Expect(err).ToNot(HaveOccurred())
 
 	return tracker
+}
 
 func getService(name, namespace string) (*v1.Service, error) {
 	svc := &v1.Service{}
-	err := envTestClient.Get(context.Background(), types.NamespacedName{
+	err := envTestClient.Get(context.Background(), k8stypes.NamespacedName{
 		Name: name, Namespace: namespace,
 	}, svc)
 
