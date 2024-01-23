@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"go.uber.org/zap"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -96,6 +97,7 @@ func (w *Workbenches) GetComponentName() string {
 }
 
 func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec, _ bool) error {
+	logger := w.ConfigLogger(dscispec).With(zap.String("component", ComponentName))
 	var imageParamMap = map[string]string{
 		"odh-notebook-controller-image":    "RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE",
 		"odh-kf-notebook-controller-image": "RELATED_IMAGE_ODH_KF_NOTEBOOK_CONTROLLER_IMAGE",
@@ -143,10 +145,12 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 			if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
 				// for kf-notebook-controller image
 				if err := deploy.ApplyParams(notebookControllerPath, imageParamMap, false); err != nil {
+					logger.Error("failed update image", zap.String("path", notebookControllerPath), zap.Error(err))
 					return err
 				}
 				// for odh-notebook-controller image
 				if err := deploy.ApplyParams(kfnotebookControllerPath, imageParamMap, false); err != nil {
+					logger.Error("failed update image", zap.String("path", kfnotebookControllerPath), zap.Error(err))
 					return err
 				}
 			}
@@ -172,6 +176,7 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 		ComponentName, enabled); err != nil {
 		return err
 	}
+	logger.Info("apply manifests done")
 	// CloudService Monitoring handling
 	if platform == deploy.ManagedRhods {
 		if enabled {
@@ -180,7 +185,7 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 			if err := monitoring.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 10, 1); err != nil {
 				return fmt.Errorf("deployments for %s are not ready to server: %w", ComponentName, err)
 			}
-			fmt.Printf("deployments for %s are done, updating monitoring rules\n", ComponentName)
+			logger.Info("deployment is done, updating monitoring rules")
 		}
 		if err := w.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err

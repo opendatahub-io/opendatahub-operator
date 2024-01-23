@@ -13,3 +13,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: REPLACE_IMAGE:latest
+  newTag: latest

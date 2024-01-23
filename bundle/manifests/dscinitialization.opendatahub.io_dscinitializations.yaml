@@ -56,6 +56,13 @@ spec:
                 description: Internal development useful field to test customizations.
                   This is not recommended to be used in production environment.
                 properties:
+                  logmode:
+                    enum:
+                    - devel
+                    - development
+                    - prod
+                    - production
+                    type: string
                   manifestsUri:
                     description: Custom manifests uri for odh-manifests
                     type: string

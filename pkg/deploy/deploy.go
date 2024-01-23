@@ -148,7 +148,6 @@ func DeployManifestsFromPath(cli client.Client, owner metav1.Object, manifestPat
 	// Render the Kustomize manifests
 	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
 	fs := filesys.MakeFsOnDisk()
-	fmt.Printf("Updating manifests : %v \n", manifestPath)
 	// Create resmap
 	// Use kustomization file under manifestPath or use `default` overlay
 	var resMap resmap.ResMap
@@ -162,7 +161,7 @@ func DeployManifestsFromPath(cli client.Client, owner metav1.Object, manifestPat
 	}
 
 	if err != nil {
-		return fmt.Errorf("error during resmap resources: %w", err)
+		return err
 	}
 
 	// Apply NamespaceTransformer Plugin
@@ -388,24 +387,18 @@ func ApplyParams(componentPath string, imageParamsMap map[string]string, isUpdat
 	}
 	if err := writer.Flush(); err != nil {
 		if removeErr := os.Remove(envFilePath); removeErr != nil {
-			fmt.Printf("Failed to remove file: %v", removeErr)
+			return removeErr
 		}
 		if renameErr := os.Rename(backupPath, envFilePath); renameErr != nil {
-			fmt.Printf("Failed to restore file from backup: %v", renameErr)
+			return renameErr
 		}
-		fmt.Printf("Failed to write to file: %v", err)
-
 		return err
 	}
 
 	// cleanup backup file
-	if err := os.Remove(backupPath); err != nil {
-		fmt.Printf("Failed to remove backup file: %v", err)
+	err = os.Remove(backupPath)
 
-		return err
-	}
-
-	return nil
+	return err
 }
 
 // GetSubscription checks if a Subscription for the operator exists in the given namespace.

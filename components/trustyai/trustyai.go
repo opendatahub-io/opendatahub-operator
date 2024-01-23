@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"go.uber.org/zap"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -57,6 +58,8 @@ func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client, ow
 		"trustyaiServiceImage":  "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE",
 		"trustyaiOperatorImage": "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE",
 	}
+	logger := t.ConfigLogger(dscispec).With(zap.String("component", ComponentName))
+
 	enabled := t.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 
@@ -74,6 +77,7 @@ func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client, ow
 		}
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (t.DevFlags == nil || len(t.DevFlags.Manifests) == 0) {
 			if err := deploy.ApplyParams(Path, imageParamMap, false); err != nil {
+				logger.Error("failed update image", zap.Error(err))
 				return err
 			}
 		}
@@ -82,6 +86,7 @@ func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client, ow
 	if err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, t.GetComponentName(), enabled); err != nil {
 		return err
 	}
+	logger.Info("apply manifests done")
 
 	// CloudService Monitoring handling
 	if platform == deploy.ManagedRhods {

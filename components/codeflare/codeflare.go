@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"go.uber.org/zap"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -62,6 +63,7 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, o
 		"codeflare-operator-controller-image": "RELATED_IMAGE_ODH_CODEFLARE_OPERATOR_IMAGE", // no need mcad, embedded in cfo
 		"namespace":                           dscispec.ApplicationsNamespace,
 	}
+	logger := c.ConfigLogger(dscispec).With(zap.String("component", ComponentName))
 	enabled := c.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 	platform, err := deploy.GetPlatform(cli)
@@ -83,7 +85,8 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, o
 		}
 
 		if found, err := deploy.OperatorExists(cli, dependentOperator); err != nil {
-			return fmt.Errorf("operator exists throws error %w", err)
+			logger.Error("operator exists throws error", zap.Error(err))
+			return err
 		} else if found {
 			return fmt.Errorf("operator %s is found. Please uninstall the operator before enabling %s component",
 				dependentOperator, ComponentName)
@@ -92,6 +95,7 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, o
 		// Update image parameters only when we do not have customized manifests set
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (c.DevFlags == nil || len(c.DevFlags.Manifests) == 0) {
 			if err := deploy.ApplyParams(ParamsPath, imageParamMap, true); err != nil {
+				logger.Error("failed update image", zap.Error(err))
 				return err
 			}
 		}
@@ -112,7 +116,7 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, o
 			if err := monitoring.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
 				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 			}
-			fmt.Printf("deployment for %s is done, updating monitoring rules\n", ComponentName)
+			logger.Info("deployment is done, updating monitoring rules")
 		}
 
 		// inject prometheus codeflare*.rules in to /opt/manifests/monitoring/prometheus/prometheus-configs.yaml

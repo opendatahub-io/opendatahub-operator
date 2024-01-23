@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -82,6 +84,30 @@ type ComponentInterface interface {
 	GetManagementState() operatorv1.ManagementState
 	OverrideManifests(platform string) error
 	UpdatePrometheusConfig(cli client.Client, enable bool, component string) error
+	ConfigLogger(dscispec *dsciv1.DSCInitializationSpec) *zap.Logger
+}
+
+// by default, ConfigLogger set InfoLevel and Caller to InfoLevel, Stacktrace to ErrorLevel (close to what we have now)
+// config to use devel/development: change to DebugLevel, with Caller to DebugLevel, keep stacktrace to ErrorLevel
+// config to use prod/production: change to ErrorLevel, with Caller to ErrorLevel and keep stracetrace to ErrorLevel
+// not set a "default" in switch because support value in LogMode is enum.
+func (c *Component) ConfigLogger(dscispec *dsciv1.DSCInitializationSpec) *zap.Logger {
+	level := zap.NewAtomicLevelAt(zap.InfoLevel)
+	config := zap.NewDevelopmentEncoderConfig()
+	if dscispec.DevFlags != nil {
+		switch dscispec.DevFlags.LogMode {
+		case "devel", "development":
+			config = zap.NewDevelopmentEncoderConfig() // human readable
+			level = zap.NewAtomicLevelAt(zap.DebugLevel)
+		case "prod", "production":
+			config = zap.NewProductionEncoderConfig()      // json format
+			config.EncodeTime = zapcore.ISO8601TimeEncoder // human readable not epoch
+			level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+		}
+	}
+	consoleEncoder := zapcore.NewConsoleEncoder(config)
+	core := zapcore.NewCore(consoleEncoder, zapcore.AddSync(os.Stdout), level)
+	return zap.New(core, zap.AddCaller(), zap.AddStacktrace(zap.ErrorLevel)) // extra options for caller and stacktrace
 }
 
 // UpdatePrometheusConfig update prometheus-configs.yaml to include/exclude <component>.rules

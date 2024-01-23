@@ -31,6 +31,7 @@ import (
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	"go.uber.org/zap/zapcore"
 	admv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -66,6 +67,11 @@ var (
 	setupLog = ctrl.Log.WithName("setup")
 )
 
+type loggerOption struct {
+	level string // debug, info, warning, error, panic, fatal
+	mode  string // prod, devel
+}
+
 func init() { //nolint:gochecknoinits
 	//+kubebuilder:scaffold:scheme
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
@@ -99,6 +105,9 @@ func main() { //nolint:funlen
 	var probeAddr string
 	var dscApplicationsNamespace string
 	var dscMonitoringNamespace string
+	var operatorName string
+	loggerOpts := loggerOption{}
+
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
@@ -108,13 +117,20 @@ func main() { //nolint:funlen
 		"applications will be deployed")
 	flag.StringVar(&dscMonitoringNamespace, "dsc-monitoring-namespace", "opendatahub", "The namespace where data science cluster"+
 		"monitoring stack will be deployed")
-	opts := zap.Options{
-		Development: true,
-	}
-	opts.BindFlags(flag.CommandLine)
+	flag.StringVar(&operatorName, "operator-name", "opendatahub", "The name of the operator")
+	flag.StringVar(&loggerOpts.level, "log-level", "log", "Log level (debug, info, warning, error, dpanic, panic, fatal) or all caps, default to info")
+	flag.StringVar(&loggerOpts.mode, "log-mode", "prod", "Log mode (prod, devel), default to prod -- stracktrace on error")
+
 	flag.Parse()
 
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+	// config logger for all controller
+	var l zapcore.Level
+	_ = l.UnmarshalText([]byte(loggerOpts.level))
+	logger := zap.New(
+		zap.Level(l),
+		zap.UseDevMode(loggerOpts.mode == "devel"), // ==  zap.Options{ Development: true, }
+	)
+	ctrl.SetLogger(logger)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
@@ -145,7 +161,7 @@ func main() { //nolint:funlen
 	if err = (&dscicontr.DSCInitializationReconciler{
 		Client:                mgr.GetClient(),
 		Scheme:                mgr.GetScheme(),
-		Log:                   ctrl.Log.WithName("controllers").WithName("DSCInitialization"),
+		Log:                   ctrl.Log.WithName(operatorName).WithName("controllers").WithName("DSCInitialization"),
 		Recorder:              mgr.GetEventRecorderFor("dscinitialization-controller"),
 		ApplicationsNamespace: dscApplicationsNamespace,
 	}).SetupWithManager(mgr); err != nil {
@@ -156,7 +172,7 @@ func main() { //nolint:funlen
 	if err = (&datascienceclustercontrollers.DataScienceClusterReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
-		Log:    ctrl.Log.WithName("controllers").WithName("DataScienceCluster"),
+		Log:    ctrl.Log.WithName(operatorName).WithName("controllers").WithName("DataScienceCluster"),
 		DataScienceCluster: &datascienceclustercontrollers.DataScienceClusterConfig{
 			DSCISpec: &dsci.DSCInitializationSpec{
 				ApplicationsNamespace: dscApplicationsNamespace,
@@ -171,6 +187,7 @@ func main() { //nolint:funlen
 	if err = (&secretgenerator.SecretGeneratorReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		Log:    ctrl.Log.WithName(operatorName).WithName("controllers").WithName("SecretGenerator"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "SecretGenerator")
 		os.Exit(1)

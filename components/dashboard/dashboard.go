@@ -11,6 +11,7 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
+	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -101,7 +102,14 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		return err
 	}
 
-	// For only "add" if dashboard is Managed, we do not remove if set to Removed
+	var logger *zap.Logger
+	if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
+		logger = d.ConfigLogger(dscispec).With(zap.String("component", ComponentNameSupported))
+	} else {
+		logger = d.ConfigLogger(dscispec).With(zap.String("component", ComponentName))
+	}
+
+	// Update Default rolebinding
 	if enabled {
 		// Update Default rolebinding
 		// cleanup OAuth client related secret and CR if dashboard is in 'installed false' status
@@ -116,7 +124,8 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		}
 		// 1. Deploy CRDs
 		if err := d.deployCRDsForPlatform(cli, owner, dscispec.ApplicationsNamespace, platform); err != nil {
-			return fmt.Errorf("failed to deploy %s crds %s: %w", ComponentName, PathCRDs, err)
+			logger.Error("failed to deploy CRD", zap.String("path", PathCRDs), zap.Error(err))
+			return err
 		}
 
 		// 2. platform specific RBAC
@@ -137,6 +146,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		// 3. Update image parameters
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (d.DevFlags == nil || len(d.DevFlags.Manifests) == 0) {
 			if err := deploy.ApplyParams(PathSupported, imageParamMap, false); err != nil {
+				logger.Error("failed update image", zap.Error(err))
 				return err
 			}
 		}
@@ -152,6 +162,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		}
 		// overlay which including ../../base + anaconda-ce-validator
 		if err := deploy.DeployManifestsFromPath(cli, owner, PathSupported, dscispec.ApplicationsNamespace, ComponentNameSupported, enabled); err != nil {
+			logger.Error("failed to apply manifests", zap.String("path", PathSupported), zap.Error(err))
 			return err
 		}
 		// modelserving
@@ -174,7 +185,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 				if err := monitoring.WaitForDeploymentAvailable(ctx, cli, ComponentNameSupported, dscispec.ApplicationsNamespace, 20, 3); err != nil {
 					return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 				}
-				fmt.Printf("deployment for %s is done, updating monitoring rules\n", ComponentNameSupported)
+				logger.Info("deployment is done, updating monitoring rules")
 			}
 
 			if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentNameSupported); err != nil {
