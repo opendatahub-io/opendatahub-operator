@@ -147,17 +147,19 @@ var _ = Describe("feature cleanup", func() {
 		var (
 			namespace string
 			dsciSpec  *dscv1.DSCInitializationSpec
+			origin    featurev1.Origin
 		)
 
 		BeforeAll(func() {
 			namespace = envtestutil.AppendRandomNameTo("feature-tracker-test")
 			dsciSpec = newDSCInitializationSpec(namespace)
+			origin = envtestutil.NewOrigin(featurev1.DSCIType, "default")
 		})
 
 		It("should successfully create resource and associated feature tracker", func() {
 			// given
 			createConfigMap, err := feature.CreateFeature("create-cfg-map").
-				For(dsciSpec).
+				For(dsciSpec, origin).
 				UsingConfig(envTest.Config).
 				PreConditions(
 					feature.CreateNamespaceIfNotExists(namespace),
@@ -182,7 +184,7 @@ var _ = Describe("feature cleanup", func() {
 			// recreating feature struct again as it would happen in the reconcile
 			// given
 			createConfigMap, err := feature.CreateFeature("create-cfg-map").
-				For(dsciSpec).
+				For(dsciSpec, origin).
 				UsingConfig(envTest.Config).
 				PreConditions(
 					feature.CreateNamespaceIfNotExists(namespace),
@@ -252,7 +254,6 @@ var _ = Describe("feature trackers", func() {
 		})
 	})
 })
-
 
 var _ = Describe("Manifest sources", func() {
 	Context("using various manifest sources", func() {
