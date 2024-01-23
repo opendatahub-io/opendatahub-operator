@@ -4,7 +4,7 @@ metadata:
   name: {{ .AuthorinoConfigs.Name }}
   namespace: {{ .AppNamespace }}
 spec:
-  authConfigLabelSelectors: opendatahub.io/authorization-group=default
+  authConfigLabelSelectors: sec.opendatahub.io/authorization-group=default
   clusterWide: true
   listener:
     tls:
