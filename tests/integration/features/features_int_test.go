@@ -2,6 +2,10 @@ package features_test
 
 import (
 	"context"
+	"embed"
+	"os"
+	"path"
+	"path/filepath"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -19,9 +23,13 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+//go:embed templates
+var testEmbeddedFiles embed.FS
+
 const (
-	timeout  = 5 * time.Second
-	interval = 250 * time.Millisecond
+	timeout      = 5 * time.Second
+	interval     = 250 * time.Millisecond
+	templatesDir = "templates"
 )
 
 var _ = Describe("preconditions", func() {
@@ -143,7 +151,6 @@ var _ = Describe("feature trackers", func() {
 		BeforeEach(func() {
 			dsciSpec = newDSCInitializationSpec("default")
 			origin = envtestutil.NewOrigin(featurev1.DSCIType, "default")
-
 		})
 
 		It("should correctly indicate origin in the feature tracker", func() {
@@ -178,6 +185,120 @@ var _ = Describe("feature trackers", func() {
 		})
 	})
 
+
+var _ = Describe("Manifest sources", func() {
+	Context("using various manifest sources", func() {
+
+		var (
+			objectCleaner *envtestutil.Cleaner
+			dsciSpec      *dscv1.DSCInitializationSpec
+      origin   featurev1.Origin
+			namespace     = "default"
+		)
+
+		BeforeEach(func() {
+			objectCleaner = envtestutil.CreateCleaner(envTestClient, envTest.Config, timeout, interval)
+			dsciSpec = newDSCInitializationSpec(namespace)
+      origin = envtestutil.NewOrigin(featurev1.DSCIType, "namespace")
+		})
+
+		It("should be able to process an embedded template from the default location", func() {
+			// given
+			ns := createNamespace("service-ns")
+			Expect(envTestClient.Create(context.Background(), ns)).To(Succeed())
+			defer objectCleaner.DeleteAll(ns)
+
+			serviceMeshSpec := &dsciSpec.ServiceMesh
+			serviceMeshSpec.ControlPlane.Namespace = "service-ns"
+
+			createService, err := feature.CreateFeature("create-control-plane").
+				For(dsciSpec, origin).
+				Manifests(path.Join(templatesDir, "serverless", "serving-istio-gateways", "local-gateway-svc.tmpl")).
+				UsingConfig(envTest.Config).
+				Load()
+
+			Expect(err).ToNot(HaveOccurred())
+
+			// when
+			Expect(createService.Apply()).To(Succeed())
+
+			// then
+			service, err := getService("knative-local-gateway", "service-ns")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(service.Name).To(Equal("knative-local-gateway"))
+		})
+
+		It("should be able to process an embedded YAML file from the default location", func() {
+			// given
+			ns := createNamespace("knative-serving")
+			Expect(envTestClient.Create(context.Background(), ns)).To(Succeed())
+			defer objectCleaner.DeleteAll(ns)
+
+			createGateway, err := feature.CreateFeature("create-gateway").
+				For(dsciSpec, origin).
+				Manifests(path.Join(templatesDir, "serverless", "serving-istio-gateways", "istio-local-gateway.yaml")).
+				UsingConfig(envTest.Config).
+				Load()
+
+			Expect(err).ToNot(HaveOccurred())
+
+			// when
+			Expect(createGateway.Apply()).To(Succeed())
+
+			// then
+			gateway, err := getGateway(envTest.Config, "knative-serving", "knative-local-gateway")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(gateway).ToNot(BeNil())
+		})
+
+		It("should be able to process an embedded file from a non default location", func() {
+			createNs, err := feature.CreateFeature("create-ns").
+				For(dsciSpec, origin).
+				ManifestSource(testEmbeddedFiles).
+				Manifests(path.Join(templatesDir, "namespace.yaml")).
+				UsingConfig(envTest.Config).
+				Load()
+
+			Expect(err).ToNot(HaveOccurred())
+
+			// when
+			Expect(createNs.Apply()).To(Succeed())
+
+			// then
+			namespace, err := getNamespace("embedded-test-ns")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(namespace.Name).To(Equal("embedded-test-ns"))
+		})
+
+		It("should source manifests from a specified temporary directory within the file system", func() {
+			// given
+			tempDir := GinkgoT().TempDir()
+			yamlData := `apiVersion: v1
+kind: Namespace
+metadata:
+  name: real-file-test-ns`
+
+			err := createFile(tempDir, "namespace.yaml", yamlData)
+			Expect(err).ToNot(HaveOccurred())
+
+			createNs, err := feature.CreateFeature("create-ns").
+				For(dsciSpec, origin).
+				ManifestSource(os.DirFS(tempDir)).
+				Manifests(path.Join("namespace.yaml")). // must be relative to root DirFS defined above
+				UsingConfig(envTest.Config).
+				Load()
+
+			Expect(err).ToNot(HaveOccurred())
+
+			// when
+			Expect(createNs.Apply()).To(Succeed())
+
+			// then
+			namespace, err := getNamespace("real-file-test-ns")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(namespace.Name).To(Equal("real-file-test-ns"))
+		})
+	})
 })
 
 func createNamespace(name string) *v1.Namespace {
@@ -211,4 +332,27 @@ func getNamespace(namespace string) (*v1.Namespace, error) {
 	err := envTestClient.Get(context.Background(), types.NamespacedName{Name: namespace}, ns)
 
 	return ns, err
+}
+
+func getService(name, namespace string) (*v1.Service, error) {
+	svc := &v1.Service{}
+	err := envTestClient.Get(context.Background(), types.NamespacedName{
+		Name: name, Namespace: namespace,
+	}, svc)
+
+	return svc, err
+}
+
+func createFile(dir, filename, data string) error {
+	filePath := filepath.Join(dir, filename)
+	file, err := os.Create(filePath)
+	if err != nil {
+		return err
+	}
+
+	_, err = file.WriteString(data)
+	if err != nil {
+		return err
+	}
+	return file.Sync()
 }

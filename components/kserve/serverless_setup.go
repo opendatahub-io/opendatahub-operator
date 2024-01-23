@@ -2,7 +2,6 @@ package kserve
 
 import (
 	"path"
-	"path/filepath"
 
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
@@ -19,15 +18,11 @@ const (
 
 func (k *Kserve) configureServerlessFeatures(dscispec *dsci.DSCInitializationSpec, origin featurev1.Origin) feature.DefinedFeatures {
 	return func(s *feature.FeaturesInitializer) error {
-		var rootDir = filepath.Join(feature.BaseOutputDir, s.DSCInitializationSpec.ApplicationsNamespace)
-		if err := feature.CopyEmbeddedFiles(templatesDir, rootDir); err != nil {
-			return err
-		}
 
 		servingDeployment, err := feature.CreateFeature("serverless-serving-deployment").
 			For(dscispec, origin).
 			Manifests(
-				path.Join(rootDir, templatesDir, "serving-install"),
+				path.Join(templatesDir, "serving-install"),
 			).
 			WithData(PopulateComponentSettings(k)).
 			PreConditions(
@@ -57,7 +52,7 @@ func (k *Kserve) configureServerlessFeatures(dscispec *dsci.DSCInitializationSpe
 			).
 			WithResources(serverless.ServingCertificateResource).
 			Manifests(
-				path.Join(rootDir, templatesDir, "serving-istio-gateways"),
+				path.Join(templatesDir, "serving-istio-gateways"),
 			).
 			Load()
 		if err != nil {

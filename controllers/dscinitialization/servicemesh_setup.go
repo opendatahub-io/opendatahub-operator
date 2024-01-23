@@ -2,7 +2,6 @@ package dscinitialization
 
 import (
 	"path"
-	"path/filepath"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -47,7 +46,7 @@ func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsciv1.DSCI
 }
 
 func (r *DSCInitializationReconciler) removeServiceMesh(instance *dsciv1.DSCInitialization) error {
-	// on condition of Managed, do not handle Removed when set to Removed it tigger DSCI reconcile to cleanup
+	// on condition of Managed, do not handle Removed when set to Removed it trigger DSCI reconcile to cleanup
 	if instance.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
 		origin := featurev1.Origin{
 			Type: featurev1.DSCIType,
@@ -74,17 +73,13 @@ func (r *DSCInitializationReconciler) removeServiceMesh(instance *dsciv1.DSCInit
 
 func configureServiceMeshFeatures(dscispec *dsciv1.DSCInitializationSpec, origin featurev1.Origin) feature.DefinedFeatures {
 	return func(s *feature.FeaturesInitializer) error {
-		var rootDir = filepath.Join(feature.BaseOutputDir, s.DSCInitializationSpec.ApplicationsNamespace)
-		if err := feature.CopyEmbeddedFiles(templatesDir, rootDir); err != nil {
-			return err
-		}
 
 		serviceMeshSpec := dscispec.ServiceMesh
 
 		smcpCreation, errSmcp := feature.CreateFeature("mesh-control-plane-creation").
 			For(dscispec, origin).
 			Manifests(
-				path.Join(rootDir, templatesDir, "base", "create-smcp.tmpl"),
+				path.Join(templatesDir, "base", "create-smcp.tmpl"),
 			).
 			PreConditions(
 				servicemesh.EnsureServiceMeshOperatorInstalled,
@@ -104,7 +99,7 @@ func configureServiceMeshFeatures(dscispec *dsciv1.DSCInitializationSpec, origin
 			metricsCollection, errMetrics := feature.CreateFeature("mesh-metrics-collection").
 				For(dscispec, origin).
 				Manifests(
-					path.Join(rootDir, templatesDir, "metrics-collection"),
+					path.Join(templatesDir, "metrics-collection"),
 				).
 				PreConditions(
 					servicemesh.EnsureServiceMeshInstalled,

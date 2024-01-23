@@ -30,7 +30,8 @@ type Feature struct {
 	DynamicClient dynamic.Interface
 	Client        client.Client
 
-	manifests      []manifest
+	manifests []manifest
+
 	cleanups       []Action
 	resources      []Action
 	preconditions  []Action
@@ -81,7 +82,7 @@ func (f *Feature) Apply() error {
 		return dataLoadErr
 	}
 
-	// create or update resources
+	// Create or update resources
 	for _, resource := range f.resources {
 		if err := resource(f); err != nil {
 			return errors.WithStack(err)
@@ -89,8 +90,8 @@ func (f *Feature) Apply() error {
 	}
 
 	// Process and apply manifests
-	for _, m := range f.manifests {
-		if err := m.processTemplate(f.Spec); err != nil {
+	for i := range f.manifests {
+		if err := f.manifests[i].process(f.Spec); err != nil {
 			return errors.WithStack(err)
 		}
 	}
@@ -99,6 +100,7 @@ func (f *Feature) Apply() error {
 		return errors.WithStack(err)
 	}
 
+	// Check all postconditions and collect errors
 	for _, postcondition := range f.postconditions {
 		multiErr = multierror.Append(multiErr, postcondition(f))
 	}
@@ -170,27 +172,27 @@ func (f *Feature) addCleanup(cleanupFuncs ...Action) {
 	f.cleanups = append(f.cleanups, cleanupFuncs...)
 }
 
-type apply func(filename string) error
+type apply func(data string) error
 
 func (f *Feature) apply(m manifest) error {
 	var applier apply
 	targetPath := m.targetPath()
 
 	if m.patch {
-		applier = func(filename string) error {
+		applier = func(data string) error {
 			f.Log.Info("patching using manifest", "feature", f.Name, "name", m.name, "path", targetPath)
 
-			return f.patchResourceFromFile(filename)
+			return f.patchResources(data)
 		}
 	} else {
-		applier = func(filename string) error {
+		applier = func(data string) error {
 			f.Log.Info("applying manifest", "feature", f.Name, "name", m.name, "path", targetPath)
 
-			return f.createResourceFromFile(filename)
+			return f.createResources(data)
 		}
 	}
 
-	if err := applier(targetPath); err != nil {
+	if err := applier(m.processedContent); err != nil {
 		f.Log.Error(err, "failed to create resource", "feature", f.Name, "name", m.name, "path", targetPath)
 
 		return err

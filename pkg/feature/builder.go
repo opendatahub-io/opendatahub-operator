@@ -1,6 +1,8 @@
 package feature
 
 import (
+	"io/fs"
+
 	"github.com/pkg/errors"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/client-go/dynamic"
@@ -21,10 +23,14 @@ type featureBuilder struct {
 	name     string
 	config   *rest.Config
 	builders []partialBuilder
+	fsys     fs.FS
 }
 
 func CreateFeature(name string) *featureBuilder { //nolint:golint,revive //No need to export featureBuilder.
-	return &featureBuilder{name: name}
+	return &featureBuilder{
+		name: name,
+		fsys: embeddedFiles,
+	}
 }
 
 func (fb *featureBuilder) For(spec *v1.DSCInitializationSpec, origin featurev1.Origin) *featureBuilder {
@@ -82,7 +88,7 @@ func (fb *featureBuilder) Manifests(paths ...string) *featureBuilder {
 		var manifests []manifest
 
 		for _, path := range paths {
-			manifests, err = loadManifestsFrom(path)
+			manifests, err = loadManifestsFrom(fb.fsys, path)
 			if err != nil {
 				return errors.WithStack(err)
 			}
@@ -189,4 +195,11 @@ func (fb *featureBuilder) withDefaultClient() error {
 
 	fb.config = restCfg
 	return nil
+}
+
+// ManifestSource sets the root file system (fsys) from which manifest paths are loaded
+// If ManifestSource is not called in the builder chain, the default source will be the embeddedFiles.
+func (fb *featureBuilder) ManifestSource(fsys fs.FS) *featureBuilder {
+	fb.fsys = fsys
+	return fb
 }
