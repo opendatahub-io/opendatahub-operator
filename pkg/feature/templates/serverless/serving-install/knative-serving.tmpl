@@ -6,7 +6,7 @@ metadata:
   annotations:
     serverless.openshift.io/default-enable-http2: "true"
 spec:
-  deployments:
+  workloads:
     - annotations:
         sidecar.istio.io/inject: "true"
         sidecar.istio.io/rewriteAppHTTPProbers: "true"
