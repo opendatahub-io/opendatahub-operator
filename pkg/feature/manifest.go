@@ -15,8 +15,9 @@ import (
 var embeddedFiles embed.FS
 
 const (
-	ServiceMeshDir = "servicemesh"
-	ServerlessDir  = "serverless"
+	BaseDir        = "templates"
+	ServiceMeshDir = BaseDir + string(filepath.Separator) + "servicemesh"
+	ServerlessDir  = BaseDir + string(filepath.Separator) + "serverless"
 	AuthDir        = ServiceMeshDir + string(filepath.Separator) + "authorino"
 	KServeDir      = ServiceMeshDir + string(filepath.Separator) + "kserve"
 )
@@ -77,6 +78,7 @@ func (m *manifest) process(data interface{}) error {
 	if err != nil {
 		return err
 	}
+
 	defer manifestFile.Close()
 
 	content, err := io.ReadAll(manifestFile)
