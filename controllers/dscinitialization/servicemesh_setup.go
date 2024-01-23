@@ -62,22 +62,35 @@ func (r *DSCInitializationReconciler) removeServiceMesh(instance *dsciv1.DSCInit
 	return nil
 }
 
-func configureServiceMeshFeatures() feature.DefinedFeatures {
-	return func(initializer *feature.FeaturesInitializer) error {
-		serviceMeshSpec := initializer.DSCInitializationSpec.ServiceMesh
+func configureServiceMeshFeatures(s *feature.FeaturesInitializer) error {
+	serviceMeshSpec := s.ServiceMesh
 
-		smcpCreation, errSmcp := feature.CreateFeature("mesh-control-plane-creation").
-			With(initializer.DSCInitializationSpec).
-			From(initializer.Source).
-			Manifests(
-				path.Join(templatesDir, "base", "create-smcp.tmpl"),
-			).
+	smcpCreation, errSmcp := feature.CreateFeature("mesh-control-plane-creation").
+		For(s.DSCInitializationSpec).
+		Manifests(
+			path.Join(templatesDir, "base", "create-smcp.tmpl"),
+		).
+		PreConditions(
+			servicemesh.EnsureServiceMeshOperatorInstalled,
+			feature.CreateNamespaceIfNotExists(serviceMeshSpec.ControlPlane.Namespace),
+		).
+		PostConditions(
+			feature.WaitForPodsToBeReady(serviceMeshSpec.ControlPlane.Namespace),
+		).
+		Load()
+	if errSmcp != nil {
+		return errSmcp
+	}
+	s.Features = append(s.Features, smcpCreation)
+
+	if serviceMeshSpec.ControlPlane.MetricsCollection == "Istio" {
+		metricsCollection, errMetrics := feature.CreateFeature("mesh-metrics-collection").
+			For(s.DSCInitializationSpec).
 			PreConditions(
-				servicemesh.EnsureServiceMeshOperatorInstalled,
-				feature.CreateNamespaceIfNotExists(serviceMeshSpec.ControlPlane.Namespace),
+				servicemesh.EnsureServiceMeshInstalled,
 			).
-			PostConditions(
-				feature.WaitForPodsToBeReady(serviceMeshSpec.ControlPlane.Namespace),
+			Manifests(
+				path.Join(templatesDir, "metrics-collection"),
 			).
 			Load()
 

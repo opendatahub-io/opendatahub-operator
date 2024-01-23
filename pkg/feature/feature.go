@@ -90,14 +90,14 @@ func (f *Feature) Apply() (err error) {
 		return dataLoadErr
 	}
 
-	phase = featurev1.ResourceCreation
+	// Create or update resources
 	for _, resource := range f.resources {
 		if err := resource(f); err != nil {
 			return errors.WithStack(err)
 		}
 	}
 
-	phase = featurev1.ProcessTemplates
+	// Process and apply manifests
 	for i := range f.manifests {
 		if err := f.manifests[i].process(f.Spec); err != nil {
 			return errors.WithStack(err)
@@ -109,7 +109,7 @@ func (f *Feature) Apply() (err error) {
 		return errors.WithStack(err)
 	}
 
-	phase = featurev1.PostConditions
+	// Check all postconditions and collect errors
 	for _, postcondition := range f.postconditions {
 		multiErr = multierror.Append(multiErr, postcondition(f))
 	}

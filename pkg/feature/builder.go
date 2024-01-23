@@ -3,7 +3,6 @@ package feature
 import (
 	"io/fs"
 
-	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/client-go/dynamic"
@@ -27,9 +26,10 @@ type featureBuilder struct {
 	fsys     fs.FS
 }
 
-func CreateFeature(name string) *featureName { //nolint:golint,revive //No need to export featureBuilder.
-	return &featureName{
+func CreateFeature(name string) *featureBuilder { //nolint:golint,revive //No need to export featureBuilder.
+	return &featureBuilder{
 		name: name,
+		fsys: embeddedFiles,
 	}
 }
 
