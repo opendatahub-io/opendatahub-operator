@@ -78,10 +78,10 @@ var _ = Describe("Serverless feature", func() {
 		namespace := envtestutil.AppendRandomNameTo(testFeatureName)
 
 		dsciSpec := newDSCInitializationSpec(namespace)
-		origin := envtestutil.NewOrigin(featurev1.ComponentType, "kserve")
+		source := envtestutil.NewSource(featurev1.ComponentType, "kserve")
 		testFeature, err = feature.CreateFeature(testFeatureName).
 			With(dsciSpec).
-			DefinedBy(origin).
+			From(source).
 			UsingConfig(envTest.Config).
 			Load()
 

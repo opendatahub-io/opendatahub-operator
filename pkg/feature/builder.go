@@ -37,24 +37,24 @@ type featureName struct {
 	name string
 }
 
-func (fn *featureName) With(spec *v1.DSCInitializationSpec) *featureOrigin {
-	return &featureOrigin{
+func (fn *featureName) With(spec *v1.DSCInitializationSpec) *featureSource {
+	return &featureSource{
 		spec: spec,
 		name: fn.name,
 	}
 }
 
-type featureOrigin struct {
+type featureSource struct {
 	spec *v1.DSCInitializationSpec
 	name string
 }
 
-func (fo *featureOrigin) DefinedBy(origin featurev1.Origin) *featureBuilder {
+func (fo *featureSource) From(source featurev1.Source) *featureBuilder {
 	createSpec := func(f *Feature) error {
 		f.Spec = &Spec{
 			ServiceMeshSpec: &fo.spec.ServiceMesh,
 			Serving:         &infrav1.ServingSpec{},
-			Origin:          &origin,
+			Source:          &source,
 			AppNamespace:    fo.spec.ApplicationsNamespace,
 		}
 

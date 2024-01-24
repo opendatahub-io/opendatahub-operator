@@ -79,10 +79,10 @@ var _ = Describe("Service Mesh feature", func() {
 		namespace := envtestutil.AppendRandomNameTo(testFeatureName)
 
 		dsciSpec := newDSCInitializationSpec(namespace)
-		origin := envtestutil.NewOrigin(featurev1.DSCIType, "default")
+		source := envtestutil.NewSource(featurev1.DSCIType, "default")
 		testFeature, err = feature.CreateFeature(testFeatureName).
 			With(dsciSpec).
-			DefinedBy(origin).
+			From(source).
 			UsingConfig(envTest.Config).
 			Load()
 

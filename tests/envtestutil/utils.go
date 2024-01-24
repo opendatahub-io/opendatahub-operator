@@ -30,9 +30,9 @@ func FindProjectRoot() (string, error) {
 	return "", fmt.Errorf("project root not found")
 }
 
-// NewOrigin creates an origin object with specified component and name.
-func NewOrigin(component featurev1.OwnerType, name string) featurev1.Origin {
-	return featurev1.Origin{
+// NewSource creates an origin object with specified component and name.
+func NewSource(component featurev1.OwnerType, name string) featurev1.Source {
+	return featurev1.Source{
 		Type: component,
 		Name: name,
 	}

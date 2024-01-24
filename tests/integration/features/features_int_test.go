@@ -50,11 +50,11 @@ var _ = Describe("feature preconditions", func() {
 			namespace = envtestutil.AppendRandomNameTo(testFeatureName)
 
 			dsciSpec := newDSCInitializationSpec(namespace)
-			origin := envtestutil.NewOrigin(featurev1.DSCIType, "default")
+			source := envtestutil.NewSource(featurev1.DSCIType, "default")
 			var err error
 			testFeature, err = feature.CreateFeature(testFeatureName).
 				With(dsciSpec).
-				DefinedBy(origin).
+				From(source).
 				UsingConfig(envTest.Config).
 				Load()
 			Expect(err).ToNot(HaveOccurred())
@@ -92,12 +92,12 @@ var _ = Describe("feature preconditions", func() {
 		var (
 			dsciSpec            *dscv1.DSCInitializationSpec
 			verificationFeature *feature.Feature
-			origin              featurev1.Origin
+			source              featurev1.Source
 		)
 
 		BeforeEach(func() {
 			dsciSpec = newDSCInitializationSpec("default")
-			origin = envtestutil.NewOrigin(featurev1.DSCIType, "default")
+			source = envtestutil.NewSource(featurev1.DSCIType, "default")
 		})
 
 		It("should successfully check for existing CRD", func() {
@@ -107,7 +107,7 @@ var _ = Describe("feature preconditions", func() {
 			var err error
 			verificationFeature, err = feature.CreateFeature("CRD verification").
 				With(dsciSpec).
-				DefinedBy(origin).
+				From(source).
 				UsingConfig(envTest.Config).
 				PreConditions(feature.EnsureCRDIsInstalled(name)).
 				Load()
@@ -127,7 +127,7 @@ var _ = Describe("feature preconditions", func() {
 			var err error
 			verificationFeature, err = feature.CreateFeature("CRD verification").
 				With(dsciSpec).
-				DefinedBy(origin).
+				From(source).
 				UsingConfig(envTest.Config).
 				PreConditions(feature.EnsureCRDIsInstalled(name)).
 				Load()
@@ -150,20 +150,20 @@ var _ = Describe("feature cleanup", func() {
 		var (
 			namespace string
 			dsciSpec  *dscv1.DSCInitializationSpec
-			origin    featurev1.Origin
+			source    featurev1.Source
 		)
 
 		BeforeAll(func() {
 			namespace = envtestutil.AppendRandomNameTo("feature-tracker-test")
 			dsciSpec = newDSCInitializationSpec(namespace)
-			origin = envtestutil.NewOrigin(featurev1.DSCIType, "default")
+			source = envtestutil.NewSource(featurev1.DSCIType, "default")
 		})
 
 		It("should successfully create resource and associated feature tracker", func() {
 			// given
 			createConfigMap, err := feature.CreateFeature("create-cfg-map").
 				With(dsciSpec).
-				DefinedBy(origin).
+				From(source).
 				UsingConfig(envTest.Config).
 				PreConditions(
 					feature.CreateNamespaceIfNotExists(namespace),
@@ -189,7 +189,7 @@ var _ = Describe("feature cleanup", func() {
 			// given
 			createConfigMap, err := feature.CreateFeature("create-cfg-map").
 				With(dsciSpec).
-				DefinedBy(origin).
+				From(source).
 				UsingConfig(envTest.Config).
 				PreConditions(
 					feature.CreateNamespaceIfNotExists(namespace),
@@ -219,18 +219,18 @@ var _ = Describe("feature trackers", func() {
 
 		var (
 			dsciSpec *dscv1.DSCInitializationSpec
-			origin   featurev1.Origin
+			source   featurev1.Source
 		)
 
 		BeforeEach(func() {
 			dsciSpec = newDSCInitializationSpec("default")
-			origin = envtestutil.NewOrigin(featurev1.DSCIType, "default")
+			source = envtestutil.NewSource(featurev1.DSCIType, "default")
 		})
 
-		It("should correctly indicate origin in the feature tracker", func() {
+		It("should correctly indicate source in the feature tracker", func() {
 			verificationFeature, err := feature.CreateFeature("empty-feature").
 				With(dsciSpec).
-				DefinedBy(origin).
+				From(source).
 				UsingConfig(envTest.Config).
 				Load()
 			Expect(err).ToNot(HaveOccurred())
@@ -240,14 +240,14 @@ var _ = Describe("feature trackers", func() {
 
 			// then
 			featureTracker := getFeatureTracker("default-empty-feature")
-			Expect(featureTracker.Spec.Origin.Name).To(Equal("default"))
-			Expect(featureTracker.Spec.Origin.Type).To(Equal(featurev1.DSCIType))
+			Expect(featureTracker.Spec.Source.Name).To(Equal("default"))
+			Expect(featureTracker.Spec.Source.Type).To(Equal(featurev1.DSCIType))
 		})
 
 		It("should correctly indicate app namespace in the feature tracker", func() {
 			verificationFeature, err := feature.CreateFeature("empty-feature").
 				With(dsciSpec).
-				DefinedBy(origin).
+				From(source).
 				UsingConfig(envTest.Config).
 				Load()
 			Expect(err).ToNot(HaveOccurred())
@@ -268,14 +268,14 @@ var _ = Describe("Manifest sources", func() {
 		var (
 			objectCleaner *envtestutil.Cleaner
 			dsciSpec      *dscv1.DSCInitializationSpec
-			origin        featurev1.Origin
+			source        featurev1.Source
 			namespace     = "default"
 		)
 
 		BeforeEach(func() {
 			objectCleaner = envtestutil.CreateCleaner(envTestClient, envTest.Config, timeout, interval)
 			dsciSpec = newDSCInitializationSpec(namespace)
-			origin = envtestutil.NewOrigin(featurev1.DSCIType, "namespace")
+			source = envtestutil.NewSource(featurev1.DSCIType, "namespace")
 		})
 
 		It("should be able to process an embedded template from the default location", func() {
@@ -289,7 +289,7 @@ var _ = Describe("Manifest sources", func() {
 
 			createService, err := feature.CreateFeature("create-control-plane").
 				With(dsciSpec).
-				DefinedBy(origin).
+				From(source).
 				Manifests(path.Join(templatesDir, "serverless", "serving-istio-gateways", "local-gateway-svc.tmpl")).
 				UsingConfig(envTest.Config).
 				Load()
@@ -313,7 +313,7 @@ var _ = Describe("Manifest sources", func() {
 
 			createGateway, err := feature.CreateFeature("create-gateway").
 				With(dsciSpec).
-				DefinedBy(origin).
+				From(source).
 				Manifests(path.Join(templatesDir, "serverless", "serving-istio-gateways", "istio-local-gateway.yaml")).
 				UsingConfig(envTest.Config).
 				Load()
@@ -332,7 +332,7 @@ var _ = Describe("Manifest sources", func() {
 		It("should be able to process an embedded file from a non default location", func() {
 			createNs, err := feature.CreateFeature("create-ns").
 				With(dsciSpec).
-				DefinedBy(origin).
+				From(source).
 				ManifestSource(testEmbeddedFiles).
 				Manifests(path.Join(templatesDir, "namespace.yaml")).
 				UsingConfig(envTest.Config).
@@ -362,7 +362,7 @@ metadata:
 
 			createNs, err := feature.CreateFeature("create-ns").
 				With(dsciSpec).
-				DefinedBy(origin).
+				From(source).
 				ManifestSource(os.DirFS(tempDir)).
 				Manifests(path.Join("namespace.yaml")). // must be relative to root DirFS defined above
 				UsingConfig(envTest.Config).

@@ -68,7 +68,7 @@ func configureServiceMeshFeatures() feature.DefinedFeatures {
 
 		smcpCreation, errSmcp := feature.CreateFeature("mesh-control-plane-creation").
 			With(initializer.DSCInitializationSpec).
-			DefinedBy(initializer.Origin).
+			From(initializer.Source).
 			Manifests(
 				path.Join(templatesDir, "base", "create-smcp.tmpl"),
 			).
@@ -89,7 +89,7 @@ func configureServiceMeshFeatures() feature.DefinedFeatures {
 		if serviceMeshSpec.ControlPlane.MetricsCollection == "Istio" {
 			metricsCollection, errMetrics := feature.CreateFeature("mesh-metrics-collection").
 				With(initializer.DSCInitializationSpec).
-				DefinedBy(initializer.Origin).
+				From(initializer.Source).
 				Manifests(
 					path.Join(templatesDir, "metrics-collection"),
 				).

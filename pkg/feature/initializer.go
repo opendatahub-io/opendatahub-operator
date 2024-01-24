@@ -10,7 +10,7 @@ import (
 
 type FeaturesInitializer struct {
 	*v1.DSCInitializationSpec
-	Origin          featurev1.Origin
+	Source          featurev1.Source
 	Features        []*Feature
 	definedFeatures DefinedFeatures
 }
@@ -20,7 +20,7 @@ type DefinedFeatures func(initializer *FeaturesInitializer) error
 func ClusterFeaturesInitializer(dsci *v1.DSCInitialization, def DefinedFeatures) *FeaturesInitializer {
 	return &FeaturesInitializer{
 		DSCInitializationSpec: &dsci.Spec,
-		Origin:                featurev1.Origin{Type: featurev1.DSCIType, Name: dsci.Name},
+		Source:                featurev1.Source{Type: featurev1.DSCIType, Name: dsci.Name},
 		definedFeatures:       def,
 	}
 }
@@ -28,7 +28,7 @@ func ClusterFeaturesInitializer(dsci *v1.DSCInitialization, def DefinedFeatures)
 func ComponentFeaturesInitializer(component components.ComponentInterface, spec *v1.DSCInitializationSpec, def DefinedFeatures) *FeaturesInitializer {
 	return &FeaturesInitializer{
 		DSCInitializationSpec: spec,
-		Origin:                featurev1.Origin{Type: featurev1.ComponentType, Name: component.GetComponentName()},
+		Source:                featurev1.Source{Type: featurev1.ComponentType, Name: component.GetComponentName()},
 		definedFeatures:       def,
 	}
 }

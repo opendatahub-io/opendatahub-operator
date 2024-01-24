@@ -61,7 +61,7 @@ func (f *Feature) getFeatureTracker() (*featurev1.FeatureTracker, error) {
 			Name: f.Spec.AppNamespace + "-" + common.TrimToRFC1123Name(f.Name),
 		},
 		Spec: featurev1.FeatureTrackerSpec{
-			Origin:       *f.Spec.Origin,
+			Source:       *f.Spec.Source,
 			AppNamespace: f.Spec.AppNamespace,
 		},
 	}
