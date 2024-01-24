@@ -13,7 +13,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8stypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -53,9 +53,11 @@ var _ = Describe("feature preconditions", func() {
 			namespace = envtestutil.AppendRandomNameTo(testFeatureName)
 
 			dsciSpec := newDSCInitializationSpec(namespace)
+			source := envtestutil.NewSource(featurev1.DSCIType, "default")
 			var err error
 			testFeature, err = feature.CreateFeature(testFeatureName).
-				For(dsciSpec).
+				With(dsciSpec).
+				From(source).
 				UsingConfig(envTest.Config).
 				Load()
 			Expect(err).ToNot(HaveOccurred())
@@ -93,10 +95,12 @@ var _ = Describe("feature preconditions", func() {
 		var (
 			dsciSpec            *dscv1.DSCInitializationSpec
 			verificationFeature *feature.Feature
+			source              featurev1.Source
 		)
 
 		BeforeEach(func() {
 			dsciSpec = newDSCInitializationSpec("default")
+			source = envtestutil.NewSource(featurev1.DSCIType, "default")
 		})
 
 		It("should successfully check for existing CRD", func() {
@@ -105,7 +109,8 @@ var _ = Describe("feature preconditions", func() {
 
 			var err error
 			verificationFeature, err = feature.CreateFeature("CRD verification").
-				For(dsciSpec).
+				With(dsciSpec).
+				From(source).
 				UsingConfig(envTest.Config).
 				PreConditions(feature.EnsureCRDIsInstalled(name)).
 				Load()
@@ -124,7 +129,8 @@ var _ = Describe("feature preconditions", func() {
 
 			var err error
 			verificationFeature, err = feature.CreateFeature("CRD verification").
-				For(dsciSpec).
+				With(dsciSpec).
+				From(source).
 				UsingConfig(envTest.Config).
 				PreConditions(feature.EnsureCRDIsInstalled(name)).
 				Load()
@@ -147,17 +153,20 @@ var _ = Describe("feature cleanup", func() {
 		var (
 			namespace string
 			dsciSpec  *dscv1.DSCInitializationSpec
+			source    featurev1.Source
 		)
 
 		BeforeAll(func() {
 			namespace = envtestutil.AppendRandomNameTo("feature-tracker-test")
 			dsciSpec = newDSCInitializationSpec(namespace)
+			source = envtestutil.NewSource(featurev1.DSCIType, "default")
 		})
 
 		It("should successfully create resource and associated feature tracker", func() {
 			// given
 			createConfigMap, err := feature.CreateFeature("create-cfg-map").
-				For(dsciSpec).
+				With(dsciSpec).
+				From(source).
 				UsingConfig(envTest.Config).
 				PreConditions(
 					feature.CreateNamespaceIfNotExists(namespace),
@@ -182,7 +191,8 @@ var _ = Describe("feature cleanup", func() {
 			// recreating feature struct again as it would happen in the reconcile
 			// given
 			createConfigMap, err := feature.CreateFeature("create-cfg-map").
-				For(dsciSpec).
+				With(dsciSpec).
+				From(source).
 				UsingConfig(envTest.Config).
 				PreConditions(
 					feature.CreateNamespaceIfNotExists(namespace),
@@ -212,27 +222,30 @@ var _ = Describe("feature trackers", func() {
 
 		var (
 			dsciSpec *dscv1.DSCInitializationSpec
+			source   featurev1.Source
 		)
 
 		BeforeEach(func() {
 			dsciSpec = newDSCInitializationSpec("default")
+      source = envtestutil.NewSource(featurev1.DSCIType, "default")
 		})
 
 		It("should indicate successful installation in FeatureTracker", func() {
 			// given example CRD installed into env
 			name := "test-resources.openshift.io"
 			verificationFeature, err := feature.CreateFeature("crd-verification").
-				For(dsciSpec).
+				With(dsciSpec).
+        From(source).
 				UsingConfig(envTest.Config).
 				PreConditions(feature.EnsureCRDIsInstalled(name)).
-				Load()
+        Load()
 			Expect(err).ToNot(HaveOccurred())
 
 			// when
 			Expect(verificationFeature.Apply()).To(Succeed())
 
 			// then
-			featureTracker := getFeatureTracker("default-crd-verification")
+      featureTracker := getFeatureTracker("default-crd-verification")
 			Expect(*featureTracker.Status.Conditions).To(ContainElement(
 				MatchFields(IgnoreExtras, Fields{
 					"Type":   Equal(conditionsv1.ConditionAvailable),
@@ -241,19 +254,20 @@ var _ = Describe("feature trackers", func() {
 				}),
 			))
 		})
-
-		It("should indicate failure in preconditions", func() {
+    
+    It("should indicate failure in preconditions", func() {
 			// given
 			name := "non-existing-resource.non-existing-group.io"
 			verificationFeature, err := feature.CreateFeature("crd-verification").
-				For(dsciSpec).
+				With(dsciSpec).
+        From(source).
 				UsingConfig(envTest.Config).
 				PreConditions(feature.EnsureCRDIsInstalled(name)).
-				Load()
-			Expect(err).ToNot(HaveOccurred())
-
-			// when
-			Expect(verificationFeature.Apply()).ToNot(Succeed())
+        Load()
+      Expect(err).ToNot(HaveOccurred())
+      
+      // when
+      Expect(verificationFeature.Apply()).ToNot(Succeed())
 
 			// then
 			featureTracker := getFeatureTracker("default-crd-verification")
@@ -265,11 +279,12 @@ var _ = Describe("feature trackers", func() {
 				}),
 			))
 		})
-
-		It("should indicate failure in post-conditions", func() {
+    
+    It("should indicate failure in post-conditions", func() {
 			// given
 			verificationFeature, err := feature.CreateFeature("post-condition-failure").
-				For(dsciSpec).
+				With(dsciSpec).
+        From(source).
 				UsingConfig(envTest.Config).
 				PostConditions(func(f *feature.Feature) error {
 					return fmt.Errorf("always fail")
@@ -289,8 +304,42 @@ var _ = Describe("feature trackers", func() {
 					"Reason": Equal(string(featurev1.PostConditions)),
 				}),
 			))
+
+		It("should correctly indicate source in the feature tracker", func() {
+			verificationFeature, err := feature.CreateFeature("empty-feature").
+				With(dsciSpec).
+				From(source).
+				UsingConfig(envTest.Config).
+				Load()
+			Expect(err).ToNot(HaveOccurred())
+
+			// when
+			Expect(verificationFeature.Apply()).To(Succeed())
+
+			// then
+			featureTracker := getFeatureTracker("default-empty-feature")
+			Expect(featureTracker.Spec.Source.Name).To(Equal("default"))
+			Expect(featureTracker.Spec.Source.Type).To(Equal(featurev1.DSCIType))
 		})
+
+		It("should correctly indicate app namespace in the feature tracker", func() {
+			verificationFeature, err := feature.CreateFeature("empty-feature").
+				With(dsciSpec).
+				From(source).
+				UsingConfig(envTest.Config).
+				Load()
+			Expect(err).ToNot(HaveOccurred())
+
+			// when
+			Expect(verificationFeature.Apply()).To(Succeed())
+
+			// then
+			featureTracker := getFeatureTracker("default-empty-feature")
+			Expect(featureTracker.Spec.AppNamespace).To(Equal("default"))
+		})
+      
 	})
+    
 })
 
 var _ = Describe("Manifest sources", func() {
@@ -299,12 +348,14 @@ var _ = Describe("Manifest sources", func() {
 		var (
 			objectCleaner *envtestutil.Cleaner
 			dsciSpec      *dscv1.DSCInitializationSpec
+			source        featurev1.Source
 			namespace     = "default"
 		)
 
 		BeforeEach(func() {
 			objectCleaner = envtestutil.CreateCleaner(envTestClient, envTest.Config, timeout, interval)
 			dsciSpec = newDSCInitializationSpec(namespace)
+			source = envtestutil.NewSource(featurev1.DSCIType, "namespace")
 		})
 
 		It("should be able to process an embedded template from the default location", func() {
@@ -317,7 +368,8 @@ var _ = Describe("Manifest sources", func() {
 			serviceMeshSpec.ControlPlane.Namespace = "service-ns"
 
 			createService, err := feature.CreateFeature("create-control-plane").
-				For(dsciSpec).
+				With(dsciSpec).
+				From(source).
 				Manifests(path.Join(templatesDir, "serverless", "serving-istio-gateways", "local-gateway-svc.tmpl")).
 				UsingConfig(envTest.Config).
 				Load()
@@ -340,7 +392,8 @@ var _ = Describe("Manifest sources", func() {
 			defer objectCleaner.DeleteAll(ns)
 
 			createGateway, err := feature.CreateFeature("create-gateway").
-				For(dsciSpec).
+				With(dsciSpec).
+				From(source).
 				Manifests(path.Join(templatesDir, "serverless", "serving-istio-gateways", "istio-local-gateway.yaml")).
 				UsingConfig(envTest.Config).
 				Load()
@@ -358,7 +411,8 @@ var _ = Describe("Manifest sources", func() {
 
 		It("should be able to process an embedded file from a non default location", func() {
 			createNs, err := feature.CreateFeature("create-ns").
-				For(dsciSpec).
+				With(dsciSpec).
+				From(source).
 				ManifestSource(testEmbeddedFiles).
 				Manifests(path.Join(templatesDir, "namespace.yaml")).
 				UsingConfig(envTest.Config).
@@ -387,7 +441,8 @@ metadata:
 			Expect(err).ToNot(HaveOccurred())
 
 			createNs, err := feature.CreateFeature("create-ns").
-				For(dsciSpec).
+				With(dsciSpec).
+				From(source).
 				ManifestSource(os.DirFS(tempDir)).
 				Manifests(path.Join("namespace.yaml")). // must be relative to root DirFS defined above
 				UsingConfig(envTest.Config).
@@ -437,6 +492,17 @@ func createNamespace(name string) *v1.Namespace {
 	}
 }
 
+func getFeatureTracker(name string) *featurev1.FeatureTracker {
+	tracker := &featurev1.FeatureTracker{}
+	err := envTestClient.Get(context.Background(), client.ObjectKey{
+		Name: name,
+	}, tracker)
+
+	Expect(err).ToNot(HaveOccurred())
+
+	return tracker
+}
+
 func newDSCInitializationSpec(ns string) *dscv1.DSCInitializationSpec {
 	spec := dscv1.DSCInitializationSpec{}
 	spec.ApplicationsNamespace = ns
@@ -446,7 +512,7 @@ func newDSCInitializationSpec(ns string) *dscv1.DSCInitializationSpec {
 
 func getNamespace(namespace string) (*v1.Namespace, error) {
 	ns := createNamespace(namespace)
-	err := envTestClient.Get(context.Background(), k8stypes.NamespacedName{Name: namespace}, ns)
+	err := envTestClient.Get(context.Background(), types.NamespacedName{Name: namespace}, ns)
 
 	return ns, err
 }
@@ -464,7 +530,7 @@ func getFeatureTracker(name string) *featurev1.FeatureTracker {
 
 func getService(name, namespace string) (*v1.Service, error) {
 	svc := &v1.Service{}
-	err := envTestClient.Get(context.Background(), k8stypes.NamespacedName{
+	err := envTestClient.Get(context.Background(), types.NamespacedName{
 		Name: name, Namespace: namespace,
 	}, svc)
 

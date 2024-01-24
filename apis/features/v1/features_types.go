@@ -24,6 +24,7 @@ type FeatureTracker struct {
 }
 
 type FeaturePhase string
+type OwnerType string
 
 const (
 	FeatureCreated   FeaturePhase = "FeatureCreated"
@@ -33,7 +34,10 @@ const (
 	ProcessTemplates FeaturePhase = "ProcessTemplates"
 	ApplyManifests   FeaturePhase = "ApplyManifests"
 	PostConditions   FeaturePhase = "FeaturePostConditions"
+	ComponentType    OwnerType    = "Component"
+	DSCIType         OwnerType    = "DSCI"
 )
+
 
 func (s *FeatureTracker) ToOwnerReference() metav1.OwnerReference {
 	return metav1.OwnerReference{
@@ -44,8 +48,16 @@ func (s *FeatureTracker) ToOwnerReference() metav1.OwnerReference {
 	}
 }
 
+// Source describes the type of object that created the related Feature to this FeatureTracker.
+type Source struct {
+	Type OwnerType `json:"type,omitempty"`
+	Name string    `json:"name,omitempty"`
+}
+
 // FeatureTrackerSpec defines the desired state of FeatureTracker.
 type FeatureTrackerSpec struct {
+	Source       Source `json:"source,omitempty"`
+	AppNamespace string `json:"appNamespace,omitempty"`
 }
 
 // FeatureTrackerStatus defines the observed state of FeatureTracker.
