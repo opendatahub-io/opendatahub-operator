@@ -63,7 +63,7 @@ func (f *Feature) Apply() (err error) {
 	// Verify all precondition and collect errors
 	var multiErr *multierror.Error
 	phase := featurev1.FeatureCreated
-	f.updateFeatureTrackerStatus(conditionsv1.ConditionDegraded, "False", phase, fmt.Sprintf("Applying feature %s", f.Name))
+	f.updateFeatureTrackerStatus(conditionsv1.ConditionProgressing, "True", phase, fmt.Sprintf("Applying feature %s", f.Name))
 	defer func() {
 		if err != nil {
 			f.updateFeatureTrackerStatus(conditionsv1.ConditionDegraded, "True", phase, err.Error())
