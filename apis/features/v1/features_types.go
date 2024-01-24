@@ -38,7 +38,6 @@ const (
 	DSCIType         OwnerType    = "DSCI"
 )
 
-
 func (s *FeatureTracker) ToOwnerReference() metav1.OwnerReference {
 	return metav1.OwnerReference{
 		APIVersion: s.APIVersion,
