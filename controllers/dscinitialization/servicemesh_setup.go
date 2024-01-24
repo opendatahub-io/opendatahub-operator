@@ -2,7 +2,6 @@ package dscinitialization
 
 import (
 	"path"
-	"path/filepath"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -42,7 +41,7 @@ func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsciv1.DSCI
 }
 
 func (r *DSCInitializationReconciler) removeServiceMesh(instance *dsciv1.DSCInitialization) error {
-	// on condition of Managed, do not handle Removed when set to Removed it tigger DSCI reconcile to cleanup
+	// on condition of Managed, do not handle Removed when set to Removed it trigger DSCI reconcile to cleanup
 	if instance.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
 		serviceMeshInitializer := feature.NewFeaturesInitializer(&instance.Spec, configureServiceMeshFeatures)
 
@@ -65,17 +64,12 @@ func (r *DSCInitializationReconciler) removeServiceMesh(instance *dsciv1.DSCInit
 }
 
 func configureServiceMeshFeatures(s *feature.FeaturesInitializer) error {
-	var rootDir = filepath.Join(feature.BaseOutputDir, s.DSCInitializationSpec.ApplicationsNamespace)
-	if err := feature.CopyEmbeddedFiles(templatesDir, rootDir); err != nil {
-		return err
-	}
-
 	serviceMeshSpec := s.ServiceMesh
 
 	smcpCreation, errSmcp := feature.CreateFeature("mesh-control-plane-creation").
 		For(s.DSCInitializationSpec).
 		Manifests(
-			path.Join(rootDir, templatesDir, "base", "create-smcp.tmpl"),
+			path.Join(templatesDir, "base", "create-smcp.tmpl"),
 		).
 		PreConditions(
 			servicemesh.EnsureServiceMeshOperatorInstalled,
@@ -90,26 +84,14 @@ func configureServiceMeshFeatures(s *feature.FeaturesInitializer) error {
 	}
 	s.Features = append(s.Features, smcpCreation)
 
-	noDefaultNetworkPolicies, errNp := feature.CreateFeature("mesh-control-plane-no-default-network-policies").
-		For(s.DSCInitializationSpec).
-		Manifests(
-			path.Join(rootDir, templatesDir, "base", "control-plane-disable-networkpolicies.patch.tmpl"),
-		).
-		Load()
-
-	if errNp != nil {
-		return errNp
-	}
-	s.Features = append(s.Features, noDefaultNetworkPolicies)
-
 	if serviceMeshSpec.ControlPlane.MetricsCollection == "Istio" {
 		metricsCollection, errMetrics := feature.CreateFeature("mesh-metrics-collection").
 			For(s.DSCInitializationSpec).
-			Manifests(
-				path.Join(rootDir, templatesDir, "metrics-collection"),
-			).
 			PreConditions(
 				servicemesh.EnsureServiceMeshInstalled,
+			).
+			Manifests(
+				path.Join(templatesDir, "metrics-collection"),
 			).
 			Load()
 		if errMetrics != nil {

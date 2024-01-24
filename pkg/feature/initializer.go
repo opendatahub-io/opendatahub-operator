@@ -25,8 +25,6 @@ func NewFeaturesInitializer(spec *v1.DSCInitializationSpec, def DefinedFeatures)
 // such as Features and their templates, are processed and initialized
 // before proceeding with the actual cluster set-up.
 func (s *FeaturesInitializer) Prepare() error {
-	log.Info("Initializing features")
-
 	return s.definedFeatures(s)
 }
 
@@ -47,7 +45,6 @@ func (s *FeaturesInitializer) Apply() error {
 func (s *FeaturesInitializer) Delete() error {
 	var cleanupErrors *multierror.Error
 	for i := len(s.Features) - 1; i >= 0; i-- {
-		log.Info("cleanup", "name", s.Features[i].Name)
 		cleanupErrors = multierror.Append(cleanupErrors, s.Features[i].Cleanup())
 	}
 
