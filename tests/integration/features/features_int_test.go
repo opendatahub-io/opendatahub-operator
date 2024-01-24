@@ -237,7 +237,7 @@ var _ = Describe("feature trackers", func() {
 				MatchFields(IgnoreExtras, Fields{
 					"Type":   Equal(conditionsv1.ConditionAvailable),
 					"Status": Equal(v1.ConditionTrue),
-					"Reason": Equal(string(featurev1.FeatureCreated)), // Cast to string for testing.
+					"Reason": Equal(string(featurev1.FeatureCreated)),
 				}),
 			))
 		})
@@ -261,7 +261,7 @@ var _ = Describe("feature trackers", func() {
 				MatchFields(IgnoreExtras, Fields{
 					"Type":   Equal(conditionsv1.ConditionDegraded),
 					"Status": Equal(v1.ConditionTrue),
-					"Reason": Equal(string(featurev1.PreConditions)), // Cast to string for testing.
+					"Reason": Equal(string(featurev1.PreConditions)),
 				}),
 			))
 		})
@@ -286,7 +286,7 @@ var _ = Describe("feature trackers", func() {
 				MatchFields(IgnoreExtras, Fields{
 					"Type":   Equal(conditionsv1.ConditionDegraded),
 					"Status": Equal(v1.ConditionTrue),
-					"Reason": Equal(string(featurev1.PostConditions)), // Cast to string for testing.
+					"Reason": Equal(string(featurev1.PostConditions)),
 				}),
 			))
 		})
