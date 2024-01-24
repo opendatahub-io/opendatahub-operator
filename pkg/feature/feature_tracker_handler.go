@@ -60,6 +60,10 @@ func (f *Feature) getFeatureTracker() (*featurev1.FeatureTracker, error) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: f.Spec.AppNamespace + "-" + common.TrimToRFC1123Name(f.Name),
 		},
+		Spec: featurev1.FeatureTrackerSpec{
+			Source:       *f.Spec.Source,
+			AppNamespace: f.Spec.AppNamespace,
+		},
 	}
 
 	err := f.Client.Get(context.Background(), client.ObjectKeyFromObject(tracker), tracker)

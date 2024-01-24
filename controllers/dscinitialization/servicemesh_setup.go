@@ -16,7 +16,7 @@ const templatesDir = "templates/servicemesh"
 func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsciv1.DSCInitialization) error {
 	switch instance.Spec.ServiceMesh.ManagementState {
 	case operatorv1.Managed:
-		serviceMeshInitializer := feature.NewFeaturesInitializer(&instance.Spec, configureServiceMeshFeatures)
+		serviceMeshInitializer := feature.ClusterFeaturesInitializer(instance, configureServiceMeshFeatures())
 		if err := serviceMeshInitializer.Prepare(); err != nil {
 			r.Log.Error(err, "failed configuring service mesh resources")
 			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed configuring service mesh resources")
@@ -43,8 +43,7 @@ func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsciv1.DSCI
 func (r *DSCInitializationReconciler) removeServiceMesh(instance *dsciv1.DSCInitialization) error {
 	// on condition of Managed, do not handle Removed when set to Removed it trigger DSCI reconcile to cleanup
 	if instance.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
-		serviceMeshInitializer := feature.NewFeaturesInitializer(&instance.Spec, configureServiceMeshFeatures)
-
+		serviceMeshInitializer := feature.ClusterFeaturesInitializer(instance, configureServiceMeshFeatures())
 		if err := serviceMeshInitializer.Prepare(); err != nil {
 			r.Log.Error(err, "failed configuring service mesh resources")
 			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed configuring service mesh resources")
@@ -63,42 +62,46 @@ func (r *DSCInitializationReconciler) removeServiceMesh(instance *dsciv1.DSCInit
 	return nil
 }
 
-func configureServiceMeshFeatures(s *feature.FeaturesInitializer) error {
-	serviceMeshSpec := s.ServiceMesh
+func configureServiceMeshFeatures() feature.DefinedFeatures {
+	return func(initializer *feature.FeaturesInitializer) error {
+		serviceMeshSpec := initializer.DSCInitializationSpec.ServiceMesh
 
-	smcpCreation, errSmcp := feature.CreateFeature("mesh-control-plane-creation").
-		For(s.DSCInitializationSpec).
-		Manifests(
-			path.Join(templatesDir, "base", "create-smcp.tmpl"),
-		).
-		PreConditions(
-			servicemesh.EnsureServiceMeshOperatorInstalled,
-			feature.CreateNamespaceIfNotExists(serviceMeshSpec.ControlPlane.Namespace),
-		).
-		PostConditions(
-			feature.WaitForPodsToBeReady(serviceMeshSpec.ControlPlane.Namespace),
-		).
-		Load()
-	if errSmcp != nil {
-		return errSmcp
-	}
-	s.Features = append(s.Features, smcpCreation)
-
-	if serviceMeshSpec.ControlPlane.MetricsCollection == "Istio" {
-		metricsCollection, errMetrics := feature.CreateFeature("mesh-metrics-collection").
-			For(s.DSCInitializationSpec).
-			PreConditions(
-				servicemesh.EnsureServiceMeshInstalled,
-			).
+		smcpCreation, errSmcp := feature.CreateFeature("mesh-control-plane-creation").
+			With(initializer.DSCInitializationSpec).
+			From(initializer.Source).
 			Manifests(
-				path.Join(templatesDir, "metrics-collection"),
+				path.Join(templatesDir, "base", "create-smcp.tmpl"),
+			).
+			PreConditions(
+				servicemesh.EnsureServiceMeshOperatorInstalled,
+				feature.CreateNamespaceIfNotExists(serviceMeshSpec.ControlPlane.Namespace),
+			).
+			PostConditions(
+				feature.WaitForPodsToBeReady(serviceMeshSpec.ControlPlane.Namespace),
 			).
 			Load()
-		if errMetrics != nil {
-			return errMetrics
-		}
-		s.Features = append(s.Features, metricsCollection)
-	}
 
-	return nil
+		if errSmcp != nil {
+			return errSmcp
+		}
+		initializer.Features = append(initializer.Features, smcpCreation)
+
+		if serviceMeshSpec.ControlPlane.MetricsCollection == "Istio" {
+			metricsCollection, errMetrics := feature.CreateFeature("mesh-metrics-collection").
+				With(initializer.DSCInitializationSpec).
+				From(initializer.Source).
+				Manifests(
+					path.Join(templatesDir, "metrics-collection"),
+				).
+				PreConditions(
+					servicemesh.EnsureServiceMeshInstalled,
+				).
+				Load()
+			if errMetrics != nil {
+				return errMetrics
+			}
+			initializer.Features = append(initializer.Features, metricsCollection)
+		}
+		return nil
+	}
 }

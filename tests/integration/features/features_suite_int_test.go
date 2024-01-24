@@ -72,6 +72,9 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(config).NotTo(BeNil())
 
+	err = featurev1.AddToScheme(testScheme)
+	Expect(err).NotTo(HaveOccurred())
+
 	envTestClient, err = client.New(config, client.Options{Scheme: testScheme})
 	Expect(err).NotTo(HaveOccurred())
 	Expect(envTestClient).NotTo(BeNil())
