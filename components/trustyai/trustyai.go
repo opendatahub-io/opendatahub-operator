@@ -70,7 +70,7 @@ func (t *TrustyAI) ReconcileComponent(_ context.Context, cli client.Client, _ *r
 				return err
 			}
 		}
-		if dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "" {
+		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (t.DevFlags == nil || len(t.DevFlags.Manifests) == 0) {
 			if err := deploy.ApplyParams(Path, t.SetImageParamsMap(imageParamMap), false); err != nil {
 				return err
 			}
