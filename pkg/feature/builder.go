@@ -27,24 +27,44 @@ type featureBuilder struct {
 	fsys     fs.FS
 }
 
-func CreateFeature(name string) *featureBuilder { //nolint:golint,revive //No need to export featureBuilder.
-	return &featureBuilder{
+func CreateFeature(name string) *featureName { //nolint:golint,revive //No need to export featureBuilder.
+	return &featureName{
 		name: name,
-		fsys: embeddedFiles,
 	}
 }
 
-func (fb *featureBuilder) For(spec *v1.DSCInitializationSpec) *featureBuilder {
+type featureName struct {
+	name string
+}
+
+func (fn *featureName) With(spec *v1.DSCInitializationSpec) *featureSource {
+	return &featureSource{
+		spec: spec,
+		name: fn.name,
+	}
+}
+
+type featureSource struct {
+	spec *v1.DSCInitializationSpec
+	name string
+}
+
+func (fo *featureSource) From(source featurev1.Source) *featureBuilder {
 	createSpec := func(f *Feature) error {
 		f.Spec = &Spec{
-			ServiceMeshSpec: &spec.ServiceMesh,
+			ServiceMeshSpec: &fo.spec.ServiceMesh,
 			Serving:         &infrav1.ServingSpec{},
-			AppNamespace:    spec.ApplicationsNamespace,
+			Source:          &source,
+			AppNamespace:    fo.spec.ApplicationsNamespace,
 		}
 
 		return nil
 	}
 
+	fb := &featureBuilder{
+		name: fo.name,
+		fsys: embeddedFiles,
+	}
 	// Ensures creation of .Spec object is always invoked first
 	fb.builders = append([]partialBuilder{createSpec}, fb.builders...)
 
