@@ -59,7 +59,8 @@ func (c *CodeFlare) GetComponentName() string {
 func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, resConf *rest.Config, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
 	var imageParamMap = map[string]string{
 		"odh-codeflare-operator-controller-image": "RELATED_IMAGE_ODH_CODEFLARE_OPERATOR_IMAGE", // no need mcad, embedded in cfo
-		"namespace": dscispec.ApplicationsNamespace,
+		"odh-kueue-controller-image":              "RELATED_IMAGE_ODH_KUEUE_OPERATOR_IMAGE",     // new kueue image
+		"namespace":                               dscispec.ApplicationsNamespace,
 	}
 	enabled := c.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
