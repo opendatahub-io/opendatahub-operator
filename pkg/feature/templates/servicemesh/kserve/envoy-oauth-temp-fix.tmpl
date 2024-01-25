@@ -1,12 +1,10 @@
-# https://issues.redhat.com/browse/OSSM-4873
 apiVersion: networking.istio.io/v1alpha3
 kind: EnvoyFilter
 metadata:
   name: envoy-oauth-temp-fix-before
   namespace: {{ .ControlPlane.Namespace }}
   labels:
-    app: odh
-    temp: hack
+    opendatahub.io/related-to: OSSM-4873
 spec:
   workloadSelector:
     labels:
@@ -44,8 +42,7 @@ metadata:
   name: envoy-oauth-temp-fix-after
   namespace: {{ .ControlPlane.Namespace }}
   labels:
-    app: odh
-    temp: hack
+    opendatahub.io/related-to: OSSM-4873
 spec:
   workloadSelector:
     labels:
