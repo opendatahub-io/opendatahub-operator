@@ -1,6 +1,9 @@
 package v1
 
-import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+import (
+	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
 
 // FeatureTracker represents a cluster-scoped resource in the Data Science Cluster,
 // specifically designed for monitoring and managing objects created via the internal Features API.
@@ -11,18 +14,28 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 // no longer required.
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Cluster
+// +kubebuilder:subresource:status
 type FeatureTracker struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              FeatureTrackerSpec   `json:"spec,omitempty"`
-	Status            FeatureTrackerStatus `json:"status,omitempty"`
+
+	Spec   FeatureTrackerSpec   `json:"spec,omitempty"`
+	Status FeatureTrackerStatus `json:"status,omitempty"`
 }
 
+type FeaturePhase string
 type OwnerType string
 
 const (
-	ComponentType OwnerType = "Component"
-	DSCIType      OwnerType = "DSCI"
+	FeatureCreated   FeaturePhase = "FeatureCreated"
+	PreConditions    FeaturePhase = "FeaturePreConditions"
+	ResourceCreation FeaturePhase = "ResourceCreation"
+	LoadTemplateData FeaturePhase = "LoadTemplateData"
+	ProcessTemplates FeaturePhase = "ProcessTemplates"
+	ApplyManifests   FeaturePhase = "ApplyManifests"
+	PostConditions   FeaturePhase = "FeaturePostConditions"
+	ComponentType    OwnerType    = "Component"
+	DSCIType         OwnerType    = "DSCI"
 )
 
 func (s *FeatureTracker) ToOwnerReference() metav1.OwnerReference {
@@ -48,6 +61,8 @@ type FeatureTrackerSpec struct {
 
 // FeatureTrackerStatus defines the observed state of FeatureTracker.
 type FeatureTrackerStatus struct {
+	// +optional
+	Conditions *[]conditionsv1.Condition `json:"conditions,omitempty"`
 }
 
 // +kubebuilder:object:root=true
