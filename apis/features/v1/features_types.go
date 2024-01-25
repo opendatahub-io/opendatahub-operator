@@ -23,11 +23,19 @@ type FeatureTracker struct {
 	Status FeatureTrackerStatus `json:"status,omitempty"`
 }
 
+type FeaturePhase string
 type OwnerType string
 
 const (
-	ComponentType OwnerType = "Component"
-	DSCIType      OwnerType = "DSCI"
+	FeatureCreated   FeaturePhase = "FeatureCreated"
+	PreConditions    FeaturePhase = "FeaturePreConditions"
+	ResourceCreation FeaturePhase = "ResourceCreation"
+	LoadTemplateData FeaturePhase = "LoadTemplateData"
+	ProcessTemplates FeaturePhase = "ProcessTemplates"
+	ApplyManifests   FeaturePhase = "ApplyManifests"
+	PostConditions   FeaturePhase = "FeaturePostConditions"
+	ComponentType    OwnerType    = "Component"
+	DSCIType         OwnerType    = "DSCI"
 )
 
 func (s *FeatureTracker) ToOwnerReference() metav1.OwnerReference {
