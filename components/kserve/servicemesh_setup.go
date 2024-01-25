@@ -15,7 +15,7 @@ func (k *Kserve) configureServiceMesh(dscispec *dsciv1.DSCInitializationSpec) er
 		return nil
 	}
 
-	serviceMeshInitializer := feature.NewFeaturesInitializer(dscispec, k.defineServiceMeshFeatures(dscispec))
+	serviceMeshInitializer := feature.ComponentFeaturesInitializer(k, dscispec, k.defineServiceMeshFeatures())
 
 	if err := serviceMeshInitializer.Prepare(); err != nil {
 		return err
@@ -24,10 +24,11 @@ func (k *Kserve) configureServiceMesh(dscispec *dsciv1.DSCInitializationSpec) er
 	return serviceMeshInitializer.Apply()
 }
 
-func (k *Kserve) defineServiceMeshFeatures(dscispec *dsciv1.DSCInitializationSpec) feature.DefinedFeatures {
-	return func(s *feature.FeaturesInitializer) error {
+func (k *Kserve) defineServiceMeshFeatures() feature.DefinedFeatures {
+	return func(initializer *feature.FeaturesInitializer) error {
 		kserve, err := feature.CreateFeature("configure-kserve-for-external-authz").
-			For(dscispec).
+			With(initializer.DSCInitializationSpec).
+			From(initializer.Source).
 			Manifests(
 				path.Join(feature.KServeDir),
 			).
@@ -38,7 +39,7 @@ func (k *Kserve) defineServiceMeshFeatures(dscispec *dsciv1.DSCInitializationSpe
 			return err
 		}
 
-		s.Features = append(s.Features, kserve)
+		initializer.Features = append(initializer.Features, kserve)
 
 		return nil
 	}

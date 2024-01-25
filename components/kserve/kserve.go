@@ -185,9 +185,10 @@ func (k *Kserve) configureServerless(instance *dsciv1.DSCInitializationSpec) err
 	case operatorv1.Managed: // standard workflow to create CR
 		switch instance.ServiceMesh.ManagementState {
 		case operatorv1.Unmanaged, operatorv1.Removed:
-			return fmt.Errorf("ServiceMesh is need to set to 'Managaed' in DSCI CR, it is required by KServe serving field")
+			return fmt.Errorf("ServiceMesh is need to set to 'Managed' in DSCI CR, it is required by KServe serving field")
 		}
-		serverlessInitializer := feature.NewFeaturesInitializer(instance, k.configureServerlessFeatures)
+
+		serverlessInitializer := feature.ComponentFeaturesInitializer(k, instance, k.configureServerlessFeatures())
 
 		if err := serverlessInitializer.Prepare(); err != nil {
 			return err
@@ -201,7 +202,7 @@ func (k *Kserve) configureServerless(instance *dsciv1.DSCInitializationSpec) err
 }
 
 func (k *Kserve) removeServerlessFeatures(instance *dsciv1.DSCInitializationSpec) error {
-	serverlessInitializer := feature.NewFeaturesInitializer(instance, k.configureServerlessFeatures)
+	serverlessInitializer := feature.ComponentFeaturesInitializer(k, instance, k.configureServerlessFeatures())
 
 	if err := serverlessInitializer.Prepare(); err != nil {
 		return err

@@ -14,7 +14,7 @@ import (
 func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsciv1.DSCInitialization) error {
 	switch instance.Spec.ServiceMesh.ManagementState {
 	case operatorv1.Managed:
-		serviceMeshInitializer := feature.NewFeaturesInitializer(&instance.Spec, configureServiceMeshFeatures)
+		serviceMeshInitializer := feature.ClusterFeaturesInitializer(instance, configureServiceMeshFeatures())
 		if err := serviceMeshInitializer.Prepare(); err != nil {
 			r.Log.Error(err, "failed configuring service mesh resources")
 			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed configuring service mesh resources")
@@ -41,8 +41,7 @@ func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsciv1.DSCI
 func (r *DSCInitializationReconciler) removeServiceMesh(instance *dsciv1.DSCInitialization) error {
 	// on condition of Managed, do not handle Removed when set to Removed it trigger DSCI reconcile to cleanup
 	if instance.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
-		serviceMeshInitializer := feature.NewFeaturesInitializer(&instance.Spec, configureServiceMeshFeatures)
-
+		serviceMeshInitializer := feature.ClusterFeaturesInitializer(instance, configureServiceMeshFeatures())
 		if err := serviceMeshInitializer.Prepare(); err != nil {
 			r.Log.Error(err, "failed configuring service mesh resources")
 			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed configuring service mesh resources")
@@ -61,81 +60,88 @@ func (r *DSCInitializationReconciler) removeServiceMesh(instance *dsciv1.DSCInit
 	return nil
 }
 
-func configureServiceMeshFeatures(s *feature.FeaturesInitializer) error {
-	serviceMeshSpec := s.ServiceMesh
+func configureServiceMeshFeatures() feature.DefinedFeatures {
+	return func(initializer *feature.FeaturesInitializer) error {
+		serviceMeshSpec := initializer.DSCInitializationSpec.ServiceMesh
 
-	smcpCreation, errSmcp := feature.CreateFeature("mesh-control-plane-creation").
-		For(s.DSCInitializationSpec).
-		Manifests(
-			path.Join(feature.ServiceMeshDir, "base", "create-smcp.tmpl"),
-		).
-		PreConditions(
-			servicemesh.EnsureServiceMeshOperatorInstalled,
-			feature.CreateNamespaceIfNotExists(serviceMeshSpec.ControlPlane.Namespace),
-		).
-		PostConditions(
-			feature.WaitForPodsToBeReady(serviceMeshSpec.ControlPlane.Namespace),
-		).
-		Load()
-	if errSmcp != nil {
-		return errSmcp
-	}
-	s.Features = append(s.Features, smcpCreation)
-
-	if serviceMeshSpec.ControlPlane.MetricsCollection == "Istio" {
-		metricsCollection, errMetrics := feature.CreateFeature("mesh-metrics-collection").
-			For(s.DSCInitializationSpec).
-			PreConditions(
-				servicemesh.EnsureServiceMeshInstalled,
-			).
+		smcpCreation, errSmcp := feature.CreateFeature("mesh-control-plane-creation").
+			With(initializer.DSCInitializationSpec).
+			From(initializer.Source).
 			Manifests(
-				path.Join(feature.ServiceMeshDir, "metrics-collection"),
+				path.Join(feature.ServiceMeshDir, "base", "create-smcp.tmpl"),
+			).
+			PreConditions(
+				servicemesh.EnsureServiceMeshOperatorInstalled,
+				feature.CreateNamespaceIfNotExists(serviceMeshSpec.ControlPlane.Namespace),
+			).
+			PostConditions(
+				feature.WaitForPodsToBeReady(serviceMeshSpec.ControlPlane.Namespace),
 			).
 			Load()
-		if errMetrics != nil {
-			return errMetrics
+
+		if errSmcp != nil {
+			return errSmcp
 		}
-		s.Features = append(s.Features, metricsCollection)
-	}
+		initializer.Features = append(initializer.Features, smcpCreation)
 
-	cfMaps, cfgMapErr := feature.CreateFeature("shared-config-maps").
-		For(s.DSCInitializationSpec).
-		WithResources(servicemesh.ConfigMaps).
-		Load()
-	if cfgMapErr != nil {
-		return cfgMapErr
-	}
-	s.Features = append(s.Features, cfMaps)
+		if serviceMeshSpec.ControlPlane.MetricsCollection == "Istio" {
+			metricsCollection, errMetrics := feature.CreateFeature("mesh-metrics-collection").
+				With(initializer.DSCInitializationSpec).
+				From(initializer.Source).
+				PreConditions(
+					servicemesh.EnsureServiceMeshInstalled,
+				).
+				Manifests(
+					path.Join(feature.ServiceMeshDir, "metrics-collection"),
+				).
+				Load()
+			if errMetrics != nil {
+				return errMetrics
+			}
+			initializer.Features = append(initializer.Features, metricsCollection)
+		}
 
-	extAuthz, extAuthzErr := feature.CreateFeature("service-mesh-control-plane-setup-external-authorization").
-		For(s.DSCInitializationSpec).
-		Manifests(
-			path.Join(feature.AuthDir, "auth-smm.tmpl"),
-			path.Join(feature.AuthDir, "base"),
-			path.Join(feature.AuthDir, "mesh-authz-ext-provider.patch.tmpl"),
-		).
-		WithData(servicemesh.ClusterDetails).
-		PreConditions(
-			feature.EnsureCRDIsInstalled("authconfigs.authorino.kuadrant.io"),
-			servicemesh.EnsureServiceMeshInstalled,
-		).
-		PostConditions(
-			feature.WaitForPodsToBeReady(serviceMeshSpec.ControlPlane.Namespace),
-			func(f *feature.Feature) error {
-				// We do not have the control over deployment resource creation.
-				// It is created by Authorino operator using Authorino CR
-				//
-				// To make it part of Service Mesh we have to patch it with injection
-				// enabled instead, otherwise it will not have proxy pod injected.
-				return f.ApplyManifest(path.Join(feature.AuthDir, "deployment.injection.patch.tmpl"))
-			},
-		).
-		OnDelete(servicemesh.RemoveExtensionProvider).
-		Load()
-	if extAuthzErr != nil {
-		return extAuthzErr
-	}
-	s.Features = append(s.Features, extAuthz)
+		cfMaps, cfgMapErr := feature.CreateFeature("shared-config-maps").
+			With(initializer.DSCInitializationSpec).
+			From(initializer.Source).
+			WithResources(servicemesh.ConfigMaps).
+			Load()
+		if cfgMapErr != nil {
+			return cfgMapErr
+		}
+		initializer.Features = append(initializer.Features, cfMaps)
 
-	return nil
+		extAuthz, extAuthzErr := feature.CreateFeature("service-mesh-control-plane-setup-external-authorization").
+			With(initializer.DSCInitializationSpec).
+			From(initializer.Source).
+			Manifests(
+				path.Join(feature.AuthDir, "auth-smm.tmpl"),
+				path.Join(feature.AuthDir, "base"),
+				path.Join(feature.AuthDir, "mesh-authz-ext-provider.patch.tmpl"),
+			).
+			WithData(servicemesh.ClusterDetails).
+			PreConditions(
+				feature.EnsureCRDIsInstalled("authconfiginitializer.authorino.kuadrant.io"),
+				servicemesh.EnsureServiceMeshInstalled,
+			).
+			PostConditions(
+				feature.WaitForPodsToBeReady(serviceMeshSpec.ControlPlane.Namespace),
+				func(f *feature.Feature) error {
+					// We do not have the control over deployment resource creation.
+					// It is created by Authorino operator using Authorino CR
+					//
+					// To make it part of Service Mesh we have to patch it with injection
+					// enabled instead, otherwise it will not have proxy pod injected.
+					return f.ApplyManifest(path.Join(feature.AuthDir, "deployment.injection.patch.tmpl"))
+				},
+			).
+			OnDelete(servicemesh.RemoveExtensionProvider).
+			Load()
+		if extAuthzErr != nil {
+			return extAuthzErr
+		}
+		initializer.Features = append(initializer.Features, extAuthz)
+
+		return nil
+	}
 }
