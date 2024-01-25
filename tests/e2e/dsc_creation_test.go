@@ -53,6 +53,43 @@ func creationTestSuite(t *testing.T) {
 	})
 }
 
+func (tc *testContext) testDSCICreation() error {
+	dscLookupKey := types.NamespacedName{Name: tc.testDsc.Name}
+	createdDSCI := &dsci.DSCInitialization{}
+	existingDSCIList := &dsci.DSCInitializationList{}
+
+	err := tc.customClient.List(tc.ctx, existingDSCIList)
+	if err == nil {
+		// use what you have
+		if len(existingDSCIList.Items) == 1 {
+			tc.testDSCI = &existingDSCIList.Items[0]
+			return nil
+		}
+	}
+	// create one for you
+	err = tc.customClient.Get(tc.ctx, dscLookupKey, createdDSCI)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			nberr := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
+				creationErr := tc.customClient.Create(tc.ctx, tc.testDSCI)
+				if creationErr != nil {
+					log.Printf("error creating DSCI resource %v: %v, trying again",
+						tc.testDSCI.Name, creationErr)
+					return false, nil
+				}
+				return true, nil
+			})
+			if nberr != nil {
+				return fmt.Errorf("error creating e2e-test-dsci DSCI CR %s: %w", tc.testDSCI.Name, nberr)
+			}
+		} else {
+			return fmt.Errorf("error getting e2e-test-dsci DSCI CR %s: %w", tc.testDSCI.Name, err)
+		}
+	}
+
+	return nil
+}
+
 func (tc *testContext) testDSCCreation() error {
 	// Create DataScienceCluster resource if not already created
 

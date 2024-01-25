@@ -3,11 +3,13 @@ package features_test
 import (
 	"context"
 	"embed"
+	"fmt"
 	"os"
 	"path"
 	"path/filepath"
 	"time"
 
+	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -22,6 +24,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	. "github.com/onsi/gomega/gstruct"
 )
 
 //go:embed templates
@@ -178,7 +181,7 @@ var _ = Describe("feature cleanup", func() {
 			// then
 			Expect(createConfigMap.Spec.Tracker).ToNot(BeNil())
 			_, err = createConfigMap.DynamicClient.
-				Resource(gvr.ResourceTracker).
+				Resource(gvr.FeatureTracker).
 				Get(context.TODO(), createConfigMap.Spec.Tracker.Name, metav1.GetOptions{})
 
 			Expect(err).ToNot(HaveOccurred())
@@ -204,7 +207,7 @@ var _ = Describe("feature cleanup", func() {
 
 			// then
 			_, err = createConfigMap.DynamicClient.
-				Resource(gvr.ResourceTracker).
+				Resource(gvr.FeatureTracker).
 				Get(context.TODO(), trackerName, metav1.GetOptions{})
 
 			Expect(errors.IsNotFound(err)).To(BeTrue())
@@ -225,6 +228,82 @@ var _ = Describe("feature trackers", func() {
 		BeforeEach(func() {
 			dsciSpec = newDSCInitializationSpec("default")
 			source = envtestutil.NewSource(featurev1.DSCIType, "default")
+		})
+
+		It("should indicate successful installation in FeatureTracker", func() {
+			// given example CRD installed into env
+			name := "test-resources.openshift.io"
+			verificationFeature, err := feature.CreateFeature("crd-verification").
+				With(dsciSpec).
+				From(source).
+				UsingConfig(envTest.Config).
+				PreConditions(feature.EnsureCRDIsInstalled(name)).
+				Load()
+			Expect(err).ToNot(HaveOccurred())
+
+			// when
+			Expect(verificationFeature.Apply()).To(Succeed())
+
+			// then
+			featureTracker := getFeatureTracker("default-crd-verification")
+			Expect(*featureTracker.Status.Conditions).To(ContainElement(
+				MatchFields(IgnoreExtras, Fields{
+					"Type":   Equal(conditionsv1.ConditionAvailable),
+					"Status": Equal(v1.ConditionTrue),
+					"Reason": Equal(string(featurev1.FeatureCreated)),
+				}),
+			))
+		})
+
+		It("should indicate failure in preconditions", func() {
+			// given
+			name := "non-existing-resource.non-existing-group.io"
+			verificationFeature, err := feature.CreateFeature("crd-verification").
+				With(dsciSpec).
+				From(source).
+				UsingConfig(envTest.Config).
+				PreConditions(feature.EnsureCRDIsInstalled(name)).
+				Load()
+			Expect(err).ToNot(HaveOccurred())
+
+			// when
+			Expect(verificationFeature.Apply()).ToNot(Succeed())
+
+			// then
+			featureTracker := getFeatureTracker("default-crd-verification")
+			Expect(*featureTracker.Status.Conditions).To(ContainElement(
+				MatchFields(IgnoreExtras, Fields{
+					"Type":   Equal(conditionsv1.ConditionDegraded),
+					"Status": Equal(v1.ConditionTrue),
+					"Reason": Equal(string(featurev1.PreConditions)),
+				}),
+			))
+		})
+
+		It("should indicate failure in post-conditions", func() {
+			// given
+			verificationFeature, err := feature.CreateFeature("post-condition-failure").
+				With(dsciSpec).
+				From(source).
+				UsingConfig(envTest.Config).
+				PostConditions(func(f *feature.Feature) error {
+					return fmt.Errorf("always fail")
+				}).
+				Load()
+			Expect(err).ToNot(HaveOccurred())
+
+			// when
+			Expect(verificationFeature.Apply()).ToNot(Succeed())
+
+			// then
+			featureTracker := getFeatureTracker("default-post-condition-failure")
+			Expect(*featureTracker.Status.Conditions).To(ContainElement(
+				MatchFields(IgnoreExtras, Fields{
+					"Type":   Equal(conditionsv1.ConditionDegraded),
+					"Status": Equal(v1.ConditionTrue),
+					"Reason": Equal(string(featurev1.PostConditions)),
+				}),
+			))
 		})
 
 		It("should correctly indicate source in the feature tracker", func() {
@@ -259,7 +338,9 @@ var _ = Describe("feature trackers", func() {
 			featureTracker := getFeatureTracker("default-empty-feature")
 			Expect(featureTracker.Spec.AppNamespace).To(Equal("default"))
 		})
+
 	})
+
 })
 
 var _ = Describe("Manifest sources", func() {
