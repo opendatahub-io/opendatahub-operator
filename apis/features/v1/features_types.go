@@ -25,6 +25,7 @@ type FeatureTracker struct {
 
 type FeaturePhase string
 type OwnerType string
+type PhaseType string
 
 const (
 	FeatureCreated   FeaturePhase = "FeatureCreated"
@@ -36,6 +37,10 @@ const (
 	PostConditions   FeaturePhase = "FeaturePostConditions"
 	ComponentType    OwnerType    = "Component"
 	DSCIType         OwnerType    = "DSCI"
+	// various Phase
+	PhaseProgressing PhaseType = "Progressing"
+	PhaseError       PhaseType = "Error"
+	PhaseReady       PhaseType = "Ready"
 )
 
 func (s *FeatureTracker) ToOwnerReference() metav1.OwnerReference {
@@ -63,6 +68,9 @@ type FeatureTrackerSpec struct {
 type FeatureTrackerStatus struct {
 	// +optional
 	Conditions *[]conditionsv1.Condition `json:"conditions,omitempty"`
+	// Phase describes the Phase of DSCInitializationStatus
+	// This is used by OLM UI to provide status information to the user
+	Phase string `json:"phase,omitempty"`
 }
 
 // +kubebuilder:object:root=true

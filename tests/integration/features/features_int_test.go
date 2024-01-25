@@ -253,6 +253,7 @@ var _ = Describe("feature trackers", func() {
 					"Reason": Equal(string(featurev1.FeatureCreated)),
 				}),
 			))
+			Expect(featureTracker.Status.Phase).To(Equal("Ready"))
 		})
 
 		It("should indicate failure in preconditions", func() {
@@ -278,6 +279,7 @@ var _ = Describe("feature trackers", func() {
 					"Reason": Equal(string(featurev1.PreConditions)),
 				}),
 			))
+			Expect(featureTracker.Status.Phase).To(Equal("Error"))
 		})
 
 		It("should indicate failure in post-conditions", func() {
@@ -304,6 +306,7 @@ var _ = Describe("feature trackers", func() {
 					"Reason": Equal(string(featurev1.PostConditions)),
 				}),
 			))
+			Expect(featureTracker.Status.Phase).To(Equal("Error"))
 		})
 
 		It("should correctly indicate source in the feature tracker", func() {

@@ -63,12 +63,12 @@ func (f *Feature) Apply() (err error) {
 	// Verify all precondition and collect errors
 	var multiErr *multierror.Error
 	phase := featurev1.FeatureCreated
-	f.updateFeatureTrackerStatus(conditionsv1.ConditionProgressing, "True", phase, fmt.Sprintf("Applying feature %s", f.Name))
+	f.updateFeatureTrackerStatus(conditionsv1.ConditionProgressing, "True", phase, fmt.Sprintf("Applying feature %s", f.Name), featurev1.PhaseProgressing)
 	defer func() {
 		if err != nil {
-			f.updateFeatureTrackerStatus(conditionsv1.ConditionDegraded, "True", phase, err.Error())
+			f.updateFeatureTrackerStatus(conditionsv1.ConditionDegraded, "True", phase, err.Error(), featurev1.PhaseError)
 		} else {
-			f.updateFeatureTrackerStatus(conditionsv1.ConditionAvailable, "True", phase, fmt.Sprintf("Feature %s applied successfully", f.Name))
+			f.updateFeatureTrackerStatus(conditionsv1.ConditionAvailable, "True", phase, fmt.Sprintf("Feature %s applied successfully", f.Name), featurev1.PhaseReady)
 		}
 	}()
 
@@ -218,7 +218,11 @@ func (f *Feature) AsOwnerReference() metav1.OwnerReference {
 // updateFeatureTrackerStatus updates conditions of a FeatureTracker.
 // It's deliberately logging errors instead of handing them as it is used in deferred error handling of Feature public API,
 // which is more predictable.
-func (f *Feature) updateFeatureTrackerStatus(condType conditionsv1.ConditionType, status corev1.ConditionStatus, reason featurev1.FeaturePhase, message string) {
+func (f *Feature) updateFeatureTrackerStatus(condType conditionsv1.ConditionType,
+	status corev1.ConditionStatus,
+	reason featurev1.FeaturePhase,
+	message string,
+	trackerPhase featurev1.PhaseType) {
 	tracker := f.Spec.Tracker
 
 	// Update the status
@@ -231,7 +235,7 @@ func (f *Feature) updateFeatureTrackerStatus(condType conditionsv1.ConditionType
 		Reason:  string(reason),
 		Message: message,
 	})
-
+	tracker.Status.Phase = string(trackerPhase)
 	err := f.Client.Status().Update(context.Background(), tracker)
 	if err != nil {
 		f.Log.Error(err, "Error updating FeatureTracker status")
