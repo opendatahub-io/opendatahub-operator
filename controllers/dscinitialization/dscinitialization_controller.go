@@ -105,8 +105,12 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 	} else {
 		r.Log.Info("Finalization DSCInitialization start deleting instance", "name", instance.Name, "finalizer", finalizerName)
-		if err := r.removeServiceMesh(instance); err != nil {
-			return reconcile.Result{}, err
+		// when delete DSCI, we only delete SMCP if servicemesh.management is Managed
+		// if it is unamanged or removed, we do not explicted remove it: either we should keep it or nothinig to delete
+		if instance.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
+			if err := r.removeServiceMesh(instance); err != nil {
+				return reconcile.Result{}, err
+			}
 		}
 		if controllerutil.ContainsFinalizer(instance, finalizerName) {
 			controllerutil.RemoveFinalizer(instance, finalizerName)
