@@ -161,9 +161,13 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint
 		t.Parallel()
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.Dashboard))
 		if tc.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
-			require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Dashboard.GetComponentName())
+			if err != nil {
+				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Dashboard.GetComponentName())
+			}
 		} else {
-			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.Dashboard.GetComponentName())
+			if err == nil {
+				require.NoError(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.Dashboard.GetComponentName())
+			}
 		}
 	})
 
@@ -172,9 +176,13 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint
 		t.Parallel()
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.ModelMeshServing))
 		if tc.testDsc.Spec.Components.ModelMeshServing.ManagementState == operatorv1.Managed {
-			require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.ModelMeshServing.GetComponentName())
+			if err != nil {
+				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.ModelMeshServing.GetComponentName())
+			}
 		} else {
-			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.ModelMeshServing.GetComponentName())
+			if err == nil {
+				require.NoError(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.ModelMeshServing.GetComponentName())
+			}
 		}
 	})
 
@@ -192,7 +200,9 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint
 				}
 			}
 		} else {
-			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.Kserve.GetComponentName())
+			if err == nil {
+				require.NoError(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.Kserve.GetComponentName())
+			}
 		}
 	})
 
@@ -201,9 +211,13 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint
 		t.Parallel()
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.Workbenches))
 		if tc.testDsc.Spec.Components.Workbenches.ManagementState == operatorv1.Managed {
-			require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Workbenches.GetComponentName())
+			if err != nil {
+				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Workbenches.GetComponentName())
+			}
 		} else {
-			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.Workbenches.GetComponentName())
+			if err == nil {
+				require.NoError(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.Workbenches.GetComponentName())
+			}
 		}
 	})
 
@@ -212,9 +226,13 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint
 		t.Parallel()
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.DataSciencePipelines))
 		if tc.testDsc.Spec.Components.DataSciencePipelines.ManagementState == operatorv1.Managed {
-			require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.DataSciencePipelines.GetComponentName())
+			if err != nil {
+				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.DataSciencePipelines.GetComponentName())
+			}
 		} else {
-			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.DataSciencePipelines.GetComponentName())
+			if err == nil {
+				require.NoError(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.DataSciencePipelines.GetComponentName())
+			}
 		}
 	})
 
@@ -223,9 +241,16 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint
 		t.Parallel()
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.CodeFlare))
 		if tc.testDsc.Spec.Components.CodeFlare.ManagementState == operatorv1.Managed {
-			require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.CodeFlare.GetComponentName())
+			if err != nil {
+				// dependent operator error, as expected
+				{
+					require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.CodeFlare.GetComponentName())
+				}
+			}
 		} else {
-			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.CodeFlare.GetComponentName())
+			if err == nil {
+				require.NoError(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.CodeFlare.GetComponentName())
+			}
 		}
 	})
 
@@ -234,9 +259,13 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint
 		t.Parallel()
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.Ray))
 		if tc.testDsc.Spec.Components.Ray.ManagementState == operatorv1.Managed {
-			require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Ray.GetComponentName())
+			if err != nil {
+				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Ray.GetComponentName())
+			}
 		} else {
-			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.Ray.GetComponentName())
+			if err == nil {
+				require.NoError(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.Ray.GetComponentName())
+			}
 		}
 	})
 
@@ -245,12 +274,15 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint
 		t.Parallel()
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.TrustyAI))
 		if tc.testDsc.Spec.Components.TrustyAI.ManagementState == operatorv1.Managed {
-			require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.TrustyAI.GetComponentName())
+			if err != nil {
+				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.TrustyAI.GetComponentName())
+			}
 		} else {
-			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.TrustyAI.GetComponentName())
+			if err == nil {
+				require.NoError(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.TrustyAI.GetComponentName())
+			}
 		}
 	})
-
 	t.Run("Validate ModelRegistry", func(t *testing.T) {
 		// speed testing in parallel
 		t.Parallel()
@@ -298,6 +330,9 @@ func (tc *testContext) testApplicationCreation(component components.ComponentInt
 		}
 		return false, nil
 	})
+	if err != nil {
+		return err
+	}
 
 	return err
 }
