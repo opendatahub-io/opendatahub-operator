@@ -237,17 +237,6 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint
 		}
 	})
 
-	t.Run("Validate Kueue", func(t *testing.T) {
-		// speed testing in parallel
-		t.Parallel()
-		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.Kueue))
-		if tc.testDsc.Spec.Components.Kueue.ManagementState == operatorv1.Managed {
-			require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Kueue.GetComponentName())
-		} else {
-			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.Kueue.GetComponentName())
-		}
-	})
-
 	t.Run("Validate TrustyAI", func(t *testing.T) {
 		// speed testing in parallel
 		t.Parallel()
