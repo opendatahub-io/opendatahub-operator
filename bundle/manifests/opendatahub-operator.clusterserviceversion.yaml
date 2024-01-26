@@ -1615,7 +1615,7 @@ spec:
           verbs:
           - '*'
         - apiGroups:
-          - trustyai.opendatahub.io.trustyai.opendatahub.io
+          - trustyai.opendatahub.io
           resources:
           - trustyaiservices
           verbs:
@@ -1627,13 +1627,13 @@ spec:
           - update
           - watch
         - apiGroups:
-          - trustyai.opendatahub.io.trustyai.opendatahub.io
+          - trustyai.opendatahub.io
           resources:
           - trustyaiservices/finalizers
           verbs:
           - update
         - apiGroups:
-          - trustyai.opendatahub.io.trustyai.opendatahub.io
+          - trustyai.opendatahub.io
           resources:
           - trustyaiservices/status
           verbs:
