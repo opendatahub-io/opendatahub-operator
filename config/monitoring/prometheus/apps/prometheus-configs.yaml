@@ -210,12 +210,15 @@ data:
       metrics_path: /metrics
       scheme: http
       kubernetes_sd_configs:
-        - role: endpoints
+        - role: pod
           namespaces:
             names:
               - <odh_application_namespace>
+          selectors: 
+          - role: pod 
+            label: 'app.kubernetes.io/part-of=kserve'
       relabel_configs:
-        - source_labels: [__meta_kubernetes_service_name]
+        - source_labels: [__meta_kubernetes_pod_label_control_plane]
           regex: ^(kserve-controller-manager)$
           target_label: kubernetes_name
           action: keep
