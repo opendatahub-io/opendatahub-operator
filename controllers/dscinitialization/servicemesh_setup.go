@@ -121,7 +121,7 @@ func configureServiceMeshFeatures() feature.DefinedFeatures {
 			).
 			WithData(servicemesh.ClusterDetails).
 			PreConditions(
-				feature.EnsureCRDIsInstalled("authconfiginitializer.authorino.kuadrant.io"),
+				feature.EnsureCRDIsInstalled("authconfigs.authorino.kuadrant.io"),
 				servicemesh.EnsureServiceMeshInstalled,
 			).
 			PostConditions(
