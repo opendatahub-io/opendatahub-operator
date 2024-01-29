@@ -175,7 +175,7 @@ func (k *Kserve) configureServerless(instance *dsciv1.DSCInitializationSpec) err
 		fmt.Println("Serverless CR is not configured by the operator, we won't do anything")
 
 	case operatorv1.Removed: // we remove serving CR
-		fmt.Println("existing ServiceMesh CR (owned by operator) will be removed")
+		fmt.Println("existing Serverless CR (owned by operator) will be removed")
 		if err := k.removeServerlessFeatures(instance); err != nil {
 			return err
 		}
