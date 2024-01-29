@@ -6,11 +6,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/serverless"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
-)
-
-const (
-	knativeServingNamespace = "knative-serving"
 )
 
 func (k *Kserve) configureServerlessFeatures() feature.DefinedFeatures {
@@ -26,10 +21,7 @@ func (k *Kserve) configureServerlessFeatures() feature.DefinedFeatures {
 				serverless.EnsureServerlessOperatorInstalled,
 				serverless.EnsureServerlessAbsent,
 				servicemesh.EnsureServiceMeshInstalled,
-				feature.CreateNamespaceIfNotExists(knativeServingNamespace),
-			).
-			PostConditions(
-				feature.WaitForPodsToBeReady(knativeServingNamespace),
+				feature.CreateNamespaceIfNotExists(serverless.KnativeServingNamespace),
 			).
 			Load()
 		if err != nil {
@@ -37,12 +29,27 @@ func (k *Kserve) configureServerlessFeatures() feature.DefinedFeatures {
 		}
 		initializer.Features = append(initializer.Features, servingDeployment)
 
+		servingNetIstioSecretFiltering, err := feature.CreateFeature("serverless-net-istio-secret-filtering").
+			With(initializer.DSCInitializationSpec).
+			From(initializer.Source).
+			Manifests(
+				path.Join(feature.ServerlessDir, "serving-net-istio-secret-filtering.patch.tmpl"),
+			).
+			WithData(PopulateComponentSettings(k)).
+			PreConditions(serverless.EnsureServerlessServingDeployed).
+			PostConditions(
+				feature.WaitForPodsToBeReady(serverless.KnativeServingNamespace),
+			).
+			Load()
+		if err != nil {
+			return err
+		}
+		initializer.Features = append(initializer.Features, servingNetIstioSecretFiltering)
+
 		servingIstioGateways, err := feature.CreateFeature("serverless-serving-gateways").
 			With(initializer.DSCInitializationSpec).
 			From(initializer.Source).
-			PreConditions(
-				// Check serverless is installed
-				feature.WaitForResourceToBeCreated(knativeServingNamespace, gvr.KnativeServing)).
+			PreConditions(serverless.EnsureServerlessServingDeployed).
 			WithData(
 				serverless.ServingDefaultValues,
 				serverless.ServingIngressDomain,
