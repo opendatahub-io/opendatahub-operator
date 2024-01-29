@@ -89,8 +89,12 @@ rules:
   resources:
   - apiservices
   verbs:
+  - create
+  - delete
   - get
   - list
+  - patch
+  - update
   - watch
 - apiGroups:
   - apps
@@ -669,6 +673,15 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - features.opendatahub.io
+  resources:
+  - featuretrackers/status
+  verbs:
+  - delete
+  - get
+  - patch
+  - update
 - apiGroups:
   - image.openshift.io
   resources:
@@ -1508,6 +1521,66 @@ rules:
   - create
   - delete
   - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - x-k8s.io
+  resources:
+  - admissioncheck
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - x-k8s.io
+  resources:
+  - config
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - x-k8s.io
+  resources:
+  - localqueue
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - x-k8s.io
+  resources:
+  - resourceflavor
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - x-k8s.io
+  resources:
+  - workload
+  verbs:
+  - create
+  - delete
   - get
   - list
   - patch

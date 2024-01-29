@@ -246,6 +246,8 @@ spec:
       managementState: Managed
     kserve:
       managementState: Managed
+    kueue:
+      managementState: Managed
     modelmeshserving:
       managementState: Managed
     ray:
