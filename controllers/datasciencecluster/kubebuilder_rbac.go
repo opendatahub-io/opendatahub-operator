@@ -84,11 +84,6 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="ray.io",resources=rayjobs,verbs=create;delete;list;update;watch;patch;get
 // +kubebuilder:rbac:groups="ray.io",resources=rayclusters,verbs=create;delete;list;patch;get
 
-// +kubebuilder:rbac:groups="x-k8s.io",resources=localqueue,verbs=create;delete;list;watch;update;patch;get
-// +kubebuilder:rbac:groups="x-k8s.io",resources=workload,verbs=create;delete;list;watch;update;patch;get
-// +kubebuilder:rbac:groups="x-k8s.io",resources=resourceflavor,verbs=create;delete;list;watch;update;patch;get
-// +kubebuilder:rbac:groups="x-k8s.io",resources=config,verbs=create;delete;list;watch;update;patch;get
-// +kubebuilder:rbac:groups="x-k8s.io",resources=admissioncheck,verbs=create;delete;list;watch;update;patch;get
 // +kubebuilder:rbac:groups="apiregistration.k8s.io",resources=apiservices,verbs=create;delete;list;watch;update;patch;get
 
 // +kubebuilder:rbac:groups="operator.openshift.io",resources=consoles,verbs=list;watch;patch;delete
