@@ -3,11 +3,12 @@ set -e
 
 GITHUB_URL="https://github.com/"
 
-# component: notebook, dsp, kserve, dashbaord, cf/ray, trustyai, modelmesh.
+# component: notebook, dsp, kserve, dashbaord, cf/ray/kueue, trustyai, modelmesh.
 # in the format of "repo-org:repo-name:branch-name:source-folder:target-folder".
 declare -A COMPONENT_MANIFESTS=(
     ["codeflare"]="opendatahub-io:codeflare-operator:main:config:codeflare"
     ["ray"]="opendatahub-io:kuberay:master:ray-operator/config:ray"
+    ["kueue"]="opendatahub-io:kueue:dev:config:kueue"
     ["data-science-pipelines-operator"]="opendatahub-io:data-science-pipelines-operator:main:config:data-science-pipelines-operator"
     ["odh-dashboard"]="opendatahub-io:odh-dashboard:incubation:manifests:dashboard"
     ["kf-notebook-controller"]="opendatahub-io:kubeflow:v1.7-branch:components/notebook-controller/config:odh-notebook-controller/kf-notebook-controller"
