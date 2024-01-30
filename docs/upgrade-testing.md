@@ -8,7 +8,7 @@ IMAGE_OWNER ?= IMAGE_OWNER
 VERSION ?= VERSION
 ```
 
-2. Add `replaces` proprty in [opendatahub-operator.clusterserviceversion.yaml](https://github.com/opendatahub-io/opendatahub-operator/blob/incubation/config/manifests/bases/opendatahub-operator.clusterserviceversion.yaml) and add version which you would like to upgrade with next version
+2. Add `replaces` property in [opendatahub-operator.clusterserviceversion.yaml](https://github.com/opendatahub-io/opendatahub-operator/blob/114a137d6289c748d421e7560f6f4fdf925e1b1f/config/manifests/bases/opendatahub-operator.clusterserviceversion.yaml) and add version which you would like to upgrade with next version
 
 ```
 replaces: opendatahub-operator.v2.4.0
