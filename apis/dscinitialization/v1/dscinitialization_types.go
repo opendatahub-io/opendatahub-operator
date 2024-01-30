@@ -45,9 +45,15 @@ type DSCInitializationSpec struct {
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=3
 	// +optional
 	ServiceMesh infrav1.ServiceMeshSpec `json:"serviceMesh,omitempty"`
+	// A custom CA bundle that will be available for  all  components in the
+	// Data Science Cluster(DSC). This bundle will be stored in odh-trusted-ca-bundle
+	// ConfigMap .data.odh-ca-bundle.crt within the DSCInitializtion.spec.ApplicationsNamespace.
+	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=4
+	// +optional
+	TrustedCABundle string `json:"trustedCABundle,omitempty"`
 	// Internal development useful field to test customizations.
 	// This is not recommended to be used in production environment.
-	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=4
+	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=5
 	// +optional
 	DevFlags *DevFlags `json:"devFlags,omitempty"`
 }
