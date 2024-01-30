@@ -61,7 +61,7 @@ To deploy ODH components seamlessly, ODH operator will watch two CRDs:
           workbenches:
             managementState: Managed
           trustyai:
-            managementState: Removed
+            managementState: Managed
     ```
 
 2. Enable only Dashboard and Workbenches(Jupyter Notebooks)

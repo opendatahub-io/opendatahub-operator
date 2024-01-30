@@ -171,7 +171,7 @@ func CreateDefaultDSC(cli client.Client, _ deploy.Platform) error {
 					Component: components.Component{ManagementState: operatorv1.Removed},
 				},
 				TrustyAI: trustyai.TrustyAI{
-					Component: components.Component{ManagementState: operatorv1.Removed},
+					Component: components.Component{ManagementState: operatorv1.Managed},
 				},
 			},
 		},
