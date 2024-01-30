@@ -18,11 +18,13 @@ import (
 )
 
 const (
-	workingNamespace     = "test-operator-ns"
-	applicationNamespace = "test-application-ns"
-	configmapName        = "odh-common-config"
-	monitoringNamespace  = "test-monitoring-ns"
-	readyPhase           = "Ready"
+	workingNamespace      = "test-operator-ns"
+	applicationNamespace  = "test-application-ns"
+	configmapName         = "odh-common-config"
+	caBundleConfigmapName = "odh-trusted-ca-bundle"
+	caBundleDataField     = "odh-ca-bundle.crt"
+	monitoringNamespace   = "test-monitoring-ns"
+	readyPhase            = "Ready"
 )
 
 var _ = Describe("DataScienceCluster initialization", func() {
@@ -100,6 +102,16 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			Expect(foundConfigMap.Name).To(Equal(configmapName))
 			Expect(foundConfigMap.Namespace).To(Equal(applicationNamespace))
 			expectedConfigmapData := map[string]string{"namespace": applicationNamespace}
+			Expect(foundConfigMap.Data).To(Equal(expectedConfigmapData))
+		})
+
+		It("Should create the trusted CA Bundle configmap", func() {
+			// then
+			foundConfigMap := &corev1.ConfigMap{}
+			Eventually(objectExists(caBundleConfigmapName, applicationNamespace, foundConfigMap), timeout, interval).Should(BeTrue())
+			Expect(foundConfigMap.Name).To(Equal(caBundleConfigmapName))
+			Expect(foundConfigMap.Namespace).To(Equal(applicationNamespace))
+			expectedConfigmapData := map[string]string{caBundleDataField: ""}
 			Expect(foundConfigMap.Data).To(Equal(expectedConfigmapData))
 		})
 	})
@@ -355,6 +367,7 @@ func createDSCI(appName string, enableMonitoring operatorv1.ManagementState, mon
 				Namespace:       monitoringNS,
 				ManagementState: enableMonitoring,
 			},
+			TrustedCABundle: "",
 		},
 	}
 }
