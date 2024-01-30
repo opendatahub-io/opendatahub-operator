@@ -95,8 +95,8 @@ E2E_TEST_FLAGS = "--skip-deletion=false" -timeout 15m # See README.md, default g
 # see target "image-build"
 IMAGE_BUILD_FLAGS = --build-arg USE_LOCAL=false
 
-.PHONY: all
-all: build
+.PHONY: default
+default: lint unit-test build
 
 ##@ General
 
