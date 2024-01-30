@@ -101,9 +101,7 @@ require (
 
 replace (
 	github.com/go-yaml/yaml => github.com/go-yaml/yaml v2.2.8+incompatible
-	github.com/mattn/go-sqlite3 => github.com/mattn/go-sqlite3 v1.14.18
 	github.com/tektoncd/pipeline => github.com/tektoncd/pipeline v0.12.0
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp => go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.44.0
 	go.uber.org/multierr => go.uber.org/multierr v1.6.0
 	k8s.io/api => k8s.io/api v0.26.0
 	k8s.io/client-go => k8s.io/client-go v0.26.0
