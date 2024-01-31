@@ -14,6 +14,12 @@ import (
 //go:embed templates
 var embeddedFiles embed.FS
 
+const (
+	BaseDir        = "templates"
+	ServiceMeshDir = BaseDir + string(filepath.Separator) + "servicemesh"
+	ServerlessDir  = BaseDir + string(filepath.Separator) + "serverless"
+)
+
 type manifest struct {
 	name,
 	path,

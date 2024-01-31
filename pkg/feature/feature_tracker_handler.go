@@ -5,12 +5,10 @@ import (
 	"fmt"
 
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 )
 
 // createFeatureTracker instantiates FeatureTracker for a given Feature. It's a cluster-scoped resource used
@@ -52,18 +50,11 @@ func removeFeatureTracker(f *Feature) error {
 }
 
 func (f *Feature) getFeatureTracker() (*featurev1.FeatureTracker, error) {
-	tracker := &featurev1.FeatureTracker{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "features.opendatahub.io/v1",
-			Kind:       "FeatureTracker",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: f.Spec.AppNamespace + "-" + common.TrimToRFC1123Name(f.Name),
-		},
-		Spec: featurev1.FeatureTrackerSpec{
-			Source:       *f.Spec.Source,
-			AppNamespace: f.Spec.AppNamespace,
-		},
+	tracker := featurev1.NewFeatureTracker(f.Name, f.Spec.AppNamespace)
+
+	tracker.Spec = featurev1.FeatureTrackerSpec{
+		Source:       *f.Spec.Source,
+		AppNamespace: f.Spec.AppNamespace,
 	}
 
 	err := f.Client.Get(context.Background(), client.ObjectKeyFromObject(tracker), tracker)

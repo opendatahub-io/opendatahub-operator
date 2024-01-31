@@ -109,7 +109,7 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resC
 			}
 		}
 		// check on dependent operators if all installed in cluster
-		dependOpsErrors := checkDepedentOps(cli).ErrorOrNil()
+		dependOpsErrors := checkDependentOperators(cli).ErrorOrNil()
 		if dependOpsErrors != nil {
 			return dependOpsErrors
 		}
@@ -187,13 +187,9 @@ func (k *Kserve) configureServerless(instance *dsciv1.DSCInitializationSpec) err
 			return fmt.Errorf("ServiceMesh is need to set to 'Managed' in DSCI CR, it is required by KServe serving field")
 		}
 
-		serverlessInitializer := feature.ComponentFeaturesInitializer(k, instance, k.configureServerlessFeatures())
+		serverlessFeatures := feature.ComponentFeaturesHandler(k, instance, k.configureServerlessFeatures())
 
-		if err := serverlessInitializer.Prepare(); err != nil {
-			return err
-		}
-
-		if err := serverlessInitializer.Apply(); err != nil {
+		if err := serverlessFeatures.Apply(); err != nil {
 			return err
 		}
 	}
@@ -201,16 +197,12 @@ func (k *Kserve) configureServerless(instance *dsciv1.DSCInitializationSpec) err
 }
 
 func (k *Kserve) removeServerlessFeatures(instance *dsciv1.DSCInitializationSpec) error {
-	serverlessInitializer := feature.ComponentFeaturesInitializer(k, instance, k.configureServerlessFeatures())
+	serverlessFeatures := feature.ComponentFeaturesHandler(k, instance, k.configureServerlessFeatures())
 
-	if err := serverlessInitializer.Prepare(); err != nil {
-		return err
-	}
-
-	return serverlessInitializer.Delete()
+	return serverlessFeatures.Delete()
 }
 
-func checkDepedentOps(cli client.Client) *multierror.Error {
+func checkDependentOperators(cli client.Client) *multierror.Error {
 	var multiErr *multierror.Error
 
 	if found, err := deploy.OperatorExists(cli, ServiceMeshOperator); err != nil {

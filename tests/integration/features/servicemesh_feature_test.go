@@ -13,7 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
@@ -66,35 +66,54 @@ spec:
 `
 
 var _ = Describe("Service Mesh feature", func() {
-	var testFeature *feature.Feature
-	var objectCleaner *envtestutil.Cleaner
+
+	var (
+		dsci          *dsciv1.DSCInitialization
+		objectCleaner *envtestutil.Cleaner
+	)
 
 	BeforeEach(func() {
 		c, err := client.New(envTest.Config, client.Options{})
 		Expect(err).ToNot(HaveOccurred())
-
 		objectCleaner = envtestutil.CreateCleaner(c, envTest.Config, timeout, interval)
 
-		testFeatureName := "servicemesh-feature"
-		namespace := envtestutil.AppendRandomNameTo(testFeatureName)
+		namespace := envtestutil.AppendRandomNameTo("service-mesh-settings")
 
-		dsciSpec := newDSCInitializationSpec(namespace)
-		source := envtestutil.NewSource(featurev1.DSCIType, "default")
-		testFeature, err = feature.CreateFeature(testFeatureName).
-			With(dsciSpec).
-			From(source).
-			UsingConfig(envTest.Config).
-			Load()
+		dsci = newDSCInitialization(namespace)
 
 		Expect(err).ToNot(HaveOccurred())
 	})
 
+	AfterEach(func() {
+
+	})
+
 	Describe("preconditions", func() {
+
 		When("operator is not installed", func() {
-			It("operator presence check should return an error", func() {
-				Expect(servicemesh.EnsureServiceMeshOperatorInstalled(testFeature)).To(HaveOccurred())
+
+			It("should fail using precondition check", func() {
+				// given
+				featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
+					verificationFeatureErr := feature.CreateFeature("no-serverless-operator-check").
+						For(handler).
+						UsingConfig(envTest.Config).
+						PreConditions(servicemesh.EnsureServiceMeshOperatorInstalled).
+						Load()
+
+					Expect(verificationFeatureErr).ToNot(HaveOccurred())
+
+					return nil
+				})
+
+				// when
+				applyErr := featuresHandler.Apply()
+
+				// then
+				Expect(applyErr).To(MatchError(ContainSubstring("customresourcedefinitions.apiextensions.k8s.io \"servicemeshcontrolplanes.maistra.io\" not found")))
 			})
 		})
+
 		When("operator is installed", func() {
 			var smcpCrdObj *apiextensionsv1.CustomResourceDefinition
 
@@ -110,32 +129,85 @@ var _ = Describe("Service Mesh feature", func() {
 				err = envtest.WaitForCRDs(envTest.Config, []*apiextensionsv1.CustomResourceDefinition{smcpCrdObj}, crdOptions)
 				Expect(err).ToNot(HaveOccurred())
 			})
+
 			AfterEach(func() {
 				// Delete SMCP CRD
 				objectCleaner.DeleteAll(smcpCrdObj)
 			})
-			It("operator presence check should succeed", func() {
-				Expect(servicemesh.EnsureServiceMeshOperatorInstalled(testFeature)).To(Succeed())
+
+			It("should succeed using precondition check", func() {
+				// when
+				featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
+					verificationFeatureErr := feature.CreateFeature("service-mesh-operator-check").
+						For(handler).
+						UsingConfig(envTest.Config).
+						PreConditions(servicemesh.EnsureServiceMeshOperatorInstalled).
+						Load()
+
+					Expect(verificationFeatureErr).ToNot(HaveOccurred())
+
+					return nil
+				})
+
+				// when
+				Expect(featuresHandler.Apply()).To(Succeed())
+
 			})
+
 			It("should find installed Service Mesh Control Plane", func() {
+				// given
 				c, err := client.New(envTest.Config, client.Options{})
 				Expect(err).ToNot(HaveOccurred())
 
 				ns := envtestutil.AppendRandomNameTo(testNamespacePrefix)
-				nsResource := createNamespace(ns)
+				nsResource := newNamespace(ns)
 				Expect(c.Create(context.Background(), nsResource)).To(Succeed())
 				defer objectCleaner.DeleteAll(nsResource)
 
 				createServiceMeshControlPlane("test-name", ns)
+				dsci.Spec.ServiceMesh.ControlPlane.Namespace = ns
+				dsci.Spec.ServiceMesh.ControlPlane.Name = "test-name"
 
-				testFeature.Spec.ControlPlane.Namespace = ns
-				testFeature.Spec.ControlPlane.Name = "test-name"
-				Expect(servicemesh.EnsureServiceMeshInstalled(testFeature)).To(Succeed())
+				// when
+				featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
+					verificationFeatureErr := feature.CreateFeature("service-mesh-control-plane-check").
+						For(handler).
+						UsingConfig(envTest.Config).
+						PreConditions(servicemesh.EnsureServiceMeshInstalled).
+						Load()
+
+					Expect(verificationFeatureErr).ToNot(HaveOccurred())
+
+					return nil
+				})
+
+				// then
+				Expect(featuresHandler.Apply()).To(Succeed())
 			})
+
 			It("should fail to find Service Mesh Control Plane if not present", func() {
-				Expect(servicemesh.EnsureServiceMeshInstalled(testFeature)).ToNot(Succeed())
+				// given
+				dsci.Spec.ServiceMesh.ControlPlane.Name = "test-name"
+
+				// when
+				featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
+					verificationFeatureErr := feature.CreateFeature("no-service-mesh-control-plane-check").
+						For(handler).
+						UsingConfig(envTest.Config).
+						PreConditions(servicemesh.EnsureServiceMeshInstalled).
+						Load()
+
+					Expect(verificationFeatureErr).ToNot(HaveOccurred())
+
+					return nil
+				})
+
+				// then
+				Expect(featuresHandler.Apply()).To(MatchError(ContainSubstring("failed to find Service Mesh Control Plane")))
 			})
+
 		})
+
 	})
 })
 
