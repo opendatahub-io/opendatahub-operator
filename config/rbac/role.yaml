@@ -676,6 +676,15 @@ rules:
   - update
   - watch
 - apiGroups:
+  - features.opendatahub.io
+  resources:
+  - featuretrackers/status
+  verbs:
+  - delete
+  - get
+  - patch
+  - update
+- apiGroups:
   - image.openshift.io
   resources:
   - imagestreams
