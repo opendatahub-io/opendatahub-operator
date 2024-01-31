@@ -18,7 +18,7 @@ import (
 
 var (
 	ComponentName = "kueue"
-	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/default"
+	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/rhoai" // same path for both odh and rhoai
 )
 
 // Verifies that Kueue implements ComponentInterface.
