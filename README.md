@@ -254,6 +254,8 @@ spec:
       managementState: Managed
     trustyai:
       managementState: Managed
+    modelregistry:
+      managementState: Managed
 ```
 
 2. Enable only Dashboard and Workbenches

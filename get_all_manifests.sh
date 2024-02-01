@@ -3,7 +3,7 @@ set -e
 
 GITHUB_URL="https://github.com/"
 
-# component: notebook, dsp, kserve, dashbaord, cf/ray, trustyai, modelmesh.
+# component: notebook, dsp, kserve, dashbaord, cf/ray, trustyai, modelmesh, modelregistry.
 # in the format of "repo-org:repo-name:branch-name:source-folder:target-folder".
 declare -A COMPONENT_MANIFESTS=(
     ["codeflare"]="opendatahub-io:codeflare-operator:main:config:codeflare"
@@ -17,6 +17,7 @@ declare -A COMPONENT_MANIFESTS=(
     ["model-mesh"]="opendatahub-io:modelmesh-serving:release-0.11.0:config:model-mesh"
     ["odh-model-controller"]="opendatahub-io:odh-model-controller:release-0.11.0:config:odh-model-controller"
     ["kserve"]="opendatahub-io:kserve:release-v0.11.0:config:kserve"
+    ["modelregistry"]="opendatahub-io:model-registry-operator:main:config:model-registry-operator"
 )
 
 # Allow overwriting repo using flags component=repo
