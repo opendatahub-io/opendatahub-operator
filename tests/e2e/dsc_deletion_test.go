@@ -107,7 +107,11 @@ func (tc *testContext) testAllApplicationDeletion() error {
 		return err
 	}
 
-	if err = tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.TrustyAI)); err != nil { //nolint:revive,nolintlint
+	if err := tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.Kueue)); err != nil {
+		return err
+	}
+
+	if err := tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.TrustyAI)); err != nil { //nolint:revive,nolintlint
 		return err
 	}
 

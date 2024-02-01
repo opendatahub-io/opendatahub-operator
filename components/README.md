@@ -62,3 +62,4 @@ can be found [here](https://github.com/opendatahub-io/opendatahub-operator/tree/
 - [Workbenches](https://github.com/opendatahub-io/opendatahub-operator/tree/main/components/workbenches)
 - [TrustyAI](https://github.com/opendatahub-io/opendatahub-operator/tree/main/components/trustyai)
 - [ModelRegistry](https://github.com/opendatahub-io/opendatahub-operator/tree/main/components/modelregistry)
+- [Kueue](https://github.com/opendatahub-io/kueue)
