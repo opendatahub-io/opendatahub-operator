@@ -5,7 +5,7 @@ GITHUB_URL="https://github.com/"
 # update to use different git repo for legacy manifests
 MANIFEST_ORG="red-hat-data-services"
 
-# component: notebook, dsp, kserve, dashbaord, cf/ray/kueue/trainingoperator, trustyai, modelmesh.
+# component: notebook, dsp, kserve, dashbaord, cf/ray/kueue/trainingoperator, trustyai, modelmesh, modelregistry
 # in the format of "repo-org:repo-name:ref-name:source-folder:target-folder".
 declare -A COMPONENT_MANIFESTS=(
     ["codeflare"]="red-hat-data-services:codeflare-operator:rhoai-2.14:config:codeflare"
@@ -21,6 +21,7 @@ declare -A COMPONENT_MANIFESTS=(
     ["kserve"]="red-hat-data-services:kserve:rhoai-2.14:config:kserve"
     ["odh-dashboard"]="red-hat-data-services:odh-dashboard:rhoai-2.14:manifests:dashboard"
     ["trainingoperator"]="red-hat-data-services:training-operator:rhoai-2.14:manifests:trainingoperator"
+    ["modelregistry"]="red-hat-data-services:model-registry-operator:rhoai-2.14:config:model-registry-operator"
 )
 
 # Allow overwriting repo using flags component=repo

@@ -57,6 +57,7 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/certconfigmapgenerator"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
@@ -207,7 +208,12 @@ func main() { //nolint:funlen,maintidx
 		os.Exit(1)
 	}
 
-	(&webhook.OpenDataHubWebhook{
+	(&webhook.OpenDataHubValidatingWebhook{
+		Client:  mgr.GetClient(),
+		Decoder: admission.NewDecoder(mgr.GetScheme()),
+	}).SetupWithManager(mgr)
+
+	(&webhook.OpenDataHubMutatingWebhook{
 		Client:  mgr.GetClient(),
 		Decoder: admission.NewDecoder(mgr.GetScheme()),
 	}).SetupWithManager(mgr)
@@ -345,13 +351,12 @@ func createDeploymentCacheConfig(platform cluster.Platform) map[string]cache.Con
 	case cluster.ManagedRhods: // no need workbench NS, only SFS no Deployment
 		namespaceConfigs["redhat-ods-monitoring"] = cache.Config{}
 		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
-		//TODO: if ModelReg has a RHOAI NS
 	case cluster.SelfManagedRhods:
 		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
-		//TODO: if ModelReg has a RHOAI NS
 	default:
 		namespaceConfigs["opendatahub"] = cache.Config{}
-		namespaceConfigs["odh-model-registries"] = cache.Config{}
 	}
+	// for modelregistry namespace
+	namespaceConfigs[modelregistry.DefaultModelRegistriesNamespace] = cache.Config{}
 	return namespaceConfigs
 }

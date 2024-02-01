@@ -36,6 +36,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kueue"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trainingoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
@@ -95,6 +96,9 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 					Component: components.Component{ManagementState: operatorv1.Removed},
 				},
 				TrustyAI: trustyai.TrustyAI{
+					Component: components.Component{ManagementState: operatorv1.Removed},
+				},
+				ModelRegistry: modelregistry.ModelRegistry{
 					Component: components.Component{ManagementState: operatorv1.Removed},
 				},
 			},

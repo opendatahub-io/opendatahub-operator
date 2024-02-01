@@ -47,6 +47,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
@@ -130,7 +131,12 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	(&webhook.OpenDataHubWebhook{
+	(&webhook.OpenDataHubValidatingWebhook{
+		Client:  mgr.GetClient(),
+		Decoder: admission.NewDecoder(mgr.GetScheme()),
+	}).SetupWithManager(mgr)
+
+	(&webhook.OpenDataHubMutatingWebhook{
 		Client:  mgr.GetClient(),
 		Decoder: admission.NewDecoder(mgr.GetScheme()),
 	}).SetupWithManager(mgr)
@@ -199,6 +205,14 @@ var _ = Describe("DSC/DSCI webhook", func() {
 		Expect(k8sClient.Create(ctx, dsciInstance)).Should(Succeed())
 		Expect(k8sClient.Delete(ctx, dscInstance)).Should(Succeed())
 		Expect(k8sClient.Delete(ctx, dsciInstance)).Should(Succeed())
+	})
+
+	It("Should set defaults in DSC instance", func(ctx context.Context) {
+		dscInstance := newDSC(nameBase+"-dsc-1", namespace)
+		Expect(k8sClient.Create(ctx, dscInstance)).Should(Succeed())
+		Expect(dscInstance.Spec.Components.ModelRegistry.RegistriesNamespace).
+			Should(Equal(modelregistry.DefaultModelRegistriesNamespace))
+		Expect(clearInstance(ctx, dscInstance)).Should(Succeed())
 	})
 })
 

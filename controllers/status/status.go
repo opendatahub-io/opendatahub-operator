@@ -211,3 +211,8 @@ func SetComponentCondition(conditions *[]conditionsv1.Condition, component strin
 func RemoveComponentCondition(conditions *[]conditionsv1.Condition, component string) {
 	conditionsv1.RemoveStatusCondition(conditions, conditionsv1.ConditionType(component+ReadySuffix))
 }
+
+// ModelRegistryStatus struct holds the status for the ModelRegistry component.
+type ModelRegistryStatus struct {
+	RegistriesNamespace string `json:"registriesNamespace,omitempty"`
+}

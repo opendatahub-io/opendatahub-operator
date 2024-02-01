@@ -39,4 +39,7 @@ spec:
     workbenches:
       managementState: "Managed"
     trustyai:
+      managementState: "Removed"      
+    modelregistry:
       managementState: "Removed"
+      registriesNamespace: "odh-model-registries"

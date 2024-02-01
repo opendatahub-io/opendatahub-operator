@@ -132,6 +132,8 @@ func (c *Component) UpdatePrometheusConfig(_ client.Client, logger logr.Logger, 
 			TrustyAIARules         string `yaml:"trustyai-alerting.rules"`
 			KserveRRules           string `yaml:"kserve-recording.rules"`
 			KserveARules           string `yaml:"kserve-alerting.rules"`
+			ModelRegistryRRules    string `yaml:"model-registry-operator-recording.rules"`
+			ModelRegistryARules    string `yaml:"model-registry-operator-alerting.rules"`
 		} `yaml:"data"`
 	}
 	var configMap ConfigMap

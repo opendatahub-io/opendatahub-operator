@@ -46,6 +46,10 @@ metadata:
               "modelmeshserving": {
                 "managementState": "Managed"
               },
+              "modelregistry": {
+                "managementState": "Removed"
+                "registriesNamespace": "rhoai-model-registries"
+              },
               "ray": {
                 "managementState": "Managed"
               },
@@ -1033,6 +1037,32 @@ spec:
           - use
           - watch
         - apiGroups:
+          - modelregistry.opendatahub.io
+          resources:
+          - modelregistries
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - modelregistry.opendatahub.io
+          resources:
+          - modelregistries/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - modelregistry.opendatahub.io
+          resources:
+          - modelregistries/status
+          verbs:
+          - get
+          - patch
+          - update
+        - apiGroups:
           - monitoring.coreos.com
           resources:
           - alertmanagerconfigs
@@ -1800,6 +1830,26 @@ spec:
     name: Red Hat
   version: 2.14.0
   webhookdefinitions:
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: redhat-ods-operator-controller-manager
+    failurePolicy: Fail
+    generateName: mutate.operator.opendatahub.io
+    rules:
+    - apiGroups:
+      - datasciencecluster.opendatahub.io
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - datascienceclusters
+    sideEffects: None
+    targetPort: 9443
+    type: MutatingAdmissionWebhook
+    webhookPath: /mutate-opendatahub-io-v1
   - admissionReviewVersions:
     - v1
     containerPort: 443

@@ -505,6 +505,32 @@ rules:
   - use
   - watch
 - apiGroups:
+  - modelregistry.opendatahub.io
+  resources:
+  - modelregistries
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - modelregistry.opendatahub.io
+  resources:
+  - modelregistries/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - modelregistry.opendatahub.io
+  resources:
+  - modelregistries/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - monitoring.coreos.com
   resources:
   - alertmanagerconfigs

@@ -372,6 +372,31 @@ data:
           target_label: __address__
           replacement: ${1}:8080
 
+    - job_name: 'Model Registry Operator'
+      honor_labels: true
+      metrics_path: /metrics
+      scheme: https
+      tls_config:
+        insecure_skip_verify: true
+      params:
+        module: [http_2xx]
+      authorization:
+        credentials_file: /run/secrets/kubernetes.io/serviceaccount/token
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - <odh_application_namespace>
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          regex: ^(model-registry-operator-controller-manager-metrics-service)$
+          target_label: kubernetes_name
+          action: keep
+        - source_labels: [__address__]
+          regex: (.+):(\d+)
+          target_label: __address__
+          replacement: ${1}:8443
+
     - job_name: 'RHOAI Metrics'
       honor_labels: true
       scheme: http
@@ -1577,3 +1602,92 @@ data:
           labels:
             severity: warning
             instance: trustyai-service-operator-controller-manager
+
+  model-registry-operator-recording.rules: |
+    groups:
+      - name: SLOs - Model Registry Operator
+        rules:
+        - expr: |
+            absent(up{job=~'Model Registry Operator'}) * 0 or vector(1)
+          labels:
+            instance: model-registry-operator
+          record: probe_success
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="model-registry-operator"}[1d]))
+          labels:
+            instance: model-registry-operator
+          record: probe_success:burnrate1d
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="model-registry-operator"}[1h]))
+          labels:
+            instance: model-registry-operator
+          record: probe_success:burnrate1h
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="model-registry-operator"}[2h]))
+          labels:
+            instance: model-registry-operator
+          record: probe_success:burnrate2h
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="model-registry-operator"}[30m]))
+          labels:
+            instance: model-registry-operator
+          record: probe_success:burnrate30m
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="model-registry-operator"}[3d]))
+          labels:
+            instance: model-registry-operator
+          record: probe_success:burnrate3d
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="model-registry-operator"}[5m]))
+          labels:
+            instance: model-registry-operator
+          record: probe_success:burnrate5m
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="model-registry-operator"}[6h]))
+          labels:
+            instance: model-registry-operator
+          record: probe_success:burnrate6h
+
+  model-registry-operator-alerting.rules: |
+    groups:
+      - name: SLOs-probe_success_model_controller
+        rules:
+        - alert: Model Registry Operator Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-model-registry-operator-probe-success-burn-rate.md"
+            summary: Model Registry Operator Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate5m{instance=~"model-registry-operator"}) by (instance) > (14.40 * (1-0.98000))
+            and
+            sum(probe_success:burnrate1h{instance=~"model-registry-operator"}) by (instance) > (14.40 * (1-0.98000))
+          for: 2m
+          labels:
+            severity: critical
+            namespace: redhat-ods-applications
+        - alert: Model Registry Operator Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-model-registry-operator-probe-success-burn-rate.md"
+            summary: Model Registry Operator Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate30m{instance=~"model-registry-operator"}) by (instance) > (6.00 * (1-0.98000))
+            and
+            sum(probe_success:burnrate6h{instance=~"model-registry-operator"}) by (instance) > (6.00 * (1-0.98000))
+          for: 15m
+          labels:
+            severity: critical
+            namespace: redhat-ods-applications
+        - alert: Model Registry Operator Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-model-registry-operator-probe-success-burn-rate.md"
+            summary: Model Registry Operator Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate2h{instance=~"model-registry-operator"}) by (instance) > (3.00 * (1-0.98000))
+            and
+            sum(probe_success:burnrate1d{instance=~"model-registry-operator"}) by (instance) > (3.00 * (1-0.98000))
+          for: 1h
+          labels:
+            severity: warning
+            namespace: redhat-ods-applications

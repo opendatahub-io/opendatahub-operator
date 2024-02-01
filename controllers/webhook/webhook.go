@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/http"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	admissionv1 "k8s.io/api/admission/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -29,6 +30,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
@@ -37,12 +40,12 @@ var log = ctrl.Log.WithName("rhoai-controller-webhook")
 //+kubebuilder:webhook:path=/validate-opendatahub-io-v1,mutating=false,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io;dscinitialization.opendatahub.io,resources=datascienceclusters;dscinitializations,verbs=create;delete,versions=v1,name=operator.opendatahub.io,admissionReviewVersions=v1
 //nolint:lll
 
-type OpenDataHubWebhook struct {
+type OpenDataHubValidatingWebhook struct {
 	Client  client.Client
 	Decoder *admission.Decoder
 }
 
-func (w *OpenDataHubWebhook) SetupWithManager(mgr ctrl.Manager) {
+func (w *OpenDataHubValidatingWebhook) SetupWithManager(mgr ctrl.Manager) {
 	hookServer := mgr.GetWebhookServer()
 	odhWebhook := &webhook.Admission{
 		Handler: w,
@@ -74,7 +77,7 @@ func denyCountGtZero(ctx context.Context, cli client.Client, gvk schema.GroupVer
 	return admission.Allowed("")
 }
 
-func (w *OpenDataHubWebhook) checkDupCreation(ctx context.Context, req admission.Request) admission.Response {
+func (w *OpenDataHubValidatingWebhook) checkDupCreation(ctx context.Context, req admission.Request) admission.Response {
 	switch req.Kind.Kind {
 	case "DataScienceCluster", "DSCInitialization":
 	default:
@@ -93,7 +96,7 @@ func (w *OpenDataHubWebhook) checkDupCreation(ctx context.Context, req admission
 		fmt.Sprintf("Only one instance of %s object is allowed", req.Kind.Kind))
 }
 
-func (w *OpenDataHubWebhook) checkDeletion(ctx context.Context, req admission.Request) admission.Response {
+func (w *OpenDataHubValidatingWebhook) checkDeletion(ctx context.Context, req admission.Request) admission.Response {
 	if req.Kind.Kind == "DataScienceCluster" {
 		return admission.Allowed("")
 	}
@@ -103,7 +106,7 @@ func (w *OpenDataHubWebhook) checkDeletion(ctx context.Context, req admission.Re
 		fmt.Sprintln("Cannot delete DSCI object when DSC object still exists"))
 }
 
-func (w *OpenDataHubWebhook) Handle(ctx context.Context, req admission.Request) admission.Response {
+func (w *OpenDataHubValidatingWebhook) Handle(ctx context.Context, req admission.Request) admission.Response {
 	var resp admission.Response
 	resp.Allowed = true // initialize Allowed to be true in case Operation falls into "default" case
 
@@ -120,4 +123,47 @@ func (w *OpenDataHubWebhook) Handle(ctx context.Context, req admission.Request) 
 	}
 
 	return admission.Allowed(fmt.Sprintf("Operation %s on %s allowed", req.Operation, req.Kind.Kind))
+}
+
+//+kubebuilder:webhook:path=/mutate-opendatahub-io-v1,mutating=true,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io,resources=datascienceclusters,verbs=create;update,versions=v1,name=mutate.operator.opendatahub.io,admissionReviewVersions=v1
+//nolint:lll
+
+// OpenDataHubMutatingWebhook is a mutating webhook
+// It currently only sets defaults for modelregiestry in datascienceclusters.
+type OpenDataHubMutatingWebhook struct {
+	Client  client.Client
+	Decoder *admission.Decoder
+}
+
+func (w *OpenDataHubMutatingWebhook) SetupWithManager(mgr ctrl.Manager) {
+	hookServer := mgr.GetWebhookServer()
+	odhWebhook := &webhook.Admission{
+		Handler: w,
+	}
+	hookServer.Register("/mutate-opendatahub-io-v1", odhWebhook)
+}
+
+func (w *OpenDataHubMutatingWebhook) Handle(ctx context.Context, req admission.Request) admission.Response {
+	var resp admission.Response
+	resp.Allowed = true // initialize Allowed to be true in case Operation falls into "default" case
+
+	dsc := &dscv1.DataScienceCluster{}
+	err := w.Decoder.Decode(req, dsc)
+	if err != nil {
+		return admission.Denied(fmt.Sprintf("failed to decode request body: %s", err))
+	}
+	resp = w.setDSCDefaults(ctx, dsc)
+	return resp
+}
+
+func (w *OpenDataHubMutatingWebhook) setDSCDefaults(_ context.Context, dsc *dscv1.DataScienceCluster) admission.Response {
+	// set default registriesNamespace if empty
+	if len(dsc.Spec.Components.ModelRegistry.RegistriesNamespace) == 0 && dsc.Spec.Components.ModelRegistry.ManagementState == operatorv1.Managed {
+		return admission.Patched("Property registriesNamespace set to default value", webhook.JSONPatchOp{
+			Operation: "replace",
+			Path:      "spec.components.modelregistry.registriesNamespace",
+			Value:     modelregistry.DefaultModelRegistriesNamespace,
+		})
+	}
+	return admission.Allowed("")
 }
