@@ -43,6 +43,10 @@ type IngressGatewaySpec struct {
 }
 
 type AuthSpec struct {
+	// Namespace where it is deployed. If not provided, the default is to
+	// use '-auth-provider' suffix on the ApplicationsNamespace of the DSCI (e.g. opendatahub-auth-provider).
+	// The '-applications' suffix is removed from ApplicationsNamespace.
+	Namespace string `json:"namespace,omitempty"`
 	// Authorino holds configuration of Authorino service used as external authorization provider.
 	Authorino AuthorinoSpec `json:"authorino,omitempty"`
 }

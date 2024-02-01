@@ -1,6 +1,8 @@
 package servicemesh
 
 import (
+	"strings"
+
 	"github.com/pkg/errors"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -14,6 +16,16 @@ func ClusterDetails(f *feature.Feature) error {
 		data.Domain = domain
 	} else {
 		return errors.WithStack(err)
+	}
+
+	return nil
+}
+
+func ResolveAuthNamespace(f *feature.Feature) error {
+	dsciAuthNamespace := strings.TrimSpace(f.Spec.AuthorinoConfigs.Namespace)
+
+	if len(dsciAuthNamespace) == 0 {
+		f.Spec.AuthorinoConfigs.Namespace = strings.TrimSuffix(f.Spec.AppNamespace, "-applications") + "-auth-provider"
 	}
 
 	return nil

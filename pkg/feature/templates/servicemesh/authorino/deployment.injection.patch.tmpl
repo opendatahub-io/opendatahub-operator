@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ .AuthorinoConfigs.Name }}
-  namespace: {{ .AppNamespace }}
+  namespace: {{ .AuthorinoConfigs.Namespace }}
 spec:
   template:
     metadata:

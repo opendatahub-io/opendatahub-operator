@@ -111,6 +111,12 @@ spec:
                               type: string
                             type: array
                         type: object
+                      namespace:
+                        description: Namespace where it is deployed. If not provided,
+                          the default is to use '-auth-provider' suffix on the ApplicationsNamespace
+                          of the DSCI (e.g. opendatahub-auth-provider). The '-applications'
+                          suffix is removed from ApplicationsNamespace.
+                        type: string
                     type: object
                   controlPlane:
                     description: ControlPlane holds configuration of Service Mesh

@@ -57,7 +57,8 @@ func (fo *featureSource) From(source featurev1.Source) *featureBuilder {
 			Source:          &source,
 			AppNamespace:    fo.spec.ApplicationsNamespace,
 			AuthorinoConfigs: AuthorinoConfigs{
-				Name: "authorino-mesh-authz-provider",
+				Namespace: fo.spec.ServiceMesh.Auth.Namespace,
+				Name:      "authorino-mesh-authz-provider",
 			},
 		}
 

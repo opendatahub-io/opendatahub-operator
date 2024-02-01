@@ -9,5 +9,5 @@ spec:
       extensionProviders:
       - name: {{ .AppNamespace }}-odh-auth-provider
         envoyExtAuthzGrpc:
-          service: {{ .AuthorinoConfigs.Name }}-authorino-authorization.{{ .AppNamespace }}.svc.cluster.local
+          service: {{ .AuthorinoConfigs.Name }}-authorino-authorization.{{ .AuthorinoConfigs.Namespace }}.svc.cluster.local
           port: 50051

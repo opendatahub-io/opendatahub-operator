@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/dynamic"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 )
@@ -20,6 +21,15 @@ const (
 	interval = 2 * time.Second
 	duration = 5 * time.Minute
 )
+
+func EnsureAuthNamespaceExists(f *feature.Feature) error {
+	if resolveNsErr := ResolveAuthNamespace(f); resolveNsErr != nil {
+		return resolveNsErr
+	}
+
+	_, err := cluster.CreateNamespace(f.Client, f.Spec.AuthorinoConfigs.Namespace)
+	return err
+}
 
 func EnsureServiceMeshOperatorInstalled(f *feature.Feature) error {
 	if err := feature.EnsureCRDIsInstalled("servicemeshcontrolplanes.maistra.io")(f); err != nil {

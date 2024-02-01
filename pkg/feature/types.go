@@ -30,7 +30,8 @@ type OAuth struct {
 }
 
 type AuthorinoConfigs struct {
-	Name string
+	Namespace string
+	Name      string
 }
 
 func ReplaceChar(s string, oldChar, newChar string) string {
