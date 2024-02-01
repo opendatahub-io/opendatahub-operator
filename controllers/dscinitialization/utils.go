@@ -449,16 +449,16 @@ func (r *DSCInitializationReconciler) createOdhTrustedCABundleConfigMap(ctx cont
 			Namespace: name,
 			Labels: map[string]string{
 				"app.kubernetes.io/part-of": "opendatahub-operator",
-				// Label required for the Cluster Network Operator to inject the cluster trusted CA bundle
+				// Label required for the Cluster Network Operator(CNO) to inject the cluster trusted CA bundle
 				// into .data["ca-bundle.crt"]
 				"config.openshift.io/inject-trusted-cabundle": "true",
 			},
 		},
-		Data: map[string]string{caDataFieldName: ""},
+		// Add the DSCInitialzation specified TrustedCABundle to the odh-ca-bundle.crt data field
+		// Additionally, the CNO operator will automatically create and maintain ca-bundle.crt
+		//  based on the application of the label 'config.openshift.io/inject-trusted-cabundle'
+		Data: map[string]string{caDataFieldName: dscInit.Spec.TrustedCABundle},
 	}
-
-	// Add the DSCInitialzation specified TrustedCABundle to the odh-ca-bundle.crt data field
-	desiredConfigMap.Data[caDataFieldName] = dscInit.Spec.TrustedCABundle
 
 	// Create Configmap if doesn't exist
 	foundConfigMap := &corev1.ConfigMap{}
