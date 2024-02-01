@@ -30,9 +30,13 @@ spec:
     }
     modelmeshserving:
       managementState: "Managed"
+    kueue:
+      managementState: "Removed"
     ray:
       managementState: "Removed"
     workbenches:
       managementState: "Managed"
     trustyai:
       managementState: "Managed"
+    modelregistry:
+      managementState: "Removed"

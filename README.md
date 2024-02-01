@@ -246,6 +246,8 @@ spec:
       managementState: Managed
     kserve:
       managementState: Managed
+    kueue:
+      managementState: Managed
     modelmeshserving:
       managementState: Managed
     ray:
@@ -253,6 +255,8 @@ spec:
     workbenches:
       managementState: Managed
     trustyai:
+      managementState: Managed
+    modelregistry:
       managementState: Managed
 ```
 
