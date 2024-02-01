@@ -199,7 +199,7 @@ func main() { //nolint:funlen
 		setupLog.Error(err, "unable to update from legacy operator version")
 	}
 
-	if err = upgrade.CleanupExistingResource(mgr.GetConfig(), dscApplicationsNamespace); err != nil {
+	if err = upgrade.CleanupExistingResource(mgr.GetConfig(), dscApplicationsNamespace, platform); err != nil {
 		setupLog.Error(err, "unable to perform cleanup")
 	}
 

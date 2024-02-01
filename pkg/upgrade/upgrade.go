@@ -47,6 +47,11 @@ const (
 	// odhGeneratedNamespaceLabel is the label added to all the namespaces genereated by odh-deployer.
 )
 
+type DeprecatedResource struct {
+	Name string
+	Type schema.GroupVersionResource
+}
+
 // OperatorUninstall deletes all the externally generated resources. This includes monitoring resources and applications
 // installed by KfDef.
 func OperatorUninstall(cli client.Client, cfg *rest.Config) error {
@@ -316,9 +321,76 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 	return nil
 }
 
-// Special handling for cleanup dashboard jupyterhub CR.
-func CleanupExistingResource(config *rest.Config, appNS string) error {
-	return removOdhApplicationsCR(config, gvr.JupyterhubApp, "jupyterhub", appNS)
+func CleanupExistingResource(config *rest.Config, appNS string, platform deploy.Platform) error {
+	// Special handling for cleanup dashboard jupyterhub CR.
+	DeprecatedJupyterHubAppResouces := []DeprecatedResource{
+		{
+			Name: "jupyterhub",
+			Type: gvr.JupyterhubApp,
+		},
+	}
+	err := removeDeprecatedResources(config, DeprecatedJupyterHubAppResouces, appNS)
+	if err != nil {
+		return err
+	}
+
+	// Special handling for cleanup of deprecated model monitoring stack
+	DeprecatedModelMonitoringResources := []DeprecatedResource{
+		{
+			Name: "rhods-prometheus-operator",
+			Type: gvr.Deployment,
+		},
+		{
+			Name: "rhods-model-monitoring",
+			Type: gvr.Prometheus,
+		},
+		{
+			Name: "modelmesh-federated-metrics",
+			Type: gvr.ServiceMonitor,
+		},
+		{
+			Name: "rhods-model-monitoring",
+			Type: gvr.Service,
+		},
+		{
+			Name: "rhods-model-monitoring",
+			Type: gvr.Route,
+		},
+		{
+			Name: "rhods-monitoring-oauth-config",
+			Type: gvr.Secret,
+		},
+		{
+			Name: "rhods-monitoring-oauth-config",
+			Type: gvr.Secret,
+		},
+		{
+			Name: "rhods-namespace-read",
+			Type: gvr.ClusterRole,
+		},
+		{
+			Name: "rhods-prometheus-operator",
+			Type: gvr.ClusterRole,
+		},
+		{
+			Name: "rhods-prometheus-operator",
+			Type: gvr.ServiceAccount,
+		},
+		{
+			Name: "rhods-namespace-read",
+			Type: gvr.ClusterRoleBinding,
+		},
+		{
+			Name: "rhods-prometheus-operator",
+			Type: gvr.ClusterRoleBinding,
+		},
+	}
+
+	err = removeDeprecatedResources(config, DeprecatedModelMonitoringResources, "redhat-ods-monitoring")
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func GetOperatorNamespace() (string, error) {
@@ -413,6 +485,34 @@ func removOdhApplicationsCR(cfg *rest.Config, resource schema.GroupVersionResour
 		return fmt.Errorf("error deleting %s : %w", instanceName, err)
 	}
 
+	return nil
+}
+
+func removeDeprecatedResources(cfg *rest.Config, resources []DeprecatedResource, applicationNS string) error {
+	dynamicClient, err := dynamic.NewForConfig(cfg)
+	if err != nil {
+		return err
+	}
+	for _, resource := range resources {
+		if resource.Type == gvr.ClusterRole || resource.Type == gvr.ClusterRole {
+			if err = dynamicClient.Resource(resource.Type).Delete(context.TODO(), resource.Name, metav1.DeleteOptions{}); err != nil {
+				if apierrs.IsNotFound(err) {
+					fmt.Printf("%s does not exist in %s, nothing to prune\n", resource.Name, applicationNS)
+					continue
+				}
+				return fmt.Errorf("error deleting %s : %w", resource.Name, err)
+			}
+		} else {
+			if err = dynamicClient.Resource(resource.Type).Namespace(applicationNS).Delete(context.TODO(), resource.Name, metav1.DeleteOptions{}); err != nil {
+				if apierrs.IsNotFound(err) {
+					fmt.Printf("%s does not exist in %s, nothing to prune\n", resource.Name, applicationNS)
+					continue
+				}
+				return fmt.Errorf("error deleting %s : %w", resource.Name, err)
+			}
+		}
+
+	}
 	return nil
 }
 
