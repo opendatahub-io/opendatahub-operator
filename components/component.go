@@ -123,8 +123,6 @@ func (c *Component) UpdatePrometheusConfig(_ client.Client, enable bool, compone
 			TrustyAIARules     string `yaml:"trustyai-alerting.rules"`
 			KserveRRules       string `yaml:"kserve-recording.rules"`
 			KserveARules       string `yaml:"kserve-alerting.rules"`
-			TrustyAIRRules     string `yaml:"trustyai-recording.rules"`
-			TrustyAIARules     string `yaml:"trustyai-alerting.rules"`
 			KueueRRules        string `yaml:"kueue-recording.rules"`
 			KueueARules        string `yaml:"kueue-alerting.rules"`
 		} `yaml:"data"`
