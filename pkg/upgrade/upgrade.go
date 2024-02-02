@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/dynamic"
@@ -38,6 +40,10 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
+	routev1 "github.com/openshift/api/route/v1"
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	v1 "k8s.io/api/core/v1"
+	authv1 "k8s.io/api/rbac/v1"
 )
 
 const (
@@ -47,9 +53,9 @@ const (
 	// odhGeneratedNamespaceLabel is the label added to all the namespaces genereated by odh-deployer.
 )
 
-type DeprecatedResource struct {
-	Name string
-	Type schema.GroupVersionResource
+type Resource interface {
+	metav1.Object
+	runtime.Object
 }
 
 // OperatorUninstall deletes all the externally generated resources. This includes monitoring resources and applications
@@ -321,76 +327,45 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 	return nil
 }
 
-func CleanupExistingResource(config *rest.Config, appNS string, platform deploy.Platform) error {
+func CleanupExistingResource(config *rest.Config, cli client.Client, appNS string, montNamespace string, platform deploy.Platform) error {
 	// Special handling for cleanup dashboard jupyterhub CR.
-	DeprecatedJupyterHubAppResouces := []DeprecatedResource{
-		{
-			Name: "jupyterhub",
-			Type: gvr.JupyterhubApp,
-		},
-	}
-	err := removeDeprecatedResources(config, DeprecatedJupyterHubAppResouces, appNS)
-	if err != nil {
-		return err
+
+	var multiErr *multierror.Error
+	multiErr = multierror.Append(multiErr, removOdhApplicationsCR(config, gvr.JupyterhubApp, "jupyterhub", appNS))
+
+	// Special Handling of cleanup of deprecated model monitoring stack
+	if platform == deploy.ManagedRhods {
+		montNamespace = "redhat-ods-monitoring"
+		ctx := context.TODO()
+		deprecatedDeployments := []string{"rhods-prometheus-operator"}
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(cli, ctx, montNamespace, deprecatedDeployments, &appsv1.DeploymentList{}))
+
+		deprecatedStatefulsets := []string{"prometheus-rhods-model-monitoring"}
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(cli, ctx, montNamespace, deprecatedStatefulsets, &appsv1.StatefulSetList{}))
+
+		deprecatedServices := []string{"rhods-model-monitoring"}
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(cli, ctx, montNamespace, deprecatedServices, &v1.ServiceList{}))
+
+		deprecatedRoutes := []string{"rhods-model-monitoring"}
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(cli, ctx, montNamespace, deprecatedRoutes, &routev1.RouteList{}))
+
+		deprecatedSecrets := []string{"rhods-monitoring-oauth-config"}
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(cli, ctx, montNamespace, deprecatedSecrets, &v1.SecretList{}))
+
+		deprecatedClusterroles := []string{"rhods-namespace-read", "rhods-prometheus-operator"}
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(cli, ctx, montNamespace, deprecatedClusterroles, &authv1.ClusterRoleList{}))
+
+		deprecatedClusterrolebindings := []string{"rhods-namespace-read", "rhods-prometheus-operator"}
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(cli, ctx, montNamespace, deprecatedClusterrolebindings, &authv1.ClusterRoleBindingList{}))
+
+		deprecatedServiceAccounts := []string{"rhods-prometheus-operator"}
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(cli, ctx, montNamespace, deprecatedServiceAccounts, &corev1.ServiceAccountList{}))
+
+		deprecatedServicemonitors := []string{"modelmesh-federated-metrics"}
+		multiErr = multierror.Append(multiErr, deleteDeprecatedServiceMonitors(cli, ctx, montNamespace, deprecatedServicemonitors))
 	}
 
-	// Special handling for cleanup of deprecated model monitoring stack
-	DeprecatedModelMonitoringResources := []DeprecatedResource{
-		{
-			Name: "rhods-prometheus-operator",
-			Type: gvr.Deployment,
-		},
-		{
-			Name: "rhods-model-monitoring",
-			Type: gvr.Prometheus,
-		},
-		{
-			Name: "modelmesh-federated-metrics",
-			Type: gvr.ServiceMonitor,
-		},
-		{
-			Name: "rhods-model-monitoring",
-			Type: gvr.Service,
-		},
-		{
-			Name: "rhods-model-monitoring",
-			Type: gvr.Route,
-		},
-		{
-			Name: "rhods-monitoring-oauth-config",
-			Type: gvr.Secret,
-		},
-		{
-			Name: "rhods-monitoring-oauth-config",
-			Type: gvr.Secret,
-		},
-		{
-			Name: "rhods-namespace-read",
-			Type: gvr.ClusterRole,
-		},
-		{
-			Name: "rhods-prometheus-operator",
-			Type: gvr.ClusterRole,
-		},
-		{
-			Name: "rhods-prometheus-operator",
-			Type: gvr.ServiceAccount,
-		},
-		{
-			Name: "rhods-namespace-read",
-			Type: gvr.ClusterRoleBinding,
-		},
-		{
-			Name: "rhods-prometheus-operator",
-			Type: gvr.ClusterRoleBinding,
-		},
-	}
-
-	err = removeDeprecatedResources(config, DeprecatedModelMonitoringResources, "redhat-ods-monitoring")
-	if err != nil {
-		return err
-	}
-	return nil
+	return multiErr.ErrorOrNil()
 }
 
 func GetOperatorNamespace() (string, error) {
@@ -488,32 +463,60 @@ func removOdhApplicationsCR(cfg *rest.Config, resource schema.GroupVersionResour
 	return nil
 }
 
-func removeDeprecatedResources(cfg *rest.Config, resources []DeprecatedResource, applicationNS string) error {
-	dynamicClient, err := dynamic.NewForConfig(cfg)
-	if err != nil {
-		return err
+func deleteDeprecatedResources(cli client.Client, ctx context.Context, namespace string, resourceList []string, resourceType client.ObjectList) error {
+	var multiErr *multierror.Error
+	listOpts := &client.ListOptions{Namespace: namespace}
+	if err := cli.List(ctx, resourceType, listOpts); err != nil {
+		multiErr = multierror.Append(multiErr, err)
 	}
-	for _, resource := range resources {
-		if resource.Type == gvr.ClusterRole || resource.Type == gvr.ClusterRole {
-			if err = dynamicClient.Resource(resource.Type).Delete(context.TODO(), resource.Name, metav1.DeleteOptions{}); err != nil {
-				if apierrs.IsNotFound(err) {
-					fmt.Printf("%s does not exist in %s, nothing to prune\n", resource.Name, applicationNS)
-					continue
+	items := reflect.ValueOf(resourceType).Elem().FieldByName("Items")
+	for i := 0; i < items.Len(); i++ {
+		item := items.Index(i).Addr().Interface().(client.Object)
+		for _, name := range resourceList {
+			if name == item.GetName() {
+				fmt.Printf("Attempting to delete %s in namespace %s\n", item.GetName(), namespace)
+				err := cli.Delete(ctx, item)
+				if err != nil {
+					if apierrs.IsNotFound(err) {
+						fmt.Printf("Could not find %s in namespace %s\n", item.GetName(), namespace)
+					} else {
+						multiErr = multierror.Append(multiErr, err)
+					}
 				}
-				return fmt.Errorf("error deleting %s : %w", resource.Name, err)
-			}
-		} else {
-			if err = dynamicClient.Resource(resource.Type).Namespace(applicationNS).Delete(context.TODO(), resource.Name, metav1.DeleteOptions{}); err != nil {
-				if apierrs.IsNotFound(err) {
-					fmt.Printf("%s does not exist in %s, nothing to prune\n", resource.Name, applicationNS)
-					continue
-				}
-				return fmt.Errorf("error deleting %s : %w", resource.Name, err)
+				fmt.Printf("Successfully deleted %s\n", item.GetName())
 			}
 		}
-
 	}
-	return nil
+	return multiErr.ErrorOrNil()
+}
+
+// Need to handle ServiceMonitor deletion separately as the generic function does not work for ServiceMonitors because of how the package is built
+func deleteDeprecatedServiceMonitors(cli client.Client, ctx context.Context, namespace string, resourceList []string) error {
+	var multiErr *multierror.Error
+	listOpts := &client.ListOptions{Namespace: namespace}
+	servicemonitors := &monitoringv1.ServiceMonitorList{}
+	if err := cli.List(ctx, servicemonitors, listOpts); err != nil {
+		multiErr = multierror.Append(multiErr, err)
+	}
+
+	for _, servicemonitor := range servicemonitors.Items {
+		servicemonitor := servicemonitor
+		for _, name := range resourceList {
+			if name == servicemonitor.Name {
+				fmt.Printf("Attempting to delete %s in namespace %s\n", servicemonitor.Name, namespace)
+				err := cli.Delete(ctx, servicemonitor)
+				if err != nil {
+					if apierrs.IsNotFound(err) {
+						fmt.Printf("Could not find %s in namespace %s\n", servicemonitor.Name, namespace)
+					} else {
+						multiErr = multierror.Append(multiErr, err)
+					}
+				}
+				fmt.Printf("Successfully deleted %s\n", servicemonitor.Name)
+			}
+		}
+	}
+	return multiErr.ErrorOrNil()
 }
 
 // getClusterServiceVersion retries the clusterserviceversions available in the operator namespace.

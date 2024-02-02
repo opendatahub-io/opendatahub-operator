@@ -53,6 +53,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 )
 
 var (
@@ -83,6 +84,7 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(apiextv1.AddToScheme(scheme))
 	utilruntime.Must(admv1.AddToScheme(scheme))
 	utilruntime.Must(apiregistrationv1.AddToScheme(scheme))
+	utilruntime.Must(monitoringv1.AddToScheme(scheme))
 }
 
 func main() { //nolint:funlen
@@ -199,7 +201,7 @@ func main() { //nolint:funlen
 		setupLog.Error(err, "unable to update from legacy operator version")
 	}
 
-	if err = upgrade.CleanupExistingResource(mgr.GetConfig(), dscApplicationsNamespace, platform); err != nil {
+	if err = upgrade.CleanupExistingResource(mgr.GetConfig(), setupClient, dscApplicationsNamespace, dscMonitoringNamespace, platform); err != nil {
 		setupLog.Error(err, "unable to perform cleanup")
 	}
 
