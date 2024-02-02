@@ -56,6 +56,7 @@ rules:
   verbs:
   - create
   - delete
+  - get
   - list
   - patch
   - update
@@ -88,16 +89,12 @@ rules:
   resources:
   - apiservices
   verbs:
+  - create
+  - delete
   - get
   - list
-  - watch
-- apiGroups:
-  - apps
-  resources:
-  - daemonsets
-  verbs:
-  - get
-  - list
+  - patch
+  - update
   - watch
 - apiGroups:
   - apps
@@ -123,30 +120,6 @@ rules:
   - statefulsets
   verbs:
   - '*'
-- apiGroups:
-  - apps.openshift.io
-  resources:
-  - deploymentconfigs
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - apps.openshift.io
-  resources:
-  - deploymentconfigs/instantiate
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
 - apiGroups:
   - argoproj.io
   resources:
@@ -482,16 +455,25 @@ rules:
   resources:
   - secrets
   verbs:
-  - '*'
   - create
+  - delete
   - get
+  - list
+  - patch
+  - update
   - watch
 - apiGroups:
   - ""
   resources:
   - secrets/finalizers
   verbs:
-  - '*'
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - ""
   resources:
@@ -692,6 +674,15 @@ rules:
   - update
   - watch
 - apiGroups:
+  - features.opendatahub.io
+  resources:
+  - featuretrackers/status
+  verbs:
+  - delete
+  - get
+  - patch
+  - update
+- apiGroups:
   - image.openshift.io
   resources:
   - imagestreams
@@ -822,6 +813,32 @@ rules:
   - get
   - list
   - patch
+- apiGroups:
+  - modelregistry.opendatahub.io
+  resources:
+  - modelregistries
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - modelregistry.opendatahub.io
+  resources:
+  - modelregistries/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - modelregistry.opendatahub.io
+  resources:
+  - modelregistries/status
+  verbs:
+  - get
+  - patch
+  - update
 - apiGroups:
   - monitoring.coreos.com
   resources:
@@ -1028,10 +1045,13 @@ rules:
   resources:
   - oauthclients
   verbs:
-  - '*'
   - create
   - delete
   - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - opendatahub.io
   resources:
@@ -1409,7 +1429,7 @@ rules:
   verbs:
   - '*'
 - apiGroups:
-  - trustyai.opendatahub.io.trustyai.opendatahub.io
+  - trustyai.opendatahub.io
   resources:
   - trustyaiservices
   verbs:
@@ -1421,13 +1441,13 @@ rules:
   - update
   - watch
 - apiGroups:
-  - trustyai.opendatahub.io.trustyai.opendatahub.io
+  - trustyai.opendatahub.io
   resources:
   - trustyaiservices/finalizers
   verbs:
   - update
 - apiGroups:
-  - trustyai.opendatahub.io.trustyai.opendatahub.io
+  - trustyai.opendatahub.io
   resources:
   - trustyaiservices/status
   verbs:

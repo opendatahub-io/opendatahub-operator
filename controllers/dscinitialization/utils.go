@@ -35,8 +35,12 @@ var (
 // - Pod security labels for baseline permissions
 // - ConfigMap  'odh-common-config'
 // - Network Policies 'opendatahub' that allow traffic between the ODH namespaces
-// - RoleBinding 'opendatahub'
+// - RoleBinding 'opendatahub'.
 func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, dscInit *dsci.DSCInitialization, name string) error {
+	platform, err := deploy.GetPlatform(r.Client)
+	if err != nil {
+		return err
+	}
 	// Expected namespace for the given name
 	desiredNamespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -50,7 +54,7 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 
 	// Create Namespace if it doesn't exist
 	foundNamespace := &corev1.Namespace{}
-	err := r.Get(ctx, client.ObjectKey{Name: name}, foundNamespace)
+	err = r.Get(ctx, client.ObjectKey{Name: name}, foundNamespace)
 	if err != nil {
 		if apierrs.IsNotFound(err) {
 			r.Log.Info("Creating namespace", "name", name)
@@ -71,7 +75,7 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 		}
 	} else if dscInit.Spec.Monitoring.ManagementState == operatorv1.Managed {
 		r.Log.Info("Patching application namespace for Managed cluster", "name", name)
-		labelPatch := `{"metadata":{"labels":{"openshift.io/cluster-monitoring":"true","pod-security.kubernetes.io/enforce":"baseline","opendatahub.io/generated-namespace": "true"}}}` //nolint
+		labelPatch := `{"metadata":{"labels":{"openshift.io/cluster-monitoring":"true","pod-security.kubernetes.io/enforce":"baseline","opendatahub.io/generated-namespace": "true"}}}`
 		err = r.Patch(ctx, foundNamespace, client.RawPatch(types.MergePatchType,
 			[]byte(labelPatch)))
 		if err != nil {
@@ -106,7 +110,7 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 				return err
 			}
 		} else { // force to patch monitoring namespace with label for cluster-monitoring
-			r.Log.Info("Patching monitoring namespace for Managed cluster", "name", monitoringName)
+			r.Log.Info("Patching monitoring namespace", "name", monitoringName)
 			labelPatch := `{"metadata":{"labels":{"openshift.io/cluster-monitoring":"true", "pod-security.kubernetes.io/enforce":"baseline","opendatahub.io/generated-namespace": "true"}}}`
 
 			err = r.Patch(ctx, foundMonitoringNamespace, client.RawPatch(types.MergePatchType, []byte(labelPatch)))
@@ -118,26 +122,21 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 
 	// Patch downstream Operator Namespace if it is monitoring enabled
 	if dscInit.Spec.Monitoring.ManagementState == operatorv1.Managed {
-		platform, err := deploy.GetPlatform(r.Client)
-		if err != nil {
-			return err
-		}
 		if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
 			operatorNs, err := upgrade.GetOperatorNamespace()
 			if err != nil {
 				r.Log.Error(err, "error getting operator namespace")
 				return err
 			}
-			r.Log.Info("Patching operator namespace for Managed cluster", "name", operatorNs)
+			r.Log.Info("Patching operator namespace", "name", operatorNs)
 			labelPatch := `{"metadata":{"labels":{"pod-security.kubernetes.io/enforce":"baseline"}}}`
 			operatorNamespace := &corev1.Namespace{}
 			if err := r.Get(ctx, client.ObjectKey{Name: operatorNs}, operatorNamespace); err != nil {
 				return err
-			} else {
-				err = r.Patch(ctx, operatorNamespace, client.RawPatch(types.MergePatchType, []byte(labelPatch)))
-				if err != nil {
-					return err
-				}
+			}
+			err = r.Patch(ctx, operatorNamespace, client.RawPatch(types.MergePatchType, []byte(labelPatch)))
+			if err != nil {
+				return err
 			}
 		}
 	}
@@ -265,12 +264,12 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.
 							},
 						},
 					},
-					{ // OR logic for ROSA
+					{ // OR logic
 						From: []netv1.NetworkPolicyPeer{
-							{ // need this to access dashboard
+							{ // need this for access dashboard
 								NamespaceSelector: &metav1.LabelSelector{
 									MatchLabels: map[string]string{
-										"kubernetes.io/metadata.name": "openshift-ingress",
+										"network.openshift.io/policy-group": "ingress",
 									},
 								},
 							},
@@ -355,8 +354,8 @@ func CompareNotebookNetworkPolicies(np1 netv1.NetworkPolicy, np2 netv1.NetworkPo
 
 func (r *DSCInitializationReconciler) waitForManagedSecret(ctx context.Context, name string, namespace string) (*corev1.Secret, error) {
 	managedSecret := &corev1.Secret{}
-	err := wait.PollUntilContextTimeout(ctx, resourceInterval, resourceTimeout, false, func(ctx context.Context) (done bool, err error) {
-		err = r.Client.Get(ctx, client.ObjectKey{
+	err := wait.PollUntilContextTimeout(ctx, resourceInterval, resourceTimeout, false, func(ctx context.Context) (bool, error) {
+		err := r.Client.Get(ctx, client.ObjectKey{
 			Namespace: namespace,
 			Name:      name,
 		}, managedSecret)
@@ -366,9 +365,8 @@ func (r *DSCInitializationReconciler) waitForManagedSecret(ctx context.Context, 
 				return false, nil
 			}
 			return false, err
-		} else {
-			return true, nil
 		}
+		return true, nil
 	})
 
 	return managedSecret, err
@@ -382,8 +380,7 @@ func GenerateRandomHex(length int) ([]byte, error) {
 	randomBytes := make([]byte, numBytes)
 
 	// Read random bytes from the crypto/rand source
-	_, err := rand.Read(randomBytes)
-	if err != nil {
+	if _, err := rand.Read(randomBytes); err != nil {
 		return nil, err
 	}
 

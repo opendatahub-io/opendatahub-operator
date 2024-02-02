@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	authv1 "k8s.io/api/rbac/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
@@ -21,9 +20,8 @@ const (
 // being used by different components.
 func UpdatePodSecurityRolebinding(cli client.Client, namespace string, serviceAccountsList ...string) error {
 	foundRoleBinding := &authv1.RoleBinding{}
-	err := cli.Get(context.TODO(), client.ObjectKey{Name: namespace, Namespace: namespace}, foundRoleBinding)
-	if err != nil {
-		return err
+	if err := cli.Get(context.TODO(), client.ObjectKey{Name: namespace, Namespace: namespace}, foundRoleBinding); err != nil {
+		return fmt.Errorf("error to get rolebinding %s from namespace %s: %w", namespace, namespace, err)
 	}
 
 	for _, sa := range serviceAccountsList {
@@ -37,7 +35,11 @@ func UpdatePodSecurityRolebinding(cli client.Client, namespace string, serviceAc
 		}
 	}
 
-	return cli.Update(context.TODO(), foundRoleBinding)
+	if err := cli.Update(context.TODO(), foundRoleBinding); err != nil {
+		return fmt.Errorf("error update rolebinding %s with serviceaccount: %w", namespace, err)
+	}
+
+	return nil
 }
 
 // Internal function used by UpdatePodSecurityRolebinding()
@@ -117,7 +119,7 @@ func WithLabels(labels ...string) MetaOptions {
 	return func(obj metav1.Object) error {
 		labelsMap, err := extractKeyValues(labels)
 		if err != nil {
-			return errors.Wrap(err, "unable to set labels")
+			return fmt.Errorf("failed unable to set labels: %w", err)
 		}
 
 		obj.SetLabels(labelsMap)

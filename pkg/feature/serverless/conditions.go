@@ -11,6 +11,10 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 )
 
+const (
+	KnativeServingNamespace = "knative-serving"
+)
+
 var log = ctrlLog.Log.WithName("features")
 
 func EnsureServerlessAbsent(f *feature.Feature) error {
@@ -28,7 +32,7 @@ func EnsureServerlessAbsent(f *feature.Feature) error {
 	}
 
 	servingOwners := list.Items[0].GetOwnerReferences()
-	featureOwner := f.OwnerReference()
+	featureOwner := f.AsOwnerReference()
 	for _, owner := range servingOwners {
 		if owner.APIVersion == featureOwner.APIVersion &&
 			owner.Kind == featureOwner.Kind &&
@@ -50,3 +54,5 @@ func EnsureServerlessOperatorInstalled(f *feature.Feature) error {
 
 	return nil
 }
+
+var EnsureServerlessServingDeployed = feature.WaitForResourceToBeCreated(KnativeServingNamespace, gvr.KnativeServing)

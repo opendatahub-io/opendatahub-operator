@@ -36,6 +36,8 @@ can be found [here](https://github.com/opendatahub-io/opendatahub-operator/tree/
       GetComponentName() string
       GetManagementState() operatorv1.ManagementState
       SetImageParamsMap(imageMap map[string]string) map[string]string
+      UpdatePrometheusConfig(cli client.Client, enable bool, component string) error
+      WaitForDeploymentAvailable(ctx context.Context, r *rest.Config, c string, n string, i int, t int) error
     }
     ```
 ### Add reconcile and Events
@@ -59,3 +61,5 @@ can be found [here](https://github.com/opendatahub-io/opendatahub-operator/tree/
 - [ModelMesh Serving](https://github.com/opendatahub-io/opendatahub-operator/tree/main/components/modelmeshserving)
 - [Workbenches](https://github.com/opendatahub-io/opendatahub-operator/tree/main/components/workbenches)
 - [TrustyAI](https://github.com/opendatahub-io/opendatahub-operator/tree/main/components/trustyai)
+- [ModelRegistry](https://github.com/opendatahub-io/opendatahub-operator/tree/main/components/modelregistry)
+- [Kueue](https://github.com/opendatahub-io/kueue)

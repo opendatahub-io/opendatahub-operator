@@ -1,76 +1,111 @@
 package feature
 
 import (
+	"bytes"
+	"embed"
 	"fmt"
 	"html/template"
-	"os"
+	"io"
+	"io/fs"
+	"path"
 	"path/filepath"
 	"strings"
-
-	"github.com/pkg/errors"
 )
 
-const BaseOutputDir = "/tmp/odh-operator"
+//go:embed templates
+var embeddedFiles embed.FS
+
+var (
+	BaseDir        = "templates"
+	ServiceMeshDir = path.Join(BaseDir, "servicemesh")
+	ServerlessDir  = path.Join(BaseDir, "serverless")
+)
 
 type manifest struct {
 	name,
-	path string
+	path,
+	processedContent string
 	template,
-	patch,
-	processed bool
+	patch bool
+	fsys fs.FS
 }
 
-func loadManifestsFrom(path string) ([]manifest, error) {
+func loadManifestsFrom(fsys fs.FS, path string) ([]manifest, error) {
 	var manifests []manifest
-	if err := filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
+
+	err := fs.WalkDir(fsys, path, func(path string, dirEntry fs.DirEntry, walkErr error) error {
+		_, err := dirEntry.Info()
 		if err != nil {
 			return err
 		}
-		if info.IsDir() {
+
+		if dirEntry.IsDir() {
 			return nil
 		}
-		basePath := filepath.Base(path)
-		manifests = append(manifests, manifest{
-			name:     basePath,
-			path:     path,
-			patch:    strings.Contains(basePath, ".patch"),
-			template: filepath.Ext(path) == ".tmpl",
-		})
+		m := createManifestFrom(fsys, path)
+		manifests = append(manifests, m)
 
 		return nil
-	}); err != nil {
-		return nil, errors.WithStack(err)
+	})
+
+	if err != nil {
+		return nil, err
 	}
 
 	return manifests, nil
+}
+
+func createManifestFrom(fsys fs.FS, path string) manifest {
+	basePath := filepath.Base(path)
+	m := manifest{
+		name:     basePath,
+		path:     path,
+		patch:    strings.Contains(basePath, ".patch"),
+		template: filepath.Ext(path) == ".tmpl",
+		fsys:     fsys,
+	}
+
+	return m
 }
 
 func (m *manifest) targetPath() string {
 	return fmt.Sprintf("%s%s", m.path[:len(m.path)-len(filepath.Ext(m.path))], ".yaml")
 }
 
-func (m *manifest) processTemplate(data interface{}) error {
+func (m *manifest) process(data interface{}) error {
+	manifestFile, err := m.open()
+	if err != nil {
+		return err
+	}
+	defer manifestFile.Close()
+
+	content, err := io.ReadAll(manifestFile)
+	if err != nil {
+		return fmt.Errorf("failed to create file: %w", err)
+	}
+
 	if !m.template {
+		// If, by convention, the file is not suffixed with `.tmpl` we do not need to trigger template processing.
+		// It's safe to return at this point.
+		m.processedContent = string(content)
 		return nil
 	}
-	path := m.targetPath()
 
-	f, err := os.Create(path)
+	tmpl, err := template.New(m.name).Funcs(template.FuncMap{"ReplaceChar": ReplaceChar}).Parse(string(content))
 	if err != nil {
-		log.Error(err, "Failed to create file")
+		return fmt.Errorf("failed to create file: %w", err)
+	}
 
+	var buffer bytes.Buffer
+	if err := tmpl.Execute(&buffer, data); err != nil {
 		return err
 	}
 
-	tmpl := template.New(m.name).Funcs(template.FuncMap{"ReplaceChar": ReplaceChar})
+	m.processedContent = buffer.String()
 
-	tmpl, err = tmpl.ParseFiles(m.path)
-	if err != nil {
-		return err
-	}
+	return nil
+}
 
-	err = tmpl.Execute(f, data)
-	m.processed = err == nil
-
-	return err
+func (m *manifest) open() (fs.File, error) {
+	return m.fsys.Open(m.path)
 }

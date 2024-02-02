@@ -3,6 +3,28 @@ This operator is the primary operator for Open Data Hub. It is responsible for e
 Jupyter Notebooks, Modelmesh serving, Datascience pipelines etc. The operator makes use of `DataScienceCluster` CRD to deploy
 and configure these applications.
 
+### Table of contents
+- [Usage](#usage)
+  - [Installation](#installation)
+- [Dev Preview](#dev-preview)
+  - [Developer Guide](#developer-guide)
+    - [Pre-requisites](#pre-requisites)
+    - [Download manifests](#download-manifests)
+    - [Structure of `COMPONENT_MANIFESTS`](#structure-of-component_manifests)
+    - [Workflow](#workflow)
+    - [Local Storage](#local-storage)
+    - [Adding New Components](#adding-new-components)
+    - [Customizing Manifests Source](#customizing-manifests-source)
+      - [for local development](#for-local-development)
+      - [for build operator image](#for-build-operator-image)
+    - [Build Image](#build-image)
+    - [Deployment](#deployment)
+  - [Test with customized manifests](#test-with-customized-manifests)
+  - [Example DataScienceCluster](#example-datasciencecluster)
+  - [Run functional Tests](#run-functional-tests)
+  - [Run e2e Tests](#run-e2e-tests)
+  - [Troubleshooting](#troubleshooting)
+
 ## Usage
 
 ### Installation
@@ -27,7 +49,10 @@ and installed from source manually, see the Developer guide for further instruct
     EOF
     ```
 
-2. Create [DataScienceCluster](#example-datasciencecluster) CR to enable components
+2. Create [DSCInitializationc](#example-dscinitialization) CR manually.
+  You can also use operator to create default DSCI CR by removing env variable DISABLE_DSC_CONFIG from CSV following restart operator pod.
+
+3. Create [DataScienceCluster](#example-datasciencecluster) CR to enable components
 
 ## Dev Preview
 
@@ -173,7 +198,31 @@ There are 2 ways to test your changes with modification:
 
 1. set `devFlags.ManifestsUri` field of DSCI instance during runtime: this will pull down manifests from remote git repo
     by using this method, it overwrites manifests and component images if images are set in the params.env file
-2. [Under implementation] build operator image with local manifests   
+2. [Under implementation] build operator image with local manifests.
+
+### Example DSCInitialization
+
+Below is the default DSCI CR config
+
+```console
+apiVersion: dscinitialization.opendatahub.io/v1
+kind: DSCInitialization
+metadata:
+  name: default-dsci
+spec:
+  applicationsNamespace: opendatahub
+  monitoring:
+    managementState: Managed
+    namespace: opendatahub
+  serviceMesh:
+    controlPlane:
+      metricsCollection: Istio
+      name: data-science-smcp
+      namespace: istio-system
+    managementState: Managed
+```
+
+Apply this example with modification for your usage.
 
 ### Example DataScienceCluster
 
@@ -186,7 +235,7 @@ components. At a given time, ODH supports only **one** instance of the CR, which
 apiVersion: datasciencecluster.opendatahub.io/v1
 kind: DataScienceCluster
 metadata:
-  name: example
+  name: default-dsc
 spec:
   components:
     codeflare:
@@ -197,11 +246,17 @@ spec:
       managementState: Managed
     kserve:
       managementState: Managed
+    kueue:
+      managementState: Managed
     modelmeshserving:
       managementState: Managed
     ray:
       managementState: Managed
     workbenches:
+      managementState: Managed
+    trustyai:
+      managementState: Managed
+    modelregistry:
       managementState: Managed
 ```
 

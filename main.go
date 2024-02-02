@@ -48,7 +48,8 @@ import (
 	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
 	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	dscontr "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
+	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
+	datascienceclustercontrollers "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
 	dscicontr "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -60,11 +61,12 @@ var (
 	setupLog = ctrl.Log.WithName("setup")
 )
 
-func init() {
+func init() { //nolint:gochecknoinits
 	//+kubebuilder:scaffold:scheme
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(dsci.AddToScheme(scheme))
 	utilruntime.Must(dsc.AddToScheme(scheme))
+	utilruntime.Must(featurev1.AddToScheme(scheme))
 	utilruntime.Must(netv1.AddToScheme(scheme))
 	utilruntime.Must(addonv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(authv1.AddToScheme(scheme))
@@ -143,12 +145,12 @@ func main() { //nolint:funlen
 		os.Exit(1)
 	}
 
-	if err = (&dscontr.DataScienceClusterReconciler{
+	if err = (&datascienceclustercontrollers.DataScienceClusterReconciler{
 		Client:     mgr.GetClient(),
 		Scheme:     mgr.GetScheme(),
 		RestConfig: mgr.GetConfig(),
 		Log:        ctrl.Log.WithName("controllers").WithName("DataScienceCluster"),
-		DataScienceCluster: &dscontr.DataScienceClusterConfig{
+		DataScienceCluster: &datascienceclustercontrollers.DataScienceClusterConfig{
 			DSCISpec: &dsci.DSCInitializationSpec{
 				ApplicationsNamespace: dscApplicationsNamespace,
 			},
@@ -182,7 +184,7 @@ func main() { //nolint:funlen
 	// Get operator platform
 	platform, err := deploy.GetPlatform(setupClient)
 	if err != nil {
-		setupLog.Error(err, "error getting client for setup")
+		setupLog.Error(err, "error getting platform")
 		os.Exit(1)
 	}
 
@@ -195,7 +197,7 @@ func main() { //nolint:funlen
 	}
 
 	// Apply update from legacy operator
-	if err = upgrade.UpdateFromLegacyVersion(setupClient, platform); err != nil {
+	if err = upgrade.UpdateFromLegacyVersion(setupClient, platform, dscApplicationsNamespace, dscMonitoringNamespace); err != nil {
 		setupLog.Error(err, "unable to update from legacy operator version")
 	}
 

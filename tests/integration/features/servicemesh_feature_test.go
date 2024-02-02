@@ -2,17 +2,18 @@ package features_test
 
 import (
 	"context"
-	"fmt"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
@@ -22,7 +23,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-const smcpCrd = `apiVersion: apiextensions.k8s.io/v1
+const serviceMeshControlPlaneCRD = `apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   labels:
@@ -65,40 +66,61 @@ spec:
 `
 
 var _ = Describe("Service Mesh feature", func() {
-	var testFeature *feature.Feature
-	var objectCleaner *envtestutil.Cleaner
+
+	var (
+		dsci          *dsciv1.DSCInitialization
+		objectCleaner *envtestutil.Cleaner
+	)
 
 	BeforeEach(func() {
 		c, err := client.New(envTest.Config, client.Options{})
 		Expect(err).ToNot(HaveOccurred())
-
 		objectCleaner = envtestutil.CreateCleaner(c, envTest.Config, timeout, interval)
 
-		testFeatureName := "servicemesh-feature"
-		namespace := envtestutil.AppendRandomNameTo(testFeatureName)
+		namespace := envtestutil.AppendRandomNameTo("service-mesh-settings")
 
-		dsciSpec := newDSCInitializationSpec(namespace)
-		testFeature, err = feature.CreateFeature(testFeatureName).
-			For(dsciSpec).
-			UsingConfig(envTest.Config).
-			Load()
+		dsci = newDSCInitialization(namespace)
 
 		Expect(err).ToNot(HaveOccurred())
 	})
 
+	AfterEach(func() {
+
+	})
+
 	Describe("preconditions", func() {
+
 		When("operator is not installed", func() {
-			It("operator presence check should return an error", func() {
-				Expect(servicemesh.EnsureServiceMeshOperatorInstalled(testFeature)).To(HaveOccurred())
+
+			It("should fail using precondition check", func() {
+				// given
+				featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
+					verificationFeatureErr := feature.CreateFeature("no-serverless-operator-check").
+						For(handler).
+						UsingConfig(envTest.Config).
+						PreConditions(servicemesh.EnsureServiceMeshOperatorInstalled).
+						Load()
+
+					Expect(verificationFeatureErr).ToNot(HaveOccurred())
+
+					return nil
+				})
+
+				// when
+				applyErr := featuresHandler.Apply()
+
+				// then
+				Expect(applyErr).To(MatchError(ContainSubstring("customresourcedefinitions.apiextensions.k8s.io \"servicemeshcontrolplanes.maistra.io\" not found")))
 			})
 		})
+
 		When("operator is installed", func() {
 			var smcpCrdObj *apiextensionsv1.CustomResourceDefinition
 
 			BeforeEach(func() {
 				// Create SMCP the CRD
 				smcpCrdObj = &apiextensionsv1.CustomResourceDefinition{}
-				Expect(yaml.Unmarshal([]byte(smcpCrd), smcpCrdObj)).ToNot(HaveOccurred())
+				Expect(yaml.Unmarshal([]byte(serviceMeshControlPlaneCRD), smcpCrdObj)).ToNot(HaveOccurred())
 				c, err := client.New(envTest.Config, client.Options{})
 				Expect(err).ToNot(HaveOccurred())
 				Expect(c.Create(context.TODO(), smcpCrdObj)).ToNot(HaveOccurred())
@@ -107,34 +129,105 @@ var _ = Describe("Service Mesh feature", func() {
 				err = envtest.WaitForCRDs(envTest.Config, []*apiextensionsv1.CustomResourceDefinition{smcpCrdObj}, crdOptions)
 				Expect(err).ToNot(HaveOccurred())
 			})
+
 			AfterEach(func() {
 				// Delete SMCP CRD
 				objectCleaner.DeleteAll(smcpCrdObj)
 			})
-			It("operator presence check should succeed", func() {
-				Expect(servicemesh.EnsureServiceMeshOperatorInstalled(testFeature)).To(Succeed())
+
+			It("should succeed using precondition check", func() {
+				// when
+				featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
+					verificationFeatureErr := feature.CreateFeature("service-mesh-operator-check").
+						For(handler).
+						UsingConfig(envTest.Config).
+						PreConditions(servicemesh.EnsureServiceMeshOperatorInstalled).
+						Load()
+
+					Expect(verificationFeatureErr).ToNot(HaveOccurred())
+
+					return nil
+				})
+
+				// when
+				Expect(featuresHandler.Apply()).To(Succeed())
+
 			})
+
 			It("should find installed Service Mesh Control Plane", func() {
+				// given
 				c, err := client.New(envTest.Config, client.Options{})
 				Expect(err).ToNot(HaveOccurred())
 
 				ns := envtestutil.AppendRandomNameTo(testNamespacePrefix)
-				nsResource := createNamespace(ns)
+				nsResource := newNamespace(ns)
 				Expect(c.Create(context.Background(), nsResource)).To(Succeed())
 				defer objectCleaner.DeleteAll(nsResource)
 
 				createServiceMeshControlPlane("test-name", ns)
+				dsci.Spec.ServiceMesh.ControlPlane.Namespace = ns
+				dsci.Spec.ServiceMesh.ControlPlane.Name = "test-name"
 
-				testFeature.Spec.ControlPlane.Namespace = ns
-				testFeature.Spec.ControlPlane.Name = "test-name"
-				Expect(servicemesh.EnsureServiceMeshInstalled(testFeature)).To(Succeed())
+				// when
+				featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
+					verificationFeatureErr := feature.CreateFeature("service-mesh-control-plane-check").
+						For(handler).
+						UsingConfig(envTest.Config).
+						PreConditions(servicemesh.EnsureServiceMeshInstalled).
+						Load()
+
+					Expect(verificationFeatureErr).ToNot(HaveOccurred())
+
+					return nil
+				})
+
+				// then
+				Expect(featuresHandler.Apply()).To(Succeed())
 			})
+
 			It("should fail to find Service Mesh Control Plane if not present", func() {
-				Expect(servicemesh.EnsureServiceMeshInstalled(testFeature)).ToNot(Succeed())
+				// given
+				dsci.Spec.ServiceMesh.ControlPlane.Name = "test-name"
+
+				// when
+				featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
+					verificationFeatureErr := feature.CreateFeature("no-service-mesh-control-plane-check").
+						For(handler).
+						UsingConfig(envTest.Config).
+						PreConditions(servicemesh.EnsureServiceMeshInstalled).
+						Load()
+
+					Expect(verificationFeatureErr).ToNot(HaveOccurred())
+
+					return nil
+				})
+
+				// then
+				Expect(featuresHandler.Apply()).To(MatchError(ContainSubstring("failed to find Service Mesh Control Plane")))
 			})
+
 		})
+
 	})
 })
+
+func getGateway(cfg *rest.Config, namespace, name string) (*unstructured.Unstructured, error) {
+	dynamicClient, err := dynamic.NewForConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+	gwGvr := schema.GroupVersionResource{
+		Group:    "networking.istio.io",
+		Version:  "v1beta1",
+		Resource: "gateways",
+	}
+
+	gateway, err := dynamicClient.Resource(gwGvr).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return gateway, nil
+}
 
 func createServiceMeshControlPlane(name, namespace string) {
 	serviceMeshControlPlane := &unstructured.Unstructured{
@@ -151,7 +244,7 @@ func createServiceMeshControlPlane(name, namespace string) {
 	Expect(createSMCPInCluster(envTest.Config, serviceMeshControlPlane, namespace)).To(Succeed())
 }
 
-// createSMCPInCluster uses dynamic client to create a dummy SMCP resource for testing
+// createSMCPInCluster uses dynamic client to create a dummy SMCP resource for testing.
 func createSMCPInCluster(cfg *rest.Config, smcpObj *unstructured.Unstructured, namespace string) error {
 	dynamicClient, err := dynamic.NewForConfig(cfg)
 	if err != nil {
@@ -189,11 +282,10 @@ func createSMCPInCluster(cfg *rest.Config, smcpObj *unstructured.Unstructured, n
 		return err
 	}
 
-	r, err := dynamicClient.Resource(gvr.SMCP).Namespace(namespace).UpdateStatus(context.TODO(), result, metav1.UpdateOptions{})
+	_, err = dynamicClient.Resource(gvr.SMCP).Namespace(namespace).UpdateStatus(context.TODO(), result, metav1.UpdateOptions{})
 	if err != nil {
 		return err
 	}
-	fmt.Printf("result: %v", r)
 
 	return nil
 }

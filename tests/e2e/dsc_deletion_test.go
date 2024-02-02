@@ -1,4 +1,4 @@
-package e2e
+package e2e_test
 
 import (
 	"context"
@@ -43,7 +43,7 @@ func (tc *testContext) testDSCDeletion() error {
 	if err == nil {
 		dscerr := tc.customClient.Delete(tc.ctx, expectedDSC, &client.DeleteOptions{})
 		if dscerr != nil {
-			return fmt.Errorf("error deleting DSC instance %s: %v", expectedDSC.Name, dscerr)
+			return fmt.Errorf("error deleting DSC instance %s: %w", expectedDSC.Name, dscerr)
 		}
 	} else if !errors.IsNotFound(err) {
 		if err != nil {
@@ -57,9 +57,9 @@ func (tc *testContext) testDSCDeletion() error {
 func (tc *testContext) testApplicationDeletion(component components.ComponentInterface) error {
 	// Deletion of Deployments
 
-	if err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (done bool, err error) {
+	if err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
 		appList, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(ctx, metav1.ListOptions{
-			LabelSelector: "app.opendatahub.io/" + component.GetComponentName(),
+			LabelSelector: odhLabelPrefix + component.GetComponentName(),
 		})
 		if err != nil {
 			log.Printf("error listing component deployments :%v. Trying again...", err)
@@ -78,37 +78,46 @@ func (tc *testContext) testApplicationDeletion(component components.ComponentInt
 func (tc *testContext) testAllApplicationDeletion() error {
 	// Deletion all listed components' deployments
 
-	if err := tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.Dashboard)); err != nil {
+	var err error
+	if err = tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.Dashboard)); err != nil {
 		return err
 	}
 
-	if err := tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.ModelMeshServing)); err != nil {
+	if err = tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.ModelMeshServing)); err != nil {
 		return err
 	}
 
-	if err := tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.Kserve)); err != nil {
+	if err = tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.Kserve)); err != nil {
 		return err
 	}
 
-	if err := tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.Workbenches)); err != nil {
+	if err = tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.Workbenches)); err != nil {
 		return err
 	}
 
-	if err := tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.DataSciencePipelines)); err != nil {
+	if err = tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.DataSciencePipelines)); err != nil {
 		return err
 	}
 
-	if err := tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.CodeFlare)); err != nil {
+	if err = tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.CodeFlare)); err != nil {
 		return err
 	}
 
-	if err := tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.Ray)); err != nil {
+	if err = tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.Ray)); err != nil {
 		return err
 	}
 
-	if err := tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.TrustyAI)); err != nil {
+	if err := tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.Kueue)); err != nil {
 		return err
 	}
 
-	return nil
+	if err := tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.TrustyAI)); err != nil { //nolint:revive,nolintlint
+		return err
+	}
+
+	if err = tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.ModelRegistry)); err != nil {
+		return err
+	}
+
+	return err
 }

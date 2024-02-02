@@ -1,6 +1,7 @@
 package components
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -32,7 +34,7 @@ type Component struct {
 	// Add developer fields
 	// +optional
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=2
-	DevFlags DevFlags `json:"devFlags,omitempty"`
+	DevFlags *DevFlags `json:"devFlags,omitempty"`
 }
 
 func (c *Component) GetManagementState() operatorv1.ManagementState {
@@ -78,7 +80,7 @@ type ManifestsConfig struct {
 }
 
 type ComponentInterface interface {
-	ReconcileComponent(cli client.Client, owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec, currentComponentStatus bool) error
+	ReconcileComponent(ctx context.Context, cli client.Client, resConf *rest.Config, owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec, currentComponentStatus bool) error
 	Cleanup(cli client.Client, DSCISpec *dsciv1.DSCInitializationSpec) error
 	GetComponentName() string
 	GetManagementState() operatorv1.ManagementState
@@ -106,7 +108,7 @@ func (c *Component) UpdatePrometheusConfig(_ client.Client, enable bool, compone
 			DeadManSnitchRules string `yaml:"deadmanssnitch-alerting.rules"`
 			CFRRules           string `yaml:"codeflare-recording.rules"`
 			CRARules           string `yaml:"codeflare-alerting.rules"`
-			DashboardRRules    string `yaml:"rhods-dashboard-recording.rule"`
+			DashboardRRules    string `yaml:"rhods-dashboard-recording.rules"`
 			DashboardARules    string `yaml:"rhods-dashboard-alerting.rules"`
 			DSPRRules          string `yaml:"data-science-pipelines-operator-recording.rules"`
 			DSPARules          string `yaml:"data-science-pipelines-operator-alerting.rules"`
@@ -117,6 +119,12 @@ func (c *Component) UpdatePrometheusConfig(_ client.Client, enable bool, compone
 			RayARules          string `yaml:"ray-alerting.rules"`
 			WorkbenchesRRules  string `yaml:"workbenches-recording.rules"`
 			WorkbenchesARules  string `yaml:"workbenches-alerting.rules"`
+			KserveRRules       string `yaml:"kserve-recording.rules"`
+			KserveARules       string `yaml:"kserve-alerting.rules"`
+			TrustyAIRRules     string `yaml:"trustyai-recording.rules"`
+			TrustyAIARules     string `yaml:"trustyai-alerting.rules"`
+			KueueRRules        string `yaml:"kueue-recording.rules"`
+			KueueARules        string `yaml:"kueue-alerting.rules"`
 		} `yaml:"data"`
 	}
 	var configMap ConfigMap

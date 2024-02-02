@@ -37,7 +37,7 @@ var (
 )
 
 // only when reconcile on DSCI CR, initial set to true
-// if reconcile from monitoring, initial set to false, skip blackbox and rolebinding
+// if reconcile from monitoring, initial set to false, skip blackbox and rolebinding.
 func (r *DSCInitializationReconciler) configureManagedMonitoring(ctx context.Context, dscInit *dsci.DSCInitialization, initial string) error {
 	if initial == "init" {
 		// configure Blackbox exporter
@@ -46,9 +46,19 @@ func (r *DSCInitializationReconciler) configureManagedMonitoring(ctx context.Con
 		}
 	}
 	if initial == "revertbackup" {
+		// TODO: implement with a better solution
+		// to have - before component name is to filter out the real rules file line
+		// e.g line of "workbenches-recording.rules: |"
 		err := common.MatchLineInFile(filepath.Join(prometheusConfigPath, "prometheus-configs.yaml"),
 			map[string]string{
-				"*.rules: ": "",
+				"(.*)-(.*)workbenches(.*).rules":                     "",
+				"(.*)-(.*)rhods-dashboard(.*).rules":                 "",
+				"(.*)-(.*)codeflare(.*).rules":                       "",
+				"(.*)-(.*)data-science-pipelines-operator(.*).rules": "",
+				"(.*)-(.*)model-mesh(.*).rules":                      "",
+				"(.*)-(.*)odh-model-controller(.*).rules":            "",
+				"(.*)-(.*)ray(.*).rules":                             "",
+				"(.*)-(.*)trustyai(.*).rules":                        "",
 			})
 		if err != nil {
 			r.Log.Error(err, "error to remove previous enabled component rules")
@@ -122,7 +132,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 	// special handling for dev-mod
 	consolelinkDomain, err := common.GetDomain(r.Client, NameConsoleLink, NamespaceConsoleLink)
 	if err != nil {
-		return fmt.Errorf("error getting console route URL : %v", err)
+		return fmt.Errorf("error getting console route URL : %w", err)
 	}
 	if strings.Contains(consolelinkDomain, "devshift.org") {
 		r.Log.Info("inject alertmanage-configs.yaml for dev mode1")
@@ -199,18 +209,17 @@ func configurePrometheus(ctx context.Context, dsciInit *dsci.DSCInitialization, 
 	// Update prometheus-config for dashboard, dsp and workbench
 	consolelinkDomain, err := common.GetDomain(r.Client, NameConsoleLink, NamespaceConsoleLink)
 	if err != nil {
-		return fmt.Errorf("error getting console route URL : %v", err)
-	} else {
-		err = common.ReplaceStringsInFile(filepath.Join(prometheusConfigPath, "prometheus-configs.yaml"),
-			map[string]string{
-				"<odh_application_namespace>": dsciInit.Spec.ApplicationsNamespace,
-				"<odh_monitoring_project>":    dsciInit.Spec.Monitoring.Namespace,
-				"<console_domain>":            consolelinkDomain,
-			})
-		if err != nil {
-			r.Log.Error(err, "error to inject data to prometheus-configs.yaml")
-			return err
-		}
+		return fmt.Errorf("error getting console route URL : %w", err)
+	}
+	err = common.ReplaceStringsInFile(filepath.Join(prometheusConfigPath, "prometheus-configs.yaml"),
+		map[string]string{
+			"<odh_application_namespace>": dsciInit.Spec.ApplicationsNamespace,
+			"<odh_monitoring_project>":    dsciInit.Spec.Monitoring.Namespace,
+			"<console_domain>":            consolelinkDomain,
+		})
+	if err != nil {
+		r.Log.Error(err, "error to inject data to prometheus-configs.yaml")
+		return err
 	}
 
 	// Deploy prometheus manifests from prometheus/apps
@@ -314,7 +323,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsci.DSCInitialization, 
 	if len(existingPromDep.Spec.Template.Spec.InitContainers) > 0 {
 		err = r.Client.Delete(context.TODO(), existingPromDep)
 		if err != nil {
-			return fmt.Errorf("error deleting legacy prometheus deployment %v", err)
+			return fmt.Errorf("error deleting legacy prometheus deployment %w", err)
 		}
 	}
 
@@ -357,7 +366,7 @@ func configureBlackboxExporter(ctx context.Context, dsciInit *dsci.DSCInitializa
 	if len(existingBlackboxExp.Spec.Template.Spec.InitContainers) > 0 {
 		err = r.Client.Delete(context.TODO(), existingBlackboxExp)
 		if err != nil {
-			return fmt.Errorf("error deleting legacy blackbox deployment %v", err)
+			return fmt.Errorf("error deleting legacy blackbox deployment %w", err)
 		}
 	}
 
@@ -369,7 +378,7 @@ func configureBlackboxExporter(ctx context.Context, dsciInit *dsci.DSCInitializa
 			dsciInit.Spec.Monitoring.Namespace,
 			"blackbox-exporter",
 			dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed); err != nil {
-			r.Log.Error(err, "error to deploy manifests: %w", err)
+			r.Log.Error(err, "error to deploy manifests: %w", "error", err)
 			return err
 		}
 	} else {
@@ -379,7 +388,7 @@ func configureBlackboxExporter(ctx context.Context, dsciInit *dsci.DSCInitializa
 			dsciInit.Spec.Monitoring.Namespace,
 			"blackbox-exporter",
 			dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed); err != nil {
-			r.Log.Error(err, "error to deploy manifests: %w", err)
+			r.Log.Error(err, "error to deploy manifests: %w", "error", err)
 			return err
 		}
 	}

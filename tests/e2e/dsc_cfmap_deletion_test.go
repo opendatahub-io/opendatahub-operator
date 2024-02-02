@@ -1,11 +1,10 @@
-package e2e
+package e2e_test
 
 import (
 	"context"
 	"fmt"
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -62,7 +61,7 @@ func cfgMapDeletionTestSuite(t *testing.T) {
 func (tc *testContext) testDSCIDeletion() error {
 	dsciInstances := &dsci.DSCInitializationList{}
 	if err := tc.customClient.List(context.TODO(), dsciInstances); err != nil {
-		return errors.Wrap(err, "failed while listing DSCIs")
+		return fmt.Errorf("failed while listing DSCIs: %w", err)
 	}
 
 	if len(dsciInstances.Items) != 0 {
@@ -84,7 +83,7 @@ func (tc *testContext) testDSCDeletionUsingConfigMap() error {
 	if err == nil {
 		dscerr := tc.customClient.Delete(tc.ctx, expectedDSC, &client.DeleteOptions{})
 		if dscerr != nil {
-			return fmt.Errorf("error deleting DSC instance %s: %v", expectedDSC.Name, dscerr)
+			return fmt.Errorf("error deleting DSC instance %s: %w", expectedDSC.Name, dscerr)
 		}
 	} else if !k8serrors.IsNotFound(err) {
 		if err != nil {
@@ -96,14 +95,14 @@ func (tc *testContext) testDSCDeletionUsingConfigMap() error {
 }
 
 func (tc *testContext) testOwnedNamespacesDeletion() error {
-	if err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (done bool, err error) {
+	if err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
 		namespaces, err := tc.kubeClient.CoreV1().Namespaces().List(ctx, metav1.ListOptions{
 			LabelSelector: cluster.ODHGeneratedNamespaceLabel,
 		})
 
 		return len(namespaces.Items) == 0, err
 	}); err != nil {
-		return errors.Wrap(err, "failed waiting for all owned namespaces to be deleted")
+		return fmt.Errorf("failed waiting for all owned namespaces to be deleted: %w", err)
 	}
 
 	return nil
