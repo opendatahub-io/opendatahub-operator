@@ -164,7 +164,7 @@ package datasciencecluster
 
 // +kubebuilder:rbac:groups="core",resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
 
-// +kubebuilder:rbac:groups="core",resources=secrets,verbs=create;delete;list;update;watch;patch
+// +kubebuilder:rbac:groups="core",resources=secrets,verbs=create;delete;list;update;watch;patch;get
 // +kubebuilder:rbac:groups="core",resources=secrets/finalizers,verbs=get;create;watch;update;patch;list;delete
 
 // +kubebuilder:rbac:groups="core",resources=rhmis,verbs=watch;list
@@ -233,7 +233,7 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="apiextensions.k8s.io",resources=customresourcedefinitions,verbs=get;list;watch;create;patch;delete
 
 // +kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=validatingwebhookconfigurations,verbs=get;list;watch;create;update;delete;patch
-// +kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=mutatingwebhookconfigurations,verbs=create;delete;list;update;watch;patch
+// +kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=mutatingwebhookconfigurations,verbs=create;delete;list;update;watch;patch;get
 
 /* This is needed to derterminiate cluster type */
 // +kubebuilder:rbac:groups="addons.managed.openshift.io",resources=addons,verbs=get
