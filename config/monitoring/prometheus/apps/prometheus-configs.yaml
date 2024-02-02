@@ -328,7 +328,7 @@ data:
           target_label: __address__
           replacement: ${1}:8080          
 
-    - job_name: 'RHODS Metrics'
+    - job_name: 'RHOAI Metrics'
       honor_labels: true
       scheme: http
       kubernetes_sd_configs:
@@ -359,12 +359,12 @@ data:
         interval: 15m
         rules:
         - expr: |
-            rate(controller_runtime_reconcile_total{controller="dscinitialization-controller", job="RHODS Metrics", result!="success"}[15m])
+            rate(controller_runtime_reconcile_total{controller="dscinitialization-controller", job="RHOAI Metrics", result!="success"}[15m])
           labels:
             instance: dscinitialization-controller
           record: controller_runtime_reconcile_total:rate15m
         - expr: |
-            rate(controller_runtime_reconcile_total{controller="datasciencecluster-controller", job="RHODS Metrics", result!="success"}[15m])
+            rate(controller_runtime_reconcile_total{controller="datasciencecluster-controller", job="RHOAI Metrics", result!="success"}[15m])
           labels:
             instance: datasciencecluster-controller
           record: controller_runtime_reconcile_total:rate15m
