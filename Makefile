@@ -186,30 +186,32 @@ ifndef ignore-not-found
 endif
 
 .PHONY: prepare
-prepare: manifests kustomize manager-kustomization
+prepare: manifests kustomize
 
-# phony target for the case of changing IMG variable
-.PHONY: manager-kustomization
-manager-kustomization: config/manager/kustomization.yaml.in
-	cd config/manager \
-		&& cp -f kustomization.yaml.in kustomization.yaml \
-		&& $(KUSTOMIZE) edit set image controller=$(IMG)
+# - makes necessary substitutions in kustomize manifests
+# - calls actual kustomize command
+# - restores manifests to original state
+define kustomize-with-undo
+trap 'git restore config/manager/kustomization.yaml' EXIT
+$(shell cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG))
+$(KUSTOMIZE) $(1)
+endef
 
 .PHONY: install
 install: prepare ## Install CRDs into the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build config/crd | kubectl apply -f -
+	$(call kustomize-with-undo,build config/crd | kubectl apply -f -)
 
 .PHONY: uninstall
 uninstall: prepare ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUSTOMIZE) build config/crd | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+	$(call kustomize-with-undo,build config/crd | kubectl delete --ignore-not-found=$(ignore-not-found) -f -)
 
 .PHONY: deploy
 deploy: prepare ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build config/default | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
+	$(call kustomize-with-undo,build config/default | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -)
 
 .PHONY: undeploy
-undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+undeploy: prepare ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
+	$(call kustomize-with-undo,build config/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -)
 
 ## Location to install dependencies to
 LOCALBIN ?= $(shell pwd)/bin
