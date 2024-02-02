@@ -188,13 +188,9 @@ endif
 .PHONY: prepare
 prepare: manifests kustomize
 
-# - makes necessary substitutions in kustomize manifests
-# - calls actual kustomize command
-# - restores manifests to original state
 define kustomize-with-undo
-trap 'git restore config/manager/kustomization.yaml' EXIT
-$(shell cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG))
-$(KUSTOMIZE) $(1)
+cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
+trap 'git restore config/manager/kustomization.yaml' EXIT && $(KUSTOMIZE) $(1)
 endef
 
 .PHONY: install
