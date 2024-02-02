@@ -8,11 +8,10 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 )
 
-func (k *Kserve) configureServerlessFeatures() feature.DefinedFeatures {
-	return func(initializer *feature.FeaturesInitializer) error {
-		servingDeployment, err := feature.CreateFeature("serverless-serving-deployment").
-			With(initializer.DSCInitializationSpec).
-			From(initializer.Source).
+func (k *Kserve) configureServerlessFeatures() feature.FeaturesProvider {
+	return func(handler *feature.FeaturesHandler) error {
+		servingDeploymentErr := feature.CreateFeature("serverless-serving-deployment").
+			For(handler).
 			Manifests(
 				path.Join(feature.ServerlessDir, "serving-install"),
 			).
@@ -23,15 +22,16 @@ func (k *Kserve) configureServerlessFeatures() feature.DefinedFeatures {
 				servicemesh.EnsureServiceMeshInstalled,
 				feature.CreateNamespaceIfNotExists(serverless.KnativeServingNamespace),
 			).
+			PostConditions(
+				feature.WaitForPodsToBeReady(serverless.KnativeServingNamespace),
+			).
 			Load()
-		if err != nil {
-			return err
+		if servingDeploymentErr != nil {
+			return servingDeploymentErr
 		}
-		initializer.Features = append(initializer.Features, servingDeployment)
 
-		servingNetIstioSecretFiltering, err := feature.CreateFeature("serverless-net-istio-secret-filtering").
-			With(initializer.DSCInitializationSpec).
-			From(initializer.Source).
+		servingNetIstioSecretFilterinErr := feature.CreateFeature("serverless-net-istio-secret-filtering").
+			For(handler).
 			Manifests(
 				path.Join(feature.ServerlessDir, "serving-net-istio-secret-filtering.patch.tmpl"),
 			).
@@ -41,29 +41,27 @@ func (k *Kserve) configureServerlessFeatures() feature.DefinedFeatures {
 				feature.WaitForPodsToBeReady(serverless.KnativeServingNamespace),
 			).
 			Load()
-		if err != nil {
-			return err
+		if servingNetIstioSecretFilterinErr != nil {
+			return servingNetIstioSecretFilterinErr
 		}
-		initializer.Features = append(initializer.Features, servingNetIstioSecretFiltering)
 
-		servingIstioGateways, err := feature.CreateFeature("serverless-serving-gateways").
-			With(initializer.DSCInitializationSpec).
-			From(initializer.Source).
+		serverlessGwErr := feature.CreateFeature("serverless-serving-gateways").
+			For(handler).
 			PreConditions(serverless.EnsureServerlessServingDeployed).
 			WithData(
+				PopulateComponentSettings(k),
 				serverless.ServingDefaultValues,
 				serverless.ServingIngressDomain,
-				PopulateComponentSettings(k),
 			).
 			WithResources(serverless.ServingCertificateResource).
 			Manifests(
 				path.Join(feature.ServerlessDir, "serving-istio-gateways"),
 			).
 			Load()
-		if err != nil {
-			return err
+		if serverlessGwErr != nil {
+			return serverlessGwErr
 		}
-		initializer.Features = append(initializer.Features, servingIstioGateways)
+
 		return nil
 	}
 }

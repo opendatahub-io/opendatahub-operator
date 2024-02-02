@@ -14,14 +14,9 @@ import (
 func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsciv1.DSCInitialization) error {
 	switch instance.Spec.ServiceMesh.ManagementState {
 	case operatorv1.Managed:
-		serviceMeshInitializer := feature.ClusterFeaturesInitializer(instance, configureServiceMeshFeatures())
-		if err := serviceMeshInitializer.Prepare(); err != nil {
-			r.Log.Error(err, "failed configuring service mesh resources")
-			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed configuring service mesh resources")
-			return err
-		}
+		serviceMeshFeatures := feature.ClusterFeaturesHandler(instance, configureServiceMeshFeatures())
 
-		if err := serviceMeshInitializer.Apply(); err != nil {
+		if err := serviceMeshFeatures.Apply(); err != nil {
 			r.Log.Error(err, "failed applying service mesh resources")
 			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed applying service mesh resources")
 			return err
@@ -41,15 +36,9 @@ func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsciv1.DSCI
 func (r *DSCInitializationReconciler) removeServiceMesh(instance *dsciv1.DSCInitialization) error {
 	// on condition of Managed, do not handle Removed when set to Removed it trigger DSCI reconcile to cleanup
 	if instance.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
-		serviceMeshInitializer := feature.ClusterFeaturesInitializer(instance, configureServiceMeshFeatures())
-		if err := serviceMeshInitializer.Prepare(); err != nil {
-			r.Log.Error(err, "failed configuring service mesh resources")
-			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed configuring service mesh resources")
+		serviceMeshFeatures := feature.ClusterFeaturesHandler(instance, configureServiceMeshFeatures())
 
-			return err
-		}
-
-		if err := serviceMeshInitializer.Delete(); err != nil {
+		if err := serviceMeshFeatures.Delete(); err != nil {
 			r.Log.Error(err, "failed deleting service mesh resources")
 			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed deleting service mesh resources")
 
@@ -60,13 +49,12 @@ func (r *DSCInitializationReconciler) removeServiceMesh(instance *dsciv1.DSCInit
 	return nil
 }
 
-func configureServiceMeshFeatures() feature.DefinedFeatures {
-	return func(initializer *feature.FeaturesInitializer) error {
-		serviceMeshSpec := initializer.DSCInitializationSpec.ServiceMesh
+func configureServiceMeshFeatures() feature.FeaturesProvider {
+	return func(handler *feature.FeaturesHandler) error {
+		serviceMeshSpec := handler.DSCInitializationSpec.ServiceMesh
 
-		smcpCreation, errSmcp := feature.CreateFeature("mesh-control-plane-creation").
-			With(initializer.DSCInitializationSpec).
-			From(initializer.Source).
+		smcpCreationErr := feature.CreateFeature("mesh-control-plane-creation").
+			For(handler).
 			Manifests(
 				path.Join(feature.ServiceMeshDir, "base", "create-smcp.tmpl"),
 			).
@@ -79,15 +67,13 @@ func configureServiceMeshFeatures() feature.DefinedFeatures {
 			).
 			Load()
 
-		if errSmcp != nil {
-			return errSmcp
+		if smcpCreationErr != nil {
+			return smcpCreationErr
 		}
-		initializer.Features = append(initializer.Features, smcpCreation)
 
 		if serviceMeshSpec.ControlPlane.MetricsCollection == "Istio" {
-			metricsCollection, errMetrics := feature.CreateFeature("mesh-metrics-collection").
-				With(initializer.DSCInitializationSpec).
-				From(initializer.Source).
+			metricsCollectionErr := feature.CreateFeature("mesh-metrics-collection").
+				For(handler).
 				PreConditions(
 					servicemesh.EnsureServiceMeshInstalled,
 				).
@@ -95,25 +81,21 @@ func configureServiceMeshFeatures() feature.DefinedFeatures {
 					path.Join(feature.ServiceMeshDir, "metrics-collection"),
 				).
 				Load()
-			if errMetrics != nil {
-				return errMetrics
+			if metricsCollectionErr != nil {
+				return metricsCollectionErr
 			}
-			initializer.Features = append(initializer.Features, metricsCollection)
 		}
 
-		cfMaps, cfgMapErr := feature.CreateFeature("shared-config-maps").
-			With(initializer.DSCInitializationSpec).
-			From(initializer.Source).
+		cfgMapErr := feature.CreateFeature("shared-config-maps").
+			For(handler).
 			WithResources(servicemesh.ConfigMaps).
 			Load()
 		if cfgMapErr != nil {
 			return cfgMapErr
 		}
-		initializer.Features = append(initializer.Features, cfMaps)
 
-		extAuthz, extAuthzErr := feature.CreateFeature("service-mesh-control-plane-setup-external-authorization").
-			With(initializer.DSCInitializationSpec).
-			From(initializer.Source).
+		extAuthzErr := feature.CreateFeature("service-mesh-control-plane-setup-external-authorization").
+			For(handler).
 			Manifests(
 				path.Join(feature.AuthDir, "auth-smm.tmpl"),
 				path.Join(feature.AuthDir, "base"),
@@ -144,7 +126,6 @@ func configureServiceMeshFeatures() feature.DefinedFeatures {
 		if extAuthzErr != nil {
 			return extAuthzErr
 		}
-		initializer.Features = append(initializer.Features, extAuthz)
 
 		return nil
 	}
