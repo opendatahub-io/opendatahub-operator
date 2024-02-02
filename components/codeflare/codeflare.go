@@ -20,9 +20,10 @@ import (
 
 var (
 	ComponentName       = "codeflare"
-	CodeflarePath       = deploy.DefaultManifestPath + "/" + ComponentName + "/manifests"
+	CodeflarePath       = deploy.DefaultManifestPath + "/" + ComponentName + "/default"
 	CodeflareOperator   = "codeflare-operator"
 	RHCodeflareOperator = "rhods-codeflare-operator"
+	ParamsPath          = deploy.DefaultManifestPath + "/" + ComponentName + "/manager"
 )
 
 // Verifies that CodeFlare implements ComponentInterface.
@@ -42,7 +43,7 @@ func (c *CodeFlare) OverrideManifests(_ string) error {
 			return err
 		}
 		// If overlay is defined, update paths
-		defaultKustomizePath := "manifests"
+		defaultKustomizePath := "default"
 		if manifestConfig.SourcePath != "" {
 			defaultKustomizePath = manifestConfig.SourcePath
 		}
@@ -57,8 +58,8 @@ func (c *CodeFlare) GetComponentName() string {
 
 func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, resConf *rest.Config, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
 	var imageParamMap = map[string]string{
-		"odh-codeflare-operator-controller-image": "RELATED_IMAGE_ODH_CODEFLARE_OPERATOR_IMAGE", // no need mcad, embedded in cfo
-		"namespace": dscispec.ApplicationsNamespace,
+		"codeflare-operator-controller-image": "RELATED_IMAGE_ODH_CODEFLARE_OPERATOR_IMAGE", // no need mcad, embedded in cfo
+		"namespace":                           dscispec.ApplicationsNamespace,
 	}
 	enabled := c.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
@@ -89,7 +90,7 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, r
 
 		// Update image parameters only when we do not have customized manifests set
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (c.DevFlags == nil || len(c.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(CodeflarePath+"/bases", c.SetImageParamsMap(imageParamMap), true); err != nil {
+			if err := deploy.ApplyParams(ParamsPath, c.SetImageParamsMap(imageParamMap), true); err != nil {
 				return err
 			}
 		}
