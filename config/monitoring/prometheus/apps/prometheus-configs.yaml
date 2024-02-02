@@ -324,25 +324,25 @@ data:
           target_label: kubernetes_name
           action: keep
         - source_labels: [__address__]
-          regex: (.+):(\d+)
+          regex: (.*)
           target_label: __address__
           replacement: ${1}:8080          
 
-    - job_name: 'RHODS Metrics'
+    - job_name: 'RHOAI Metrics'
       honor_labels: true
       scheme: http
       kubernetes_sd_configs:
-        - role: endpoints
+        - role: pod
           namespaces:
             names:
               - redhat-ods-operator
       relabel_configs:
-        - source_labels: [__meta_kubernetes_service_name]
-          regex: ^(redhat-ods-operator-controller-manager-metrics)$ 
+        - source_labels: [__meta_kubernetes_pod_labelpresent_control_plane]
+          regex: ^(true)$ 
           target_label: kubernetes_name
           action: keep
         - source_labels: [__address__]
-          regex: (.+):(\d+)
+          regex: (.*)
           target_label: __address__
           replacement: ${1}:8080
 
@@ -359,12 +359,12 @@ data:
         interval: 15m
         rules:
         - expr: |
-            rate(controller_runtime_reconcile_total{controller="dscinitialization-controller", job="RHODS Metrics", result!="success"}[15m])
+            rate(controller_runtime_reconcile_total{controller="dscinitialization-controller", job="RHOAI Metrics", result!="success"}[15m])
           labels:
             instance: dscinitialization-controller
           record: controller_runtime_reconcile_total:rate15m
         - expr: |
-            rate(controller_runtime_reconcile_total{controller="datasciencecluster-controller", job="RHODS Metrics", result!="success"}[15m])
+            rate(controller_runtime_reconcile_total{controller="datasciencecluster-controller", job="RHOAI Metrics", result!="success"}[15m])
           labels:
             instance: datasciencecluster-controller
           record: controller_runtime_reconcile_total:rate15m
