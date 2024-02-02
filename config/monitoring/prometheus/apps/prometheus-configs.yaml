@@ -324,7 +324,7 @@ data:
           target_label: kubernetes_name
           action: keep
         - source_labels: [__address__]
-          regex: (.+):(\d+)
+          regex: (.*)
           target_label: __address__
           replacement: ${1}:8080          
 
@@ -332,17 +332,17 @@ data:
       honor_labels: true
       scheme: http
       kubernetes_sd_configs:
-        - role: endpoints
+        - role: pod
           namespaces:
             names:
               - redhat-ods-operator
       relabel_configs:
-        - source_labels: [__meta_kubernetes_service_name]
-          regex: ^(redhat-ods-operator-controller-manager-metrics)$ 
+        - source_labels: [__meta_kubernetes_pod_labelpresent_control_plane]
+          regex: ^(true)$ 
           target_label: kubernetes_name
           action: keep
         - source_labels: [__address__]
-          regex: (.+):(\d+)
+          regex: (.*)
           target_label: __address__
           replacement: ${1}:8080
 
