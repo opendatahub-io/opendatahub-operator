@@ -22,7 +22,7 @@ var (
 	ComponentName       = "codeflare"
 	CodeflarePath       = deploy.DefaultManifestPath + "/" + ComponentName + "/default"
 	CodeflareOperator   = "codeflare-operator"
-	RHCodeflareOperator = "rhods-codeflare-operator" //nolint:gosec
+	RHCodeflareOperator = "rhods-codeflare-operator"
 	ParamsPath          = deploy.DefaultManifestPath + "/" + ComponentName + "/manager"
 )
 
