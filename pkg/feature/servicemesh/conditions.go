@@ -2,6 +2,7 @@ package servicemesh
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -10,13 +11,10 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/dynamic"
-	ctrlLog "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 )
-
-var log = ctrlLog.Log.WithName("features")
 
 const (
 	interval = 2 * time.Second
@@ -25,7 +23,7 @@ const (
 
 func EnsureServiceMeshOperatorInstalled(f *feature.Feature) error {
 	if err := feature.EnsureCRDIsInstalled("servicemeshcontrolplanes.maistra.io")(f); err != nil {
-		log.Info("Failed to find the pre-requisite Service Mesh Control Plane CRD, please ensure Service Mesh Operator is installed.", "feature", f.Name)
+		f.Log.Info("Failed to find the pre-requisite Service Mesh Control Plane CRD, please ensure Service Mesh Operator is installed.")
 
 		return err
 	}
@@ -42,7 +40,7 @@ func EnsureServiceMeshInstalled(f *feature.Feature) error {
 	smcpNs := f.Spec.ControlPlane.Namespace
 
 	if err := WaitForControlPlaneToBeReady(f); err != nil {
-		log.Error(err, "failed waiting for control plane being ready", "feature", f.Name, "control-plane", smcp, "namespace", smcpNs)
+		f.Log.Error(err, "failed waiting for control plane being ready", "control-plane", smcp, "namespace", smcpNs)
 
 		return multierror.Append(err, errors.New("service mesh control plane is not ready")).ErrorOrNil()
 	}
@@ -50,17 +48,17 @@ func EnsureServiceMeshInstalled(f *feature.Feature) error {
 	return nil
 }
 
-func WaitForControlPlaneToBeReady(feature *feature.Feature) error {
-	smcp := feature.Spec.ControlPlane.Name
-	smcpNs := feature.Spec.ControlPlane.Namespace
+func WaitForControlPlaneToBeReady(f *feature.Feature) error {
+	smcp := f.Spec.ControlPlane.Name
+	smcpNs := f.Spec.ControlPlane.Namespace
 
-	log.Info("waiting for control plane components to be ready", "feature", feature.Name, "control-plane", smcp, "namespace", smcpNs, "duration (s)", duration.Seconds())
+	f.Log.Info("waiting for control plane components to be ready", "control-plane", smcp, "namespace", smcpNs, "duration (s)", duration.Seconds())
 
 	return wait.PollUntilContextTimeout(context.TODO(), interval, duration, false, func(ctx context.Context) (bool, error) {
-		ready, err := CheckControlPlaneComponentReadiness(feature.DynamicClient, smcp, smcpNs)
+		ready, err := CheckControlPlaneComponentReadiness(f.DynamicClient, smcp, smcpNs)
 
 		if ready {
-			log.Info("done waiting for control plane components to be ready", "feature", feature.Name, "control-plane", smcp, "namespace", smcpNs)
+			f.Log.Info("done waiting for control plane components to be ready", "control-plane", smcp, "namespace", smcpNs)
 		}
 
 		return ready, err
@@ -70,14 +68,12 @@ func WaitForControlPlaneToBeReady(feature *feature.Feature) error {
 func CheckControlPlaneComponentReadiness(dynamicClient dynamic.Interface, smcp, smcpNs string) (bool, error) {
 	unstructObj, err := dynamicClient.Resource(gvr.SMCP).Namespace(smcpNs).Get(context.TODO(), smcp, metav1.GetOptions{})
 	if err != nil {
-		log.Info("failed to find Service Mesh Control Plane", "control-plane", smcp, "namespace", smcpNs)
-		return false, err
+		return false, fmt.Errorf("failed to find Service Mesh Control Plane: %w", err)
 	}
 
 	components, found, err := unstructured.NestedMap(unstructObj.Object, "status", "readiness", "components")
 	if err != nil || !found {
-		log.Info("status conditions not found or error in parsing of Service Mesh Control Plane")
-		return false, err
+		return false, fmt.Errorf("status conditions not found or error in parsing of Service Mesh Control Plane: %w", err)
 	}
 
 	readyComponents := len(components["ready"].([]interface{}))     //nolint:forcetypeassert

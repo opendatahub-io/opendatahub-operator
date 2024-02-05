@@ -16,7 +16,6 @@ package feature
 import (
 	"context"
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
 
@@ -33,13 +32,9 @@ const (
 	YamlSeparator = "(?m)^---[ \t]*$"
 )
 
-func (f *Feature) createResourceFromFile(filename string) error {
-	data, err := os.ReadFile(filename)
-	if err != nil {
-		return errors.WithStack(err)
-	}
+func (f *Feature) createResources(resources string) error {
 	splitter := regexp.MustCompile(YamlSeparator)
-	objectStrings := splitter.Split(string(data), -1)
+	objectStrings := splitter.Split(resources, -1)
 	for _, str := range objectStrings {
 		if strings.TrimSpace(str) == "" {
 			continue
@@ -58,11 +53,12 @@ func (f *Feature) createResourceFromFile(filename string) error {
 			f.AsOwnerReference(),
 		})
 
-		log.Info("Creating resource", "name", name)
+		f.Log.Info("Creating resource", "name", name)
 
 		err := f.Client.Get(context.TODO(), k8stypes.NamespacedName{Name: name, Namespace: namespace}, u.DeepCopy())
 		if err == nil {
-			log.Info("Object already exists...")
+			f.Log.Info("Object already exists...")
+
 			continue
 		}
 		if !k8serrors.IsNotFound(err) {
@@ -77,20 +73,17 @@ func (f *Feature) createResourceFromFile(filename string) error {
 	return nil
 }
 
-func (f *Feature) patchResourceFromFile(filename string) error {
-	data, err := os.ReadFile(filename)
-	if err != nil {
-		return errors.WithStack(err)
-	}
+func (f *Feature) patchResources(resources string) error {
 	splitter := regexp.MustCompile(YamlSeparator)
-	objectStrings := splitter.Split(string(data), -1)
+	objectStrings := splitter.Split(resources, -1)
 	for _, str := range objectStrings {
 		if strings.TrimSpace(str) == "" {
 			continue
 		}
 		u := &unstructured.Unstructured{}
 		if err := yaml.Unmarshal([]byte(str), u); err != nil {
-			log.Error(err, "error unmarshalling yaml")
+			f.Log.Error(err, "error unmarshalling yaml")
+
 			return errors.WithStack(err)
 		}
 
@@ -102,10 +95,11 @@ func (f *Feature) patchResourceFromFile(filename string) error {
 			Resource: strings.ToLower(u.GroupVersionKind().Kind) + "s",
 		}
 
-		// Convert the patch from YAML to JSON
-		patchAsJSON, err := yaml.YAMLToJSON(data)
+		// Convert the individual resource patch from YAML to JSON
+		patchAsJSON, err := yaml.YAMLToJSON([]byte(str))
 		if err != nil {
-			log.Error(err, "error converting yaml to json")
+			f.Log.Error(err, "error converting yaml to json")
+
 			return errors.WithStack(err)
 		}
 
@@ -113,7 +107,7 @@ func (f *Feature) patchResourceFromFile(filename string) error {
 			Namespace(u.GetNamespace()).
 			Patch(context.TODO(), u.GetName(), k8stypes.MergePatchType, patchAsJSON, metav1.PatchOptions{})
 		if err != nil {
-			log.Error(err, "error patching resource",
+			f.Log.Error(err, "error patching resource",
 				"gvr", fmt.Sprintf("%+v\n", gvr),
 				"patch", fmt.Sprintf("%+v\n", u),
 				"json", fmt.Sprintf("%+v\n", patchAsJSON))

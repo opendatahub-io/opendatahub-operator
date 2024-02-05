@@ -40,6 +40,9 @@ metadata:
                   "name": "knative-serving"
                 }
               },
+              "kueue": {
+                "managementState": "Removed"
+              },
               "modelmeshserving": {
                 "managementState": "Managed"
               },
@@ -228,7 +231,7 @@ spec:
     * Model Serving using ModelMesh and Kserve.
     * Ability to use other runtimes for serving
     * Model Monitoring
-    * Distributed workloads (KubeRay, CodeFlare)
+    * Distributed workloads (KubeRay, CodeFlare, Kueue)
     * XAI explanations of predictive models (TrustyAI)
   displayName: Red Hat OpenShift AI
   icon:
@@ -322,8 +325,12 @@ spec:
           resources:
           - apiservices
           verbs:
+          - create
+          - delete
           - get
           - list
+          - patch
+          - update
           - watch
         - apiGroups:
           - apps
@@ -902,6 +909,15 @@ spec:
           - patch
           - update
           - watch
+        - apiGroups:
+          - features.opendatahub.io
+          resources:
+          - featuretrackers/status
+          verbs:
+          - delete
+          - get
+          - patch
+          - update
         - apiGroups:
           - image.openshift.io
           resources:
@@ -1757,7 +1773,7 @@ spec:
                 - --leader-elect
                 command:
                 - /manager
-                image: REPLACE_IMAGE:latest
+                image: REPLACE_IMAGE:latest 
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:

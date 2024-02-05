@@ -23,5 +23,5 @@ spec:
     * Model Serving using ModelMesh and Kserve.
     * Ability to use other runtimes for serving
     * Model Monitoring
-    * Distributed workloads (KubeRay, CodeFlare)
+    * Distributed workloads (KubeRay, CodeFlare, Kueue)
     * XAI explanations of predictive models (TrustyAI)

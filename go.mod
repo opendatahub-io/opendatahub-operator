@@ -100,6 +100,7 @@ require (
 )
 
 replace (
+	github.com/go-yaml/yaml => github.com/go-yaml/yaml v2.2.8+incompatible
 	github.com/tektoncd/pipeline => github.com/tektoncd/pipeline v0.12.0
 	go.uber.org/multierr => go.uber.org/multierr v1.6.0
 	golang.org/x/image => golang.org/x/image v0.10.0
