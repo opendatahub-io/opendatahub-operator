@@ -41,7 +41,7 @@ type Workbenches struct {
 
 func (w *Workbenches) OverrideManifests(platform string) error {
 	// Download manifests if defined by devflags
-	// Go through each manifests and set the overlays if defined
+	// Go through each manifest and set the overlays if defined
 	for _, subcomponent := range w.DevFlags.Manifests {
 		if strings.Contains(subcomponent.URI, DependentComponentName) {
 			// Download subcomponent

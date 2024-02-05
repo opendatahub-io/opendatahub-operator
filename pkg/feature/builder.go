@@ -23,7 +23,7 @@ type featureBuilder struct {
 	name            string
 	config          *rest.Config
 	builders        []partialBuilder
-	featuresHanlder *FeaturesHandler
+	featuresHandler *FeaturesHandler
 	fsys            fs.FS
 }
 
@@ -51,7 +51,7 @@ func (u *usingFeaturesHandler) For(featuresHandler *FeaturesHandler) *featureBui
 
 	fb := &featureBuilder{
 		name:            u.name,
-		featuresHanlder: featuresHandler,
+		featuresHandler: featuresHandler,
 		fsys:            embeddedFiles,
 	}
 
@@ -183,7 +183,7 @@ func (fb *featureBuilder) Load() error {
 		}
 	}
 
-	fb.featuresHanlder.features = append(fb.featuresHanlder.features, feature)
+	fb.featuresHandler.features = append(fb.featuresHandler.features, feature)
 
 	return nil
 }

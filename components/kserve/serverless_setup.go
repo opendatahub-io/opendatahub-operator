@@ -30,7 +30,7 @@ func (k *Kserve) configureServerlessFeatures() feature.FeaturesProvider {
 			return servingDeploymentErr
 		}
 
-		servingNetIstioSecretFilterinErr := feature.CreateFeature("serverless-net-istio-secret-filtering").
+		servingNetIstioSecretFilteringErr := feature.CreateFeature("serverless-net-istio-secret-filtering").
 			For(handler).
 			Manifests(
 				path.Join(feature.ServerlessDir, "serving-net-istio-secret-filtering.patch.tmpl"),
@@ -41,8 +41,8 @@ func (k *Kserve) configureServerlessFeatures() feature.FeaturesProvider {
 				feature.WaitForPodsToBeReady(serverless.KnativeServingNamespace),
 			).
 			Load()
-		if servingNetIstioSecretFilterinErr != nil {
-			return servingNetIstioSecretFilterinErr
+		if servingNetIstioSecretFilteringErr != nil {
+			return servingNetIstioSecretFilteringErr
 		}
 
 		serverlessGwErr := feature.CreateFeature("serverless-serving-gateways").
