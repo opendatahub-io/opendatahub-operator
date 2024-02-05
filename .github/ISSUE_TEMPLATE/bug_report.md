@@ -1,5 +1,5 @@
 ---
-name: End supporting for v1
+name: End support for v1
 about: How To
 labels: bug, v1
 ---
