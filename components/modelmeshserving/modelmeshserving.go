@@ -36,7 +36,7 @@ type ModelMeshServing struct {
 }
 
 func (m *ModelMeshServing) OverrideManifests(_ string) error {
-	// Go through each manifests and set the overlays if defined
+	// Go through each manifest and set the overlays if defined
 	for _, subcomponent := range m.DevFlags.Manifests {
 		if strings.Contains(subcomponent.URI, DependentComponentName) {
 			// Download subcomponent
@@ -150,7 +150,7 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 	// CloudService Monitoring handling
 	if platform == deploy.ManagedRhods {
 		if enabled {
-			// first check if service is up, so prometheus wont fire alerts when it is just startup
+			// first check if service is up, so prometheus won't fire alerts when it is just startup
 			if err := monitoring.WaitForDeploymentAvailable(ctx, resConf, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
 				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 			}
