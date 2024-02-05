@@ -113,7 +113,10 @@ func (c *Cleaner) DeleteAll(objects ...client.Object) {
 				_, err = c.clientset.CoreV1().Namespaces().Finalize(context.Background(), ns, metav1.UpdateOptions{})
 
 				return err
-			}, c.timeout, c.interval).Should(Succeed())
+			}).
+				WithTimeout(c.timeout).
+				WithPolling(c.interval).
+				Should(Succeed())
 		}
 
 		Eventually(func() metav1.StatusReason {
