@@ -104,6 +104,26 @@ func (tc *testContext) testDSCICreation() error {
 	return nil
 }
 
+func waitDSCReady(tc *testContext) error {
+	err := tc.wait(func(ctx context.Context) (bool, error) {
+		key := types.NamespacedName{Name: tc.testDsc.Name}
+		dsc := &dsc.DataScienceCluster{}
+
+		err := tc.customClient.Get(tc.ctx, key, dsc)
+		if err != nil {
+			return false, err
+		}
+
+		return dsc.Status.Phase == "Ready", nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("Error waiting Ready state for DSC %v: %w", tc.testDsc.Name, err)
+	}
+
+	return nil
+}
+
 func (tc *testContext) testDSCCreation() error {
 	// Create DataScienceCluster resource if not already created
 
@@ -142,7 +162,7 @@ func (tc *testContext) testDSCCreation() error {
 		}
 	}
 
-	return nil
+	return waitDSCReady(tc)
 }
 
 func (tc *testContext) requireInstalled(t *testing.T, gvk schema.GroupVersionKind) {

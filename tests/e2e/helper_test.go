@@ -181,3 +181,7 @@ func (tc *testContext) validateCRD(crdName string) error {
 
 	return err
 }
+
+func (tc *testContext) wait(isReady func(ctx context.Context) (bool, error)) error {
+	return wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, true, isReady)
+}
