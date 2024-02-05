@@ -8,25 +8,20 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 )
 
-func (d *Dashboard) configureServiceMesh(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec, origin featurev1.Origin) error {
+func (d *Dashboard) configureServiceMesh(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
 	shouldConfigureServiceMesh, err := deploy.ShouldConfigureServiceMesh(cli, dscispec)
 	if err != nil {
 		return err
 	}
 
 	if shouldConfigureServiceMesh {
-		serviceMeshInitializer := feature.NewFeaturesInitializer(dscispec, d.defineServiceMeshFeatures(dscispec, origin))
-
-		if err := serviceMeshInitializer.Prepare(); err != nil {
-			return err
-		}
+		serviceMeshInitializer := feature.ComponentFeaturesHandler(d, dscispec, d.defineServiceMeshFeatures(dscispec))
 
 		if err := serviceMeshInitializer.Apply(); err != nil {
 			return err
@@ -41,10 +36,10 @@ func (d *Dashboard) configureServiceMesh(cli client.Client, owner metav1.Object,
 	return nil
 }
 
-func (d *Dashboard) defineServiceMeshFeatures(dscispec *dsci.DSCInitializationSpec, origin featurev1.Origin) feature.DefinedFeatures {
-	return func(s *feature.FeaturesInitializer) error {
-		createMeshResources, err := feature.CreateFeature("dashboard-create-service-mesh-routing-resources").
-			For(dscispec, origin).
+func (d *Dashboard) defineServiceMeshFeatures(dscispec *dsci.DSCInitializationSpec) feature.FeaturesProvider {
+	return func(handler *feature.FeaturesHandler) error {
+		createMeshResourcesErr := feature.CreateFeature("dashboard-create-service-mesh-routing-resources").
+			For(handler).
 			Manifests(
 				path.Join(feature.ControlPlaneDir, "components", d.GetComponentName()),
 			).
@@ -62,11 +57,9 @@ func (d *Dashboard) defineServiceMeshFeatures(dscispec *dsci.DSCInitializationSp
 			OnDelete(servicemesh.DisabledInDashboard).
 			Load()
 
-		if err != nil {
-			return err
+		if createMeshResourcesErr != nil {
+			return createMeshResourcesErr
 		}
-
-		s.Features = append(s.Features, createMeshResources)
 
 		return nil
 	}

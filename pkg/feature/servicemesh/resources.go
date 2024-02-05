@@ -23,15 +23,11 @@ func SelfSignedCertificate(f *feature.Feature) error {
 			Name:      f.Spec.ControlPlane.Certificate.SecretName,
 			Namespace: f.Spec.ControlPlane.Namespace,
 			OwnerReferences: []metav1.OwnerReference{
-				f.OwnerReference(),
+				f.AsOwnerReference(),
 			},
 		}
 
 		cert, err := feature.GenerateSelfSignedCertificateAsSecret(f.Spec.Domain, meta)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -52,7 +48,7 @@ func EnvoyOAuthSecrets(feature *feature.Feature) error {
 		Name:      feature.Spec.AppNamespace + "-oauth2-tokens",
 		Namespace: feature.Spec.ControlPlane.Namespace,
 		OwnerReferences: []metav1.OwnerReference{
-			feature.OwnerReference(),
+			feature.AsOwnerReference(),
 		},
 	}
 

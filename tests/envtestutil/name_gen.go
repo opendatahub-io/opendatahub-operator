@@ -2,19 +2,11 @@ package envtestutil
 
 import (
 	"crypto/rand"
-	"encoding/hex"
 	"math"
 	"math/big"
 )
 
 var letters = []rune("abcdefghijklmnopqrstuvwxyz")
-
-func RandomUUIDName(numlen int) string {
-	uuidBytes := make([]byte, numlen)
-	_, _ = rand.Read(uuidBytes)
-
-	return hex.EncodeToString(uuidBytes)[:numlen]
-}
 
 func AppendRandomNameTo(prefix string) string {
 	return ConcatToMax(63, prefix, GenerateString(16))

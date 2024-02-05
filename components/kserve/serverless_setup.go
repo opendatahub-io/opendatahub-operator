@@ -3,62 +3,65 @@ package kserve
 import (
 	"path"
 
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/serverless"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 )
 
-const (
-	knativeServingNamespace = "knative-serving"
-	templatesDir            = "templates/serverless"
-)
-
-func (k *Kserve) configureServerlessFeatures(dscispec *dsci.DSCInitializationSpec, origin featurev1.Origin) feature.DefinedFeatures {
-	return func(s *feature.FeaturesInitializer) error {
-		servingDeployment, err := feature.CreateFeature("serverless-serving-deployment").
-			For(dscispec, origin).
+func (k *Kserve) configureServerlessFeatures() feature.FeaturesProvider {
+	return func(handler *feature.FeaturesHandler) error {
+		servingDeploymentErr := feature.CreateFeature("serverless-serving-deployment").
+			For(handler).
 			Manifests(
-				path.Join(templatesDir, "serving-install"),
+				path.Join(feature.ServerlessDir, "serving-install"),
 			).
 			WithData(PopulateComponentSettings(k)).
 			PreConditions(
 				serverless.EnsureServerlessOperatorInstalled,
 				serverless.EnsureServerlessAbsent,
 				servicemesh.EnsureServiceMeshInstalled,
-				feature.CreateNamespaceIfNotExists(knativeServingNamespace),
+				feature.CreateNamespaceIfNotExists(serverless.KnativeServingNamespace),
 			).
 			PostConditions(
-				feature.WaitForPodsToBeReady(knativeServingNamespace),
+				feature.WaitForPodsToBeReady(serverless.KnativeServingNamespace),
 			).
 			Load()
-		if err != nil {
-			return err
+		if servingDeploymentErr != nil {
+			return servingDeploymentErr
 		}
-		s.Features = append(s.Features, servingDeployment)
 
-		servingIstioGateways, err := feature.CreateFeature("serverless-serving-gateways").
-			For(dscispec, origin).
-			PreConditions(
-				// Check serverless is installed
-				feature.WaitForResourceToBeCreated(knativeServingNamespace, gvr.KnativeServing),
+		servingNetIstioSecretFilteringErr := feature.CreateFeature("serverless-net-istio-secret-filtering").
+			For(handler).
+			Manifests(
+				path.Join(feature.ServerlessDir, "serving-net-istio-secret-filtering.patch.tmpl"),
 			).
+			WithData(PopulateComponentSettings(k)).
+			PreConditions(serverless.EnsureServerlessServingDeployed).
+			PostConditions(
+				feature.WaitForPodsToBeReady(serverless.KnativeServingNamespace),
+			).
+			Load()
+		if servingNetIstioSecretFilteringErr != nil {
+			return servingNetIstioSecretFilteringErr
+		}
+
+		serverlessGwErr := feature.CreateFeature("serverless-serving-gateways").
+			For(handler).
+			PreConditions(serverless.EnsureServerlessServingDeployed).
 			WithData(
+				PopulateComponentSettings(k),
 				serverless.ServingDefaultValues,
 				serverless.ServingIngressDomain,
-				PopulateComponentSettings(k),
 			).
 			WithResources(serverless.ServingCertificateResource).
 			Manifests(
-				path.Join(templatesDir, "serving-istio-gateways"),
+				path.Join(feature.ServerlessDir, "serving-istio-gateways"),
 			).
 			Load()
-		if err != nil {
-			return err
+		if serverlessGwErr != nil {
+			return serverlessGwErr
 		}
-		s.Features = append(s.Features, servingIstioGateways)
+
 		return nil
 	}
 }

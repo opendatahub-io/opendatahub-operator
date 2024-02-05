@@ -15,12 +15,6 @@ var (
 		Resource: "ingresses",
 	}
 
-	FeatureTracker = schema.GroupVersionResource{
-		Group:    "features.opendatahub.io",
-		Version:  "v1",
-		Resource: "featuretrackers",
-	}
-
 	ODHDashboardConfigGVR = schema.GroupVersionResource{
 		Group:    "opendatahub.io",
 		Version:  "v1alpha",

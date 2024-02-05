@@ -28,7 +28,9 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/kueue"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
@@ -170,7 +172,13 @@ func CreateDefaultDSC(cli client.Client, _ deploy.Platform) error {
 				Ray: ray.Ray{
 					Component: components.Component{ManagementState: operatorv1.Removed},
 				},
+				Kueue: kueue.Kueue{
+					Component: components.Component{ManagementState: operatorv1.Removed},
+				},
 				TrustyAI: trustyai.TrustyAI{
+					Component: components.Component{ManagementState: operatorv1.Managed},
+				},
+				ModelRegistry: modelregistry.ModelRegistry{
 					Component: components.Component{ManagementState: operatorv1.Removed},
 				},
 			},
@@ -308,6 +316,14 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 		}
 
 		return err
+	}
+
+	// TODO: Revert the following condition in 2.8 ODH Release
+	if platform == deploy.OpenDataHub {
+		fmt.Println("starting deletion of deployment in ODH cluster")
+		if err := deleteResource(cli, appNS, "deployment"); err != nil {
+			return fmt.Errorf("error deleting deployment: %w", err)
+		}
 	}
 
 	return nil

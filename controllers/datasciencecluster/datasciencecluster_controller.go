@@ -133,7 +133,8 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	switch len(dsciInstances.Items) {
 	case 0:
 		reason := status.ReconcileFailed
-		message := "Failed to get a valid DSCInitialization instance"
+		message := "Failed to get a valid DSCInitialization instance, please create a DSCI instance"
+		r.Log.Info(message)
 		instance, err = r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
 			status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
 			saved.Status.Phase = status.PhaseError

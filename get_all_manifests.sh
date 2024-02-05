@@ -3,11 +3,12 @@ set -e
 
 GITHUB_URL="https://github.com/"
 
-# component: notebook, dsp, kserve, dashbaord, cf/ray, trustyai, modelmesh.
+# component: notebook, dsp, kserve, dashbaord, cf/ray/kueue, trustyai, modelmesh, modelregistry.
 # in the format of "repo-org:repo-name:branch-name:source-folder:target-folder".
 declare -A COMPONENT_MANIFESTS=(
     ["codeflare"]="opendatahub-io:codeflare-operator:main:config:codeflare"
     ["ray"]="opendatahub-io:kuberay:master:ray-operator/config:ray"
+    ["kueue"]="opendatahub-io:kueue:dev:config:kueue"
     ["data-science-pipelines-operator"]="opendatahub-io:data-science-pipelines-operator:main:config:data-science-pipelines-operator"
     ["odh-dashboard"]="opendatahub-io:odh-dashboard:incubation:manifests:dashboard"
     ["kf-notebook-controller"]="opendatahub-io:kubeflow:v1.7-branch:components/notebook-controller/config:odh-notebook-controller/kf-notebook-controller"
@@ -18,6 +19,7 @@ declare -A COMPONENT_MANIFESTS=(
     ["odh-model-controller"]="opendatahub-io:odh-model-controller:release-0.11.0:config:odh-model-controller"
     ["odh-project-controller"]="maistra:odh-project-controller:main:config:odh-project-controller"
     ["kserve"]="opendatahub-io:kserve:release-v0.11.0:config:kserve"
+    ["modelregistry"]="opendatahub-io:model-registry-operator:main:config:model-registry-operator"
 )
 
 # Allow overwriting repo using flags component=repo

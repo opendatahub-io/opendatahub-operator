@@ -14,7 +14,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -110,7 +109,7 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resC
 			}
 		}
 		// check on dependent operators if all installed in cluster
-		dependOpsErrors := checkDepedentOps(cli).ErrorOrNil()
+		dependOpsErrors := checkDependentOperators(cli).ErrorOrNil()
 		if dependOpsErrors != nil {
 			return dependOpsErrors
 		}
@@ -177,7 +176,7 @@ func (k *Kserve) configureServerless(instance *dsciv1.DSCInitializationSpec) err
 		fmt.Println("Serverless CR is not configured by the operator, we won't do anything")
 
 	case operatorv1.Removed: // we remove serving CR
-		fmt.Println("existing ServiceMesh CR (owned by operator) will be removed")
+		fmt.Println("existing Serverless CR (owned by operator) will be removed")
 		if err := k.removeServerlessFeatures(instance); err != nil {
 			return err
 		}
@@ -187,17 +186,10 @@ func (k *Kserve) configureServerless(instance *dsciv1.DSCInitializationSpec) err
 		case operatorv1.Unmanaged, operatorv1.Removed:
 			return fmt.Errorf("ServiceMesh is need to set to 'Managed' in DSCI CR, it is required by KServe serving field")
 		}
-		origin := featurev1.Origin{
-			Type: featurev1.ComponentType,
-			Name: k.GetComponentName(),
-		}
-		serverlessInitializer := feature.NewFeaturesInitializer(instance, k.configureServerlessFeatures(instance, origin))
 
-		if err := serverlessInitializer.Prepare(); err != nil {
-			return err
-		}
+		serverlessFeatures := feature.ComponentFeaturesHandler(k, instance, k.configureServerlessFeatures())
 
-		if err := serverlessInitializer.Apply(); err != nil {
+		if err := serverlessFeatures.Apply(); err != nil {
 			return err
 		}
 	}
@@ -205,20 +197,12 @@ func (k *Kserve) configureServerless(instance *dsciv1.DSCInitializationSpec) err
 }
 
 func (k *Kserve) removeServerlessFeatures(instance *dsciv1.DSCInitializationSpec) error {
-	origin := featurev1.Origin{
-		Type: featurev1.ComponentType,
-		Name: k.GetComponentName(),
-	}
-	serverlessInitializer := feature.NewFeaturesInitializer(instance, k.configureServerlessFeatures(instance, origin))
+	serverlessFeatures := feature.ComponentFeaturesHandler(k, instance, k.configureServerlessFeatures())
 
-	if err := serverlessInitializer.Prepare(); err != nil {
-		return err
-	}
-
-	return serverlessInitializer.Delete()
+	return serverlessFeatures.Delete()
 }
 
-func checkDepedentOps(cli client.Client) *multierror.Error {
+func checkDependentOperators(cli client.Client) *multierror.Error {
 	var multiErr *multierror.Error
 
 	if found, err := deploy.OperatorExists(cli, ServiceMeshOperator); err != nil {

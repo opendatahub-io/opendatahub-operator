@@ -11,6 +11,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -24,10 +25,11 @@ import (
 )
 
 var (
-	envTestClient client.Client
-	envTest       *envtest.Environment
-	ctx           context.Context
-	cancel        context.CancelFunc
+	envTestClient    client.Client
+	envTestClientset *kubernetes.Clientset
+	envTest          *envtest.Environment
+	ctx              context.Context
+	cancel           context.CancelFunc
 )
 
 var testScheme = runtime.NewScheme()
@@ -54,6 +56,7 @@ var _ = BeforeSuite(func() {
 	}
 
 	utilruntime.Must(v1.AddToScheme(testScheme))
+	utilruntime.Must(featurev1.AddToScheme(testScheme))
 
 	envTest = &envtest.Environment{
 		CRDInstallOptions: envtest.CRDInstallOptions{
@@ -78,6 +81,10 @@ var _ = BeforeSuite(func() {
 	envTestClient, err = client.New(config, client.Options{Scheme: testScheme})
 	Expect(err).NotTo(HaveOccurred())
 	Expect(envTestClient).NotTo(BeNil())
+
+	envTestClientset, err = kubernetes.NewForConfig(config)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(envTestClientset).NotTo(BeNil())
 })
 
 var _ = AfterSuite(func() {

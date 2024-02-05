@@ -49,14 +49,14 @@ func (f *Feature) createResources(resources string) error {
 		namespace := u.GetNamespace()
 
 		u.SetOwnerReferences([]metav1.OwnerReference{
-			f.OwnerReference(),
+			f.AsOwnerReference(),
 		})
 
-		log.Info("Creating resource", "name", name)
+		f.Log.Info("Creating resource", "name", name)
 
 		err := f.Client.Get(context.TODO(), k8stypes.NamespacedName{Name: name, Namespace: namespace}, u.DeepCopy())
 		if err == nil {
-			log.Info("Object already exists...")
+			f.Log.Info("Object already exists...")
 
 			continue
 		}
@@ -82,7 +82,7 @@ func (f *Feature) patchResources(resources string) error {
 		}
 		u := &unstructured.Unstructured{}
 		if err := yaml.Unmarshal([]byte(str), u); err != nil {
-			log.Error(err, "error unmarshalling yaml")
+			f.Log.Error(err, "error unmarshalling yaml")
 			return errors.WithStack(err)
 		}
 
@@ -97,7 +97,7 @@ func (f *Feature) patchResources(resources string) error {
 		// Convert the individual resource patch from YAML to JSON
 		patchAsJSON, err := yaml.YAMLToJSON([]byte(str))
 		if err != nil {
-			log.Error(err, "error converting yaml to json")
+			f.Log.Error(err, "error converting yaml to json")
 			return errors.WithStack(err)
 		}
 

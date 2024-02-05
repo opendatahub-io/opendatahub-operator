@@ -2,23 +2,17 @@ package servicemesh_test
 
 import (
 	"context"
-	"embed"
-	"io"
-	"os"
 	"path"
-	"path/filepath"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
@@ -29,9 +23,6 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-//go:embed test-templates
-var testEmbeddedFiles embed.FS
-
 const (
 	timeout            = 5 * time.Second
 	interval           = 250 * time.Millisecond
@@ -39,187 +30,16 @@ const (
 	authorinoNamespace = "test-provider"
 )
 
-var _ = Describe("preconditions", func() {
-
-	Context("namespace existence", func() {
-
-		var (
-			objectCleaner *envtestutil.Cleaner
-			testFeature   *feature.Feature
-			namespace     string
-		)
-
-		BeforeEach(func() {
-			objectCleaner = envtestutil.CreateCleaner(envTestClient, envTest.Config, timeout, interval)
-
-			testFeatureName := "test-ns-creation"
-			namespace = envtestutil.AppendRandomNameTo(testFeatureName)
-
-			dsciSpec := newDSCInitializationSpec(namespace)
-			origin := envtestutil.NewOrigin(featurev1.DSCIType, "default")
-			var err error
-			testFeature, err = feature.CreateFeature(testFeatureName).
-				For(dsciSpec, origin).
-				UsingConfig(envTest.Config).
-				Load()
-			Expect(err).ToNot(HaveOccurred())
-		})
-
-		It("should create namespace if it does not exist", func() {
-			// given
-			_, err := getNamespace(namespace)
-			Expect(errors.IsNotFound(err)).To(BeTrue())
-			defer objectCleaner.DeleteAll(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
-
-			// when
-			err = feature.CreateNamespaceIfNotExists(namespace)(testFeature)
-
-			// then
-			Expect(err).ToNot(HaveOccurred())
-		})
-
-		It("should not try to create namespace if it does already exist", func() {
-			// given
-			ns := createNamespace(namespace)
-			Expect(envTestClient.Create(context.Background(), ns)).To(Succeed())
-			defer objectCleaner.DeleteAll(ns)
-
-			// when
-			err := feature.CreateNamespaceIfNotExists(namespace)(testFeature)
-
-			// then
-			Expect(err).ToNot(HaveOccurred())
-		})
-	})
-
-	Context("ensuring custom resource definitions are installed", func() {
-
-		var (
-			dsciSpec            *dscv1.DSCInitializationSpec
-			verificationFeature *feature.Feature
-			origin              featurev1.Origin
-		)
-
-		BeforeEach(func() {
-			dsciSpec = newDSCInitializationSpec("default")
-			origin = envtestutil.NewOrigin(featurev1.DSCIType, "default")
-		})
-
-		It("should successfully check for existing CRD", func() {
-			// given example CRD installed into env from /ossm/test/crd/
-			name := "test-resources.openshift.io"
-
-			var err error
-			verificationFeature, err = feature.CreateFeature("CRD verification").
-				For(dsciSpec, origin).
-				UsingConfig(envTest.Config).
-				PreConditions(feature.EnsureCRDIsInstalled(name)).
-				Load()
-			Expect(err).ToNot(HaveOccurred())
-
-			// when
-			err = verificationFeature.Apply()
-
-			// then
-			Expect(err).ToNot(HaveOccurred())
-		})
-
-		It("should fail to check non-existing CRD", func() {
-			// given
-			name := "non-existing-resource.non-existing-group.io"
-
-			var err error
-			verificationFeature, err = feature.CreateFeature("CRD verification").
-				For(dsciSpec, origin).
-				UsingConfig(envTest.Config).
-				PreConditions(feature.EnsureCRDIsInstalled(name)).
-				Load()
-			Expect(err).ToNot(HaveOccurred())
-
-			// when
-			err = verificationFeature.Apply()
-
-			// then
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("\"non-existing-resource.non-existing-group.io\" not found"))
-		})
-	})
-
-})
-
-var _ = Describe("Ensuring service mesh is set up correctly", func() {
-
-	var (
-		objectCleaner    *envtestutil.Cleaner
-		dsciSpec         *dscv1.DSCInitializationSpec
-		serviceMeshSpec  *infrav1.ServiceMeshSpec
-		serviceMeshCheck *feature.Feature
-		origin           featurev1.Origin
-		name             = "test-name"
-		namespace        = "test-namespace"
-	)
-
-	BeforeEach(func() {
-		dsciSpec = newDSCInitializationSpec(namespace)
-		var err error
-		serviceMeshSpec = &dsciSpec.ServiceMesh
-
-		serviceMeshSpec.ControlPlane.Name = name
-		serviceMeshSpec.ControlPlane.Namespace = namespace
-		origin = envtestutil.NewOrigin(featurev1.DSCIType, "default")
-		serviceMeshCheck, err = feature.CreateFeature("datascience-project-migration").
-			For(dsciSpec, origin).
-			UsingConfig(envTest.Config).
-			PreConditions(servicemesh.EnsureServiceMeshInstalled).Load()
-
-		Expect(err).ToNot(HaveOccurred())
-
-		objectCleaner = envtestutil.CreateCleaner(envTestClient, envTest.Config, timeout, interval)
-	})
-
-	It("should find installed Service Mesh Control Plane", func() {
-		ns := createNamespace(namespace)
-		Expect(envTestClient.Create(context.Background(), ns)).To(Succeed())
-		defer objectCleaner.DeleteAll(ns)
-
-		createServiceMeshControlPlane(name, namespace)
-
-		// when
-		err := serviceMeshCheck.Apply()
-
-		// then
-		Expect(err).ToNot(HaveOccurred())
-	})
-
-	It("should fail to find Service Mesh Control Plane if not present", func() {
-		Expect(serviceMeshCheck.Apply()).ToNot(Succeed())
-	})
-
-})
-
 var _ = Describe("Data Science Project Migration", func() {
 
 	var (
-		objectCleaner    *envtestutil.Cleaner
-		dsciSpec         *dscv1.DSCInitializationSpec
-		migrationFeature *feature.Feature
-		origin           featurev1.Origin
+		objectCleaner *envtestutil.Cleaner
+		dsci          *dsciv1.DSCInitialization
 	)
 
 	BeforeEach(func() {
 		objectCleaner = envtestutil.CreateCleaner(envTestClient, envTest.Config, timeout, interval)
-
-		dsciSpec = newDSCInitializationSpec("default")
-		origin = envtestutil.NewOrigin(featurev1.DSCIType, "default")
-
-		var err error
-		migrationFeature, err = feature.CreateFeature("datascience-project-migration").
-			For(dsciSpec, origin).
-			UsingConfig(envTest.Config).
-			WithResources(servicemesh.MigratedDataScienceProjects).Load()
-
-		Expect(err).ToNot(HaveOccurred())
-
+		dsci = newDSCInitialization("default")
 	})
 
 	It("should migrate single namespace", func() {
@@ -230,16 +50,26 @@ var _ = Describe("Data Science Project Migration", func() {
 		Expect(envTestClient.Create(context.Background(), regularNs)).To(Succeed())
 		defer objectCleaner.DeleteAll(dataScienceNs, regularNs)
 
+		handler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
+			return feature.CreateFeature("datascience-project-migration").
+				For(handler).
+				UsingConfig(envTest.Config).
+				WithResources(servicemesh.MigratedDataScienceProjects).Load()
+		})
+
 		// when
-		Expect(migrationFeature.Apply()).To(Succeed())
+		Expect(handler.Apply()).To(Succeed())
 
 		// then
-		Eventually(findMigratedNamespaces, timeout, interval).Should(
-			And(
-				HaveLen(1),
-				ContainElement("dsp-01"),
-			),
-		)
+		Eventually(findMigratedNamespaces).
+			WithTimeout(timeout).
+			WithPolling(interval).
+			Should(
+				And(
+					HaveLen(1),
+					ContainElement("dsp-01"),
+				),
+			)
 	})
 
 	It("should not migrate any non-datascience namespace", func() {
@@ -248,11 +78,21 @@ var _ = Describe("Data Science Project Migration", func() {
 		Expect(envTestClient.Create(context.Background(), regularNs)).To(Succeed())
 		defer objectCleaner.DeleteAll(regularNs)
 
+		handler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
+			return feature.CreateFeature("datascience-project-migration").
+				For(handler).
+				UsingConfig(envTest.Config).
+				WithResources(servicemesh.MigratedDataScienceProjects).Load()
+		})
+
 		// when
-		Expect(migrationFeature.Apply()).To(Succeed())
+		Expect(handler.Apply()).To(Succeed())
 
 		// then
-		Consistently(findMigratedNamespaces, timeout, interval).Should(BeEmpty()) // we can't wait forever, but this should be good enough ;)
+		Consistently(findMigratedNamespaces).
+			WithTimeout(timeout).
+			WithPolling(interval).
+			Should(BeEmpty()) // we can't wait forever, but this should be good enough ;)
 	})
 
 	It("should migrate multiple namespaces", func() {
@@ -267,29 +107,39 @@ var _ = Describe("Data Science Project Migration", func() {
 		Expect(envTestClient.Create(context.Background(), regularNs)).To(Succeed())
 		defer objectCleaner.DeleteAll(dataScienceNs01, dataScienceNs02, dataScienceNs03, regularNs)
 
+		handler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
+			return feature.CreateFeature("datascience-project-migration").
+				For(handler).
+				UsingConfig(envTest.Config).
+				WithResources(servicemesh.MigratedDataScienceProjects).Load()
+		})
+
 		// when
-		Expect(migrationFeature.Apply()).To(Succeed())
+		Expect(handler.Apply()).To(Succeed())
 
 		// then
-		Eventually(findMigratedNamespaces, timeout, interval).Should(
-			And(
-				HaveLen(3),
-				ContainElements("dsp-01", "dsp-02", "dsp-03"),
-			),
-		)
+		Eventually(findMigratedNamespaces).
+			WithTimeout(timeout).
+			WithPolling(interval).
+			Should(
+				And(
+					HaveLen(3),
+					ContainElements("dsp-01", "dsp-02", "dsp-03"),
+				),
+			)
 	})
 
 })
 
 var _ = Describe("Cleanup operations", func() {
 
+	// TODO combine with others
 	Context("configuring control plane for auth(z)", func() {
 
 		var (
 			objectCleaner   *envtestutil.Cleaner
-			dsciSpec        *dscv1.DSCInitializationSpec
+			dsci            *dsciv1.DSCInitialization
 			serviceMeshSpec *infrav1.ServiceMeshSpec
-			origin          featurev1.Origin
 			namespace       = "test"
 			name            = "minimal"
 		)
@@ -297,44 +147,12 @@ var _ = Describe("Cleanup operations", func() {
 		BeforeEach(func() {
 			objectCleaner = envtestutil.CreateCleaner(envTestClient, envTest.Config, timeout, interval)
 
-			dsciSpec = newDSCInitializationSpec(namespace)
-			origin = envtestutil.NewOrigin(featurev1.DSCIType, "default")
+			dsci = newDSCInitialization(namespace)
 
-			serviceMeshSpec = &dsciSpec.ServiceMesh
+			serviceMeshSpec = &dsci.Spec.ServiceMesh
 
 			serviceMeshSpec.ControlPlane.Name = name
 			serviceMeshSpec.ControlPlane.Namespace = namespace
-		})
-
-		It("should be able to remove mounted secret volumes on cleanup", func() {
-			// given
-			ns := createNamespace(namespace)
-			Expect(envTestClient.Create(context.Background(), ns)).To(Succeed())
-			defer objectCleaner.DeleteAll(ns)
-
-			createServiceMeshControlPlane(name, namespace)
-
-			controlPlaneWithSecretVolumes, err := feature.CreateFeature("control-plane-with-secret-volumes").
-				For(dsciSpec, origin).
-				Manifests(path.Join(feature.ControlPlaneDir, "base/control-plane-ingress.patch.tmpl")).
-				UsingConfig(envTest.Config).
-				Load()
-
-			Expect(err).ToNot(HaveOccurred())
-
-			// when
-			Expect(controlPlaneWithSecretVolumes.Apply()).To(Succeed())
-			// Testing removal function on its own relying on feature setup
-			Expect(servicemesh.RemoveTokenVolumes(controlPlaneWithSecretVolumes)).To(Succeed())
-
-			// then
-			serviceMeshControlPlane, err := getServiceMeshControlPlane(envTest.Config, namespace, name)
-			Expect(err).ToNot(HaveOccurred())
-
-			volumes, found, err := unstructured.NestedSlice(serviceMeshControlPlane.Object, "spec", "gateways", "ingress", "volumes")
-			Expect(err).ToNot(HaveOccurred())
-			Expect(found).To(BeTrue())
-			Expect(volumes).To(BeEmpty())
 		})
 
 		It("should be able to remove external provider on cleanup", func() {
@@ -348,17 +166,18 @@ var _ = Describe("Cleanup operations", func() {
 
 			createServiceMeshControlPlane(name, namespace)
 
-			controlPlaneWithExtAuthzProvider, err := feature.CreateFeature("control-plane-with-external-authz-provider").
-				For(dsciSpec, origin).
-				Manifests(path.Join(feature.AuthDir, "mesh-authz-ext-provider.patch.tmpl")).
-				UsingConfig(envTest.Config).
-				Load()
-
-			Expect(err).ToNot(HaveOccurred())
+			handler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
+				return feature.CreateFeature("control-plane-with-external-authz-provider").
+					For(handler).
+					Manifests(path.Join(feature.AuthDir, "mesh-authz-ext-provider.patch.tmpl")).
+					OnDelete(servicemesh.RemoveExtensionProvider).
+					UsingConfig(envTest.Config).
+					Load()
+			})
 
 			// when
 			By("verifying extension provider has been added after applying feature", func() {
-				Expect(controlPlaneWithExtAuthzProvider.Apply()).To(Succeed())
+				Expect(handler.Apply()).To(Succeed())
 				serviceMeshControlPlane, err := getServiceMeshControlPlane(envTest.Config, namespace, name)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -366,6 +185,7 @@ var _ = Describe("Cleanup operations", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(found).To(BeTrue())
 
+				// TODO rework to nested fields
 				extensionProvider := extensionProviders[0].(map[string]interface{})
 				Expect(extensionProvider["name"]).To(Equal("test-odh-auth-provider"))
 				Expect(extensionProvider["envoyExtAuthzGrpc"].(map[string]interface{})["service"]).To(Equal("authorino-authorino-authorization.test-provider.svc.cluster.local"))
@@ -373,126 +193,24 @@ var _ = Describe("Cleanup operations", func() {
 
 			// then
 			By("verifying that extension provider has been removed", func() {
-				err = servicemesh.RemoveExtensionProvider(controlPlaneWithExtAuthzProvider)
-				serviceMeshControlPlane, err := getServiceMeshControlPlane(envTest.Config, namespace, name)
-				Expect(err).ToNot(HaveOccurred())
+				Expect(handler.Delete()).To(Succeed())
+				Eventually(func() []interface{} {
 
-				extensionProviders, found, err := unstructured.NestedSlice(serviceMeshControlPlane.Object, "spec", "techPreview", "meshConfig", "extensionProviders")
-				Expect(err).ToNot(HaveOccurred())
-				Expect(found).To(BeTrue())
-				Expect(extensionProviders).To(BeEmpty())
+					serviceMeshControlPlane, err := getServiceMeshControlPlane(envTest.Config, namespace, name)
+					Expect(err).ToNot(HaveOccurred())
+
+					extensionProviders, found, err := unstructured.NestedSlice(serviceMeshControlPlane.Object, "spec", "techPreview", "meshConfig", "extensionProviders")
+					Expect(err).ToNot(HaveOccurred())
+					Expect(found).To(BeTrue())
+					return extensionProviders
+
+				}).WithTimeout(timeout).WithPolling(interval).Should(BeEmpty())
 			})
 
 		})
 
 	})
 
-})
-
-var _ = Describe("Alternate Manifest source", func() {
-
-	Context("using a non-default manifest source", func() {
-
-		var (
-			objectCleaner   *envtestutil.Cleaner
-			dsciSpec        *dscv1.DSCInitializationSpec
-			serviceMeshSpec *infrav1.ServiceMeshSpec
-			origin          featurev1.Origin
-			namespace       = "test"
-			name            = "minimal"
-		)
-
-		BeforeEach(func() {
-			objectCleaner = envtestutil.CreateCleaner(envTestClient, envTest.Config, timeout, interval)
-
-			dsciSpec = newDSCInitializationSpec(namespace)
-			origin = envtestutil.NewOrigin(featurev1.DSCIType, "default")
-
-			serviceMeshSpec = &dsciSpec.ServiceMesh
-
-			serviceMeshSpec.ControlPlane.Name = name
-			serviceMeshSpec.ControlPlane.Namespace = namespace
-		})
-
-		It("should be able to use manifests embedded from different location", func() {
-			// given
-			ns := createNamespace(namespace)
-			Expect(envTestClient.Create(context.Background(), ns)).To(Succeed())
-			defer objectCleaner.DeleteAll(ns)
-
-			serviceMeshSpec.Auth.Namespace = authorinoNamespace
-			serviceMeshSpec.Auth.Authorino.Name = authorinoName
-
-			createServiceMeshControlPlane(name, namespace)
-
-			controlPlaneWithExtAuthzProvider, err := feature.CreateFeature("external-manifests-control-plane-with-external-authz-provider").
-				For(dsciSpec, origin).
-				ManifestSource(testEmbeddedFiles).
-				Manifests(path.Join("test-templates", "authorino", "mesh-authz-ext-provider.patch.tmpl")).
-				UsingConfig(envTest.Config).
-				Load()
-
-			Expect(err).ToNot(HaveOccurred())
-
-			// when
-			By("verifying extension provider has been added after applying feature", func() {
-				Expect(controlPlaneWithExtAuthzProvider.Apply()).To(Succeed())
-				serviceMeshControlPlane, err := getServiceMeshControlPlane(envTest.Config, namespace, name)
-				Expect(err).ToNot(HaveOccurred())
-
-				extensionProviders, found, err := unstructured.NestedSlice(serviceMeshControlPlane.Object, "spec", "techPreview", "meshConfig", "extensionProviders")
-				Expect(err).ToNot(HaveOccurred())
-				Expect(found).To(BeTrue())
-
-				extensionProvider := extensionProviders[0].(map[string]interface{})
-				Expect(extensionProvider["name"]).To(Equal("test-odh-different-auth-provider"))
-				Expect(extensionProvider["envoyExtAuthzGrpc"].(map[string]interface{})["service"]).To(Equal("authorino-authorino-authorization.test-provider.svc.cluster.local"))
-			})
-
-		})
-
-		It("should be able to use an actual file system", func() {
-			// given
-			tempDir := GinkgoT().TempDir()
-
-			ns := createNamespace(namespace)
-			Expect(envTestClient.Create(context.Background(), ns)).To(Succeed())
-			defer objectCleaner.DeleteAll(ns)
-
-			serviceMeshSpec.Auth.Namespace = authorinoNamespace
-			serviceMeshSpec.Auth.Authorino.Name = authorinoName
-
-			patchTemplate := path.Join(feature.AuthDir, "mesh-authz-ext-provider.patch.tmpl")
-			copyEmbeddedTemplatesTo(tempDir, patchTemplate)
-
-			createServiceMeshControlPlane(name, namespace)
-
-			controlPlaneWithExtAuthzProvider, err := feature.CreateFeature("external-manifests-control-plane-with-external-authz-provider").
-				For(dsciSpec, origin).
-				ManifestSource(os.DirFS(tempDir)).
-				Manifests(patchTemplate). // must be relative to root DirFS defined above
-				UsingConfig(envTest.Config).
-				Load()
-
-			Expect(err).ToNot(HaveOccurred())
-
-			// when
-			By("verifying extension provider has been added after applying feature", func() {
-				Expect(controlPlaneWithExtAuthzProvider.Apply()).To(Succeed())
-				serviceMeshControlPlane, err := getServiceMeshControlPlane(envTest.Config, namespace, name)
-				Expect(err).ToNot(HaveOccurred())
-
-				extensionProviders, found, err := unstructured.NestedSlice(serviceMeshControlPlane.Object, "spec", "techPreview", "meshConfig", "extensionProviders")
-				Expect(err).ToNot(HaveOccurred())
-				Expect(found).To(BeTrue())
-
-				extensionProvider := extensionProviders[0].(map[string]interface{})
-				Expect(extensionProvider["name"]).To(Equal("test-odh-auth-provider"))
-				Expect(extensionProvider["envoyExtAuthzGrpc"].(map[string]interface{})["service"]).To(Equal("authorino-authorino-authorization.test-provider.svc.cluster.local"))
-			})
-
-		})
-	})
 })
 
 func createServiceMeshControlPlane(name, namespace string) {
@@ -540,10 +258,15 @@ func findMigratedNamespaces() []string {
 	return ns
 }
 
-func newDSCInitializationSpec(ns string) *dscv1.DSCInitializationSpec {
-	spec := dscv1.DSCInitializationSpec{}
-	spec.ApplicationsNamespace = ns
-	return &spec
+func newDSCInitialization(ns string) *dsciv1.DSCInitialization {
+	return &dsciv1.DSCInitialization{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "default-dsci",
+		},
+		Spec: dsciv1.DSCInitializationSpec{
+			ApplicationsNamespace: ns,
+		},
+	}
 }
 
 // createSMCPInCluster uses dynamic client to create a dummy SMCP resource for testing.
@@ -604,45 +327,4 @@ func getServiceMeshControlPlane(cfg *rest.Config, namespace, name string) (*unst
 	}
 
 	return smcp, nil
-}
-
-func getNamespace(namespace string) (*v1.Namespace, error) {
-	ns := createNamespace(namespace)
-	err := envTestClient.Get(context.Background(), types.NamespacedName{Name: namespace}, ns)
-
-	return ns, err
-}
-
-func copyEmbeddedTemplatesTo(tmpDir string, templatePaths ...string) {
-	root, err := envtestutil.FindProjectRoot()
-	Expect(err).ToNot(HaveOccurred())
-
-	for _, templatePath := range templatePaths {
-		src := path.Join(root, "pkg", "feature", templatePath)
-		dest := path.Join(tmpDir, templatePath)
-		if err := copyFile(src, dest); err != nil {
-			Fail(err.Error())
-		}
-	}
-}
-
-func copyFile(src, dst string) error {
-	source, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer source.Close()
-
-	if err := os.MkdirAll(filepath.Dir(dst), os.ModePerm); err != nil {
-		return err
-	}
-
-	destination, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer destination.Close()
-
-	_, err = io.Copy(destination, source)
-	return err
 }

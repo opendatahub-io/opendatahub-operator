@@ -9,12 +9,10 @@ import (
 	"time"
 
 	routev1 "github.com/openshift/api/route/v1"
-	"github.com/pkg/errors"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	k8sclient "k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -49,6 +47,8 @@ type testContext struct {
 	resourceCreationTimeout time.Duration
 	// test DataScienceCluster instance
 	testDsc *dsc.DataScienceCluster
+	// test DSCI CR because we do not create it in ODH by default
+	testDSCI *dsci.DSCInitialization
 	// time interval to check for resource creation
 	resourceRetryInterval time.Duration
 	// context for accessing resources
@@ -66,35 +66,31 @@ func NewTestContext() (*testContext, error) { //nolint:golint,revive // Only use
 
 	kc, err := k8sclient.NewForConfig(config)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to initialize Kubernetes client")
+		return nil, fmt.Errorf("failed to initialize Kubernetes client: %w", err)
 	}
 
 	// custom client to manages resources like Route etc
 	custClient, err := client.New(config, client.Options{Scheme: scheme})
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to initialize custom client")
+		return nil, fmt.Errorf("failed to initialize custom client: %w", err)
 	}
 
+	// setup DSCI CR since we do not create automatically by operator
+	testDSCI := setupDSCICR()
 	// Setup DataScienceCluster CR
 	testDSC := setupDSCInstance()
-
-	// Get Applications namespace from DSCInitialization instance
-	dscInit := &dsci.DSCInitialization{}
-	err = custClient.Get(context.TODO(), types.NamespacedName{Name: "default-dsci"}, dscInit)
-	if err != nil {
-		return nil, errors.Wrap(err, "error getting DSCInitialization instance")
-	}
 
 	return &testContext{
 		cfg:                     config,
 		kubeClient:              kc,
 		customClient:            custClient,
 		operatorNamespace:       opNamespace,
-		applicationsNamespace:   dscInit.Spec.ApplicationsNamespace,
+		applicationsNamespace:   testDSCI.Spec.ApplicationsNamespace,
 		resourceCreationTimeout: time.Minute * 2,
 		resourceRetryInterval:   time.Second * 10,
 		ctx:                     context.TODO(),
 		testDsc:                 testDSC,
+		testDSCI:                testDSCI,
 	}, nil
 }
 
