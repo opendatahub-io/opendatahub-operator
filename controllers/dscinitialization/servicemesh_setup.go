@@ -19,6 +19,7 @@ func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsciv1.DSCI
 		if err := serviceMeshFeatures.Apply(); err != nil {
 			r.Log.Error(err, "failed applying service mesh resources")
 			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed applying service mesh resources")
+
 			return err
 		}
 	case operatorv1.Unmanaged:
@@ -56,7 +57,7 @@ func configureServiceMeshFeatures() feature.FeaturesProvider {
 		smcpCreationErr := feature.CreateFeature("mesh-control-plane-creation").
 			For(handler).
 			Manifests(
-				path.Join(feature.ServiceMeshDir, "base", "control-plane.tmpl"),
+				path.Join(feature.ControlPlaneDir, "base", "create-control-plane.tmpl"),
 			).
 			PreConditions(
 				servicemesh.EnsureServiceMeshOperatorInstalled,
