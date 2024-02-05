@@ -12,6 +12,7 @@ type Spec struct {
 	Serving                  *infrav1.ServingSpec
 	OAuth                    OAuth
 	AppNamespace             string
+	TargetNamespace          string
 	Domain                   string
 	KnativeCertificateSecret string
 	KnativeIngressDomain     string

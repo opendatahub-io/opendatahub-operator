@@ -11,6 +11,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -29,7 +30,7 @@ type Feature struct {
 	DynamicClient dynamic.Interface
 	Client        client.Client
 
-	manifests []manifest
+	manifests []Manifest
 
 	cleanups       []Action
 	resources      []Action
@@ -98,16 +99,19 @@ func (f *Feature) Apply() (err error) {
 		}
 	}
 
-	phase = featurev1.ProcessTemplates
+	phase = featurev1.ApplyManifests
 	for i := range f.manifests {
-		if err := f.manifests[i].process(f.Spec); err != nil {
+		var objs []*unstructured.Unstructured
+		manifest := f.manifests[i]
+		apply := f.createApplier(manifest)
+
+		if objs, err = manifest.Process(f.Spec); err != nil {
 			return errors.WithStack(err)
 		}
-	}
 
-	phase = featurev1.ApplyManifests
-	if err := f.applyManifests(); err != nil {
-		return errors.WithStack(err)
+		if err = apply(objs); err != nil {
+			return errors.WithStack(err)
+		}
 	}
 
 	phase = featurev1.PostConditions
@@ -139,13 +143,24 @@ func (f *Feature) Cleanup() error {
 	return cleanupErrors.ErrorOrNil()
 }
 
-func (f *Feature) applyManifests() error {
-	var applyErrors *multierror.Error
-	for _, m := range f.manifests {
-		applyErrors = multierror.Append(applyErrors, f.apply(m))
-	}
+type applier func(objects []*unstructured.Unstructured) error
 
-	return applyErrors.ErrorOrNil()
+func (f *Feature) createApplier(m Manifest) applier {
+	if m.isPatch() {
+		return func(objects []*unstructured.Unstructured) error {
+			return patchResources(f.DynamicClient, objects)
+		}
+	}
+	// todo: OwnedByFeatureTracker(f))?
+
+	return func(objects []*unstructured.Unstructured) error {
+		return createResources(f.Client, objects, func(obj metav1.Object) error {
+			obj.SetOwnerReferences([]metav1.OwnerReference{
+				f.AsOwnerReference(),
+			})
+			return nil
+		})
+	}
 }
 
 func (f *Feature) CreateConfigMap(cfgMapName string, data map[string]string) error {
@@ -181,35 +196,6 @@ func (f *Feature) CreateConfigMap(cfgMapName string, data map[string]string) err
 
 func (f *Feature) addCleanup(cleanupFuncs ...Action) {
 	f.cleanups = append(f.cleanups, cleanupFuncs...)
-}
-
-type apply func(data string) error
-
-func (f *Feature) apply(m manifest) error {
-	var applier apply
-	targetPath := m.targetPath()
-
-	if m.patch {
-		applier = func(data string) error {
-			f.Log.Info("patching using manifest", "feature", f.Name, "name", m.name, "path", targetPath)
-
-			return f.patchResources(data)
-		}
-	} else {
-		applier = func(data string) error {
-			f.Log.Info("applying manifest", "feature", f.Name, "name", m.name, "path", targetPath)
-
-			return f.createResources(data)
-		}
-	}
-
-	if err := applier(m.processedContent); err != nil {
-		f.Log.Error(err, "failed to create resource", "feature", f.Name, "name", m.name, "path", targetPath)
-
-		return err
-	}
-
-	return nil
 }
 
 func (f *Feature) AsOwnerReference() metav1.OwnerReference {
