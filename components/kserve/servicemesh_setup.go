@@ -11,13 +11,20 @@ import (
 )
 
 func (k *Kserve) configureServiceMesh(dscispec *dsciv1.DSCInitializationSpec) error {
-	if dscispec.ServiceMesh.ManagementState != operatorv1.Managed || k.GetManagementState() != operatorv1.Managed {
+	if dscispec.ServiceMesh.ManagementState == operatorv1.Managed && k.GetManagementState() == operatorv1.Managed {
+		serviceMeshInitializer := feature.ComponentFeaturesHandler(k, dscispec, k.defineServiceMeshFeatures())
+		return serviceMeshInitializer.Apply()
+	}
+	if dscispec.ServiceMesh.ManagementState == operatorv1.Unmanaged && k.GetManagementState() == operatorv1.Managed {
 		return nil
 	}
 
-	serviceMeshInitializer := feature.ComponentFeaturesHandler(k, dscispec, k.defineServiceMeshFeatures())
+	return k.removeServiceMeshConfigurations(dscispec)
+}
 
-	return serviceMeshInitializer.Apply()
+func (k *Kserve) removeServiceMeshConfigurations(dscispec *dsciv1.DSCInitializationSpec) error {
+	serviceMeshInitializer := feature.ComponentFeaturesHandler(k, dscispec, k.defineServiceMeshFeatures())
+	return serviceMeshInitializer.Delete()
 }
 
 func (k *Kserve) defineServiceMeshFeatures() feature.FeaturesProvider {
