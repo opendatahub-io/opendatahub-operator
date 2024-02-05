@@ -15,7 +15,7 @@ All previous issues from GitHub have been seamlessly migrated to the issue board
 
 - Login Jira issue board https://issues.redhat.com
 - Click "Create" on top
-- Choose: "Pojrect 'Red Hat Openshift Data Science'"
+- Choose: "Project 'Red Hat Openshift Data Science'"
 - Issue Type:
   - if it is a bug, choose "Bug"
   - if it is a new feature requirement, choose "Feature"
