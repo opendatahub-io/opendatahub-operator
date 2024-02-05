@@ -40,14 +40,11 @@ type usingFeaturesHandler struct {
 func (u *usingFeaturesHandler) For(featuresHandler *FeaturesHandler) *featureBuilder {
 	createSpec := func(f *Feature) error {
 		f.Spec = &Spec{
-			ServiceMeshSpec: &featuresHandler.DSCInitializationSpec.ServiceMesh,
-			Serving:         &infrav1.ServingSpec{},
-			Source:          &featuresHandler.source,
-			AppNamespace:    featuresHandler.DSCInitializationSpec.ApplicationsNamespace,
-			AuthorinoConfigs: AuthorinoConfigs{
-				Namespace: featuresHandler.DSCInitializationSpec.ServiceMesh.Auth.Namespace,
-				Name:      "authorino-mesh-authz-provider",
-			},
+			ServiceMeshSpec:  &featuresHandler.DSCInitializationSpec.ServiceMesh,
+			Serving:          &infrav1.ServingSpec{},
+			Source:           &featuresHandler.source,
+			AppNamespace:     featuresHandler.DSCInitializationSpec.ApplicationsNamespace,
+			AuthProviderName: "authorino",
 		}
 
 		return nil

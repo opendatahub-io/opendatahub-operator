@@ -7,7 +7,7 @@ spec:
   techPreview:
     meshConfig:
       extensionProviders:
-      - name: {{ .AppNamespace }}-odh-auth-provider
+      - name: {{ .AppNamespace }}-auth-provider
         envoyExtAuthzGrpc:
-          service: {{ .AuthorinoConfigs.Name }}-authorino-authorization.{{ .AuthorinoConfigs.Namespace }}.svc.cluster.local
+          service: {{ .AuthProviderName }}-authorization.{{ .Auth.Namespace }}.svc.cluster.local
           port: 50051

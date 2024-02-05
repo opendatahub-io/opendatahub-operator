@@ -22,10 +22,10 @@ func ClusterDetails(f *feature.Feature) error {
 }
 
 func ResolveAuthNamespace(f *feature.Feature) error {
-	dsciAuthNamespace := strings.TrimSpace(f.Spec.AuthorinoConfigs.Namespace)
+	dsciAuthNamespace := strings.TrimSpace(f.Spec.Auth.Namespace)
 
 	if len(dsciAuthNamespace) == 0 {
-		f.Spec.AuthorinoConfigs.Namespace = strings.TrimSuffix(f.Spec.AppNamespace, "-applications") + "-auth-provider"
+		f.Spec.Auth.Namespace = strings.TrimSuffix(f.Spec.AppNamespace, "-applications") + "-auth-provider"
 	}
 
 	return nil
