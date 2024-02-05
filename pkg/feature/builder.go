@@ -1,6 +1,9 @@
 package feature
 
 import (
+	"io/fs"
+
+	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/client-go/dynamic"
@@ -11,6 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	v1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/infrastructure/v1"
 )
 
@@ -20,23 +24,47 @@ type featureBuilder struct {
 	name     string
 	config   *rest.Config
 	builders []partialBuilder
+	fsys     fs.FS
 }
 
-func CreateFeature(name string) *featureBuilder { //nolint:golint,revive //No need to export featureBuilder.
-	return &featureBuilder{name: name}
+func CreateFeature(name string) *featureName { //nolint:golint,revive //No need to export featureBuilder.
+	return &featureName{
+		name: name,
+	}
 }
 
-func (fb *featureBuilder) For(spec *v1.DSCInitializationSpec) *featureBuilder {
+type featureName struct {
+	name string
+}
+
+func (fn *featureName) With(spec *v1.DSCInitializationSpec) *featureSource {
+	return &featureSource{
+		spec: spec,
+		name: fn.name,
+	}
+}
+
+type featureSource struct {
+	spec *v1.DSCInitializationSpec
+	name string
+}
+
+func (fo *featureSource) From(source featurev1.Source) *featureBuilder {
 	createSpec := func(f *Feature) error {
 		f.Spec = &Spec{
-			ServiceMeshSpec: &spec.ServiceMesh,
+			ServiceMeshSpec: &fo.spec.ServiceMesh,
 			Serving:         &infrav1.ServingSpec{},
-			AppNamespace:    spec.ApplicationsNamespace,
+			Source:          &source,
+			AppNamespace:    fo.spec.ApplicationsNamespace,
 		}
 
 		return nil
 	}
 
+	fb := &featureBuilder{
+		name: fo.name,
+		fsys: embeddedFiles,
+	}
 	// Ensures creation of .Spec object is always invoked first
 	fb.builders = append([]partialBuilder{createSpec}, fb.builders...)
 
@@ -66,11 +94,11 @@ func createClients(config *rest.Config) partialBuilder {
 			return errors.WithStack(err)
 		}
 
-		if err := apiextv1.AddToScheme(f.Client.Scheme()); err != nil { //nolint:revive,nolintlint
-			return err
-		}
+		var multiErr *multierror.Error
+		s := f.Client.Scheme()
+		multiErr = multierror.Append(multiErr, featurev1.AddToScheme(s), apiextv1.AddToScheme(s))
 
-		return nil
+		return multiErr.ErrorOrNil()
 	}
 }
 
@@ -80,7 +108,7 @@ func (fb *featureBuilder) Manifests(paths ...string) *featureBuilder {
 		var manifests []manifest
 
 		for _, path := range paths {
-			manifests, err = loadManifestsFrom(path)
+			manifests, err = loadManifestsFrom(fb.fsys, path)
 			if err != nil {
 				return errors.WithStack(err)
 			}
@@ -145,10 +173,7 @@ func (fb *featureBuilder) WithResources(resources ...Action) *featureBuilder {
 }
 
 func (fb *featureBuilder) Load() (*Feature, error) {
-	feature := &Feature{
-		Name:    fb.name,
-		Enabled: true,
-	}
+	feature := newFeature(fb.name)
 
 	// UsingConfig builder wasn't called while constructing this feature.
 	// Get default settings and create needed clients.
@@ -190,4 +215,11 @@ func (fb *featureBuilder) withDefaultClient() error {
 
 	fb.config = restCfg
 	return nil
+}
+
+// ManifestSource sets the root file system (fsys) from which manifest paths are loaded
+// If ManifestSource is not called in the builder chain, the default source will be the embeddedFiles.
+func (fb *featureBuilder) ManifestSource(fsys fs.FS) *featureBuilder {
+	fb.fsys = fsys
+	return fb
 }
