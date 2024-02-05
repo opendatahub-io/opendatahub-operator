@@ -71,7 +71,7 @@ func (r *SecretGeneratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			return false
 		},
 		// this only watch for secret deletion if has with annotation
-		// e.g dashboard-oauth-client but not dashboard-oauth-client-generated
+		// e.g. dashboard-oauth-client but not dashboard-oauth-client-generated
 		DeleteFunc: func(e event.DeleteEvent) bool {
 			if _, found := e.Object.GetAnnotations()[SECRET_NAME_ANNOTATION]; found {
 				return true

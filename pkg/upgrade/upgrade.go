@@ -70,7 +70,7 @@ func OperatorUninstall(cli client.Client, cfg *rest.Config) error {
 		return fmt.Errorf("error getting generated namespaces : %w", err)
 	}
 
-	// Return if any one of the namespaces is Terminating due to resources that are in process of deletion. (e.g CRDs)
+	// Return if any one of the namespaces is Terminating due to resources that are in process of deletion. (e.g. CRDs)
 	for _, namespace := range generatedNamespaces.Items {
 		if namespace.Status.Phase == corev1.NamespaceTerminating {
 			return fmt.Errorf("waiting for namespace %v to be deleted", namespace.Name)
@@ -462,7 +462,7 @@ func deleteDeploymentsAndCheck(ctx context.Context, cli client.Client, namespace
 	if err := cli.List(ctx, deployments, listOpts); err != nil {
 		return false, nil //nolint:nilerr
 	}
-	// filter deployment which has the new label to limit that we do not over kill other deployment
+	// filter deployment which has the new label to limit that we do not overkill other deployment
 	// this logic can be used even when upgrade from v2.4 to v2.5 without remove it
 	markedForDeletion := []appsv1.Deployment{}
 	for _, deployment := range deployments.Items {

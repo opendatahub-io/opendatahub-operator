@@ -18,7 +18,7 @@ import (
 )
 
 // Cleaner is a struct to perform deletion of resources,
-// enforcing removal of finalizers. Otherwise deletion of namespaces wouldn't be possible.
+// enforcing removal of finalizers. Otherwise, deletion of namespaces wouldn't be possible.
 // See: https://book.kubebuilder.io/reference/envtest.html#namespace-usage-limitation
 // Based on https://github.com/kubernetes-sigs/controller-runtime/issues/880#issuecomment-749742403
 type Cleaner struct {
