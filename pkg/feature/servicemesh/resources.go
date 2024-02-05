@@ -1,6 +1,8 @@
 package servicemesh
 
 import (
+	"strings"
+
 	"github.com/pkg/errors"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
@@ -16,5 +18,16 @@ func ConfigMaps(feature *feature.Feature) error {
 		return errors.WithStack(err)
 	}
 
+	audiences := feature.Spec.Auth.Audiences
+	audiencesList := ""
+	if audiences != nil && len(*audiences) > 0 {
+		audiencesList = strings.Join(*audiences, ",")
+	}
+	if err := feature.CreateConfigMap("auth-refs",
+		map[string]string{
+			"AUTH_AUDIENCE": audiencesList,
+		}); err != nil {
+		return errors.WithStack(err)
+	}
 	return nil
 }
