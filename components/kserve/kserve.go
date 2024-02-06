@@ -45,7 +45,7 @@ type Kserve struct {
 
 func (k *Kserve) OverrideManifests(_ string) error {
 	// Download manifests if defined by devflags
-	// Go through each manifests and set the overlays if defined
+	// Go through each manifest and set the overlays if defined
 	for _, subcomponent := range k.DevFlags.Manifests {
 		if strings.Contains(subcomponent.URI, DependentComponentName) {
 			// Download subcomponent

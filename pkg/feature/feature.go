@@ -160,13 +160,13 @@ func (f *Feature) CreateConfigMap(cfgMapName string, data map[string]string) err
 	}
 
 	configMaps := f.Clientset.CoreV1().ConfigMaps(configMap.Namespace)
-	_, err := configMaps.Get(context.TODO(), configMap.Name, metav1.GetOptions{})
+	found, err := configMaps.Get(context.TODO(), configMap.Name, metav1.GetOptions{})
 	if k8serrors.IsNotFound(err) { //nolint:gocritic
 		_, err = configMaps.Create(context.TODO(), configMap, metav1.CreateOptions{})
 		if err != nil {
 			return err
 		}
-	} else if k8serrors.IsAlreadyExists(err) {
+	} else if found != nil {
 		_, err = configMaps.Update(context.TODO(), configMap, metav1.UpdateOptions{})
 		if err != nil {
 			return err

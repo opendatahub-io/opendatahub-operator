@@ -34,7 +34,7 @@ func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsciv1.DSCI
 }
 
 func (r *DSCInitializationReconciler) removeServiceMesh(instance *dsciv1.DSCInitialization) error {
-	// on condition of Managed, do not handle Removed when set to Removed it trigger DSCI reconcile to cleanup
+	// on condition of Managed, do not handle Removed when set to Removed it trigger DSCI reconcile to clean up
 	if instance.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
 		serviceMeshFeatures := feature.ClusterFeaturesHandler(instance, configureServiceMeshFeatures())
 
