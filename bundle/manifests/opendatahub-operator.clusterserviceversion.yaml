@@ -1305,6 +1305,7 @@ spec:
           resources:
           - subscriptions
           verbs:
+          - delete
           - get
           - list
           - watch

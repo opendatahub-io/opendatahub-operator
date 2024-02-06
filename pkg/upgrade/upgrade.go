@@ -88,12 +88,39 @@ func OperatorUninstall(cli client.Client, cfg *rest.Config) error {
 		}
 	}
 
-	// Wait for all resources to get cleaned up
+	// give enough time for namespace deletion before proceed
 	time.Sleep(10 * time.Second)
 
-	fmt.Printf("All resources deleted as part of uninstall. Removing the operator csv\n")
+	// We can only assume the subscription is using standard names
+	// if user install by creating different named subs, then we will not know the name
+	// we cannot remove CSV before remove subscription because that need SA account
+	operatorNs, err := GetOperatorNamespace()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Removing operator subscription which in turn will remove installplan\n")
+	subsName := "opendatahub-operator"
+	if platform == deploy.SelfManagedRhods {
+		subsName = "rhods-operator"
+	} else if platform == deploy.ManagedRhods {
+		subsName = "addon-managed-odh"
+	}
+	sub, _ := deploy.SubscriptionExists(cli, operatorNs, subsName)
+	if sub == nil {
+		fmt.Printf("Could not find subscription %s in namespace %s. Maybe you have a different one", subsName, operatorNs)
+	} else {
+		if err := cli.Delete(context.TODO(), sub); err != nil {
+			return fmt.Errorf("error deleting subscription %s: %w", sub.Name, err)
+		}
+	}
 
-	return removeCsv(cli, cfg)
+	fmt.Printf("Removing the operator CSV in turn remove operator deployment\n")
+	time.Sleep(5 * time.Second)
+
+	err = removeCSV(cli, cfg)
+
+	fmt.Printf("All resources deleted as part of uninstall.")
+	return err
 }
 
 func removeDSCInitialization(cli client.Client) error {
@@ -379,7 +406,7 @@ func RemoveKfDefInstances(cli client.Client, _ deploy.Platform) error {
 	return nil
 }
 
-func removeCsv(c client.Client, r *rest.Config) error {
+func removeCSV(c client.Client, r *rest.Config) error {
 	// Get watchNamespace
 	operatorNamespace, err := GetOperatorNamespace()
 	if err != nil {
@@ -392,7 +419,7 @@ func removeCsv(c client.Client, r *rest.Config) error {
 	}
 
 	if operatorCsv != nil {
-		fmt.Printf("Deleting csv %s\n", operatorCsv.Name)
+		fmt.Printf("Deleting CSV %s\n", operatorCsv.Name)
 		err = c.Delete(context.TODO(), operatorCsv, []client.DeleteOption{}...)
 		if err != nil {
 			if apierrs.IsNotFound(err) {
@@ -402,9 +429,9 @@ func removeCsv(c client.Client, r *rest.Config) error {
 			return fmt.Errorf("error deleting clusterserviceversion: %w", err)
 		}
 		fmt.Printf("Clusterserviceversion %s deleted as a part of uninstall.\n", operatorCsv.Name)
+		return nil
 	}
 	fmt.Printf("No clusterserviceversion for the operator found.\n")
-
 	return nil
 }
 
@@ -419,7 +446,7 @@ func getClusterServiceVersion(cfg *rest.Config, watchNameSpace string) (*ofapi.C
 		return nil, err
 	}
 
-	// get csv with CRD DataScienceCluster
+	// get CSV with CRD DataScienceCluster
 	if len(csvs.Items) != 0 {
 		for _, csv := range csvs.Items {
 			for _, operatorCR := range csv.Spec.CustomResourceDefinitions.Owned {
