@@ -123,6 +123,12 @@ spec:
                     pattern: ^(Managed|Unmanaged|Force|Removed)$
                     type: string
                 type: object
+              trustedCABundle:
+                description: A custom CA bundle that will be available for  all  components
+                  in the Data Science Cluster(DSC). This bundle will be stored in
+                  odh-trusted-ca-bundle ConfigMap .data.odh-ca-bundle.crt within the
+                  DSCInitializtion.spec.ApplicationsNamespace.
+                type: string
             required:
             - applicationsNamespace
             type: object

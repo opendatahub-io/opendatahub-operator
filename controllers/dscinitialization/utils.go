@@ -34,7 +34,6 @@ var (
 // - Odh specific labels
 // - Pod security labels for baseline permissions
 // - ConfigMap  'odh-common-config'
-// - ConfigMap  'odh-trusted-ca-bundle' -- Certificates for the cluster trusted CA Cert Bundle
 // - Network Policies 'opendatahub' that allow traffic between the ODH namespaces
 // - RoleBinding 'opendatahub'.
 func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, dscInit *dsci.DSCInitialization, name string) error {
@@ -153,13 +152,6 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 	err = r.createOdhCommonConfigMap(ctx, name, dscInit)
 	if err != nil {
 		r.Log.Error(err, "error creating configmap", "name", "odh-common-config")
-		return err
-	}
-
-	// Create odh-trusted-ca-bundle Configmap for the Namespace
-	err = r.createOdhTrustedCABundleConfigMap(ctx, name, dscInit)
-	if err != nil {
-		r.Log.Error(err, "error creating configmap", "name", "odh-trusted-ca-bundle")
 		return err
 	}
 
@@ -431,64 +423,6 @@ func (r *DSCInitializationReconciler) createOdhCommonConfigMap(ctx context.Conte
 			return err
 		}
 	}
-	return nil
-}
-
-func (r *DSCInitializationReconciler) createOdhTrustedCABundleConfigMap(ctx context.Context, name string, dscInit *dsci.DSCInitialization) error {
-	caConfigMapName := "odh-trusted-ca-bundle"
-	caDataFieldName := "odh-ca-bundle.crt"
-
-	// Expected configmap for the given namespace
-	desiredConfigMap := &corev1.ConfigMap{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ConfigMap",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      caConfigMapName,
-			Namespace: name,
-			Labels: map[string]string{
-				"app.kubernetes.io/part-of": "opendatahub-operator",
-				// Label required for the Cluster Network Operator(CNO) to inject the cluster trusted CA bundle
-				// into .data["ca-bundle.crt"]
-				"config.openshift.io/inject-trusted-cabundle": "true",
-			},
-		},
-		// Add the DSCInitialzation specified TrustedCABundle to the odh-ca-bundle.crt data field
-		// Additionally, the CNO operator will automatically create and maintain ca-bundle.crt
-		//  based on the application of the label 'config.openshift.io/inject-trusted-cabundle'
-		Data: map[string]string{caDataFieldName: dscInit.Spec.TrustedCABundle},
-	}
-
-	// Create Configmap if doesn't exist
-	foundConfigMap := &corev1.ConfigMap{}
-	err := r.Client.Get(ctx, client.ObjectKey{
-		Name:      caConfigMapName,
-		Namespace: name,
-	}, foundConfigMap)
-	if err != nil {
-		if apierrs.IsNotFound(err) {
-			// Set Controller reference
-			err = ctrl.SetControllerReference(dscInit, foundConfigMap, r.Scheme)
-			if err != nil {
-				r.Log.Error(err, "Unable to add OwnerReference to the", caConfigMapName, "ConfigMap")
-				return err
-			}
-			err = r.Client.Create(ctx, desiredConfigMap)
-			if err != nil && !apierrs.IsAlreadyExists(err) {
-				return err
-			}
-		} else {
-			return err
-		}
-	}
-
-	if foundConfigMap.Data[caDataFieldName] != dscInit.Spec.TrustedCABundle {
-		r.Log.Info("Updating CA Bundle data field", "name", caDataFieldName)
-		foundConfigMap.Data[caDataFieldName] = dscInit.Spec.TrustedCABundle
-		return r.Client.Update(ctx, foundConfigMap)
-	}
-
 	return nil
 }
 

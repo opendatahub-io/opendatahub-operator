@@ -49,6 +49,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/trustedcabundle"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
 
@@ -151,6 +152,27 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError",
 				"%s for instance %s", message, instance.Name)
 
+			return reconcile.Result{}, err
+		}
+	}
+
+	// Check namespace
+	namespace := instance.Spec.ApplicationsNamespace
+	err = r.createOdhNamespace(ctx, instance, namespace)
+	if err != nil {
+		// no need to log error as it was already logged in createOdhNamespace
+		return reconcile.Result{}, err
+	}
+
+	// Verify odh-trusted-ca-bundle Configmap is created for all the namespaces if DSCI is updated
+	istrustedCABundleUpdated, err := trustedcabundle.IsTrustedCABundleUpdated(ctx, r.Client, namespace, instance)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+	if istrustedCABundleUpdated {
+		err = trustedcabundle.AddCABundleConfigMapInAllNamespaces(ctx, r.Client, instance)
+		if err != nil {
+			r.Log.Error(err, "error adding configmap to all namespaces", "name", trustedcabundle.CAConfigMapName)
 			return reconcile.Result{}, err
 		}
 	}
@@ -383,6 +405,5 @@ func (r *DSCInitializationReconciler) watchDSCResource(_ client.Object) []reconc
 
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "backup"}}}
 	}
-
 	return nil
 }

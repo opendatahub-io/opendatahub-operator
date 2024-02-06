@@ -108,11 +108,14 @@ var _ = Describe("DataScienceCluster initialization", func() {
 		It("Should create the trusted CA Bundle configmap", func() {
 			// then
 			foundConfigMap := &corev1.ConfigMap{}
-			Eventually(objectExists(caBundleConfigmapName, applicationNamespace, foundConfigMap), timeout, interval).Should(BeTrue())
+			Eventually(objectExists(caBundleConfigmapName, applicationNamespace, foundConfigMap)).
+				WithTimeout(timeout).
+				WithPolling(interval).
+				Should(BeTrue())
+
 			Expect(foundConfigMap.Name).To(Equal(caBundleConfigmapName))
 			Expect(foundConfigMap.Namespace).To(Equal(applicationNamespace))
-			expectedConfigmapData := map[string]string{caBundleDataField: ""}
-			Expect(foundConfigMap.Data).To(Equal(expectedConfigmapData))
+			Expect(foundConfigMap.Data).To(HaveKeyWithValue(caBundleDataField, ""))
 		})
 	})
 

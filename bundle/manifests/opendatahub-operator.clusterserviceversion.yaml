@@ -149,6 +149,11 @@ spec:
           e.g. it provides unified authentication giving a Single Sign On experience.
         displayName: Service Mesh
         path: serviceMesh
+      - description: A custom CA bundle that will be available for  all  components
+          in the Data Science Cluster(DSC). This bundle will be stored in odh-trusted-ca-bundle
+          ConfigMap .data.odh-ca-bundle.crt within the DSCInitializtion.spec.ApplicationsNamespace.
+        displayName: Trusted CABundle
+        path: trustedCABundle
       - description: Internal development useful field to test customizations. This
           is not recommended to be used in production environment.
         displayName: Dev Flags
