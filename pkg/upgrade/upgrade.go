@@ -4,18 +4,23 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	routev1 "github.com/openshift/api/route/v1"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	olmclientset "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/operators/v1alpha1"
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	authv1 "k8s.io/api/rbac/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -45,6 +50,11 @@ const (
 	DeleteConfigMapLabel = "api.openshift.com/addon-managed-odh-delete"
 	// odhGeneratedNamespaceLabel is the label added to all the namespaces genereated by odh-deployer.
 )
+
+type Resource interface {
+	metav1.Object
+	runtime.Object
+}
 
 // OperatorUninstall deletes all the externally generated resources. This includes monitoring resources and applications
 // installed by KfDef.
@@ -329,6 +339,44 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 	return nil
 }
 
+func CleanupExistingResource(cli client.Client, platform deploy.Platform) error {
+	var multiErr *multierror.Error
+
+	// Special Handling of cleanup of deprecated model monitoring stack
+	if platform == deploy.ManagedRhods {
+		montNamespace := "redhat-ods-monitoring"
+		ctx := context.TODO()
+		deprecatedDeployments := []string{"rhods-prometheus-operator"}
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, montNamespace, deprecatedDeployments, &appsv1.DeploymentList{}))
+
+		deprecatedStatefulsets := []string{"prometheus-rhods-model-monitoring"}
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, montNamespace, deprecatedStatefulsets, &appsv1.StatefulSetList{}))
+
+		deprecatedServices := []string{"rhods-model-monitoring"}
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, montNamespace, deprecatedServices, &corev1.ServiceList{}))
+
+		deprecatedRoutes := []string{"rhods-model-monitoring"}
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, montNamespace, deprecatedRoutes, &routev1.RouteList{}))
+
+		deprecatedSecrets := []string{"rhods-monitoring-oauth-config"}
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, montNamespace, deprecatedSecrets, &corev1.SecretList{}))
+
+		deprecatedClusterroles := []string{"rhods-namespace-read", "rhods-prometheus-operator"}
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, montNamespace, deprecatedClusterroles, &authv1.ClusterRoleList{}))
+
+		deprecatedClusterrolebindings := []string{"rhods-namespace-read", "rhods-prometheus-operator"}
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, montNamespace, deprecatedClusterrolebindings, &authv1.ClusterRoleBindingList{}))
+
+		deprecatedServiceAccounts := []string{"rhods-prometheus-operator"}
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, montNamespace, deprecatedServiceAccounts, &corev1.ServiceAccountList{}))
+
+		deprecatedServicemonitors := []string{"modelmesh-federated-metrics"}
+		multiErr = multierror.Append(multiErr, deleteDeprecatedServiceMonitors(ctx, cli, montNamespace, deprecatedServicemonitors))
+	}
+
+	return multiErr.ErrorOrNil()
+}
+
 func GetOperatorNamespace() (string, error) {
 	data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
 	if err == nil {
@@ -431,6 +479,62 @@ func getClusterServiceVersion(cfg *rest.Config, watchNameSpace string) (*ofapi.C
 	}
 
 	return nil, nil
+}
+
+func deleteDeprecatedResources(ctx context.Context, cli client.Client, namespace string, resourceList []string, resourceType client.ObjectList) error { //nolint:unparam
+	var multiErr *multierror.Error
+	listOpts := &client.ListOptions{Namespace: namespace}
+	if err := cli.List(ctx, resourceType, listOpts); err != nil {
+		multiErr = multierror.Append(multiErr, err)
+	}
+	items := reflect.ValueOf(resourceType).Elem().FieldByName("Items")
+	for i := 0; i < items.Len(); i++ {
+		item := items.Index(i).Addr().Interface().(client.Object) //nolint:errcheck,forcetypeassert
+		for _, name := range resourceList {
+			if name == item.GetName() {
+				fmt.Printf("Attempting to delete %s in namespace %s\n", item.GetName(), namespace)
+				err := cli.Delete(ctx, item)
+				if err != nil {
+					if apierrs.IsNotFound(err) {
+						fmt.Printf("Could not find %s in namespace %s\n", item.GetName(), namespace)
+					} else {
+						multiErr = multierror.Append(multiErr, err)
+					}
+				}
+				fmt.Printf("Successfully deleted %s\n", item.GetName())
+			}
+		}
+	}
+	return multiErr.ErrorOrNil()
+}
+
+// Need to handle ServiceMonitor deletion separately as the generic function does not work for ServiceMonitors because of how the package is built.
+func deleteDeprecatedServiceMonitors(ctx context.Context, cli client.Client, namespace string, resourceList []string) error {
+	var multiErr *multierror.Error
+	listOpts := &client.ListOptions{Namespace: namespace}
+	servicemonitors := &monitoringv1.ServiceMonitorList{}
+	if err := cli.List(ctx, servicemonitors, listOpts); err != nil {
+		multiErr = multierror.Append(multiErr, err)
+	}
+
+	for _, servicemonitor := range servicemonitors.Items {
+		servicemonitor := servicemonitor
+		for _, name := range resourceList {
+			if name == servicemonitor.Name {
+				fmt.Printf("Attempting to delete %s in namespace %s\n", servicemonitor.Name, namespace)
+				err := cli.Delete(ctx, servicemonitor)
+				if err != nil {
+					if apierrs.IsNotFound(err) {
+						fmt.Printf("Could not find %s in namespace %s\n", servicemonitor.Name, namespace)
+					} else {
+						multiErr = multierror.Append(multiErr, err)
+					}
+				}
+				fmt.Printf("Successfully deleted %s\n", servicemonitor.Name)
+			}
+		}
+	}
+	return multiErr.ErrorOrNil()
 }
 
 func deleteResource(cli client.Client, namespace string, resourceType string) error {
