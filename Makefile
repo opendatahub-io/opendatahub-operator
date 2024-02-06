@@ -3,16 +3,23 @@
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
-IMAGE_OWNER ?= opendatahub
+ifneq ($(USER),)
+IMAGE_OWNER = $(USER)
+else
+IMAGE_OWNER = opendatahub
+endif
 VERSION ?= 2.4.0
 # IMAGE_TAG_BASE defines the opendatahub.io namespace and part of the image name for remote images.
 # This variable is used to construct full image tags for bundle and catalog images.
 #
 # For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
 # opendatahub.io/opendatahub-operator-bundle:$VERSION and opendatahub.io/opendatahub-operator-catalog:$VERSION.
-IMAGE_TAG_BASE ?= quay.io/$(IMAGE_OWNER)/opendatahub-operator
+IMAGE_TAG_BASE = quay.io/$(IMAGE_OWNER)/opendatahub-operator
+
+# keep the name based on IMG which already used from command line
+IMG_TAG = latest
 # Update IMG to a variable, to keep it consistent across versions for OpenShift CI
-IMG ?= REPLACE_IMAGE
+IMG = $(IMAGE_TAG_BASE):$(IMG_TAG)
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
 BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
@@ -88,8 +95,8 @@ E2E_TEST_FLAGS = "--skip-deletion=false" -timeout 15m # See README.md, default g
 # see target "image-build"
 IMAGE_BUILD_FLAGS = --build-arg USE_LOCAL=false
 
-.PHONY: all
-all: build
+.PHONY: default
+default: manifests lint unit-test build
 
 ##@ General
 
@@ -178,17 +185,26 @@ ifndef ignore-not-found
   ignore-not-found = false
 endif
 
+.PHONY: prepare
+prepare: manifests kustomize manager-kustomization
+
+# phony target for the case of changing IMG variable
+.PHONY: manager-kustomization
+manager-kustomization: config/manager/kustomization.yaml.in
+	cd config/manager \
+		&& cp -f kustomization.yaml.in kustomization.yaml \
+		&& $(KUSTOMIZE) edit set image controller=$(IMG)
+
 .PHONY: install
-install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.
+install: prepare ## Install CRDs into the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/crd | kubectl apply -f -
 
 .PHONY: uninstall
-uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
+uninstall: prepare ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/crd | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: deploy
-deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
+deploy: prepare ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/default | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
 
 .PHONY: undeploy
@@ -229,9 +245,8 @@ $(GOLANGCI_LINT): $(LOCALBIN)
 
 BUNDLE_DIR ?= "bundle"
 .PHONY: bundle
-bundle: manifests kustomize operator-sdk ## Generate bundle manifests and metadata, then validate generated files.
+bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then validate generated files.
 	$(OPERATOR_SDK) generate kustomize manifests -q
-	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
 	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS)
 	$(OPERATOR_SDK) bundle validate ./$(BUNDLE_DIR)
 	mv bundle.Dockerfile Dockerfiles/

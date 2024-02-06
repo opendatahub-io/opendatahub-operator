@@ -78,31 +78,36 @@ func (tc *testContext) testApplicationDeletion(component components.ComponentInt
 func (tc *testContext) testAllApplicationDeletion() error {
 	// Deletion all listed components' deployments
 
-	if err := tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.Dashboard)); err != nil {
+	var err error
+	if err = tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.Dashboard)); err != nil {
 		return err
 	}
 
-	if err := tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.ModelMeshServing)); err != nil {
+	if err = tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.ModelMeshServing)); err != nil {
 		return err
 	}
 
-	if err := tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.Kserve)); err != nil {
+	if err = tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.Kserve)); err != nil {
 		return err
 	}
 
-	if err := tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.Workbenches)); err != nil {
+	if err = tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.Workbenches)); err != nil {
 		return err
 	}
 
-	if err := tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.DataSciencePipelines)); err != nil {
+	if err = tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.DataSciencePipelines)); err != nil {
 		return err
 	}
 
-	if err := tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.CodeFlare)); err != nil {
+	if err = tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.CodeFlare)); err != nil {
 		return err
 	}
 
-	if err := tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.Ray)); err != nil {
+	if err = tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.Ray)); err != nil {
+		return err
+	}
+
+	if err := tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.Kueue)); err != nil {
 		return err
 	}
 
@@ -110,5 +115,9 @@ func (tc *testContext) testAllApplicationDeletion() error {
 		return err
 	}
 
-	return nil
+	if err = tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.ModelRegistry)); err != nil {
+		return err
+	}
+
+	return err
 }

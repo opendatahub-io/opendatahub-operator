@@ -28,7 +28,9 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/kueue"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
@@ -69,7 +71,7 @@ func OperatorUninstall(cli client.Client, cfg *rest.Config) error {
 		return fmt.Errorf("error getting generated namespaces : %w", err)
 	}
 
-	// Return if any one of the namespaces is Terminating due to resources that are in process of deletion. (e.g CRDs)
+	// Return if any one of the namespaces is Terminating due to resources that are in process of deletion. (e.g. CRDs)
 	for _, namespace := range generatedNamespaces.Items {
 		if namespace.Status.Phase == corev1.NamespaceTerminating {
 			return fmt.Errorf("waiting for namespace %v to be deleted", namespace.Name)
@@ -170,7 +172,13 @@ func CreateDefaultDSC(cli client.Client, _ deploy.Platform) error {
 				Ray: ray.Ray{
 					Component: components.Component{ManagementState: operatorv1.Removed},
 				},
+				Kueue: kueue.Kueue{
+					Component: components.Component{ManagementState: operatorv1.Removed},
+				},
 				TrustyAI: trustyai.TrustyAI{
+					Component: components.Component{ManagementState: operatorv1.Managed},
+				},
+				ModelRegistry: modelregistry.ModelRegistry{
 					Component: components.Component{ManagementState: operatorv1.Removed},
 				},
 			},
@@ -308,6 +316,14 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 		}
 
 		return err
+	}
+
+	// TODO: Revert the following condition in 2.8 ODH Release
+	if platform == deploy.OpenDataHub {
+		fmt.Println("starting deletion of deployment in ODH cluster")
+		if err := deleteResource(cli, appNS, "deployment"); err != nil {
+			return fmt.Errorf("error deleting deployment: %w", err)
+		}
 	}
 
 	return nil
@@ -464,7 +480,7 @@ func deleteDeploymentsAndCheck(ctx context.Context, cli client.Client, namespace
 	if err := cli.List(ctx, deployments, listOpts); err != nil {
 		return false, nil //nolint:nilerr
 	}
-	// filter deployment which has the new label to limit that we do not over kill other deployment
+	// filter deployment which has the new label to limit that we do not overkill other deployment
 	// this logic can be used even when upgrade from v2.4 to v2.5 without remove it
 	markedForDeletion := []appsv1.Deployment{}
 	for _, deployment := range deployments.Items {

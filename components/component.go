@@ -60,7 +60,7 @@ type DevFlags struct {
 }
 
 type ManifestsConfig struct {
-	// uri is the URI point to a git repo with tag/branch. e.g  https://github.com/org/repo/tarball/<tag/branch>
+	// uri is the URI point to a git repo with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
 	// +optional
 	// +kubebuilder:default:=""
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=1
@@ -72,7 +72,7 @@ type ManifestsConfig struct {
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=2
 	ContextDir string `json:"contextDir,omitempty"`
 
-	// sourcePath is the subpath within contextDir where kustomize builds start. Examples include any sub-folder or path: `base`, `overlays/dev`, `default`, `odh` etc
+	// sourcePath is the subpath within contextDir where kustomize builds start. Examples include any sub-folder or path: `base`, `overlays/dev`, `default`, `odh` etc.
 	// +optional
 	// +kubebuilder:default:=""
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=3
@@ -121,6 +121,10 @@ func (c *Component) UpdatePrometheusConfig(_ client.Client, enable bool, compone
 			WorkbenchesARules  string `yaml:"workbenches-alerting.rules"`
 			KserveRRules       string `yaml:"kserve-recording.rules"`
 			KserveARules       string `yaml:"kserve-alerting.rules"`
+			TrustyAIRRules     string `yaml:"trustyai-recording.rules"`
+			TrustyAIARules     string `yaml:"trustyai-alerting.rules"`
+			KueueRRules        string `yaml:"kueue-recording.rules"`
+			KueueARules        string `yaml:"kueue-alerting.rules"`
 		} `yaml:"data"`
 	}
 	var configMap ConfigMap

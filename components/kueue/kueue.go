@@ -1,6 +1,4 @@
-// Package ray provides utility functions to config Ray as part of the stack
-// which makes managing distributed compute infrastructure in the cloud easy and intuitive for Data Scientists
-package ray
+package kueue
 
 import (
 	"context"
@@ -19,20 +17,20 @@ import (
 )
 
 var (
-	ComponentName = "ray"
-	RayPath       = deploy.DefaultManifestPath + "/" + ComponentName + "/openshift"
+	ComponentName = "kueue"
+	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/rhoai" // same path for both odh and rhoai
 )
 
-// Verifies that Ray implements ComponentInterface.
-var _ components.ComponentInterface = (*Ray)(nil)
+// Verifies that Kueue implements ComponentInterface.
+var _ components.ComponentInterface = (*Kueue)(nil)
 
-// Ray struct holds the configuration for the Ray component.
+// Kueue struct holds the configuration for the Kueue component.
 // +kubebuilder:object:generate=true
-type Ray struct {
+type Kueue struct {
 	components.Component `json:""`
 }
 
-func (r *Ray) OverrideManifests(_ string) error {
+func (r *Kueue) OverrideManifests(_ string) error {
 	// If devflags are set, update default manifests path
 	if len(r.DevFlags.Manifests) != 0 {
 		manifestConfig := r.DevFlags.Manifests[0]
@@ -44,20 +42,19 @@ func (r *Ray) OverrideManifests(_ string) error {
 		if manifestConfig.SourcePath != "" {
 			defaultKustomizePath = manifestConfig.SourcePath
 		}
-		RayPath = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
+		Path = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
 	}
 
 	return nil
 }
 
-func (r *Ray) GetComponentName() string {
+func (r *Kueue) GetComponentName() string {
 	return ComponentName
 }
 
-func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, resConf *rest.Config, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
+func (r *Kueue) ReconcileComponent(ctx context.Context, cli client.Client, resConf *rest.Config, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
 	var imageParamMap = map[string]string{
-		"odh-kuberay-operator-controller-image": "RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE",
-		"namespace":                             dscispec.ApplicationsNamespace,
+		"odh-kueue-controller-image": "RELATED_IMAGE_ODH_KUEUE_OPERATOR_IMAGE", // new kueue image
 	}
 
 	enabled := r.GetManagementState() == operatorv1.Managed
@@ -75,13 +72,13 @@ func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, resConf
 			}
 		}
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (r.DevFlags == nil || len(r.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(RayPath, r.SetImageParamsMap(imageParamMap), true); err != nil {
+			if err := deploy.ApplyParams(Path, r.SetImageParamsMap(imageParamMap), true); err != nil {
 				return err
 			}
 		}
 	}
-	// Deploy Ray Operator
-	if err := deploy.DeployManifestsFromPath(cli, owner, RayPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+	// Deploy Kueue Operator
+	if err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 		return err
 	}
 	// CloudService Monitoring handling

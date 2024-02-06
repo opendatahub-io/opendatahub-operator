@@ -13,7 +13,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	v1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/infrastructure/v1"
 )
@@ -21,50 +20,41 @@ import (
 type partialBuilder func(f *Feature) error
 
 type featureBuilder struct {
-	name     string
-	config   *rest.Config
-	builders []partialBuilder
-	fsys     fs.FS
+	name            string
+	config          *rest.Config
+	builders        []partialBuilder
+	featuresHandler *FeaturesHandler
+	fsys            fs.FS
 }
 
-func CreateFeature(name string) *featureName { //nolint:golint,revive //No need to export featureBuilder.
-	return &featureName{
+func CreateFeature(name string) *usingFeaturesHandler { //nolint:golint,revive //No need to export featureBuilder.
+	return &usingFeaturesHandler{
 		name: name,
 	}
 }
 
-type featureName struct {
+type usingFeaturesHandler struct {
 	name string
 }
 
-func (fn *featureName) With(spec *v1.DSCInitializationSpec) *featureSource {
-	return &featureSource{
-		spec: spec,
-		name: fn.name,
-	}
-}
-
-type featureSource struct {
-	spec *v1.DSCInitializationSpec
-	name string
-}
-
-func (fo *featureSource) From(source featurev1.Source) *featureBuilder {
+func (u *usingFeaturesHandler) For(featuresHandler *FeaturesHandler) *featureBuilder {
 	createSpec := func(f *Feature) error {
 		f.Spec = &Spec{
-			ServiceMeshSpec: &fo.spec.ServiceMesh,
+			ServiceMeshSpec: &featuresHandler.DSCInitializationSpec.ServiceMesh,
 			Serving:         &infrav1.ServingSpec{},
-			Source:          &source,
-			AppNamespace:    fo.spec.ApplicationsNamespace,
+			Source:          &featuresHandler.source,
+			AppNamespace:    featuresHandler.DSCInitializationSpec.ApplicationsNamespace,
 		}
 
 		return nil
 	}
 
 	fb := &featureBuilder{
-		name: fo.name,
-		fsys: embeddedFiles,
+		name:            u.name,
+		featuresHandler: featuresHandler,
+		fsys:            embeddedFiles,
 	}
+
 	// Ensures creation of .Spec object is always invoked first
 	fb.builders = append([]partialBuilder{createSpec}, fb.builders...)
 
@@ -172,28 +162,30 @@ func (fb *featureBuilder) WithResources(resources ...Action) *featureBuilder {
 	return fb
 }
 
-func (fb *featureBuilder) Load() (*Feature, error) {
+func (fb *featureBuilder) Load() error {
 	feature := newFeature(fb.name)
 
 	// UsingConfig builder wasn't called while constructing this feature.
 	// Get default settings and create needed clients.
 	if fb.config == nil {
 		if err := fb.withDefaultClient(); err != nil {
-			return nil, err
+			return err
 		}
 	}
 
 	if err := createClients(fb.config)(feature); err != nil {
-		return nil, err
+		return err
 	}
 
 	for i := range fb.builders {
 		if err := fb.builders[i](feature); err != nil {
-			return nil, err
+			return err
 		}
 	}
 
-	return feature, nil
+	fb.featuresHandler.features = append(fb.featuresHandler.features, feature)
+
+	return nil
 }
 
 func (fb *featureBuilder) withDefaultClient() error {
