@@ -49,6 +49,9 @@ metadata:
             "modelmeshserving": {
               "managementState": "Managed"
             },
+            "kueue": {
+              "managementState": "Removed"
+            },
             "ray": {
               "managementState": "Removed"
             },

@@ -148,6 +148,9 @@ metadata:
             "modelmeshserving": {
               "managementState": "Managed"
             },
+            "kueue": {
+              "managementState": "Removed"
+            },
             "ray": {
               "managementState": "Removed"
             },
@@ -1773,7 +1776,7 @@ spec:
                 - --leader-elect
                 command:
                 - /manager
-                image: REPLACE_IMAGE:latest 
+                image: REPLACE_IMAGE:latest
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:
