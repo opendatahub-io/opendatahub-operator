@@ -85,6 +85,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	r.Log.Info("Reconciling DataScienceCluster resources", "Request.Name", req.Name)
 
 	instances := &dsc.DataScienceClusterList{}
+
 	if err := r.Client.List(ctx, instances); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -105,6 +106,11 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	instance := &instances.Items[0]
 
+	allComponents, err := getAllComponents(&instance.Spec.Components)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
 	// If DSC CR exist and deletion CM exist
 	// delete DSC CR and let reconcile requeue
 	// sometimes with finalzier DSC CR wont get deleted, force to remove finalizer here
@@ -123,6 +129,11 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 				return reconcile.Result{}, err
 			}
 		}
+		for _, component := range allComponents {
+			if err := component.Cleanup(r.Client, r.DataScienceCluster.DSCISpec); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
 		return reconcile.Result{Requeue: true}, nil
 	}
 
@@ -138,8 +149,6 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 		return ctrl.Result{}, err
 	}
-
-	var err error
 
 	// Verify a valid DSCInitialization instance is created
 	dsciInstances := &dsci.DSCInitializationList{}
@@ -178,11 +187,6 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		})
 
 		return ctrl.Result{}, errors.New(message)
-	}
-
-	allComponents, err := getAllComponents(&instance.Spec.Components)
-	if err != nil {
-		return ctrl.Result{}, err
 	}
 
 	if instance.ObjectMeta.DeletionTimestamp.IsZero() {
