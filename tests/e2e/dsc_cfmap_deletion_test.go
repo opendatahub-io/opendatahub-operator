@@ -46,6 +46,11 @@ func cfgMapDeletionTestSuite(t *testing.T) {
 			require.NoError(t, err, "Error while deleting owned namespaces")
 		})
 
+		t.Run("DS Projects should be deleted", func(t *testing.T) {
+			err = testCtx.testDSProjectDeletion()
+			require.NoError(t, err, "Error while deleting DS Projectss")
+		})
+
 		t.Run("dsci should be deleted", func(t *testing.T) {
 			err = testCtx.testDSCIDeletion()
 			require.NoError(t, err, "failed deleting DSCI")
@@ -103,6 +108,20 @@ func (tc *testContext) testOwnedNamespacesDeletion() error {
 		return len(namespaces.Items) == 0, err
 	}); err != nil {
 		return fmt.Errorf("failed waiting for all owned namespaces to be deleted: %w", err)
+	}
+
+	return nil
+}
+
+func (tc *testContext) testDSProjectDeletion() error {
+	if err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
+		namespaces, err := tc.kubeClient.CoreV1().Namespaces().List(ctx, metav1.ListOptions{
+			LabelSelector: cluster.DSProjectLabel,
+		})
+
+		return len(namespaces.Items) == 0, err
+	}); err != nil {
+		return fmt.Errorf("failed waiting for all DS Projects to be deleted: %w", err)
 	}
 
 	return nil

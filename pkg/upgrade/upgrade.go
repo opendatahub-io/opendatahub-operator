@@ -43,7 +43,6 @@ const (
 	// DeleteConfigMapLabel is the label for configMap used to trigger operator uninstall
 	// TODO: Label should be updated if addon name changes.
 	DeleteConfigMapLabel = "api.openshift.com/addon-managed-odh-delete"
-	// odhGeneratedNamespaceLabel is the label added to all the namespaces genereated by odh-deployer.
 )
 
 // OperatorUninstall deletes all the externally generated resources. This includes monitoring resources and applications
@@ -84,12 +83,34 @@ func OperatorUninstall(cli client.Client, cfg *rest.Config) error {
 			if err := cli.Delete(context.TODO(), &namespace, []client.DeleteOption{}...); err != nil {
 				return fmt.Errorf("error deleting namespace %v: %w", namespace.Name, err)
 			}
-			fmt.Printf("Namespace %s deleted as a part of uninstall.\n", namespace.Name)
+			fmt.Printf("Namespace %s deleted as a part of uninstallation.\n", namespace.Name)
 		}
 	}
 
 	// give enough time for namespace deletion before proceed
 	time.Sleep(10 * time.Second)
+
+	// similar to data science project "opendatahub.io/dashboard"
+	// we won't delete other project if it is not created by dashboard, since we don't know how and if it is safe to do so
+	DSProjects := &corev1.NamespaceList{}
+	nsOptionsDSP := []client.ListOption{
+		client.MatchingLabels{cluster.DSProjectLabel: "true"},
+	}
+	if err := cli.List(context.TODO(), DSProjects, nsOptionsDSP...); err != nil {
+		return fmt.Errorf("error getting DS Projects : %w", err)
+	}
+
+	for _, dsp := range DSProjects.Items {
+		dsp := dsp
+		if dsp.Status.Phase == corev1.NamespaceActive {
+			if err := cli.Delete(context.TODO(), &dsp, []client.DeleteOption{}...); err != nil {
+				return fmt.Errorf("error deleting DS Projects %v: %w", dsp.Name, err)
+			}
+			fmt.Printf("DS Project %s deleted as a part of uninstallation.\n", dsp.Name)
+		}
+	}
+
+	time.Sleep(5 * time.Second)
 
 	// We can only assume the subscription is using standard names
 	// if user install by creating different named subs, then we will not know the name
