@@ -92,25 +92,25 @@ func OperatorUninstall(cli client.Client, cfg *rest.Config) error {
 
 	// similar to data science project "opendatahub.io/dashboard"
 	// we won't delete other project if it is not created by dashboard, since we don't know how and if it is safe to do so
-	DSProjects := &corev1.NamespaceList{}
-	nsOptionsDSP := []client.ListOption{
-		client.MatchingLabels{cluster.DSProjectLabel: "true"},
-	}
-	if err := cli.List(context.TODO(), DSProjects, nsOptionsDSP...); err != nil {
-		return fmt.Errorf("error getting DS Projects : %w", err)
-	}
+	// DSProjects := &corev1.NamespaceList{}
+	// nsOptionsDSP := []client.ListOption{
+	// 	client.MatchingLabels{cluster.DSProjectLabel: "true"},
+	// }
+	// if err := cli.List(context.TODO(), DSProjects, nsOptionsDSP...); err != nil {
+	// 	return fmt.Errorf("error getting DS Projects : %w", err)
+	// }
 
-	for _, dsp := range DSProjects.Items {
-		dsp := dsp
-		if dsp.Status.Phase == corev1.NamespaceActive {
-			if err := cli.Delete(context.TODO(), &dsp, []client.DeleteOption{}...); err != nil {
-				return fmt.Errorf("error deleting DS Projects %v: %w", dsp.Name, err)
-			}
-			fmt.Printf("DS Project %s deleted as a part of uninstallation.\n", dsp.Name)
-		}
-	}
+	// for _, dsp := range DSProjects.Items {
+	// 	dsp := dsp
+	// 	if dsp.Status.Phase == corev1.NamespaceActive {
+	// 		if err := cli.Delete(context.TODO(), &dsp, []client.DeleteOption{}...); err != nil {
+	// 			return fmt.Errorf("error deleting DS Projects %v: %w", dsp.Name, err)
+	// 		}
+	// 		fmt.Printf("DS Project %s deleted as a part of uninstallation.\n", dsp.Name)
+	// 	}
+	// }
 
-	time.Sleep(5 * time.Second)
+	// time.Sleep(5 * time.Second)
 
 	// We can only assume the subscription is using standard names
 	// if user install by creating different named subs, then we will not know the name
