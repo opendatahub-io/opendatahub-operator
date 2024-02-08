@@ -29,6 +29,7 @@ import (
 	ocuserv1 "github.com/openshift/api/user/v1"
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	admv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -85,6 +86,7 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(apiextv1.AddToScheme(scheme))
 	utilruntime.Must(admv1.AddToScheme(scheme))
 	utilruntime.Must(apiregistrationv1.AddToScheme(scheme))
+	utilruntime.Must(monitoringv1.AddToScheme(scheme))
 }
 
 func main() { //nolint:funlen
@@ -199,6 +201,10 @@ func main() { //nolint:funlen
 	// Apply update from legacy operator
 	if err = upgrade.UpdateFromLegacyVersion(setupClient, platform, dscApplicationsNamespace, dscMonitoringNamespace); err != nil {
 		setupLog.Error(err, "unable to update from legacy operator version")
+	}
+
+	if err = upgrade.CleanupExistingResource(setupClient, platform); err != nil {
+		setupLog.Error(err, "unable to perform cleanup")
 	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
