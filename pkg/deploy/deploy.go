@@ -403,16 +403,17 @@ func ApplyParams(componentPath string, imageParamsMap map[string]string, isUpdat
 }
 
 // SubscriptionExists checks if a Subscription for the operator exists in the given namespace.
-func SubscriptionExists(cli client.Client, namespace string, name string) (bool, error) {
+// if exsit, return object; if not exsit, return nil.
+func SubscriptionExists(cli client.Client, namespace string, name string) (*ofapiv1alpha1.Subscription, error) {
 	sub := &ofapiv1alpha1.Subscription{}
 	if err := cli.Get(context.TODO(), client.ObjectKey{Namespace: namespace, Name: name}, sub); err != nil {
 		if apierrs.IsNotFound(err) {
-			return false, nil
+			return nil, nil
 		}
-		return false, err
+		return nil, err
 	}
 
-	return true, nil
+	return sub, nil
 }
 
 // OperatorExists checks if an Operator with 'operatorPrefix' is installed.
