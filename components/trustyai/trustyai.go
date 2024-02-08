@@ -56,6 +56,7 @@ func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client, re
 	var imageParamMap = map[string]string{
 		"trustyaiServiceImage":  "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE",
 		"trustyaiOperatorImage": "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE",
+		"oauthProxyImage":       "RELATED_IMAGE_ODH_TRUSTYAI_OAUTH_PROXY_IMAGE",
 	}
 	enabled := t.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
