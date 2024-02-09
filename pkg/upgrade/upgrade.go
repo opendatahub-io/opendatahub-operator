@@ -108,7 +108,7 @@ func OperatorUninstall(cli client.Client, cfg *rest.Config) error {
 	} else if platform == deploy.ManagedRhods {
 		subsName = "addon-managed-odh"
 	}
-	sub, _ := deploy.SubscriptionExists(cli, operatorNs, subsName)
+	sub, _ := deploy.GetSubscription(cli, operatorNs, subsName)
 	if sub == nil {
 		fmt.Printf("Could not find subscription %s in namespace %s. Maybe you have a different one", subsName, operatorNs)
 	} else {
@@ -118,8 +118,6 @@ func OperatorUninstall(cli client.Client, cfg *rest.Config) error {
 	}
 
 	fmt.Printf("Removing the operator CSV in turn remove operator deployment\n")
-	time.Sleep(5 * time.Second)
-
 	err = removeCSV(cli, cfg)
 
 	fmt.Printf("All resources deleted as part of uninstall.")
