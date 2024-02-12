@@ -4,9 +4,6 @@ set -e
 GITHUB_URL="https://github.com/"
 # update to use different git repo for legacy manifests
 MANIFEST_ORG="red-hat-data-services"
-# comment out below logic once we have all component manifests ready to get from source git repo
-MANIFEST_RELEASE="master"
-MANIFESTS_TARBALL_URL="${GITHUB_URL}/${MANIFEST_ORG}/odh-manifests/tarball/${MANIFEST_RELEASE}"
 
 # component: notebook, dsp, kserve, dashbaord, cf/ray, trustyai, modelmesh.
 # in the format of "repo-org:repo-name:branch-name:source-folder:target-folder".
@@ -22,6 +19,7 @@ declare -A COMPONENT_MANIFESTS=(
     ["model-mesh"]="red-hat-data-services:modelmesh-serving:rhoai-2.7:config:model-mesh"
     ["odh-model-controller"]="red-hat-data-services:odh-model-controller:rhoai-2.7:config:odh-model-controller"
     ["kserve"]="red-hat-data-services:kserve:rhoai-2.7:config:kserve"
+    ["odh-dashboard"]="red-hat-data-services:odh-dashboard:rhoai-2.7:manifests:dashboard"
 )
 
 # Allow overwriting repo using flags component=repo
@@ -52,15 +50,6 @@ fi
 rm -fr ./odh-manifests/* ./.odh-manifests-tmp/
 
 mkdir -p ./.odh-manifests-tmp/ ./odh-manifests/
-wget -q -c ${MANIFESTS_TARBALL_URL} -O - | tar -zxv -C ./.odh-manifests-tmp/ --strip-components 1 > /dev/null
-
-# mm-monitroing
-cp -r ./.odh-manifests-tmp/modelmesh-monitoring/ ./odh-manifests
-
-# Dashboard
-cp -r ./.odh-manifests-tmp/odh-dashboard/ ./odh-manifests/dashboard
-
-rm -rf ${MANIFEST_RELEASE}.tar.gz ./.odh-manifests-tmp/
 
 for key in "${!COMPONENT_MANIFESTS[@]}"; do
     echo "Cloning repo ${key}: ${COMPONENT_MANIFESTS[$key]}"
