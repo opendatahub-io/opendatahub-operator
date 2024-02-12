@@ -426,15 +426,13 @@ func GetSubscription(cli client.Client, namespace string, name string) (*ofapiv1
 // if we need to check exact version of the operator installed, can append vX.Y.Z later.
 func OperatorExists(cli client.Client, operatorPrefix string) (bool, error) {
 	opConditionList := &ofapiv2.OperatorConditionList{}
-	if err := cli.List(context.TODO(), opConditionList); err != nil {
-		if !apierrs.IsNotFound(err) { // real error to run List()
-			return false, err
-		}
-	} else {
-		for _, opCondition := range opConditionList.Items {
-			if strings.HasPrefix(opCondition.Name, operatorPrefix) {
-				return true, nil
-			}
+	err := cli.List(context.TODO(), opConditionList)
+	if err != nil {
+		return false, err
+	}
+	for _, opCondition := range opConditionList.Items {
+		if strings.HasPrefix(opCondition.Name, operatorPrefix) {
+			return true, nil
 		}
 	}
 

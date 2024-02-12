@@ -108,7 +108,11 @@ func OperatorUninstall(cli client.Client, cfg *rest.Config) error {
 	} else if platform == deploy.ManagedRhods {
 		subsName = "addon-managed-odh"
 	}
-	sub, _ := deploy.GetSubscription(cli, operatorNs, subsName)
+
+	sub, err := deploy.GetSubscription(cli, operatorNs, subsName)
+	if err != nil {
+		return err
+	}
 	if sub == nil {
 		fmt.Printf("Could not find subscription %s in namespace %s. Maybe you have a different one", subsName, operatorNs)
 	} else {
@@ -323,10 +327,6 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 		kfDefList := &kfdefv1.KfDefList{}
 		err := cli.List(context.TODO(), kfDefList)
 		if err != nil {
-			if apierrs.IsNotFound(err) {
-				// If no KfDefs, do nothing and return
-				return nil
-			}
 			return fmt.Errorf("error getting kfdef instances: : %w", err)
 		}
 		if len(kfDefList.Items) > 0 {
@@ -419,10 +419,6 @@ func RemoveKfDefInstances(cli client.Client, _ deploy.Platform) error {
 	expectedKfDefList := &kfdefv1.KfDefList{}
 	err = cli.List(context.TODO(), expectedKfDefList)
 	if err != nil {
-		if apierrs.IsNotFound(err) {
-			// If no KfDefs, do nothing and return
-			return nil
-		}
 		return fmt.Errorf("error getting list of kfdefs: %w", err)
 	}
 	// Delete kfdefs
