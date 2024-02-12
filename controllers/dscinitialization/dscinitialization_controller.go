@@ -155,14 +155,6 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 	}
 
-	// Check namespace
-	namespace := instance.Spec.ApplicationsNamespace
-	err = r.createOdhNamespace(ctx, instance, namespace)
-	if err != nil {
-		// no need to log error as it was already logged in createOdhNamespace
-		return reconcile.Result{}, err
-	}
-
 	// Get platform
 	platform, err := deploy.GetPlatform(r.Client)
 	if err != nil {
