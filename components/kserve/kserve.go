@@ -177,15 +177,14 @@ func (k *Kserve) configureServerless(cli client.Client, instance *dsciv1.DSCInit
 		}
 
 	case operatorv1.Managed: // standard workflow to create CR
-		switch instance.ServiceMesh.ManagementState {
-		case operatorv1.Unmanaged, operatorv1.Removed:
-			return fmt.Errorf("ServiceMesh is need to set to 'Managed' in DSCI CR, it is required by KServe serving field")
-		}
-
-		// check on dependent operators if all installed in cluster
-		dependOpsErrors := checkDependentOperators(cli).ErrorOrNil()
-		if dependOpsErrors != nil {
-			return dependOpsErrors
+		// only when both servicemesh and serving are set to Managed,
+		// enforce to check on dependent operators if both installed in cluster
+		// if servicemesh is set to other value, user should know what is pre-req to make kserve work
+		if instance.ServiceMesh.ManagementState == operatorv1.Managed {
+			dependOpsErrors := checkDependentOperators(cli).ErrorOrNil()
+			if dependOpsErrors != nil {
+				return dependOpsErrors
+			}
 		}
 
 		serverlessFeatures := feature.ComponentFeaturesHandler(k, instance, k.configureServerlessFeatures())
