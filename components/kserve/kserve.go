@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
@@ -109,7 +108,7 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resC
 			}
 		}
 
-		if err := k.configureServerless(cli, dscispec); err != nil {
+		if err := k.configureServerless(dscispec); err != nil {
 			return err
 		}
 
@@ -165,7 +164,7 @@ func (k *Kserve) Cleanup(_ client.Client, instance *dsciv1.DSCInitializationSpec
 	return k.removeServerlessFeatures(instance)
 }
 
-func (k *Kserve) configureServerless(cli client.Client, instance *dsciv1.DSCInitializationSpec) error {
+func (k *Kserve) configureServerless(instance *dsciv1.DSCInitializationSpec) error {
 	switch k.Serving.ManagementState {
 	case operatorv1.Unmanaged: // Bring your own CR
 		fmt.Println("Serverless CR is not configured by the operator, we won't do anything")
@@ -177,16 +176,6 @@ func (k *Kserve) configureServerless(cli client.Client, instance *dsciv1.DSCInit
 		}
 
 	case operatorv1.Managed: // standard workflow to create CR
-		// only when both servicemesh and serving are set to Managed,
-		// enforce to check on dependent operators if both installed in cluster
-		// if servicemesh is set to other value, user should know what is pre-req to make kserve work
-		if instance.ServiceMesh.ManagementState == operatorv1.Managed {
-			dependOpsErrors := checkDependentOperators(cli).ErrorOrNil()
-			if dependOpsErrors != nil {
-				return dependOpsErrors
-			}
-		}
-
 		serverlessFeatures := feature.ComponentFeaturesHandler(k, instance, k.configureServerlessFeatures())
 
 		if err := serverlessFeatures.Apply(); err != nil {
@@ -200,25 +189,4 @@ func (k *Kserve) removeServerlessFeatures(instance *dsciv1.DSCInitializationSpec
 	serverlessFeatures := feature.ComponentFeaturesHandler(k, instance, k.configureServerlessFeatures())
 
 	return serverlessFeatures.Delete()
-}
-
-func checkDependentOperators(cli client.Client) *multierror.Error {
-	var multiErr *multierror.Error
-
-	if found, err := deploy.OperatorExists(cli, ServiceMeshOperator); err != nil {
-		multiErr = multierror.Append(multiErr, err)
-	} else if !found {
-		err = fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
-			ServiceMeshOperator, ComponentName)
-		multiErr = multierror.Append(multiErr, err)
-	}
-
-	if found, err := deploy.OperatorExists(cli, ServerlessOperator); err != nil {
-		multiErr = multierror.Append(multiErr, err)
-	} else if !found {
-		err = fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
-			ServerlessOperator, ComponentName)
-		multiErr = multierror.Append(multiErr, err)
-	}
-	return multiErr
 }

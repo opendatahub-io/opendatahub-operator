@@ -2,6 +2,7 @@ package feature
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -10,6 +11,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 const (
@@ -20,6 +23,19 @@ const (
 func EnsureCRDIsInstalled(name string) Action {
 	return func(f *Feature) error {
 		return f.Client.Get(context.TODO(), client.ObjectKey{Name: name}, &apiextv1.CustomResourceDefinition{})
+	}
+}
+
+func EnsureOperatorIsInstalled(operatorPrefix string) Action {
+	return func(f *Feature) error {
+		installed, err := deploy.OperatorExists(f.Client, operatorPrefix)
+		if err != nil {
+			return err
+		}
+		if installed {
+			return nil
+		}
+		return fmt.Errorf("failed finding operator")
 	}
 }
 

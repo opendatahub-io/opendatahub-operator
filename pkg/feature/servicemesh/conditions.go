@@ -27,6 +27,10 @@ func EnsureServiceMeshOperatorInstalled(f *feature.Feature) error {
 
 		return err
 	}
+	if err := feature.EnsureOperatorIsInstalled("servicemeshoperator")(f); err != nil {
+		f.Log.Info("Failed to find the pre-requisite Service Mesh operator in cluster", "feature", f.Name)
+		return err
+	}
 
 	return nil
 }
