@@ -18,13 +18,11 @@ import (
 )
 
 const (
-	workingNamespace      = "test-operator-ns"
-	applicationNamespace  = "test-application-ns"
-	configmapName         = "odh-common-config"
-	caBundleConfigmapName = "odh-trusted-ca-bundle"
-	caBundleDataField     = "odh-ca-bundle.crt"
-	monitoringNamespace   = "test-monitoring-ns"
-	readyPhase            = "Ready"
+	workingNamespace     = "test-operator-ns"
+	applicationNamespace = "test-application-ns"
+	configmapName        = "odh-common-config"
+	monitoringNamespace  = "test-monitoring-ns"
+	readyPhase           = "Ready"
 )
 
 var _ = Describe("DataScienceCluster initialization", func() {
@@ -33,7 +31,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 		const applicationName = "default-dsci"
 		BeforeEach(func() {
 			// when
-			desiredDsci := createDSCI(applicationName, operatorv1.Managed, monitoringNamespace)
+			desiredDsci := createDSCI(applicationName, operatorv1.Managed, operatorv1.Managed, monitoringNamespace)
 			Expect(k8sClient.Create(context.Background(), desiredDsci)).Should(Succeed())
 			foundDsci := &dsci.DSCInitialization{}
 			Eventually(dscInitializationIsReady(applicationName, workingNamespace, foundDsci)).
@@ -105,18 +103,6 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			Expect(foundConfigMap.Data).To(Equal(expectedConfigmapData))
 		})
 
-		It("Should create the trusted CA Bundle configmap", func() {
-			// then
-			foundConfigMap := &corev1.ConfigMap{}
-			Eventually(objectExists(caBundleConfigmapName, applicationNamespace, foundConfigMap)).
-				WithTimeout(timeout).
-				WithPolling(interval).
-				Should(BeTrue())
-
-			Expect(foundConfigMap.Name).To(Equal(caBundleConfigmapName))
-			Expect(foundConfigMap.Namespace).To(Equal(applicationNamespace))
-			Expect(foundConfigMap.Data).To(HaveKeyWithValue(caBundleDataField, ""))
-		})
 	})
 
 	Context("Monitoring Resource", func() {
@@ -125,7 +111,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 		const applicationName = "default-dsci"
 		It("Should not create monitoring namespace if monitoring is disabled", func() {
 			// when
-			desiredDsci := createDSCI(applicationName, operatorv1.Removed, monitoringNamespace2)
+			desiredDsci := createDSCI(applicationName, operatorv1.Removed, operatorv1.Managed, monitoringNamespace2)
 			Expect(k8sClient.Create(context.Background(), desiredDsci)).Should(Succeed())
 			foundDsci := &dsci.DSCInitialization{}
 			Eventually(dscInitializationIsReady(applicationName, workingNamespace, foundDsci)).
@@ -141,7 +127,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 		})
 		It("Should create default monitoring namespace if monitoring enabled", func() {
 			// when
-			desiredDsci := createDSCI(applicationName, operatorv1.Managed, monitoringNamespace2)
+			desiredDsci := createDSCI(applicationName, operatorv1.Managed, operatorv1.Managed, monitoringNamespace2)
 			Expect(k8sClient.Create(context.Background(), desiredDsci)).Should(Succeed())
 			foundDsci := &dsci.DSCInitialization{}
 			Eventually(dscInitializationIsReady(applicationName, workingNamespace, foundDsci)).
@@ -166,10 +152,10 @@ var _ = Describe("DataScienceCluster initialization", func() {
 
 			anotherApplicationName := "default2"
 			// given
-			desiredDsci := createDSCI(applicationName, operatorv1.Managed, monitoringNamespace)
+			desiredDsci := createDSCI(applicationName, operatorv1.Managed, operatorv1.Managed, monitoringNamespace)
 			Expect(k8sClient.Create(context.Background(), desiredDsci)).Should(Succeed())
 			// when
-			desiredDsci2 := createDSCI(anotherApplicationName, operatorv1.Managed, monitoringNamespace)
+			desiredDsci2 := createDSCI(anotherApplicationName, operatorv1.Managed, operatorv1.Managed, monitoringNamespace)
 			// then
 			Eventually(dscInitializationIsReady(anotherApplicationName, workingNamespace, desiredDsci2)).
 				WithTimeout(timeout).
@@ -204,7 +190,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 				Should(BeTrue())
 
 			// when
-			desiredDsci := createDSCI(applicationName, operatorv1.Managed, monitoringNamespace)
+			desiredDsci := createDSCI(applicationName, operatorv1.Managed, operatorv1.Managed, monitoringNamespace)
 			Expect(k8sClient.Create(context.Background(), desiredDsci)).Should(Succeed())
 			foundDsci := &dsci.DSCInitialization{}
 			Eventually(dscInitializationIsReady(applicationName, workingNamespace, foundDsci)).
@@ -244,7 +230,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 				Should(BeTrue())
 
 			// when
-			desiredDsci := createDSCI(applicationName, operatorv1.Managed, monitoringNamespace)
+			desiredDsci := createDSCI(applicationName, operatorv1.Managed, operatorv1.Managed, monitoringNamespace)
 			Expect(k8sClient.Create(context.Background(), desiredDsci)).Should(Succeed())
 			foundDsci := &dsci.DSCInitialization{}
 			Eventually(dscInitializationIsReady(applicationName, workingNamespace, foundDsci)).
@@ -280,7 +266,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 				Should(BeTrue())
 
 			// when
-			desiredDsci := createDSCI(applicationName, operatorv1.Managed, monitoringNamespace)
+			desiredDsci := createDSCI(applicationName, operatorv1.Managed, operatorv1.Managed, monitoringNamespace)
 			Expect(k8sClient.Create(context.Background(), desiredDsci)).Should(Succeed())
 			foundDsci := &dsci.DSCInitialization{}
 			Eventually(dscInitializationIsReady(applicationName, workingNamespace, foundDsci)).
@@ -354,7 +340,7 @@ func objectExists(ns string, name string, obj client.Object) func() bool { //nol
 	}
 }
 
-func createDSCI(appName string, enableMonitoring operatorv1.ManagementState, monitoringNS string) *dsci.DSCInitialization {
+func createDSCI(appName string, enableMonitoring operatorv1.ManagementState, enableTrustedCABundle operatorv1.ManagementState, monitoringNS string) *dsci.DSCInitialization {
 	return &dsci.DSCInitialization{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DSCInitialization",
@@ -370,7 +356,9 @@ func createDSCI(appName string, enableMonitoring operatorv1.ManagementState, mon
 				Namespace:       monitoringNS,
 				ManagementState: enableMonitoring,
 			},
-			TrustedCABundle: "",
+			TrustedCABundle: dsci.TrustedCABundleSpec{
+				ManagementState: enableTrustedCABundle,
+			},
 		},
 	}
 }

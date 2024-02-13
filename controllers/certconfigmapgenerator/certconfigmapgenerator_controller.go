@@ -6,8 +6,10 @@ import (
 	"reflect"
 
 	"github.com/go-logr/logr"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -37,17 +39,17 @@ type CertConfigmapGeneratorReconciler struct { //nolint:golint,revive // Readabi
 func (r *CertConfigmapGeneratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	configmapGenLog.Info("Adding controller for Configmap Generation.")
 	return ctrl.NewControllerManagedBy(mgr).
+		Named("cert-configmap-generator-controller").
 		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchTrustedCABundleConfigMapResource), builder.WithPredicates(ConfigMapChangedPredicate)).
 		Watches(&source.Kind{Type: &corev1.Namespace{}}, handler.EnqueueRequestsFromMapFunc(r.watchNamespaceResource), builder.WithPredicates(NamespaceCreatedPredicate)).
 		Complete(r)
 }
 
-// Reconcile will generate new secret with random data for the annotated secret
-// based on the specified type and complexity. This will avoid possible race
-// conditions when a deployment mounts the secret before it is reconciled.
+// Reconcile will generate new configmap, odh-trusted-ca-bundle, that includes cluster-wide trusted-ca bundle and custom
+// ca bundle in every new namespace created.
 func (r *CertConfigmapGeneratorReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	// Request includes namespace that is newly created or where odh-trusted-ca-bundle configmap is updated.
-	r.Log.Info("Reconciling certConfigMapGenerator.", " CertConfigMapGenerator Request.Name", req.Name)
+	r.Log.Info("Reconciling certConfigMapGenerator.", " CertConfigMapGenerator Request.Namespace", req.NamespacedName)
 	// Get namespace instance
 	userNamespace := &corev1.Namespace{}
 	err := r.Client.Get(ctx, client.ObjectKey{Name: req.Namespace}, userNamespace)
@@ -65,6 +67,8 @@ func (r *CertConfigmapGeneratorReconciler) Reconcile(ctx context.Context, req ct
 
 	var dsciInstance *dsci.DSCInitialization
 	switch len(dsciInstances.Items) {
+	case 0:
+		return ctrl.Result{}, nil
 	case 1:
 		dsciInstance = &dsciInstances.Items[0]
 	default:
@@ -72,20 +76,32 @@ func (r *CertConfigmapGeneratorReconciler) Reconcile(ctx context.Context, req ct
 		return ctrl.Result{}, errors.New(message)
 	}
 
-	// Verify if namespace did not opt out of trustedCABundle injection
-	if trustedcabundle.HasCABundleAnnotationDisabled(userNamespace) {
-		err := trustedcabundle.DeleteOdhTrustedCABundleConfigMap(ctx, r.Client, req.Name)
-		if err != nil {
-			r.Log.Error(err, "error deleting existing configmap from namespace", "name", trustedcabundle.CAConfigMapName, "namespace", req.Name)
-			return reconcile.Result{}, err
-		}
+	if dsciInstance.Spec.TrustedCABundle.ManagementState != operatorv1.Managed {
+		return ctrl.Result{}, nil
 	}
 
-	// Verify odh-trusted-ca-bundle Configmap is created for the new namespace
-	if trustedcabundle.ShouldInjectTrustedBundle(userNamespace) {
-		err = trustedcabundle.CreateOdhTrustedCABundleConfigMap(ctx, r.Client, req.Name, dsciInstance)
+	// Verify if namespace did not opt out of trustedCABundle injection
+	if trustedcabundle.HasCABundleAnnotationDisabled(userNamespace) {
+		r.Log.Info("Namespace has opted-out of CA bundle injection using annotation ", "namespace", userNamespace.Name,
+			"annotation", trustedcabundle.InjectionOfCABundleAnnotatoion)
+		err := trustedcabundle.DeleteOdhTrustedCABundleConfigMap(ctx, r.Client, req.Namespace)
 		if err != nil {
-			r.Log.Error(err, "error adding configmap to namespace", "name", trustedcabundle.CAConfigMapName, "namespace", req.Name)
+			if !apierrors.IsNotFound(err) {
+				r.Log.Error(err, "error deleting existing configmap from namespace", "name", trustedcabundle.CAConfigMapName, "namespace", req.Namespace)
+				return reconcile.Result{}, err
+			}
+		}
+		return reconcile.Result{}, nil
+	}
+
+	// Verify odh-trusted-ca-bundle Configmap is created for the given namespace
+	if trustedcabundle.ShouldInjectTrustedBundle(userNamespace) {
+		r.Log.Info("Adding trusted CA bundle configmap to the new or existing namespace ", "namespace", userNamespace.Name,
+			"configmap", trustedcabundle.CAConfigMapName)
+		trustCAData := dsciInstance.Spec.TrustedCABundle.CustomCABundle
+		err = trustedcabundle.CreateOdhTrustedCABundleConfigMap(ctx, r.Client, req.Namespace, trustCAData)
+		if err != nil {
+			r.Log.Error(err, "error adding configmap to namespace", "name", trustedcabundle.CAConfigMapName, "namespace", req.Namespace)
 			return reconcile.Result{}, err
 		}
 	}
@@ -94,13 +110,14 @@ func (r *CertConfigmapGeneratorReconciler) Reconcile(ctx context.Context, req ct
 
 func (r *CertConfigmapGeneratorReconciler) watchNamespaceResource(a client.Object) []reconcile.Request {
 	if trustedcabundle.ShouldInjectTrustedBundle(a) {
-		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: a.GetNamespace()}}}
+		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: trustedcabundle.CAConfigMapName, Namespace: a.GetName()}}}
 	}
 	return nil
 }
 
 func (r *CertConfigmapGeneratorReconciler) watchTrustedCABundleConfigMapResource(a client.Object) []reconcile.Request {
 	if a.GetName() == trustedcabundle.CAConfigMapName {
+		r.Log.Info("Cert configmap has been updated, start reconcile")
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: a.GetName(), Namespace: a.GetNamespace()}}}
 	}
 	return nil
@@ -108,12 +125,23 @@ func (r *CertConfigmapGeneratorReconciler) watchTrustedCABundleConfigMapResource
 
 var NamespaceCreatedPredicate = predicate.Funcs{
 	CreateFunc: func(e event.CreateEvent) bool {
-		return !trustedcabundle.HasCABundleAnnotationDisabled(e.Object)
+		return trustedcabundle.ShouldInjectTrustedBundle(e.Object)
 	},
 
 	// If user changes the annotation of namespace to opt out of CABundle injection, reconcile.
-	UpdateFunc: func(updateEvent event.UpdateEvent) bool {
-		return trustedcabundle.HasCABundleAnnotationDisabled(updateEvent.ObjectNew)
+	UpdateFunc: func(e event.UpdateEvent) bool {
+		oldNamespace, _ := e.ObjectOld.(*corev1.Namespace)
+		newNamespace, _ := e.ObjectNew.(*corev1.Namespace)
+
+		oldNsAnnValue, oldNsAnnExists := oldNamespace.GetAnnotations()[trustedcabundle.InjectionOfCABundleAnnotatoion]
+		newNsAnnValue, newNsAnnExists := newNamespace.GetAnnotations()[trustedcabundle.InjectionOfCABundleAnnotatoion]
+
+		if newNsAnnExists && !oldNsAnnExists {
+			return true
+		} else if newNsAnnExists && oldNsAnnExists && oldNsAnnValue != newNsAnnValue {
+			return true
+		}
+		return false
 	},
 }
 
@@ -121,7 +149,6 @@ var ConfigMapChangedPredicate = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
 		oldCM, _ := e.ObjectOld.(*corev1.ConfigMap)
 		newCM, _ := e.ObjectNew.(*corev1.ConfigMap)
-
 		return !reflect.DeepEqual(oldCM.Data, newCM.Data)
 	},
 

@@ -57,6 +57,10 @@ const (
 	finalizerName = "dscinitialization.opendatahub.io/finalizer"
 )
 
+// This ar is required by the .spec.TrustedCABundle field. When a user goes from Unmanaged to Managed, update all
+// namespaces irrespective of any changes in the configmap.
+var managementStateChangeTrustedCA = false
+
 // DSCInitializationReconciler reconciles a DSCInitialization object.
 type DSCInitializationReconciler struct { //nolint:golint,revive // Readability
 	client.Client
@@ -164,18 +168,12 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return reconcile.Result{}, err
 	}
 
-	// Verify odh-trusted-ca-bundle Configmap is created for all the namespaces if DSCI is updated
-	istrustedCABundleUpdated, err := trustedcabundle.IsTrustedCABundleUpdated(ctx, r.Client, namespace, instance)
+	// Verify odh-trusted-ca-bundle Configmap is configured for the namespaces
+	err = trustedcabundle.ConfigureTrustedCABundle(ctx, r.Client, r.Log, instance, managementStateChangeTrustedCA)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
-	if istrustedCABundleUpdated {
-		err = trustedcabundle.AddCABundleConfigMapInAllNamespaces(ctx, r.Client, instance)
-		if err != nil {
-			r.Log.Error(err, "error adding configmap to all namespaces", "name", trustedcabundle.CAConfigMapName)
-			return reconcile.Result{}, err
-		}
-	}
+	managementStateChangeTrustedCA = false
 
 	// Get platform
 	platform, err := deploy.GetPlatform(r.Client)
@@ -310,7 +308,8 @@ func (r *DSCInitializationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		// add predicates prevents meaningless reconciliations from being triggered
 		// not use WithEventFilter() because it conflict with secret and configmap predicate
-		For(&dsciv1.DSCInitialization{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		For(&dsciv1.DSCInitialization{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{},
+			predicate.LabelChangedPredicate{}), dsciPredicateStateChangeTrustedCA)).
 		Owns(&corev1.Namespace{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&corev1.Secret{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&corev1.ConfigMap{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
@@ -368,6 +367,18 @@ var CMContentChangedPredicate = predicate.Funcs{
 var DSCDeletionPredicate = predicate.Funcs{
 	DeleteFunc: func(e event.DeleteEvent) bool {
 
+		return true
+	},
+}
+
+var dsciPredicateStateChangeTrustedCA = predicate.Funcs{
+	UpdateFunc: func(e event.UpdateEvent) bool {
+		oldDSCI, _ := e.ObjectOld.(*dsciv1.DSCInitialization)
+		newDSCI, _ := e.ObjectNew.(*dsciv1.DSCInitialization)
+
+		if oldDSCI.Spec.TrustedCABundle.ManagementState != newDSCI.Spec.TrustedCABundle.ManagementState {
+			managementStateChangeTrustedCA = true
+		}
 		return true
 	},
 }
