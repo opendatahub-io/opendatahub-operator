@@ -3,12 +3,14 @@ package kserve
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strings"
 
 	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -20,6 +22,13 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/monitoring"
+)
+
+const (
+	Serverless                    string = "Serverless"
+	RawDeployment                 string = "RawDeployment"
+	IstioIngressClassName         string = "istio"
+	RawDeploymentIngressClassName string = "openshift-default"
 )
 
 var (
@@ -41,6 +50,9 @@ type Kserve struct {
 	// Serving configures the KNative-Serving stack used for model serving. A Service
 	// Mesh (Istio) is prerequisite, since it is used as networking layer.
 	Serving infrav1.ServingSpec `json:"serving,omitempty"`
+	// +kubebuilder:validation:Enum=Serverless;RawDeployment
+	// +kubebuilder:default=Serverless
+	DefaultDeploymentMode string `json:"defaultDeploymentMode,omitempty"`
 }
 
 func (k *Kserve) OverrideManifests(_ string) error {
@@ -144,6 +156,11 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resC
 			return err
 		}
 	}
+
+	if err := k.setDefaultDeploymentMode(ctx, cli, dscispec); err != nil {
+		return err
+	}
+
 	// CloudService Monitoring handling
 	if platform == deploy.ManagedRhods {
 		if enabled {
@@ -160,6 +177,43 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resC
 	}
 
 	return k.configureServiceMesh(dscispec)
+}
+
+func (k *Kserve) setDefaultDeploymentMode(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec) error {
+	inferenceServiceConfigMap := &corev1.ConfigMap{}
+	err := cli.Get(ctx, client.ObjectKey{
+		Namespace: dscispec.ApplicationsNamespace,
+		Name:      "inferenceservice-config",
+	}, inferenceServiceConfigMap)
+	if err != nil {
+		fmt.Println("error to get configmap 'inferenceservice-config'")
+		return err
+	}
+
+	//set data.deploy.defaultDeploymentMode to the model specified in the Kserve spec
+	var deployData map[string]interface{}
+	json.Unmarshal([]byte(inferenceServiceConfigMap.Data["deploy"]), &deployData)
+	deployData["defaultDeploymentMode"] = k.DefaultDeploymentMode
+	deployDataBytes, _ := json.MarshalIndent(deployData, "", " ")
+	inferenceServiceConfigMap.Data["deploy"] = string(deployDataBytes)
+
+	//if the default deployment mode is RawDeployment, also set the ingressClass to "openshift-default", otherwise it should be "istio"
+	var ingressData map[string]interface{}
+	json.Unmarshal([]byte(inferenceServiceConfigMap.Data["ingress"]), &ingressData)
+	if k.DefaultDeploymentMode == RawDeployment {
+		ingressData["ingressClassName"] = RawDeploymentIngressClassName
+	} else {
+		ingressData["ingressClassName"] = IstioIngressClassName
+	}
+	ingressDataBytes, _ := json.MarshalIndent(ingressData, "", " ")
+	inferenceServiceConfigMap.Data["ingress"] = string(ingressDataBytes)
+
+	if err = cli.Update(ctx, inferenceServiceConfigMap); err != nil {
+		fmt.Println("Could not set default deployment mode for Kserve")
+		return err
+	}
+
+	return nil
 }
 
 func (k *Kserve) Cleanup(_ client.Client, instance *dsciv1.DSCInitializationSpec) error {

@@ -196,7 +196,7 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="core",resources=endpoints,verbs=watch;list;get;create;update;delete
 
 // +kubebuilder:rbac:groups="core",resources=configmaps/status,verbs=get;update;patch;delete
-// +kubebuilder:rbac:groups="core",resources=configmaps,verbs=get;create;update;watch;patch;delete;list
+// +kubebuilder:rbac:groups="core",resources=configmaps,verbs=get;create;watch;patch;delete;list;update
 
 // +kubebuilder:rbac:groups="core",resources=clusterversions,verbs=watch;list
 // +kubebuilder:rbac:groups="config.openshift.io",resources=clusterversions,verbs=watch;list

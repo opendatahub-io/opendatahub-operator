@@ -179,6 +179,12 @@ spec:
                       before enable component Does not support enabled ModelMeshServing
                       at the same time
                     properties:
+                      defaultDeploymentMode:
+                        default: Serverless
+                        enum:
+                        - Serverless
+                        - RawDeployment
+                        type: string
                       devFlags:
                         description: Add developer fields
                         properties:
