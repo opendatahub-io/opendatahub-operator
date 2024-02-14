@@ -6,6 +6,8 @@ on:
       - incubation
   pull_request:
 permissions:
+  contents: read
+  pull-requests: read
   checks: write
 jobs:
   golangci:
