@@ -5,6 +5,8 @@ on:
       - main
       - incubation
   pull_request:
+permissions:
+  checks: write
 jobs:
   golangci:
     name: golangci-lint
