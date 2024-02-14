@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	ctrlLog "sigs.k8s.io/controller-runtime/pkg/log"
@@ -23,6 +24,11 @@ func RemoveExtensionProvider(f *feature.Feature) error {
 		Namespace(mesh.Namespace).
 		Get(context.TODO(), mesh.Name, metav1.GetOptions{})
 	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			// Since the configuration of the extension provider is a patch, it could happen that
+			// the SMCP is already gone, and there will be nothing to unpatch.
+			return nil
+		}
 		return err
 	}
 
