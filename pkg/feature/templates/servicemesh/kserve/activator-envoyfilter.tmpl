@@ -1,10 +1,11 @@
 apiVersion: networking.istio.io/v1alpha3
 kind: EnvoyFilter
 metadata:
-  labels:
-    app: odh
   name: activator-host-header
   namespace: {{ .ControlPlane.Namespace }}
+  labels:
+    app.opendatahub.io/kserve: "true"
+    app.kubernetes.io/part-of: kserve
 spec:
   priority: 20
   workloadSelector:

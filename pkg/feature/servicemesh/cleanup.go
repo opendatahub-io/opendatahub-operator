@@ -38,7 +38,7 @@ func RemoveExtensionProvider(f *feature.Feature) error {
 	for i, v := range extensionProviders {
 		extensionProvider, ok := v.(map[string]interface{})
 		if !ok {
-			log.Info("WARN: Unexpected type for extensionProvider")
+			log.Info("WARN: Unexpected type for extensionProvider will not be removed")
 			continue
 		}
 

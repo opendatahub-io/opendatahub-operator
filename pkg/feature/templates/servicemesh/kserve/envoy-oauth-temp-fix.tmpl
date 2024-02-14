@@ -5,6 +5,8 @@ metadata:
   namespace: {{ .ControlPlane.Namespace }}
   labels:
     opendatahub.io/related-to: OSSM-4873
+    app.opendatahub.io/kserve: "true"
+    app.kubernetes.io/part-of: kserve
 spec:
   workloadSelector:
     labels:
@@ -43,6 +45,8 @@ metadata:
   namespace: {{ .ControlPlane.Namespace }}
   labels:
     opendatahub.io/related-to: OSSM-4873
+    app.opendatahub.io/kserve: "true"
+    app.kubernetes.io/part-of: kserve
 spec:
   workloadSelector:
     labels:

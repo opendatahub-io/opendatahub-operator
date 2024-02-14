@@ -3,6 +3,9 @@ kind: AuthorizationPolicy
 metadata:
   name: kserve-predictor
   namespace: {{ .ControlPlane.Namespace }}
+  labels:
+    app.opendatahub.io/kserve: "true"
+    app.kubernetes.io/part-of: kserve
 spec:
   action: CUSTOM
   provider:
