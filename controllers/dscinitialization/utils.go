@@ -292,21 +292,10 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.
 					},
 					{
 						From: []netv1.NetworkPolicyPeer{
-							{ // need this for UWM work: cluster-monitoring->ODH namespaces
+							{ // need this for cluster-monitoring work: cluster-monitoring->ODH namespaces
 								NamespaceSelector: &metav1.LabelSelector{
 									MatchLabels: map[string]string{
 										"kubernetes.io/metadata.name": "openshift-monitoring",
-									},
-								},
-							},
-						},
-					},
-					{
-						From: []netv1.NetworkPolicyPeer{
-							{ // need this for UWM work: UWM-monitoring->ODH namespaces
-								NamespaceSelector: &metav1.LabelSelector{
-									MatchLabels: map[string]string{
-										"kubernetes.io/metadata.name": "openshift-user-workload-monitoring",
 									},
 								},
 							},
