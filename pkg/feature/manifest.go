@@ -27,7 +27,7 @@ import (
 //go:embed templates
 var embeddedFiles embed.FS
 
-const KustomizationFile = "kustomization.yaml"
+const kustomizationFile = "kustomization.yaml"
 
 var (
 	BaseDir        = "templates"
@@ -48,12 +48,12 @@ type baseManifest struct {
 	fsys  fs.FS
 }
 
+// Ensure baseManifest implements the Manifest interface.
+var _ Manifest = (*baseManifest)(nil)
+
 func (b *baseManifest) isPatch() bool {
 	return b.patch
 }
-
-// Ensure baseManifest implements the Manifest interface.
-var _ Manifest = (*baseManifest)(nil)
 
 func (b *baseManifest) Process(_ any) ([]*unstructured.Unstructured, error) {
 	manifestFile, err := b.fsys.Open(b.path)
@@ -72,6 +72,9 @@ func (b *baseManifest) Process(_ any) ([]*unstructured.Unstructured, error) {
 
 	return convertToUnstructureds(resources, objs)
 }
+
+// Ensure templateManifest implements the Manifest interface.
+var _ Manifest = (*templateManifest)(nil)
 
 type templateManifest struct {
 	name,
@@ -112,8 +115,8 @@ func (t *templateManifest) Process(data any) ([]*unstructured.Unstructured, erro
 	return convertToUnstructureds(resources, objs)
 }
 
-// Ensure templateManifest implements the Manifest interface.
-var _ Manifest = (*templateManifest)(nil)
+// Ensure kustomizeManifest implements the Manifest interface.
+var _ Manifest = (*kustomizeManifest)(nil)
 
 // kustomizeManifest supports paths to kustomization files / directories containing a kustomization file
 // note that it only supports to paths within the mounted files ie: /opt/manifests.
@@ -159,9 +162,6 @@ func (k *kustomizeManifest) Process(data any) ([]*unstructured.Unstructured, err
 	}
 	return objs, nil
 }
-
-// Ensure kustomizeManifest implements the Manifest interface.
-var _ Manifest = (*kustomizeManifest)(nil)
 
 func loadManifestsFrom(fsys fs.FS, path string) ([]Manifest, error) {
 	var manifests []Manifest
@@ -226,7 +226,7 @@ func CreateTemplateManifestFrom(fsys fs.FS, path string) *templateManifest { //n
 
 func CreateKustomizeManifestFrom(path string, fsys filesys.FileSystem) *kustomizeManifest { //nolint:golint,revive //No need to export kustomizeManifest.
 	basePath := filepath.Base(path)
-	if basePath == KustomizationFile {
+	if basePath == kustomizationFile {
 		path = filepath.Dir(path)
 	}
 	if fsys == nil {
@@ -244,10 +244,10 @@ func CreateKustomizeManifestFrom(path string, fsys filesys.FileSystem) *kustomiz
 // parsing helpers
 // isKustomizeManifest checks default filesystem for presence of kustomization file at this path.
 func isKustomizeManifest(path string) bool {
-	if filepath.Base(path) == KustomizationFile {
+	if filepath.Base(path) == kustomizationFile {
 		return true
 	}
-	_, err := os.Stat(filepath.Join(path, KustomizationFile))
+	_, err := os.Stat(filepath.Join(path, kustomizationFile))
 	return err == nil
 }
 
