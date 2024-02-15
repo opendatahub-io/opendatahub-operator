@@ -58,18 +58,14 @@ data:
 			// given
 			manifest := feature.CreateBaseManifestFrom(mockFS, path)
 
+			data := feature.Spec{
+				TargetNamespace: "not-used",
+			}
+
 			// when
 			// Simulate adding to and processing from a slice of Manifest interfaces
 			manifests := []feature.Manifest{manifest}
-			var err error
-			var objs []*unstructured.Unstructured
-			for i := range manifests {
-				objs, err = manifests[i].Process(nil)
-				if err != nil {
-					break
-				}
-			}
-			Expect(err).NotTo(HaveOccurred())
+			objs := processManifests(data, manifests)
 
 			Expect(objs).To(HaveLen(1))
 			Expect(objs[0].GetKind()).To(Equal("ConfigMap"))
@@ -84,7 +80,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: my-configmap
-  namespace: {{.Namespace}}
+  namespace: {{.TargetNamespace}}
 data:
   key: Data
 `
@@ -95,23 +91,15 @@ data:
 
 		It("should process the template manifest correctly", func() {
 			// given
-			data := map[string]any{
-				"Namespace": "template-ns",
+			data := feature.Spec{
+				TargetNamespace: "template-ns",
 			}
 			manifest := feature.CreateTemplateManifestFrom(mockFS, path)
 
 			// when
 			// Simulate adding to and processing from a slice of Manifest interfaces
 			manifests := []feature.Manifest{manifest}
-			var err error
-			var objs []*unstructured.Unstructured
-			for i := range manifests {
-				objs, err = manifests[i].Process(data)
-				if err != nil {
-					break
-				}
-			}
-			Expect(err).NotTo(HaveOccurred())
+			objs := processManifests(data, manifests)
 
 			// then
 			Expect(objs).To(HaveLen(1))
@@ -154,15 +142,7 @@ data:
 
 			// when
 			manifests := []feature.Manifest{manifest}
-			var objs []*unstructured.Unstructured
-			var err error
-			for i := range manifests {
-				objs, err = manifests[i].Process(&data)
-				if err != nil {
-					break
-				}
-			}
-			Expect(err).NotTo(HaveOccurred())
+			objs := processManifests(data, manifests)
 
 			// then
 			Expect(objs).To(HaveLen(1))
@@ -172,6 +152,19 @@ data:
 		})
 	})
 })
+
+func processManifests(data feature.Spec, m []feature.Manifest) []*unstructured.Unstructured {
+	var objs []*unstructured.Unstructured
+	var err error
+	for i := range m {
+		objs, err = m[i].Process(&data)
+		if err != nil {
+			break
+		}
+	}
+	Expect(err).NotTo(HaveOccurred())
+	return objs
+}
 
 func TestFeature(t *testing.T) {
 	RegisterFailHandler(Fail)
