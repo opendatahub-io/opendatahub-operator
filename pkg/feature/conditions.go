@@ -6,7 +6,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -28,7 +28,13 @@ func WaitForPodsToBeReady(namespace string) Action {
 		f.Log.Info("waiting for pods to become ready", "namespace", namespace, "duration (s)", duration.Seconds())
 
 		return wait.PollUntilContextTimeout(context.TODO(), interval, duration, false, func(ctx context.Context) (bool, error) {
-			podList, err := f.Clientset.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{})
+			var podList corev1.PodList
+
+			err := f.Client.List(context.TODO(), &podList, client.InNamespace(namespace))
+			if err != nil {
+				return false, err
+			}
+
 			if err != nil {
 				return false, err
 			}
@@ -71,20 +77,23 @@ func WaitForPodsToBeReady(namespace string) Action {
 	}
 }
 
-func WaitForResourceToBeCreated(namespace string, gvr schema.GroupVersionResource) Action {
+func WaitForResourceToBeCreated(namespace string, gvk schema.GroupVersionKind) Action {
 	return func(f *Feature) error {
-		f.Log.Info("waiting for resource to be created", "namespace", namespace, "resource", gvr)
+		f.Log.Info("waiting for resource to be created", "namespace", namespace, "resource", gvk)
 
 		return wait.PollUntilContextTimeout(context.TODO(), interval, duration, false, func(ctx context.Context) (bool, error) {
-			resources, err := f.DynamicClient.Resource(gvr).Namespace(namespace).List(context.TODO(), metav1.ListOptions{Limit: 1})
+			list := &unstructured.UnstructuredList{}
+			list.SetGroupVersionKind(gvk)
+
+			err := f.Client.List(context.TODO(), list, client.InNamespace(namespace), client.Limit(1))
 			if err != nil {
-				f.Log.Error(err, "failed waiting for resource", "namespace", namespace, "resource", gvr)
+				f.Log.Error(err, "failed waiting for resource", "namespace", namespace, "resource", gvk)
 
 				return false, err
 			}
 
-			if len(resources.Items) > 0 {
-				f.Log.Info("resource created", "namespace", namespace, "resource", gvr)
+			if len(list.Items) > 0 {
+				f.Log.Info("resource created", "namespace", namespace, "resource", gvk)
 
 				return true, nil
 			}

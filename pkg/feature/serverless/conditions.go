@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlLog "sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 )
 
 const (
@@ -18,9 +19,11 @@ const (
 var log = ctrlLog.Log.WithName("features")
 
 func EnsureServerlessAbsent(f *feature.Feature) error {
-	list, err := f.DynamicClient.Resource(gvr.KnativeServing).Namespace("").List(context.TODO(), v1.ListOptions{})
-	if err != nil {
-		return err
+	list := &unstructured.UnstructuredList{}
+	list.SetGroupVersionKind(cluster.KnativeServingGVK)
+
+	if err := f.Client.List(context.TODO(), list, client.InNamespace("")); err != nil {
+		return fmt.Errorf("failed to list KnativeServings: %w", err)
 	}
 
 	if len(list.Items) == 0 {
@@ -55,4 +58,4 @@ func EnsureServerlessOperatorInstalled(f *feature.Feature) error {
 	return nil
 }
 
-var EnsureServerlessServingDeployed = feature.WaitForResourceToBeCreated(KnativeServingNamespace, gvr.KnativeServing)
+var EnsureServerlessServingDeployed = feature.WaitForResourceToBeCreated(KnativeServingNamespace, cluster.KnativeServingGVK)
