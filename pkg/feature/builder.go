@@ -184,10 +184,7 @@ func (fb *featureBuilder) Load() error {
 		}
 	}
 
-	// default TargetNamespace to AppNamespace if not explicitly set
-	if feature.Spec.TargetNamespace == "" {
-		feature.Spec.TargetNamespace = feature.Spec.AppNamespace
-	}
+	f.Spec.TargetNamespace = fb.targetNS
 
 	fb.featuresHandler.features = append(fb.featuresHandler.features, feature)
 
@@ -224,16 +221,6 @@ func (fb *featureBuilder) ManifestSource(fsys fs.FS) *featureBuilder {
 
 func (fb *featureBuilder) TargetNamespace(targetNs string) *featureBuilder {
 	fb.targetNS = targetNs
-
-	setTargetNamespace := func(f *Feature) error {
-		if f.Spec == nil {
-			return errors.New("Spec has not been initialized")
-		}
-		f.Spec.TargetNamespace = fb.targetNS
-		return nil
-	}
-
-	fb.builders = append(fb.builders, setTargetNamespace)
 
 	return fb
 }
