@@ -181,9 +181,15 @@ spec:
                     properties:
                       defaultDeploymentMode:
                         default: Serverless
+                        description: Configures the default deployment mode for Kserve.
+                          This can be set to 'Serverless' or 'RawDeployment'. The
+                          value specified in this field will be used to set the default
+                          deployment mode in the 'inferenceservice-config' configmap
+                          for Kserve
                         enum:
                         - Serverless
                         - RawDeployment
+                        pattern: ^(Serverless|RawDeployment)$
                         type: string
                       devFlags:
                         description: Add developer fields

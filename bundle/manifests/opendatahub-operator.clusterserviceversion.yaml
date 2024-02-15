@@ -1776,7 +1776,7 @@ spec:
                 env:
                 - name: DISABLE_DSC_CONFIG
                   value: "true"
-                image: REPLACE_IMAGE:latest
+                image: quay.io/whydant/opendatahub-operator:latest
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:
