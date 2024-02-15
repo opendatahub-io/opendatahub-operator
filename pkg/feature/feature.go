@@ -151,15 +151,9 @@ func (f *Feature) createApplier(m Manifest) applier {
 			return patchResources(f.DynamicClient, objects)
 		}
 	}
-	// todo: OwnedByFeatureTracker(f))?
 
 	return func(objects []*unstructured.Unstructured) error {
-		return createResources(f.Client, objects, func(obj metav1.Object) error {
-			obj.SetOwnerReferences([]metav1.OwnerReference{
-				f.AsOwnerReference(),
-			})
-			return nil
-		})
+		return createResources(f.Client, objects, OwnedByFeatureTracker(f))
 	}
 }
 
@@ -225,4 +219,13 @@ func (f *Feature) updateFeatureTrackerStatus(condType conditionsv1.ConditionType
 	}
 
 	f.Tracker.Status = tracker.Status
+}
+
+func OwnedByFeatureTracker(f *Feature) func(obj metav1.Object) error {
+	return func(obj metav1.Object) error {
+		obj.SetOwnerReferences([]metav1.OwnerReference{
+			f.AsOwnerReference(),
+		})
+		return nil
+	}
 }

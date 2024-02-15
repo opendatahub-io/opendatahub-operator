@@ -28,13 +28,13 @@ func (a AferoFsAdapter) Open(name string) (fs.File, error) {
 
 var _ = Describe("Manifest Processing", func() {
 	var (
-		mockFS AferoFsAdapter
-		path   string
+		inMemFS AferoFsAdapter
+		path    string
 	)
 
 	BeforeEach(func() {
 		fSys := afero.NewMemMapFs()
-		mockFS = AferoFsAdapter{Afs: fSys}
+		inMemFS = AferoFsAdapter{Afs: fSys}
 
 	})
 
@@ -50,13 +50,13 @@ data:
  key: value
 `
 			path = "path/to/test.yaml"
-			err := afero.WriteFile(mockFS.Afs, path, []byte(resourceYaml), 0644)
+			err := afero.WriteFile(inMemFS.Afs, path, []byte(resourceYaml), 0644)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
 		It("should process the manifest correctly", func() {
 			// given
-			manifest := feature.CreateBaseManifestFrom(mockFS, path)
+			manifest := feature.CreateBaseManifestFrom(inMemFS, path)
 
 			data := feature.Spec{
 				TargetNamespace: "not-used",
@@ -85,7 +85,7 @@ data:
   key: Data
 `
 			path = "path/to/template.yaml"
-			err := afero.WriteFile(mockFS.Afs, path, []byte(resourceYaml), 0644)
+			err := afero.WriteFile(inMemFS.Afs, path, []byte(resourceYaml), 0644)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
@@ -94,7 +94,7 @@ data:
 			data := feature.Spec{
 				TargetNamespace: "template-ns",
 			}
-			manifest := feature.CreateTemplateManifestFrom(mockFS, path)
+			manifest := feature.CreateTemplateManifestFrom(inMemFS, path)
 
 			// when
 			// Simulate adding to and processing from a slice of Manifest interfaces

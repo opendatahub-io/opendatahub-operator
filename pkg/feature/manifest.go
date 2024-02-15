@@ -68,9 +68,7 @@ func (b *baseManifest) Process(_ any) ([]*unstructured.Unstructured, error) {
 	}
 	resources := string(content)
 
-	var objs []*unstructured.Unstructured
-
-	return convertToUnstructureds(resources, objs)
+	return convertToUnstructureds(resources)
 }
 
 // Ensure templateManifest implements the Manifest interface.
@@ -110,9 +108,8 @@ func (t *templateManifest) Process(data any) ([]*unstructured.Unstructured, erro
 	}
 
 	resources := buffer.String()
-	var objs []*unstructured.Unstructured
 
-	return convertToUnstructureds(resources, objs)
+	return convertToUnstructureds(resources)
 }
 
 // Ensure kustomizeManifest implements the Manifest interface.
@@ -226,9 +223,6 @@ func CreateTemplateManifestFrom(fsys fs.FS, path string) *templateManifest { //n
 
 func CreateKustomizeManifestFrom(path string, fsys filesys.FileSystem) *kustomizeManifest { //nolint:golint,revive //No need to export kustomizeManifest.
 	basePath := filepath.Base(path)
-	if basePath == kustomizationFile {
-		path = filepath.Dir(path)
-	}
 	if fsys == nil {
 		fsys = filesys.MakeFsOnDisk()
 	}
@@ -255,9 +249,10 @@ func isTemplateManifest(path string) bool {
 	return strings.Contains(path, ".tmpl")
 }
 
-func convertToUnstructureds(resources string, objs []*unstructured.Unstructured) ([]*unstructured.Unstructured, error) {
+func convertToUnstructureds(resources string) ([]*unstructured.Unstructured, error) {
 	splitter := regexp.MustCompile(YamlSeparator)
 	objectStrings := splitter.Split(resources, -1)
+	objs := make([]*unstructured.Unstructured, 0, len(objectStrings))
 	for _, str := range objectStrings {
 		if strings.TrimSpace(str) == "" {
 			continue
