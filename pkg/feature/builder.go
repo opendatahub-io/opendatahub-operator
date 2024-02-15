@@ -64,7 +64,7 @@ func (fb *featureBuilder) UsingConfig(config *rest.Config) *featureBuilder {
 	return fb
 }
 
-func createClients(config *rest.Config) partialBuilder {
+func createClient(config *rest.Config) partialBuilder {
 	return func(f *Feature) error {
 		var err error
 
@@ -162,7 +162,7 @@ func (fb *featureBuilder) Load() error {
 		}
 	}
 
-	if err := createClients(fb.config)(feature); err != nil {
+	if err := createClient(fb.config)(feature); err != nil {
 		return err
 	}
 
