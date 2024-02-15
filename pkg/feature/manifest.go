@@ -166,7 +166,7 @@ func (k *kustomizeManifest) Process(data any) ([]*unstructured.Unstructured, err
 func loadManifestsFrom(fsys fs.FS, path string) ([]Manifest, error) {
 	var manifests []Manifest
 	if isKustomizeManifest(path) {
-		m := CreateKustomizeManifestFrom(path, nil)
+		m := CreateKustomizeManifestFrom(path, filesys.MakeFsOnDisk())
 		manifests = append(manifests, m)
 		return manifests, nil
 	}
