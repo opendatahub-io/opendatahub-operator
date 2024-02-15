@@ -16,6 +16,7 @@ import (
 )
 
 var _ fs.FS = (*AferoFsAdapter)(nil)
+
 type AferoFsAdapter struct {
 	Afs afero.Fs
 }
@@ -154,6 +155,7 @@ data:
 			// when
 			manifests := []feature.Manifest{manifest}
 			var objs []*unstructured.Unstructured
+			var err error
 			for i := range manifests {
 				objs, err = manifests[i].Process(&data)
 				if err != nil {

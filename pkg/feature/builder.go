@@ -54,6 +54,7 @@ func (u *usingFeaturesHandler) For(featuresHandler *FeaturesHandler) *featureBui
 		name:            u.name,
 		featuresHandler: featuresHandler,
 		fsys:            embeddedFiles,
+		targetNS:        featuresHandler.DSCInitializationSpec.ApplicationsNamespace,
 	}
 
 	// Ensures creation of .Spec object is always invoked first
@@ -184,7 +185,7 @@ func (fb *featureBuilder) Load() error {
 		}
 	}
 
-	f.Spec.TargetNamespace = fb.targetNS
+	feature.Spec.TargetNamespace = fb.targetNS
 
 	fb.featuresHandler.features = append(fb.featuresHandler.features, feature)
 
