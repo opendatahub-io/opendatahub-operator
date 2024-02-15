@@ -15,7 +15,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// AferoFsAdapter adapts an afero.Fs to fs.FS.
+var _ fs.FS = (*AferoFsAdapter)(nil)
 type AferoFsAdapter struct {
 	Afs afero.Fs
 }
@@ -143,15 +143,12 @@ metadata:
 data:
   key: value
 `
-			// TODO: rework for map[string]any when supported
 			data := feature.Spec{
 				TargetNamespace: "kust-ns",
 			}
 
-			err := fSys.WriteFile(filepath.Join(path, "kustomization.yaml"), []byte(kustomizationYaml))
-			Expect(err).ToNot(HaveOccurred())
-			err = fSys.WriteFile(filepath.Join(path, "resource.yaml"), []byte(resourceYaml))
-			Expect(err).ToNot(HaveOccurred())
+			Expect(fSys.WriteFile(filepath.Join(path, "kustomization.yaml"), []byte(kustomizationYaml))).To(Succeed())
+			Expect(fSys.WriteFile(filepath.Join(path, "resource.yaml"), []byte(resourceYaml))).To(Succeed())
 			manifest := feature.CreateKustomizeManifestFrom("/path/to/kustomization/", fSys)
 
 			// when

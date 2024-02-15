@@ -102,12 +102,12 @@ func (t *templateManifest) Process(data any) ([]*unstructured.Unstructured, erro
 
 	tmpl, err := template.New(t.name).Funcs(template.FuncMap{"ReplaceChar": ReplaceChar}).Parse(string(content))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create file: %w", err)
+		return nil, fmt.Errorf("failed to parse template: %w", err)
 	}
 
 	var buffer bytes.Buffer
 	if err := tmpl.Execute(&buffer, data); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to execute template: %w", err)
 	}
 
 	resources := buffer.String()
