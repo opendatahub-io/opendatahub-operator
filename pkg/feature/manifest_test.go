@@ -11,7 +11,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
