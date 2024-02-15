@@ -35,10 +35,6 @@ func WaitForPodsToBeReady(namespace string) Action {
 				return false, err
 			}
 
-			if err != nil {
-				return false, err
-			}
-
 			readyPods := 0
 			totalPods := len(podList.Items)
 
