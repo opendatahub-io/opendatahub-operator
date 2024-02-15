@@ -37,7 +37,7 @@ var (
 
 // Manifest defines the interface that all manifest types should implement.
 type Manifest interface {
-	Process(data interface{}) ([]*unstructured.Unstructured, error)
+	Process(data any) ([]*unstructured.Unstructured, error)
 	isPatch() bool
 }
 
@@ -55,7 +55,7 @@ func (b *baseManifest) isPatch() bool {
 // Ensure baseManifest implements the Manifest interface.
 var _ Manifest = (*baseManifest)(nil)
 
-func (b *baseManifest) Process(_ interface{}) ([]*unstructured.Unstructured, error) {
+func (b *baseManifest) Process(_ any) ([]*unstructured.Unstructured, error) {
 	manifestFile, err := b.fsys.Open(b.path)
 	if err != nil {
 		return nil, err
@@ -88,7 +88,7 @@ func (t *templateManifest) isPatch() bool {
 	return t.patch
 }
 
-func (t *templateManifest) Process(data interface{}) ([]*unstructured.Unstructured, error) {
+func (t *templateManifest) Process(data any) ([]*unstructured.Unstructured, error) {
 	manifestFile, err := t.fsys.Open(t.path)
 	if err != nil {
 		return nil, err
@@ -135,7 +135,7 @@ func (k *kustomizeManifest) isPatch() bool {
 	return false
 }
 
-func (k *kustomizeManifest) Process(data interface{}) ([]*unstructured.Unstructured, error) {
+func (k *kustomizeManifest) Process(data any) ([]*unstructured.Unstructured, error) {
 	kustomizer := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
 	var resMap resmap.ResMap
 	resMap, resErr := kustomizer.Run(k.fsys, k.path)
@@ -283,15 +283,14 @@ func convertToUnstructureds(resources string, objs []*unstructured.Unstructured)
 	return objs, nil
 }
 
-// todo: rework these when spec is type map[string]any
-func getTargetNs(data interface{}) string {
+func getTargetNs(data any) string {
 	if spec, ok := data.(*Spec); ok {
 		return spec.TargetNamespace
 	}
 	return ""
 }
 
-func getComponentName(data interface{}) string {
+func getComponentName(data any) string {
 	if featSpec, ok := data.(*Spec); ok {
 		source := featSpec.Source
 		if source == nil {
