@@ -124,7 +124,7 @@ func (t *templateManifest) Process(data interface{}) ([]*unstructured.Unstructur
 var _ Manifest = (*templateManifest)(nil)
 
 // kustomizeManifest supports paths to kustomization files / directories containing a kustomization file
-// note that it only supports to paths within the mounted files ie: opt/manifests.
+// note that it only supports to paths within the mounted files ie: /opt/manifests.
 type kustomizeManifest struct {
 	name,
 	path string // path is to the directory containing a kustomization.yaml file within it or path to kust file itself
