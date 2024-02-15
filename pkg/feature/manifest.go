@@ -70,11 +70,7 @@ func (b *baseManifest) Process(_ any) ([]*unstructured.Unstructured, error) {
 
 	var objs []*unstructured.Unstructured
 
-	objs, err = convertToUnstructureds(resources, objs)
-	if err != nil {
-		return nil, err
-	}
-	return objs, nil
+	return convertToUnstructureds(resources, objs)
 }
 
 type templateManifest struct {
@@ -113,11 +109,7 @@ func (t *templateManifest) Process(data any) ([]*unstructured.Unstructured, erro
 	resources := buffer.String()
 	var objs []*unstructured.Unstructured
 
-	objs, err = convertToUnstructureds(resources, objs)
-	if err != nil {
-		return nil, err
-	}
-	return objs, nil
+	return convertToUnstructureds(resources, objs)
 }
 
 // Ensure templateManifest implements the Manifest interface.
