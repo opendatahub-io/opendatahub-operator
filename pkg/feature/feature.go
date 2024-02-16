@@ -3,6 +3,7 @@ package feature
 import (
 	"context"
 	"fmt"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 
 	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
@@ -153,7 +154,7 @@ func (f *Feature) createApplier(m Manifest) applier {
 	}
 
 	return func(objects []*unstructured.Unstructured) error {
-		return createResources(f.Client, objects, OwnedByFeatureTracker(f))
+		return createResources(f.Client, objects, ownedBy(f))
 	}
 }
 
@@ -196,6 +197,16 @@ func (f *Feature) AsOwnerReference() metav1.OwnerReference {
 	return f.Tracker.ToOwnerReference()
 }
 
+func ownedBy(f *Feature) cluster.MetaOptions {
+	return func(obj metav1.Object) error {
+		obj.SetOwnerReferences([]metav1.OwnerReference{
+			f.AsOwnerReference(),
+		})
+
+		return nil
+	}
+}
+
 // updateFeatureTrackerStatus updates conditions of a FeatureTracker.
 // It's deliberately logging errors instead of handing them as it is used in deferred error handling of Feature public API,
 // which is more predictable.
@@ -219,13 +230,4 @@ func (f *Feature) updateFeatureTrackerStatus(condType conditionsv1.ConditionType
 	}
 
 	f.Tracker.Status = tracker.Status
-}
-
-func OwnedByFeatureTracker(f *Feature) func(obj metav1.Object) error {
-	return func(obj metav1.Object) error {
-		obj.SetOwnerReferences([]metav1.OwnerReference{
-			f.AsOwnerReference(),
-		})
-		return nil
-	}
 }
