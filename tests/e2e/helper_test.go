@@ -67,6 +67,10 @@ func setupDSCICR() *dsci.DSCInitialization {
 				ManagementState: "Managed",
 				Namespace:       "opendatahub",
 			},
+			TrustedCABundle: dsci.TrustedCABundleSpec{
+				ManagementState: "Managed",
+				CustomCABundle:  "",
+			},
 		},
 	}
 	return dsciTest

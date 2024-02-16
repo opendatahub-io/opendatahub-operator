@@ -28,13 +28,13 @@ func (f *Feature) createFeatureTracker() error {
 		return err
 	}
 
-	f.Spec.Tracker = tracker
+	f.Tracker = tracker
 
 	return nil
 }
 
 func removeFeatureTracker(f *Feature) error {
-	if f.Spec.Tracker != nil {
+	if f.Tracker != nil {
 		return deleteTracker(f)
 	}
 
@@ -65,7 +65,7 @@ func (f *Feature) getFeatureTracker() (*featurev1.FeatureTracker, error) {
 func setFeatureTrackerIfAbsent(f *Feature) error {
 	tracker, err := f.getFeatureTracker()
 
-	f.Spec.Tracker = tracker
+	f.Tracker = tracker
 
 	return err
 }
@@ -86,7 +86,7 @@ func (f *Feature) ensureGVKSet(obj runtime.Object) error {
 }
 
 func deleteTracker(f *Feature) error {
-	err := f.Client.Delete(context.Background(), f.Spec.Tracker)
+	err := f.Client.Delete(context.Background(), f.Tracker)
 	if err != nil && !k8serrors.IsNotFound(err) {
 		return err
 	}

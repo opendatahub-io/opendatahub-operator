@@ -4,18 +4,23 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	routev1 "github.com/openshift/api/route/v1"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	olmclientset "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/operators/v1alpha1"
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	authv1 "k8s.io/api/rbac/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -43,8 +48,12 @@ const (
 	// DeleteConfigMapLabel is the label for configMap used to trigger operator uninstall
 	// TODO: Label should be updated if addon name changes.
 	DeleteConfigMapLabel = "api.openshift.com/addon-managed-odh-delete"
-	// odhGeneratedNamespaceLabel is the label added to all the namespaces genereated by odh-deployer.
 )
+
+type Resource interface {
+	metav1.Object
+	runtime.Object
+}
 
 // OperatorUninstall deletes all the externally generated resources. This includes monitoring resources and applications
 // installed by KfDef.
@@ -84,16 +93,43 @@ func OperatorUninstall(cli client.Client, cfg *rest.Config) error {
 			if err := cli.Delete(context.TODO(), &namespace, []client.DeleteOption{}...); err != nil {
 				return fmt.Errorf("error deleting namespace %v: %w", namespace.Name, err)
 			}
-			fmt.Printf("Namespace %s deleted as a part of uninstall.\n", namespace.Name)
+			fmt.Printf("Namespace %s deleted as a part of uninstallation.\n", namespace.Name)
 		}
 	}
 
-	// Wait for all resources to get cleaned up
+	// give enough time for namespace deletion before proceed
 	time.Sleep(10 * time.Second)
 
-	fmt.Printf("All resources deleted as part of uninstall. Removing the operator csv\n")
+	// We can only assume the subscription is using standard names
+	// if user install by creating different named subs, then we will not know the name
+	// we cannot remove CSV before remove subscription because that need SA account
+	operatorNs, err := GetOperatorNamespace()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Removing operator subscription which in turn will remove installplan\n")
+	subsName := "opendatahub-operator"
+	if platform == deploy.SelfManagedRhods {
+		subsName = "rhods-operator"
+	} else if platform == deploy.ManagedRhods {
+		subsName = "addon-managed-odh"
+	}
+	sub, _ := deploy.SubscriptionExists(cli, operatorNs, subsName)
+	if sub == nil {
+		fmt.Printf("Could not find subscription %s in namespace %s. Maybe you have a different one", subsName, operatorNs)
+	} else {
+		if err := cli.Delete(context.TODO(), sub); err != nil {
+			return fmt.Errorf("error deleting subscription %s: %w", sub.Name, err)
+		}
+	}
 
-	return removeCsv(cli, cfg)
+	fmt.Printf("Removing the operator CSV in turn remove operator deployment\n")
+	time.Sleep(5 * time.Second)
+
+	err = removeCSV(cli, cfg)
+
+	fmt.Printf("All resources deleted as part of uninstall.")
+	return err
 }
 
 func removeDSCInitialization(cli client.Client) error {
@@ -217,6 +253,9 @@ func CreateDefaultDSCI(cli client.Client, _ deploy.Platform, appNamespace, monNa
 				MetricsCollection: "Istio",
 			},
 		},
+		TrustedCABundle: dsci.TrustedCABundleSpec{
+			ManagementState: "Managed",
+		},
 	}
 
 	defaultDsci := &dsci.DSCInitialization{
@@ -329,6 +368,44 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 	return nil
 }
 
+func CleanupExistingResource(cli client.Client, platform deploy.Platform) error {
+	var multiErr *multierror.Error
+
+	// Special Handling of cleanup of deprecated model monitoring stack
+	if platform == deploy.ManagedRhods {
+		montNamespace := "redhat-ods-monitoring"
+		ctx := context.TODO()
+		deprecatedDeployments := []string{"rhods-prometheus-operator"}
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, montNamespace, deprecatedDeployments, &appsv1.DeploymentList{}))
+
+		deprecatedStatefulsets := []string{"prometheus-rhods-model-monitoring"}
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, montNamespace, deprecatedStatefulsets, &appsv1.StatefulSetList{}))
+
+		deprecatedServices := []string{"rhods-model-monitoring"}
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, montNamespace, deprecatedServices, &corev1.ServiceList{}))
+
+		deprecatedRoutes := []string{"rhods-model-monitoring"}
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, montNamespace, deprecatedRoutes, &routev1.RouteList{}))
+
+		deprecatedSecrets := []string{"rhods-monitoring-oauth-config"}
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, montNamespace, deprecatedSecrets, &corev1.SecretList{}))
+
+		deprecatedClusterroles := []string{"rhods-namespace-read", "rhods-prometheus-operator"}
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, montNamespace, deprecatedClusterroles, &authv1.ClusterRoleList{}))
+
+		deprecatedClusterrolebindings := []string{"rhods-namespace-read", "rhods-prometheus-operator"}
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, montNamespace, deprecatedClusterrolebindings, &authv1.ClusterRoleBindingList{}))
+
+		deprecatedServiceAccounts := []string{"rhods-prometheus-operator"}
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, montNamespace, deprecatedServiceAccounts, &corev1.ServiceAccountList{}))
+
+		deprecatedServicemonitors := []string{"modelmesh-federated-metrics"}
+		multiErr = multierror.Append(multiErr, deleteDeprecatedServiceMonitors(ctx, cli, montNamespace, deprecatedServicemonitors))
+	}
+
+	return multiErr.ErrorOrNil()
+}
+
 func GetOperatorNamespace() (string, error) {
 	data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
 	if err == nil {
@@ -379,7 +456,7 @@ func RemoveKfDefInstances(cli client.Client, _ deploy.Platform) error {
 	return nil
 }
 
-func removeCsv(c client.Client, r *rest.Config) error {
+func removeCSV(c client.Client, r *rest.Config) error {
 	// Get watchNamespace
 	operatorNamespace, err := GetOperatorNamespace()
 	if err != nil {
@@ -392,7 +469,7 @@ func removeCsv(c client.Client, r *rest.Config) error {
 	}
 
 	if operatorCsv != nil {
-		fmt.Printf("Deleting csv %s\n", operatorCsv.Name)
+		fmt.Printf("Deleting CSV %s\n", operatorCsv.Name)
 		err = c.Delete(context.TODO(), operatorCsv, []client.DeleteOption{}...)
 		if err != nil {
 			if apierrs.IsNotFound(err) {
@@ -402,9 +479,9 @@ func removeCsv(c client.Client, r *rest.Config) error {
 			return fmt.Errorf("error deleting clusterserviceversion: %w", err)
 		}
 		fmt.Printf("Clusterserviceversion %s deleted as a part of uninstall.\n", operatorCsv.Name)
+		return nil
 	}
 	fmt.Printf("No clusterserviceversion for the operator found.\n")
-
 	return nil
 }
 
@@ -419,7 +496,7 @@ func getClusterServiceVersion(cfg *rest.Config, watchNameSpace string) (*ofapi.C
 		return nil, err
 	}
 
-	// get csv with CRD DataScienceCluster
+	// get CSV with CRD DataScienceCluster
 	if len(csvs.Items) != 0 {
 		for _, csv := range csvs.Items {
 			for _, operatorCR := range csv.Spec.CustomResourceDefinitions.Owned {
@@ -431,6 +508,62 @@ func getClusterServiceVersion(cfg *rest.Config, watchNameSpace string) (*ofapi.C
 	}
 
 	return nil, nil
+}
+
+func deleteDeprecatedResources(ctx context.Context, cli client.Client, namespace string, resourceList []string, resourceType client.ObjectList) error { //nolint:unparam
+	var multiErr *multierror.Error
+	listOpts := &client.ListOptions{Namespace: namespace}
+	if err := cli.List(ctx, resourceType, listOpts); err != nil {
+		multiErr = multierror.Append(multiErr, err)
+	}
+	items := reflect.ValueOf(resourceType).Elem().FieldByName("Items")
+	for i := 0; i < items.Len(); i++ {
+		item := items.Index(i).Addr().Interface().(client.Object) //nolint:errcheck,forcetypeassert
+		for _, name := range resourceList {
+			if name == item.GetName() {
+				fmt.Printf("Attempting to delete %s in namespace %s\n", item.GetName(), namespace)
+				err := cli.Delete(ctx, item)
+				if err != nil {
+					if apierrs.IsNotFound(err) {
+						fmt.Printf("Could not find %s in namespace %s\n", item.GetName(), namespace)
+					} else {
+						multiErr = multierror.Append(multiErr, err)
+					}
+				}
+				fmt.Printf("Successfully deleted %s\n", item.GetName())
+			}
+		}
+	}
+	return multiErr.ErrorOrNil()
+}
+
+// Need to handle ServiceMonitor deletion separately as the generic function does not work for ServiceMonitors because of how the package is built.
+func deleteDeprecatedServiceMonitors(ctx context.Context, cli client.Client, namespace string, resourceList []string) error {
+	var multiErr *multierror.Error
+	listOpts := &client.ListOptions{Namespace: namespace}
+	servicemonitors := &monitoringv1.ServiceMonitorList{}
+	if err := cli.List(ctx, servicemonitors, listOpts); err != nil {
+		multiErr = multierror.Append(multiErr, err)
+	}
+
+	for _, servicemonitor := range servicemonitors.Items {
+		servicemonitor := servicemonitor
+		for _, name := range resourceList {
+			if name == servicemonitor.Name {
+				fmt.Printf("Attempting to delete %s in namespace %s\n", servicemonitor.Name, namespace)
+				err := cli.Delete(ctx, servicemonitor)
+				if err != nil {
+					if apierrs.IsNotFound(err) {
+						fmt.Printf("Could not find %s in namespace %s\n", servicemonitor.Name, namespace)
+					} else {
+						multiErr = multierror.Append(multiErr, err)
+					}
+				}
+				fmt.Printf("Successfully deleted %s\n", servicemonitor.Name)
+			}
+		}
+	}
+	return multiErr.ErrorOrNil()
 }
 
 func deleteResource(cli client.Client, namespace string, resourceType string) error {
