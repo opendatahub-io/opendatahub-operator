@@ -23,9 +23,6 @@ func (k *Kserve) setupKserveConfigAndDependencies(ctx context.Context, cli clien
 	// as long as Kserve.Serving is not 'Removed', we will setup the dependencies
 
 	if k.Serving.ManagementState != operatorv1.Removed {
-		if k.DefaultDeploymentMode == Serverless {
-			return fmt.Errorf("setting the defaultDeployment mode Serverless is not compatible with setting the management state for Serving as Removed")
-		}
 		// check on dependent operators if all installed in cluster
 		dependOpsErrors := checkDependentOperators(cli).ErrorOrNil()
 		if dependOpsErrors != nil {
@@ -44,6 +41,9 @@ func (k *Kserve) setupKserveConfigAndDependencies(ctx context.Context, cli clien
 	// since serverless is specifically set to 'Removed'
 	// we do not need to check if dependent operators are installed and configure them
 	// in this case the default deployment mode is forced to be RawDeployment
+	if k.DefaultDeploymentMode == Serverless {
+		fmt.Println("setting the defaultDeployment mode Serverless is not compatible with setting the management state for Serving as Removed")
+	}
 	fmt.Println("Serverless is specified as 'Removed', Kserve will default to RawDeployment")
 	return k.setDefaultDeploymentMode(ctx, cli, dscispec, RawDeployment)
 }
