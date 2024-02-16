@@ -88,6 +88,28 @@ spec:
                   user experience; e.g. it provides unified authentication giving
                   a Single Sign On experience.
                 properties:
+                  auth:
+                    description: Auth holds configuration of authentication and authorization
+                      services used by Service Mesh in Opendatahub.
+                    properties:
+                      audiences:
+                        default:
+                        - https://kubernetes.default.svc
+                        description: Audiences is a list of the identifiers that the
+                          resource server presented with the token identifies as.
+                          Audience-aware token authenticators will verify that the
+                          token was intended for at least one of the audiences in
+                          this list. If no audiences are provided, the audience will
+                          default to the audience of the Kubernetes apiserver (kubernetes.default.svc).
+                        items:
+                          type: string
+                        type: array
+                      namespace:
+                        description: Namespace where it is deployed. If not provided,
+                          the default is to use '-auth-provider' suffix on the ApplicationsNamespace
+                          of the DSCI.
+                        type: string
+                    type: object
                   controlPlane:
                     description: ControlPlane holds configuration of Service Mesh
                       used by Opendatahub.
