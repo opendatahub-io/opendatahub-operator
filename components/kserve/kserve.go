@@ -161,8 +161,10 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resC
 		}
 	}
 
-	if err := k.setupKserveConfigAndDependencies(ctx, cli, dscispec); err != nil {
-		return err
+	if enabled {
+		if err := k.setupKserveConfigAndDependencies(ctx, cli, dscispec); err != nil {
+			return err
+		}
 	}
 
 	// CloudService Monitoring handling
