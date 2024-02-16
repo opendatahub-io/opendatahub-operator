@@ -86,7 +86,7 @@ func configureServiceMeshFeatures() feature.FeaturesProvider {
 			}
 		}
 
-		cfgMapErr := feature.CreateFeature("shared-config-maps").
+		cfgMapErr := feature.CreateFeature("mesh-shared-configmap").
 			For(handler).
 			WithResources(servicemesh.ConfigMaps).
 			Load()
@@ -94,7 +94,7 @@ func configureServiceMeshFeatures() feature.FeaturesProvider {
 			return cfgMapErr
 		}
 
-		extAuthzErr := feature.CreateFeature("service-mesh-control-plane-setup-external-authorization").
+		extAuthzErr := feature.CreateFeature("mesh-control-plane-external-authz").
 			For(handler).
 			Manifests(
 				path.Join(feature.AuthDir, "auth-smm.tmpl"),

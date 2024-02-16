@@ -29,7 +29,7 @@ func (k *Kserve) removeServiceMeshConfigurations(dscispec *dsciv1.DSCInitializat
 
 func (k *Kserve) defineServiceMeshFeatures() feature.FeaturesProvider {
 	return func(handler *feature.FeaturesHandler) error {
-		kserveExtAuthzErr := feature.CreateFeature("configure-kserve-for-external-authz").
+		kserveExtAuthzErr := feature.CreateFeature("kserve-external-authz").
 			For(handler).
 			Manifests(
 				path.Join(feature.KServeDir),
