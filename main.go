@@ -50,6 +50,7 @@ import (
 	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/certconfigmapgenerator"
 	datascienceclustercontrollers "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
 	dscicontr "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
@@ -168,6 +169,15 @@ func main() {
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "SecretGenerator")
+		os.Exit(1)
+	}
+
+	if err = (&certconfigmapgenerator.CertConfigmapGeneratorReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+		Log:    ctrl.Log.WithName("controllers").WithName("CertConfigmapGenerator"),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "CertConfigmapGenerator")
 		os.Exit(1)
 	}
 
