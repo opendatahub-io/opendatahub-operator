@@ -166,7 +166,7 @@ func processManifests(data feature.Spec, m []feature.Manifest) []*unstructured.U
 	return objs
 }
 
-func TestFeature(t *testing.T) {
+func TestManifests(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Feature Suite")
+	RunSpecs(t, "Manifest Process Suite")
 }

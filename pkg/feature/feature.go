@@ -3,7 +3,6 @@ package feature
 import (
 	"context"
 	"fmt"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 
 	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
@@ -19,6 +18,7 @@ import (
 	ctrlLog "sigs.k8s.io/controller-runtime/pkg/log"
 
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
 type Feature struct {
