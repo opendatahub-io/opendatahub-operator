@@ -35,7 +35,6 @@ var (
 	ServerlessDir  = path.Join(BaseDir, "serverless")
 )
 
-// Manifest defines the interface that all manifest types should implement.
 type Manifest interface {
 	Process(data any) ([]*unstructured.Unstructured, error)
 	isPatch() bool
@@ -48,7 +47,6 @@ type baseManifest struct {
 	fsys  fs.FS
 }
 
-// Ensure baseManifest implements the Manifest interface.
 var _ Manifest = (*baseManifest)(nil)
 
 func (b *baseManifest) isPatch() bool {
@@ -68,10 +66,9 @@ func (b *baseManifest) Process(_ any) ([]*unstructured.Unstructured, error) {
 	}
 	resources := string(content)
 
-	return convertToUnstructureds(resources)
+	return convertToUnstructuredSlice(resources)
 }
 
-// Ensure templateManifest implements the Manifest interface.
 var _ Manifest = (*templateManifest)(nil)
 
 type templateManifest struct {
@@ -109,10 +106,9 @@ func (t *templateManifest) Process(data any) ([]*unstructured.Unstructured, erro
 
 	resources := buffer.String()
 
-	return convertToUnstructureds(resources)
+	return convertToUnstructuredSlice(resources)
 }
 
-// Ensure kustomizeManifest implements the Manifest interface.
 var _ Manifest = (*kustomizeManifest)(nil)
 
 // kustomizeManifest supports paths to kustomization files / directories containing a kustomization file
@@ -241,7 +237,7 @@ func isTemplateManifest(path string) bool {
 	return strings.Contains(path, ".tmpl")
 }
 
-func convertToUnstructureds(resources string) ([]*unstructured.Unstructured, error) {
+func convertToUnstructuredSlice(resources string) ([]*unstructured.Unstructured, error) {
 	splitter := regexp.MustCompile(YamlSeparator)
 	objectStrings := splitter.Split(resources, -1)
 	objs := make([]*unstructured.Unstructured, 0, len(objectStrings))
