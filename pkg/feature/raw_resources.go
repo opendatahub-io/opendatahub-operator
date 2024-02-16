@@ -15,7 +15,6 @@ package feature
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -40,10 +39,6 @@ func createResources(cli client.Client, objects []*unstructured.Unstructured, me
 			if err := opt(object); err != nil {
 				return err // return immediately if any of the MetaOptions functions fail
 			}
-		}
-
-		if !isNamespaceSet(object) {
-			return fmt.Errorf("no NS is set on %s", object.GetName())
 		}
 
 		name := object.GetName()
@@ -94,12 +89,4 @@ func patchResources(dyCli dynamic.Interface, patches []*unstructured.Unstructure
 	}
 
 	return nil
-}
-
-func isNamespaceSet(u *unstructured.Unstructured) bool {
-	namespace := u.GetNamespace()
-	if u.GetKind() != "Namespace" && namespace == "" {
-		return false
-	}
-	return true
 }

@@ -250,9 +250,6 @@ func convertToUnstructuredSlice(resources string) ([]*unstructured.Unstructured,
 			return nil, err
 		}
 
-		if !isNamespaceSet(u) {
-			return nil, fmt.Errorf("no NS is set on %s", u.GetName())
-		}
 		objs = append(objs, u)
 	}
 	return objs, nil
