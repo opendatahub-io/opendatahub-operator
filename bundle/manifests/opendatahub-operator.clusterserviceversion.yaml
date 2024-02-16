@@ -1777,7 +1777,7 @@ spec:
                 env:
                 - name: DISABLE_DSC_CONFIG
                   value: "true"
-                image: quay.io/edgarhz/odh-operator:latest
+                image: REPLACE_IMAGE:latest
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:
