@@ -25,7 +25,7 @@ func ResolveAuthNamespace(f *feature.Feature) error {
 	dsciAuthNamespace := strings.TrimSpace(f.Spec.Auth.Namespace)
 
 	if len(dsciAuthNamespace) == 0 {
-		f.Spec.Auth.Namespace = strings.TrimSuffix(f.Spec.AppNamespace, "-applications") + "-auth-provider"
+		f.Spec.Auth.Namespace = f.Spec.AppNamespace + "-auth-provider"
 	}
 
 	return nil
