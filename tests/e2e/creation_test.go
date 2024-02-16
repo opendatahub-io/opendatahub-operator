@@ -14,6 +14,9 @@ import (
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
@@ -41,10 +44,9 @@ func creationTestSuite(t *testing.T) {
 			require.NoError(t, err, "error creating DSCI CR")
 		})
 
-		// TODO: enable test when we have webhook in place
-		// t.Run("Creation of more than one of DSCInitialization instance", func(t *testing.T) {
-		// 	testCtx.testDSCIDuplication(t)
-		// })
+		t.Run("Creation of more than one of DSCInitialization instance", func(t *testing.T) {
+			testCtx.testDSCIDuplication(t)
+		})
 
 		t.Run("Validate DSCInitialization instance", func(t *testing.T) {
 			err = testCtx.validateDSCI()
@@ -60,10 +62,9 @@ func creationTestSuite(t *testing.T) {
 			err = testCtx.testDSCCreation()
 			require.NoError(t, err, "error creating DataScienceCluster instance")
 		})
-		// TODO: enable test when we have webhook in place
-		// t.Run("Creation of more than one of DataScienceCluster instance", func(t *testing.T) {
-		// 	testCtx.testDSCDuplication(t)
-		// })
+		t.Run("Creation of more than one of DataScienceCluster instance", func(t *testing.T) {
+			testCtx.testDSCDuplication(t)
+		})
 		t.Run("Validate Ownerrefrences exist", func(t *testing.T) {
 			err = testCtx.testOwnerrefrences()
 			require.NoError(t, err, "error getting all DataScienceCluster's Ownerrefrences")
@@ -189,16 +190,6 @@ func (tc *testContext) validateDSCReady() error {
 	return waitDSCReady(tc)
 }
 
-// func (tc *testContext) requireInstalled(t *testing.T, gvk schema.GroupVersionKind) {
-//	t.Helper()
-//	list := &unstructured.UnstructuredList{}
-//	list.SetGroupVersionKind(gvk)
-//	err := tc.customClient.List(tc.ctx, list)
-//	require.NotEmptyf(t, err, "Could not get %s list", gvk.Kind)
-//	require.Greaterf(t, len(list.Items), 0, "%s has not been installed", gvk.Kind)
-//}
-// Verify DSC instance is in Ready phase when all components are up and running
-
 func waitDSCReady(tc *testContext) error {
 	// wait for 2 mins which is on the safe side, normally it should get ready once all components are ready
 	err := tc.wait(func(ctx context.Context) (bool, error) {
@@ -219,39 +210,55 @@ func waitDSCReady(tc *testContext) error {
 	return nil
 }
 
-// func (tc *testContext) testDuplication(t *testing.T, gvk schema.GroupVersionKind, o any) {
-//	t.Helper()
-//	tc.requireInstalled(t, gvk)
-//	u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(o)
-//	require.NoErrorf(t, err, "Could not unstructure %s", gvk.Kind)
-//	obj := &unstructured.Unstructured{
-//		Object: u,
-//	}
-//	obj.SetGroupVersionKind(gvk)
-//	err = tc.customClient.Create(tc.ctx, obj)
-//	require.Errorf(t, err, "Could create second %s", gvk.Kind)
-//}
+func (tc *testContext) requireInstalled(t *testing.T, gvk schema.GroupVersionKind) {
+	t.Helper()
+	list := &unstructured.UnstructuredList{}
+	list.SetGroupVersionKind(gvk)
 
-// func (tc *testContext) testDSCIDuplication(t *testing.T) { //nolint:thelper
-// 	gvk := schema.GroupVersionKind{
-// 		Group:   "dscinitialization.opendatahub.io",
-// 		Version: "v1",
-// 		Kind:    "DSCInitialization",
-// 	}
-// 	dup := setupDSCICR("e2e-test-dsci-dup")
-// 	tc.testDuplication(t, gvk, dup)
-// }
+	err := tc.customClient.List(tc.ctx, list)
+	require.NoErrorf(t, err, "Could not get %s list", gvk.Kind)
 
-// func (tc *testContext) testDSCDuplication(t *testing.T) { //nolint:thelper
-//	gvk := schema.GroupVersionKind{
-//		Group:   "datasciencecluster.opendatahub.io",
-//		Version: "v1",
-//		Kind:    "DataScienceCluster",
-//	}
-//
-//	dup := setupDSCInstance("e2e-test-dsc-dup")
-//	tc.testDuplication(t, gvk, dup)
-//}
+	require.NotEmptyf(t, list.Items, "%s has not been installed", gvk.Kind)
+}
+
+func (tc *testContext) testDuplication(t *testing.T, gvk schema.GroupVersionKind, o any) {
+	t.Helper()
+	tc.requireInstalled(t, gvk)
+
+	u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(o)
+	require.NoErrorf(t, err, "Could not unstructure %s", gvk.Kind)
+
+	obj := &unstructured.Unstructured{
+		Object: u,
+	}
+	obj.SetGroupVersionKind(gvk)
+
+	err = tc.customClient.Create(tc.ctx, obj)
+
+	require.Errorf(t, err, "Could create second %s", gvk.Kind)
+}
+
+func (tc *testContext) testDSCIDuplication(t *testing.T) { //nolint:thelper
+	gvk := schema.GroupVersionKind{
+		Group:   "dscinitialization.opendatahub.io",
+		Version: "v1",
+		Kind:    "DSCInitialization",
+	}
+	dup := setupDSCICR("e2e-test-dsci-dup")
+
+	tc.testDuplication(t, gvk, dup)
+}
+
+func (tc *testContext) testDSCDuplication(t *testing.T) { //nolint:thelper
+	gvk := schema.GroupVersionKind{
+		Group:   "datasciencecluster.opendatahub.io",
+		Version: "v1",
+		Kind:    "DataScienceCluster",
+	}
+	dup := setupDSCInstance("e2e-test-dsc-dup")
+
+	tc.testDuplication(t, gvk, dup)
+}
 
 func (tc *testContext) testAllComponentCreation(t *testing.T) error { //nolint:funlen,thelper
 	// Validate all components are in Ready state

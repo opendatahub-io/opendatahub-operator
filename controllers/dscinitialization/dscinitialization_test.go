@@ -166,24 +166,6 @@ var _ = Describe("DataScienceCluster initialization", func() {
 
 	Context("Handling existing resources", func() {
 		AfterEach(cleanupResources)
-		const applicationName = "default-dsci"
-
-		It("Should not have more than one DSCI instance in the cluster", func(ctx context.Context) {
-
-			anotherApplicationName := "default2"
-			// given
-			desiredDsci := createDSCI(applicationName, operatorv1.Managed, operatorv1.Managed, monitoringNamespace)
-			Expect(k8sClient.Create(context.Background(), desiredDsci)).Should(Succeed())
-			// when
-			desiredDsci2 := createDSCI(anotherApplicationName, operatorv1.Managed, operatorv1.Managed, monitoringNamespace)
-			// then
-			Eventually(dscInitializationIsReady(anotherApplicationName, workingNamespace, desiredDsci2)).
-				WithContext(ctx).
-				WithTimeout(timeout).
-				WithPolling(interval).
-				Should(BeFalse())
-		})
-
 		It("Should not update rolebinding if it exists", func(ctx context.Context) {
 			applicationName := envtestutil.AppendRandomNameTo("rolebinding-test")
 

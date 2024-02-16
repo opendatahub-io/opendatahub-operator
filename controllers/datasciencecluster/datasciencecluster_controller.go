@@ -144,19 +144,6 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return reconcile.Result{Requeue: true}, nil
 	}
 
-	if len(instances.Items) > 1 {
-		message := fmt.Sprintf("only one instance of DataScienceCluster object is allowed. Update existing instance %s", req.Name)
-		err := errors.New(message)
-		_ = r.reportError(err, instance, message)
-
-		_, _ = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dscv1.DataScienceCluster) {
-			status.SetErrorCondition(&saved.Status.Conditions, status.DuplicateDataScienceCluster, message)
-			saved.Status.Phase = status.PhaseError
-		})
-
-		return ctrl.Result{}, err
-	}
-
 	// Verify a valid DSCInitialization instance is created
 	dsciInstances := &dsciv1.DSCInitializationList{}
 	err = r.Client.List(ctx, dsciInstances)
@@ -167,7 +154,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	// Update phase to error state if DataScienceCluster is created without valid DSCInitialization
-	switch len(dsciInstances.Items) {
+	switch len(dsciInstances.Items) { // only handle number as 0 or 1, others won't be existed since webhook block creation
 	case 0:
 		reason := status.ReconcileFailed
 		message := "Failed to get a valid DSCInitialization instance, please create a DSCI instance"
@@ -186,13 +173,6 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	case 1:
 		dscInitializationSpec := dsciInstances.Items[0].Spec
 		dscInitializationSpec.DeepCopyInto(r.DataScienceCluster.DSCISpec)
-	default:
-		message := "only one instance of DSCInitialization object is allowed"
-		_, _ = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dscv1.DataScienceCluster) {
-			status.SetErrorCondition(&saved.Status.Conditions, status.DuplicateDSCInitialization, message)
-			saved.Status.Phase = status.PhaseError
-		})
-		return ctrl.Result{}, errors.New(message)
 	}
 
 	if instance.ObjectMeta.DeletionTimestamp.IsZero() {
