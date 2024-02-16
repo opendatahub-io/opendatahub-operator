@@ -199,40 +199,32 @@ func loadManifestsFrom(fsys fs.FS, path string) ([]Manifest, error) {
 
 func CreateBaseManifestFrom(fsys fs.FS, path string) *baseManifest { //nolint:golint,revive //No need to export baseManifest.
 	basePath := filepath.Base(path)
-	m := &baseManifest{
+
+	return &baseManifest{
 		name:  basePath,
 		path:  path,
 		patch: strings.Contains(basePath, ".patch"),
 		fsys:  fsys,
 	}
-
-	return m
 }
 
 func CreateTemplateManifestFrom(fsys fs.FS, path string) *templateManifest { //nolint:golint,revive //No need to export templateManifest.
 	basePath := filepath.Base(path)
-	m := &templateManifest{
+
+	return &templateManifest{
 		name:  basePath,
 		path:  path,
 		patch: strings.Contains(basePath, ".patch"),
 		fsys:  fsys,
 	}
-
-	return m
 }
 
 func CreateKustomizeManifestFrom(path string, fsys filesys.FileSystem) *kustomizeManifest { //nolint:golint,revive //No need to export kustomizeManifest.
-	basePath := filepath.Base(path)
-	if fsys == nil {
-		fsys = filesys.MakeFsOnDisk()
-	}
-	m := &kustomizeManifest{
-		name: basePath,
+	return &kustomizeManifest{
+		name: filepath.Base(path),
 		path: path,
 		fsys: fsys,
 	}
-
-	return m
 }
 
 // parsing helpers
