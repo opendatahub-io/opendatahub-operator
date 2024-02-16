@@ -13,6 +13,9 @@ import (
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
@@ -35,16 +38,14 @@ func creationTestSuite(t *testing.T) {
 			require.NoError(t, err, "error creating DSCI CR")
 		})
 		t.Run("Creation of more than one of DSCInitialization instance", func(t *testing.T) {
-			err = testCtx.testDSCIDuplication()
-			require.Error(t, err, "able to create another DSCInitialization instance")
+			testCtx.testDSCIDuplication(t)
 		})
 		t.Run("Creation of DataScienceCluster instance", func(t *testing.T) {
 			err = testCtx.testDSCCreation()
 			require.NoError(t, err, "error creating DataScienceCluster instance")
 		})
 		t.Run("Creation of more than one of DataScienceCluster instance", func(t *testing.T) {
-			err = testCtx.testDSCDuplication()
-			require.Error(t, err, "able to create another DataScienceCluster instance")
+			testCtx.testDSCDuplication(t)
 		})
 		t.Run("Validate all deployed components", func(t *testing.T) {
 			err = testCtx.testAllApplicationCreation(t)
@@ -144,36 +145,54 @@ func (tc *testContext) testDSCCreation() error {
 	return nil
 }
 
-func (tc *testContext) testDSCIDuplication() error {
-	existing := &dsci.DSCInitializationList{}
+func (tc *testContext) requireInstalled(t *testing.T, gvk schema.GroupVersionKind) {
+	t.Helper()
+	list := &unstructured.UnstructuredList{}
+	list.SetGroupVersionKind(gvk)
 
-	err := tc.customClient.List(tc.ctx, existing)
-	if err != nil {
-		return err
-	}
+	err := tc.customClient.List(tc.ctx, list)
+	require.NoErrorf(t, err, "Could not get %s list", gvk.Kind)
 
-	if len(existing.Items) == 0 {
-		return fmt.Errorf("DSCI has not been installed")
-	}
-
-	dup := setupDSCICR("e2e-test-dsci-dup")
-	return tc.customClient.Create(tc.ctx, dup)
+	require.Greaterf(t, len(list.Items), 0, "%s has not been installed", gvk.Kind)
 }
 
-func (tc *testContext) testDSCDuplication() error {
-	existing := &dsc.DataScienceClusterList{}
+func (tc *testContext) testDuplication(t *testing.T, gvk schema.GroupVersionKind, o any) {
+	t.Helper()
+	tc.requireInstalled(t, gvk)
 
-	err := tc.customClient.List(tc.ctx, existing)
-	if err != nil {
-		return err
+	u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(o)
+	require.NoErrorf(t, err, "Could not unstructure %s", gvk.Kind)
+
+	obj := &unstructured.Unstructured{
+		Object: u,
 	}
+	obj.SetGroupVersionKind(gvk)
 
-	if len(existing.Items) == 0 {
-		return fmt.Errorf("DSC has not been installed")
+	err = tc.customClient.Create(tc.ctx, obj)
+
+	require.Errorf(t, err, "Could create second %s", gvk.Kind)
+}
+
+func (tc *testContext) testDSCIDuplication(t *testing.T) { //nolint:thelper
+	gvk := schema.GroupVersionKind{
+		Group:   "dscinitialization.opendatahub.io",
+		Version: "v1",
+		Kind:    "DSCInitialization",
 	}
+	dup := setupDSCICR("e2e-test-dsci-dup")
 
+	tc.testDuplication(t, gvk, dup)
+}
+
+func (tc *testContext) testDSCDuplication(t *testing.T) { //nolint:thelper
+	gvk := schema.GroupVersionKind{
+		Group:   "datasciencecluster.opendatahub.io",
+		Version: "v1",
+		Kind:    "DataScienceCluster",
+	}
 	dup := setupDSCInstance("e2e-test-dup")
-	return tc.customClient.Create(tc.ctx, dup)
+
+	tc.testDuplication(t, gvk, dup)
 }
 
 func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint:funlen,thelper
