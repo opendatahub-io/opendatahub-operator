@@ -143,7 +143,7 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resC
 		}
 	}
 
-	if err := deploy.DeployManifestsFromPath(cli, owner, DependentPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+	if err := deploy.DeployManifestsFromPath(cli, owner, DependentPath, dscispec.ApplicationsNamespace, DependentComponentName, enabled); err != nil {
 		if !strings.Contains(err.Error(), "spec.selector") || !strings.Contains(err.Error(), "field is immutable") {
 			// explicitly ignore error if error contains keywords "spec.selector" and "field is immutable" and return all other error.
 			return err
