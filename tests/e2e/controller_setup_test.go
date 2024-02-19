@@ -76,9 +76,9 @@ func NewTestContext() (*testContext, error) { //nolint:golint,revive // Only use
 	}
 
 	// setup DSCI CR since we do not create automatically by operator
-	testDSCI := setupDSCICR()
+	testDSCI := setupDSCICR("e2e-test-dsci")
 	// Setup DataScienceCluster CR
-	testDSC := setupDSCInstance()
+	testDSC := setupDSCInstance("e2e-test")
 
 	return &testContext{
 		cfg:                     config,

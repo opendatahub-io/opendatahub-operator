@@ -253,6 +253,9 @@ func CreateDefaultDSCI(cli client.Client, _ deploy.Platform, appNamespace, monNa
 				MetricsCollection: "Istio",
 			},
 		},
+		TrustedCABundle: dsci.TrustedCABundleSpec{
+			ManagementState: "Managed",
+		},
 	}
 
 	defaultDsci := &dsci.DSCInitialization{

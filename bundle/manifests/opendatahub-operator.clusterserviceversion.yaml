@@ -87,6 +87,10 @@ metadata:
                 "namespace": "istio-system"
               },
               "managementState": "Managed"
+            },
+            "trustedCABundle": {
+              "customCABundle": "",
+              "managementState": "Managed"
             }
           }
         },
@@ -149,6 +153,12 @@ spec:
           e.g. it provides unified authentication giving a Single Sign On experience.
         displayName: Service Mesh
         path: serviceMesh
+      - description: When set to `Managed`, adds odh-trusted-ca-bundle Configmap to
+          all namespaces that includes cluster-wide Trusted CA Bundle in .data["ca-bundle.crt"].
+          Additionally, this fields allows admins to add custom CA bundles to the
+          configmap using the .CustomCABundle field.
+        displayName: Trusted CABundle
+        path: trustedCABundle
       - description: Internal development useful field to test customizations. This
           is not recommended to be used in production environment.
         displayName: Dev Flags
@@ -1763,6 +1773,9 @@ spec:
                   periodSeconds: 20
                 name: manager
                 ports:
+                - containerPort: 9443
+                  name: webhook-server
+                  protocol: TCP
                 - containerPort: 8080
                   name: http
                   protocol: TCP
@@ -1784,10 +1797,19 @@ spec:
                   capabilities:
                     drop:
                     - ALL
+                volumeMounts:
+                - mountPath: /tmp/k8s-webhook-server/serving-certs
+                  name: cert
+                  readOnly: true
               securityContext:
                 runAsNonRoot: true
               serviceAccountName: opendatahub-operator-controller-manager
               terminationGracePeriodSeconds: 10
+              volumes:
+              - name: cert
+                secret:
+                  defaultMode: 420
+                  secretName: opendatahub-operator-controller-webhook-cert
       permissions:
       - rules:
         - apiGroups:
@@ -1859,3 +1881,31 @@ spec:
     matchLabels:
       component: opendatahub-operator
   version: 2.7.0
+  webhookdefinitions:
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: opendatahub-operator-controller-manager
+    failurePolicy: Ignore
+    generateName: operator.opendatahub.io
+    rules:
+    - apiGroups:
+      - datasciencecluster.opendatahub.io
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      resources:
+      - datascienceclusters
+    - apiGroups:
+      - dscinitialization.opendatahub.io
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      resources:
+      - dscinitializations
+    sideEffects: None
+    targetPort: 9443
+    type: ValidatingAdmissionWebhook
+    webhookPath: /validate-opendatahub-io-v1
