@@ -182,14 +182,12 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint
 		// speed testing in parallel
 		t.Parallel()
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.Kserve))
+		// test Unmanaged state, since servicemesh is not installed.
 		if tc.testDsc.Spec.Components.Kserve.ManagementState == operatorv1.Managed {
-			if err != nil {
-				// depedent operator error, as expected
-				if strings.Contains(err.Error(), "Please install the operator before enabling component") {
-					t.Logf("expected error: %v", err.Error())
-				} else {
-					require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Kserve.GetComponentName())
-				}
+			if err != nil && tc.testDsc.Spec.Components.Kserve.Serving.ManagementState == operatorv1.Unmanaged {
+				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Workbenches.GetComponentName())
+			} else {
+				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Kserve.GetComponentName())
 			}
 		} else {
 			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.Kserve.GetComponentName())
