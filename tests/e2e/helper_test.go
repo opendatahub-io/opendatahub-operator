@@ -26,6 +26,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/infrastructure/v1"
 )
 
 func (tc *testContext) waitForControllerDeployment(name string, replicas int32) error {
@@ -107,6 +108,9 @@ func setupDSCInstance(name string) *dsc.DataScienceCluster {
 				Kserve: kserve.Kserve{
 					Component: components.Component{
 						ManagementState: operatorv1.Managed,
+					},
+					Serving: infrav1.ServingSpec{
+						ManagementState: operatorv1.Unmanaged,
 					},
 				},
 				CodeFlare: codeflare.CodeFlare{
