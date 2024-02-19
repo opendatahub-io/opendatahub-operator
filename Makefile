@@ -3,21 +3,16 @@
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
-ifneq ($(USER),)
-IMAGE_OWNER = $(USER)
-else
-IMAGE_OWNER = opendatahub
-endif
 VERSION ?= 2.7.0
 # IMAGE_TAG_BASE defines the opendatahub.io namespace and part of the image name for remote images.
 # This variable is used to construct full image tags for bundle and catalog images.
 #
 # For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
 # opendatahub.io/opendatahub-operator-bundle:$VERSION and opendatahub.io/opendatahub-operator-catalog:$VERSION.
-IMAGE_TAG_BASE = quay.io/$(IMAGE_OWNER)/opendatahub-operator
+IMAGE_TAG_BASE ?= quay.io/opendatahub/opendatahub-operator
 
 # keep the name based on IMG which already used from command line
-IMG_TAG = latest
+IMG_TAG ?= latest
 # Update IMG to a variable, to keep it consistent across versions for OpenShift CI
 IMG = $(IMAGE_TAG_BASE):$(IMG_TAG)
 # BUNDLE_IMG defines the image:tag used for the bundle.
@@ -93,7 +88,16 @@ E2E_TEST_FLAGS = "--skip-deletion=false" -timeout 15m # See README.md, default g
 # Default image-build is to not use local odh-manifests folder
 # set to "true" to use local instead
 # see target "image-build"
-IMAGE_BUILD_FLAGS = --build-arg USE_LOCAL=false
+IMAGE_BUILD_FLAGS ?= --build-arg USE_LOCAL=false
+
+# Read any custom variables overrides from a local.mk file.  This will only be read if it exists in the 
+# same directory as this Makefile.  Variables can be specified in the standard format supported by 
+# GNU Make since `include` processes any valid Makefile
+# Standard variables override would include anything you would pass at runtime that is different
+# from the defaults specified in this file
+OPERATOR_MAKE_ENV_FILE = local.mk
+-include $(OPERATOR_MAKE_ENV_FILE)
+
 
 .PHONY: default
 default: manifests lint unit-test build
