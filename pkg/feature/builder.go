@@ -6,8 +6,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -66,18 +64,9 @@ func (fb *featureBuilder) UsingConfig(config *rest.Config) *featureBuilder {
 	return fb
 }
 
-func createClients(config *rest.Config) partialBuilder {
+func createClient(config *rest.Config) partialBuilder {
 	return func(f *Feature) error {
 		var err error
-		f.Clientset, err = kubernetes.NewForConfig(config)
-		if err != nil {
-			return err
-		}
-
-		f.DynamicClient, err = dynamic.NewForConfig(config)
-		if err != nil {
-			return err
-		}
 
 		f.Client, err = client.New(config, client.Options{})
 		if err != nil {
@@ -173,7 +162,7 @@ func (fb *featureBuilder) Load() error {
 		}
 	}
 
-	if err := createClients(fb.config)(feature); err != nil {
+	if err := createClient(fb.config)(feature); err != nil {
 		return err
 	}
 

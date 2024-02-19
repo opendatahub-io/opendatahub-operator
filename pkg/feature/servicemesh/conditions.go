@@ -7,13 +7,12 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/dynamic"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 )
 
 const (
@@ -55,7 +54,7 @@ func WaitForControlPlaneToBeReady(f *feature.Feature) error {
 	f.Log.Info("waiting for control plane components to be ready", "control-plane", smcp, "namespace", smcpNs, "duration (s)", duration.Seconds())
 
 	return wait.PollUntilContextTimeout(context.TODO(), interval, duration, false, func(ctx context.Context) (bool, error) {
-		ready, err := CheckControlPlaneComponentReadiness(f.DynamicClient, smcp, smcpNs)
+		ready, err := CheckControlPlaneComponentReadiness(f.Client, smcp, smcpNs)
 
 		if ready {
 			f.Log.Info("done waiting for control plane components to be ready", "control-plane", smcp, "namespace", smcpNs)
@@ -65,13 +64,19 @@ func WaitForControlPlaneToBeReady(f *feature.Feature) error {
 	})
 }
 
-func CheckControlPlaneComponentReadiness(dynamicClient dynamic.Interface, smcp, smcpNs string) (bool, error) {
-	unstructObj, err := dynamicClient.Resource(gvr.SMCP).Namespace(smcpNs).Get(context.TODO(), smcp, metav1.GetOptions{})
+func CheckControlPlaneComponentReadiness(c client.Client, smcpName, smcpNs string) (bool, error) {
+	smcpObj := &unstructured.Unstructured{}
+	smcpObj.SetGroupVersionKind(cluster.ServiceMeshControlPlaneGVK)
+	err := c.Get(context.TODO(), client.ObjectKey{
+		Namespace: smcpNs,
+		Name:      smcpName,
+	}, smcpObj)
+
 	if err != nil {
 		return false, fmt.Errorf("failed to find Service Mesh Control Plane: %w", err)
 	}
 
-	components, found, err := unstructured.NestedMap(unstructObj.Object, "status", "readiness", "components")
+	components, found, err := unstructured.NestedMap(smcpObj.Object, "status", "readiness", "components")
 	if err != nil || !found {
 		return false, fmt.Errorf("status conditions not found or error in parsing of Service Mesh Control Plane: %w", err)
 	}
