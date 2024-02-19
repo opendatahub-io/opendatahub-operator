@@ -175,7 +175,7 @@ func HasDeleteConfigMap(c client.Client) bool {
 
 // createDefaultDSC creates a default instance of DSC.
 // Note: When the platform is not Managed, and a DSC instance already exists, the function doesn't re-create/update the resource.
-func CreateDefaultDSC(cli client.Client, _ deploy.Platform) error {
+func CreateDefaultDSC(cli client.Client, platform deploy.Platform) error {
 	// Set the default DSC name depending on the platform
 	releaseDataScienceCluster := &dsc.DataScienceCluster{
 		TypeMeta: metav1.TypeMeta{
@@ -227,6 +227,22 @@ func CreateDefaultDSC(cli client.Client, _ deploy.Platform) error {
 	case apierrs.IsAlreadyExists(err):
 		// Do not update the DSC if it already exists
 		fmt.Printf("DataScienceCluster resource already exists. It will not be updated with default DSC.\n")
+		// TODO: Remove below check in RHOAI 2.8
+		existingDSCList := &dsc.DataScienceClusterList{}
+		err := cli.List(context.TODO(), existingDSCList)
+		if err != nil {
+			return fmt.Errorf("error getting existing DSC: %w", err)
+		}
+		existingDSC := existingDSCList.Items[0]
+		if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
+			if existingDSC.Spec.Components.TrustyAI.ManagementState != operatorv1.Removed {
+				existingDSC.Spec.Components.TrustyAI.ManagementState = operatorv1.Removed
+				err := cli.Update(context.TODO(), &existingDSC)
+				if err != nil {
+					return fmt.Errorf("error updating TrustyAI component: %w", err)
+				}
+			}
+		}
 		return nil
 	default:
 		return fmt.Errorf("failed to create DataScienceCluster custom resource: %w", err)

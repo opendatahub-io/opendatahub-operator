@@ -40,3 +40,4 @@ spec:
       managementState: "Managed"
     modelregistry:
       managementState: "Removed"
+
