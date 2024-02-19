@@ -9,10 +9,7 @@ import (
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlLog "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -25,9 +22,7 @@ type Feature struct {
 	Enabled bool
 	Tracker *featurev1.FeatureTracker
 
-	Clientset     *kubernetes.Clientset
-	DynamicClient dynamic.Interface
-	Client        client.Client
+	Client client.Client
 
 	manifests []manifest
 
@@ -146,37 +141,6 @@ func (f *Feature) applyManifests() error {
 	}
 
 	return applyErrors.ErrorOrNil()
-}
-
-func (f *Feature) CreateConfigMap(cfgMapName string, data map[string]string) error {
-	configMap := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      cfgMapName,
-			Namespace: f.Spec.AppNamespace,
-			OwnerReferences: []metav1.OwnerReference{
-				f.AsOwnerReference(),
-			},
-		},
-		Data: data,
-	}
-
-	configMaps := f.Clientset.CoreV1().ConfigMaps(configMap.Namespace)
-	found, err := configMaps.Get(context.TODO(), configMap.Name, metav1.GetOptions{})
-	if k8serrors.IsNotFound(err) { //nolint:gocritic
-		_, err = configMaps.Create(context.TODO(), configMap, metav1.CreateOptions{})
-		if err != nil {
-			return err
-		}
-	} else if found != nil {
-		_, err = configMaps.Update(context.TODO(), configMap, metav1.UpdateOptions{})
-		if err != nil {
-			return err
-		}
-	} else {
-		return err
-	}
-
-	return nil
 }
 
 func (f *Feature) addCleanup(cleanupFuncs ...Action) {
