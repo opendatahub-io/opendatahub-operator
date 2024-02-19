@@ -9,6 +9,9 @@ type ServiceMeshSpec struct {
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 	// ControlPlane holds configuration of Service Mesh used by Opendatahub.
 	ControlPlane ControlPlaneSpec `json:"controlPlane,omitempty"`
+	// Auth holds configuration of authentication and authorization services
+	// used by Service Mesh in Opendatahub.
+	Auth AuthSpec `json:"auth,omitempty"`
 }
 
 type ControlPlaneSpec struct {
@@ -37,4 +40,17 @@ type IngressGatewaySpec struct {
 	// Certificate specifies configuration of the TLS certificate securing communications of
 	// the for Ingress Gateway.
 	Certificate CertificateSpec `json:"certificate,omitempty"`
+}
+
+type AuthSpec struct {
+	// Namespace where it is deployed. If not provided, the default is to
+	// use '-auth-provider' suffix on the ApplicationsNamespace of the DSCI.
+	Namespace string `json:"namespace,omitempty"`
+	// Audiences is a list of the identifiers that the resource server presented
+	// with the token identifies as. Audience-aware token authenticators will verify
+	// that the token was intended for at least one of the audiences in this list.
+	// If no audiences are provided, the audience will default to the audience of the
+	// Kubernetes apiserver (kubernetes.default.svc).
+	// +kubebuilder:default={"https://kubernetes.default.svc"}
+	Audiences *[]string `json:"audiences,omitempty"`
 }

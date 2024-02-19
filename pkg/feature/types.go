@@ -10,6 +10,7 @@ import (
 type Spec struct {
 	*infrav1.ServiceMeshSpec
 	Serving                  *infrav1.ServingSpec
+	AuthProviderName         string
 	OAuth                    OAuth
 	AppNamespace             string
 	Domain                   string

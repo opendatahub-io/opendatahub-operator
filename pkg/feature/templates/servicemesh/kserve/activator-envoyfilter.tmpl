@@ -1,0 +1,43 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: activator-host-header
+  namespace: {{ .ControlPlane.Namespace }}
+  labels:
+    app.opendatahub.io/kserve: "true"
+    app.kubernetes.io/part-of: kserve
+spec:
+  priority: 20
+  workloadSelector:
+    labels:
+      component: predictor
+  configPatches:
+  - applyTo: HTTP_FILTER
+    match:
+      listener:
+        filterChain:
+          filter:
+            name: envoy.filters.network.http_connection_manager
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: envoy.filters.http.lua
+        typed_config:
+          '@type': type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+          inlineCode: |
+           function envoy_on_request(request_handle)
+              local headers = request_handle:headers()
+              if not headers then
+                return
+              end
+
+              local original_host = headers:get("k-original-host")
+              if original_host then
+
+                port_seperator = string.find(original_host, ":", 7)
+                if port_seperator then
+                  original_host = string.sub(original_host, 0, port_seperator-1)
+                end
+                headers:replace('host', original_host)
+              end
+            end
