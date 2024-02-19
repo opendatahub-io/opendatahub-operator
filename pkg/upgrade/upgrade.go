@@ -35,7 +35,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kueue"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -200,12 +199,15 @@ func CreateDefaultDSC(cli client.Client, _ deploy.Platform) error {
 				Ray: ray.Ray{
 					Component: components.Component{ManagementState: operatorv1.Removed},
 				},
+<<<<<<< HEAD
 				Kueue: kueue.Kueue{
 					Component: components.Component{ManagementState: operatorv1.Removed},
 				},
 				TrustyAI: trustyai.TrustyAI{
 					Component: components.Component{ManagementState: operatorv1.Managed},
 				},
+=======
+>>>>>>> d7ccc88f (Remove Trustyai installation in downstream)
 			},
 		},
 	}
@@ -682,4 +684,29 @@ func deleteStatefulsetsAndCheck(ctx context.Context, cli client.Client, namespac
 	}
 
 	return true, multiErr.ErrorOrNil()
+}
+
+func RemoveDeprecatedTrustyAI(cli client.Client, platform deploy.Platform) error {
+	existingDSCList := &dsc.DataScienceClusterList{}
+	err := cli.List(context.TODO(), existingDSCList)
+	if err != nil {
+		return fmt.Errorf("error getting existing DSC: %w", err)
+	}
+
+	switch len(existingDSCList.Items) {
+	case 0:
+		return nil
+	case 1:
+		existingDSC := existingDSCList.Items[0]
+		if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
+			if existingDSC.Spec.Components.TrustyAI.ManagementState != operatorv1.Removed {
+				existingDSC.Spec.Components.TrustyAI.ManagementState = operatorv1.Removed
+				err := cli.Update(context.TODO(), &existingDSC)
+				if err != nil {
+					return fmt.Errorf("error updating TrustyAI component: %w", err)
+				}
+			}
+		}
+	}
+	return nil
 }

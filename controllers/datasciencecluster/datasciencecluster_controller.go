@@ -55,6 +55,7 @@ import (
 	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
@@ -278,9 +279,14 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 	enabled := component.GetManagementState() == v1.Managed
 	// First set conditions to reflect a component is about to be reconciled
 	instance, err := r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
-		message := "Component is disabled"
-		if enabled {
-			message = "Component is enabled"
+		var message string
+		if componentName == trustyai.ComponentName {
+			message = "TrustyAI is deprecated. Component state is disabled."
+		} else {
+			message = "Component is disabled"
+			if enabled {
+				message = "Component is enabled"
+			}
 		}
 		status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileInit, message, corev1.ConditionUnknown)
 	})

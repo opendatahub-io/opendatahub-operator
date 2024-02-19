@@ -21,6 +21,8 @@ package status
 import (
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 )
 
 // These constants represent the overall Phase as used by .Status.Phase.
@@ -179,7 +181,12 @@ func SetCompleteCondition(conditions *[]conditionsv1.Condition, reason string, m
 // SetComponentCondition appends Condition Type with const ReadySuffix for given component
 // when component finished reconcile.
 func SetComponentCondition(conditions *[]conditionsv1.Condition, component string, reason string, message string, status corev1.ConditionStatus) {
-	condtype := component + ReadySuffix
+	var condtype string
+	if component == trustyai.ComponentName {
+		condtype = component + "Deprecated"
+	} else {
+		condtype = component + ReadySuffix
+	}
 	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
 		Type:    conditionsv1.ConditionType(condtype),
 		Status:  status,
@@ -190,6 +197,11 @@ func SetComponentCondition(conditions *[]conditionsv1.Condition, component strin
 
 // RemoveComponentCondition remove Condition of giving component.
 func RemoveComponentCondition(conditions *[]conditionsv1.Condition, component string) {
-	condType := component + ReadySuffix
+	var condType string
+	if component == trustyai.ComponentName {
+		condType = component + "Deprecated"
+	} else {
+		condType = component + ReadySuffix
+	}
 	conditionsv1.RemoveStatusCondition(conditions, conditionsv1.ConditionType(condType))
 }

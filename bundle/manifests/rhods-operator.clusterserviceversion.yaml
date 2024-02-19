@@ -49,9 +49,6 @@ metadata:
               "ray": {
                 "managementState": "Removed"
               },
-              "trustyai": {
-                "managementState": "Managed"
-              },
               "workbenches": {
                 "managementState": "Managed"
               }
@@ -159,9 +156,6 @@ metadata:
               "managementState": "Removed"
             },
             "workbenches": {
-              "managementState": "Managed"
-            },
-            "trustyai": {
               "managementState": "Managed"
             }
           }
