@@ -14,9 +14,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -241,18 +241,13 @@ func createServiceMeshControlPlane(name, namespace string) {
 			"spec": map[string]interface{}{},
 		},
 	}
-	Expect(createSMCPInCluster(envTest.Config, serviceMeshControlPlane, namespace)).To(Succeed())
+	Expect(createSMCPInCluster(serviceMeshControlPlane, namespace)).To(Succeed())
 }
 
-// createSMCPInCluster uses dynamic client to create a dummy SMCP resource for testing.
-func createSMCPInCluster(cfg *rest.Config, smcpObj *unstructured.Unstructured, namespace string) error {
-	dynamicClient, err := dynamic.NewForConfig(cfg)
-	if err != nil {
-		return err
-	}
-
-	result, err := dynamicClient.Resource(gvr.SMCP).Namespace(namespace).Create(context.TODO(), smcpObj, metav1.CreateOptions{})
-	if err != nil {
+func createSMCPInCluster(smcpObj *unstructured.Unstructured, namespace string) error {
+	smcpObj.SetGroupVersionKind(cluster.ServiceMeshControlPlaneGVK)
+	smcpObj.SetNamespace(namespace)
+	if err := envTestClient.Create(context.TODO(), smcpObj); err != nil {
 		return err
 	}
 
@@ -277,15 +272,10 @@ func createSMCPInCluster(cfg *rest.Config, smcpObj *unstructured.Unstructured, n
 			},
 		},
 	}
-
-	if err := unstructured.SetNestedField(result.Object, status, "status"); err != nil {
+	update := smcpObj.DeepCopy()
+	if err := unstructured.SetNestedField(update.Object, status, "status"); err != nil {
 		return err
 	}
 
-	_, err = dynamicClient.Resource(gvr.SMCP).Namespace(namespace).UpdateStatus(context.TODO(), result, metav1.UpdateOptions{})
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return envTestClient.Status().Update(context.TODO(), update)
 }

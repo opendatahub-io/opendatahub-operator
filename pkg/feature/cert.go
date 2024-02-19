@@ -8,6 +8,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"fmt"
 	"math/big"
 	"net"
 	"strings"
@@ -15,8 +16,8 @@ import (
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/infrastructure/v1"
 )
@@ -34,20 +35,13 @@ func (f *Feature) CreateSelfSignedCertificate(secretName string, certificateType
 		},
 	}
 
-	cert, err := GenerateSelfSignedCertificateAsSecret(domain, meta)
+	certSecret, err := GenerateSelfSignedCertificateAsSecret(domain, meta)
 	if err != nil {
-		return errors.WithStack(err)
+		return fmt.Errorf("failed generating self-signed certificate: %w", err)
 	}
 
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	_, err = f.Clientset.CoreV1().
-		Secrets(namespace).
-		Create(context.TODO(), cert, metav1.CreateOptions{})
-	if err != nil && !k8serrors.IsAlreadyExists(err) {
-		return errors.WithStack(err)
+	if createErr := f.Client.Create(context.TODO(), certSecret); client.IgnoreAlreadyExists(createErr) != nil {
+		return fmt.Errorf("failed creating certificate secret: %w", createErr)
 	}
 
 	return nil
@@ -74,9 +68,9 @@ func generateCertificate(addr string) ([]byte, []byte, error) {
 		return nil, nil, errors.WithStack(err)
 	}
 
-	seededRand, crypterr := rand.Int(rand.Reader, big.NewInt(time.Now().UnixNano()))
-	if err != nil {
-		return nil, nil, errors.WithStack(crypterr)
+	seededRand, cryptErr := rand.Int(rand.Reader, big.NewInt(time.Now().UnixNano()))
+	if cryptErr != nil {
+		return nil, nil, errors.WithStack(cryptErr)
 	}
 
 	now := time.Now()

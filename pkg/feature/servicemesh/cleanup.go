@@ -4,25 +4,24 @@ import (
 	"context"
 	"fmt"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 )
 
 func RemoveExtensionProvider(f *feature.Feature) error {
 	ossmAuthzProvider := fmt.Sprintf("%s-odh-auth-provider", f.Spec.AppNamespace)
 
 	mesh := f.Spec.ControlPlane
+	smcp := &unstructured.Unstructured{}
+	smcp.SetGroupVersionKind(cluster.ServiceMeshControlPlaneGVK)
 
-	smcp, err := f.DynamicClient.Resource(gvr.SMCP).
-		Namespace(mesh.Namespace).
-		Get(context.TODO(), mesh.Name, metav1.GetOptions{})
-	if err != nil {
-		// Since the configuration of the extension provider is a patch, it could happen that
-		// the SMCP is already gone, and there will be nothing to unpatch.
+	if err := f.Client.Get(context.TODO(), client.ObjectKey{
+		Namespace: mesh.Namespace,
+		Name:      mesh.Name,
+	}, smcp); err != nil {
 		return client.IgnoreNotFound(err)
 	}
 
@@ -52,9 +51,5 @@ func RemoveExtensionProvider(f *feature.Feature) error {
 		}
 	}
 
-	_, err = f.DynamicClient.Resource(gvr.SMCP).
-		Namespace(mesh.Namespace).
-		Update(context.TODO(), smcp, metav1.UpdateOptions{})
-
-	return err
+	return f.Client.Update(context.TODO(), smcp)
 }

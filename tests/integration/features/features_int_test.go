@@ -568,11 +568,7 @@ func createSecret(name, namespace string) func(f *feature.Feature) error {
 			},
 		}
 
-		_, err := f.Clientset.CoreV1().
-			Secrets(namespace).
-			Create(context.TODO(), secret, metav1.CreateOptions{})
-
-		return err
+		return f.Client.Create(context.TODO(), secret)
 	}
 }
 
