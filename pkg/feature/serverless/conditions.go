@@ -4,19 +4,26 @@ import (
 	"context"
 	"fmt"
 
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlLog "sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
+)
+
+const (
+	KnativeServingNamespace = "knative-serving"
 )
 
 var log = ctrlLog.Log.WithName("features")
 
 func EnsureServerlessAbsent(f *feature.Feature) error {
-	list, err := f.DynamicClient.Resource(gvr.KnativeServing).Namespace("").List(context.TODO(), v1.ListOptions{})
-	if err != nil {
-		return err
+	list := &unstructured.UnstructuredList{}
+	list.SetGroupVersionKind(cluster.KnativeServingGVK)
+
+	if err := f.Client.List(context.TODO(), list, client.InNamespace("")); err != nil {
+		return fmt.Errorf("failed to list KnativeServings: %w", err)
 	}
 
 	if len(list.Items) == 0 {
@@ -28,7 +35,7 @@ func EnsureServerlessAbsent(f *feature.Feature) error {
 	}
 
 	servingOwners := list.Items[0].GetOwnerReferences()
-	featureOwner := f.OwnerReference()
+	featureOwner := f.AsOwnerReference()
 	for _, owner := range servingOwners {
 		if owner.APIVersion == featureOwner.APIVersion &&
 			owner.Kind == featureOwner.Kind &&
@@ -50,3 +57,5 @@ func EnsureServerlessOperatorInstalled(f *feature.Feature) error {
 
 	return nil
 }
+
+var EnsureServerlessServingDeployed = feature.WaitForResourceToBeCreated(KnativeServingNamespace, cluster.KnativeServingGVK)

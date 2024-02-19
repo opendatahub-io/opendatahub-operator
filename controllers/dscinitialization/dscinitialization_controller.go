@@ -49,12 +49,17 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/trustedcabundle"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
 
 const (
 	finalizerName = "dscinitialization.opendatahub.io/finalizer"
 )
+
+// This ar is required by the .spec.TrustedCABundle field. When a user goes from Unmanaged to Managed, update all
+// namespaces irrespective of any changes in the configmap.
+var managementStateChangeTrustedCA = false
 
 // DSCInitializationReconciler reconciles a DSCInitialization object.
 type DSCInitializationReconciler struct { //nolint:golint,revive // Readability
@@ -69,6 +74,7 @@ type DSCInitializationReconciler struct { //nolint:golint,revive // Readability
 // +kubebuilder:rbac:groups="dscinitialization.opendatahub.io",resources=dscinitializations/finalizers,verbs=get;update;patch;delete
 // +kubebuilder:rbac:groups="dscinitialization.opendatahub.io",resources=dscinitializations,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="features.opendatahub.io",resources=featuretrackers,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="features.opendatahub.io",resources=featuretrackers/status,verbs=get;update;patch;delete
 // +kubebuilder:rbac:groups="kfdef.apps.kubeflow.org",resources=kfdefs,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile contains controller logic specific to DSCInitialization instance updates.
@@ -161,6 +167,13 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		// no need to log error as it was already logged in createOdhNamespace
 		return reconcile.Result{}, err
 	}
+
+	// Verify odh-trusted-ca-bundle Configmap is configured for the namespaces
+	err = trustedcabundle.ConfigureTrustedCABundle(ctx, r.Client, r.Log, instance, managementStateChangeTrustedCA)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+	managementStateChangeTrustedCA = false
 
 	// Get platform
 	platform, err := deploy.GetPlatform(r.Client)
@@ -295,7 +308,8 @@ func (r *DSCInitializationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		// add predicates prevents meaningless reconciliations from being triggered
 		// not use WithEventFilter() because it conflict with secret and configmap predicate
-		For(&dsciv1.DSCInitialization{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		For(&dsciv1.DSCInitialization{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{},
+			predicate.LabelChangedPredicate{}), dsciPredicateStateChangeTrustedCA)).
 		Owns(&corev1.Namespace{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&corev1.Secret{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&corev1.ConfigMap{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
@@ -357,6 +371,18 @@ var DSCDeletionPredicate = predicate.Funcs{
 	},
 }
 
+var dsciPredicateStateChangeTrustedCA = predicate.Funcs{
+	UpdateFunc: func(e event.UpdateEvent) bool {
+		oldDSCI, _ := e.ObjectOld.(*dsciv1.DSCInitialization)
+		newDSCI, _ := e.ObjectNew.(*dsciv1.DSCInitialization)
+
+		if oldDSCI.Spec.TrustedCABundle.ManagementState != newDSCI.Spec.TrustedCABundle.ManagementState {
+			managementStateChangeTrustedCA = true
+		}
+		return true
+	},
+}
+
 func (r *DSCInitializationReconciler) watchMonitoringConfigMapResource(a client.Object) []reconcile.Request {
 	if a.GetName() == "prometheus" && a.GetNamespace() == "redhat-ods-monitoring" {
 		r.Log.Info("Found monitoring configmap has updated, start reconcile")
@@ -385,11 +411,10 @@ func (r *DSCInitializationReconciler) watchDSCResource(_ client.Object) []reconc
 		// do not handle if cannot get list
 		return nil
 	}
-	if len(instanceList.Items) == 0 {
-		r.Log.Info("Found no DSC instance in cluster, reset monitoring stack config")
+	if len(instanceList.Items) == 0 && !upgrade.HasDeleteConfigMap(r.Client) {
+		r.Log.Info("Found no DSC instance in cluster but not in uninstalltion process, reset monitoring stack config")
 
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "backup"}}}
 	}
-
 	return nil
 }

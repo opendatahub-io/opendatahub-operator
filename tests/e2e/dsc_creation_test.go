@@ -13,6 +13,9 @@ import (
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
@@ -34,9 +37,15 @@ func creationTestSuite(t *testing.T) {
 			err = testCtx.testDSCICreation()
 			require.NoError(t, err, "error creating DSCI CR")
 		})
+		t.Run("Creation of more than one of DSCInitialization instance", func(t *testing.T) {
+			testCtx.testDSCIDuplication(t)
+		})
 		t.Run("Creation of DataScienceCluster instance", func(t *testing.T) {
 			err = testCtx.testDSCCreation()
 			require.NoError(t, err, "error creating DataScienceCluster instance")
+		})
+		t.Run("Creation of more than one of DataScienceCluster instance", func(t *testing.T) {
+			testCtx.testDSCDuplication(t)
 		})
 		t.Run("Validate all deployed components", func(t *testing.T) {
 			err = testCtx.testAllApplicationCreation(t)
@@ -58,7 +67,7 @@ func creationTestSuite(t *testing.T) {
 	})
 }
 
-func (tc *testContext) testDSCICreation() error { //nolint: dupl
+func (tc *testContext) testDSCICreation() error {
 	dscLookupKey := types.NamespacedName{Name: tc.testDsc.Name}
 	createdDSCI := &dsci.DSCInitialization{}
 	existingDSCIList := &dsci.DSCInitializationList{}
@@ -95,7 +104,7 @@ func (tc *testContext) testDSCICreation() error { //nolint: dupl
 	return nil
 }
 
-func (tc *testContext) testDSCCreation() error { //nolint: dupl
+func (tc *testContext) testDSCCreation() error {
 	// Create DataScienceCluster resource if not already created
 
 	dscLookupKey := types.NamespacedName{Name: tc.testDsc.Name}
@@ -136,6 +145,56 @@ func (tc *testContext) testDSCCreation() error { //nolint: dupl
 	return nil
 }
 
+func (tc *testContext) requireInstalled(t *testing.T, gvk schema.GroupVersionKind) {
+	t.Helper()
+	list := &unstructured.UnstructuredList{}
+	list.SetGroupVersionKind(gvk)
+
+	err := tc.customClient.List(tc.ctx, list)
+	require.NoErrorf(t, err, "Could not get %s list", gvk.Kind)
+
+	require.Greaterf(t, len(list.Items), 0, "%s has not been installed", gvk.Kind)
+}
+
+func (tc *testContext) testDuplication(t *testing.T, gvk schema.GroupVersionKind, o any) {
+	t.Helper()
+	tc.requireInstalled(t, gvk)
+
+	u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(o)
+	require.NoErrorf(t, err, "Could not unstructure %s", gvk.Kind)
+
+	obj := &unstructured.Unstructured{
+		Object: u,
+	}
+	obj.SetGroupVersionKind(gvk)
+
+	err = tc.customClient.Create(tc.ctx, obj)
+
+	require.Errorf(t, err, "Could create second %s", gvk.Kind)
+}
+
+func (tc *testContext) testDSCIDuplication(t *testing.T) { //nolint:thelper
+	gvk := schema.GroupVersionKind{
+		Group:   "dscinitialization.opendatahub.io",
+		Version: "v1",
+		Kind:    "DSCInitialization",
+	}
+	dup := setupDSCICR("e2e-test-dsci-dup")
+
+	tc.testDuplication(t, gvk, dup)
+}
+
+func (tc *testContext) testDSCDuplication(t *testing.T) { //nolint:thelper
+	gvk := schema.GroupVersionKind{
+		Group:   "datasciencecluster.opendatahub.io",
+		Version: "v1",
+		Kind:    "DataScienceCluster",
+	}
+	dup := setupDSCInstance("e2e-test-dup")
+
+	tc.testDuplication(t, gvk, dup)
+}
+
 func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint:funlen,thelper
 	// Validate test instance is in Ready state
 
@@ -161,13 +220,9 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint
 		t.Parallel()
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.Dashboard))
 		if tc.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
-			if err != nil {
-				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Dashboard.GetComponentName())
-			}
+			require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Dashboard.GetComponentName())
 		} else {
-			if err == nil {
-				require.NoError(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.Dashboard.GetComponentName())
-			}
+			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.Dashboard.GetComponentName())
 		}
 	})
 
@@ -176,13 +231,9 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint
 		t.Parallel()
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.ModelMeshServing))
 		if tc.testDsc.Spec.Components.ModelMeshServing.ManagementState == operatorv1.Managed {
-			if err != nil {
-				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.ModelMeshServing.GetComponentName())
-			}
+			require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.ModelMeshServing.GetComponentName())
 		} else {
-			if err == nil {
-				require.NoError(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.ModelMeshServing.GetComponentName())
-			}
+			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.ModelMeshServing.GetComponentName())
 		}
 	})
 
@@ -200,9 +251,7 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint
 				}
 			}
 		} else {
-			if err == nil {
-				require.NoError(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.Kserve.GetComponentName())
-			}
+			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.Kserve.GetComponentName())
 		}
 	})
 
@@ -211,13 +260,9 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint
 		t.Parallel()
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.Workbenches))
 		if tc.testDsc.Spec.Components.Workbenches.ManagementState == operatorv1.Managed {
-			if err != nil {
-				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Workbenches.GetComponentName())
-			}
+			require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Workbenches.GetComponentName())
 		} else {
-			if err == nil {
-				require.NoError(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.Workbenches.GetComponentName())
-			}
+			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.Workbenches.GetComponentName())
 		}
 	})
 
@@ -226,13 +271,9 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint
 		t.Parallel()
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.DataSciencePipelines))
 		if tc.testDsc.Spec.Components.DataSciencePipelines.ManagementState == operatorv1.Managed {
-			if err != nil {
-				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.DataSciencePipelines.GetComponentName())
-			}
+			require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.DataSciencePipelines.GetComponentName())
 		} else {
-			if err == nil {
-				require.NoError(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.DataSciencePipelines.GetComponentName())
-			}
+			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.DataSciencePipelines.GetComponentName())
 		}
 	})
 
@@ -241,16 +282,10 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint
 		t.Parallel()
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.CodeFlare))
 		if tc.testDsc.Spec.Components.CodeFlare.ManagementState == operatorv1.Managed {
-			if err != nil {
-				// dependent operator error, as expected
-				{
-					require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.CodeFlare.GetComponentName())
-				}
-			}
+			// dependent operator error, as expected
+			require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.CodeFlare.GetComponentName())
 		} else {
-			if err == nil {
-				require.NoError(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.CodeFlare.GetComponentName())
-			}
+			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.CodeFlare.GetComponentName())
 		}
 	})
 
@@ -259,13 +294,20 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint
 		t.Parallel()
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.Ray))
 		if tc.testDsc.Spec.Components.Ray.ManagementState == operatorv1.Managed {
-			if err != nil {
-				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Ray.GetComponentName())
-			}
+			require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Ray.GetComponentName())
 		} else {
-			if err == nil {
-				require.NoError(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.Ray.GetComponentName())
-			}
+			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.Ray.GetComponentName())
+		}
+	})
+
+	t.Run("Validate Kueue", func(t *testing.T) {
+		// speed testing in parallel
+		t.Parallel()
+		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.Kueue))
+		if tc.testDsc.Spec.Components.Kueue.ManagementState == operatorv1.Managed {
+			require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Kueue.GetComponentName())
+		} else {
+			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.Kueue.GetComponentName())
 		}
 	})
 
@@ -274,13 +316,20 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint
 		t.Parallel()
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.TrustyAI))
 		if tc.testDsc.Spec.Components.TrustyAI.ManagementState == operatorv1.Managed {
-			if err != nil {
-				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.TrustyAI.GetComponentName())
-			}
+			require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.TrustyAI.GetComponentName())
 		} else {
-			if err == nil {
-				require.NoError(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.TrustyAI.GetComponentName())
-			}
+			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.TrustyAI.GetComponentName())
+		}
+	})
+
+	t.Run("Validate ModelRegistry", func(t *testing.T) {
+		// speed testing in parallel
+		t.Parallel()
+		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.ModelRegistry))
+		if tc.testDsc.Spec.Components.ModelRegistry.ManagementState == operatorv1.Managed {
+			require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.ModelRegistry.GetComponentName())
+		} else {
+			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.ModelRegistry.GetComponentName())
 		}
 	})
 
@@ -320,9 +369,6 @@ func (tc *testContext) testApplicationCreation(component components.ComponentInt
 		}
 		return false, nil
 	})
-	if err != nil {
-		return err
-	}
 
 	return err
 }

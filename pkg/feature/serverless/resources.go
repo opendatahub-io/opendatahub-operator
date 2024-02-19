@@ -2,29 +2,35 @@ package serverless
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/pkg/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/client-go/dynamic"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvr"
 )
 
 func ServingCertificateResource(f *feature.Feature) error {
 	return f.CreateSelfSignedCertificate(f.Spec.KnativeCertificateSecret, f.Spec.Serving.IngressGateway.Certificate.Type, f.Spec.KnativeIngressDomain, f.Spec.ControlPlane.Namespace)
 }
 
-func GetDomain(dynamicClient dynamic.Interface) (string, error) {
-	cluster, err := dynamicClient.Resource(gvr.OpenshiftIngress).Get(context.TODO(), "cluster", metav1.GetOptions{})
-	if err != nil {
-		return "", err
+func GetDomain(c client.Client) (string, error) {
+	ingress := &unstructured.Unstructured{}
+	ingress.SetGroupVersionKind(cluster.OpenshiftIngressGVK)
+
+	if err := c.Get(context.TODO(), client.ObjectKey{
+		Namespace: "",
+		Name:      "cluster",
+	}, ingress); err != nil {
+		return "", fmt.Errorf("failed fetching cluster's ingress details: %w", err)
 	}
 
-	domain, found, err := unstructured.NestedString(cluster.Object, "spec", "domain")
+	domain, found, err := unstructured.NestedString(ingress.Object, "spec", "domain")
 	if !found {
 		return "", errors.New("spec.domain not found")
 	}
+
 	return domain, err
 }

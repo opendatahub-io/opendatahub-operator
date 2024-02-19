@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -47,6 +46,11 @@ func cfgMapDeletionTestSuite(t *testing.T) {
 			require.NoError(t, err, "Error while deleting owned namespaces")
 		})
 
+		// t.Run("DS Projects should be deleted", func(t *testing.T) {
+		// 	err = testCtx.testDSProjectDeletion()
+		// 	require.NoError(t, err, "Error while deleting DS Projectss")
+		// })
+
 		t.Run("dsci should be deleted", func(t *testing.T) {
 			err = testCtx.testDSCIDeletion()
 			require.NoError(t, err, "failed deleting DSCI")
@@ -62,7 +66,7 @@ func cfgMapDeletionTestSuite(t *testing.T) {
 func (tc *testContext) testDSCIDeletion() error {
 	dsciInstances := &dsci.DSCInitializationList{}
 	if err := tc.customClient.List(context.TODO(), dsciInstances); err != nil {
-		return errors.Wrap(err, "failed while listing DSCIs")
+		return fmt.Errorf("failed while listing DSCIs: %w", err)
 	}
 
 	if len(dsciInstances.Items) != 0 {
@@ -103,7 +107,7 @@ func (tc *testContext) testOwnedNamespacesDeletion() error {
 
 		return len(namespaces.Items) == 0, err
 	}); err != nil {
-		return errors.Wrap(err, "failed waiting for all owned namespaces to be deleted")
+		return fmt.Errorf("failed waiting for all owned namespaces to be deleted: %w", err)
 	}
 
 	return nil

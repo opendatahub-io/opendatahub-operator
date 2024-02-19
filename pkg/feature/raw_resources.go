@@ -16,7 +16,6 @@ package feature
 import (
 	"context"
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
 
@@ -25,21 +24,17 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
 	YamlSeparator = "(?m)^---[ \t]*$"
 )
 
-func (f *Feature) createResourceFromFile(filename string) error {
-	data, err := os.ReadFile(filename)
-	if err != nil {
-		return errors.WithStack(err)
-	}
+func (f *Feature) createResources(resources string) error {
 	splitter := regexp.MustCompile(YamlSeparator)
-	objectStrings := splitter.Split(string(data), -1)
+	objectStrings := splitter.Split(resources, -1)
 	for _, str := range objectStrings {
 		if strings.TrimSpace(str) == "" {
 			continue
@@ -55,14 +50,14 @@ func (f *Feature) createResourceFromFile(filename string) error {
 		namespace := u.GetNamespace()
 
 		u.SetOwnerReferences([]metav1.OwnerReference{
-			f.OwnerReference(),
+			f.AsOwnerReference(),
 		})
 
-		log.Info("Creating resource", "name", name)
+		f.Log.Info("Creating resource", "name", name)
 
 		err := f.Client.Get(context.TODO(), k8stypes.NamespacedName{Name: name, Namespace: namespace}, u.DeepCopy())
 		if err == nil {
-			log.Info("Object already exists...")
+			f.Log.Info("Object already exists...")
 
 			continue
 		}
@@ -79,54 +74,28 @@ func (f *Feature) createResourceFromFile(filename string) error {
 	return nil
 }
 
-func (f *Feature) patchResourceFromFile(filename string) error {
-	data, err := os.ReadFile(filename)
-	if err != nil {
-		return errors.WithStack(err)
-	}
+func (f *Feature) patchResources(resources string) error {
 	splitter := regexp.MustCompile(YamlSeparator)
-	objectStrings := splitter.Split(string(data), -1)
+	objectStrings := splitter.Split(resources, -1)
 	for _, str := range objectStrings {
 		if strings.TrimSpace(str) == "" {
 			continue
 		}
 		u := &unstructured.Unstructured{}
 		if err := yaml.Unmarshal([]byte(str), u); err != nil {
-			log.Error(err, "error unmarshalling yaml")
-
+			f.Log.Error(err, "error unmarshalling yaml")
 			return errors.WithStack(err)
 		}
 
 		ensureNamespaceIsSet(f, u)
 
-		gvr := schema.GroupVersionResource{
-			Group:    strings.ToLower(u.GroupVersionKind().Group),
-			Version:  u.GroupVersionKind().Version,
-			Resource: strings.ToLower(u.GroupVersionKind().Kind) + "s",
+		patchAsJSON, err := yaml.YAMLToJSON([]byte(str))
+		if err != nil {
+			return fmt.Errorf("error converting yaml to json: %w", err)
 		}
 
-		// Convert the patch from YAML to JSON
-		patchAsJSON, err := yaml.YAMLToJSON(data)
-		if err != nil {
-			log.Error(err, "error converting yaml to json")
-
-			return errors.WithStack(err)
-		}
-
-		_, err = f.DynamicClient.Resource(gvr).
-			Namespace(u.GetNamespace()).
-			Patch(context.TODO(), u.GetName(), k8stypes.MergePatchType, patchAsJSON, metav1.PatchOptions{})
-		if err != nil {
-			log.Error(err, "error patching resource",
-				"gvr", fmt.Sprintf("%+v\n", gvr),
-				"patch", fmt.Sprintf("%+v\n", u),
-				"json", fmt.Sprintf("%+v\n", patchAsJSON))
-
-			return errors.WithStack(err)
-		}
-
-		if err != nil {
-			return errors.WithStack(err)
+		if err := f.Client.Patch(context.TODO(), u, client.RawPatch(k8stypes.MergePatchType, patchAsJSON)); err != nil {
+			return fmt.Errorf("failed patching resource: %w", err)
 		}
 	}
 

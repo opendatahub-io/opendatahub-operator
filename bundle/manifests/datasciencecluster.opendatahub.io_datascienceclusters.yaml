@@ -38,7 +38,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: DataScienceCluster defines the desired state of the cluster.
+            description: DataScienceClusterSpec defines the desired state of the cluster.
             properties:
               components:
                 description: Override and fine tune specific component configurations.
@@ -65,12 +65,12 @@ spec:
                                   description: 'sourcePath is the subpath within contextDir
                                     where kustomize builds start. Examples include
                                     any sub-folder or path: `base`, `overlays/dev`,
-                                    `default`, `odh` etc'
+                                    `default`, `odh` etc.'
                                   type: string
                                 uri:
                                   default: ""
                                   description: uri is the URI point to a git repo
-                                    with tag/branch. e.g  https://github.com/org/repo/tarball/<tag/branch>
+                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
                                   type: string
                               type: object
                             type: array
@@ -108,12 +108,12 @@ spec:
                                   description: 'sourcePath is the subpath within contextDir
                                     where kustomize builds start. Examples include
                                     any sub-folder or path: `base`, `overlays/dev`,
-                                    `default`, `odh` etc'
+                                    `default`, `odh` etc.'
                                   type: string
                                 uri:
                                   default: ""
                                   description: uri is the URI point to a git repo
-                                    with tag/branch. e.g  https://github.com/org/repo/tarball/<tag/branch>
+                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
                                   type: string
                               type: object
                             type: array
@@ -152,12 +152,12 @@ spec:
                                   description: 'sourcePath is the subpath within contextDir
                                     where kustomize builds start. Examples include
                                     any sub-folder or path: `base`, `overlays/dev`,
-                                    `default`, `odh` etc'
+                                    `default`, `odh` etc.'
                                   type: string
                                 uri:
                                   default: ""
                                   description: uri is the URI point to a git repo
-                                    with tag/branch. e.g  https://github.com/org/repo/tarball/<tag/branch>
+                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
                                   type: string
                               type: object
                             type: array
@@ -198,12 +198,12 @@ spec:
                                   description: 'sourcePath is the subpath within contextDir
                                     where kustomize builds start. Examples include
                                     any sub-folder or path: `base`, `overlays/dev`,
-                                    `default`, `odh` etc'
+                                    `default`, `odh` etc.'
                                   type: string
                                 uri:
                                   default: ""
                                   description: uri is the URI point to a git repo
-                                    with tag/branch. e.g  https://github.com/org/repo/tarball/<tag/branch>
+                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
                                   type: string
                               type: object
                             type: array
@@ -281,6 +281,49 @@ spec:
                             type: string
                         type: object
                     type: object
+                  kueue:
+                    description: Kueue component configuration.
+                    properties:
+                      devFlags:
+                        description: Add developer fields
+                        properties:
+                          manifests:
+                            description: List of custom manifests for the given component
+                            items:
+                              properties:
+                                contextDir:
+                                  default: ""
+                                  description: contextDir is the relative path to
+                                    the folder containing manifests in a repository
+                                  type: string
+                                sourcePath:
+                                  default: ""
+                                  description: 'sourcePath is the subpath within contextDir
+                                    where kustomize builds start. Examples include
+                                    any sub-folder or path: `base`, `overlays/dev`,
+                                    `default`, `odh` etc.'
+                                  type: string
+                                uri:
+                                  default: ""
+                                  description: uri is the URI point to a git repo
+                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
+                                  type: string
+                              type: object
+                            type: array
+                        type: object
+                      managementState:
+                        description: "Set to one of the following values: \n - \"Managed\"
+                          : the operator is actively managing the component and trying
+                          to keep it active. It will only upgrade the component if
+                          it is safe to do so \n - \"Removed\" : the operator is actively
+                          managing the component and will not install it, or if it
+                          is installed, the operator will try to remove it"
+                        enum:
+                        - Managed
+                        - Removed
+                        pattern: ^(Managed|Unmanaged|Force|Removed)$
+                        type: string
+                    type: object
                   modelmeshserving:
                     description: ModelMeshServing component configuration. Does not
                       support enabled Kserve at the same time
@@ -302,12 +345,55 @@ spec:
                                   description: 'sourcePath is the subpath within contextDir
                                     where kustomize builds start. Examples include
                                     any sub-folder or path: `base`, `overlays/dev`,
-                                    `default`, `odh` etc'
+                                    `default`, `odh` etc.'
                                   type: string
                                 uri:
                                   default: ""
                                   description: uri is the URI point to a git repo
-                                    with tag/branch. e.g  https://github.com/org/repo/tarball/<tag/branch>
+                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
+                                  type: string
+                              type: object
+                            type: array
+                        type: object
+                      managementState:
+                        description: "Set to one of the following values: \n - \"Managed\"
+                          : the operator is actively managing the component and trying
+                          to keep it active. It will only upgrade the component if
+                          it is safe to do so \n - \"Removed\" : the operator is actively
+                          managing the component and will not install it, or if it
+                          is installed, the operator will try to remove it"
+                        enum:
+                        - Managed
+                        - Removed
+                        pattern: ^(Managed|Unmanaged|Force|Removed)$
+                        type: string
+                    type: object
+                  modelregistry:
+                    description: ModelRegistry component configuration.
+                    properties:
+                      devFlags:
+                        description: Add developer fields
+                        properties:
+                          manifests:
+                            description: List of custom manifests for the given component
+                            items:
+                              properties:
+                                contextDir:
+                                  default: ""
+                                  description: contextDir is the relative path to
+                                    the folder containing manifests in a repository
+                                  type: string
+                                sourcePath:
+                                  default: ""
+                                  description: 'sourcePath is the subpath within contextDir
+                                    where kustomize builds start. Examples include
+                                    any sub-folder or path: `base`, `overlays/dev`,
+                                    `default`, `odh` etc.'
+                                  type: string
+                                uri:
+                                  default: ""
+                                  description: uri is the URI point to a git repo
+                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
                                   type: string
                               type: object
                             type: array
@@ -345,12 +431,12 @@ spec:
                                   description: 'sourcePath is the subpath within contextDir
                                     where kustomize builds start. Examples include
                                     any sub-folder or path: `base`, `overlays/dev`,
-                                    `default`, `odh` etc'
+                                    `default`, `odh` etc.'
                                   type: string
                                 uri:
                                   default: ""
                                   description: uri is the URI point to a git repo
-                                    with tag/branch. e.g  https://github.com/org/repo/tarball/<tag/branch>
+                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
                                   type: string
                               type: object
                             type: array
@@ -388,12 +474,12 @@ spec:
                                   description: 'sourcePath is the subpath within contextDir
                                     where kustomize builds start. Examples include
                                     any sub-folder or path: `base`, `overlays/dev`,
-                                    `default`, `odh` etc'
+                                    `default`, `odh` etc.'
                                   type: string
                                 uri:
                                   default: ""
                                   description: uri is the URI point to a git repo
-                                    with tag/branch. e.g  https://github.com/org/repo/tarball/<tag/branch>
+                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
                                   type: string
                               type: object
                             type: array
@@ -431,12 +517,12 @@ spec:
                                   description: 'sourcePath is the subpath within contextDir
                                     where kustomize builds start. Examples include
                                     any sub-folder or path: `base`, `overlays/dev`,
-                                    `default`, `odh` etc'
+                                    `default`, `odh` etc.'
                                   type: string
                                 uri:
                                   default: ""
                                   description: uri is the URI point to a git repo
-                                    with tag/branch. e.g  https://github.com/org/repo/tarball/<tag/branch>
+                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
                                   type: string
                               type: object
                             type: array

@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"flag"
 	"os"
 
@@ -29,6 +30,7 @@ import (
 	ocuserv1 "github.com/openshift/api/user/v1"
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	admv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -44,13 +46,17 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
 	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/certconfigmapgenerator"
 	datascienceclustercontrollers "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
 	dscicontr "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/webhook"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
@@ -65,6 +71,7 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(dsci.AddToScheme(scheme))
 	utilruntime.Must(dsc.AddToScheme(scheme))
+	utilruntime.Must(featurev1.AddToScheme(scheme))
 	utilruntime.Must(netv1.AddToScheme(scheme))
 	utilruntime.Must(addonv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(authv1.AddToScheme(scheme))
@@ -83,6 +90,7 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(apiextv1.AddToScheme(scheme))
 	utilruntime.Must(admv1.AddToScheme(scheme))
 	utilruntime.Must(apiregistrationv1.AddToScheme(scheme))
+	utilruntime.Must(monitoringv1.AddToScheme(scheme))
 }
 
 func main() { //nolint:funlen
@@ -132,6 +140,8 @@ func main() { //nolint:funlen
 		os.Exit(1)
 	}
 
+	(&webhook.OpenDataHubWebhook{}).SetupWithManager(mgr)
+
 	if err = (&dscicontr.DSCInitializationReconciler{
 		Client:                mgr.GetClient(),
 		Scheme:                mgr.GetScheme(),
@@ -167,6 +177,15 @@ func main() { //nolint:funlen
 		os.Exit(1)
 	}
 
+	if err = (&certconfigmapgenerator.CertConfigmapGeneratorReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+		Log:    ctrl.Log.WithName("controllers").WithName("CertConfigmapGenerator"),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "CertConfigmapGenerator")
+		os.Exit(1)
+	}
+
 	// Create new uncached client to run initial setup
 	setupCfg, err := config.GetConfig()
 	if err != nil {
@@ -189,14 +208,28 @@ func main() { //nolint:funlen
 	// Check if user opted for disabling DSC configuration
 	_, disableDSCConfig := os.LookupEnv("DISABLE_DSC_CONFIG")
 	if !disableDSCConfig {
-		if err = upgrade.CreateDefaultDSCI(setupClient, platform, dscApplicationsNamespace, dscMonitoringNamespace); err != nil {
-			setupLog.Error(err, "unable to create initial setup for the operator")
+		var createDefaultDSCIFunc manager.RunnableFunc = func(ctx context.Context) error {
+			err := upgrade.CreateDefaultDSCI(setupClient, platform, dscApplicationsNamespace, dscMonitoringNamespace)
+			if err != nil {
+				setupLog.Error(err, "unable to create initial setup for the operator")
+			}
+			return err
+		}
+
+		err := mgr.Add(createDefaultDSCIFunc)
+		if err != nil {
+			setupLog.Error(err, "error scheduling DSCI creation")
+			os.Exit(1)
 		}
 	}
 
 	// Apply update from legacy operator
 	if err = upgrade.UpdateFromLegacyVersion(setupClient, platform, dscApplicationsNamespace, dscMonitoringNamespace); err != nil {
 		setupLog.Error(err, "unable to update from legacy operator version")
+	}
+
+	if err = upgrade.CleanupExistingResource(setupClient, platform); err != nil {
+		setupLog.Error(err, "unable to perform cleanup")
 	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

@@ -20,7 +20,9 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/kueue"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
@@ -54,10 +56,10 @@ func (tc *testContext) waitForControllerDeployment(name string, replicas int32) 
 	return err
 }
 
-func setupDSCICR() *dsci.DSCInitialization {
+func setupDSCICR(name string) *dsci.DSCInitialization {
 	dsciTest := &dsci.DSCInitialization{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "e2e-test-dsci",
+			Name: name,
 		},
 		Spec: dsci.DSCInitializationSpec{
 			ApplicationsNamespace: "opendatahub",
@@ -65,15 +67,19 @@ func setupDSCICR() *dsci.DSCInitialization {
 				ManagementState: "Managed",
 				Namespace:       "opendatahub",
 			},
+			TrustedCABundle: dsci.TrustedCABundleSpec{
+				ManagementState: "Managed",
+				CustomCABundle:  "",
+			},
 		},
 	}
 	return dsciTest
 }
 
-func setupDSCInstance() *dsc.DataScienceCluster {
+func setupDSCInstance(name string) *dsc.DataScienceCluster {
 	dscTest := &dsc.DataScienceCluster{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "e2e-test-dsc",
+			Name: name,
 		},
 		Spec: dsc.DataScienceClusterSpec{
 			Components: dsc.Components{
@@ -113,7 +119,17 @@ func setupDSCInstance() *dsc.DataScienceCluster {
 						ManagementState: operatorv1.Managed,
 					},
 				},
+				Kueue: kueue.Kueue{
+					Component: components.Component{
+						ManagementState: operatorv1.Managed,
+					},
+				},
 				TrustyAI: trustyai.TrustyAI{
+					Component: components.Component{
+						ManagementState: operatorv1.Managed,
+					},
+				},
+				ModelRegistry: modelregistry.ModelRegistry{
 					Component: components.Component{
 						ManagementState: operatorv1.Managed,
 					},
