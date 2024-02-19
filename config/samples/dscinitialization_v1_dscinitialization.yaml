@@ -18,5 +18,8 @@ spec:
       metricsCollection: Istio
       name: data-science-smcp
       namespace: istio-system
-    managementState: Managed
+    managementState: "Managed"
+  trustedCABundle:
+    managementState: "Managed"
+    customCABundle: ""
 

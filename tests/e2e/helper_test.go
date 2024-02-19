@@ -56,10 +56,10 @@ func (tc *testContext) waitForControllerDeployment(name string, replicas int32) 
 	return err
 }
 
-func setupDSCICR() *dsci.DSCInitialization {
+func setupDSCICR(name string) *dsci.DSCInitialization {
 	dsciTest := &dsci.DSCInitialization{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "e2e-test-dsci",
+			Name: name,
 		},
 		Spec: dsci.DSCInitializationSpec{
 			ApplicationsNamespace: "opendatahub",
@@ -67,15 +67,19 @@ func setupDSCICR() *dsci.DSCInitialization {
 				ManagementState: "Managed",
 				Namespace:       "opendatahub",
 			},
+			TrustedCABundle: dsci.TrustedCABundleSpec{
+				ManagementState: "Managed",
+				CustomCABundle:  "",
+			},
 		},
 	}
 	return dsciTest
 }
 
-func setupDSCInstance() *dsc.DataScienceCluster {
+func setupDSCInstance(name string) *dsc.DataScienceCluster {
 	dscTest := &dsc.DataScienceCluster{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "e2e-test-dsc",
+			Name: name,
 		},
 		Spec: dsc.DataScienceClusterSpec{
 			Components: dsc.Components{
