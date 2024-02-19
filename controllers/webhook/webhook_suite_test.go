@@ -37,6 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/dashboard"
@@ -54,7 +55,7 @@ import (
 
 const (
 	namespace = "webhook-test-ns"
-	nameBase  = "webhook-test-dsc"
+	nameBase  = "webhook-test"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
@@ -93,13 +94,15 @@ var _ = BeforeSuite(func() {
 	Expect(cfg).NotTo(BeNil())
 
 	scheme := runtime.NewScheme()
+	// DSCI
+	err = dsci.AddToScheme(scheme)
+	Expect(err).NotTo(HaveOccurred())
+	// DSC
 	err = dsc.AddToScheme(scheme)
 	Expect(err).NotTo(HaveOccurred())
-
+	// Webhook
 	err = admissionv1beta1.AddToScheme(scheme)
 	Expect(err).NotTo(HaveOccurred())
-
-	//+kubebuilder:scaffold:scheme
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme})
 	Expect(err).NotTo(HaveOccurred())
@@ -149,14 +152,44 @@ var _ = AfterSuite(func() {
 })
 
 var _ = Describe("DSC/DSCI webhook", func() {
-	It("Should block creation of second instance", func() {
-		dscSpec := newDSC(nameBase+"-1", namespace)
+	It("Should not have more than one DSCI instance in the cluster", func() {
+		desiredDsci := newDSCI(nameBase + "-dsci-1")
+		Expect(k8sClient.Create(context.Background(), desiredDsci)).Should(Succeed())
+		desiredDsci2 := newDSCI(nameBase + "-dsci-2")
+		Expect(k8sClient.Create(context.Background(), desiredDsci2)).ShouldNot(Succeed())
+	})
+
+	It("Should block creation of second DSC instance", func() {
+		dscSpec := newDSC(nameBase+"-dsc-1", namespace)
 		Expect(k8sClient.Create(context.Background(), dscSpec)).Should(Succeed())
-		dscSpec = newDSC(nameBase+"-2", namespace)
+		dscSpec = newDSC(nameBase+"-dsc-2", namespace)
 		Expect(k8sClient.Create(context.Background(), dscSpec)).ShouldNot(Succeed())
 	})
 })
 
+func newDSCI(appName string) *dsci.DSCInitialization {
+	monitoringNS := "monitoring-namespace"
+	return &dsci.DSCInitialization{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "DSCInitialization",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      appName,
+			Namespace: namespace,
+		},
+		Spec: dsci.DSCInitializationSpec{
+			ApplicationsNamespace: namespace,
+			Monitoring: dsci.Monitoring{
+				Namespace:       monitoringNS,
+				ManagementState: operatorv1.Managed,
+			},
+			TrustedCABundle: dsci.TrustedCABundleSpec{
+				ManagementState: operatorv1.Managed,
+			},
+		},
+	}
+}
 func newDSC(name string, namespace string) *dsc.DataScienceCluster {
 	return &dsc.DataScienceCluster{
 		ObjectMeta: metav1.ObjectMeta{
