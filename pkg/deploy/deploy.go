@@ -408,7 +408,7 @@ func ApplyParams(componentPath string, imageParamsMap map[string]string, isUpdat
 }
 
 // GetSubscription checks if a Subscription for the operator exists in the given namespace.
-// if exsit, return object; if not exsit, return nil.
+// if exist, return object; if not exist, return nil.
 func GetSubscription(cli client.Client, namespace string, name string) (*ofapiv1alpha1.Subscription, error) {
 	sub := &ofapiv1alpha1.Subscription{}
 	if err := cli.Get(context.TODO(), client.ObjectKey{Namespace: namespace, Name: name}, sub); err != nil {
