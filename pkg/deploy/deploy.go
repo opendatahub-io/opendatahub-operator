@@ -421,6 +421,23 @@ func GetSubscription(cli client.Client, namespace string, name string) (*ofapiv1
 	return sub, nil
 }
 
+// Delete given Subscription if it exists
+// Do not error if the Subscription does not exist.
+func DeleteSubscription(cli client.Client, operatorNs string, subsName string) error {
+	sub, err := GetSubscription(cli, operatorNs, subsName)
+	if err != nil {
+		return err
+	}
+	if sub == nil {
+		fmt.Printf("Could not find subscription %s in namespace %s. Maybe you have a different one", subsName, operatorNs)
+	} else {
+		if err := cli.Delete(context.TODO(), sub); err != nil {
+			return fmt.Errorf("error deleting subscription %s: %w", sub.Name, err)
+		}
+	}
+	return nil
+}
+
 // OperatorExists checks if an Operator with 'operatorPrefix' is installed.
 // Return true if found it, false if not.
 // if we need to check exact version of the operator installed, can append vX.Y.Z later.

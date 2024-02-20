@@ -108,17 +108,8 @@ func OperatorUninstall(cli client.Client, cfg *rest.Config) error {
 	} else if platform == deploy.ManagedRhods {
 		subsName = "addon-managed-odh"
 	}
-
-	sub, err := deploy.GetSubscription(cli, operatorNs, subsName)
-	if err != nil {
+	if err := deploy.DeleteSubscription(cli, operatorNs, subsName); err != nil {
 		return err
-	}
-	if sub == nil {
-		fmt.Printf("Could not find subscription %s in namespace %s. Maybe you have a different one", subsName, operatorNs)
-	} else {
-		if err := cli.Delete(context.TODO(), sub); err != nil {
-			return fmt.Errorf("error deleting subscription %s: %w", sub.Name, err)
-		}
 	}
 
 	fmt.Printf("Removing the operator CSV in turn remove operator deployment\n")
