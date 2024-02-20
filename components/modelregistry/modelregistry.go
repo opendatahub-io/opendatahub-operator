@@ -54,9 +54,9 @@ func (m *ModelRegistry) GetComponentName() string {
 func (m *ModelRegistry) ReconcileComponent(_ context.Context, cli client.Client, _ *rest.Config,
 	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
 	var imageParamMap = map[string]string{
-		"IMAGES_MODELREGISTRY_OPERATOR": "RELATED_IMAGE_ODH_MODELREGISTRY_OPERATOR_IMAGE",
-		"IMAGES_GRPC_SERVICE":           "RELATED_IMAGE_ODH_MODELREGISTRY_GRPC_SERVICE_IMAGE",
-		"IMAGES_REST_SERVICE":           "RELATED_IMAGE_ODH_MODELREGISTRY_REST_SERVICE_IMAGE",
+		"IMAGES_MODELREGISTRY_OPERATOR": "RELATED_IMAGE_ODH_MODEL_REGISTRY_OPERATOR_IMAGE",
+		"IMAGES_GRPC_SERVICE":           "RELATED_IMAGE_ODH_MLMD_GRPC_SERVER_IMAGE",
+		"IMAGES_REST_SERVICE":           "RELATED_IMAGE_ODH_MODEL_REGISTRY_IMAGE",
 	}
 	enabled := m.GetManagementState() == operatorv1.Managed
 

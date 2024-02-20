@@ -33,6 +33,8 @@ var (
 	BaseDir        = "templates"
 	ServiceMeshDir = path.Join(BaseDir, "servicemesh")
 	ServerlessDir  = path.Join(BaseDir, "serverless")
+	AuthDir        = path.Join(ServiceMeshDir, "authorino")
+	KServeDir      = path.Join(ServiceMeshDir, "kserve")
 )
 
 type Manifest interface {

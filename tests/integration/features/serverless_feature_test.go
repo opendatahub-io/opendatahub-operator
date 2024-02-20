@@ -9,7 +9,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/yaml"
-	"k8s.io/client-go/dynamic"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
@@ -216,10 +215,6 @@ var _ = Describe("Serverless feature", func() {
 			}
 
 			testFeature.Client = envTestClient
-			testFeature.Clientset = envTestClientset
-			var err error
-			testFeature.DynamicClient, err = dynamic.NewForConfig(envTest.Config)
-			Expect(err).ToNot(HaveOccurred())
 		})
 
 		Context("ingress gateway TLS secret name", func() {

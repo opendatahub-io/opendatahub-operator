@@ -238,7 +238,7 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.
 			r.Log.Error(err, "error to set networkpolicy in applications namespace", "path", networkpolicyPath)
 			return err
 		}
-	} else { // Expected namespace for the given name
+	} else { // Expected namespace for the given name in ODH
 		desiredNetworkPolicy := &netv1.NetworkPolicy{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "NetworkPolicy",
@@ -255,7 +255,11 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.
 				Ingress: []netv1.NetworkPolicyIngressRule{
 					{
 						From: []netv1.NetworkPolicyPeer{
-							{
+							{ /* allow ODH namespace <->ODH namespace:
+								- default notebook project: rhods-notebooks
+								- redhat-odh-monitoring
+								- redhat-odh-applications / opendatahub
+								*/
 								NamespaceSelector: &metav1.LabelSelector{ // AND logic
 									MatchLabels: map[string]string{
 										cluster.ODHGeneratedNamespaceLabel: "true",
@@ -266,7 +270,7 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.
 					},
 					{ // OR logic
 						From: []netv1.NetworkPolicyPeer{
-							{ // need this for access dashboard
+							{ // need this to access external-> dashboard
 								NamespaceSelector: &metav1.LabelSelector{
 									MatchLabels: map[string]string{
 										"network.openshift.io/policy-group": "ingress",
@@ -277,10 +281,21 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.
 					},
 					{ // OR logic for PSI
 						From: []netv1.NetworkPolicyPeer{
-							{ // need this to access dashboard
+							{ // need this to access external->dashboard
 								NamespaceSelector: &metav1.LabelSelector{
 									MatchLabels: map[string]string{
 										"kubernetes.io/metadata.name": "openshift-host-network",
+									},
+								},
+							},
+						},
+					},
+					{
+						From: []netv1.NetworkPolicyPeer{
+							{ // need this for cluster-monitoring work: cluster-monitoring->ODH namespaces
+								NamespaceSelector: &metav1.LabelSelector{
+									MatchLabels: map[string]string{
+										"kubernetes.io/metadata.name": "openshift-monitoring",
 									},
 								},
 							},

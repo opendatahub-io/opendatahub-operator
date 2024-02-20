@@ -19,8 +19,6 @@ package dscinitialization
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"path/filepath"
 	"reflect"
 
@@ -49,12 +47,17 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/trustedcabundle"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
 
 const (
 	finalizerName = "dscinitialization.opendatahub.io/finalizer"
 )
+
+// This ar is required by the .spec.TrustedCABundle field. When a user goes from Unmanaged to Managed, update all
+// namespaces irrespective of any changes in the configmap.
+var managementStateChangeTrustedCA = false
 
 // DSCInitializationReconciler reconciles a DSCInitialization object.
 type DSCInitializationReconciler struct { //nolint:golint,revive // Readability
@@ -85,33 +88,11 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 
 	var instance *dsciv1.DSCInitialization
-	switch {
+	switch { // only handle number as 0 or 1, others won't be existed since webhook block creation
 	case len(instances.Items) == 0:
 		return ctrl.Result{}, nil
 	case len(instances.Items) == 1:
 		instance = &instances.Items[0]
-	case len(instances.Items) > 1:
-		// find out the one by created timestamp and use it as the default one
-		earliestDSCI := &instances.Items[0]
-		for _, instance := range instances.Items {
-			currentDSCI := instance
-			if currentDSCI.CreationTimestamp.Before(&earliestDSCI.CreationTimestamp) {
-				earliestDSCI = &currentDSCI
-			}
-		}
-		message := fmt.Sprintf("only one instance of DSCInitialization object is allowed. Please delete other instances than %s", earliestDSCI.Name)
-		// update all instances Message and Status
-		for _, deletionInstance := range instances.Items {
-			deletionInstance := deletionInstance
-			if deletionInstance.Name != earliestDSCI.Name {
-				_, _ = r.updateStatus(ctx, &deletionInstance, func(saved *dsciv1.DSCInitialization) {
-					status.SetErrorCondition(&saved.Status.Conditions, status.DuplicateDSCInitialization, message)
-					saved.Status.Phase = status.PhaseError
-				})
-			}
-		}
-
-		return ctrl.Result{}, errors.New(message)
 	}
 
 	if instance.ObjectMeta.DeletionTimestamp.IsZero() {
@@ -154,6 +135,21 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			return reconcile.Result{}, err
 		}
 	}
+
+	// Check namespace
+	namespace := instance.Spec.ApplicationsNamespace
+	err = r.createOdhNamespace(ctx, instance, namespace)
+	if err != nil {
+		// no need to log error as it was already logged in createOdhNamespace
+		return reconcile.Result{}, err
+	}
+
+	// Verify odh-trusted-ca-bundle Configmap is configured for the namespaces
+	err = trustedcabundle.ConfigureTrustedCABundle(ctx, r.Client, r.Log, instance, managementStateChangeTrustedCA)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+	managementStateChangeTrustedCA = false
 
 	// Get platform
 	platform, err := deploy.GetPlatform(r.Client)
@@ -288,7 +284,8 @@ func (r *DSCInitializationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		// add predicates prevents meaningless reconciliations from being triggered
 		// not use WithEventFilter() because it conflict with secret and configmap predicate
-		For(&dsciv1.DSCInitialization{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		For(&dsciv1.DSCInitialization{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{},
+			predicate.LabelChangedPredicate{}), dsciPredicateStateChangeTrustedCA)).
 		Owns(&corev1.Namespace{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&corev1.Secret{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&corev1.ConfigMap{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
@@ -350,6 +347,18 @@ var DSCDeletionPredicate = predicate.Funcs{
 	},
 }
 
+var dsciPredicateStateChangeTrustedCA = predicate.Funcs{
+	UpdateFunc: func(e event.UpdateEvent) bool {
+		oldDSCI, _ := e.ObjectOld.(*dsciv1.DSCInitialization)
+		newDSCI, _ := e.ObjectNew.(*dsciv1.DSCInitialization)
+
+		if oldDSCI.Spec.TrustedCABundle.ManagementState != newDSCI.Spec.TrustedCABundle.ManagementState {
+			managementStateChangeTrustedCA = true
+		}
+		return true
+	},
+}
+
 func (r *DSCInitializationReconciler) watchMonitoringConfigMapResource(a client.Object) []reconcile.Request {
 	if a.GetName() == "prometheus" && a.GetNamespace() == "redhat-ods-monitoring" {
 		r.Log.Info("Found monitoring configmap has updated, start reconcile")
@@ -383,6 +392,5 @@ func (r *DSCInitializationReconciler) watchDSCResource(_ client.Object) []reconc
 
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "backup"}}}
 	}
-
 	return nil
 }

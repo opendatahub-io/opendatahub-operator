@@ -27,9 +27,7 @@ type Feature struct {
 	Enabled bool
 	Tracker *featurev1.FeatureTracker
 
-	Clientset     *kubernetes.Clientset
-	DynamicClient dynamic.Interface
-	Client        client.Client
+	Client client.Client
 
 	manifests []Manifest
 
@@ -151,13 +149,13 @@ func (f *Feature) createApplier(m Manifest) applier {
 	case *templateManifest:
 		if manifest.patch {
 			return func(objects []*unstructured.Unstructured) error {
-				return patchResources(f.DynamicClient, objects)
+				return patchResources(f.Client, objects)
 			}
 		}
 	case *baseManifest:
 		if manifest.patch {
 			return func(objects []*unstructured.Unstructured) error {
-				return patchResources(f.DynamicClient, objects)
+				return patchResources(f.Client, objects)
 			}
 		}
 	}
@@ -179,20 +177,24 @@ func (f *Feature) CreateConfigMap(cfgMapName string, data map[string]string) err
 		Data: data,
 	}
 
-	configMaps := f.Clientset.CoreV1().ConfigMaps(configMap.Namespace)
-	found, err := configMaps.Get(context.TODO(), configMap.Name, metav1.GetOptions{})
-	if k8serrors.IsNotFound(err) { //nolint:gocritic
-		_, err = configMaps.Create(context.TODO(), configMap, metav1.CreateOptions{})
-		if err != nil {
-			return err
-		}
-	} else if found != nil {
-		_, err = configMaps.Update(context.TODO(), configMap, metav1.UpdateOptions{})
-		if err != nil {
+	err := f.Client.Get(context.TODO(), client.ObjectKey{
+		Namespace: configMap.Namespace,
+		Name:      configMap.Name,
+	}, configMap)
+	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			err = f.Client.Create(context.TODO(), configMap)
+			if err != nil {
+				return err
+			}
+		} else {
 			return err
 		}
 	} else {
-		return err
+		err = f.Client.Update(context.TODO(), configMap)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

@@ -21,12 +21,10 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8stypes "k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/dynamic"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -62,29 +60,17 @@ func createResources(cli client.Client, objects []*unstructured.Unstructured, me
 	return nil
 }
 
-func patchResources(dyCli dynamic.Interface, patches []*unstructured.Unstructured) error {
+func patchResources(cli client.Client, patches []*unstructured.Unstructured) error {
 	for _, patch := range patches {
-		gvr := schema.GroupVersionResource{
-			Group:    strings.ToLower(patch.GroupVersionKind().Group),
-			Version:  patch.GroupVersionKind().Version,
-			Resource: strings.ToLower(patch.GroupVersionKind().Kind) + "s",
-		}
 
 		// Convert the individual resource patch to JSON
-		patchAsJSON, err := patch.MarshalJSON() // todo: ensure if this is the right method for the task
+		patchAsJSON, err := patch.MarshalJSON()
 		if err != nil {
 			return errors.WithStack(err)
 		}
 
-		_, err = dyCli.Resource(gvr).
-			Namespace(patch.GetNamespace()).
-			Patch(context.TODO(), patch.GetName(), k8stypes.MergePatchType, patchAsJSON, metav1.PatchOptions{})
-		if err != nil {
-			return errors.WithStack(err)
-		}
-
-		if err != nil {
-			return errors.WithStack(err)
+		if err = cli.Patch(context.TODO(), patch, client.RawPatch(k8stypes.MergePatchType, patchAsJSON)); err != nil {
+			return fmt.Errorf("failed patching resource: %w", err)
 		}
 	}
 

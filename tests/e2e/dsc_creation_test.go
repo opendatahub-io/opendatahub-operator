@@ -13,6 +13,9 @@ import (
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
@@ -34,9 +37,15 @@ func creationTestSuite(t *testing.T) {
 			err = testCtx.testDSCICreation()
 			require.NoError(t, err, "error creating DSCI CR")
 		})
+		t.Run("Creation of more than one of DSCInitialization instance", func(t *testing.T) {
+			testCtx.testDSCIDuplication(t)
+		})
 		t.Run("Creation of DataScienceCluster instance", func(t *testing.T) {
 			err = testCtx.testDSCCreation()
 			require.NoError(t, err, "error creating DataScienceCluster instance")
+		})
+		t.Run("Creation of more than one of DataScienceCluster instance", func(t *testing.T) {
+			testCtx.testDSCDuplication(t)
 		})
 		t.Run("Validate all deployed components", func(t *testing.T) {
 			err = testCtx.testAllApplicationCreation(t)
@@ -136,6 +145,56 @@ func (tc *testContext) testDSCCreation() error {
 	return nil
 }
 
+func (tc *testContext) requireInstalled(t *testing.T, gvk schema.GroupVersionKind) {
+	t.Helper()
+	list := &unstructured.UnstructuredList{}
+	list.SetGroupVersionKind(gvk)
+
+	err := tc.customClient.List(tc.ctx, list)
+	require.NoErrorf(t, err, "Could not get %s list", gvk.Kind)
+
+	require.Greaterf(t, len(list.Items), 0, "%s has not been installed", gvk.Kind)
+}
+
+func (tc *testContext) testDuplication(t *testing.T, gvk schema.GroupVersionKind, o any) {
+	t.Helper()
+	tc.requireInstalled(t, gvk)
+
+	u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(o)
+	require.NoErrorf(t, err, "Could not unstructure %s", gvk.Kind)
+
+	obj := &unstructured.Unstructured{
+		Object: u,
+	}
+	obj.SetGroupVersionKind(gvk)
+
+	err = tc.customClient.Create(tc.ctx, obj)
+
+	require.Errorf(t, err, "Could create second %s", gvk.Kind)
+}
+
+func (tc *testContext) testDSCIDuplication(t *testing.T) { //nolint:thelper
+	gvk := schema.GroupVersionKind{
+		Group:   "dscinitialization.opendatahub.io",
+		Version: "v1",
+		Kind:    "DSCInitialization",
+	}
+	dup := setupDSCICR("e2e-test-dsci-dup")
+
+	tc.testDuplication(t, gvk, dup)
+}
+
+func (tc *testContext) testDSCDuplication(t *testing.T) { //nolint:thelper
+	gvk := schema.GroupVersionKind{
+		Group:   "datasciencecluster.opendatahub.io",
+		Version: "v1",
+		Kind:    "DataScienceCluster",
+	}
+	dup := setupDSCInstance("e2e-test-dup")
+
+	tc.testDuplication(t, gvk, dup)
+}
+
 func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint:funlen,thelper
 	// Validate test instance is in Ready state
 
@@ -182,14 +241,12 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint
 		// speed testing in parallel
 		t.Parallel()
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.Kserve))
+		// test Unmanaged state, since servicemesh is not installed.
 		if tc.testDsc.Spec.Components.Kserve.ManagementState == operatorv1.Managed {
-			if err != nil {
-				// depedent operator error, as expected
-				if strings.Contains(err.Error(), "Please install the operator before enabling component") {
-					t.Logf("expected error: %v", err.Error())
-				} else {
-					require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Kserve.GetComponentName())
-				}
+			if err != nil && tc.testDsc.Spec.Components.Kserve.Serving.ManagementState == operatorv1.Unmanaged {
+				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Workbenches.GetComponentName())
+			} else {
+				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Kserve.GetComponentName())
 			}
 		} else {
 			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.Kserve.GetComponentName())
