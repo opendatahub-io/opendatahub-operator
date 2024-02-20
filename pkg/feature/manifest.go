@@ -37,7 +37,6 @@ var (
 
 type Manifest interface {
 	Process(data any) ([]*unstructured.Unstructured, error)
-	isPatch() bool
 }
 
 type baseManifest struct {
@@ -48,10 +47,6 @@ type baseManifest struct {
 }
 
 var _ Manifest = (*baseManifest)(nil)
-
-func (b *baseManifest) isPatch() bool {
-	return b.patch
-}
 
 func (b *baseManifest) Process(_ any) ([]*unstructured.Unstructured, error) {
 	manifestFile, err := b.fsys.Open(b.path)
@@ -76,10 +71,6 @@ type templateManifest struct {
 	path string
 	patch bool
 	fsys  fs.FS
-}
-
-func (t *templateManifest) isPatch() bool {
-	return t.patch
 }
 
 func (t *templateManifest) Process(data any) ([]*unstructured.Unstructured, error) {
@@ -117,10 +108,6 @@ type kustomizeManifest struct {
 	name,
 	path string // path is to the directory containing a kustomization.yaml file within it or path to kust file itself
 	fsys filesys.FileSystem
-}
-
-func (k *kustomizeManifest) isPatch() bool {
-	return false
 }
 
 func (k *kustomizeManifest) Process(data any) ([]*unstructured.Unstructured, error) {

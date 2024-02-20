@@ -147,9 +147,18 @@ func (f *Feature) Cleanup() error {
 type applier func(objects []*unstructured.Unstructured) error
 
 func (f *Feature) createApplier(m Manifest) applier {
-	if m.isPatch() {
-		return func(objects []*unstructured.Unstructured) error {
-			return patchResources(f.DynamicClient, objects)
+	switch manifest := m.(type) {
+	case *templateManifest:
+		if manifest.patch {
+			return func(objects []*unstructured.Unstructured) error {
+				return patchResources(f.DynamicClient, objects)
+			}
+		}
+	case *baseManifest:
+		if manifest.patch {
+			return func(objects []*unstructured.Unstructured) error {
+				return patchResources(f.DynamicClient, objects)
+			}
 		}
 	}
 
