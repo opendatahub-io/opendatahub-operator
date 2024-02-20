@@ -12,8 +12,6 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlLog "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -202,6 +200,27 @@ func (f *Feature) CreateConfigMap(cfgMapName string, data map[string]string) err
 
 func (f *Feature) addCleanup(cleanupFuncs ...Action) {
 	f.cleanups = append(f.cleanups, cleanupFuncs...)
+}
+
+func (f *Feature) ApplyManifest(path string) error {
+	m, err := loadManifestsFrom(embeddedFiles, path)
+	if err != nil {
+		return err
+	}
+	for i := range m {
+		var objs []*unstructured.Unstructured
+		manifest := m[i]
+		apply := f.createApplier(manifest)
+
+		if objs, err = manifest.Process(f.Spec); err != nil {
+			return errors.WithStack(err)
+		}
+
+		if err = apply(objs); err != nil {
+			return errors.WithStack(err)
+		}
+	}
+	return nil
 }
 
 func (f *Feature) AsOwnerReference() metav1.OwnerReference {

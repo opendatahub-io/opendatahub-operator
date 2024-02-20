@@ -15,16 +15,15 @@ package feature
 
 import (
 	"context"
-	"strings"
+	"fmt"
 
 	"github.com/pkg/errors"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -62,7 +61,6 @@ func createResources(cli client.Client, objects []*unstructured.Unstructured, me
 
 func patchResources(cli client.Client, patches []*unstructured.Unstructured) error {
 	for _, patch := range patches {
-
 		// Convert the individual resource patch to JSON
 		patchAsJSON, err := patch.MarshalJSON()
 		if err != nil {
