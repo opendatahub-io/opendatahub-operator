@@ -408,34 +408,29 @@ func ApplyParams(componentPath string, imageParamsMap map[string]string, isUpdat
 }
 
 // GetSubscription checks if a Subscription for the operator exists in the given namespace.
-// if exist, return object; if not exist, return nil.
+// if exist, return object; otherwise, return error.
 func GetSubscription(cli client.Client, namespace string, name string) (*ofapiv1alpha1.Subscription, error) {
 	sub := &ofapiv1alpha1.Subscription{}
 	if err := cli.Get(context.TODO(), client.ObjectKey{Namespace: namespace, Name: name}, sub); err != nil {
-		if apierrs.IsNotFound(err) {
-			return nil, nil
-		}
+		// real error or 'not found' both return here
 		return nil, err
 	}
-
 	return sub, nil
 }
 
 // Delete given Subscription if it exists
 // Do not error if the Subscription does not exist.
-func DeleteSubscription(cli client.Client, operatorNs string, subsName string) error {
+func DeleteExistingSubscription(cli client.Client, operatorNs string, subsName string) error {
 	sub, err := GetSubscription(cli, operatorNs, subsName)
-	if err != nil {
-		return err
-	}
-	if sub == nil {
-		fmt.Printf("Could not find subscription %s in namespace %s. Maybe you have a different one", subsName, operatorNs)
-	} else {
+	// found subscription to delete
+	if sub != nil {
 		if err := cli.Delete(context.TODO(), sub); err != nil {
 			return fmt.Errorf("error deleting subscription %s: %w", sub.Name, err)
 		}
+		return nil
 	}
-	return nil
+	// return nil if not found or error to Get it
+	return client.IgnoreNotFound(err)
 }
 
 // OperatorExists checks if an Operator with 'operatorPrefix' is installed.

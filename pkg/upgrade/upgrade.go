@@ -108,7 +108,7 @@ func OperatorUninstall(cli client.Client, cfg *rest.Config) error {
 	} else if platform == deploy.ManagedRhods {
 		subsName = "addon-managed-odh"
 	}
-	if err := deploy.DeleteSubscription(cli, operatorNs, subsName); err != nil {
+	if err := deploy.DeleteExistingSubscription(cli, operatorNs, subsName); err != nil {
 		return err
 	}
 
