@@ -271,7 +271,8 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 	if apierrs.IsNotFound(err) {
 		// Set the owner reference for garbage collection
 		// Skip set on CRD, e.g. we should not delete notebook CRD if we delete DSC instance
-		if found.GetKind() != "CustomResourceDefinition" {
+		// Skip on resource if has annotation "opendatahub.io/managed: false"
+		if found.GetKind() != "CustomResourceDefinition" || found.GetAnnotations()["opendatahub.io/managed"] != "false" {
 			if err = ctrl.SetControllerReference(owner, metav1.Object(obj), cli.Scheme()); err != nil {
 				return err
 			}
