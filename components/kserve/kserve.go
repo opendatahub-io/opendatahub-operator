@@ -108,13 +108,8 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resC
 				return err
 			}
 		}
-		// check on dependent operators if all installed in cluster
-		dependOpsErrors := checkDependentOperators(cli).ErrorOrNil()
-		if dependOpsErrors != nil {
-			return dependOpsErrors
-		}
 
-		if err := k.configureServerless(dscispec); err != nil {
+		if err := k.configureServerless(cli, dscispec); err != nil {
 			return err
 		}
 
@@ -163,14 +158,19 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resC
 			return err
 		}
 	}
-	return nil
+
+	return k.configureServiceMesh(dscispec)
 }
 
 func (k *Kserve) Cleanup(_ client.Client, instance *dsciv1.DSCInitializationSpec) error {
-	return k.removeServerlessFeatures(instance)
+	if removeServerlessErr := k.removeServerlessFeatures(instance); removeServerlessErr != nil {
+		return removeServerlessErr
+	}
+
+	return k.removeServiceMeshConfigurations(instance)
 }
 
-func (k *Kserve) configureServerless(instance *dsciv1.DSCInitializationSpec) error {
+func (k *Kserve) configureServerless(cli client.Client, instance *dsciv1.DSCInitializationSpec) error {
 	switch k.Serving.ManagementState {
 	case operatorv1.Unmanaged: // Bring your own CR
 		fmt.Println("Serverless CR is not configured by the operator, we won't do anything")
@@ -185,6 +185,12 @@ func (k *Kserve) configureServerless(instance *dsciv1.DSCInitializationSpec) err
 		switch instance.ServiceMesh.ManagementState {
 		case operatorv1.Unmanaged, operatorv1.Removed:
 			return fmt.Errorf("ServiceMesh is need to set to 'Managed' in DSCI CR, it is required by KServe serving field")
+		}
+
+		// check on dependent operators if all installed in cluster
+		dependOpsErrors := checkDependentOperators(cli).ErrorOrNil()
+		if dependOpsErrors != nil {
+			return dependOpsErrors
 		}
 
 		serverlessFeatures := feature.ComponentFeaturesHandler(k, instance, k.configureServerlessFeatures())

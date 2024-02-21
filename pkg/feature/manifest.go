@@ -19,6 +19,8 @@ var (
 	BaseDir        = "templates"
 	ServiceMeshDir = path.Join(BaseDir, "servicemesh")
 	ServerlessDir  = path.Join(BaseDir, "serverless")
+	AuthDir        = path.Join(ServiceMeshDir, "authorino")
+	KServeDir      = path.Join(ServiceMeshDir, "kserve")
 )
 
 type manifest struct {
@@ -81,6 +83,7 @@ func (m *manifest) process(data interface{}) error {
 	if err != nil {
 		return err
 	}
+
 	defer manifestFile.Close()
 
 	content, err := io.ReadAll(manifestFile)

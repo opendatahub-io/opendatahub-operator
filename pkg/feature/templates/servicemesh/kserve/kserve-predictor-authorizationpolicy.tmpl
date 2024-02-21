@@ -1,0 +1,23 @@
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: kserve-predictor
+  namespace: {{ .ControlPlane.Namespace }}
+  labels:
+    app.opendatahub.io/kserve: "true"
+    app.kubernetes.io/part-of: kserve
+spec:
+  action: CUSTOM
+  provider:
+    name: opendatahub-odh-auth-provider
+  rules:
+  - to:
+    - operation:
+        notPaths:
+        - /healthz
+        - /debug/pprof/
+        - /metrics
+        - /wait-for-drain
+  selector:
+    matchLabels:
+      component: predictor

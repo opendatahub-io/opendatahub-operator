@@ -133,6 +133,12 @@ rules:
   verbs:
   - create
 - apiGroups:
+  - authorino.kuadrant.io
+  resources:
+  - authconfigs
+  verbs:
+  - '*'
+- apiGroups:
   - authorization.k8s.io
   resources:
   - subjectaccessreviews
@@ -352,6 +358,7 @@ rules:
   - get
   - list
   - patch
+  - update
   - watch
 - apiGroups:
   - ""
@@ -987,6 +994,12 @@ rules:
 - apiGroups:
   - networking.istio.io
   resources:
+  - envoyfilters
+  verbs:
+  - '*'
+- apiGroups:
+  - networking.istio.io
+  resources:
   - gateways
   verbs:
   - '*'
@@ -1065,6 +1078,12 @@ rules:
   - update
   - watch
 - apiGroups:
+  - operator.authorino.kuadrant.io
+  resources:
+  - authorinos
+  verbs:
+  - '*'
+- apiGroups:
   - operator.knative.dev
   resources:
   - knativeservings
@@ -1119,6 +1138,7 @@ rules:
   resources:
   - subscriptions
   verbs:
+  - delete
   - get
   - list
   - watch
@@ -1204,6 +1224,12 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - security.istio.io
+  resources:
+  - authorizationpolicies
+  verbs:
+  - '*'
 - apiGroups:
   - security.openshift.io
   resources:

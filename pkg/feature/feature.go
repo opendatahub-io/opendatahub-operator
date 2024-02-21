@@ -11,8 +11,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlLog "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -23,10 +21,9 @@ type Feature struct {
 	Name    string
 	Spec    *Spec
 	Enabled bool
+	Tracker *featurev1.FeatureTracker
 
-	Clientset     *kubernetes.Clientset
-	DynamicClient dynamic.Interface
-	Client        client.Client
+	Client client.Client
 
 	manifests []manifest
 
@@ -159,20 +156,24 @@ func (f *Feature) CreateConfigMap(cfgMapName string, data map[string]string) err
 		Data: data,
 	}
 
-	configMaps := f.Clientset.CoreV1().ConfigMaps(configMap.Namespace)
-	found, err := configMaps.Get(context.TODO(), configMap.Name, metav1.GetOptions{})
-	if k8serrors.IsNotFound(err) { //nolint:gocritic
-		_, err = configMaps.Create(context.TODO(), configMap, metav1.CreateOptions{})
-		if err != nil {
-			return err
-		}
-	} else if found != nil {
-		_, err = configMaps.Update(context.TODO(), configMap, metav1.UpdateOptions{})
-		if err != nil {
+	err := f.Client.Get(context.TODO(), client.ObjectKey{
+		Namespace: configMap.Namespace,
+		Name:      configMap.Name,
+	}, configMap)
+	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			err = f.Client.Create(context.TODO(), configMap)
+			if err != nil {
+				return err
+			}
+		} else {
 			return err
 		}
 	} else {
-		return err
+		err = f.Client.Update(context.TODO(), configMap)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -180,6 +181,16 @@ func (f *Feature) CreateConfigMap(cfgMapName string, data map[string]string) err
 
 func (f *Feature) addCleanup(cleanupFuncs ...Action) {
 	f.cleanups = append(f.cleanups, cleanupFuncs...)
+}
+
+func (f *Feature) ApplyManifest(path string) error {
+	m := createManifestFrom(embeddedFiles, path)
+
+	if err := m.process(f.Spec); err != nil {
+		return err
+	}
+
+	return f.apply(m)
 }
 
 type apply func(data string) error
@@ -212,14 +223,14 @@ func (f *Feature) apply(m manifest) error {
 }
 
 func (f *Feature) AsOwnerReference() metav1.OwnerReference {
-	return f.Spec.Tracker.ToOwnerReference()
+	return f.Tracker.ToOwnerReference()
 }
 
 // updateFeatureTrackerStatus updates conditions of a FeatureTracker.
 // It's deliberately logging errors instead of handing them as it is used in deferred error handling of Feature public API,
 // which is more predictable.
 func (f *Feature) updateFeatureTrackerStatus(condType conditionsv1.ConditionType, status corev1.ConditionStatus, reason featurev1.FeaturePhase, message string) {
-	tracker := f.Spec.Tracker
+	tracker := f.Tracker
 
 	// Update the status
 	if tracker.Status.Conditions == nil {
@@ -237,5 +248,5 @@ func (f *Feature) updateFeatureTrackerStatus(condType conditionsv1.ConditionType
 		f.Log.Error(err, "Error updating FeatureTracker status")
 	}
 
-	f.Spec.Tracker.Status = tracker.Status
+	f.Tracker.Status = tracker.Status
 }
