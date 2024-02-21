@@ -130,7 +130,6 @@ func (k *kustomizeManifest) Process(data any) ([]*unstructured.Unstructured, err
 		return nil, err
 	}
 
-	// Todo: for now, this only supports applying labels to manifests source.Name when source.type==Component
 	componentName := getComponentName(data)
 	if componentName != "" {
 		if err := plugins.ApplyAddLabelsPlugin(componentName, resMap); err != nil {
