@@ -263,12 +263,8 @@ bundle-push: ## Push the bundle image.
 deploy-bundle: operator-sdk bundle-build bundle-push
 	$(OPERATOR_SDK) run bundle $(BUNDLE_IMG)  -n $(OPERATOR_NAMESPACE)
 
-.PHONY:	create-namespace
-create-namespace: ## Create namespace
-	kubectl create namespace $(OPERATOR_NAMESPACE)
-
 .PHONY: upgrade-bundle
-upgrade-bundle: bundle-build bundle-push ## Upgrade bundle
+upgrade-bundle: operator-sdk bundle-build bundle-push ## Upgrade bundle
 	$(OPERATOR_SDK) run bundle-upgrade $(BUNDLE_IMG) -n $(OPERATOR_NAMESPACE)
 
 .PHONY: opm
