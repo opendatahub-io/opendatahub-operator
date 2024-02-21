@@ -335,6 +335,10 @@ var configMapPredicates = predicate.Funcs{
 		if e.ObjectNew.GetName() == "prometheus" && e.ObjectNew.GetNamespace() == "redhat-ods-monitoring" {
 			return false
 		}
+		// Do not reconcile on kserver's inferenceservice-config CM updates, for rawdeployment
+		if e.ObjectNew.GetName() == "inferenceservice-config" && e.ObjectNew.GetNamespace() == "redhat-ods-applications" || e.ObjectNew.GetNamespace() == "opendatahub" {
+			return false
+		}
 		return true
 	},
 }
