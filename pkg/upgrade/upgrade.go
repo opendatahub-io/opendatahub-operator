@@ -351,14 +351,6 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 		return err
 	}
 
-	// TODO: Revert the following condition in 2.8 ODH Release
-	if platform == deploy.OpenDataHub {
-		fmt.Println("starting deletion of deployment in ODH cluster")
-		if err := deleteResource(cli, appNS, "deployment"); err != nil {
-			return fmt.Errorf("error deleting deployment: %w", err)
-		}
-	}
-
 	return nil
 }
 
