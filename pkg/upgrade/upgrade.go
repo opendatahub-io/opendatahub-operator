@@ -199,15 +199,9 @@ func CreateDefaultDSC(cli client.Client, _ deploy.Platform) error {
 				Ray: ray.Ray{
 					Component: components.Component{ManagementState: operatorv1.Removed},
 				},
-<<<<<<< HEAD
 				Kueue: kueue.Kueue{
 					Component: components.Component{ManagementState: operatorv1.Removed},
 				},
-				TrustyAI: trustyai.TrustyAI{
-					Component: components.Component{ManagementState: operatorv1.Managed},
-				},
-=======
->>>>>>> d7ccc88f (Remove Trustyai installation in downstream)
 			},
 		},
 	}
