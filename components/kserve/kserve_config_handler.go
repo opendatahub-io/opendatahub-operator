@@ -22,7 +22,8 @@ const (
 func (k *Kserve) setupKserveConfigAndDependencies(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec) error {
 	// as long as Kserve.Serving is not 'Removed', we will setup the dependencies
 
-	if k.Serving.ManagementState != operatorv1.Removed {
+	switch k.Serving.ManagementState {
+	case operatorv1.Managed:
 		// check on dependent operators if all installed in cluster
 		dependOpsErrors := checkDependentOperators(cli).ErrorOrNil()
 		if dependOpsErrors != nil {
@@ -36,16 +37,20 @@ func (k *Kserve) setupKserveConfigAndDependencies(ctx context.Context, cli clien
 		if err := k.setDefaultDeploymentMode(ctx, cli, dscispec, k.DefaultDeploymentMode); err != nil {
 			return err
 		}
+	case operatorv1.Unmanaged:
+		fmt.Println("Serverless is Unmanaged, Kserve will default to RawDeployment")
+		if err := k.setDefaultDeploymentMode(ctx, cli, dscispec, RawDeployment); err != nil {
+			return err
+		}
+	case operatorv1.Removed:
+		if k.DefaultDeploymentMode == Serverless {
+			return fmt.Errorf("setting defaultdeployment mode as Serverless is incompatible with having Serving 'Removed'")
+		}
+		if err := k.setDefaultDeploymentMode(ctx, cli, dscispec, RawDeployment); err != nil {
+			return err
+		}
 	}
 
-	// since serverless is specifically set to 'Removed'
-	// we do not need to check if dependent operators are installed and configure them
-	// in this case the default deployment mode is forced to be RawDeployment
-	if k.DefaultDeploymentMode == Serverless {
-		fmt.Println("setting the defaultDeployment mode Serverless is not compatible with setting the management state for Serving as Removed")
-	}
-	fmt.Println("Serverless is specified as 'Removed', Kserve will default to RawDeployment")
-	return k.setDefaultDeploymentMode(ctx, cli, dscispec, RawDeployment)
 }
 
 func (k *Kserve) setDefaultDeploymentMode(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec, defaultmode DefaultDeploymentMode) error {
@@ -70,22 +75,20 @@ func (k *Kserve) setDefaultDeploymentMode(ctx context.Context, cli client.Client
 	}
 	inferenceServiceConfigMap.Data["deploy"] = string(deployDataBytes)
 
-	// disabling logic to enable or disable ingress creation till https://github.com/kserve/kserve/pull/3436/files is merged
-
-	// var ingressData map[string]interface{}
-	// if err = json.Unmarshal([]byte(inferenceServiceConfigMap.Data["ingress"]), &ingressData); err != nil {
-	// 	return fmt.Errorf("error retrieving value for key 'ingress' from configmap %s. %w", KserveConfigMapName, err)
-	// }
-	// if defaultmode == RawDeployment {
-	// 	ingressData["disableIngressCreation"] = true
-	// } else {
-	// 	ingressData["disableIngressCreation"] = false
-	// }
-	// ingressDataBytes, err := json.MarshalIndent(ingressData, "", " ")
-	// if err != nil {
-	// 	return fmt.Errorf("could not set values in configmap %s. %w", KserveConfigMapName, err)
-	// }
-	// inferenceServiceConfigMap.Data["ingress"] = string(ingressDataBytes)
+	var ingressData map[string]interface{}
+	if err = json.Unmarshal([]byte(inferenceServiceConfigMap.Data["ingress"]), &ingressData); err != nil {
+		return fmt.Errorf("error retrieving value for key 'ingress' from configmap %s. %w", KserveConfigMapName, err)
+	}
+	if defaultmode == RawDeployment {
+		ingressData["disableIngressCreation"] = true
+	} else {
+		ingressData["disableIngressCreation"] = false
+	}
+	ingressDataBytes, err := json.MarshalIndent(ingressData, "", " ")
+	if err != nil {
+		return fmt.Errorf("could not set values in configmap %s. %w", KserveConfigMapName, err)
+	}
+	inferenceServiceConfigMap.Data["ingress"] = string(ingressDataBytes)
 
 	if err = cli.Update(ctx, inferenceServiceConfigMap); err != nil {
 		return fmt.Errorf("could not set default deployment mode for Kserve. %w", err)
