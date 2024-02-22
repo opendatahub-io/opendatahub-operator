@@ -121,13 +121,6 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resC
 				return err
 			}
 		}
-<<<<<<< HEAD
-
-		if err := k.configureServerless(cli, dscispec); err != nil {
-			return err
-		}
-=======
->>>>>>> d5c8ebe (move kserve config logic to separate file + enhancements)
 
 		// Update image parameters only when we do not have customized manifests set
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (k.DevFlags == nil || len(k.DevFlags.Manifests) == 0) {
@@ -192,65 +185,3 @@ func (k *Kserve) Cleanup(_ client.Client, instance *dsciv1.DSCInitializationSpec
 
 	return k.removeServiceMeshConfigurations(instance)
 }
-<<<<<<< HEAD
-
-func (k *Kserve) configureServerless(cli client.Client, instance *dsciv1.DSCInitializationSpec) error {
-	switch k.Serving.ManagementState {
-	case operatorv1.Unmanaged: // Bring your own CR
-		fmt.Println("Serverless CR is not configured by the operator, we won't do anything")
-
-	case operatorv1.Removed: // we remove serving CR
-		fmt.Println("existing Serverless CR (owned by operator) will be removed")
-		if err := k.removeServerlessFeatures(instance); err != nil {
-			return err
-		}
-
-	case operatorv1.Managed: // standard workflow to create CR
-		switch instance.ServiceMesh.ManagementState {
-		case operatorv1.Unmanaged, operatorv1.Removed:
-			return fmt.Errorf("ServiceMesh is need to set to 'Managed' in DSCI CR, it is required by KServe serving field")
-		}
-
-		// check on dependent operators if all installed in cluster
-		dependOpsErrors := checkDependentOperators(cli).ErrorOrNil()
-		if dependOpsErrors != nil {
-			return dependOpsErrors
-		}
-
-		serverlessFeatures := feature.ComponentFeaturesHandler(k, instance, k.configureServerlessFeatures())
-
-		if err := serverlessFeatures.Apply(); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (k *Kserve) removeServerlessFeatures(instance *dsciv1.DSCInitializationSpec) error {
-	serverlessFeatures := feature.ComponentFeaturesHandler(k, instance, k.configureServerlessFeatures())
-
-	return serverlessFeatures.Delete()
-}
-
-func checkDependentOperators(cli client.Client) *multierror.Error {
-	var multiErr *multierror.Error
-
-	if found, err := deploy.OperatorExists(cli, ServiceMeshOperator); err != nil {
-		multiErr = multierror.Append(multiErr, err)
-	} else if !found {
-		err = fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
-			ServiceMeshOperator, ComponentName)
-		multiErr = multierror.Append(multiErr, err)
-	}
-
-	if found, err := deploy.OperatorExists(cli, ServerlessOperator); err != nil {
-		multiErr = multierror.Append(multiErr, err)
-	} else if !found {
-		err = fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
-			ServerlessOperator, ComponentName)
-		multiErr = multierror.Append(multiErr, err)
-	}
-	return multiErr
-}
-=======
->>>>>>> d5c8ebe (move kserve config logic to separate file + enhancements)

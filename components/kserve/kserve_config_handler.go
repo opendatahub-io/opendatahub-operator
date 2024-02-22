@@ -50,6 +50,7 @@ func (k *Kserve) setupKserveConfigAndDependencies(ctx context.Context, cli clien
 			return err
 		}
 	}
+	return nil
 
 }
 
