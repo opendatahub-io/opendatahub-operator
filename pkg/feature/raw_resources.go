@@ -64,7 +64,7 @@ func patchResources(cli client.Client, patches []*unstructured.Unstructured) err
 		// Convert the individual resource patch to JSON
 		patchAsJSON, err := patch.MarshalJSON()
 		if err != nil {
-			return errors.WithStack(err)
+			return fmt.Errorf("error converting yaml to json: %w", err)
 		}
 
 		if err = cli.Patch(context.TODO(), patch, client.RawPatch(k8stypes.MergePatchType, patchAsJSON)); err != nil {

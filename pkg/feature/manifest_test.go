@@ -28,8 +28,9 @@ func (a AferoFsAdapter) Open(name string) (fs.File, error) {
 
 var _ = Describe("Manifest Processing", func() {
 	var (
-		inMemFS AferoFsAdapter
-		path    string
+		inMemFS  AferoFsAdapter
+		path     string
+		kustFsys filesys.FileSystem
 	)
 
 	BeforeEach(func() {
@@ -54,7 +55,7 @@ data:
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		It("should process the manifest correctly", func() {
+		It("should process the base manifest with no substitutions", func() {
 			// given
 			manifest := feature.CreateBaseManifestFrom(inMemFS, path)
 
@@ -113,11 +114,11 @@ data:
 	Describe("KustomizeManifest Process", func() {
 		BeforeEach(func() {
 			path = "/path/to/kustomization/" // base path here
+			kustFsys = filesys.MakeFsInMemory()
 		})
 
-		It("should process the kustomize manifest correctly", func() {
+		It("should process the ConfigMap resource from the kustomize manifest", func() {
 			// given
-			fSys := filesys.MakeFsInMemory()
 			kustomizationYaml := `
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
@@ -136,9 +137,9 @@ data:
 				TargetNamespace: "kust-ns",
 			}
 
-			Expect(fSys.WriteFile(filepath.Join(path, "kustomization.yaml"), []byte(kustomizationYaml))).To(Succeed())
-			Expect(fSys.WriteFile(filepath.Join(path, "resource.yaml"), []byte(resourceYaml))).To(Succeed())
-			manifest := feature.CreateKustomizeManifestFrom("/path/to/kustomization/", fSys)
+			Expect(kustFsys.WriteFile(filepath.Join(path, "kustomization.yaml"), []byte(kustomizationYaml))).To(Succeed())
+			Expect(kustFsys.WriteFile(filepath.Join(path, "resource.yaml"), []byte(resourceYaml))).To(Succeed())
+			manifest := feature.CreateKustomizeManifestFrom("/path/to/kustomization/", kustFsys)
 
 			// when
 			manifests := []feature.Manifest{manifest}
