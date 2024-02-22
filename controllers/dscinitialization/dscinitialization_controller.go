@@ -23,8 +23,11 @@ import (
 	"reflect"
 
 	"github.com/go-logr/logr"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
+	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
@@ -316,7 +319,10 @@ func (r *DSCInitializationReconciler) updateStatus(ctx context.Context, original
 
 		// Return err itself here (not wrapped inside another error)
 		// so that RetryOnConflict can identify it correctly.
-		return r.Client.Status().Update(ctx, saved)
+		if isStatusUpdate(&original.Status, &saved.Status) {
+			return r.Client.Status().Update(ctx, saved)
+		}
+		return nil
 	})
 
 	return saved, err
@@ -393,4 +399,8 @@ func (r *DSCInitializationReconciler) watchDSCResource(_ client.Object) []reconc
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "backup"}}}
 	}
 	return nil
+}
+
+func isStatusUpdate(original *dsciv1.DSCInitializationStatus, saved *dsciv1.DSCInitializationStatus) bool {
+	return !cmp.Equal(original, saved, cmpopts.IgnoreFields(conditionsv1.Condition{}, "LastHeartbeatTime", "LastTransitionTime"))
 }
