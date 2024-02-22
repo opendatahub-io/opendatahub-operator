@@ -1809,11 +1809,6 @@ spec:
                   requests:
                     cpu: 500m
                     memory: 256Mi
-                securityContext:
-                  allowPrivilegeEscalation: false
-                  capabilities:
-                    drop:
-                    - ALL
               securityContext:
                 runAsNonRoot: true
               serviceAccountName: redhat-ods-operator-controller-manager
