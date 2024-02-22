@@ -154,7 +154,6 @@ var _ = Describe("DataScienceCluster initialization", func() {
 
 	Context("Handling existing resources", func() {
 		AfterEach(cleanupResources)
-		const applicationName = "default-dsci"
 
 		It("Should not have more than one DSCI instance in the cluster", func() {
 
