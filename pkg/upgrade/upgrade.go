@@ -20,7 +20,6 @@ import (
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -49,11 +48,6 @@ const (
 	// TODO: Label should be updated if addon name changes.
 	DeleteConfigMapLabel = "api.openshift.com/addon-managed-odh-delete"
 )
-
-type Resource interface {
-	metav1.Object
-	runtime.Object
-}
 
 // OperatorUninstall deletes all the externally generated resources. This includes monitoring resources and applications
 // installed by KfDef.
@@ -370,11 +364,11 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 
 func CleanupExistingResource(cli client.Client, platform deploy.Platform) error {
 	var multiErr *multierror.Error
+	montNamespace := "redhat-ods-monitoring"
+	ctx := context.TODO()
 
 	// Special Handling of cleanup of deprecated model monitoring stack
 	if platform == deploy.ManagedRhods {
-		montNamespace := "redhat-ods-monitoring"
-		ctx := context.TODO()
 		deprecatedDeployments := []string{"rhods-prometheus-operator"}
 		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, montNamespace, deprecatedDeployments, &appsv1.DeploymentList{}))
 
@@ -402,6 +396,9 @@ func CleanupExistingResource(cli client.Client, platform deploy.Platform) error 
 		deprecatedServicemonitors := []string{"modelmesh-federated-metrics"}
 		multiErr = multierror.Append(multiErr, deleteDeprecatedServiceMonitors(ctx, cli, montNamespace, deprecatedServicemonitors))
 	}
+	// common logic for both self-managed and managed
+	deprecatedOperatorSM := []string{"rhods-monitor-federation2"}
+	multiErr = multierror.Append(multiErr, deleteDeprecatedServiceMonitors(ctx, cli, montNamespace, deprecatedOperatorSM))
 
 	return multiErr.ErrorOrNil()
 }
