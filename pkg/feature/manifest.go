@@ -38,6 +38,7 @@ var (
 )
 
 type Manifest interface {
+	// Process allows any arbitrary struct to be passed and used while processing the content of the manifest.
 	Process(data any) ([]*unstructured.Unstructured, error)
 }
 
@@ -123,7 +124,7 @@ func (k *kustomizeManifest) Process(data any) ([]*unstructured.Unstructured, err
 
 	targetNs := getTargetNs(data)
 	if targetNs == "" {
-		return nil, fmt.Errorf("error grabbing targetNs from feature spec")
+		return nil, fmt.Errorf("targetNamespaces not defined")
 	}
 
 	if err := plugins.ApplyNamespacePlugin(targetNs, resMap); err != nil {

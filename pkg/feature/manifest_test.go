@@ -89,7 +89,7 @@ data:
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		It("should process the template manifest correctly", func() {
+		It("should substitute target namespace in the templated manifest", func() {
 			// given
 			data := feature.Spec{
 				TargetNamespace: "template-ns",
