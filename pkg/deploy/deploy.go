@@ -288,7 +288,7 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 	}
 
 	if found.GetAnnotations()["opendatahub.io/managed"] == "false" {
-		// do not reconcile resource with annotation "opendtaahub.io/managed: false"
+		// do not reconcile resource with annotation "opendatahub.io/managed: false"
 		return nil
 	}
 
