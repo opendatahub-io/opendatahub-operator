@@ -43,7 +43,7 @@ func createResources(cli client.Client, objects []*unstructured.Unstructured, me
 
 		err := cli.Get(context.TODO(), k8stypes.NamespacedName{Name: name, Namespace: namespace}, object.DeepCopy())
 		if err == nil {
-			// object already exists
+			// object already exists, skip reconcile allowing users to tweak it
 			continue
 		}
 		if !k8serrors.IsNotFound(err) {
