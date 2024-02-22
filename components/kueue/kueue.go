@@ -54,7 +54,7 @@ func (r *Kueue) GetComponentName() string {
 
 func (r *Kueue) ReconcileComponent(ctx context.Context, cli client.Client, resConf *rest.Config, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
 	var imageParamMap = map[string]string{
-		"odh-kueue-controller-image": "RELATED_IMAGE_ODH_KUEUE_OPERATOR_IMAGE", // new kueue image
+		"odh-kueue-controller-image": "RELATED_IMAGE_ODH_KUEUE_CONTROLLER_IMAGE", // new kueue image
 	}
 
 	enabled := r.GetManagementState() == operatorv1.Managed
