@@ -30,8 +30,8 @@ func EnsureAuthNamespaceExists(f *feature.Feature) error {
 }
 
 func EnsureServiceMeshOperatorInstalled(f *feature.Feature) error {
-	if err := feature.EnsureCRDIsInstalled("servicemeshcontrolplanes.maistra.io")(f); err != nil {
-		f.Log.Info("Failed to find the pre-requisite Service Mesh Control Plane CRD, please ensure Service Mesh Operator is installed.")
+	if err := feature.EnsureOperatorIsInstalled("servicemeshoperator")(f); err != nil {
+		f.Log.Info("Failed to find the pre-requisite Service Mesh Operator subscription, please ensure Service Mesh Operator is installed.")
 
 		return err
 	}

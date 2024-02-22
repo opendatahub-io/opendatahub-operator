@@ -49,8 +49,8 @@ func EnsureServerlessAbsent(f *feature.Feature) error {
 }
 
 func EnsureServerlessOperatorInstalled(f *feature.Feature) error {
-	if err := feature.EnsureCRDIsInstalled("knativeservings.operator.knative.dev")(f); err != nil {
-		log.Info("Failed to find the pre-requisite KNative Serving Operator CRD, please ensure Serverless Operator is installed.", "feature", f.Name)
+	if err := feature.EnsureOperatorIsInstalled("serverless-operator")(f); err != nil {
+		log.Info("Failed to find the pre-requisite KNative Serving Operator subscription, please ensure Serverless Operator is installed.", "feature", f.Name)
 
 		return err
 	}
