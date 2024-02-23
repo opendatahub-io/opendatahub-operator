@@ -24,8 +24,8 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -83,39 +83,18 @@ func (f *Feature) patchResources(resources string) error {
 		u := &unstructured.Unstructured{}
 		if err := yaml.Unmarshal([]byte(str), u); err != nil {
 			f.Log.Error(err, "error unmarshalling yaml")
-
 			return errors.WithStack(err)
 		}
 
 		ensureNamespaceIsSet(f, u)
 
-		gvr := schema.GroupVersionResource{
-			Group:    strings.ToLower(u.GroupVersionKind().Group),
-			Version:  u.GroupVersionKind().Version,
-			Resource: strings.ToLower(u.GroupVersionKind().Kind) + "s",
-		}
-
-		// Convert the individual resource patch from YAML to JSON
 		patchAsJSON, err := yaml.YAMLToJSON([]byte(str))
 		if err != nil {
-			f.Log.Error(err, "error converting yaml to json")
-
-			return errors.WithStack(err)
+			return fmt.Errorf("error converting yaml to json: %w", err)
 		}
 
-		_, err = f.DynamicClient.Resource(gvr).
-			Namespace(u.GetNamespace()).
-			Patch(context.TODO(), u.GetName(), k8stypes.MergePatchType, patchAsJSON, metav1.PatchOptions{})
-		if err != nil {
-			f.Log.Error(err, "error patching resource",
-				"gvr", fmt.Sprintf("%+v\n", gvr),
-				"patch", fmt.Sprintf("%+v\n", u),
-				"json", fmt.Sprintf("%+v\n", patchAsJSON))
-			return errors.WithStack(err)
-		}
-
-		if err != nil {
-			return errors.WithStack(err)
+		if err := f.Client.Patch(context.TODO(), u, client.RawPatch(k8stypes.MergePatchType, patchAsJSON)); err != nil {
+			return fmt.Errorf("failed patching resource: %w", err)
 		}
 	}
 

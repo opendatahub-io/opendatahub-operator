@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-
-	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 )
 
 func FindProjectRoot() (string, error) {
@@ -28,12 +26,4 @@ func FindProjectRoot() (string, error) {
 	}
 
 	return "", fmt.Errorf("project root not found")
-}
-
-// NewSource creates an origin object with specified component and name.
-func NewSource(component featurev1.OwnerType, name string) featurev1.Source {
-	return featurev1.Source{
-		Type: component,
-		Name: name,
-	}
 }

@@ -84,7 +84,7 @@ func (r *Kueue) ReconcileComponent(ctx context.Context, cli client.Client, resCo
 	// CloudService Monitoring handling
 	if platform == deploy.ManagedRhods {
 		if enabled {
-			// first check if the service is up, so prometheus wont fire alerts when it is just startup
+			// first check if the service is up, so prometheus won't fire alerts when it is just startup
 			if err := monitoring.WaitForDeploymentAvailable(ctx, resConf, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
 				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 			}

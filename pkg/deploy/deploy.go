@@ -58,7 +58,7 @@ const (
 // 2. It saves the manifests in the odh-manifests/component-name/ folder.
 func DownloadManifests(componentName string, manifestConfig components.ManifestsConfig) error {
 	// Get the component repo from the given url
-	// e.g  https://github.com/example/tarball/master
+	// e.g.  https://github.com/example/tarball/master
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, manifestConfig.URI, nil)
 	if err != nil {
 		return err
@@ -273,7 +273,7 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 	// Create the resource if it doesn't exist and component is enabled
 	if apierrs.IsNotFound(err) {
 		// Set the owner reference for garbage collection
-		// Skip set on CRD, e.g we should not delete notebook CRD if we delete DSC instance
+		// Skip set on CRD, e.g. we should not delete notebook CRD if we delete DSC instance
 		if found.GetKind() != "CustomResourceDefinition" {
 			if err = ctrl.SetControllerReference(owner, metav1.Object(obj), cli.Scheme()); err != nil {
 				return err
@@ -401,16 +401,17 @@ func ApplyParams(componentPath string, imageParamsMap map[string]string, isUpdat
 }
 
 // SubscriptionExists checks if a Subscription for the operator exists in the given namespace.
-func SubscriptionExists(cli client.Client, namespace string, name string) (bool, error) {
+// if exsit, return object; if not exsit, return nil.
+func SubscriptionExists(cli client.Client, namespace string, name string) (*ofapiv1alpha1.Subscription, error) {
 	sub := &ofapiv1alpha1.Subscription{}
 	if err := cli.Get(context.TODO(), client.ObjectKey{Namespace: namespace, Name: name}, sub); err != nil {
 		if apierrs.IsNotFound(err) {
-			return false, nil
+			return nil, nil
 		}
-		return false, err
+		return nil, err
 	}
 
-	return true, nil
+	return sub, nil
 }
 
 // OperatorExists checks if an Operator with 'operatorPrefix' is installed.

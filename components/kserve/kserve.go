@@ -45,7 +45,7 @@ type Kserve struct {
 
 func (k *Kserve) OverrideManifests(_ string) error {
 	// Download manifests if defined by devflags
-	// Go through each manifests and set the overlays if defined
+	// Go through each manifest and set the overlays if defined
 	for _, subcomponent := range k.DevFlags.Manifests {
 		if strings.Contains(subcomponent.URI, DependentComponentName) {
 			// Download subcomponent
@@ -107,13 +107,8 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resC
 				return err
 			}
 		}
-		// check on dependent operators if all installed in cluster
-		// dependent operators set in checkRequiredOperatorsInstalled()
-		if err := checkRequiredOperatorsInstalled(cli); err != nil {
-			return err
-		}
 
-		if err := k.configureServerless(dscispec); err != nil {
+		if err := k.configureServerless(cli, dscispec); err != nil {
 			return err
 		}
 
@@ -151,7 +146,7 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resC
 	// CloudService Monitoring handling
 	if platform == deploy.ManagedRhods {
 		if enabled {
-			// first check if the service is up, so prometheus wont fire alerts when it is just startup
+			// first check if the service is up, so prometheus won't fire alerts when it is just startup
 			if err := monitoring.WaitForDeploymentAvailable(ctx, resConf, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
 				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 			}
@@ -169,7 +164,7 @@ func (k *Kserve) Cleanup(_ client.Client, instance *dsciv1.DSCInitializationSpec
 	return k.removeServerlessFeatures(instance)
 }
 
-func (k *Kserve) configureServerless(instance *dsciv1.DSCInitializationSpec) error {
+func (k *Kserve) configureServerless(cli client.Client, instance *dsciv1.DSCInitializationSpec) error {
 	switch k.Serving.ManagementState {
 	case operatorv1.Unmanaged: // Bring your own CR
 		fmt.Println("Serverless CR is not configured by the operator, we won't do anything")
@@ -186,13 +181,15 @@ func (k *Kserve) configureServerless(instance *dsciv1.DSCInitializationSpec) err
 			return fmt.Errorf("ServiceMesh is need to set to 'Managed' in DSCI CR, it is required by KServe serving field")
 		}
 
-		serverlessInitializer := feature.ComponentFeaturesInitializer(k, instance, k.configureServerlessFeatures())
-
-		if err := serverlessInitializer.Prepare(); err != nil {
-			return err
+		// check on dependent operators if all installed in cluster
+		dependOpsErrors := checkDependentOperators(cli).ErrorOrNil()
+		if dependOpsErrors != nil {
+			return dependOpsErrors
 		}
 
-		if err := serverlessInitializer.Apply(); err != nil {
+		serverlessFeatures := feature.ComponentFeaturesHandler(k, instance, k.configureServerlessFeatures())
+
+		if err := serverlessFeatures.Apply(); err != nil {
 			return err
 		}
 	}
@@ -200,30 +197,27 @@ func (k *Kserve) configureServerless(instance *dsciv1.DSCInitializationSpec) err
 }
 
 func (k *Kserve) removeServerlessFeatures(instance *dsciv1.DSCInitializationSpec) error {
-	serverlessInitializer := feature.ComponentFeaturesInitializer(k, instance, k.configureServerlessFeatures())
+	serverlessFeatures := feature.ComponentFeaturesHandler(k, instance, k.configureServerlessFeatures())
 
-	if err := serverlessInitializer.Prepare(); err != nil {
-		return err
-	}
-
-	return serverlessInitializer.Delete()
+	return serverlessFeatures.Delete()
 }
 
-func checkRequiredOperatorsInstalled(cli client.Client) error {
+func checkDependentOperators(cli client.Client) *multierror.Error {
 	var multiErr *multierror.Error
 
-	checkAndAppendError := func(operatorName string) {
-		if found, err := deploy.OperatorExists(cli, operatorName); err != nil {
-			multiErr = multierror.Append(multiErr, err)
-		} else if !found {
-			err = fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
-				operatorName, ComponentName)
-			multiErr = multierror.Append(multiErr, err)
-		}
+	if found, err := deploy.OperatorExists(cli, ServiceMeshOperator); err != nil {
+		multiErr = multierror.Append(multiErr, err)
+	} else if !found {
+		err = fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
+			ServiceMeshOperator, ComponentName)
+		multiErr = multierror.Append(multiErr, err)
 	}
-
-	checkAndAppendError(ServiceMeshOperator)
-	checkAndAppendError(ServerlessOperator)
-
-	return multiErr.ErrorOrNil()
+	if found, err := deploy.OperatorExists(cli, ServerlessOperator); err != nil {
+		multiErr = multierror.Append(multiErr, err)
+	} else if !found {
+		err = fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
+			ServerlessOperator, ComponentName)
+		multiErr = multierror.Append(multiErr, err)
+	}
+	return multiErr
 }
