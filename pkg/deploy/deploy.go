@@ -287,8 +287,8 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 		return nil
 	}
 
-	if found.GetAnnotations()["opendatahub.io/managed"] == "false" {
-		// do not reconcile resource with annotation "opendatahub.io/managed: false"
+	// do not reconcile kserve resource with annotation "opendatahub.io/managed: false"
+	if found.GetAnnotations()["opendatahub.io/managed"] == "false" && componentName == "kserve" {
 		return nil
 	}
 
