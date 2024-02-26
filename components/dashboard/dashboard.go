@@ -40,7 +40,7 @@ var (
 
 	NameConsoleLink      = "console"
 	NamespaceConsoleLink = "openshift-console"
-	// PathAnaconda         = deploy.DefaultManifestPath + "/partners/anaconda/base/"
+	// PathAnaconda         = deploy.DefaultManifestPath + "/partners/anaconda/base/".
 )
 
 // Verifies that Dashboard implements ComponentInterface.
