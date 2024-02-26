@@ -52,7 +52,6 @@ type Kserve struct {
 	// Configures the default deployment mode for Kserve. This can be set to 'Serverless' or 'RawDeployment'.
 	// The value specified in this field will be used to set the default deployment mode in the 'inferenceservice-config' configmap for Kserve
 	// +kubebuilder:validation:Enum=Serverless;RawDeployment
-	// +kubebuilder:default=Serverless
 	DefaultDeploymentMode DefaultDeploymentMode `json:"defaultDeploymentMode,omitempty"`
 }
 

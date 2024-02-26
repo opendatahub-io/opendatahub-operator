@@ -34,9 +34,18 @@ func (k *Kserve) setupKserveConfigAndDependencies(ctx context.Context, cli clien
 			return err
 		}
 
-		if err := k.setDefaultDeploymentMode(ctx, cli, dscispec, k.DefaultDeploymentMode); err != nil {
-			return err
+		if k.DefaultDeploymentMode == "" {
+			// if the default mode is empty in the DSC, assume mode is "Serverless" since k.Serving is Managed
+			if err := k.setDefaultDeploymentMode(ctx, cli, dscispec, Serverless); err != nil {
+				return err
+			}
+		} else {
+			// if the default mode is explicitly specified, respect that
+			if err := k.setDefaultDeploymentMode(ctx, cli, dscispec, k.DefaultDeploymentMode); err != nil {
+				return err
+			}
 		}
+
 	case operatorv1.Unmanaged:
 		fmt.Println("Serverless is Unmanaged, Kserve will default to RawDeployment")
 		if err := k.setDefaultDeploymentMode(ctx, cli, dscispec, RawDeployment); err != nil {
@@ -45,6 +54,9 @@ func (k *Kserve) setupKserveConfigAndDependencies(ctx context.Context, cli clien
 	case operatorv1.Removed:
 		if k.DefaultDeploymentMode == Serverless {
 			return fmt.Errorf("setting defaultdeployment mode as Serverless is incompatible with having Serving 'Removed'")
+		}
+		if k.DefaultDeploymentMode == "" {
+			fmt.Println("Serving is removed, Kserve will default to rawdeployment")
 		}
 		if err := k.setDefaultDeploymentMode(ctx, cli, dscispec, RawDeployment); err != nil {
 			return err
