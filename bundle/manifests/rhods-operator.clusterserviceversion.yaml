@@ -49,9 +49,6 @@ metadata:
               "ray": {
                 "managementState": "Removed"
               },
-              "trustyai": {
-                "managementState": "Managed"
-              },
               "workbenches": {
                 "managementState": "Managed"
               }
@@ -83,6 +80,10 @@ metadata:
                 "name": "data-science-smcp",
                 "namespace": "istio-system"
               },
+              "managementState": "Managed"
+            },
+            "trustedCABundle": {
+              "customCABundle": "",
               "managementState": "Managed"
             }
           }
@@ -148,13 +149,13 @@ metadata:
             "modelmeshserving": {
               "managementState": "Managed"
             },
+            "kueue": {
+              "managementState": "Removed"
+            },
             "ray": {
               "managementState": "Removed"
             },
             "workbenches": {
-              "managementState": "Managed"
-            },
-            "trustyai": {
               "managementState": "Managed"
             }
           }
@@ -198,6 +199,12 @@ spec:
           e.g. it provides unified authentication giving a Single Sign On experience.
         displayName: Service Mesh
         path: serviceMesh
+      - description: When set to `Managed`, adds odh-trusted-ca-bundle Configmap to
+          all namespaces that includes cluster-wide Trusted CA Bundle in .data["ca-bundle.crt"].
+          Additionally, this fields allows admins to add custom CA bundles to the
+          configmap using the .CustomCABundle field.
+        displayName: Trusted CABundle
+        path: trustedCABundle
       - description: Internal development useful field to test customizations. This
           is not recommended to be used in production environment.
         displayName: Dev Flags
@@ -1329,6 +1336,7 @@ spec:
           resources:
           - subscriptions
           verbs:
+          - delete
           - get
           - list
           - watch
@@ -1773,7 +1781,7 @@ spec:
                 - --leader-elect
                 command:
                 - /manager
-                image: REPLACE_IMAGE:latest 
+                image: REPLACE_IMAGE:latest
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:
@@ -1795,11 +1803,6 @@ spec:
                   requests:
                     cpu: 500m
                     memory: 256Mi
-                securityContext:
-                  allowPrivilegeEscalation: false
-                  capabilities:
-                    drop:
-                    - ALL
               securityContext:
                 runAsNonRoot: true
               serviceAccountName: redhat-ods-operator-controller-manager

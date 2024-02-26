@@ -26,6 +26,9 @@ var (
 var _ components.ComponentInterface = (*TrustyAI)(nil)
 
 // TrustyAI struct holds the configuration for the TrustyAI component.
+// ## DEPRECATED ## : Installation of TrustyAI operator is deprecated in downstream(RHOAI).
+// If TrustyAI operator is installed, it will be removed
+// Changes in managemenstState are not supported.
 // +kubebuilder:object:generate=true
 type TrustyAI struct {
 	components.Component `json:""`
@@ -65,6 +68,11 @@ func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client, re
 		return err
 	}
 
+	//TODO: Remove manifests for trustyai in 2.8
+	if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
+		enabled = false
+	}
+
 	if enabled {
 		if t.DevFlags != nil {
 			// Download manifests and update paths
@@ -72,8 +80,7 @@ func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client, re
 				return err
 			}
 		}
-
-		if dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "" {
+		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (t.DevFlags == nil || len(t.DevFlags.Manifests) == 0) {
 			if err := deploy.ApplyParams(Path, t.SetImageParamsMap(imageParamMap), false); err != nil {
 				return err
 			}

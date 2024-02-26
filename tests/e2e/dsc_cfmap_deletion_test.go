@@ -46,6 +46,11 @@ func cfgMapDeletionTestSuite(t *testing.T) {
 			require.NoError(t, err, "Error while deleting owned namespaces")
 		})
 
+		// t.Run("DS Projects should be deleted", func(t *testing.T) {
+		// 	err = testCtx.testDSProjectDeletion()
+		// 	require.NoError(t, err, "Error while deleting DS Projectss")
+		// })
+
 		t.Run("dsci should be deleted", func(t *testing.T) {
 			err = testCtx.testDSCIDeletion()
 			require.NoError(t, err, "failed deleting DSCI")

@@ -35,6 +35,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	authv1 "k8s.io/api/rbac/v1"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
@@ -54,6 +55,7 @@ import (
 	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
@@ -80,10 +82,11 @@ const (
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:gocyclo,maintidx
 	r.Log.Info("Reconciling DataScienceCluster resources", "Request.Name", req.Name)
 
 	instances := &dsc.DataScienceClusterList{}
+
 	if err := r.Client.List(ctx, instances); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -104,6 +107,37 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	instance := &instances.Items[0]
 
+	allComponents, err := getAllComponents(&instance.Spec.Components)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	// If DSC CR exist and deletion CM exist
+	// delete DSC CR and let reconcile requeue
+	// sometimes with finalzier DSC CR wont get deleted, force to remove finalizer here
+	if upgrade.HasDeleteConfigMap(r.Client) {
+		if controllerutil.ContainsFinalizer(instance, finalizerName) {
+			if controllerutil.RemoveFinalizer(instance, finalizerName) {
+				if err := r.Update(ctx, instance); err != nil {
+					r.Log.Info("Error to remove DSC finalzier", "error", err)
+					return ctrl.Result{}, err
+				}
+				r.Log.Info("Removed finalizer for DataScienceCluster", "name", instance.Name, "finalizer", finalizerName)
+			}
+		}
+		if err := r.Client.Delete(context.TODO(), instance, []client.DeleteOption{}...); err != nil {
+			if !apierrs.IsNotFound(err) {
+				return reconcile.Result{}, err
+			}
+		}
+		for _, component := range allComponents {
+			if err := component.Cleanup(r.Client, r.DataScienceCluster.DSCISpec); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+		return reconcile.Result{Requeue: true}, nil
+	}
+
 	if len(instances.Items) > 1 {
 		message := fmt.Sprintf("only one instance of DataScienceCluster object is allowed. Update existing instance %s", req.Name)
 		err := errors.New(message)
@@ -116,8 +150,6 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 		return ctrl.Result{}, err
 	}
-
-	var err error
 
 	// Verify a valid DSCInitialization instance is created
 	dsciInstances := &dsci.DSCInitializationList{}
@@ -152,11 +184,6 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 			saved.Status.Phase = status.PhaseError
 		})
 		return ctrl.Result{}, errors.New(message)
-	}
-
-	allComponents, err := getAllComponents(&instance.Spec.Components)
-	if err != nil {
-		return ctrl.Result{}, err
 	}
 
 	if instance.ObjectMeta.DeletionTimestamp.IsZero() {
@@ -252,9 +279,14 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 	enabled := component.GetManagementState() == v1.Managed
 	// First set conditions to reflect a component is about to be reconciled
 	instance, err := r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
-		message := "Component is disabled"
-		if enabled {
-			message = "Component is enabled"
+		var message string
+		if componentName == trustyai.ComponentName {
+			message = "TrustyAI is deprecated. Component state is disabled."
+		} else {
+			message = "Component is disabled"
+			if enabled {
+				message = "Component is enabled"
+			}
 		}
 		status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileInit, message, corev1.ConditionUnknown)
 	})

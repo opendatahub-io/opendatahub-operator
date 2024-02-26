@@ -43,3 +43,17 @@ echo 'export PATH=${PATH}:~/bin' >> ~/.zshrc
 echo 'export GOPROXY=https://proxy.golang.org' >> ~/.zshrc
 ```
 
+## Using a local.mk file to override Makefile variables for your development environment
+
+To support the ability for a developer to customize the Makefile execution to support their development environment, you can create a `local.mk` file in the root of this repo to specify custom values that match your environment.
+
+```
+$ cat local.mk
+VERSION=9.9.9
+IMAGE_TAG_BASE=quay.io/my-dev-env/opendatahub-operator
+IMG_TAG=my-dev-tag
+OPERATOR_NAMESPACE=my-dev-odh-operator-system
+IMAGE_BUILD_FLAGS=--build-arg USE_LOCAL=true
+E2E_TEST_FLAGS="--skip-deletion=true" -timeout 15m
+```
+

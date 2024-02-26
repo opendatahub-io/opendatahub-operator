@@ -61,7 +61,7 @@ var (
 )
 
 const (
-	timeout  = 20 * time.Second
+	timeout  = 30 * time.Second // change this from original 20 to 30 because we often failed in post cleanup job
 	interval = 250 * time.Millisecond
 )
 

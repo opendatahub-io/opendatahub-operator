@@ -23,6 +23,19 @@ type FeatureTracker struct {
 	Status FeatureTrackerStatus `json:"status,omitempty"`
 }
 
+// NewFeatureTracker instantiate FeatureTracker instance.
+func NewFeatureTracker(name, appNamespace string) *FeatureTracker {
+	return &FeatureTracker{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "features.opendatahub.io/v1",
+			Kind:       "FeatureTracker",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: appNamespace + "-" + name,
+		},
+	}
+}
+
 type FeaturePhase string
 type OwnerType string
 

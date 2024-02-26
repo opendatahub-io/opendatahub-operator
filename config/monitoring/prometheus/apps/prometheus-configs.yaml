@@ -314,19 +314,22 @@ data:
       metrics_path: /metrics
       scheme: http
       kubernetes_sd_configs:
-        - role: endpoints
+        - role: pod
           namespaces:
             names:
               - <odh_application_namespace>
+          selectors:
+            - role: pod
+              label: 'app.opendatahub.io/trustyai=true'
       relabel_configs:
-        - source_labels: [__meta_kubernetes_service_name]
-          regex: ^(trustyai-service-operator-controller-manager)$
+        - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_part_of]
+          regex: ^(trustyai)$
           target_label: kubernetes_name
           action: keep
         - source_labels: [__address__]
           regex: (.*)
           target_label: __address__
-          replacement: ${1}:8080          
+          replacement: ${1}:8080
 
     - job_name: 'RHOAI Metrics'
       honor_labels: true
@@ -1184,7 +1187,7 @@ data:
 
   kserve-alerting.rules: |
     groups:
-      - name: SLOs-probe_success
+      - name: SLOs-probe_success_kserve
         rules:
         - alert: Kserve Controller Probe Success Burn Rate
           annotations:
@@ -1464,7 +1467,7 @@ data:
           record: probe_success:burnrate6h
   trustyai-alerting.rules: |
     groups:
-      - name: SLOs-probe_success
+      - name: SLOs-probe_success_trustyai
         rules:
         - alert: TrustyAI Controller Probe Success Burn Rate
           annotations:
@@ -1478,6 +1481,7 @@ data:
           for: 2m
           labels:
             severity: critical
+            instance: trustyai-service-operator-controller-manager
         - alert: TrustyAI Controller Probe Success Burn Rate
           annotations:
             message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
@@ -1490,6 +1494,7 @@ data:
           for: 15m
           labels:
             severity: critical
+            instance: trustyai-service-operator-controller-manager
         - alert: TrustyAI Controller Probe Success Burn Rate
           annotations:
             message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
@@ -1502,3 +1507,4 @@ data:
           for: 1h
           labels:
             severity: warning
+            instance: trustyai-service-operator-controller-manager

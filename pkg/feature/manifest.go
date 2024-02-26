@@ -7,12 +7,19 @@ import (
 	"html/template"
 	"io"
 	"io/fs"
+	"path"
 	"path/filepath"
 	"strings"
 )
 
 //go:embed templates
 var embeddedFiles embed.FS
+
+var (
+	BaseDir        = "templates"
+	ServiceMeshDir = path.Join(BaseDir, "servicemesh")
+	ServerlessDir  = path.Join(BaseDir, "serverless")
+)
 
 type manifest struct {
 	name,
@@ -27,6 +34,10 @@ func loadManifestsFrom(fsys fs.FS, path string) ([]manifest, error) {
 	var manifests []manifest
 
 	err := fs.WalkDir(fsys, path, func(path string, dirEntry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+
 		_, err := dirEntry.Info()
 		if err != nil {
 			return err
