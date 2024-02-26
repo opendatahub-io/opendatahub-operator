@@ -132,6 +132,7 @@ spec:
                   field.
                 properties:
                   customCABundle:
+                    default: ""
                     description: A custom CA bundle that will be available for  all  components
                       in the Data Science Cluster(DSC). This bundle will be stored
                       in odh-trusted-ca-bundle ConfigMap .data.odh-ca-bundle.crt .
@@ -147,6 +148,7 @@ spec:
                     pattern: ^(Managed|Unmanaged|Force|Removed)$
                     type: string
                 required:
+                - customCABundle
                 - managementState
                 type: object
             required:

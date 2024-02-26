@@ -19,8 +19,6 @@ package dscinitialization
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"path/filepath"
 	"reflect"
 
@@ -89,33 +87,11 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 
 	var instance *dsciv1.DSCInitialization
-	switch {
+	switch { // only handle number as 0 or 1, others won't be existed since webhook block creation
 	case len(instances.Items) == 0:
 		return ctrl.Result{}, nil
 	case len(instances.Items) == 1:
 		instance = &instances.Items[0]
-	case len(instances.Items) > 1:
-		// find out the one by created timestamp and use it as the default one
-		earliestDSCI := &instances.Items[0]
-		for _, instance := range instances.Items {
-			currentDSCI := instance
-			if currentDSCI.CreationTimestamp.Before(&earliestDSCI.CreationTimestamp) {
-				earliestDSCI = &currentDSCI
-			}
-		}
-		message := fmt.Sprintf("only one instance of DSCInitialization object is allowed. Please delete other instances than %s", earliestDSCI.Name)
-		// update all instances Message and Status
-		for _, deletionInstance := range instances.Items {
-			deletionInstance := deletionInstance
-			if deletionInstance.Name != earliestDSCI.Name {
-				_, _ = r.updateStatus(ctx, &deletionInstance, func(saved *dsciv1.DSCInitialization) {
-					status.SetErrorCondition(&saved.Status.Conditions, status.DuplicateDSCInitialization, message)
-					saved.Status.Phase = status.PhaseError
-				})
-			}
-		}
-
-		return ctrl.Result{}, errors.New(message)
 	}
 
 	if instance.ObjectMeta.DeletionTimestamp.IsZero() {
