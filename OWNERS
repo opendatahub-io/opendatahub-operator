@@ -1,6 +1,14 @@
 approvers:
-  - etirelli
-  - VaishnaviHire
+  - platform
 reviewers:
-  - etirelli
-  - VaishnaviHire
+  - platform
+  - serving
+  - ide
+  - dashboard
+  - datasciencepipelines
+  - modelregistry
+  - servicemesh
+  - distributedworkloads
+  - aiexplainability
+
+
