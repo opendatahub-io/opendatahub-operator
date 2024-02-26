@@ -35,8 +35,7 @@ var (
 	PathSupportedModelServing = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/modelserving"     // RHOAI modelserving
 	PathISVSM                 = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps/apps-onprem" // RHOAI APPS
 	PathISVAddOn              = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps/apps-addon"  // RHOAI APPS
-
-	PathConsoleLink = deploy.DefaultManifestPath + "/" + ComponentName + "/consolelink" // ODH(TODO) + RHOAI
+	PathConsoleLink           = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/consolelink"      // RHOAI
 
 	NameConsoleLink      = "console"
 	NamespaceConsoleLink = "openshift-console"
