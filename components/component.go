@@ -41,6 +41,10 @@ func (c *Component) GetManagementState() operatorv1.ManagementState {
 	return c.ManagementState
 }
 
+func (c *Component) SetManagementState(state operatorv1.ManagementState) {
+	c.ManagementState = state
+}
+
 func (c *Component) Cleanup(_ client.Client, _ *dsciv1.DSCInitializationSpec) error {
 	// noop
 	return nil
@@ -84,6 +88,7 @@ type ComponentInterface interface {
 	Cleanup(cli client.Client, DSCISpec *dsciv1.DSCInitializationSpec) error
 	GetComponentName() string
 	GetManagementState() operatorv1.ManagementState
+	SetManagementState(operatorv1.ManagementState)
 	SetImageParamsMap(imageMap map[string]string) map[string]string
 	OverrideManifests(platform string) error
 	UpdatePrometheusConfig(cli client.Client, enable bool, component string) error
