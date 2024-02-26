@@ -146,10 +146,10 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 	switch platform {
 	case deploy.SelfManagedRhods, deploy.ManagedRhods:
 		// anaconda
-        if err := cluster.CreateSecret(cli, "anaconda-ce-access", dscispec.ApplicationsNamespace); err != nil {
-            return fmt.Errorf("failed to create access-secret for anaconda: %w", err)
-        }
-        // overlay which including ../../base + anaconda-ce-validator
+		if err := cluster.CreateSecret(cli, "anaconda-ce-access", dscispec.ApplicationsNamespace); err != nil {
+			return fmt.Errorf("failed to create access-secret for anaconda: %w", err)
+		}
+		// overlay which including ../../base + anaconda-ce-validator
 		if err := deploy.DeployManifestsFromPath(cli, owner, PathSupported, dscispec.ApplicationsNamespace, ComponentNameSupported, enabled); err != nil {
 			return err
 		}
