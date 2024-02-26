@@ -40,7 +40,7 @@ var (
 
 	NameConsoleLink      = "console"
 	NamespaceConsoleLink = "openshift-console"
-	PathAnaconda         = deploy.DefaultManifestPath + "/partners/anaconda/base/" // TODO: check if dashboard want to have this move to their ODH repo
+	// PathAnaconda         = deploy.DefaultManifestPath + "/partners/anaconda/base/"
 )
 
 // Verifies that Dashboard implements ComponentInterface.
@@ -146,7 +146,11 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 	// TODO: check if we can have the same component name odh-dashboard for both, or still keep rhods-dashboard for RHOAI
 	switch platform {
 	case deploy.SelfManagedRhods, deploy.ManagedRhods:
-		// overlay which including ../../base
+		// anaconda
+		if err := cluster.CreateSecret(cli, "anaconda-ce-access", dscispec.ApplicationsNamespace); err != nil {
+			return fmt.Errorf("failed to create access-secret for anaconda: %w", err)
+		}
+		// overlay which including ../../base + anaconda-ce-validator
 		if err := deploy.DeployManifestsFromPath(cli, owner, PathSupported, dscispec.ApplicationsNamespace, ComponentNameSupported, enabled); err != nil {
 			return err
 		}
@@ -193,7 +197,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		if err := deploy.DeployManifestsFromPath(cli, owner, PathModelServing, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 			return fmt.Errorf("failed to set dashboard modelserving from %s: %w", PathModelServing, err)
 		}
-		// consolelink, TODO: uncomment once we want to add consoleline for ODH
+		// consolelink, TODO: uncomment once we want to add consoleline for ODH + need update logic
 		// if err := d.deployConsoleLink(cli, owner, dscispec.ApplicationsNamespace, ComponentNameSupported); err != nil {
 		// 	return err
 		// }
@@ -212,15 +216,6 @@ func (d *Dashboard) deployCRDsForPlatform(cli client.Client, owner metav1.Object
 
 func (d *Dashboard) applyRHOAISpecificConfigs(cli client.Client, owner metav1.Object, namespace string, platform deploy.Platform) error {
 	enabled := d.ManagementState == operatorv1.Managed
-
-	// anaconda
-	if err := cluster.CreateSecret(cli, "anaconda-ce-access", namespace); err != nil {
-		return fmt.Errorf("failed to create access-secret for anaconda: %w", err)
-	}
-	if err := deploy.DeployManifestsFromPath(cli, owner, PathAnaconda, namespace, ComponentNameSupported, enabled); err != nil {
-		return fmt.Errorf("failed to set anaconda from %s: %w", PathAnaconda, err)
-	}
-
 	// ISV
 	path := PathISVSM
 	if platform == deploy.ManagedRhods {
