@@ -114,6 +114,10 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resC
 			return err
 		}
 	} else {
+		// Configure dependencies
+		if err := k.configureServerless(cli, dscispec); err != nil {
+			return err
+		}
 		if k.DevFlags != nil {
 			// Download manifests and update paths
 			if err = k.OverrideManifests(string(platform)); err != nil {
@@ -133,6 +137,12 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resC
 		return err
 	}
 
+	if enabled {
+		if err := k.setupKserveConfig(ctx, cli, dscispec); err != nil {
+			return err
+		}
+	}
+
 	// For odh-model-controller
 	if enabled {
 		if err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "odh-model-controller"); err != nil {
@@ -149,12 +159,6 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resC
 	if err := deploy.DeployManifestsFromPath(cli, owner, DependentPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 		if !strings.Contains(err.Error(), "spec.selector") || !strings.Contains(err.Error(), "field is immutable") {
 			// explicitly ignore error if error contains keywords "spec.selector" and "field is immutable" and return all other error.
-			return err
-		}
-	}
-
-	if enabled {
-		if err := k.setupKserveConfigAndDependencies(ctx, cli, dscispec); err != nil {
 			return err
 		}
 	}
