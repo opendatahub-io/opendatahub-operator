@@ -3,7 +3,7 @@ kind: DSCInitialization
 metadata:
   labels:
     app.kubernetes.io/name: dscinitialization
-    app.kubernetes.io/instance: rhods-setup
+    app.kubernetes.io/instance: default-dsci
     app.kubernetes.io/part-of: rhods-operator
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/created-by: rhods-operator
