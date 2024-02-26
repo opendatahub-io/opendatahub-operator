@@ -51,7 +51,6 @@ func (k *Kserve) setupKserveConfigAndDependencies(ctx context.Context, cli clien
 		}
 	}
 	return nil
-
 }
 
 func (k *Kserve) setDefaultDeploymentMode(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec, defaultmode DefaultDeploymentMode) error {
