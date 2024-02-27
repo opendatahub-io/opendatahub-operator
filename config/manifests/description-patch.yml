@@ -24,4 +24,3 @@ spec:
     * Ability to use other runtimes for serving
     * Model Monitoring
     * Distributed workloads (KubeRay, CodeFlare, Kueue)
-    * XAI explanations of predictive models (TrustyAI)

@@ -5,6 +5,6 @@ metadata:
   labels:
     app.kubernetes.io/name: default-feature
     app.kubernetes.io/instance: default
-    app.kubernetes.io/part-of: opendatahub-operator
+    app.kubernetes.io/part-of: rhods-operator
     app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/created-by: opendatahub-operator
+    app.kubernetes.io/created-by: rhods-operator
