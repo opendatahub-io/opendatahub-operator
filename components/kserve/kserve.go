@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
@@ -18,7 +17,6 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/monitoring"
 )
 
@@ -34,6 +32,16 @@ var (
 // Verifies that Kserve implements ComponentInterface.
 var _ components.ComponentInterface = (*Kserve)(nil)
 
+// +kubebuilder:validation:Pattern=`^(Serverless|RawDeployment)$`
+type DefaultDeploymentMode string
+
+var (
+	// Serverless will be used as the default deployment mode for Kserve. This requires Serverless and ServiceMesh operators configured as dependencies.
+	Serverless DefaultDeploymentMode = "Serverless"
+	// RawDeployment will be used as the default deployment mode for Kserve.
+	RawDeployment DefaultDeploymentMode = "RawDeployment"
+)
+
 // Kserve struct holds the configuration for the Kserve component.
 // +kubebuilder:object:generate=true
 type Kserve struct {
@@ -41,6 +49,11 @@ type Kserve struct {
 	// Serving configures the KNative-Serving stack used for model serving. A Service
 	// Mesh (Istio) is prerequisite, since it is used as networking layer.
 	Serving infrav1.ServingSpec `json:"serving,omitempty"`
+	// Configures the default deployment mode for Kserve. This can be set to 'Serverless' or 'RawDeployment'.
+	// The value specified in this field will be used to set the default deployment mode in the 'inferenceservice-config' configmap for Kserve
+	// If no default deployment mode is specified, Kserve will use Serverless mode
+	// +kubebuilder:validation:Enum=Serverless;RawDeployment
+	DefaultDeploymentMode DefaultDeploymentMode `json:"defaultDeploymentMode,omitempty"`
 }
 
 func (k *Kserve) OverrideManifests(_ string) error {
@@ -102,15 +115,15 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resC
 			return err
 		}
 	} else {
+		// Configure dependencies
+		if err := k.configureServerless(cli, dscispec); err != nil {
+			return err
+		}
 		if k.DevFlags != nil {
 			// Download manifests and update paths
 			if err = k.OverrideManifests(string(platform)); err != nil {
 				return err
 			}
-		}
-
-		if err := k.configureServerless(cli, dscispec); err != nil {
-			return err
 		}
 
 		// Update image parameters only when we do not have customized manifests set
@@ -123,6 +136,12 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resC
 
 	if err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 		return err
+	}
+
+	if enabled {
+		if err := k.setupKserveConfig(ctx, cli, dscispec); err != nil {
+			return err
+		}
 	}
 
 	// For odh-model-controller
@@ -144,6 +163,7 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resC
 			return err
 		}
 	}
+
 	// CloudService Monitoring handling
 	if platform == deploy.ManagedRhods {
 		if enabled {
@@ -168,63 +188,4 @@ func (k *Kserve) Cleanup(_ client.Client, instance *dsciv1.DSCInitializationSpec
 	}
 
 	return k.removeServiceMeshConfigurations(instance)
-}
-
-func (k *Kserve) configureServerless(cli client.Client, instance *dsciv1.DSCInitializationSpec) error {
-	switch k.Serving.ManagementState {
-	case operatorv1.Unmanaged: // Bring your own CR
-		fmt.Println("Serverless CR is not configured by the operator, we won't do anything")
-
-	case operatorv1.Removed: // we remove serving CR
-		fmt.Println("existing Serverless CR (owned by operator) will be removed")
-		if err := k.removeServerlessFeatures(instance); err != nil {
-			return err
-		}
-
-	case operatorv1.Managed: // standard workflow to create CR
-		switch instance.ServiceMesh.ManagementState {
-		case operatorv1.Unmanaged, operatorv1.Removed:
-			return fmt.Errorf("ServiceMesh is need to set to 'Managed' in DSCI CR, it is required by KServe serving field")
-		}
-
-		// check on dependent operators if all installed in cluster
-		dependOpsErrors := checkDependentOperators(cli).ErrorOrNil()
-		if dependOpsErrors != nil {
-			return dependOpsErrors
-		}
-
-		serverlessFeatures := feature.ComponentFeaturesHandler(k, instance, k.configureServerlessFeatures())
-
-		if err := serverlessFeatures.Apply(); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (k *Kserve) removeServerlessFeatures(instance *dsciv1.DSCInitializationSpec) error {
-	serverlessFeatures := feature.ComponentFeaturesHandler(k, instance, k.configureServerlessFeatures())
-
-	return serverlessFeatures.Delete()
-}
-
-func checkDependentOperators(cli client.Client) *multierror.Error {
-	var multiErr *multierror.Error
-
-	if found, err := deploy.OperatorExists(cli, ServiceMeshOperator); err != nil {
-		multiErr = multierror.Append(multiErr, err)
-	} else if !found {
-		err = fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
-			ServiceMeshOperator, ComponentName)
-		multiErr = multierror.Append(multiErr, err)
-	}
-
-	if found, err := deploy.OperatorExists(cli, ServerlessOperator); err != nil {
-		multiErr = multierror.Append(multiErr, err)
-	} else if !found {
-		err = fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
-			ServerlessOperator, ComponentName)
-		multiErr = multierror.Append(multiErr, err)
-	}
-	return multiErr
 }
