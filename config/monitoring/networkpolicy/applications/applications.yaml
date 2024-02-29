@@ -22,13 +22,15 @@ spec:
           port: 8099
         - protocol: TCP
           port: 8181
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: redhat-ods-monitoring
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: openshift-monitoring
+        - protocol: TCP
+          port: 9443    # default webhook of components
+    # - from:
+    #     - namespaceSelector:
+    #         matchLabels:
+    #           kubernetes.io/metadata.name: redhat-ods-monitoring
+    # - from:
+    #     - namespaceSelector:
+    #         matchLabels:
+    #           kubernetes.io/metadata.name: openshift-monitoring
   policyTypes:
     - Ingress
