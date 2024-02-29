@@ -236,7 +236,6 @@ func main() { //nolint:funlen
 	err = mgr.Add(cleanExistingResourceFunc)
 	if err != nil {
 		setupLog.Error(err, "error remove deprecated resources from previous version")
-		os.Exit(1)
 	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
