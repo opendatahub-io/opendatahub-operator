@@ -2,15 +2,15 @@ package feature
 
 import (
 	"context"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 const (
@@ -18,16 +18,10 @@ const (
 	duration = 5 * time.Minute
 )
 
-func EnsureCRDIsInstalled(name string) Action {
-	return func(f *Feature) error {
-		return f.Client.Get(context.TODO(), client.ObjectKey{Name: name}, &apiextv1.CustomResourceDefinition{})
-	}
-}
-
 func EnsureOperatorIsInstalled(name string) Action {
 	return func(f *Feature) error {
-		if found, err := deploy.OperatorExists(f.Client, "servicemeshoperator"); found == false {
-			f.Log.Info("Failed to find the pre-requisite Service Mesh operator subscription, please ensure Service Mesh Operator is installed.")
+		if found, err := deploy.ClusterSubscriptionExists(f.Client, name); !found {
+			f.Log.Info("Failed to find the pre-requisite operator subscription, please ensure operator is installed.")
 
 			return err
 		}

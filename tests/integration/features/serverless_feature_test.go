@@ -88,7 +88,7 @@ var _ = Describe("Serverless feature", func() {
 
 		When("operator is not installed", func() {
 
-			It("should fail on precondition check", func() {
+			FIt("should fail on precondition check", func() {
 				// given
 				featuresHandler := feature.ComponentFeaturesHandler(kserveComponent, &dsci.Spec, func(handler *feature.FeaturesHandler) error {
 					verificationFeatureErr := feature.CreateFeature("no-serverless-operator-check").

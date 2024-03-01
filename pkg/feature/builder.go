@@ -4,6 +4,8 @@ import (
 	"io/fs"
 
 	"github.com/hashicorp/go-multierror"
+	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+
 	"github.com/pkg/errors"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/client-go/rest"
@@ -76,7 +78,7 @@ func createClient(config *rest.Config) partialBuilder {
 
 		var multiErr *multierror.Error
 		s := f.Client.Scheme()
-		multiErr = multierror.Append(multiErr, featurev1.AddToScheme(s), apiextv1.AddToScheme(s))
+		multiErr = multierror.Append(multiErr, featurev1.AddToScheme(s), apiextv1.AddToScheme(s), ofapiv1alpha1.AddToScheme(s))
 
 		return multiErr.ErrorOrNil()
 	}

@@ -403,7 +403,7 @@ func ApplyParams(componentPath string, imageParamsMap map[string]string, isUpdat
 }
 
 // SubscriptionExists checks if a Subscription for the operator exists in the given namespace.
-// if exsit, return object; if not exsit, return nil.
+// if it exists, return object; if it does not exist, return nil.
 func SubscriptionExists(cli client.Client, namespace string, name string) (*ofapiv1alpha1.Subscription, error) {
 	sub := &ofapiv1alpha1.Subscription{}
 	if err := cli.Get(context.TODO(), client.ObjectKey{Namespace: namespace, Name: name}, sub); err != nil {
@@ -414,6 +414,23 @@ func SubscriptionExists(cli client.Client, namespace string, name string) (*ofap
 	}
 
 	return sub, nil
+}
+
+// ClusterSubscriptionExists checks if a Subscription for the operator exists in any namespace in the cluster.
+// If it exists, return the Subscription object; if it does not exist, return nil.
+func ClusterSubscriptionExists(cli client.Client, name string) (bool, error) {
+	subscriptionList := &ofapiv1alpha1.SubscriptionList{}
+	if err := cli.List(context.TODO(), subscriptionList); err != nil {
+		return false, err
+	}
+
+	for _, sub := range subscriptionList.Items {
+		if sub.Name == name {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 // OperatorExists checks if an Operator with 'operatorPrefix' is installed.
