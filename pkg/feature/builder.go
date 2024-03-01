@@ -5,7 +5,6 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
-
 	"github.com/pkg/errors"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/client-go/rest"
