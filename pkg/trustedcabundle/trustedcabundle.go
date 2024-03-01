@@ -136,6 +136,14 @@ func IsTrustedCABundleUpdated(ctx context.Context, cli client.Client, dscInit *d
 }
 
 func ConfigureTrustedCABundle(ctx context.Context, cli client.Client, log logr.Logger, dscInit *dsci.DSCInitialization, managementStateChanged bool) error {
+	if dscInit.Spec.TrustedCABundle == nil {
+		log.Info("Trusted CA Bundle is not configed in DSCI, same as default to `Removed` state. Reconciling to delete all " + CAConfigMapName)
+		if err := RemoveCABundleConfigMapInAllNamespaces(ctx, cli); err != nil {
+			return fmt.Errorf("error deleting configmap %s from all namespaces %w", CAConfigMapName, err)
+		}
+		return nil
+	}
+
 	switch dscInit.Spec.TrustedCABundle.ManagementState {
 	case operatorv1.Managed:
 		log.Info("Trusted CA Bundle injection is set to `Managed` state. Reconciling to add/update " + CAConfigMapName)
@@ -146,17 +154,14 @@ func ConfigureTrustedCABundle(ctx context.Context, cli client.Client, log logr.L
 
 		if istrustedCABundleUpdated || managementStateChanged {
 			if err := AddCABundleConfigMapInAllNamespaces(ctx, cli, dscInit); err != nil {
-				log.Error(err, "error adding configmap to all namespaces", "name", CAConfigMapName)
-				return err
+				return fmt.Errorf("failed adding configmap %s to all namespaces: %w", CAConfigMapName, err)
 			}
 		}
 	case operatorv1.Removed:
 		log.Info("Trusted CA Bundle injection is set to `Removed` state. Reconciling to delete all " + CAConfigMapName)
-		if err := RemoveCABundleConfigMapInAllNamespaces(ctx, cli).ErrorOrNil(); err != nil {
-			log.Error(err, "error deleting configmap from all namespaces", "name", CAConfigMapName)
-			return err
+		if err := RemoveCABundleConfigMapInAllNamespaces(ctx, cli); err != nil {
+			return fmt.Errorf("error deleting configmap %s from all namespaces %w", CAConfigMapName, err)
 		}
-
 	case operatorv1.Unmanaged:
 		log.Info("Trusted CA Bundle injection is set to `Unmanaged` state. " + CAConfigMapName + " configmaps are no longer managed by operator")
 	}
@@ -195,7 +200,7 @@ func AddCABundleConfigMapInAllNamespaces(ctx context.Context, cli client.Client,
 }
 
 // when DSCI TrustedCABundle.ManagementState is set to `Removed`.
-func RemoveCABundleConfigMapInAllNamespaces(ctx context.Context, cli client.Client) *multierror.Error {
+func RemoveCABundleConfigMapInAllNamespaces(ctx context.Context, cli client.Client) error {
 	var multiErr *multierror.Error
 
 	namespaceList := &corev1.NamespaceList{}
@@ -213,5 +218,5 @@ func RemoveCABundleConfigMapInAllNamespaces(ctx context.Context, cli client.Clie
 			multiErr = multierror.Append(multiErr, err)
 		}
 	}
-	return multiErr
+	return multiErr.ErrorOrNil()
 }

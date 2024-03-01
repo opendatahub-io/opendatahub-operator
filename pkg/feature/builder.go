@@ -43,7 +43,7 @@ type usingFeaturesHandler struct {
 func (u *usingFeaturesHandler) For(featuresHandler *FeaturesHandler) *featureBuilder {
 	createSpec := func(f *Feature) error {
 		f.Spec = &Spec{
-			ServiceMeshSpec:  &featuresHandler.DSCInitializationSpec.ServiceMesh,
+			ServiceMeshSpec:  featuresHandler.DSCInitializationSpec.ServiceMesh,
 			Serving:          &infrav1.ServingSpec{},
 			Source:           &featuresHandler.source,
 			AppNamespace:     featuresHandler.DSCInitializationSpec.ApplicationsNamespace,
