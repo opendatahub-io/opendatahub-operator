@@ -21,12 +21,12 @@ func ClusterDetails(f *feature.Feature) error {
 	return nil
 }
 
-func ResolveAuthNamespace(f *feature.Feature) error {
-	dsciAuthNamespace := strings.TrimSpace(f.Spec.Auth.Namespace)
+func CreateAuthNamespace(authNs, appNs string) string {
+	dsciAuthNamespace := strings.TrimSpace(authNs)
 
 	if len(dsciAuthNamespace) == 0 {
-		f.Spec.Auth.Namespace = f.Spec.AppNamespace + "-auth-provider"
+		return appNs + "-auth-provider"
 	}
 
-	return nil
+	return dsciAuthNamespace
 }
