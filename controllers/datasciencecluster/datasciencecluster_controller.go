@@ -259,15 +259,11 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 	enabled := component.GetManagementState() == v1.Managed
 	// First set conditions to reflect a component is about to be reconciled
 	instance, err := r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
-		var message string
-		if componentName == trustyai.ComponentName {
-			message = "TrustyAI is deprecated. Component state is disabled."
-		} else {
-			message = "Component is disabled"
-			if enabled {
-				message = "Component is enabled"
-			}
+		message := "Component is disabled"
+		if enabled {
+			message = "Component is enabled"
 		}
+
 		status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileInit, message, corev1.ConditionUnknown)
 	})
 	if err != nil {
@@ -296,9 +292,14 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 			saved.Status.InstalledComponents = make(map[string]bool)
 		}
 		saved.Status.InstalledComponents[componentName] = enabled
-		if enabled {
+		switch {
+		case enabled && componentName == trustyai.ComponentName:
+			saved.Status.InstalledComponents[componentName] = false
+			status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileCompleted,
+				"TrustyAI is deprecated. Setting this field to Managed will not result in the deployment of TrustyAI.", corev1.ConditionTrue)
+		case enabled:
 			status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileCompleted, "Component reconciled successfully", corev1.ConditionTrue)
-		} else {
+		default:
 			status.RemoveComponentCondition(&saved.Status.Conditions, componentName)
 		}
 	})

@@ -119,8 +119,6 @@ func (c *Component) UpdatePrometheusConfig(_ client.Client, enable bool, compone
 			RayARules          string `yaml:"ray-alerting.rules"`
 			WorkbenchesRRules  string `yaml:"workbenches-recording.rules"`
 			WorkbenchesARules  string `yaml:"workbenches-alerting.rules"`
-			TrustyAIRRules     string `yaml:"trustyai-recording.rules"`
-			TrustyAIARules     string `yaml:"trustyai-alerting.rules"`
 			KserveRRules       string `yaml:"kserve-recording.rules"`
 			KserveARules       string `yaml:"kserve-alerting.rules"`
 			KueueRRules        string `yaml:"kueue-recording.rules"`

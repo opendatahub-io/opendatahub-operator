@@ -228,12 +228,6 @@ func main() {
 		setupLog.Error(err, "unable to update from legacy operator version")
 	}
 
-	// Remove TrustyAI forRHOAI
-	// TODO: Remove below check in 2.8 version
-	if err = upgrade.RemoveDeprecatedTrustyAI(setupClient, platform); err != nil {
-		setupLog.Error(err, "unable to remove trustyai from DSC")
-	}
-
 	if err = upgrade.CleanupExistingResource(setupClient, platform); err != nil {
 		setupLog.Error(err, "unable to perform cleanup")
 	}

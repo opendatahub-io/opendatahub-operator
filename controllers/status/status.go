@@ -184,15 +184,22 @@ func SetComponentCondition(conditions *[]conditionsv1.Condition, component strin
 	var condtype string
 	if component == trustyai.ComponentName {
 		condtype = component + "Deprecated"
+		conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
+			Type:    conditionsv1.ConditionType(condtype),
+			Status:  corev1.ConditionTrue,
+			Reason:  reason,
+			Message: message,
+		})
 	} else {
 		condtype = component + ReadySuffix
+
+		conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
+			Type:    conditionsv1.ConditionType(condtype),
+			Status:  status,
+			Reason:  reason,
+			Message: message,
+		})
 	}
-	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
-		Type:    conditionsv1.ConditionType(condtype),
-		Status:  status,
-		Reason:  reason,
-		Message: message,
-	})
 }
 
 // RemoveComponentCondition remove Condition of giving component.
