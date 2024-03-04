@@ -19,7 +19,6 @@ package datasciencecluster
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
