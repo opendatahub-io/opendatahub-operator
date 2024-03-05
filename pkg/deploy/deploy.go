@@ -422,15 +422,15 @@ func GetSubscription(cli client.Client, namespace string, name string) (*ofapiv1
 // Do not error if the Subscription does not exist.
 func DeleteExistingSubscription(cli client.Client, operatorNs string, subsName string) error {
 	sub, err := GetSubscription(cli, operatorNs, subsName)
-	// found subscription to delete
-	if sub != nil {
-		if err := cli.Delete(context.TODO(), sub); err != nil {
-			return fmt.Errorf("error deleting subscription %s: %w", sub.Name, err)
-		}
-		return nil
+	if err != nil {
+		return client.IgnoreNotFound(err)
 	}
-	// return nil if not found or error to Get it
-	return client.IgnoreNotFound(err)
+	
+	if err := cli.Delete(context.TODO(), sub); client.IgnoreNotFound(err) != nil {
+		return fmt.Errorf("error deleting subscription %s: %w", sub.Name, err)
+	}
+	
+	return nil
 }
 
 // OperatorExists checks if an Operator with 'operatorPrefix' is installed.
