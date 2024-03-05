@@ -5,7 +5,12 @@ and configure these applications.
 
 ### Table of contents
 - [Usage](#usage)
+  - [Prerequisites](#prerequisites)
   - [Installation](#installation)
+  - [API overview](#api-overview)
+    - [Datascience Cluster Initialization schema](#datascience-cluster-initialization-schema)
+    - [Datascience Cluster schema](#datascience-cluster-schema)
+    - [Component schema](#component-schema)
 - [Dev Preview](#dev-preview)
   - [Developer Guide](#developer-guide)
     - [Pre-requisites](#pre-requisites)
@@ -20,13 +25,22 @@ and configure these applications.
     - [Build Image](#build-image)
     - [Deployment](#deployment)
   - [Test with customized manifests](#test-with-customized-manifests)
+  - [Example DSCInitialization](#example-dscinitialization)
   - [Example DataScienceCluster](#example-datasciencecluster)
   - [Run functional Tests](#run-functional-tests)
   - [Run e2e Tests](#run-e2e-tests)
   - [Troubleshooting](#troubleshooting)
+  - [Upgrade testing](#upgrade-testing)
 
 ## Usage
 
+### Prerequisites
+If `single model serving configuration` is used or if `Kserve` component is used then please make sure to install the following operators before proceeding to create a DSCI and DSC instances.
+ - [Authorino operator](https://github.com/Kuadrant/authorino)
+ - [Service Mesh operator](https://github.com/Maistra/istio-operator)
+ - [Serverless operator](https://github.com/openshift-knative/serverless-operator)
+
+Additionally it enhances user-experience by providing a single sign on experience.
 ### Installation
 
 The latest version of operator can be installed from the `community-operators` catalog on `OperatorHub`. It can also be build
@@ -49,11 +63,52 @@ and installed from source manually, see the Developer guide for further instruct
     EOF
     ```
 
-2. Create [DSCInitializationc](#example-dscinitialization) CR manually.
+2. Create [DSCInitialization](#example-dscinitialization) CR manually.
   You can also use operator to create default DSCI CR by removing env variable DISABLE_DSC_CONFIG from CSV following restart operator pod.
 
 3. Create [DataScienceCluster](#example-datasciencecluster) CR to enable components
 
+### API overview
+#### Datascience Cluster Initialization schema
+| Attribute                                       	| Accepted type             	| Required 	| Default value                    	| Description                                                                                                                                                                                                                                                                                             	|
+|-------------------------------------------------	|---------------------------	|----------	|----------------------------------	|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------	|
+| spec.applicationsNamespace                      	| string                    	| True     	| opendatahub                      	| Namespace for odh applications to be installed.                                                                                                                                                                                                                                                         	|
+| spec.monitoring.managementState                 	| Managed/Removed           	| False    	| ""                               	| State indicating whether the monitoring <br>components are managed by the operator.<br>Removed State will uninstall the components.                                                                                                                                                                     	|
+| spec.monitoring.namespace                       	| string                    	| False    	| ""                               	| Enables monitoring on the specified namespace.                                                                                                                                                                                                                                                          	|
+| spec.serviceMesh.managementState                	| Managed/Unmanaged/Removed 	| False    	| Removed                          	| Indicates the management state of the service mesh<br>components in the cluster by the operator.                                                                                                                                                                                                        	|
+| spec.serviceMesh.auth.namespace                 	| string                    	| False    	| ""                               	| Namespace where auth services are deployed. If not provided, <br>the default is to use '-auth-provider' suffix on the <br>ApplicationsNamespace of the DSCI.                                                                                                                                            	|
+| spec.serviceMesh.auth.audiences                 	| Array<string>             	| False    	| "https://kubernetes.default.svc" 	| Audiences is a list of the identifiers that the resource <br>server presented with the token identifies as. Audience-aware <br>token authenticators will verify that the token was <br>intended for at least one of the audiences in this list.                                                         	|
+| spec.serviceMesh.controlPlane.name              	| string                    	| False    	| data-science-smcp                	| Name of the service mesh control plane.                                                                                                                                                                                                                                                                 	|
+| spec.serviceMesh.controlPlane.namespace         	| string                    	| False    	| istio-system                     	| Namespace where service mesh components are deployed.                                                                                                                                                                                                                                                   	|
+| spec.serviceMesh.controlPlane.metricsCollection 	| Istio/None                	| False    	| Istio                            	| MetricsCollection specifies if metrics from components <br>on the Mesh namespace should be collected.Setting the value <br>to "Istio" will collect metrics from the control plane <br>and any proxies on the Mesh namespace (like gateway pods). <br>Setting to "None" will disable metrics collection. 	|
+| spec.trustedCABundle.managementState            	| Managed/Removed/Unmanaged 	| False    	| Removed                          	| State indicating how the operator should manage <br>customized CA bundle.                                                                                                                                                                                                                               	|
+| spec.trustedCABundle.customCABundle             	| string                    	| False    	| ""                               	| A custom CA bundle that will be available for all components in the <br>Data Science Cluster(DSC). This bundle will be stored in <br>odh-trusted-ca-bundle ConfigMap .data.odh-ca-bundle.crt.                                                                                                           	|
+#### Datascience Cluster schema
+| Attribute                                                  	| Accepted type             	| Required 	| Default         	| Description                                                                                                                                                                                                                                                                                                                                 	|
+|------------------------------------------------------------	|---------------------------	|----------	|-----------------	|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------	|
+| spec.codeflare                                             	| [Component](#component-schema)                 	| True     	| ""              	| Codeflare component config.                                                                                                                                                                                                                                                                                                                 	|
+| spec.dashboard                                             	| [Component](#component-schema)                 	| True     	| ""              	| Dashboard component config.                                                                                                                                                                                                                                                                                                                 	|
+| spec.datasciencepipelines                                  	| [Component](#component-schema)                 	| True     	| ""              	| Datascience pipelines component config.                                                                                                                                                                                                                                                                                                     	|
+| spec.kserve                                                	| [Component](#component-schema)                 	| True     	| ""              	| kserve component config.                                                                                                                                                                                                                                                                                                                    	|
+| spec.kserve.serving.ingress gateway.certificate.type       	| SelfSigned/Provided       	| True     	| SelfSigned      	| Type specifies if the TLS certificate should be generated automatically, <br>or if the certificate is provided by the user. Allowed values are:<br>* SelfSigned: A certificate is going to be generated using its private key.<br>* Provided: Pre-existence of the TLS Secret (see SecretName) with a valid <br>  certificate is assumed.   	|
+| spec.kserve.serving.ingress gateway.certificate.secretName 	| string                    	| False    	| ""              	| SecretName specifies the name of the Kubernetes Secret resource <br>that contains a TLS certificate to secure HTTP communications for <br>the KNative network.                                                                                                                                                                              	|
+| spec.kserve.serving.ingress gateway.domain                 	| string                    	| False    	| ""              	| Domain specifies the DNS name for intercepting ingress requests coming from<br>outside the cluster. Most likely, you will want to use a wildcard name,<br>like *.example.com. If not set, the domain of the OpenShift Ingress is used.<br>If you choose to generate a certificate, this is the domain used for the <br>certificate request. 	|
+| spec.kserve.serving.managementState                        	| Managed/Unmanaged/Removed 	| True     	| Managed         	| State indicates installation/uninstallation of the serving components.                                                                                                                                                                                                                                                                      	|
+| spec.kserve.serving.name                                   	| string                    	| True     	| knative-serving 	| Name specifies the name of the KNativeServing resource that is <br>going to be created to instruct the KNative Operator to deploy <br>KNative serving components.                                                                                                                                                                           	|
+| spec.kserve.defaultDeploymentMode                          	| Serverless/RawDeployment  	| False    	| Serverless      	| Configures the default deployment mode for Kserve.<br>The value specified in this field will be used to set the <br>default deployment mode in the 'inferenceservice-config' <br>configmap for Kserve.                                                                                                                                      	|
+| spec.kueue                                                 	| [Component](#component-schema)                 	| True     	| ""              	| Kueue component config.                                                                                                                                                                                                                                                                                                                     	|
+| spec.modelmeshserving                                      	| [Component](#component-schema)                 	| True     	| ""              	| ModelMeshServing component config.                                                                                                                                                                                                                                                                                                          	|
+| spec.modelregistry                                         	| [Component](#component-schema)                 	| True     	| ""              	| Model Registry component config.                                                                                                                                                                                                                                                                                                            	|
+| spec.ray                                                   	| [Component](#component-schema)                 	| True     	| ""              	| KubeRay component config.                                                                                                                                                                                                                                                                                                                   	|
+| spec.trustyai                                              	| [Component](#component-schema)                 	| True     	| ""              	| TrustyAI component config.                                                                                                                                                                                                                                                                                                                  	|
+| spec.workbenches                                           	| [Component](#component-schema)                 	| True     	| ""              	| Workbenches component config.                                                                                                                                                                                                                                                                                                               	|
+#### Component schema
+| Attribute                        	| Accepted type   	| Required 	| Default 	| Description                                                                                                                                                         	|
+|----------------------------------	|-----------------	|----------	|---------	|---------------------------------------------------------------------------------------------------------------------------------------------------------------------	|
+| managementState                  	| Managed/Removed 	| True     	| ""      	| If the state is managed then the operator is actively managing the component.<br>If the state is Removed then the operator will try to remove it if installed.<br>  	|
+| devFlags.manifests[i].uri        	| string          	| False    	| ""      	| The URI point to a git repo with tag/branch.                                                                                                                        	|
+| devFlags.manifests[i].contextDir 	| string          	| False    	| ""      	| The relative path to the folder containing manifests in a repository.                                                                                               	|
+| devFlags.manifests[i].sourcePath 	| string          	| False    	| ""      	| The subpath within contextDir where kustomize builds start.                                                                                                         	|
 ## Dev Preview
 
 Developer Preview of the new Open Data Hub operator codebase is now available.
@@ -191,7 +246,6 @@ e.g `make image-build -e IMAGE_BUILD_FLAGS="--build-arg USE_LOCAL=true"`
   ```commandline
   operator-sdk run bundle quay.io/<username>/opendatahub-operator-bundle:<VERSION> --namespace $OPERATOR_NAMESPACE
   ```
-
 ### Test with customized manifests
 
 There are 2 ways to test your changes with modification:
@@ -205,8 +259,8 @@ There are 2 ways to test your changes with modification:
 Below is the default DSCI CR config
 
 ```console
-apiVersion: dscinitialization.opendatahub.io/v1
 kind: DSCInitialization
+apiVersion: dscinitialization.opendatahub.io/v1
 metadata:
   name: default-dsci
 spec:
@@ -220,6 +274,10 @@ spec:
       name: data-science-smcp
       namespace: istio-system
     managementState: Managed
+  trustedCABundle:
+    customCABundle: ''
+    managementState: Managed
+
 ```
 
 Apply this example with modification for your usage.
@@ -246,17 +304,23 @@ spec:
       managementState: Managed
     kserve:
       managementState: Managed
+      serving:
+        ingressGateway:
+          certificate:
+            type: SelfSigned
+        managementState: Managed
+        name: knative-serving
     kueue:
       managementState: Managed
     modelmeshserving:
       managementState: Managed
-    ray:
+    modelregistry:
       managementState: Managed
-    workbenches:
+    ray:
       managementState: Managed
     trustyai:
       managementState: Managed
-    modelregistry:
+    workbenches:
       managementState: Managed
 ```
 
