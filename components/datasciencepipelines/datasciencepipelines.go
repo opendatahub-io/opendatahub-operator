@@ -21,6 +21,7 @@ import (
 var (
 	ComponentName = "data-science-pipelines-operator"
 	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
+	OverlayPath   = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays"
 )
 
 // Verifies that Dashboard implements ComponentInterface.
@@ -96,6 +97,16 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 	if err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 		return err
 	}
+
+	// new overlay
+	manifestsPath := filepath.Join(OverlayPath, "rhoai")
+	if platform == deploy.OpenDataHub || platform == "" {
+		manifestsPath = filepath.Join(OverlayPath, "odh")
+	}
+	if err = deploy.DeployManifestsFromPath(cli, owner, manifestsPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+		return err
+	}
+
 	// CloudService Monitoring handling
 	if platform == deploy.ManagedRhods {
 		if enabled {
