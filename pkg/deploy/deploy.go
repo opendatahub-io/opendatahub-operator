@@ -425,11 +425,11 @@ func DeleteExistingSubscription(cli client.Client, operatorNs string, subsName s
 	if err != nil {
 		return client.IgnoreNotFound(err)
 	}
-	
+
 	if err := cli.Delete(context.TODO(), sub); client.IgnoreNotFound(err) != nil {
 		return fmt.Errorf("error deleting subscription %s: %w", sub.Name, err)
 	}
-	
+
 	return nil
 }
 
