@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
-	"go.uber.org/zap"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -55,8 +55,10 @@ func (r *Ray) GetComponentName() string {
 	return ComponentName
 }
 
-func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
-	logger := r.ConfigLogger(dscispec).With(zap.String("component", ComponentName))
+func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
+	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
+	l := r.ConfigLogger(logger, ComponentName, dscispec)
+
 	var imageParamMap = map[string]string{
 		"odh-kuberay-operator-controller-image": "RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE",
 		"namespace":                             dscispec.ApplicationsNamespace,
@@ -78,16 +80,17 @@ func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, owner m
 		}
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (r.DevFlags == nil || len(r.DevFlags.Manifests) == 0) {
 			if err := deploy.ApplyParams(RayPath, imageParamMap, true); err != nil {
-				logger.Error("failed update image", zap.Error(err))
+				l.Error(err, "failed update image", "path", RayPath)
 				return err
 			}
 		}
 	}
 	// Deploy Ray Operator
 	if err := deploy.DeployManifestsFromPath(cli, owner, RayPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+		l.Error(err, "failed apply manifests", "path", RayPath)
 		return err
 	}
-	logger.Info("apply manifests done")
+	l.Info("apply manifests done")
 	// CloudService Monitoring handling
 	if platform == deploy.ManagedRhods {
 		if enabled {
@@ -95,7 +98,7 @@ func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, owner m
 			if err := monitoring.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
 				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 			}
-			logger.Info("deployment is done, updating monitoring rules")
+			l.Info("deployment is done, updating monitoring rules")
 		}
 		if err := r.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
@@ -106,6 +109,7 @@ func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, owner m
 			"prometheus", true); err != nil {
 			return err
 		}
+		l.Info("updating SRE monitoring done")
 	}
 
 	return nil

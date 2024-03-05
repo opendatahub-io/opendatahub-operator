@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
-	"go.uber.org/zap"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -96,8 +96,9 @@ func (w *Workbenches) GetComponentName() string {
 	return ComponentName
 }
 
-func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec, _ bool) error {
-	logger := w.ConfigLogger(dscispec).With(zap.String("component", ComponentName))
+func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
+	owner metav1.Object, dscispec *dsci.DSCInitializationSpec, _ bool) error {
+	l := w.ConfigLogger(logger, ComponentName, dscispec)
 	var imageParamMap = map[string]string{
 		"odh-notebook-controller-image":    "RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE",
 		"odh-kf-notebook-controller-image": "RELATED_IMAGE_ODH_KF_NOTEBOOK_CONTROLLER_IMAGE",
@@ -136,8 +137,10 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 	}
 
 	if err = deploy.DeployManifestsFromPath(cli, owner, notebookControllerPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+		l.Error(err, "failed apply manifests", "path", notebookControllerPath)
 		return err
 	}
+	l.WithValues("Path", notebookControllerPath).Info("apply manifests done NBC")
 
 	// Update image parameters for nbc in downstream
 	if enabled {
@@ -145,12 +148,12 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 			if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
 				// for kf-notebook-controller image
 				if err := deploy.ApplyParams(notebookControllerPath, imageParamMap, false); err != nil {
-					logger.Error("failed update image", zap.String("path", notebookControllerPath), zap.Error(err))
+					l.Error(err, "failed update image", "path", notebookControllerPath)
 					return err
 				}
 				// for odh-notebook-controller image
 				if err := deploy.ApplyParams(kfnotebookControllerPath, imageParamMap, false); err != nil {
-					logger.Error("failed update image", zap.String("path", kfnotebookControllerPath), zap.Error(err))
+					l.Error(err, "failed update image", "path", kfnotebookControllerPath)
 					return err
 				}
 			}
@@ -176,7 +179,7 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 		ComponentName, enabled); err != nil {
 		return err
 	}
-	logger.Info("apply manifests done")
+	l.WithValues("Path", manifestsPath).Info("apply manifests done notebook image")
 	// CloudService Monitoring handling
 	if platform == deploy.ManagedRhods {
 		if enabled {
@@ -185,7 +188,7 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 			if err := monitoring.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 10, 1); err != nil {
 				return fmt.Errorf("deployments for %s are not ready to server: %w", ComponentName, err)
 			}
-			logger.Info("deployment is done, updating monitoring rules")
+			l.Info("deployment is done, updating monitoring rules")
 		}
 		if err := w.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
@@ -196,6 +199,7 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 			"prometheus", true); err != nil {
 			return err
 		}
+		l.Info("updating SRE monitoring done")
 	}
 
 	return nil

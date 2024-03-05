@@ -58,6 +58,7 @@ spec:
                   This is not recommended to be used in production environment.
                 properties:
                   logmode:
+                    default: production
                     enum:
                     - devel
                     - development

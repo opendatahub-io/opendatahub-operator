@@ -31,7 +31,6 @@ import (
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
-	"go.uber.org/zap/zapcore"
 	admv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -123,14 +122,11 @@ func main() { //nolint:funlen
 
 	flag.Parse()
 
-	// config logger for all controller
-	var l zapcore.Level
-	_ = l.UnmarshalText([]byte(loggerOpts.level))
-	logger := zap.New(
-		zap.Level(l),
-		zap.UseDevMode(loggerOpts.mode == "devel"), // ==  zap.Options{ Development: true, }
-	)
-	ctrl.SetLogger(logger)
+	opts := zap.Options{
+		Development: false, // default use production mode
+	}
+	opts.BindFlags(flag.CommandLine)
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,

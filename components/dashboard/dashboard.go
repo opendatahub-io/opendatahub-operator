@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
-	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -87,6 +87,7 @@ func (d *Dashboard) GetComponentName() string {
 //nolint:gocyclo
 func (d *Dashboard) ReconcileComponent(ctx context.Context,
 	cli client.Client,
+	logger logr.Logger,
 	owner metav1.Object,
 	dscispec *dsciv1.DSCInitializationSpec,
 	currentComponentExist bool,
@@ -102,18 +103,16 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		return err
 	}
 
-	var logger *zap.Logger
+	l := d.ConfigLogger(logger, ComponentName, dscispec)
 	if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
-		logger = d.ConfigLogger(dscispec).With(zap.String("component", ComponentNameSupported))
-	} else {
-		logger = d.ConfigLogger(dscispec).With(zap.String("component", ComponentName))
+		l = d.ConfigLogger(logger, ComponentNameSupported, dscispec)
 	}
 
 	// Update Default rolebinding
 	if enabled {
 		// Update Default rolebinding
 		// cleanup OAuth client related secret and CR if dashboard is in 'installed false' status
-		if err := d.cleanOauthClient(cli, dscispec, currentComponentExist); err != nil {
+		if err := d.cleanOauthClient(cli, dscispec, currentComponentExist, l); err != nil {
 			return err
 		}
 		if d.DevFlags != nil {
@@ -124,7 +123,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		}
 		// 1. Deploy CRDs
 		if err := d.deployCRDsForPlatform(cli, owner, dscispec.ApplicationsNamespace, platform); err != nil {
-			logger.Error("failed to deploy CRD", zap.String("path", PathCRDs), zap.Error(err))
+			l.Error(err, "failed to deploy CRD image")
 			return err
 		}
 
@@ -146,7 +145,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		// 3. Update image parameters
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (d.DevFlags == nil || len(d.DevFlags.Manifests) == 0) {
 			if err := deploy.ApplyParams(PathSupported, imageParamMap, false); err != nil {
-				logger.Error("failed update image", zap.Error(err))
+				l.Error(err, "failed update image", "path", PathSupported)
 				return err
 			}
 		}
@@ -162,8 +161,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		}
 		// overlay which including ../../base + anaconda-ce-validator
 		if err := deploy.DeployManifestsFromPath(cli, owner, PathSupported, dscispec.ApplicationsNamespace, ComponentNameSupported, enabled); err != nil {
-			logger.Error("failed to apply manifests", zap.String("path", PathSupported), zap.Error(err))
-			return err
+			return fmt.Errorf("failed to apply manifests from %s: %w", PathSupported, err)
 		}
 		// modelserving
 		if err := deploy.DeployManifestsFromPath(cli, owner, PathSupportedModelServing, dscispec.ApplicationsNamespace, ComponentNameSupported, enabled); err != nil {
@@ -171,11 +169,11 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		}
 
 		// Apply RHOAI specific configs, e.g anaconda screct and cronjob and ISV
-		if err := d.applyRHOAISpecificConfigs(cli, owner, dscispec.ApplicationsNamespace, platform); err != nil {
+		if err := d.applyRHOAISpecificConfigs(cli, owner, dscispec.ApplicationsNamespace, platform, l); err != nil {
 			return err
 		}
 		// consolelink
-		if err := d.deployConsoleLink(cli, owner, platform, dscispec.ApplicationsNamespace, ComponentNameSupported); err != nil {
+		if err := d.deployConsoleLink(cli, owner, platform, dscispec.ApplicationsNamespace, ComponentNameSupported, l); err != nil {
 			return err
 		}
 		// CloudService Monitoring handling
@@ -185,7 +183,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 				if err := monitoring.WaitForDeploymentAvailable(ctx, cli, ComponentNameSupported, dscispec.ApplicationsNamespace, 20, 3); err != nil {
 					return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 				}
-				logger.Info("deployment is done, updating monitoring rules")
+				l.Info("deployment is done, updating monitoring rules")
 			}
 
 			if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentNameSupported); err != nil {
@@ -197,6 +195,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 				"prometheus", true); err != nil {
 				return err
 			}
+			l.Info("updating SRE monitoring done")
 		}
 		return nil
 	default:
@@ -213,7 +212,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 			return fmt.Errorf("failed to set dashboard modelserving from %s: %w", PathModelServing, err)
 		}
 		// consolelink
-		if err := d.deployConsoleLink(cli, owner, platform, dscispec.ApplicationsNamespace, ComponentName); err != nil {
+		if err := d.deployConsoleLink(cli, owner, platform, dscispec.ApplicationsNamespace, ComponentName, l); err != nil {
 			return err
 		}
 		return nil
@@ -229,7 +228,7 @@ func (d *Dashboard) deployCRDsForPlatform(cli client.Client, owner metav1.Object
 	return deploy.DeployManifestsFromPath(cli, owner, PathCRDs, namespace, componentName, true)
 }
 
-func (d *Dashboard) applyRHOAISpecificConfigs(cli client.Client, owner metav1.Object, namespace string, platform deploy.Platform) error {
+func (d *Dashboard) applyRHOAISpecificConfigs(cli client.Client, owner metav1.Object, namespace string, platform deploy.Platform, l logr.Logger) error {
 	enabled := d.ManagementState == operatorv1.Managed
 
 	// set proper group name
@@ -251,12 +250,13 @@ func (d *Dashboard) applyRHOAISpecificConfigs(cli client.Client, owner metav1.Ob
 		path = PathISVAddOn
 	}
 	if err := deploy.DeployManifestsFromPath(cli, owner, path, namespace, ComponentNameSupported, enabled); err != nil {
-		return fmt.Errorf("failed to set dashboard ISV from %s: %w", path, err)
+		l.Error(err, "failed to set dashboard ISV", "path", path)
+		return err
 	}
 	return nil
 }
 
-func (d *Dashboard) deployConsoleLink(cli client.Client, owner metav1.Object, platform deploy.Platform, namespace, componentName string) error {
+func (d *Dashboard) deployConsoleLink(cli client.Client, owner metav1.Object, platform deploy.Platform, namespace, componentName string, l logr.Logger) error {
 	var manifestsPath, sectionTitle, routeName string
 	switch platform {
 	case deploy.SelfManagedRhods:
@@ -277,7 +277,8 @@ func (d *Dashboard) deployConsoleLink(cli client.Client, owner metav1.Object, pl
 
 	consoleRoute := &routev1.Route{}
 	if err := cli.Get(context.TODO(), client.ObjectKey{Name: NameConsoleLink, Namespace: NamespaceConsoleLink}, consoleRoute); err != nil {
-		return fmt.Errorf("error getting console route URL: %w", err)
+		l.Error(err, "error getting console route URL", "name", NameConsoleLink, "namespace", NamespaceConsoleLink)
+		return err
 	}
 
 	domainIndex := strings.Index(consoleRoute.Spec.Host, ".")
@@ -287,7 +288,8 @@ func (d *Dashboard) deployConsoleLink(cli client.Client, owner metav1.Object, pl
 		"<section-title>": sectionTitle,
 	})
 	if err != nil {
-		return fmt.Errorf("error replacing with correct dashboard url for ConsoleLink: %w", err)
+		l.Error(err, "error replacing with correct dashboard URL for consolelink")
+		return err
 	}
 
 	enabled := d.ManagementState == operatorv1.Managed
@@ -299,7 +301,7 @@ func (d *Dashboard) deployConsoleLink(cli client.Client, owner metav1.Object, pl
 	return nil
 }
 
-func (d *Dashboard) cleanOauthClient(cli client.Client, dscispec *dsciv1.DSCInitializationSpec, currentComponentExist bool) error {
+func (d *Dashboard) cleanOauthClient(cli client.Client, dscispec *dsciv1.DSCInitializationSpec, currentComponentExist bool, l logr.Logger) error {
 	// Remove previous oauth-client secrets
 	// Check if component is going from state of `Not Installed --> Installed`
 	// Assumption: Component is currently set to enabled
@@ -314,11 +316,13 @@ func (d *Dashboard) cleanOauthClient(cli client.Client, dscispec *dsciv1.DSCInit
 		}, oauthClientSecret)
 		if err != nil {
 			if !apierrs.IsNotFound(err) {
-				return fmt.Errorf("error getting secret %s: %w", name, err)
+				l.Error(err, "error getting secret")
+				return err
 			}
 		} else {
 			if err := cli.Delete(context.TODO(), oauthClientSecret); err != nil {
-				return fmt.Errorf("error deleting oauth client secret: %w", err)
+				l.Error(err, "error deleting oauth client secret")
+				return err
 			}
 		}
 	}

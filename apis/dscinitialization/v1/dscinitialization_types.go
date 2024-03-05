@@ -78,6 +78,7 @@ type DevFlags struct {
 	// +optional
 	ManifestsUri string `json:"manifestsUri,omitempty"`
 	// +kubebuilder:validation:Enum=devel;development;prod;production
+	// +kubebuilder:default="production"
 	LogMode string `json:"logmode,omitempty"`
 }
 

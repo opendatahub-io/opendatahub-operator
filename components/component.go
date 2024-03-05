@@ -8,12 +8,13 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
-	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 )
@@ -78,36 +79,51 @@ type ManifestsConfig struct {
 }
 
 type ComponentInterface interface {
-	ReconcileComponent(ctx context.Context, cli client.Client, owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec, currentComponentStatus bool) error
+	ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
+		owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec, currentComponentStatus bool) error
 	Cleanup(cli client.Client, DSCISpec *dsciv1.DSCInitializationSpec) error
 	GetComponentName() string
 	GetManagementState() operatorv1.ManagementState
 	OverrideManifests(platform string) error
 	UpdatePrometheusConfig(cli client.Client, enable bool, component string) error
-	ConfigLogger(dscispec *dsciv1.DSCInitializationSpec) *zap.Logger
+	ConfigLogger(logger logr.Logger, component string, dscispec *dsciv1.DSCInitializationSpec) logr.Logger
 }
 
-// by default, ConfigLogger set InfoLevel and Caller to InfoLevel, Stacktrace to ErrorLevel (close to what we have now)
-// config to use devel/development: change to DebugLevel, with Caller to DebugLevel, keep stacktrace to ErrorLevel
-// config to use prod/production: change to ErrorLevel, with Caller to ErrorLevel and keep stracetrace to ErrorLevel
-// not set a "default" in switch because support value in LogMode is enum.
-func (c *Component) ConfigLogger(dscispec *dsciv1.DSCInitializationSpec) *zap.Logger {
-	level := zap.NewAtomicLevelAt(zap.InfoLevel)
-	config := zap.NewDevelopmentEncoderConfig()
+// by default, ConfigLogger with jsonEncoder, logLevel=Info, stackTraceLevel=Error
+// when set in DSCI: devel Mode defaults(encoder=consoleEncoder,logLevel=Debug,stackTraceLevel=Info with lower case for key
+// when set in DSCI: prod  Mode defaults(encoder=jsonEncoder,   logLevel=Info, stackTraceLevel=Error with upper case for key.
+func (c *Component) ConfigLogger(logger logr.Logger, component string, dscispec *dsciv1.DSCInitializationSpec) logr.Logger {
 	if dscispec.DevFlags != nil {
 		switch dscispec.DevFlags.LogMode {
-		case "devel", "development":
-			config = zap.NewDevelopmentEncoderConfig() // human readable
-			level = zap.NewAtomicLevelAt(zap.DebugLevel)
-		case "prod", "production":
-			config = zap.NewProductionEncoderConfig()      // json format
-			config.EncodeTime = zapcore.ISO8601TimeEncoder // human readable not epoch
-			level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+		case "devel", "development": // 1
+			logger = zap.New(
+				zap.UseDevMode(true),
+				zap.StacktraceLevel(zapcore.InfoLevel),
+				zap.WriteTo(os.Stdout),
+			)
+		case "prod", "production": // 0
+			logger = zap.New(
+				zap.UseDevMode(false),
+				zap.StacktraceLevel(zapcore.ErrorLevel),
+				zap.WriteTo(os.Stdout),
+				zap.Encoder(zapcore.NewJSONEncoder(zapcore.EncoderConfig{ // json format, better for etl
+					LevelKey:       "LogLevel",
+					NameKey:        "Log",
+					CallerKey:      "Caller",
+					MessageKey:     "Message",
+					TimeKey:        "Time",
+					EncodeTime:     zapcore.ISO8601TimeEncoder, // human readable not epoch
+					EncodeDuration: zapcore.SecondsDurationEncoder,
+				})),
+			)
+		default:
+			fmt.Print("Invalid log mode, fall back to use 'production'")
 		}
+	} else {
+		fmt.Printf("Not use any devFlags log mode for %s/n", component)
 	}
-	consoleEncoder := zapcore.NewConsoleEncoder(config)
-	core := zapcore.NewCore(consoleEncoder, zapcore.AddSync(os.Stdout), level)
-	return zap.New(core, zap.AddCaller(), zap.AddStacktrace(zap.ErrorLevel)) // extra options for caller and stacktrace
+	logger = logger.WithName("DSC.Component." + component)
+	return logger
 }
 
 // UpdatePrometheusConfig update prometheus-configs.yaml to include/exclude <component>.rules
