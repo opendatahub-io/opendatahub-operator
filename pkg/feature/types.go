@@ -13,6 +13,7 @@ type Spec struct {
 	AuthProviderName         string
 	OAuth                    OAuth
 	AppNamespace             string
+	TargetNamespace          string
 	Domain                   string
 	KnativeCertificateSecret string
 	KnativeIngressDomain     string

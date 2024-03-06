@@ -16,56 +16,41 @@ package feature
 import (
 	"context"
 	"fmt"
-	"regexp"
-	"strings"
 
-	"github.com/ghodss/yaml"
 	"github.com/pkg/errors"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
 const (
 	YamlSeparator = "(?m)^---[ \t]*$"
 )
 
-func (f *Feature) createResources(resources string) error {
-	splitter := regexp.MustCompile(YamlSeparator)
-	objectStrings := splitter.Split(resources, -1)
-	for _, str := range objectStrings {
-		if strings.TrimSpace(str) == "" {
-			continue
-		}
-		u := &unstructured.Unstructured{}
-		if err := yaml.Unmarshal([]byte(str), u); err != nil {
-			return errors.WithStack(err)
+func createResources(cli client.Client, objects []*unstructured.Unstructured, metaOptions ...cluster.MetaOptions) error {
+	for _, object := range objects {
+		for _, opt := range metaOptions {
+			if err := opt(object); err != nil {
+				return err // return immediately if any of the MetaOptions functions fail
+			}
 		}
 
-		ensureNamespaceIsSet(f, u)
+		name := object.GetName()
+		namespace := object.GetNamespace()
 
-		name := u.GetName()
-		namespace := u.GetNamespace()
-
-		u.SetOwnerReferences([]metav1.OwnerReference{
-			f.AsOwnerReference(),
-		})
-
-		f.Log.Info("Creating resource", "name", name)
-
-		err := f.Client.Get(context.TODO(), k8stypes.NamespacedName{Name: name, Namespace: namespace}, u.DeepCopy())
+		err := cli.Get(context.TODO(), k8stypes.NamespacedName{Name: name, Namespace: namespace}, object.DeepCopy())
 		if err == nil {
-			f.Log.Info("Object already exists...")
-
+			// object already exists, skip reconcile allowing users to tweak it
 			continue
 		}
 		if !k8serrors.IsNotFound(err) {
 			return errors.WithStack(err)
 		}
 
-		err = f.Client.Create(context.TODO(), u)
+		err = cli.Create(context.TODO(), object)
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -73,39 +58,18 @@ func (f *Feature) createResources(resources string) error {
 	return nil
 }
 
-func (f *Feature) patchResources(resources string) error {
-	splitter := regexp.MustCompile(YamlSeparator)
-	objectStrings := splitter.Split(resources, -1)
-	for _, str := range objectStrings {
-		if strings.TrimSpace(str) == "" {
-			continue
-		}
-		u := &unstructured.Unstructured{}
-		if err := yaml.Unmarshal([]byte(str), u); err != nil {
-			f.Log.Error(err, "error unmarshalling yaml")
-			return errors.WithStack(err)
-		}
-
-		ensureNamespaceIsSet(f, u)
-
-		patchAsJSON, err := yaml.YAMLToJSON([]byte(str))
+func patchResources(cli client.Client, patches []*unstructured.Unstructured) error {
+	for _, patch := range patches {
+		// Convert the individual resource patch to JSON
+		patchAsJSON, err := patch.MarshalJSON()
 		if err != nil {
 			return fmt.Errorf("error converting yaml to json: %w", err)
 		}
 
-		if err := f.Client.Patch(context.TODO(), u, client.RawPatch(k8stypes.MergePatchType, patchAsJSON)); err != nil {
+		if err = cli.Patch(context.TODO(), patch, client.RawPatch(k8stypes.MergePatchType, patchAsJSON)); err != nil {
 			return fmt.Errorf("failed patching resource: %w", err)
 		}
 	}
 
 	return nil
-}
-
-// For any other than Namespace kind we set namespace to AppNamespace if it is not defined
-// yet for the object.
-func ensureNamespaceIsSet(f *Feature, u *unstructured.Unstructured) {
-	namespace := u.GetNamespace()
-	if u.GetKind() != "Namespace" && namespace == "" {
-		u.SetNamespace(f.Spec.AppNamespace)
-	}
 }
