@@ -26,6 +26,7 @@ and configure these applications.
   - [Example DataScienceCluster](#example-datasciencecluster)
   - [Run functional Tests](#run-functional-tests)
   - [Run e2e Tests](#run-e2e-tests)
+  - [API Overview](#api-overview)
   - [Troubleshooting](#troubleshooting)
   - [Upgrade testing](#upgrade-testing)
 
@@ -349,6 +350,9 @@ for DataScienceCluster deletion.
 ```shell
 make e2e-test -e OPERATOR_NAMESPACE=<namespace> -e E2E_TEST_FLAGS="--skip-deletion=true"
 ```
+### API Overview
+
+Please refer to [api documentation](docs/api-overview.md)
 
 ### Troubleshooting
 
