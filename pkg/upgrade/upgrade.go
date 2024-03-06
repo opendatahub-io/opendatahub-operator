@@ -20,7 +20,6 @@ import (
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -49,11 +48,6 @@ const (
 	// TODO: Label should be updated if addon name changes.
 	DeleteConfigMapLabel = "api.openshift.com/addon-managed-odh-delete"
 )
-
-type Resource interface {
-	metav1.Object
-	runtime.Object
-}
 
 // OperatorUninstall deletes all the externally generated resources. This includes monitoring resources and applications
 // installed by KfDef.
@@ -114,18 +108,11 @@ func OperatorUninstall(cli client.Client, cfg *rest.Config) error {
 	} else if platform == deploy.ManagedRhods {
 		subsName = "addon-managed-odh"
 	}
-	sub, _ := deploy.SubscriptionExists(cli, operatorNs, subsName)
-	if sub == nil {
-		fmt.Printf("Could not find subscription %s in namespace %s. Maybe you have a different one", subsName, operatorNs)
-	} else {
-		if err := cli.Delete(context.TODO(), sub); err != nil {
-			return fmt.Errorf("error deleting subscription %s: %w", sub.Name, err)
-		}
+	if err := deploy.DeleteExistingSubscription(cli, operatorNs, subsName); err != nil {
+		return err
 	}
 
 	fmt.Printf("Removing the operator CSV in turn remove operator deployment\n")
-	time.Sleep(5 * time.Second)
-
 	err = removeCSV(cli, cfg)
 
 	fmt.Printf("All resources deleted as part of uninstall.")
@@ -331,10 +318,6 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 		kfDefList := &kfdefv1.KfDefList{}
 		err := cli.List(context.TODO(), kfDefList)
 		if err != nil {
-			if apierrs.IsNotFound(err) {
-				// If no KfDefs, do nothing and return
-				return nil
-			}
 			return fmt.Errorf("error getting kfdef instances: : %w", err)
 		}
 		if len(kfDefList.Items) > 0 {
@@ -357,24 +340,16 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 		return err
 	}
 
-	// TODO: Revert the following condition in 2.8 ODH Release
-	if platform == deploy.OpenDataHub {
-		fmt.Println("starting deletion of deployment in ODH cluster")
-		if err := deleteResource(cli, appNS, "deployment"); err != nil {
-			return fmt.Errorf("error deleting deployment: %w", err)
-		}
-	}
-
 	return nil
 }
 
 func CleanupExistingResource(cli client.Client, platform deploy.Platform) error {
 	var multiErr *multierror.Error
+	montNamespace := "redhat-ods-monitoring"
+	ctx := context.TODO()
 
 	// Special Handling of cleanup of deprecated model monitoring stack
 	if platform == deploy.ManagedRhods {
-		montNamespace := "redhat-ods-monitoring"
-		ctx := context.TODO()
 		deprecatedDeployments := []string{"rhods-prometheus-operator"}
 		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, montNamespace, deprecatedDeployments, &appsv1.DeploymentList{}))
 
@@ -402,6 +377,9 @@ func CleanupExistingResource(cli client.Client, platform deploy.Platform) error 
 		deprecatedServicemonitors := []string{"modelmesh-federated-metrics"}
 		multiErr = multierror.Append(multiErr, deleteDeprecatedServiceMonitors(ctx, cli, montNamespace, deprecatedServicemonitors))
 	}
+	// common logic for both self-managed and managed
+	deprecatedOperatorSM := []string{"rhods-monitor-federation2"}
+	multiErr = multierror.Append(multiErr, deleteDeprecatedServiceMonitors(ctx, cli, montNamespace, deprecatedOperatorSM))
 
 	return multiErr.ErrorOrNil()
 }
@@ -432,10 +410,6 @@ func RemoveKfDefInstances(cli client.Client, _ deploy.Platform) error {
 	expectedKfDefList := &kfdefv1.KfDefList{}
 	err = cli.List(context.TODO(), expectedKfDefList)
 	if err != nil {
-		if apierrs.IsNotFound(err) {
-			// If no KfDefs, do nothing and return
-			return nil
-		}
 		return fmt.Errorf("error getting list of kfdefs: %w", err)
 	}
 	// Delete kfdefs

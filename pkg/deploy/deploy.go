@@ -175,7 +175,7 @@ func DeployManifestsFromPath(cli client.Client, owner metav1.Object, manifestPat
 		return err
 	}
 
-	objs, err := getResources(resMap)
+	objs, err := GetResources(resMap)
 	if err != nil {
 		return err
 	}
@@ -190,7 +190,7 @@ func DeployManifestsFromPath(cli client.Client, owner metav1.Object, manifestPat
 	return nil
 }
 
-func getResources(resMap resmap.ResMap) ([]*unstructured.Unstructured, error) {
+func GetResources(resMap resmap.ResMap) ([]*unstructured.Unstructured, error) {
 	resources := make([]*unstructured.Unstructured, 0, resMap.Size())
 	for _, res := range resMap.Resources() {
 		u := &unstructured.Unstructured{}
@@ -284,6 +284,11 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 	// TODO: Move this out when we have dashboard-controller
 	if found.GetKind() == "OdhDashboardConfig" {
 		// Do nothing, return
+		return nil
+	}
+
+	// do not reconcile kserve resource with annotation "opendatahub.io/managed: false"
+	if found.GetAnnotations()["opendatahub.io/managed"] == "false" && componentName == "kserve" {
 		return nil
 	}
 
@@ -402,22 +407,17 @@ func ApplyParams(componentPath string, imageParamsMap map[string]string, isUpdat
 	return nil
 }
 
-// SubscriptionExists checks if a Subscription for the operator exists in the given namespace.
-// if it exists, return object; if it does not exist, return nil.
-func SubscriptionExists(cli client.Client, namespace string, name string) (*ofapiv1alpha1.Subscription, error) {
+// GetSubscription checks if a Subscription for the operator exists in the given namespace.
+// if exist, return object; otherwise, return error.
+func GetSubscription(cli client.Client, namespace string, name string) (*ofapiv1alpha1.Subscription, error) {
 	sub := &ofapiv1alpha1.Subscription{}
 	if err := cli.Get(context.TODO(), client.ObjectKey{Namespace: namespace, Name: name}, sub); err != nil {
-		if apierrs.IsNotFound(err) {
-			return nil, nil
-		}
+		// real error or 'not found' both return here
 		return nil, err
 	}
-
 	return sub, nil
 }
 
-// ClusterSubscriptionExists checks if a Subscription for the operator exists in any namespace in the cluster.
-// If it exists, return the Subscription object; if it does not exist, return nil.
 func ClusterSubscriptionExists(cli client.Client, name string) error {
 	subscriptionList := &ofapiv1alpha1.SubscriptionList{}
 	if err := cli.List(context.TODO(), subscriptionList); err != nil {
@@ -430,6 +430,20 @@ func ClusterSubscriptionExists(cli client.Client, name string) error {
 		}
 	}
 	return fmt.Errorf("subscription %q not found", name)
+
+// Delete given Subscription if it exists
+// Do not error if the Subscription does not exist.
+func DeleteExistingSubscription(cli client.Client, operatorNs string, subsName string) error {
+	sub, err := GetSubscription(cli, operatorNs, subsName)
+	if err != nil {
+		return client.IgnoreNotFound(err)
+	}
+
+	if err := cli.Delete(context.TODO(), sub); client.IgnoreNotFound(err) != nil {
+		return fmt.Errorf("error deleting subscription %s: %w", sub.Name, err)
+	}
+
+	return nil
 }
 
 // OperatorExists checks if an Operator with 'operatorPrefix' is installed.
@@ -437,15 +451,13 @@ func ClusterSubscriptionExists(cli client.Client, name string) error {
 // if we need to check exact version of the operator installed, can append vX.Y.Z later.
 func OperatorExists(cli client.Client, operatorPrefix string) (bool, error) {
 	opConditionList := &ofapiv2.OperatorConditionList{}
-	if err := cli.List(context.TODO(), opConditionList); err != nil {
-		if !apierrs.IsNotFound(err) { // real error to run List()
-			return false, err
-		}
-	} else {
-		for _, opCondition := range opConditionList.Items {
-			if strings.HasPrefix(opCondition.Name, operatorPrefix) {
-				return true, nil
-			}
+	err := cli.List(context.TODO(), opConditionList)
+	if err != nil {
+		return false, err
+	}
+	for _, opCondition := range opConditionList.Items {
+		if strings.HasPrefix(opCondition.Name, operatorPrefix) {
+			return true, nil
 		}
 	}
 
