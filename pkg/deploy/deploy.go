@@ -418,19 +418,18 @@ func SubscriptionExists(cli client.Client, namespace string, name string) (*ofap
 
 // ClusterSubscriptionExists checks if a Subscription for the operator exists in any namespace in the cluster.
 // If it exists, return the Subscription object; if it does not exist, return nil.
-func ClusterSubscriptionExists(cli client.Client, name string) (bool, error) {
+func ClusterSubscriptionExists(cli client.Client, name string) error {
 	subscriptionList := &ofapiv1alpha1.SubscriptionList{}
 	if err := cli.List(context.TODO(), subscriptionList); err != nil {
-		return false, err
+		return err
 	}
 
 	for _, sub := range subscriptionList.Items {
 		if sub.Name == name {
-			return true, nil
+			return nil
 		}
 	}
-	err := fmt.Errorf("subscription %q not found", name)
-	return false, err
+	return fmt.Errorf("subscription %q not found", name)
 }
 
 // OperatorExists checks if an Operator with 'operatorPrefix' is installed.

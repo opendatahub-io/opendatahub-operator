@@ -188,7 +188,6 @@ var _ = Describe("feature cleanup", func() {
 			})
 
 			It("should indicate successful installation in FeatureTracker", func() {
-				// given example CRD installed into env
 				featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
 					verificationFeatureErr := feature.CreateFeature("feature-success").
 						For(handler).

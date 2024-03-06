@@ -20,8 +20,8 @@ const (
 
 func EnsureOperatorIsInstalled(name string) Action {
 	return func(f *Feature) error {
-		if found, err := deploy.ClusterSubscriptionExists(f.Client, name); !found {
-			f.Log.Info("Failed to find the pre-requisite operator subscription, please ensure operator is installed.")
+		if err := deploy.ClusterSubscriptionExists(f.Client, name); err != nil {
+			f.Log.Info("Failed to find the pre-requisite operator subscription, please ensure operator is installed.", "operator name", name)
 
 			return err
 		}

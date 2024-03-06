@@ -134,8 +134,7 @@ var _ = Describe("Service Mesh feature", func() {
 			var smcpCrdObj *apiextensionsv1.CustomResourceDefinition
 
 			BeforeEach(func() {
-				// Create Operator Subscription
-				// Create KNativeServing the Subscription
+				// Create SM Operator Subscription
 				smOperatorSubscription := &ofapiv1alpha1.Subscription{}
 				Expect(yaml.Unmarshal([]byte(ossmSubscription), smOperatorSubscription)).To(Succeed())
 
@@ -150,7 +149,7 @@ var _ = Describe("Service Mesh feature", func() {
 				})
 				Expect(err).ToNot(HaveOccurred())
 
-				// Create SMCP the CRD
+				// Create SMCP CRD
 				smcpCrdObj = &apiextensionsv1.CustomResourceDefinition{}
 				Expect(yaml.Unmarshal([]byte(serviceMeshControlPlaneCRD), smcpCrdObj)).ToNot(HaveOccurred())
 				c, err := client.New(envTest.Config, client.Options{})
