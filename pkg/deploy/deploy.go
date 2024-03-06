@@ -175,7 +175,7 @@ func DeployManifestsFromPath(cli client.Client, owner metav1.Object, manifestPat
 		return err
 	}
 
-	objs, err := getResources(resMap)
+	objs, err := GetResources(resMap)
 	if err != nil {
 		return err
 	}
@@ -190,7 +190,7 @@ func DeployManifestsFromPath(cli client.Client, owner metav1.Object, manifestPat
 	return nil
 }
 
-func getResources(resMap resmap.ResMap) ([]*unstructured.Unstructured, error) {
+func GetResources(resMap resmap.ResMap) ([]*unstructured.Unstructured, error) {
 	resources := make([]*unstructured.Unstructured, 0, resMap.Size())
 	for _, res := range resMap.Resources() {
 		u := &unstructured.Unstructured{}
