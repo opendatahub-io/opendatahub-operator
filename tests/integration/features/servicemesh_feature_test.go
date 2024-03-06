@@ -2,6 +2,8 @@ package features_test
 
 import (
 	"context"
+	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -65,6 +67,20 @@ spec:
         status: {}
 `
 
+const ossmSubscription = `apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: servicemeshoperator
+  namespace: openshift-operators
+spec:
+  channel: stable
+  installPlanApproval: Automatic
+  name: servicemeshoperator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  startingCSV: servicemeshoperator.v2.4.5
+`
+
 var _ = Describe("Service Mesh feature", func() {
 
 	var (
@@ -95,7 +111,7 @@ var _ = Describe("Service Mesh feature", func() {
 			It("should fail using precondition check", func() {
 				// given
 				featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-					verificationFeatureErr := feature.CreateFeature("no-serverless-operator-check").
+					verificationFeatureErr := feature.CreateFeature("no-service-mesh-operator-check").
 						For(handler).
 						UsingConfig(envTest.Config).
 						PreConditions(servicemesh.EnsureServiceMeshOperatorInstalled).
@@ -110,7 +126,7 @@ var _ = Describe("Service Mesh feature", func() {
 				applyErr := featuresHandler.Apply()
 
 				// then
-				Expect(applyErr).To(MatchError(ContainSubstring("customresourcedefinitions.apiextensions.k8s.io \"servicemeshcontrolplanes.maistra.io\" not found")))
+				Expect(applyErr).To(MatchError(ContainSubstring("subscription \"servicemeshoperator\" not found")))
 			})
 		})
 
@@ -118,6 +134,22 @@ var _ = Describe("Service Mesh feature", func() {
 			var smcpCrdObj *apiextensionsv1.CustomResourceDefinition
 
 			BeforeEach(func() {
+				// Create Operator Subscription
+				// Create KNativeServing the Subscription
+				smOperatorSubscription := &ofapiv1alpha1.Subscription{}
+				Expect(yaml.Unmarshal([]byte(ossmSubscription), smOperatorSubscription)).To(Succeed())
+
+				ns := newNamespace("openshift-operators")
+				_, err := controllerutil.CreateOrUpdate(context.Background(), envTestClient, ns, func() error {
+					return nil
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = controllerutil.CreateOrUpdate(context.Background(), envTestClient, smOperatorSubscription, func() error {
+					return nil
+				})
+				Expect(err).ToNot(HaveOccurred())
+
 				// Create SMCP the CRD
 				smcpCrdObj = &apiextensionsv1.CustomResourceDefinition{}
 				Expect(yaml.Unmarshal([]byte(serviceMeshControlPlaneCRD), smcpCrdObj)).ToNot(HaveOccurred())

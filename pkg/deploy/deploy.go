@@ -34,7 +34,6 @@ import (
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
 	"golang.org/x/exp/maps"
-	corev1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -420,36 +419,17 @@ func SubscriptionExists(cli client.Client, namespace string, name string) (*ofap
 // ClusterSubscriptionExists checks if a Subscription for the operator exists in any namespace in the cluster.
 // If it exists, return the Subscription object; if it does not exist, return nil.
 func ClusterSubscriptionExists(cli client.Client, name string) (bool, error) {
-	// subscriptionList := &ofapiv1alpha1.SubscriptionList{}
-	// if err := cli.List(context.TODO(), subscriptionList); err != nil {
-	//	return false, err
-	//}
-	//
-	//for _, sub := range subscriptionList.Items {
-	//	if sub.Name == name {
-	//		return true, nil
-	//	}
-	//}
-	//
-	//return false, nil
-	namespaceList := &corev1.NamespaceList{}
-	var err error
-	if err = cli.List(context.TODO(), namespaceList); err != nil {
+	subscriptionList := &ofapiv1alpha1.SubscriptionList{}
+	if err := cli.List(context.TODO(), subscriptionList); err != nil {
 		return false, err
 	}
 
-	for _, ns := range namespaceList.Items {
-		subscription := &ofapiv1alpha1.Subscription{}
-		err = cli.Get(context.TODO(), client.ObjectKey{
-			Name:      name,
-			Namespace: ns.Name,
-		}, subscription)
-		fmt.Print(subscription.Name)
-		if err == nil {
+	for _, sub := range subscriptionList.Items {
+		if sub.Name == name {
 			return true, nil
 		}
 	}
-
+	err := fmt.Errorf("subscription %q not found", name)
 	return false, err
 }
 

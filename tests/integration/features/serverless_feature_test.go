@@ -3,13 +3,9 @@ package features_test
 import (
 	"context"
 	"fmt"
-
-	corev1 "k8s.io/api/core/v1"
+	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/util/yaml"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -18,6 +14,11 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/serverless"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/util/yaml"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -28,6 +29,19 @@ const (
 	testDomainFooCom    = "*.foo.com"
 )
 
+const knativeServingSubscription = `apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: serverless-operator
+  namespace: openshift-serverless
+spec:
+  channel: stable
+  installPlanApproval: Automatic
+  name: serverless-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  startingCSV: serverless-operator.v1.31.0
+`
 const knativeServingCrd = `apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
@@ -88,7 +102,7 @@ var _ = Describe("Serverless feature", func() {
 
 		When("operator is not installed", func() {
 
-			FIt("should fail on precondition check", func() {
+			It("should fail on precondition check", func() {
 				// given
 				featuresHandler := feature.ComponentFeaturesHandler(kserveComponent, &dsci.Spec, func(handler *feature.FeaturesHandler) error {
 					verificationFeatureErr := feature.CreateFeature("no-serverless-operator-check").
@@ -106,7 +120,7 @@ var _ = Describe("Serverless feature", func() {
 				applyErr := featuresHandler.Apply()
 
 				// then
-				Expect(applyErr).To(MatchError(ContainSubstring("\"knativeservings.operator.knative.dev\" not found")))
+				Expect(applyErr).To(MatchError(ContainSubstring("\"serverless-operator\" not found")))
 			})
 		})
 
@@ -115,6 +129,21 @@ var _ = Describe("Serverless feature", func() {
 			var knativeServingCrdObj *apiextensionsv1.CustomResourceDefinition
 
 			BeforeEach(func() {
+				// Create KNativeServing Subscription
+				knativeSubscription := &ofapiv1alpha1.Subscription{}
+				Expect(yaml.Unmarshal([]byte(knativeServingSubscription), knativeSubscription)).To(Succeed())
+
+				ns := newNamespace("openshift-serverless")
+				_, err := controllerutil.CreateOrUpdate(context.Background(), envTestClient, ns, func() error {
+					return nil
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = controllerutil.CreateOrUpdate(context.Background(), envTestClient, knativeSubscription, func() error {
+					return nil
+				})
+				Expect(err).ToNot(HaveOccurred())
+
 				// Create KNativeServing the CRD
 				knativeServingCrdObj = &apiextensionsv1.CustomResourceDefinition{}
 				Expect(yaml.Unmarshal([]byte(knativeServingCrd), knativeServingCrdObj)).To(Succeed())
