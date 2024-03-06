@@ -565,7 +565,7 @@ func deleteDeprecatedServiceMonitors(ctx context.Context, cli client.Client, nam
 func removOdhApplicationsCR(ctx context.Context, cli client.Client, gvk schema.GroupVersionKind, instanceName string, applicationNS string) error {
 	// first check if CRD in cluster
 	crd := &apiextv1.CustomResourceDefinition{}
-	if err := cli.Get(context.TODO(), client.ObjectKey{Name: fmt.Sprintf("%s.%s", gvk.Kind, gvk.Group)}, crd); err != nil {
+	if err := cli.Get(ctx, client.ObjectKey{Name: fmt.Sprintf("%s.%s", gvk.Kind, gvk.Group)}, crd); err != nil {
 		return client.IgnoreNotFound(err)
 	}
 
