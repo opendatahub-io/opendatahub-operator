@@ -46,10 +46,6 @@ func (c *Component) Cleanup(_ client.Client, _ *dsciv1.DSCInitializationSpec) er
 	return nil
 }
 
-func (c *Component) SetImageParamsMap(imageMap map[string]string) map[string]string {
-	return imageMap
-}
-
 // DevFlags defines list of fields that can be used by developers to test customizations. This is not recommended
 // to be used in production environment.
 // +kubebuilder:object:generate=true
@@ -84,7 +80,6 @@ type ComponentInterface interface {
 	Cleanup(cli client.Client, DSCISpec *dsciv1.DSCInitializationSpec) error
 	GetComponentName() string
 	GetManagementState() operatorv1.ManagementState
-	SetImageParamsMap(imageMap map[string]string) map[string]string
 	OverrideManifests(platform string) error
 	UpdatePrometheusConfig(cli client.Client, enable bool, component string) error
 }
