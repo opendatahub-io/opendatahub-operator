@@ -2,9 +2,8 @@ package features_test
 
 import (
 	"context"
-	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
+	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -13,6 +12,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
