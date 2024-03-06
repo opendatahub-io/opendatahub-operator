@@ -26,9 +26,10 @@ import (
 )
 
 var (
-	opNamespace  string
-	skipDeletion bool
-	scheme       = runtime.NewScheme()
+	opNamespace    string
+	skipDeletion   bool
+	scheme         = runtime.NewScheme()
+	odhLabelPrefix = "app.opendatahub.io/"
 )
 
 // Holds information specific to individual tests.
@@ -46,7 +47,7 @@ type testContext struct {
 	// time required to create a resource
 	resourceCreationTimeout time.Duration
 	// test DataScienceCluster instance
-	testDsc *dsc.DataScienceCluster
+	testDSC *dsc.DataScienceCluster
 	// test DSCI CR because we do not create it in ODH by default
 	testDSCI *dsci.DSCInitialization
 	// time interval to check for resource creation
@@ -75,50 +76,15 @@ func NewTestContext() (*testContext, error) { //nolint:golint,revive // Only use
 		return nil, fmt.Errorf("failed to initialize custom client: %w", err)
 	}
 
-	// setup DSCI CR since we do not create automatically by operator
-	testDSCI := setupDSCICR("e2e-test-dsci")
-	// Setup DataScienceCluster CR
-	testDSC := setupDSCInstance("e2e-test")
-
 	return &testContext{
 		cfg:                     config,
 		kubeClient:              kc,
 		customClient:            custClient,
 		operatorNamespace:       opNamespace,
-		applicationsNamespace:   testDSCI.Spec.ApplicationsNamespace,
 		resourceCreationTimeout: time.Minute * 2,
-		resourceRetryInterval:   time.Second * 10,
+		resourceRetryInterval:   time.Second * 2,
 		ctx:                     context.TODO(),
-		testDsc:                 testDSC,
-		testDSCI:                testDSCI,
 	}, nil
-}
-
-// TestOdhOperator sets up the testing suite for ODH Operator.
-func TestOdhOperator(t *testing.T) {
-	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-	utilruntime.Must(routev1.AddToScheme(scheme))
-	utilruntime.Must(apiextv1.AddToScheme(scheme))
-	utilruntime.Must(autoscalingv1.AddToScheme(scheme))
-	utilruntime.Must(dsci.AddToScheme(scheme))
-	utilruntime.Must(dsc.AddToScheme(scheme))
-	utilruntime.Must(featurev1.AddToScheme(scheme))
-	utilruntime.Must(monitoringv1.AddToScheme(scheme))
-
-	// individual test suites after the operator is running
-	if !t.Run("validate operator pod is running", testODHOperatorValidation) {
-		return
-	}
-	// Run create and delete tests for all the components
-	t.Run("create Opendatahub components", creationTestSuite)
-
-	// Run deletion if skipDeletion is not set
-	if !skipDeletion {
-		t.Run("delete components", deletionTestSuite)
-
-		// This test case recreates entire DSC again and deletes afterward
-		t.Run("remove components by using labeled configmap", cfgMapDeletionTestSuite)
-	}
 }
 
 func TestMain(m *testing.M) {
@@ -128,5 +94,15 @@ func TestMain(m *testing.M) {
 	flag.BoolVar(&skipDeletion, "skip-deletion", false, "skip deletion of the controllers")
 
 	flag.Parse()
+
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(routev1.AddToScheme(scheme))
+	utilruntime.Must(apiextv1.AddToScheme(scheme))
+	utilruntime.Must(autoscalingv1.AddToScheme(scheme))
+	utilruntime.Must(dsci.AddToScheme(scheme))
+	utilruntime.Must(dsc.AddToScheme(scheme))
+	utilruntime.Must(featurev1.AddToScheme(scheme))
+	utilruntime.Must(monitoringv1.AddToScheme(scheme))
+
 	os.Exit(m.Run())
 }
