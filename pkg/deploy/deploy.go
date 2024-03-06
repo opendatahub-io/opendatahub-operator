@@ -430,8 +430,9 @@ func ClusterSubscriptionExists(cli client.Client, name string) error {
 		}
 	}
 	return fmt.Errorf("subscription %q not found", name)
+}
 
-// Delete given Subscription if it exists
+// DeleteExistingSubscription deletes given Subscription if it exists
 // Do not error if the Subscription does not exist.
 func DeleteExistingSubscription(cli client.Client, operatorNs string, subsName string) error {
 	sub, err := GetSubscription(cli, operatorNs, subsName)
