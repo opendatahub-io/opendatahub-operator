@@ -14,6 +14,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/util/json"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -87,13 +89,17 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 	cli client.Client,
 	owner metav1.Object,
 	dscispec *dsciv1.DSCInitializationSpec,
-	currentComponentExist bool,
 ) error {
 	var imageParamMap = map[string]string{
 		"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
 	}
 	enabled := d.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
+
+	currentComponentExist, err := d.IsInstalled(owner)
+	if err != nil {
+		return err
+	}
 
 	platform, err := deploy.GetPlatform(cli)
 	if err != nil {
@@ -307,4 +313,31 @@ func (d *Dashboard) cleanOauthClient(cli client.Client, dscispec *dsciv1.DSCInit
 		}
 	}
 	return nil
+}
+
+func (d *Dashboard) IsInstalled(owner metav1.Object) (bool, error) {
+	currentComponentExist := false
+	u := &unstructured.Unstructured{}
+	marshal, err := json.Marshal(owner)
+	if err != nil {
+		return false, err
+	}
+
+	if err := u.UnmarshalJSON(marshal); err != nil {
+		return false, err
+	}
+
+	installedComponents, found, err := unstructured.NestedMap(u.Object, "status", "installedComponents")
+	if err != nil {
+		return false, err
+	}
+
+	if found {
+		val, ok := installedComponents[d.GetComponentName()].(bool)
+		if ok {
+			currentComponentExist = val
+		}
+	}
+
+	return currentComponentExist, nil
 }
