@@ -604,11 +604,25 @@ func (tc *testContext) updateComponent(t *testing.T, c components.ComponentInter
 	return err
 }
 
+func setObjComponentManagementState(c components.ComponentInterface, state operatorv1.ManagementState) error {
+	value := reflect.ValueOf(c)
+	if value.Kind() != reflect.Pointer {
+		return fmt.Errorf("Need pointer to change internal field")
+	}
+
+	value = value.Elem()
+	stateField := value.FieldByName("Component").FieldByName("ManagementState")
+	stateField.Set(reflect.ValueOf(state))
+
+	return nil
+}
+
 func (tc *testContext) setComponentManagementState(t *testing.T, c components.ComponentInterface, state operatorv1.ManagementState) {
 	t.Helper()
 
 	err := tc.updateComponent(t, c, func(c components.ComponentInterface) {
-		c.SetManagementState(state)
+		err := setObjComponentManagementState(c, state)
+		require.NoError(t, err)
 	})
 
 	require.NoError(t, err, "error updating component from 'enabled: true' to 'enabled: false'")
