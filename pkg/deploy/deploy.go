@@ -287,6 +287,11 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 		return nil
 	}
 
+	// do not reconcile kserve resource with annotation "opendatahub.io/managed: false"
+	if found.GetAnnotations()["opendatahub.io/managed"] == "false" && componentName == "kserve" {
+		return nil
+	}
+
 	// Preserve app.opendatahub.io/<component> labels of previous versions of existing objects
 	foundLabels := make(map[string]string)
 	for k, v := range found.GetLabels() {

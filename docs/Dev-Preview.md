@@ -108,3 +108,28 @@ EOF
 
 - Currently on integration of ODH [core components](https://opendatahub.io/docs/tiered-components/) are available with the Operator.
 - Tier 1 and Tier 2 components can be deployed manually using [kustomize build](https://kubectl.docs.kubernetes.io/references/kustomize/cmd/build/)
+
+
+## Preview Features 
+
+### Kserve 
+
+#### Changing the Default Deployment Mode for Kserve 
+
+Kserve can now support `Serverless` and `RawDeployment` as the default deployment modes. The default deployment mode for Kserve can be set in the DSC as follows : 
+```
+kserve:
+  defaultDeploymentMode: RawDeployment
+  managementState: Managed
+  serving:
+    ingressGateway:
+      certificate:
+        type: SelfSigned
+    managementState: Removed
+    name: knative-serving
+```
+
+Notes : 
+- If a value for defaultDeploymentMode is not provided, it is assumed to be `Serverless` as long as kserve.serving.managementState is not `Removed`
+- If kserve.serving.managementState is `Removed`, the default deployment mode is assumed to be `RawDeployment` if no value is provided. 
+- Explicitly setting defaultDeploymentMode to `Serverless` with kserve.serving.managementState set to `Removed` will result in an expected error due to incompatible options. 

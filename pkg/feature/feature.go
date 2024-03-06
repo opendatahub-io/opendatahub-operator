@@ -55,7 +55,7 @@ func (f *Feature) Apply() (err error) {
 		return nil
 	}
 
-	if trackerErr := f.createFeatureTracker(); err != nil {
+	if trackerErr := f.createFeatureTracker(); trackerErr != nil {
 		return trackerErr
 	}
 
