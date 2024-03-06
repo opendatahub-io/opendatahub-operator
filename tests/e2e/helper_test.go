@@ -57,6 +57,14 @@ func makeDSCIObject(name string) *dsci.DSCInitialization {
 				ManagementState: "Managed",
 				CustomCABundle:  "",
 			},
+			ServiceMesh: infrav1.ServiceMeshSpec{
+				ManagementState: operatorv1.Managed,
+				ControlPlane: infrav1.ControlPlaneSpec{
+					Name:              "data-science-smcp",
+					Namespace:         "istio-system",
+					MetricsCollection: "Istio",
+				},
+			},
 		},
 	}
 	return dsciTest
