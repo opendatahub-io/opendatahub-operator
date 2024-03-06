@@ -123,10 +123,7 @@ func DeleteOdhTrustedCABundleConfigMap(ctx context.Context, cli client.Client, n
 		Namespace: namespace,
 	}, foundConfigMap)
 	if err != nil {
-		if apierrs.IsNotFound(err) {
-			return nil
-		}
-		return err
+		return client.IgnoreNotFound(err)
 	}
 	return cli.Delete(ctx, foundConfigMap)
 }
@@ -153,10 +150,7 @@ func IsTrustedCABundleUpdated(ctx context.Context, cli client.Client, dscInit *d
 	}, foundConfigMap)
 
 	if err != nil {
-		if apierrs.IsNotFound(err) {
-			return false, nil
-		}
-		return false, err
+		return false, client.IgnoreNotFound(err)
 	}
 
 	return foundConfigMap.Data[CADataFieldName] != dscInit.Spec.TrustedCABundle.CustomCABundle, nil
