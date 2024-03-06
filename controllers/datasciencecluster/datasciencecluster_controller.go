@@ -38,7 +38,6 @@ import (
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
@@ -62,9 +61,8 @@ import (
 // DataScienceClusterReconciler reconciles a DataScienceCluster object.
 type DataScienceClusterReconciler struct { //nolint:golint,revive
 	client.Client
-	Scheme     *runtime.Scheme
-	Log        logr.Logger
-	RestConfig *rest.Config
+	Scheme *runtime.Scheme
+	Log    logr.Logger
 	// Recorder to generate events
 	Recorder           record.EventRecorder
 	DataScienceCluster *DataScienceClusterConfig
@@ -95,8 +93,8 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		// Owned objects are automatically garbage collected.
 		// For additional cleanup logic use operatorUninstall function.
 		// Return and don't requeue
-		if upgrade.HasDeleteConfigMap(r.Client) {
-			if uninstallErr := upgrade.OperatorUninstall(r.Client, r.RestConfig); uninstallErr != nil {
+		if upgrade.HasDeleteConfigMap(ctx, r.Client) {
+			if uninstallErr := upgrade.OperatorUninstall(ctx, r.Client); uninstallErr != nil {
 				return ctrl.Result{}, fmt.Errorf("error while operator uninstall: %w", uninstallErr)
 			}
 		}
@@ -114,7 +112,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	// If DSC CR exist and deletion CM exist
 	// delete DSC CR and let reconcile requeue
 	// sometimes with finalzier DSC CR wont get deleted, force to remove finalizer here
-	if upgrade.HasDeleteConfigMap(r.Client) {
+	if upgrade.HasDeleteConfigMap(ctx, r.Client) {
 		if controllerutil.ContainsFinalizer(instance, finalizerName) {
 			if controllerutil.RemoveFinalizer(instance, finalizerName) {
 				if err := r.Update(ctx, instance); err != nil {
@@ -189,7 +187,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 				return ctrl.Result{}, err
 			}
 		}
-		if upgrade.HasDeleteConfigMap(r.Client) {
+		if upgrade.HasDeleteConfigMap(ctx, r.Client) {
 			// if delete configmap exists, requeue the request to handle operator uninstall
 			return reconcile.Result{Requeue: true}, nil
 		}
@@ -278,7 +276,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 	}
 
 	// Reconcile component
-	err = component.ReconcileComponent(ctx, r.Client, r.RestConfig, instance, r.DataScienceCluster.DSCISpec, instance.Status.InstalledComponents[componentName])
+	err = component.ReconcileComponent(ctx, r.Client, instance, r.DataScienceCluster.DSCISpec, instance.Status.InstalledComponents[componentName])
 
 	if err != nil {
 		// reconciliation failed: log errors, raise event and update status accordingly

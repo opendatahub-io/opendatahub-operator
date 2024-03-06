@@ -13,7 +13,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -83,7 +82,6 @@ func (d *Dashboard) GetComponentName() string {
 //nolint:gocyclo
 func (d *Dashboard) ReconcileComponent(ctx context.Context,
 	cli client.Client,
-	resConf *rest.Config,
 	owner metav1.Object,
 	dscispec *dsciv1.DSCInitializationSpec,
 	currentComponentExist bool,
@@ -169,7 +167,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		if platform == deploy.ManagedRhods {
 			if enabled {
 				// first check if the service is up, so prometheus won't fire alerts when it is just startup
-				if err := monitoring.WaitForDeploymentAvailable(ctx, resConf, ComponentNameSupported, dscispec.ApplicationsNamespace, 20, 3); err != nil {
+				if err := monitoring.WaitForDeploymentAvailable(ctx, cli, ComponentNameSupported, dscispec.ApplicationsNamespace, 20, 3); err != nil {
 					return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 				}
 				fmt.Printf("deployment for %s is done, updating monitoring rules\n", ComponentNameSupported)

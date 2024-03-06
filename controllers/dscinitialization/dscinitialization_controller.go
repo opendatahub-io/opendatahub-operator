@@ -387,7 +387,7 @@ func (r *DSCInitializationReconciler) watchDSCResource(_ client.Object) []reconc
 		// do not handle if cannot get list
 		return nil
 	}
-	if len(instanceList.Items) == 0 && !upgrade.HasDeleteConfigMap(r.Client) {
+	if len(instanceList.Items) == 0 && !upgrade.HasDeleteConfigMap(context.TODO(), r.Client) {
 		r.Log.Info("Found no DSC instance in cluster but not in uninstalltion process, reset monitoring stack config")
 
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "backup"}}}
