@@ -121,7 +121,7 @@ var _ = Describe("Serverless feature", func() {
 				applyErr := featuresHandler.Apply()
 
 				// then
-				Expect(applyErr).To(MatchError(ContainSubstring("\"serverless-operator\" not found")))
+				Expect(applyErr).To(MatchError(ContainSubstring("failed to find the pre-requisite operator subscription \"serverless-operator\"")))
 			})
 		})
 

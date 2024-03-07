@@ -126,7 +126,7 @@ var _ = Describe("Service Mesh feature", func() {
 				applyErr := featuresHandler.Apply()
 
 				// then
-				Expect(applyErr).To(MatchError(ContainSubstring("subscription \"servicemeshoperator\" not found")))
+				Expect(applyErr).To(MatchError(ContainSubstring("failed to find the pre-requisite operator subscription \"servicemeshoperator\"")))
 			})
 		})
 
