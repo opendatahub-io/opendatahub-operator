@@ -189,7 +189,7 @@ var _ = Describe("feature cleanup", func() {
 
 			It("should indicate successful installation in FeatureTracker", func() {
 				featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-					verificationFeatureErr := feature.CreateFeature("feature-success").
+					verificationFeatureErr := feature.CreateFeature("always-working-feature").
 						For(handler).
 						UsingConfig(envTest.Config).
 						Load()
@@ -203,7 +203,7 @@ var _ = Describe("feature cleanup", func() {
 				Expect(featuresHandler.Apply()).To(Succeed())
 
 				// then
-				featureTracker, err := getFeatureTracker("feature-success", appNamespace)
+				featureTracker, err := getFeatureTracker("always-working-feature", appNamespace)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(*featureTracker.Status.Conditions).To(ContainElement(
 					MatchFields(IgnoreExtras, Fields{
@@ -279,7 +279,7 @@ var _ = Describe("feature cleanup", func() {
 			It("should correctly indicate source in the feature tracker", func() {
 				// given
 				featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-					emptyFeatureErr := feature.CreateFeature("empty-feature").
+					emptyFeatureErr := feature.CreateFeature("always-working-feature").
 						For(handler).
 						UsingConfig(envTest.Config).
 						Load()
@@ -293,7 +293,7 @@ var _ = Describe("feature cleanup", func() {
 				Expect(featuresHandler.Apply()).To(Succeed())
 
 				// then
-				featureTracker, err := getFeatureTracker("empty-feature", appNamespace)
+				featureTracker, err := getFeatureTracker("always-working-feature", appNamespace)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(featureTracker.Spec.Source).To(
 					MatchFields(IgnoreExtras, Fields{
