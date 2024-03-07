@@ -20,66 +20,11 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/serverless"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
+	"github.com/opendatahub-io/opendatahub-operator/v2/tests/integration/features/fixtures"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
-
-const (
-	testNamespacePrefix = "test-ns"
-	testDomainFooCom    = "*.foo.com"
-)
-
-const knativeServingSubscription = `apiVersion: operators.coreos.com/v1alpha1
-kind: Subscription
-metadata:
-  name: serverless-operator
-  namespace: openshift-serverless
-spec:
-  channel: stable
-  installPlanApproval: Automatic
-  name: serverless-operator
-  source: redhat-operators
-  sourceNamespace: openshift-marketplace
-  startingCSV: serverless-operator.v1.31.0
-`
-const knativeServingCrd = `apiVersion: apiextensions.k8s.io/v1beta1
-kind: CustomResourceDefinition
-metadata:
-  name: knativeservings.operator.knative.dev
-spec:
-  group: operator.knative.dev
-  names:
-    kind: KnativeServing
-    listKind: KnativeServingList
-    plural: knativeservings
-    singular: knativeserving
-  scope: Namespaced
-  versions:
-  - name: v1beta1
-    served: true
-    storage: true
-    schema:
-      openAPIV3Schema:
-        type: object
-`
-
-const knativeServingInstance = `apiVersion: operator.knative.dev/v1beta1
-kind: KnativeServing
-metadata:
-  name: knative-serving-instance
-spec: {}
-`
-
-const openshiftClusterIngress = `apiVersion: config.openshift.io/v1
-kind: Ingress
-metadata:
-  name: cluster
-spec:
-  domain: "foo.io"
-  loadBalancer:
-    platform:
-      type: ""`
 
 var _ = Describe("Serverless feature", func() {
 
@@ -132,7 +77,7 @@ var _ = Describe("Serverless feature", func() {
 			BeforeEach(func() {
 				// Create KNativeServing Subscription
 				knativeSubscription := &ofapiv1alpha1.Subscription{}
-				Expect(yaml.Unmarshal([]byte(knativeServingSubscription), knativeSubscription)).To(Succeed())
+				Expect(yaml.Unmarshal([]byte(fixtures.KnativeServingSubscription), knativeSubscription)).To(Succeed())
 
 				ns := newNamespace("openshift-serverless")
 				_, err := controllerutil.CreateOrUpdate(context.Background(), envTestClient, ns, func() error {
@@ -147,7 +92,7 @@ var _ = Describe("Serverless feature", func() {
 
 				// Create KNativeServing the CRD
 				knativeServingCrdObj = &apiextensionsv1.CustomResourceDefinition{}
-				Expect(yaml.Unmarshal([]byte(knativeServingCrd), knativeServingCrdObj)).To(Succeed())
+				Expect(yaml.Unmarshal([]byte(fixtures.KnativeServingCrd), knativeServingCrdObj)).To(Succeed())
 				c, err := client.New(envTest.Config, client.Options{})
 				Expect(err).ToNot(HaveOccurred())
 				Expect(c.Create(context.TODO(), knativeServingCrdObj)).To(Succeed())
@@ -200,13 +145,13 @@ var _ = Describe("Serverless feature", func() {
 
 			It("should fail if serving is already installed for KNative serving precondition", func() {
 				// given
-				ns := envtestutil.AppendRandomNameTo(testNamespacePrefix)
+				ns := envtestutil.AppendRandomNameTo(fixtures.TestNamespacePrefix)
 				nsResource := newNamespace(ns)
 				Expect(envTestClient.Create(context.TODO(), nsResource)).To(Succeed())
 				defer objectCleaner.DeleteAll(nsResource)
 
 				knativeServing := &unstructured.Unstructured{}
-				Expect(yaml.Unmarshal([]byte(knativeServingInstance), knativeServing)).To(Succeed())
+				Expect(yaml.Unmarshal([]byte(fixtures.KnativeServingInstance), knativeServing)).To(Succeed())
 				knativeServing.SetNamespace(nsResource.Name)
 				Expect(envTestClient.Create(context.TODO(), knativeServing)).To(Succeed())
 
@@ -267,7 +212,7 @@ var _ = Describe("Serverless feature", func() {
 			It("should use OpenShift ingress domain when value is empty in the DSCI", func() {
 				// Create KNativeServing the CRD
 				osIngressResource := &unstructured.Unstructured{}
-				Expect(yaml.Unmarshal([]byte(openshiftClusterIngress), osIngressResource)).ToNot(HaveOccurred())
+				Expect(yaml.Unmarshal([]byte(fixtures.OpenshiftClusterIngress), osIngressResource)).ToNot(HaveOccurred())
 				c, err := client.New(envTest.Config, client.Options{})
 				Expect(err).ToNot(HaveOccurred())
 				Expect(c.Create(context.TODO(), osIngressResource)).To(Succeed())
@@ -278,9 +223,9 @@ var _ = Describe("Serverless feature", func() {
 			})
 
 			It("should use user value when set in the DSCI", func() {
-				testFeature.Spec.Serving.IngressGateway.Domain = testDomainFooCom
+				testFeature.Spec.Serving.IngressGateway.Domain = fixtures.TestDomainFooCom
 				Expect(serverless.ServingIngressDomain(testFeature)).To(Succeed())
-				Expect(testFeature.Spec.KnativeIngressDomain).To(Equal(testDomainFooCom))
+				Expect(testFeature.Spec.KnativeIngressDomain).To(Equal(fixtures.TestDomainFooCom))
 			})
 		})
 	})
@@ -292,7 +237,7 @@ var _ = Describe("Serverless feature", func() {
 		)
 
 		BeforeEach(func() {
-			ns := envtestutil.AppendRandomNameTo(testNamespacePrefix)
+			ns := envtestutil.AppendRandomNameTo(fixtures.TestNamespacePrefix)
 			namespace = newNamespace(ns)
 			Expect(envTestClient.Create(context.TODO(), namespace)).To(Succeed())
 
@@ -306,7 +251,7 @@ var _ = Describe("Serverless feature", func() {
 		It("should create a TLS secret if certificate is SelfSigned", func() {
 			// given
 			kserveComponent.Serving.IngressGateway.Certificate.Type = infrav1.SelfSigned
-			kserveComponent.Serving.IngressGateway.Domain = testDomainFooCom
+			kserveComponent.Serving.IngressGateway.Domain = fixtures.TestDomainFooCom
 
 			featuresHandler := feature.ComponentFeaturesHandler(kserveComponent, &dsci.Spec, func(handler *feature.FeaturesHandler) error {
 				verificationFeatureErr := feature.CreateFeature("tls-secret-creation").
@@ -346,7 +291,7 @@ var _ = Describe("Serverless feature", func() {
 		It("should not create any TLS secret if certificate is user provided", func() {
 			// given
 			kserveComponent.Serving.IngressGateway.Certificate.Type = infrav1.Provided
-			kserveComponent.Serving.IngressGateway.Domain = testDomainFooCom
+			kserveComponent.Serving.IngressGateway.Domain = fixtures.TestDomainFooCom
 			featuresHandler := feature.ComponentFeaturesHandler(kserveComponent, &dsci.Spec, func(handler *feature.FeaturesHandler) error {
 				verificationFeatureErr := feature.CreateFeature("tls-secret-creation").
 					For(handler).

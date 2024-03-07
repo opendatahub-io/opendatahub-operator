@@ -20,66 +20,11 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
+	"github.com/opendatahub-io/opendatahub-operator/v2/tests/integration/features/fixtures"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
-
-const serviceMeshControlPlaneCRD = `apiVersion: apiextensions.k8s.io/v1
-kind: CustomResourceDefinition
-metadata:
-  labels:
-    maistra-version: 2.4.2
-  annotations:
-    service.beta.openshift.io/inject-cabundle: "true"
-    controller-gen.kubebuilder.io/version: v0.4.1
-  name: servicemeshcontrolplanes.maistra.io
-spec:
-  group: maistra.io
-  names:
-    categories:
-      - maistra-io
-    kind: ServiceMeshControlPlane
-    listKind: ServiceMeshControlPlaneList
-    plural: servicemeshcontrolplanes
-    shortNames:
-      - smcp
-    singular: servicemeshcontrolplane
-  scope: Namespaced
-  versions:
-    - name: v1
-      schema:
-        openAPIV3Schema:
-          type: object
-          x-kubernetes-preserve-unknown-fields: true
-      served: true
-      storage: false
-      subresources:
-        status: {}
-    - name: v2
-      schema:
-        openAPIV3Schema:
-          type: object
-          x-kubernetes-preserve-unknown-fields: true
-      served: true
-      storage: true
-      subresources:
-        status: {}
-`
-
-const ossmSubscription = `apiVersion: operators.coreos.com/v1alpha1
-kind: Subscription
-metadata:
-  name: servicemeshoperator
-  namespace: openshift-operators
-spec:
-  channel: stable
-  installPlanApproval: Automatic
-  name: servicemeshoperator
-  source: redhat-operators
-  sourceNamespace: openshift-marketplace
-  startingCSV: servicemeshoperator.v2.4.5
-`
 
 var _ = Describe("Service Mesh feature", func() {
 
@@ -136,7 +81,7 @@ var _ = Describe("Service Mesh feature", func() {
 			BeforeEach(func() {
 				// Create SM Operator Subscription
 				smOperatorSubscription := &ofapiv1alpha1.Subscription{}
-				Expect(yaml.Unmarshal([]byte(ossmSubscription), smOperatorSubscription)).To(Succeed())
+				Expect(yaml.Unmarshal([]byte(fixtures.OssmSubscription), smOperatorSubscription)).To(Succeed())
 
 				ns := newNamespace("openshift-operators")
 				_, err := controllerutil.CreateOrUpdate(context.Background(), envTestClient, ns, func() error {
@@ -151,7 +96,7 @@ var _ = Describe("Service Mesh feature", func() {
 
 				// Create SMCP CRD
 				smcpCrdObj = &apiextensionsv1.CustomResourceDefinition{}
-				Expect(yaml.Unmarshal([]byte(serviceMeshControlPlaneCRD), smcpCrdObj)).ToNot(HaveOccurred())
+				Expect(yaml.Unmarshal([]byte(fixtures.ServiceMeshControlPlaneCRD), smcpCrdObj)).ToNot(HaveOccurred())
 				c, err := client.New(envTest.Config, client.Options{})
 				Expect(err).ToNot(HaveOccurred())
 				Expect(c.Create(context.TODO(), smcpCrdObj)).ToNot(HaveOccurred())
@@ -190,7 +135,7 @@ var _ = Describe("Service Mesh feature", func() {
 				c, err := client.New(envTest.Config, client.Options{})
 				Expect(err).ToNot(HaveOccurred())
 
-				ns := envtestutil.AppendRandomNameTo(testNamespacePrefix)
+				ns := envtestutil.AppendRandomNameTo(fixtures.TestNamespacePrefix)
 				nsResource := newNamespace(ns)
 				Expect(c.Create(context.Background(), nsResource)).To(Succeed())
 				defer objectCleaner.DeleteAll(nsResource)
