@@ -37,7 +37,6 @@ COPY components/ components/
 COPY controllers/ controllers/
 COPY main.go main.go
 COPY pkg/ pkg/
-COPY infrastructure/ infrastructure/
 
 # Build
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o manager main.go
