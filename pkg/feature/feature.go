@@ -65,8 +65,10 @@ func (f *Feature) Apply() (err error) {
 	f.updateFeatureTrackerStatus(conditionsv1.ConditionProgressing, "True", phase, fmt.Sprintf("Applying feature %s", f.Name))
 	defer func() {
 		if err != nil {
+			f.updateFeatureTrackerStatus(conditionsv1.ConditionProgressing, "False", phase, fmt.Sprintf("Feature %s finished", f.Name))
 			f.updateFeatureTrackerStatus(conditionsv1.ConditionDegraded, "True", phase, err.Error())
 		} else {
+			f.updateFeatureTrackerStatus(conditionsv1.ConditionProgressing, "False", phase, fmt.Sprintf("Feature %s finished", f.Name))
 			f.updateFeatureTrackerStatus(conditionsv1.ConditionAvailable, "True", phase, fmt.Sprintf("Feature %s applied successfully", f.Name))
 		}
 	}()

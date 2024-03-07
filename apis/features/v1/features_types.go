@@ -44,7 +44,6 @@ const (
 	PreConditions    FeaturePhase = "FeaturePreConditions"
 	ResourceCreation FeaturePhase = "ResourceCreation"
 	LoadTemplateData FeaturePhase = "LoadTemplateData"
-	ProcessTemplates FeaturePhase = "ProcessTemplates"
 	ApplyManifests   FeaturePhase = "ApplyManifests"
 	PostConditions   FeaturePhase = "FeaturePostConditions"
 	ComponentType    OwnerType    = "Component"
