@@ -3,7 +3,6 @@ package features_test
 import (
 	"context"
 
-	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -12,7 +11,6 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -80,19 +78,7 @@ var _ = Describe("Service Mesh feature", func() {
 
 			BeforeEach(func() {
 				// Create SM Operator Subscription
-				smOperatorSubscription := &ofapiv1alpha1.Subscription{}
-				Expect(yaml.Unmarshal([]byte(fixtures.OssmSubscription), smOperatorSubscription)).To(Succeed())
-
-				ns := newNamespace("openshift-operators")
-				_, err := controllerutil.CreateOrUpdate(context.Background(), envTestClient, ns, func() error {
-					return nil
-				})
-				Expect(err).ToNot(HaveOccurred())
-
-				_, err = controllerutil.CreateOrUpdate(context.Background(), envTestClient, smOperatorSubscription, func() error {
-					return nil
-				})
-				Expect(err).ToNot(HaveOccurred())
+				CreateSubscription(fixtures.OssmSubscription, "openshift-operators")
 
 				// Create SMCP CRD
 				smcpCrdObj = &apiextensionsv1.CustomResourceDefinition{}

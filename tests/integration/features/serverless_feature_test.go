@@ -76,19 +76,7 @@ var _ = Describe("Serverless feature", func() {
 
 			BeforeEach(func() {
 				// Create KNativeServing Subscription
-				knativeSubscription := &ofapiv1alpha1.Subscription{}
-				Expect(yaml.Unmarshal([]byte(fixtures.KnativeServingSubscription), knativeSubscription)).To(Succeed())
-
-				ns := newNamespace("openshift-serverless")
-				_, err := controllerutil.CreateOrUpdate(context.Background(), envTestClient, ns, func() error {
-					return nil
-				})
-				Expect(err).ToNot(HaveOccurred())
-
-				_, err = controllerutil.CreateOrUpdate(context.Background(), envTestClient, knativeSubscription, func() error {
-					return nil
-				})
-				Expect(err).ToNot(HaveOccurred())
+				CreateSubscription(fixtures.KnativeServingSubscription, "openshift-serverless")
 
 				// Create KNativeServing the CRD
 				knativeServingCrdObj = &apiextensionsv1.CustomResourceDefinition{}
@@ -326,3 +314,19 @@ var _ = Describe("Serverless feature", func() {
 	})
 
 })
+
+func CreateSubscription(subscriptionYaml, namespace string) {
+	subscription := &ofapiv1alpha1.Subscription{}
+	Expect(yaml.Unmarshal([]byte(subscriptionYaml), subscription)).To(Succeed())
+
+	ns := newNamespace(namespace)
+	_, err := controllerutil.CreateOrUpdate(context.Background(), envTestClient, ns, func() error {
+		return nil
+	})
+	Expect(err).ToNot(HaveOccurred())
+
+	_, err = controllerutil.CreateOrUpdate(context.Background(), envTestClient, subscription, func() error {
+		return nil
+	})
+	Expect(err).ToNot(HaveOccurred())
+}
