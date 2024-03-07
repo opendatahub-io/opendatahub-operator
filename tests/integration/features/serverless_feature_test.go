@@ -90,7 +90,7 @@ var _ = Describe("Serverless feature", func() {
 
 			It("should fail on precondition check", func() {
 				// given
-				featuresHandler := feature.ComponentFeaturesHandler(kserveComponent, &dsci.Spec, func(handler *feature.FeaturesHandler) error {
+				featuresHandler := feature.ComponentFeaturesHandler(kserveComponent.GetComponentName(), &dsci.Spec, func(handler *feature.FeaturesHandler) error {
 					verificationFeatureErr := feature.CreateFeature("no-serverless-operator-check").
 						For(handler).
 						UsingConfig(envTest.Config).
@@ -134,7 +134,7 @@ var _ = Describe("Serverless feature", func() {
 
 			It("should succeed checking operator installation using precondition", func() {
 				// when
-				featuresHandler := feature.ComponentFeaturesHandler(kserveComponent, &dsci.Spec, func(handler *feature.FeaturesHandler) error {
+				featuresHandler := feature.ComponentFeaturesHandler(kserveComponent.GetComponentName(), &dsci.Spec, func(handler *feature.FeaturesHandler) error {
 					verificationFeatureErr := feature.CreateFeature("serverless-operator-check").
 						For(handler).
 						UsingConfig(envTest.Config).
@@ -152,7 +152,7 @@ var _ = Describe("Serverless feature", func() {
 
 			It("should succeed if serving is not installed for KNative serving precondition", func() {
 				// when
-				featuresHandler := feature.ComponentFeaturesHandler(kserveComponent, &dsci.Spec, func(handler *feature.FeaturesHandler) error {
+				featuresHandler := feature.ComponentFeaturesHandler(kserveComponent.GetComponentName(), &dsci.Spec, func(handler *feature.FeaturesHandler) error {
 					verificationFeatureErr := feature.CreateFeature("no-serving-installed-yet").
 						For(handler).
 						UsingConfig(envTest.Config).
@@ -181,7 +181,7 @@ var _ = Describe("Serverless feature", func() {
 				Expect(envTestClient.Create(context.TODO(), knativeServing)).To(Succeed())
 
 				// when
-				featuresHandler := feature.ComponentFeaturesHandler(kserveComponent, &dsci.Spec, func(handler *feature.FeaturesHandler) error {
+				featuresHandler := feature.ComponentFeaturesHandler(kserveComponent.GetComponentName(), &dsci.Spec, func(handler *feature.FeaturesHandler) error {
 					verificationFeatureErr := feature.CreateFeature("serving-already-installed").
 						For(handler).
 						UsingConfig(envTest.Config).
@@ -278,7 +278,7 @@ var _ = Describe("Serverless feature", func() {
 			kserveComponent.Serving.IngressGateway.Certificate.Type = infrav1.SelfSigned
 			kserveComponent.Serving.IngressGateway.Domain = testDomainFooCom
 
-			featuresHandler := feature.ComponentFeaturesHandler(kserveComponent, &dsci.Spec, func(handler *feature.FeaturesHandler) error {
+			featuresHandler := feature.ComponentFeaturesHandler(kserveComponent.GetComponentName(), &dsci.Spec, func(handler *feature.FeaturesHandler) error {
 				verificationFeatureErr := feature.CreateFeature("tls-secret-creation").
 					For(handler).
 					UsingConfig(envTest.Config).
@@ -317,7 +317,7 @@ var _ = Describe("Serverless feature", func() {
 			// given
 			kserveComponent.Serving.IngressGateway.Certificate.Type = infrav1.Provided
 			kserveComponent.Serving.IngressGateway.Domain = testDomainFooCom
-			featuresHandler := feature.ComponentFeaturesHandler(kserveComponent, &dsci.Spec, func(handler *feature.FeaturesHandler) error {
+			featuresHandler := feature.ComponentFeaturesHandler(kserveComponent.GetComponentName(), &dsci.Spec, func(handler *feature.FeaturesHandler) error {
 				verificationFeatureErr := feature.CreateFeature("tls-secret-creation").
 					For(handler).
 					UsingConfig(envTest.Config).
