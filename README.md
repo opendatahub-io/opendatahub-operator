@@ -7,8 +7,7 @@ and configure these applications.
 - [Usage](#usage)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
-- [Dev Preview](#dev-preview)
-  - [Developer Guide](#developer-guide)
+- [Developer Guide](#developer-guide)
     - [Pre-requisites](#pre-requisites)
     - [Download manifests](#download-manifests)
     - [Structure of `COMPONENT_MANIFESTS`](#structure-of-component_manifests)
@@ -74,12 +73,7 @@ and installed from source manually, see the Developer guide for further instruct
 
   3. Create [DataScienceCluster](#example-datasciencecluster) CR to enable components
 
-## Dev Preview
-
-Developer Preview of the new Open Data Hub operator codebase is now available.
-Refer [Dev-Preview.md](./docs/Dev-Preview.md) for testing preview features.
-
-### Developer Guide
+## Developer Guide
 
 #### Pre-requisites
 
