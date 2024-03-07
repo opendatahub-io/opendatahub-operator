@@ -7,7 +7,6 @@ and configure these applications.
 - [Usage](#usage)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
-  - [API links](#api-links)
 - [Dev Preview](#dev-preview)
   - [Developer Guide](#developer-guide)
     - [Pre-requisites](#pre-requisites)
@@ -22,11 +21,13 @@ and configure these applications.
     - [Build Image](#build-image)
     - [Deployment](#deployment)
   - [Test with customized manifests](#test-with-customized-manifests)
+  - [Update API docs](#update-api-docs)
   - [Example DSCInitialization](#example-dscinitialization)
   - [Example DataScienceCluster](#example-datasciencecluster)
   - [Run functional Tests](#run-functional-tests)
   - [Run e2e Tests](#run-e2e-tests)
   - [API Overview](#api-overview)
+  - [Component Integration](#component-integration)
   - [Troubleshooting](#troubleshooting)
   - [Upgrade testing](#upgrade-testing)
 
@@ -38,38 +39,41 @@ If `single model serving configuration` is used or if `Kserve` component is used
  - [Service Mesh operator](https://github.com/Maistra/istio-operator)
  - [Serverless operator](https://github.com/openshift-knative/serverless-operator)
 
-Additionally it enhances user-experience by providing a single sign on experience.
+Additionally installing `Authorino operator` & `Service Mesh operator` enhances user-experience by providing a single sign on experience.
+
 ### Installation
 
-The latest version of operator can be installed from the `community-operators` catalog on `OperatorHub`. It can also be build
+- The latest version of operator can be installed from the `community-operators` catalog on `OperatorHub`.
+
+  ![ODH operator in OperatorHub](docs/images/OperatorHub%20ODH%20Operator.png)
+
+  Please note that the latest releases are made in the `Fast` channel.
+
+- It can also be build
 and installed from source manually, see the Developer guide for further instructions.
 
-1. Subscribe to operator by creating following subscription
+  1. Subscribe to operator by creating following subscription
 
-    ```console
-    cat <<EOF | oc create -f -
-    apiVersion: operators.coreos.com/v1alpha1
-    kind: Subscription
-    metadata:
-      name: opendatahub-operator
-      namespace: openshift-operators
-    spec:
-      channel: fast
-      name: opendatahub-operator
-      source: community-operators
-      sourceNamespace: openshift-marketplace
-    EOF
-    ```
+      ```console
+      cat <<EOF | oc create -f -
+      apiVersion: operators.coreos.com/v1alpha1
+      kind: Subscription
+      metadata:
+        name: opendatahub-operator
+        namespace: openshift-operators
+      spec:
+        channel: fast
+        name: opendatahub-operator
+        source: community-operators
+        sourceNamespace: openshift-marketplace
+      EOF
+      ```
 
-2. Create [DSCInitialization](#example-dscinitialization) CR manually.
-  You can also use operator to create default DSCI CR by removing env variable DISABLE_DSC_CONFIG from CSV following restart operator pod.
+  2. Create [DSCInitialization](#example-dscinitialization) CR manually.
+    You can also use operator to create default DSCI CR by removing env variable DISABLE_DSC_CONFIG from CSV or changing the value to "false", followed by restarting the operator pod.
 
-3. Create [DataScienceCluster](#example-datasciencecluster) CR to enable components
+  3. Create [DataScienceCluster](#example-datasciencecluster) CR to enable components
 
-### API links
-  - Datascience Cluster Initialization: https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1#DSCInitializationSpec
-  - Datascience Cluster: https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1#DataScienceClusterSpec
-  - Feature Tracker: https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1#FeatureTrackerSpec
 ## Dev Preview
 
 Developer Preview of the new Open Data Hub operator codebase is now available.
@@ -79,12 +83,12 @@ Refer [Dev-Preview.md](./docs/Dev-Preview.md) for testing preview features.
 
 #### Pre-requisites
 
-- Go version **go1.18.9**
+- Go version **go1.19**
 - operator-sdk version can be updated to **v1.24.1**
 
 #### Download manifests
 
-The `get_all_manifests.sh` script facilitates the process of fetching manifests from remote git repositories. It is configured to work with a predefined map of components and their corresponding manifest locations.
+The [get_all_manifests.sh](/get_all_manifests.sh) script facilitates the process of fetching manifests from remote git repositories. It is configured to work with a predefined map of components and their corresponding manifest locations.
 
 #### Structure of `COMPONENT_MANIFESTS`
 
@@ -129,8 +133,7 @@ Ensure back up before run this command if you have local changes of manifests wa
 
 ##### for build operator image
 
-```
-
+```commandline
 make image-build
 ```
 
@@ -211,9 +214,17 @@ e.g `make image-build -e IMAGE_BUILD_FLAGS="--build-arg USE_LOCAL=true"`
 
 There are 2 ways to test your changes with modification:
 
-1. set `devFlags.ManifestsUri` field of DSCI instance during runtime: this will pull down manifests from remote git repo
-    by using this method, it overwrites manifests and component images if images are set in the params.env file
+1. Each component in the `DataScienceCluster` CR has `devFlags.manifests` field, which can be used to pull down the manifests from the remote git repos of the respective components. By using this method, it overwrites manifests and creates customized resources for the respective components.
+
 2. [Under implementation] build operator image with local manifests.
+
+### Update API docs
+
+Whenever a new api is added or a new field is added to the CRD, please make sure to run the command:
+  ```commandline
+  make create-api-docs 
+  ```
+This will ensure that the doc for the apis are updated accordingly.
 
 ### Example DSCInitialization
 
@@ -353,6 +364,10 @@ make e2e-test -e OPERATOR_NAMESPACE=<namespace> -e E2E_TEST_FLAGS="--skip-deleti
 ### API Overview
 
 Please refer to [api documentation](docs/api-overview.md)
+
+### Component Integration
+
+Please refer to [components docs](components/README.md)
 
 ### Troubleshooting
 

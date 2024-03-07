@@ -93,13 +93,23 @@ spec:
       managementState: Managed
     kserve:
       managementState: Managed
+      serving:
+        ingressGateway:
+          certificate:
+            type: SelfSigned
+        managementState: Managed
+        name: knative-serving
+    kueue:
+      managementState: Removed
     modelmeshserving:
+      managementState: Managed
+    modelregistry:
       managementState: Removed
     ray:
       managementState: Removed
-    workbenches:
-      managementState: Managed
     trustyai:
+      managementState: Managed
+    workbenches:
       managementState: Managed
 EOF
 ```

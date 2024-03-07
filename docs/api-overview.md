@@ -3,7 +3,6 @@
 ## Packages
 - [datasciencecluster.opendatahub.io/v1](#datascienceclusteropendatahubiov1)
 - [dscinitialization.opendatahub.io/v1](#dscinitializationopendatahubiov1)
-- [features.opendatahub.io/v1](#featuresopendatahubiov1)
 
 
 ## datasciencecluster.opendatahub.io/v1
@@ -195,91 +194,5 @@ _Appears in:_
 | --- | --- |
 | `managementState` _[ManagementState](#managementstate)_ | managementState indicates whether and how the operator should manage customized CA bundle |
 | `customCABundle` _string_ | A custom CA bundle that will be available for  all  components in the Data Science Cluster(DSC). This bundle will be stored in odh-trusted-ca-bundle ConfigMap .data.odh-ca-bundle.crt . |
-
-
-
-## features.opendatahub.io/v1
-
-Package v1 contains API Schema definitions for the datasciencecluster v1 API group
-
-### Resource Types
-- [FeatureTracker](#featuretracker)
-
-
-
-
-
-#### FeatureTracker
-
-
-
-FeatureTracker represents a cluster-scoped resource in the Data Science Cluster, specifically designed for monitoring and managing objects created via the internal Features API. This resource serves a crucial role in cross-namespace resource management, acting as an owner reference for various resources. The primary purpose of the FeatureTracker is to enable efficient garbage collection by Kubernetes. This is essential for ensuring that resources are automatically cleaned up and reclaimed when they are no longer required.
-
-
-
-| Field | Description |
-| --- | --- |
-| `apiVersion` _string_ | `features.opendatahub.io/v1`
-| `kind` _string_ | `FeatureTracker`
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |
-| `spec` _[FeatureTrackerSpec](#featuretrackerspec)_ |  |
-| `status` _[FeatureTrackerStatus](#featuretrackerstatus)_ |  |
-
-
-#### FeatureTrackerSpec
-
-
-
-FeatureTrackerSpec defines the desired state of FeatureTracker.
-
-_Appears in:_
-- [FeatureTracker](#featuretracker)
-
-| Field | Description |
-| --- | --- |
-| `source` _[Source](#source)_ |  |
-| `appNamespace` _string_ |  |
-
-
-#### FeatureTrackerStatus
-
-
-
-FeatureTrackerStatus defines the observed state of FeatureTracker.
-
-_Appears in:_
-- [FeatureTracker](#featuretracker)
-
-| Field | Description |
-| --- | --- |
-| `conditions` _[Condition](#condition)_ |  |
-
-
-#### OwnerType
-
-_Underlying type:_ _string_
-
-
-
-_Appears in:_
-- [Source](#source)
-
-
-
-#### Source
-
-
-
-Source describes the type of object that created the related Feature to this FeatureTracker.
-
-_Appears in:_
-- [FeatureTrackerSpec](#featuretrackerspec)
-
-| Field | Description |
-| --- | --- |
-| `type` _[OwnerType](#ownertype)_ |  |
-| `name` _string_ |  |
 
 
