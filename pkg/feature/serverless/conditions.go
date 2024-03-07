@@ -6,7 +6,6 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	ctrlLog "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
@@ -15,8 +14,6 @@ import (
 const (
 	KnativeServingNamespace = "knative-serving"
 )
-
-var log = ctrlLog.Log.WithName("features")
 
 func EnsureServerlessAbsent(f *feature.Feature) error {
 	list := &unstructured.UnstructuredList{}
