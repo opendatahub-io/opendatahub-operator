@@ -418,18 +418,18 @@ func GetSubscription(cli client.Client, namespace string, name string) (*ofapiv1
 	return sub, nil
 }
 
-func ClusterSubscriptionExists(cli client.Client, name string) error {
+func ClusterSubscriptionExists(cli client.Client, name string) (bool, error) {
 	subscriptionList := &ofapiv1alpha1.SubscriptionList{}
 	if err := cli.List(context.TODO(), subscriptionList); err != nil {
-		return err
+		return false, err
 	}
 
 	for _, sub := range subscriptionList.Items {
 		if sub.Name == name {
-			return nil
+			return true, nil
 		}
 	}
-	return fmt.Errorf("subscription %q not found", name)
+	return false, nil
 }
 
 // DeleteExistingSubscription deletes given Subscription if it exists
