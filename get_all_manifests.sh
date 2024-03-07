@@ -14,9 +14,9 @@ declare -A COMPONENT_MANIFESTS=(
     ["kf-notebook-controller"]="opendatahub-io:kubeflow:v1.7-branch:components/notebook-controller/config:odh-notebook-controller/kf-notebook-controller"
     ["odh-notebook-controller"]="opendatahub-io:kubeflow:v1.7-branch:components/odh-notebook-controller/config:odh-notebook-controller/odh-notebook-controller"
     ["notebooks"]="opendatahub-io:notebooks:main:manifests:notebooks"
-    ["trustyai"]="trustyai-explainability:trustyai-service-operator:release/1.10.2:config:trustyai-service-operator"
-    ["model-mesh"]="opendatahub-io:modelmesh-serving:release-0.11.1:config:model-mesh"
-    ["odh-model-controller"]="opendatahub-io:odh-model-controller:release-0.11.1:config:odh-model-controller"
+    ["trustyai"]="trustyai-explainability:trustyai-service-operator:main:config:trustyai-service-operator"
+    ["model-mesh"]="opendatahub-io:modelmesh-serving:main:config:model-mesh"
+    ["odh-model-controller"]="opendatahub-io:odh-model-controller:main:config:odh-model-controller"
     ["kserve"]="opendatahub-io:kserve:release-v0.11.1:config:kserve"
     ["modelregistry"]="opendatahub-io:model-registry-operator:main:config:model-registry-operator"
 )
