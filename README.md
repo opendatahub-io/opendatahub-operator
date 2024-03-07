@@ -222,7 +222,7 @@ There are 2 ways to test your changes with modification:
 
 Whenever a new api is added or a new field is added to the CRD, please make sure to run the command:
   ```commandline
-  make create-api-docs 
+  make api-docs 
   ```
 This will ensure that the doc for the apis are updated accordingly.
 
