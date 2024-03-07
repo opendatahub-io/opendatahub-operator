@@ -50,9 +50,7 @@ func EnsureServerlessAbsent(f *feature.Feature) error {
 
 func EnsureServerlessOperatorInstalled(f *feature.Feature) error {
 	if err := feature.EnsureOperatorIsInstalled("serverless-operator")(f); err != nil {
-		log.Info("Failed to find the pre-requisite KNative Serving Operator subscription, please ensure Serverless Operator is installed.", "feature", f.Name)
-
-		return err
+		return fmt.Errorf("failed to find the pre-requisite KNative Serving Operator subscription, please ensure Serverless Operator is installed. %w", err)
 	}
 
 	return nil
