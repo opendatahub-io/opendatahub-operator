@@ -4,14 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -75,8 +73,8 @@ var _ = Describe("Serverless feature", func() {
 			var knativeServingCrdObj *apiextensionsv1.CustomResourceDefinition
 
 			BeforeEach(func() {
-				// Create KNativeServing Subscription
-				CreateSubscription(fixtures.KnativeServingSubscription, "openshift-serverless")
+				err := fixtures.CreateSubscription(fixtures.KnativeServingSubscription, "openshift-serverless", envTestClient)
+				Expect(err).ToNot(HaveOccurred())
 
 				// Create KNativeServing the CRD
 				knativeServingCrdObj = &apiextensionsv1.CustomResourceDefinition{}
@@ -134,7 +132,7 @@ var _ = Describe("Serverless feature", func() {
 			It("should fail if serving is already installed for KNative serving precondition", func() {
 				// given
 				ns := envtestutil.AppendRandomNameTo(fixtures.TestNamespacePrefix)
-				nsResource := newNamespace(ns)
+				nsResource := fixtures.NewNamespace(ns)
 				Expect(envTestClient.Create(context.TODO(), nsResource)).To(Succeed())
 				defer objectCleaner.DeleteAll(nsResource)
 
@@ -226,7 +224,7 @@ var _ = Describe("Serverless feature", func() {
 
 		BeforeEach(func() {
 			ns := envtestutil.AppendRandomNameTo(fixtures.TestNamespacePrefix)
-			namespace = newNamespace(ns)
+			namespace = fixtures.NewNamespace(ns)
 			Expect(envTestClient.Create(context.TODO(), namespace)).To(Succeed())
 
 			dsci.Spec.ServiceMesh.ControlPlane.Namespace = ns
@@ -314,19 +312,3 @@ var _ = Describe("Serverless feature", func() {
 	})
 
 })
-
-func CreateSubscription(subscriptionYaml, namespace string) {
-	subscription := &ofapiv1alpha1.Subscription{}
-	Expect(yaml.Unmarshal([]byte(subscriptionYaml), subscription)).To(Succeed())
-
-	ns := newNamespace(namespace)
-	_, err := controllerutil.CreateOrUpdate(context.Background(), envTestClient, ns, func() error {
-		return nil
-	})
-	Expect(err).ToNot(HaveOccurred())
-
-	_, err = controllerutil.CreateOrUpdate(context.Background(), envTestClient, subscription, func() error {
-		return nil
-	})
-	Expect(err).ToNot(HaveOccurred())
-}

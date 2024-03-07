@@ -21,6 +21,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
+	"github.com/opendatahub-io/opendatahub-operator/v2/tests/integration/features/fixtures"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -84,7 +85,7 @@ var _ = Describe("feature preconditions", func() {
 
 		It("should not try to create namespace if it does already exist", func() {
 			// given
-			ns := newNamespace(namespace)
+			ns := fixtures.NewNamespace(namespace)
 			Expect(envTestClient.Create(context.Background(), ns)).To(Succeed())
 			Eventually(func() error {
 				_, err := getNamespace(namespace)
@@ -541,14 +542,6 @@ func createSecret(name, namespace string) func(f *feature.Feature) error {
 	}
 }
 
-func newNamespace(name string) *v1.Namespace {
-	return &v1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-		},
-	}
-}
-
 func getFeatureTracker(featureName, appNamespace string) (*featurev1.FeatureTracker, error) { //nolint:unparam //reason appNs
 	tracker := featurev1.NewFeatureTracker(featureName, appNamespace)
 	err := envTestClient.Get(context.Background(), client.ObjectKey{
@@ -570,7 +563,7 @@ func newDSCInitialization(ns string) *dsciv1.DSCInitialization {
 }
 
 func getNamespace(namespace string) (*v1.Namespace, error) {
-	ns := newNamespace(namespace)
+	ns := fixtures.NewNamespace(namespace)
 	err := envTestClient.Get(context.Background(), types.NamespacedName{Name: namespace}, ns)
 
 	return ns, err

@@ -77,8 +77,8 @@ var _ = Describe("Service Mesh feature", func() {
 			var smcpCrdObj *apiextensionsv1.CustomResourceDefinition
 
 			BeforeEach(func() {
-				// Create SM Operator Subscription
-				CreateSubscription(fixtures.OssmSubscription, "openshift-operators")
+				err := fixtures.CreateSubscription(fixtures.OssmSubscription, "openshift-operators", envTestClient)
+				Expect(err).ToNot(HaveOccurred())
 
 				// Create SMCP CRD
 				smcpCrdObj = &apiextensionsv1.CustomResourceDefinition{}
@@ -122,7 +122,7 @@ var _ = Describe("Service Mesh feature", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				ns := envtestutil.AppendRandomNameTo(fixtures.TestNamespacePrefix)
-				nsResource := newNamespace(ns)
+				nsResource := fixtures.NewNamespace(ns)
 				Expect(c.Create(context.Background(), nsResource)).To(Succeed())
 				defer objectCleaner.DeleteAll(nsResource)
 
