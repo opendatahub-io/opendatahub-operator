@@ -94,10 +94,6 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 		}
 	}
 
-	if err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
-		return err
-	}
-
 	// new overlay
 	manifestsPath := filepath.Join(OverlayPath, "rhoai")
 	if platform == deploy.OpenDataHub || platform == "" {
