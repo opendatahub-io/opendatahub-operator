@@ -77,7 +77,6 @@ var _ = Describe("Service Mesh feature", func() {
 			var smcpCrdObj *apiextensionsv1.CustomResourceDefinition
 
 			BeforeEach(func() {
-				// Create SM Operator Subscription
 				CreateSubscription(fixtures.OssmSubscription, "openshift-operators")
 
 				// Create SMCP CRD

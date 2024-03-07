@@ -75,7 +75,6 @@ var _ = Describe("Serverless feature", func() {
 			var knativeServingCrdObj *apiextensionsv1.CustomResourceDefinition
 
 			BeforeEach(func() {
-				// Create KNativeServing Subscription
 				CreateSubscription(fixtures.KnativeServingSubscription, "openshift-serverless")
 
 				// Create KNativeServing the CRD
