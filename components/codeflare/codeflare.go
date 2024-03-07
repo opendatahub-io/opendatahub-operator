@@ -91,7 +91,7 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, o
 
 		// Update image parameters only when we do not have customized manifests set
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (c.DevFlags == nil || len(c.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(ParamsPath, c.SetImageParamsMap(imageParamMap), true); err != nil {
+			if err := deploy.ApplyParams(ParamsPath, imageParamMap, true); err != nil {
 				return err
 			}
 		}

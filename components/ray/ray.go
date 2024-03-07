@@ -74,7 +74,7 @@ func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, owner m
 			}
 		}
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (r.DevFlags == nil || len(r.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(RayPath, r.SetImageParamsMap(imageParamMap), true); err != nil {
+			if err := deploy.ApplyParams(RayPath, imageParamMap, true); err != nil {
 				return err
 			}
 		}

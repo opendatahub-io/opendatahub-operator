@@ -127,7 +127,7 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, owne
 
 		// Update image parameters only when we do not have customized manifests set
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (k.DevFlags == nil || len(k.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(Path, k.SetImageParamsMap(imageParamMap), false); err != nil {
+			if err := deploy.ApplyParams(Path, imageParamMap, false); err != nil {
 				return err
 			}
 		}
@@ -150,7 +150,7 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, owne
 		}
 		// Update image parameters for odh-model-controller
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (k.DevFlags == nil || len(k.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(DependentPath, k.SetImageParamsMap(dependentParamMap), false); err != nil {
+			if err := deploy.ApplyParams(DependentPath, dependentParamMap, false); err != nil {
 				return err
 			}
 		}

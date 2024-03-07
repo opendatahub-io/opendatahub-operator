@@ -72,7 +72,7 @@ func (r *Kueue) ReconcileComponent(ctx context.Context, cli client.Client, owner
 			}
 		}
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (r.DevFlags == nil || len(r.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(Path, r.SetImageParamsMap(imageParamMap), true); err != nil {
+			if err := deploy.ApplyParams(Path, imageParamMap, true); err != nil {
 				return err
 			}
 		}

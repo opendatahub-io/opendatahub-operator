@@ -143,11 +143,11 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (w.DevFlags == nil || len(w.DevFlags.Manifests) == 0) {
 			if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
 				// for kf-notebook-controller image
-				if err := deploy.ApplyParams(notebookControllerPath, w.SetImageParamsMap(imageParamMap), false); err != nil {
+				if err := deploy.ApplyParams(notebookControllerPath, imageParamMap, false); err != nil {
 					return err
 				}
 				// for odh-notebook-controller image
-				if err := deploy.ApplyParams(kfnotebookControllerPath, w.SetImageParamsMap(imageParamMap), false); err != nil {
+				if err := deploy.ApplyParams(kfnotebookControllerPath, imageParamMap, false); err != nil {
 					return err
 				}
 			}

@@ -136,7 +136,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 
 		// 3. Update image parameters
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (d.DevFlags == nil || len(d.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(PathSupported, d.SetImageParamsMap(imageParamMap), false); err != nil {
+			if err := deploy.ApplyParams(PathSupported, imageParamMap, false); err != nil {
 				return err
 			}
 		}
