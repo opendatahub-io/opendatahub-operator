@@ -418,7 +418,21 @@ func GetSubscription(cli client.Client, namespace string, name string) (*ofapiv1
 	return sub, nil
 }
 
-// Delete given Subscription if it exists
+func ClusterSubscriptionExists(cli client.Client, name string) (bool, error) {
+	subscriptionList := &ofapiv1alpha1.SubscriptionList{}
+	if err := cli.List(context.TODO(), subscriptionList); err != nil {
+		return false, err
+	}
+
+	for _, sub := range subscriptionList.Items {
+		if sub.Name == name {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// DeleteExistingSubscription deletes given Subscription if it exists
 // Do not error if the Subscription does not exist.
 func DeleteExistingSubscription(cli client.Client, operatorNs string, subsName string) error {
 	sub, err := GetSubscription(cli, operatorNs, subsName)

@@ -103,7 +103,7 @@ func configureServiceMeshFeatures() feature.FeaturesProvider {
 			).
 			WithData(servicemesh.ClusterDetails).
 			PreConditions(
-				feature.EnsureCRDIsInstalled("authconfigs.authorino.kuadrant.io"),
+				feature.EnsureOperatorIsInstalled("authorino-operator"),
 				servicemesh.EnsureServiceMeshInstalled,
 				servicemesh.EnsureAuthNamespaceExists,
 			).

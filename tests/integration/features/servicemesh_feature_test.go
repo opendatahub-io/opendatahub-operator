@@ -18,52 +18,11 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
+	"github.com/opendatahub-io/opendatahub-operator/v2/tests/integration/features/fixtures"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
-
-const serviceMeshControlPlaneCRD = `apiVersion: apiextensions.k8s.io/v1
-kind: CustomResourceDefinition
-metadata:
-  labels:
-    maistra-version: 2.4.2
-  annotations:
-    service.beta.openshift.io/inject-cabundle: "true"
-    controller-gen.kubebuilder.io/version: v0.4.1
-  name: servicemeshcontrolplanes.maistra.io
-spec:
-  group: maistra.io
-  names:
-    categories:
-      - maistra-io
-    kind: ServiceMeshControlPlane
-    listKind: ServiceMeshControlPlaneList
-    plural: servicemeshcontrolplanes
-    shortNames:
-      - smcp
-    singular: servicemeshcontrolplane
-  scope: Namespaced
-  versions:
-    - name: v1
-      schema:
-        openAPIV3Schema:
-          type: object
-          x-kubernetes-preserve-unknown-fields: true
-      served: true
-      storage: false
-      subresources:
-        status: {}
-    - name: v2
-      schema:
-        openAPIV3Schema:
-          type: object
-          x-kubernetes-preserve-unknown-fields: true
-      served: true
-      storage: true
-      subresources:
-        status: {}
-`
 
 var _ = Describe("Service Mesh feature", func() {
 
@@ -95,7 +54,7 @@ var _ = Describe("Service Mesh feature", func() {
 			It("should fail using precondition check", func() {
 				// given
 				featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-					verificationFeatureErr := feature.CreateFeature("no-serverless-operator-check").
+					verificationFeatureErr := feature.CreateFeature("no-service-mesh-operator-check").
 						For(handler).
 						UsingConfig(envTest.Config).
 						PreConditions(servicemesh.EnsureServiceMeshOperatorInstalled).
@@ -110,7 +69,7 @@ var _ = Describe("Service Mesh feature", func() {
 				applyErr := featuresHandler.Apply()
 
 				// then
-				Expect(applyErr).To(MatchError(ContainSubstring("customresourcedefinitions.apiextensions.k8s.io \"servicemeshcontrolplanes.maistra.io\" not found")))
+				Expect(applyErr).To(MatchError(ContainSubstring("failed to find the pre-requisite operator subscription \"servicemeshoperator\"")))
 			})
 		})
 
@@ -118,9 +77,12 @@ var _ = Describe("Service Mesh feature", func() {
 			var smcpCrdObj *apiextensionsv1.CustomResourceDefinition
 
 			BeforeEach(func() {
-				// Create SMCP the CRD
+				err := fixtures.CreateSubscription(fixtures.OssmSubscription, "openshift-operators", envTestClient)
+				Expect(err).ToNot(HaveOccurred())
+
+				// Create SMCP CRD
 				smcpCrdObj = &apiextensionsv1.CustomResourceDefinition{}
-				Expect(yaml.Unmarshal([]byte(serviceMeshControlPlaneCRD), smcpCrdObj)).ToNot(HaveOccurred())
+				Expect(yaml.Unmarshal([]byte(fixtures.ServiceMeshControlPlaneCRD), smcpCrdObj)).ToNot(HaveOccurred())
 				c, err := client.New(envTest.Config, client.Options{})
 				Expect(err).ToNot(HaveOccurred())
 				Expect(c.Create(context.TODO(), smcpCrdObj)).ToNot(HaveOccurred())
@@ -159,8 +121,8 @@ var _ = Describe("Service Mesh feature", func() {
 				c, err := client.New(envTest.Config, client.Options{})
 				Expect(err).ToNot(HaveOccurred())
 
-				ns := envtestutil.AppendRandomNameTo(testNamespacePrefix)
-				nsResource := newNamespace(ns)
+				ns := envtestutil.AppendRandomNameTo(fixtures.TestNamespacePrefix)
+				nsResource := fixtures.NewNamespace(ns)
 				Expect(c.Create(context.Background(), nsResource)).To(Succeed())
 				defer objectCleaner.DeleteAll(nsResource)
 
