@@ -25,7 +25,9 @@ func ConfigMaps(feature *feature.Feature) error {
 	}
 	if err := feature.CreateConfigMap("auth-refs",
 		map[string]string{
-			"AUTH_AUDIENCE": audiencesList,
+			"AUTH_AUDIENCE":   audiencesList,
+			"AUTH_PROVIDER":   feature.Spec.AppNamespace + "-auth-provider",
+			"AUTHORINO_LABEL": "security.opendatahub.io/authorization-group=default",
 		}); err != nil {
 		return errors.WithStack(err)
 	}
