@@ -18,6 +18,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/serverless"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
+	"github.com/opendatahub-io/opendatahub-operator/v2/tests/integration/features/fixtures"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -80,7 +81,7 @@ var _ = Describe("Serverless feature", func() {
 		Expect(err).ToNot(HaveOccurred())
 		objectCleaner = envtestutil.CreateCleaner(c, envTest.Config, timeout, interval)
 
-		dsci = newDSCInitialization("default")
+		dsci = fixtures.NewDSCInitialization("default")
 		kserveComponent = &kserve.Kserve{}
 	})
 
@@ -171,7 +172,7 @@ var _ = Describe("Serverless feature", func() {
 			It("should fail if serving is already installed for KNative serving precondition", func() {
 				// given
 				ns := envtestutil.AppendRandomNameTo(testNamespacePrefix)
-				nsResource := newNamespace(ns)
+				nsResource := fixtures.NewNamespace(ns)
 				Expect(envTestClient.Create(context.TODO(), nsResource)).To(Succeed())
 				defer objectCleaner.DeleteAll(nsResource)
 
@@ -263,7 +264,7 @@ var _ = Describe("Serverless feature", func() {
 
 		BeforeEach(func() {
 			ns := envtestutil.AppendRandomNameTo(testNamespacePrefix)
-			namespace = newNamespace(ns)
+			namespace = fixtures.NewNamespace(ns)
 			Expect(envTestClient.Create(context.TODO(), namespace)).To(Succeed())
 
 			dsci.Spec.ServiceMesh.ControlPlane.Namespace = ns

@@ -18,6 +18,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
+	"github.com/opendatahub-io/opendatahub-operator/v2/tests/integration/features/fixtures"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -79,7 +80,7 @@ var _ = Describe("Service Mesh feature", func() {
 
 		namespace := envtestutil.AppendRandomNameTo("service-mesh-settings")
 
-		dsci = newDSCInitialization(namespace)
+		dsci = fixtures.NewDSCInitialization(namespace)
 
 		Expect(err).ToNot(HaveOccurred())
 	})
@@ -160,7 +161,7 @@ var _ = Describe("Service Mesh feature", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				ns := envtestutil.AppendRandomNameTo(testNamespacePrefix)
-				nsResource := newNamespace(ns)
+				nsResource := fixtures.NewNamespace(ns)
 				Expect(c.Create(context.Background(), nsResource)).To(Succeed())
 				defer objectCleaner.DeleteAll(nsResource)
 
