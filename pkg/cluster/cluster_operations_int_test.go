@@ -19,7 +19,7 @@ const (
 	interval = 250 * time.Millisecond
 )
 
-var _ = Describe("Basic cluster operations", func() {
+var _ = Describe("Creating cluster resources", func() {
 
 	Context("namespace creation", func() {
 
@@ -75,6 +75,46 @@ var _ = Describe("Basic cluster operations", func() {
 			Expect(nsWithLabels.Labels).To(HaveKeyWithValue("opendatahub.io/test-label", "true"))
 		})
 
+	})
+
+	Context("config map creation", func() {
+
+		var objectCleaner *envtestutil.Cleaner
+
+		BeforeEach(func() {
+			objectCleaner = envtestutil.CreateCleaner(envTestClient, envTest.Config, timeout, interval)
+		})
+
+		It("should create configmap with labels and owner reference", func() {
+			// given
+			data := map[string]string{
+				"test-key": "test-value",
+			}
+
+			// when
+			configMap, err := cluster.CreateConfigMap(
+				envTestClient,
+				"config-regs",
+				"default",
+				data,
+				cluster.WithLabels("apps.kubernetes.io/part-of", "opendatahub"),
+				cluster.WithOwnerReference(metav1.OwnerReference{
+					APIVersion: "v1",
+					Kind:       "Namespace",
+					Name:       "default",
+					UID:        "default",
+				}),
+			)
+			Expect(err).ToNot(HaveOccurred())
+			defer objectCleaner.DeleteAll(configMap)
+
+			// then
+			Expect(configMap.Labels).To(HaveKeyWithValue("apps.kubernetes.io/part-of", "opendatahub"))
+			getOwnerRefName := func(reference metav1.OwnerReference) string {
+				return reference.Name
+			}
+			Expect(configMap.OwnerReferences[0]).To(WithTransform(getOwnerRefName, Equal("default")))
+		})
 	})
 
 })
