@@ -110,7 +110,7 @@ func configureServiceMeshFeatures() feature.FeaturesProvider {
 			PostConditions(
 				feature.WaitForPodsToBeReady(serviceMeshSpec.ControlPlane.Namespace),
 				func(f *feature.Feature) error {
-					return feature.WaitForPodsToBeReady(f.Spec.Auth.Namespace)(f)
+					return feature.WaitForPodsToBeReady(handler.DSCInitializationSpec.ServiceMesh.Auth.Namespace)(f)
 				},
 				func(f *feature.Feature) error {
 					// We do not have the control over deployment resource creation.

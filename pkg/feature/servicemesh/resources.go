@@ -3,33 +3,59 @@ package servicemesh
 import (
 	"strings"
 
-	"github.com/pkg/errors"
-
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 )
 
-func ConfigMaps(feature *feature.Feature) error {
-	meshConfig := feature.Spec.ControlPlane
-	if err := feature.CreateConfigMap("service-mesh-refs",
-		map[string]string{
-			"CONTROL_PLANE_NAME": meshConfig.Name,
-			"MESH_NAMESPACE":     meshConfig.Namespace,
-		}); err != nil {
-		return errors.WithStack(err)
+func ConfigMaps(f *feature.Feature) error {
+	if err := serviceMeshRefsConfigMap(f); err != nil {
+		return err
 	}
 
-	audiences := feature.Spec.Auth.Audiences
+	return authRefsConfigMap(f)
+}
+
+func serviceMeshRefsConfigMap(f *feature.Feature) error {
+	meshConfig := f.Spec.ControlPlane
+	namespace := f.Spec.AppNamespace
+
+	data := map[string]string{
+		"CONTROL_PLANE_NAME": meshConfig.Name,
+		"MESH_NAMESPACE":     meshConfig.Namespace,
+	}
+
+	_, err := cluster.CreateConfigMap(
+		f.Client,
+		"service-mesh-refs",
+		namespace,
+		data,
+		feature.OwnedBy(f),
+	)
+
+	return err
+}
+
+func authRefsConfigMap(f *feature.Feature) error {
+	audiences := f.Spec.Auth.Audiences
+	namespace := f.Spec.AppNamespace
+
 	audiencesList := ""
 	if audiences != nil && len(*audiences) > 0 {
 		audiencesList = strings.Join(*audiences, ",")
 	}
-	if err := feature.CreateConfigMap("auth-refs",
-		map[string]string{
-			"AUTH_AUDIENCE":   audiencesList,
-			"AUTH_PROVIDER":   feature.Spec.AppNamespace + "-auth-provider",
-			"AUTHORINO_LABEL": "security.opendatahub.io/authorization-group=default",
-		}); err != nil {
-		return errors.WithStack(err)
+	data := map[string]string{
+		"AUTH_AUDIENCE":   audiencesList,
+		"AUTH_PROVIDER":   namespace + "-auth-provider",
+		"AUTHORINO_LABEL": "security.opendatahub.io/authorization-group=default",
 	}
-	return nil
+
+	_, err := cluster.CreateConfigMap(
+		f.Client,
+		"auth-refs",
+		namespace,
+		data,
+		feature.OwnedBy(f),
+	)
+
+	return err
 }
