@@ -19,9 +19,7 @@ package datasciencecluster
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 	"time"
 
@@ -107,7 +105,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	instance := &instances.Items[0]
 
-	allComponents, err := getAllComponents(&instance.Spec.Components)
+	allComponents, err := instance.GetComponents()
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -493,23 +491,4 @@ func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(a client
 		return nil
 	}
 	return nil
-}
-
-func getAllComponents(c *dsc.Components) ([]components.ComponentInterface, error) {
-	var allComponents []components.ComponentInterface
-
-	definedComponents := reflect.ValueOf(c).Elem()
-	for i := 0; i < definedComponents.NumField(); i++ {
-		c := definedComponents.Field(i)
-		if c.CanAddr() {
-			component, ok := c.Addr().Interface().(components.ComponentInterface)
-			if !ok {
-				return allComponents, errors.New("this is not a pointer to ComponentInterface")
-			}
-
-			allComponents = append(allComponents, component)
-		}
-	}
-
-	return allComponents, nil
 }
