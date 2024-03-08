@@ -161,6 +161,8 @@ get-manifests: ## Fetch components manifests from remote git repo
 	./get_all_manifests.sh
 CLEANFILES += odh-manifests/*
 
+##@ Build
+
 .PHONY: api-docs
 api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-ref-docs
 	$(CRD_REF_DOCS) --source-path ./ --output-path ./docs/api-overview.md --renderer markdown --config ./crd-ref-docs.config.yaml && \
