@@ -121,7 +121,6 @@ var _ = Describe("Service Mesh feature", func() {
 				c, err := client.New(envTest.Config, client.Options{})
 				Expect(err).ToNot(HaveOccurred())
 
-
 				ns := envtestutil.AppendRandomNameTo(fixtures.TestNamespacePrefix)
 				nsResource := fixtures.NewNamespace(ns)
 				Expect(c.Create(context.Background(), nsResource)).To(Succeed())
