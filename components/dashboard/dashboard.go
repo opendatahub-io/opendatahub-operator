@@ -28,13 +28,14 @@ var (
 	Path             = deploy.DefaultManifestPath + "/" + ComponentName + "/base"         // ODH
 	PathModelServing = deploy.DefaultManifestPath + "/" + ComponentName + "/modelserving" // ODH modelserving
 	PathCRDs         = deploy.DefaultManifestPath + "/" + ComponentName + "/crd"          // ODH + RHOAI
+	PathConsoleLink  = deploy.DefaultManifestPath + "/" + ComponentName + "/consolelink"  // ODH consolelink
 
 	ComponentNameSupported    = "rhods-dashboard"
 	PathSupported             = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/rhoai"              // RHOAI
 	PathSupportedModelServing = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/modelserving"       // RHOAI modelserving
 	PathISVSM                 = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps/apps-onprem"   // RHOAI APPS
 	PathISVAddOn              = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps/apps-addon"    // RHOAI APPS
-	PathConsoleLink           = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/consolelink"        // RHOAI
+	PathConsoleLinkSupported  = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/consolelink"        // RHOAI
 	PathODHDashboardConfig    = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/odhdashboardconfig" // RHOAI odhdashboardconfig
 
 	NameConsoleLink      = "console"
@@ -194,10 +195,10 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		if err := deploy.DeployManifestsFromPath(cli, owner, PathModelServing, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 			return fmt.Errorf("failed to set dashboard modelserving from %s: %w", PathModelServing, err)
 		}
-		// consolelink, TODO: uncomment once we want to add consoleline for ODH + need update logic
-		// if err := d.deployConsoleLink(cli, owner, dscispec.ApplicationsNamespace, ComponentNameSupported); err != nil {
-		// 	return err
-		// }
+		// consolelink
+		if err := d.deployConsoleLink(cli, owner, platform, dscispec.ApplicationsNamespace, ComponentName); err != nil {
+			return err
+		}
 		return nil
 	}
 }
@@ -239,11 +240,23 @@ func (d *Dashboard) applyRHOAISpecificConfigs(cli client.Client, owner metav1.Ob
 }
 
 func (d *Dashboard) deployConsoleLink(cli client.Client, owner metav1.Object, platform deploy.Platform, namespace, componentName string) error {
-	sectionTitle := "OpenShift Managed Services"
-	if platform == deploy.SelfManagedRhods {
+	var manifestsPath, sectionTitle, routeName string
+	switch platform {
+	case deploy.SelfManagedRhods:
 		sectionTitle = "OpenShift Self Managed Services"
+		manifestsPath = PathConsoleLinkSupported
+		routeName = componentName
+	case deploy.ManagedRhods:
+		sectionTitle = "OpenShift Managed Services"
+		manifestsPath = PathConsoleLinkSupported
+		routeName = componentName
+	default:
+		sectionTitle = "OpenShift Open Data Hub"
+		manifestsPath = PathConsoleLink
+		routeName = "odh-dashboard"
 	}
-	pathConsoleLink := filepath.Join(PathConsoleLink, "consolelink.yaml")
+
+	pathConsoleLink := filepath.Join(manifestsPath, "consolelink.yaml")
 
 	consoleRoute := &routev1.Route{}
 	if err := cli.Get(context.TODO(), client.ObjectKey{Name: NameConsoleLink, Namespace: NamespaceConsoleLink}, consoleRoute); err != nil {
@@ -253,7 +266,7 @@ func (d *Dashboard) deployConsoleLink(cli client.Client, owner metav1.Object, pl
 	domainIndex := strings.Index(consoleRoute.Spec.Host, ".")
 	consoleLinkDomain := consoleRoute.Spec.Host[domainIndex+1:]
 	err := common.ReplaceStringsInFile(pathConsoleLink, map[string]string{
-		"<dashboard-url>": "https://rhods-dashboard-" + namespace + "." + consoleLinkDomain,
+		"<dashboard-url>": "https://" + routeName + "-" + namespace + "." + consoleLinkDomain,
 		"<section-title>": sectionTitle,
 	})
 	if err != nil {
