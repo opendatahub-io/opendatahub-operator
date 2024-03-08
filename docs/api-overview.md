@@ -5,13 +5,320 @@
 - [dscinitialization.opendatahub.io/v1](#dscinitializationopendatahubiov1)
 
 
+## datasciencecluster.opendatahub.io/codeflare
+
+Package codeflare provides utility functions to config CodeFlare as part of the stack
+which makes managing distributed compute infrastructure in the cloud easy and intuitive for Data Scientists
+
+
+
+#### CodeFlare
+
+
+
+CodeFlare struct holds the configuration for the CodeFlare component.
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description |
+| --- | --- |
+| `Component` _[Component](#component)_ |  |
+
+
+
+## datasciencecluster.opendatahub.io/components
+
+
+
+
+#### Component
+
+
+
+Component struct defines the basis for each OpenDataHub component configuration.
+
+_Appears in:_
+- [CodeFlare](#codeflare)
+- [Dashboard](#dashboard)
+- [DataSciencePipelines](#datasciencepipelines)
+- [Kserve](#kserve)
+- [Kueue](#kueue)
+- [ModelMeshServing](#modelmeshserving)
+- [ModelRegistry](#modelregistry)
+- [Ray](#ray)
+- [TrustyAI](#trustyai)
+- [Workbenches](#workbenches)
+
+| Field | Description |
+| --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values: <br /><br /> - "Managed" : the operator is actively managing the component and trying to keep it active. It will only upgrade the component if it is safe to do so <br /><br /> - "Removed" : the operator is actively managing the component and will not install it, or if it is installed, the operator will try to remove it |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |
+
+
+
+
+#### DevFlags
+
+
+
+DevFlags defines list of fields that can be used by developers to test customizations. This is not recommended to be used in production environment.
+
+_Appears in:_
+- [Component](#component)
+
+| Field | Description |
+| --- | --- |
+| `manifests` _[ManifestsConfig](#manifestsconfig) array_ | List of custom manifests for the given component |
+
+
+#### ManifestsConfig
+
+
+
+
+
+_Appears in:_
+- [DevFlags](#devflags)
+
+| Field | Description |
+| --- | --- |
+| `uri` _string_ | uri is the URI point to a git repo with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch> |
+| `contextDir` _string_ | contextDir is the relative path to the folder containing manifests in a repository |
+| `sourcePath` _string_ | sourcePath is the subpath within contextDir where kustomize builds start. Examples include any sub-folder or path: `base`, `overlays/dev`, `default`, `odh` etc. |
+
+
+
+## datasciencecluster.opendatahub.io/dashboard
+
+Package dashboard provides utility functions to config Open Data Hub Dashboard: A web dashboard that displays
+installed Open Data Hub components with easy access to component UIs and documentation
+
+
+
+#### Dashboard
+
+
+
+Dashboard struct holds the configuration for the Dashboard component.
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description |
+| --- | --- |
+| `Component` _[Component](#component)_ |  |
+
+
+
+## datasciencecluster.opendatahub.io/datasciencepipelines
+
+Package datasciencepipelines provides utility functions to config Data Science Pipelines:
+Pipeline solution for end to end MLOps workflows that support the Kubeflow Pipelines SDK and Tekton
+
+
+
+#### DataSciencePipelines
+
+
+
+DataSciencePipelines struct holds the configuration for the DataSciencePipelines component.
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description |
+| --- | --- |
+| `Component` _[Component](#component)_ |  |
+
+
+
+## datasciencecluster.opendatahub.io/kserve
+
+Package kserve provides utility functions to config Kserve as the Controller for serving ML models on arbitrary frameworks
+
+
+
+#### DefaultDeploymentMode
+
+_Underlying type:_ _string_
+
+
+
+_Appears in:_
+- [Kserve](#kserve)
+
+
+
+#### Kserve
+
+
+
+Kserve struct holds the configuration for the Kserve component.
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description |
+| --- | --- |
+| `Component` _[Component](#component)_ |  |
+| `serving` _[ServingSpec](#servingspec)_ | Serving configures the KNative-Serving stack used for model serving. A Service Mesh (Istio) is prerequisite, since it is used as networking layer. |
+| `defaultDeploymentMode` _[DefaultDeploymentMode](#defaultdeploymentmode)_ | Configures the default deployment mode for Kserve. This can be set to 'Serverless' or 'RawDeployment'. The value specified in this field will be used to set the default deployment mode in the 'inferenceservice-config' configmap for Kserve If no default deployment mode is specified, Kserve will use Serverless mode |
+
+
+
+## datasciencecluster.opendatahub.io/kueue
+
+
+
+
+#### Kueue
+
+
+
+Kueue struct holds the configuration for the Kueue component.
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description |
+| --- | --- |
+| `Component` _[Component](#component)_ |  |
+
+
+
+## datasciencecluster.opendatahub.io/modelmeshserving
+
+Package modelmeshserving provides utility functions to config MoModelMesh, a general-purpose model serving management/routing layer
+
+
+
+#### ModelMeshServing
+
+
+
+ModelMeshServing struct holds the configuration for the ModelMeshServing component.
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description |
+| --- | --- |
+| `Component` _[Component](#component)_ |  |
+
+
+
+## datasciencecluster.opendatahub.io/modelregistry
+
+Package modelregistry provides utility functions to config ModelRegistry, an ML Model metadata repository service
+
+
+
+#### ModelRegistry
+
+
+
+ModelRegistry struct holds the configuration for the ModelRegistry component.
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description |
+| --- | --- |
+| `Component` _[Component](#component)_ |  |
+
+
+
+## datasciencecluster.opendatahub.io/ray
+
+Package ray provides utility functions to config Ray as part of the stack
+which makes managing distributed compute infrastructure in the cloud easy and intuitive for Data Scientists
+
+
+
+#### Ray
+
+
+
+Ray struct holds the configuration for the Ray component.
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description |
+| --- | --- |
+| `Component` _[Component](#component)_ |  |
+
+
+
+## datasciencecluster.opendatahub.io/trustyai
+
+Package trustyai provides utility functions to config TrustyAI, a bias/fairness and explainability toolkit
+
+
+
+#### TrustyAI
+
+
+
+TrustyAI struct holds the configuration for the TrustyAI component.
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description |
+| --- | --- |
+| `Component` _[Component](#component)_ |  |
+
+
+
 ## datasciencecluster.opendatahub.io/v1
 
-Package v1 contains API Schema definitions for the datasciencecluster v1 API group
 
 ### Resource Types
 - [DataScienceCluster](#datasciencecluster)
 
+
+
+#### AuthSpec
+
+
+
+
+
+_Appears in:_
+- [ServiceMeshSpec](#servicemeshspec)
+
+| Field | Description |
+| --- | --- |
+| `namespace` _string_ | Namespace where it is deployed. If not provided, the default is to use '-auth-provider' suffix on the ApplicationsNamespace of the DSCI. |
+| `audiences` _string_ | Audiences is a list of the identifiers that the resource server presented with the token identifies as. Audience-aware token authenticators will verify that the token was intended for at least one of the audiences in this list. If no audiences are provided, the audience will default to the audience of the Kubernetes apiserver (kubernetes.default.svc). |
+
+
+#### CertType
+
+_Underlying type:_ _string_
+
+
+
+_Appears in:_
+- [CertificateSpec](#certificatespec)
+
+
+
+#### CertificateSpec
+
+
+
+CertificateSpec represents the specification of the certificate securing communications of an Istio Gateway.
+
+_Appears in:_
+- [IngressGatewaySpec](#ingressgatewayspec)
+
+| Field | Description |
+| --- | --- |
+| `secretName` _string_ | SecretName specifies the name of the Kubernetes Secret resource that contains a TLS certificate secure HTTP communications for the KNative network. |
+| `type` _[CertType](#certtype)_ | Type specifies if the TLS certificate should be generated automatically, or if the certificate is provided by the user. Allowed values are: * SelfSigned: A certificate is going to be generated using an own private key. * Provided: Pre-existence of the TLS Secret (see SecretName) with a valid certificate is assumed. |
 
 
 #### Components
@@ -35,6 +342,22 @@ _Appears in:_
 | `ray` _[Ray](#ray)_ | Ray component configuration. |
 | `trustyai` _[TrustyAI](#trustyai)_ | TrustyAI component configuration. |
 | `modelregistry` _[ModelRegistry](#modelregistry)_ | ModelRegistry component configuration. |
+
+
+#### ControlPlaneSpec
+
+
+
+
+
+_Appears in:_
+- [ServiceMeshSpec](#servicemeshspec)
+
+| Field | Description |
+| --- | --- |
+| `name` _string_ | Name is a name Service Mesh Control Plane. Defaults to "data-science-smcp". |
+| `namespace` _string_ | Namespace is a namespace where Service Mesh is deployed. Defaults to "istio-system". |
+| `metricsCollection` _string_ | MetricsCollection specifies if metrics from components on the Mesh namespace should be collected. Setting the value to "Istio" will collect metrics from the control plane and any proxies on the Mesh namespace (like gateway pods). Setting to "None" will disable metrics collection. |
 
 
 #### DataScienceCluster
@@ -86,6 +409,74 @@ _Appears in:_
 | `relatedObjects` _[ObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.24/#objectreference-v1-core) array_ | RelatedObjects is a list of objects created and maintained by this operator. Object references will be added to this list after they have been created AND found in the cluster. |
 | `errorMessage` _string_ |  |
 | `installedComponents` _object (keys:string, values:boolean)_ | List of components with status if installed or not |
+
+
+#### IngressGatewaySpec
+
+
+
+IngressGatewaySpec represents the configuration of the Ingress Gateways.
+
+_Appears in:_
+- [ServingSpec](#servingspec)
+
+| Field | Description |
+| --- | --- |
+| `domain` _string_ | Domain specifies the DNS name for intercepting ingress requests coming from outside the cluster. Most likely, you will want to use a wildcard name, like *.example.com. If not set, the domain of the OpenShift Ingress is used. If you choose to generate a certificate, this is the domain used for the certificate request. |
+| `certificate` _[CertificateSpec](#certificatespec)_ | Certificate specifies configuration of the TLS certificate securing communications of the for Ingress Gateway. |
+
+
+#### ServiceMeshSpec
+
+
+
+ServiceMeshSpec configures Service Mesh.
+
+_Appears in:_
+- [DSCInitializationSpec](#dscinitializationspec)
+
+| Field | Description |
+| --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ |  |
+| `controlPlane` _[ControlPlaneSpec](#controlplanespec)_ | ControlPlane holds configuration of Service Mesh used by Opendatahub. |
+| `auth` _[AuthSpec](#authspec)_ | Auth holds configuration of authentication and authorization services used by Service Mesh in Opendatahub. |
+
+
+#### ServingSpec
+
+
+
+ServingSpec specifies the configuration for the KNative Serving components and their bindings with the Service Mesh.
+
+_Appears in:_
+- [Kserve](#kserve)
+
+| Field | Description |
+| --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ |  |
+| `name` _string_ | Name specifies the name of the KNativeServing resource that is going to be created to instruct the KNative Operator to deploy KNative serving components. This resource is created in the "knative-serving" namespace. |
+| `ingressGateway` _[IngressGatewaySpec](#ingressgatewayspec)_ | IngressGateway allows to customize some parameters for the Istio Ingress Gateway that is bound to KNative-Serving. |
+
+
+
+## datasciencecluster.opendatahub.io/workbenches
+
+Package workbenches provides utility functions to config Workbenches to secure Jupyter Notebook in Kubernetes environments with support for OAuth
+
+
+
+#### Workbenches
+
+
+
+Workbenches struct holds the configuration for the Workbenches component.
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description |
+| --- | --- |
+| `Component` _[Component](#component)_ |  |
 
 
 

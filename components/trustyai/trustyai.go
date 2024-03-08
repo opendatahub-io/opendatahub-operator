@@ -1,4 +1,5 @@
 // Package trustyai provides utility functions to config TrustyAI, a bias/fairness and explainability toolkit
+// +groupName=datasciencecluster.opendatahub.io
 package trustyai
 
 import (

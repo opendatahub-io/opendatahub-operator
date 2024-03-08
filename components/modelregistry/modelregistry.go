@@ -1,4 +1,5 @@
 // Package modelregistry provides utility functions to config ModelRegistry, an ML Model metadata repository service
+// +groupName=datasciencecluster.opendatahub.io
 package modelregistry
 
 import (
