@@ -9,7 +9,6 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -93,7 +92,7 @@ func (k *Kserve) GetComponentName() string {
 	return ComponentName
 }
 
-func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resConf *rest.Config, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
+func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
 	// paramMap for Kserve to use.
 	var imageParamMap = map[string]string{}
 
@@ -167,7 +166,7 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resC
 	if platform == deploy.ManagedRhods {
 		if enabled {
 			// first check if the service is up, so prometheus won't fire alerts when it is just startup
-			if err := monitoring.WaitForDeploymentAvailable(ctx, resConf, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
+			if err := monitoring.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
 				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 			}
 			fmt.Printf("deployment for %s is done, updating monitoing rules", ComponentName)

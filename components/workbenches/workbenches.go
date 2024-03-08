@@ -9,7 +9,6 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -95,7 +94,7 @@ func (w *Workbenches) GetComponentName() string {
 	return ComponentName
 }
 
-func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client, resConf *rest.Config, owner metav1.Object, dscispec *dsci.DSCInitializationSpec, _ bool) error {
+func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec, _ bool) error {
 	var imageParamMap = map[string]string{
 		"odh-notebook-controller-image":    "RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE",
 		"odh-kf-notebook-controller-image": "RELATED_IMAGE_ODH_KF_NOTEBOOK_CONTROLLER_IMAGE",
@@ -175,7 +174,7 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 		if enabled {
 			// first check if the service is up, so prometheus wont fire alerts when it is just startup
 			// only 1 replica set timeout to 1min
-			if err := monitoring.WaitForDeploymentAvailable(ctx, resConf, ComponentName, dscispec.ApplicationsNamespace, 10, 1); err != nil {
+			if err := monitoring.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 10, 1); err != nil {
 				return fmt.Errorf("deployments for %s are not ready to server: %w", ComponentName, err)
 			}
 			fmt.Printf("deployments for %s are done, updating monitoring rules\n", ComponentName)
