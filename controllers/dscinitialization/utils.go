@@ -376,10 +376,7 @@ func (r *DSCInitializationReconciler) waitForManagedSecret(ctx context.Context, 
 		}, managedSecret)
 
 		if err != nil {
-			if apierrs.IsNotFound(err) {
-				return false, nil
-			}
-			return false, err
+			return false, client.IgnoreNotFound(err)
 		}
 		return true, nil
 	})

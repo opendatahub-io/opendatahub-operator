@@ -6,7 +6,6 @@ import (
 
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -52,10 +51,7 @@ func isManagedRHODS(cli client.Client) (Platform, error) {
 
 	err := cli.Get(context.TODO(), client.ObjectKey{Name: "catalogsources.operators.coreos.com"}, catalogSourceCRD)
 	if err != nil {
-		if apierrs.IsNotFound(err) {
-			return "", nil
-		}
-		return "", err
+		return "", client.IgnoreNotFound(err)
 	}
 	expectedCatlogSource := &ofapi.CatalogSourceList{}
 	err = cli.List(context.TODO(), expectedCatlogSource)
