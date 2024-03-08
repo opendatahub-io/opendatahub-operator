@@ -189,11 +189,7 @@ func (r *SecretGeneratorReconciler) getRoute(ctx context.Context, name string, n
 			Namespace: namespace,
 		}, route)
 		if err != nil {
-			if apierrs.IsNotFound(err) {
-				return false, nil
-			}
-
-			return false, err
+			return false, client.IgnoreNotFound(err)
 		}
 		if route.Spec.Host == "" {
 			return false, nil
@@ -248,11 +244,7 @@ func (r *SecretGeneratorReconciler) deleteOAuthClient(ctx context.Context, secre
 		Name: secretName,
 	}, oauthClient)
 	if err != nil {
-		if apierrs.IsNotFound(err) {
-			return nil
-		}
-
-		return err
+		return client.IgnoreNotFound(err)
 	}
 
 	if err = r.Client.Delete(ctx, oauthClient); err != nil {
