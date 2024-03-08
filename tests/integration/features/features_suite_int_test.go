@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -57,6 +58,7 @@ var _ = BeforeSuite(func() {
 
 	utilruntime.Must(v1.AddToScheme(testScheme))
 	utilruntime.Must(featurev1.AddToScheme(testScheme))
+	utilruntime.Must(ofapiv1alpha1.AddToScheme(testScheme))
 
 	envTest = &envtest.Environment{
 		CRDInstallOptions: envtest.CRDInstallOptions{

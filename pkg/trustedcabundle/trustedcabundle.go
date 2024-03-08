@@ -49,6 +49,10 @@ func AddCABundleConfigMapInAllNamespaces(ctx context.Context, cli client.Client,
 
 	for i := range namespaceList.Items {
 		ns := &namespaceList.Items[i]
+		// check namespace status if not Active, then skip
+		if ns.Status.Phase != corev1.NamespaceActive {
+			continue
+		}
 		if ShouldInjectTrustedBundle(ns) {
 			if err := wait.PollUntilContextTimeout(ctx, time.Second*1, time.Second*10, false, func(ctx context.Context) (bool, error) {
 				if cmErr := CreateOdhTrustedCABundleConfigMap(ctx, cli, ns.Name, dscInit.Spec.TrustedCABundle.CustomCABundle); cmErr != nil {
@@ -123,10 +127,7 @@ func DeleteOdhTrustedCABundleConfigMap(ctx context.Context, cli client.Client, n
 		Namespace: namespace,
 	}, foundConfigMap)
 	if err != nil {
-		if apierrs.IsNotFound(err) {
-			return nil
-		}
-		return err
+		return client.IgnoreNotFound(err)
 	}
 	return cli.Delete(ctx, foundConfigMap)
 }
@@ -153,10 +154,7 @@ func IsTrustedCABundleUpdated(ctx context.Context, cli client.Client, dscInit *d
 	}, foundConfigMap)
 
 	if err != nil {
-		if apierrs.IsNotFound(err) {
-			return false, nil
-		}
-		return false, err
+		return false, client.IgnoreNotFound(err)
 	}
 
 	return foundConfigMap.Data[CADataFieldName] != dscInit.Spec.TrustedCABundle.CustomCABundle, nil
@@ -202,6 +200,10 @@ func RemoveCABundleConfigMapInAllNamespaces(ctx context.Context, cli client.Clie
 
 	for i := range namespaceList.Items {
 		ns := &namespaceList.Items[i]
+		// check namespace status if not Active, then skip
+		if ns.Status.Phase != corev1.NamespaceActive {
+			continue
+		}
 		if err := DeleteOdhTrustedCABundleConfigMap(ctx, cli, ns.Name); err != nil {
 			return err
 		}
