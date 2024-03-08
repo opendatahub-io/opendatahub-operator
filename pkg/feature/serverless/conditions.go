@@ -6,7 +6,6 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	ctrlLog "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
@@ -15,8 +14,6 @@ import (
 const (
 	KnativeServingNamespace = "knative-serving"
 )
-
-var log = ctrlLog.Log.WithName("features")
 
 func EnsureServerlessAbsent(f *feature.Feature) error {
 	list := &unstructured.UnstructuredList{}
@@ -49,10 +46,8 @@ func EnsureServerlessAbsent(f *feature.Feature) error {
 }
 
 func EnsureServerlessOperatorInstalled(f *feature.Feature) error {
-	if err := feature.EnsureCRDIsInstalled("knativeservings.operator.knative.dev")(f); err != nil {
-		log.Info("Failed to find the pre-requisite KNative Serving Operator CRD, please ensure Serverless Operator is installed.", "feature", f.Name)
-
-		return err
+	if err := feature.EnsureOperatorIsInstalled("serverless-operator")(f); err != nil {
+		return fmt.Errorf("failed to find the pre-requisite KNative Serving Operator subscription, please ensure Serverless Operator is installed. %w", err)
 	}
 
 	return nil
