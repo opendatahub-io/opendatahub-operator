@@ -31,11 +31,12 @@ var (
 	PathCRDs         = deploy.DefaultManifestPath + "/" + ComponentName + "/crd"          // ODH + RHOAI
 
 	ComponentNameSupported    = "rhods-dashboard"
-	PathSupported             = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/rhoai"            // RHOAI
-	PathSupportedModelServing = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/modelserving"     // RHOAI modelserving
-	PathISVSM                 = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps/apps-onprem" // RHOAI APPS
-	PathISVAddOn              = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps/apps-addon"  // RHOAI APPS
-	PathConsoleLink           = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/consolelink"      // RHOAI
+	PathSupported             = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/rhoai"              // RHOAI
+	PathSupportedModelServing = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/modelserving"       // RHOAI modelserving
+	PathISVSM                 = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps/apps-onprem"   // RHOAI APPS
+	PathISVAddOn              = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps/apps-addon"    // RHOAI APPS
+	PathConsoleLink           = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/consolelink"        // RHOAI
+	PathODHDashboardConfig    = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/odhdashboardconfig" // RHOAI odhdashboardconfig
 
 	NameConsoleLink      = "console"
 	NamespaceConsoleLink = "openshift-console"
@@ -214,6 +215,20 @@ func (d *Dashboard) deployCRDsForPlatform(cli client.Client, owner metav1.Object
 
 func (d *Dashboard) applyRHOAISpecificConfigs(cli client.Client, owner metav1.Object, namespace string, platform deploy.Platform) error {
 	enabled := d.ManagementState == operatorv1.Managed
+
+	// set proper group name
+	dashboardConfig := filepath.Join(PathODHDashboardConfig, "odhdashboardconfig.yaml")
+	adminGroups := map[deploy.Platform]string{
+		deploy.SelfManagedRhods: "rhods-admins",
+		deploy.ManagedRhods:     "dedicated-admins",
+	}[platform]
+
+	if err := common.ReplaceStringsInFile(dashboardConfig, map[string]string{"<admin_groups>": adminGroups}); err != nil {
+		return err
+	}
+	if err := deploy.DeployManifestsFromPath(cli, owner, PathODHDashboardConfig, namespace, ComponentNameSupported, enabled); err != nil {
+		return fmt.Errorf("failed to create OdhDashboardConfig from %s: %w", PathODHDashboardConfig, err)
+	}
 	// ISV
 	path := PathISVSM
 	if platform == deploy.ManagedRhods {
