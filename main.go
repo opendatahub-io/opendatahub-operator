@@ -204,7 +204,6 @@ func main() { //nolint:funlen
 		setupLog.Error(err, "error getting platform")
 		os.Exit(1)
 	}
-
 	// Check if user opted for disabling DSC configuration
 	_, disableDSCConfig := os.LookupEnv("DISABLE_DSC_CONFIG")
 	if !disableDSCConfig {
@@ -228,8 +227,15 @@ func main() { //nolint:funlen
 		setupLog.Error(err, "unable to update from legacy operator version")
 	}
 
-	if err = upgrade.CleanupExistingResource(setupClient, platform); err != nil {
-		setupLog.Error(err, "unable to perform cleanup")
+	var cleanExistingResourceFunc manager.RunnableFunc = func(ctx context.Context) error {
+		if err = upgrade.CleanupExistingResource(ctx, setupClient, platform, dscApplicationsNamespace, dscMonitoringNamespace); err != nil {
+			setupLog.Error(err, "unable to perform cleanup")
+		}
+		return err
+	}
+	err = mgr.Add(cleanExistingResourceFunc)
+	if err != nil {
+		setupLog.Error(err, "error remove deprecated resources from previous version")
 	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

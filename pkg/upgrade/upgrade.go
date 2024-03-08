@@ -20,6 +20,8 @@ import (
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -343,44 +345,49 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 	return nil
 }
 
-func CleanupExistingResource(cli client.Client, platform deploy.Platform) error {
+// TODO: remove function once we have a generic solution across all components.
+func CleanupExistingResource(ctx context.Context, cli client.Client, platform deploy.Platform, dscApplicationsNamespace, dscMonitoringNamespace string) error {
 	var multiErr *multierror.Error
-	montNamespace := "redhat-ods-monitoring"
-	ctx := context.TODO()
-
 	// Special Handling of cleanup of deprecated model monitoring stack
 	if platform == deploy.ManagedRhods {
 		deprecatedDeployments := []string{"rhods-prometheus-operator"}
-		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, montNamespace, deprecatedDeployments, &appsv1.DeploymentList{}))
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedDeployments, &appsv1.DeploymentList{}))
 
 		deprecatedStatefulsets := []string{"prometheus-rhods-model-monitoring"}
-		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, montNamespace, deprecatedStatefulsets, &appsv1.StatefulSetList{}))
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedStatefulsets, &appsv1.StatefulSetList{}))
 
 		deprecatedServices := []string{"rhods-model-monitoring"}
-		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, montNamespace, deprecatedServices, &corev1.ServiceList{}))
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedServices, &corev1.ServiceList{}))
 
 		deprecatedRoutes := []string{"rhods-model-monitoring"}
-		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, montNamespace, deprecatedRoutes, &routev1.RouteList{}))
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedRoutes, &routev1.RouteList{}))
 
 		deprecatedSecrets := []string{"rhods-monitoring-oauth-config"}
-		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, montNamespace, deprecatedSecrets, &corev1.SecretList{}))
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedSecrets, &corev1.SecretList{}))
 
 		deprecatedClusterroles := []string{"rhods-namespace-read", "rhods-prometheus-operator"}
-		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, montNamespace, deprecatedClusterroles, &authv1.ClusterRoleList{}))
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedClusterroles, &authv1.ClusterRoleList{}))
 
 		deprecatedClusterrolebindings := []string{"rhods-namespace-read", "rhods-prometheus-operator"}
-		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, montNamespace, deprecatedClusterrolebindings, &authv1.ClusterRoleBindingList{}))
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedClusterrolebindings, &authv1.ClusterRoleBindingList{}))
 
 		deprecatedServiceAccounts := []string{"rhods-prometheus-operator"}
-		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, montNamespace, deprecatedServiceAccounts, &corev1.ServiceAccountList{}))
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedServiceAccounts, &corev1.ServiceAccountList{}))
 
 		deprecatedServicemonitors := []string{"modelmesh-federated-metrics"}
-		multiErr = multierror.Append(multiErr, deleteDeprecatedServiceMonitors(ctx, cli, montNamespace, deprecatedServicemonitors))
+		multiErr = multierror.Append(multiErr, deleteDeprecatedServiceMonitors(ctx, cli, dscMonitoringNamespace, deprecatedServicemonitors))
 	}
 	// common logic for both self-managed and managed
 	deprecatedOperatorSM := []string{"rhods-monitor-federation2"}
-	multiErr = multierror.Append(multiErr, deleteDeprecatedServiceMonitors(ctx, cli, montNamespace, deprecatedOperatorSM))
+	multiErr = multierror.Append(multiErr, deleteDeprecatedServiceMonitors(ctx, cli, dscMonitoringNamespace, deprecatedOperatorSM))
 
+	// Handling for dashboard Jupyterhub CR, see jira #443
+	JupyterhubApp := schema.GroupVersionKind{
+		Group:   "dashboard.opendatahub.io",
+		Version: "v1",
+		Kind:    "odhapplications",
+	}
+	multiErr = multierror.Append(multiErr, removOdhApplicationsCR(ctx, cli, JupyterhubApp, "jupyterhub", dscApplicationsNamespace))
 	return multiErr.ErrorOrNil()
 }
 
@@ -484,7 +491,7 @@ func getClusterServiceVersion(cfg *rest.Config, watchNameSpace string) (*ofapi.C
 	return nil, nil
 }
 
-func deleteDeprecatedResources(ctx context.Context, cli client.Client, namespace string, resourceList []string, resourceType client.ObjectList) error { //nolint:unparam
+func deleteDeprecatedResources(ctx context.Context, cli client.Client, namespace string, resourceList []string, resourceType client.ObjectList) error {
 	var multiErr *multierror.Error
 	listOpts := &client.ListOptions{Namespace: namespace}
 	if err := cli.List(ctx, resourceType, listOpts); err != nil {
@@ -538,6 +545,29 @@ func deleteDeprecatedServiceMonitors(ctx context.Context, cli client.Client, nam
 		}
 	}
 	return multiErr.ErrorOrNil()
+}
+
+func removOdhApplicationsCR(ctx context.Context, cli client.Client, gvk schema.GroupVersionKind, instanceName string, applicationNS string) error {
+	// first check if CRD in cluster
+	crd := &apiextv1.CustomResourceDefinition{}
+	if err := cli.Get(ctx, client.ObjectKey{Name: fmt.Sprintf("%s.%s", gvk.Kind, gvk.Group)}, crd); err != nil {
+		return client.IgnoreNotFound(err)
+	}
+
+	// then check if CR in cluster to delete
+	odhObject := &unstructured.Unstructured{}
+	odhObject.SetGroupVersionKind(gvk)
+	if err := cli.Get(ctx, client.ObjectKey{
+		Namespace: applicationNS,
+		Name:      instanceName,
+	}, odhObject); err != nil {
+		return client.IgnoreNotFound(err)
+	}
+	if err := cli.Delete(ctx, odhObject); err != nil {
+		return fmt.Errorf("error deleting CR %s : %w", instanceName, err)
+	}
+
+	return nil
 }
 
 func deleteResource(cli client.Client, namespace string, resourceType string) error {
