@@ -87,7 +87,7 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 		// skip check if the dependent operator has beeninstalled, this is done in dashboard
 		// Update image parameters only when we do not have customized manifests set
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (d.DevFlags == nil || len(d.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(Path, d.SetImageParamsMap(imageParamMap), false); err != nil {
+			if err := deploy.ApplyParams(Path, imageParamMap, false); err != nil {
 				return err
 			}
 		}

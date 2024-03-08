@@ -35,9 +35,8 @@ can be found [here](https://github.com/opendatahub-io/opendatahub-operator/tree/
       Cleanup(cli client.Client, DSCISpec *dsci.DSCInitializationSpec) error
       GetComponentName() string
       GetManagementState() operatorv1.ManagementState
-      SetImageParamsMap(imageMap map[string]string) map[string]string
+      OverrideManifests(platform string) error
       UpdatePrometheusConfig(cli client.Client, enable bool, component string) error
-      WaitForDeploymentAvailable(ctx context.Context, r *rest.Config, c string, n string, i int, t int) error
     }
     ```
 ### Add reconcile and Events
