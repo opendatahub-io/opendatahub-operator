@@ -88,7 +88,7 @@ func configureServiceMeshFeatures() feature.FeaturesProvider {
 
 		cfgMapErr := feature.CreateFeature("mesh-shared-configmap").
 			For(handler).
-			WithResources(servicemesh.ConfigMaps).
+			WithResources(servicemesh.MeshRefs, servicemesh.AuthRefs).
 			Load()
 		if cfgMapErr != nil {
 			return cfgMapErr

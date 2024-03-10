@@ -7,15 +7,9 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 )
 
-func ConfigMaps(f *feature.Feature) error {
-	if err := serviceMeshRefsConfigMap(f); err != nil {
-		return err
-	}
-
-	return authRefsConfigMap(f)
-}
-
-func serviceMeshRefsConfigMap(f *feature.Feature) error {
+// MeshRefs stores service mesh configuration in the config map, so it can
+// be easily accessed by other components which rely on this information.
+func MeshRefs(f *feature.Feature) error {
 	meshConfig := f.Spec.ControlPlane
 	namespace := f.Spec.AppNamespace
 
@@ -35,7 +29,9 @@ func serviceMeshRefsConfigMap(f *feature.Feature) error {
 	return err
 }
 
-func authRefsConfigMap(f *feature.Feature) error {
+// AuthRefs stores authorization configuration in the config map, so it can
+// be easily accessed by other components which rely on this information.
+func AuthRefs(f *feature.Feature) error {
 	audiences := f.Spec.Auth.Audiences
 	namespace := f.Spec.AppNamespace
 
