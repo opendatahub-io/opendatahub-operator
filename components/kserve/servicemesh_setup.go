@@ -32,7 +32,10 @@ func (k *Kserve) defineServiceMeshFeatures() feature.FeaturesProvider {
 		kserveExtAuthzErr := feature.CreateFeature("kserve-external-authz").
 			For(handler).
 			Manifests(
-				path.Join(feature.KServeDir),
+				path.Join(feature.KServeDir, "activator-envoyfilter.tmpl"),
+				path.Join(feature.KServeDir, "envoy-oauth-temp-fix.tmpl"),
+				path.Join(feature.KServeDir, "kserve-predictor-authorizationpolicy.tmpl"),
+				path.Join(feature.KServeDir, "z-migrations"),
 			).
 			WithData(servicemesh.ClusterDetails).
 			Load()
