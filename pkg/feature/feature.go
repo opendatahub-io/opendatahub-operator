@@ -151,7 +151,7 @@ func (f *Feature) createApplier(m Manifest) applier {
 				return patchResources(f.Client, objects)
 			}
 		}
-	case *baseManifest:
+	case *rawManifest:
 		if manifest.patch {
 			return func(objects []*unstructured.Unstructured) error {
 				return patchResources(f.Client, objects)
