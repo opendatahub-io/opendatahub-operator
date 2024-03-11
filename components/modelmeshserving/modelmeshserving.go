@@ -1,4 +1,5 @@
 // Package modelmeshserving provides utility functions to config MoModelMesh, a general-purpose model serving management/routing layer
+// +groupName=datasciencecluster.opendatahub.io
 package modelmeshserving
 
 import (

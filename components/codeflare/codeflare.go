@@ -1,5 +1,6 @@
 // Package codeflare provides utility functions to config CodeFlare as part of the stack
 // which makes managing distributed compute infrastructure in the cloud easy and intuitive for Data Scientists
+// +groupName=datasciencecluster.opendatahub.io
 package codeflare
 
 import (

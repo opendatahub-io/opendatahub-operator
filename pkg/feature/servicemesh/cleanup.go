@@ -12,7 +12,7 @@ import (
 )
 
 func RemoveExtensionProvider(f *feature.Feature) error {
-	ossmAuthzProvider := fmt.Sprintf("%s-odh-auth-provider", f.Spec.AppNamespace)
+	ossmAuthzProvider := fmt.Sprintf("%s-auth-provider", f.Spec.AppNamespace)
 
 	mesh := f.Spec.ControlPlane
 	smcp := &unstructured.Unstructured{}
