@@ -383,7 +383,7 @@ func CleanupExistingResource(ctx context.Context, cli client.Client, platform de
 	JupyterhubApp := schema.GroupVersionKind{
 		Group:   "dashboard.opendatahub.io",
 		Version: "v1",
-		Kind:    "odhapplications",
+		Kind:    "OdhApplication",
 	}
 	multiErr = multierror.Append(multiErr, removOdhApplicationsCR(ctx, cli, JupyterhubApp, "jupyterhub", dscApplicationsNamespace))
 	return multiErr.ErrorOrNil()
@@ -541,7 +541,7 @@ func deleteDeprecatedServiceMonitors(ctx context.Context, cli client.Client, nam
 func removOdhApplicationsCR(ctx context.Context, cli client.Client, gvk schema.GroupVersionKind, instanceName string, applicationNS string) error {
 	// first check if CRD in cluster
 	crd := &apiextv1.CustomResourceDefinition{}
-	if err := cli.Get(ctx, client.ObjectKey{Name: fmt.Sprintf("%s.%s", gvk.Kind, gvk.Group)}, crd); err != nil {
+	if err := cli.Get(ctx, client.ObjectKey{Name: "odhapplications.dashboard.opendatahub.io"}, crd); err != nil {
 		return client.IgnoreNotFound(err)
 	}
 
