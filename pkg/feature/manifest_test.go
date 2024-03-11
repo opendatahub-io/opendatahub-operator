@@ -39,7 +39,7 @@ var _ = Describe("Manifest Processing", func() {
 
 	})
 
-	Describe("baseManifest Process", func() {
+	Describe("Raw Manifest Processing", func() {
 		BeforeEach(func() {
 			resourceYaml := `
 apiVersion: v1
@@ -55,9 +55,9 @@ data:
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		It("should process the base manifest with no substitutions", func() {
+		It("should process the raw manifest with no substitutions", func() {
 			// given
-			manifest := feature.CreateBaseManifestFrom(inMemFS, path)
+			manifest := feature.CreateRawManifestFrom(inMemFS, path)
 
 			data := feature.Spec{
 				TargetNamespace: "not-used",
@@ -74,7 +74,7 @@ data:
 		})
 	})
 
-	Describe("TemplateManifest Process", func() {
+	Describe("Templated Manifest Processing", func() {
 		BeforeEach(func() {
 			resourceYaml := `
 apiVersion: v1
@@ -111,7 +111,7 @@ data:
 
 	})
 
-	Describe("KustomizeManifest Process", func() {
+	Describe("Kustomize Manifest Processing", func() {
 		BeforeEach(func() {
 			path = "/path/to/kustomization/" // base path here
 			kustFsys = filesys.MakeFsInMemory()
