@@ -136,15 +136,15 @@ metadata:
             },
             "kserve": {
               "managementState": "Managed",
-                "serving": {
-                  "ingressGateway": {
-                    "certificate": {
-                      "type": "SelfSigned"
-                    }
-                  },
-                  "managementState": "Managed",
-                  "name": "knative-serving"
-                }
+              "serving": {
+                "ingressGateway": {
+                  "certificate": {
+                    "type": "SelfSigned"
+                  }
+                },
+                "managementState": "Managed",
+                "name": "knative-serving"
+              }
             },
             "kueue": {
               "managementState": "Removed"
@@ -165,7 +165,7 @@ metadata:
     operators.operatorframework.io/internal-objects: '[dscinitialization.opendatahub.io]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/red-hat-data-services/rhods-operator
-  name: rhods-operator.v2.8.0
+  name: rhods-operator.v2.4.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -1744,6 +1744,18 @@ spec:
           - patch
           - update
           - watch
+        - apiGroups:
+          - authentication.k8s.io
+          resources:
+          - tokenreviews
+          verbs:
+          - create
+        - apiGroups:
+          - authorization.k8s.io
+          resources:
+          - subjectaccessreviews
+          verbs:
+          - create
         serviceAccountName: redhat-ods-operator-controller-manager
       deployments:
       - label:
@@ -1778,10 +1790,6 @@ spec:
                   initialDelaySeconds: 15
                   periodSeconds: 20
                 name: manager
-                ports:
-                - containerPort: 9443
-                  name: webhook-server
-                  protocol: TCP
                 readinessProbe:
                   httpGet:
                     path: /readyz
@@ -1795,15 +1803,6 @@ spec:
                   requests:
                     cpu: 500m
                     memory: 256Mi
-                securityContext:
-                  allowPrivilegeEscalation: false
-                  capabilities:
-                    drop:
-                    - ALL
-                volumeMounts:
-                - mountPath: /tmp/k8s-webhook-server/serving-certs
-                  name: cert
-                  readOnly: true
               securityContext:
                 runAsNonRoot: true
               serviceAccountName: redhat-ods-operator-controller-manager
@@ -1862,6 +1861,7 @@ spec:
   - training
   - kserve
   - distributed-workloads
+  - trustyai
   links:
   - name: Red Hat OpenShift AI
     url: https://www.redhat.com/en/technologies/cloud-computing/openshift/openshift-ai
@@ -1869,26 +1869,3 @@ spec:
   provider:
     name: Red Hat
   version: 2.8.0
-  webhookdefinitions:
-  - admissionReviewVersions:
-    - v1
-    containerPort: 443
-    deploymentName: redhat-ods-operator-controller-manager
-    failurePolicy: Fail
-    generateName: operator.opendatahub.io
-    rules:
-    - apiGroups:
-      - datasciencecluster.opendatahub.io
-      - dscinitialization.opendatahub.io
-      apiVersions:
-      - v1
-      operations:
-      - CREATE
-      - UPDATE
-      resources:
-      - datascienceclusters
-      - dscinitializations
-    sideEffects: None
-    targetPort: 9443
-    type: ValidatingAdmissionWebhook
-    webhookPath: /validate-opendatahub-io-v1

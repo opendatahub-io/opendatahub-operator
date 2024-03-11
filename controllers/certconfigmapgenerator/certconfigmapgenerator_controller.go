@@ -49,7 +49,7 @@ func (r *CertConfigmapGeneratorReconciler) SetupWithManager(mgr ctrl.Manager) er
 // ca bundle in every new namespace created.
 func (r *CertConfigmapGeneratorReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	// Request includes namespace that is newly created or where odh-trusted-ca-bundle configmap is updated.
-	r.Log.Info("Reconciling certConfigMapGenerator.", "CertConfigMapGenerator Request.Namespace", req.NamespacedName)
+	r.Log.Info("Reconciling certConfigMapGenerator.", " CertConfigMapGenerator Request.Namespace", req.NamespacedName)
 	// Get namespace instance
 	userNamespace := &corev1.Namespace{}
 	err := r.Client.Get(ctx, client.ObjectKey{Name: req.Namespace}, userNamespace)
@@ -71,6 +71,9 @@ func (r *CertConfigmapGeneratorReconciler) Reconcile(ctx context.Context, req ct
 		return ctrl.Result{}, nil
 	case 1:
 		dsciInstance = &dsciInstances.Items[0]
+	default:
+		message := "only one instance of DSCInitialization object is allowed"
+		return ctrl.Result{}, errors.New(message)
 	}
 
 	if dsciInstance.Spec.TrustedCABundle.ManagementState != operatorv1.Managed {
