@@ -1,4 +1,5 @@
 // Package workbenches provides utility functions to config Workbenches to secure Jupyter Notebook in Kubernetes environments with support for OAuth
+// +groupName=datasciencecluster.opendatahub.io
 package workbenches
 
 import (

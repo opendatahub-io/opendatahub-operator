@@ -1,4 +1,5 @@
 // Package kserve provides utility functions to config Kserve as the Controller for serving ML models on arbitrary frameworks
+// +groupName=datasciencecluster.opendatahub.io
 package kserve
 
 import (

@@ -10,7 +10,7 @@ To ensure a component is integrated seamlessly in the operator, follow the steps
 ### Add Component to DataScienceCluster API spec
 
 DataScienceCluster CRD is responsible for defining the component fields and exposing them to end users.
-Add your component to it's [api spec](https://github.com/opendatahub-io/opendatahub-operator/blob/main/apis/datasciencecluster/v1/datasciencecluster_types.go#L40):
+Add your component to it's [api spec](../docs/api-overview.md#datascienceclusterspec):
 
 ```go
 type Components struct {
@@ -60,6 +60,5 @@ can be found [here](https://github.com/opendatahub-io/opendatahub-operator/tree/
 - [KServe](https://github.com/opendatahub-io/opendatahub-operator/tree/main/components/kserve)
 - [ModelMesh Serving](https://github.com/opendatahub-io/opendatahub-operator/tree/main/components/modelmeshserving)
 - [Workbenches](https://github.com/opendatahub-io/opendatahub-operator/tree/main/components/workbenches)
-- [TrustyAI](https://github.com/opendatahub-io/opendatahub-operator/tree/main/components/trustyai)
 - [ModelRegistry](https://github.com/opendatahub-io/opendatahub-operator/tree/main/components/modelregistry)
 - [Kueue](https://github.com/opendatahub-io/kueue)
