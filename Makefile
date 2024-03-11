@@ -61,7 +61,7 @@ CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 OPERATOR_SDK ?= $(LOCALBIN)/operator-sdk
 GOLANGCI_LINT ?= $(LOCALBIN)/golangci-lint
-
+CRD_REF_DOCS ?= $(LOCALBIN)/crd-ref-docs
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v3.8.7
 CONTROLLER_GEN_VERSION ?= v0.9.2
@@ -69,6 +69,7 @@ OPERATOR_SDK_VERSION ?= v1.24.1
 GOLANGCI_LINT_VERSION ?= v1.54.0
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.24.2
+CRD_REF_DOCS_VERSION = 0.0.10
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -160,6 +161,11 @@ get-manifests: ## Fetch components manifests from remote git repo
 	./get_all_manifests.sh
 CLEANFILES += odh-manifests/*
 
+.PHONY: api-docs
+api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-ref-docs
+	$(CRD_REF_DOCS) --source-path ./ --output-path ./docs/api-overview.md --renderer markdown --config ./crd-ref-docs.config.yaml && \
+	egrep -v '\.io/[^v][^1].*)$$' ./docs/api-overview.md > temp.md && mv ./temp.md ./docs/api-overview.md
+	
 ##@ Build
 
 .PHONY: build
@@ -244,6 +250,13 @@ GOLANGCI_LINT_INSTALL_SCRIPT ?= 'https://raw.githubusercontent.com/golangci/gola
 golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
 $(GOLANGCI_LINT): $(LOCALBIN)
 	test -s $(LOCALBIN)/golangci-lint || { curl -sSfL $(GOLANGCI_LINT_INSTALL_SCRIPT) | bash -s $(GOLANGCI_LINT_VERSION); }
+
+CRD_REF_DOCS_DL_URL ?= 'https://github.com/elastic/crd-ref-docs/releases/download/v$(CRD_REF_DOCS_VERSION)/crd-ref-docs'
+.PHONY: crd-ref-docs
+crd-ref-docs: $(CRD_REF_DOCS) ## Download crd-ref-docs locally if necessary.
+$(CRD_REF_DOCS): $(LOCALBIN)
+	test -s $(CRD_REF_DOCS) || curl -sSLo $(CRD_REF_DOCS) $(CRD_REF_DOCS_DL_URL) && \
+	chmod +x $(CRD_REF_DOCS) ;\
 
 BUNDLE_DIR ?= "bundle"
 .PHONY: bundle

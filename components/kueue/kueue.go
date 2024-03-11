@@ -1,3 +1,4 @@
+// +groupName=datasciencecluster.opendatahub.io
 package kueue
 
 import (
