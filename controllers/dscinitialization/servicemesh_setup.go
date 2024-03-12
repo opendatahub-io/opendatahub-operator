@@ -88,7 +88,7 @@ func configureServiceMeshFeatures() feature.FeaturesProvider {
 
 		cfgMapErr := feature.CreateFeature("mesh-shared-configmap").
 			For(handler).
-			WithResources(servicemesh.ConfigMaps).
+			WithResources(servicemesh.MeshRefs, servicemesh.AuthRefs).
 			Load()
 		if cfgMapErr != nil {
 			return cfgMapErr
@@ -110,7 +110,7 @@ func configureServiceMeshFeatures() feature.FeaturesProvider {
 			PostConditions(
 				feature.WaitForPodsToBeReady(serviceMeshSpec.ControlPlane.Namespace),
 				func(f *feature.Feature) error {
-					return feature.WaitForPodsToBeReady(f.Spec.Auth.Namespace)(f)
+					return feature.WaitForPodsToBeReady(handler.DSCInitializationSpec.ServiceMesh.Auth.Namespace)(f)
 				},
 				func(f *feature.Feature) error {
 					// We do not have the control over deployment resource creation.
