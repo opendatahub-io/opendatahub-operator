@@ -177,9 +177,14 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resC
 			return err
 		}
 	}
-	return nil
+
+	return k.configureServiceMesh(dscispec)
 }
 
 func (k *Kserve) Cleanup(_ client.Client, instance *dsciv1.DSCInitializationSpec) error {
-	return k.removeServerlessFeatures(instance)
+	if removeServerlessErr := k.removeServerlessFeatures(instance); removeServerlessErr != nil {
+		return removeServerlessErr
+	}
+
+	return k.removeServiceMeshConfigurations(instance)
 }

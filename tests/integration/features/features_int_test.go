@@ -21,6 +21,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
+	"github.com/opendatahub-io/opendatahub-operator/v2/tests/integration/features/fixtures"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -84,7 +85,7 @@ var _ = Describe("feature preconditions", func() {
 
 		It("should not try to create namespace if it does already exist", func() {
 			// given
-			ns := newNamespace(namespace)
+			ns := fixtures.NewNamespace(namespace)
 			Expect(envTestClient.Create(context.Background(), ns)).To(Succeed())
 			Eventually(func() error {
 				_, err := getNamespace(namespace)
@@ -113,59 +114,6 @@ var _ = Describe("feature preconditions", func() {
 
 	})
 
-	Context("ensuring custom resource definitions are installed", func() {
-
-		var (
-			dsci *dsciv1.DSCInitialization
-		)
-
-		BeforeEach(func() {
-			namespace := envtestutil.AppendRandomNameTo("test-crd-creation")
-			dsci = newDSCInitialization(namespace)
-		})
-
-		It("should successfully check for existing CRD", func() {
-			// given example CRD installed into env
-			name := "test-resources.openshift.io"
-
-			// when
-			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-				crdVerificationErr := feature.CreateFeature("verify-crd-exists").
-					For(handler).
-					UsingConfig(envTest.Config).
-					PreConditions(feature.EnsureCRDIsInstalled(name)).
-					Load()
-
-				Expect(crdVerificationErr).ToNot(HaveOccurred())
-
-				return nil
-			})
-
-			// then
-			Expect(featuresHandler.Apply()).To(Succeed())
-		})
-
-		It("should fail to check non-existing CRD", func() {
-			// given
-			name := "non-existing-resource.non-existing-group.io"
-
-			// when
-			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-				crdVerificationErr := feature.CreateFeature("fail-on-non-existing-crd").
-					For(handler).
-					UsingConfig(envTest.Config).
-					PreConditions(feature.EnsureCRDIsInstalled(name)).
-					Load()
-
-				Expect(crdVerificationErr).ToNot(HaveOccurred())
-
-				return nil
-			})
-
-			// then
-			Expect(featuresHandler.Apply()).To(MatchError(ContainSubstring("\"non-existing-resource.non-existing-group.io\" not found")))
-		})
-	})
 })
 
 var _ = Describe("feature cleanup", func() {
@@ -241,13 +189,10 @@ var _ = Describe("feature cleanup", func() {
 			})
 
 			It("should indicate successful installation in FeatureTracker", func() {
-				// given example CRD installed into env
-				name := "test-resources.openshift.io"
 				featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-					verificationFeatureErr := feature.CreateFeature("crd-verification").
+					verificationFeatureErr := feature.CreateFeature("always-working-feature").
 						For(handler).
 						UsingConfig(envTest.Config).
-						PreConditions(feature.EnsureCRDIsInstalled(name)).
 						Load()
 
 					Expect(verificationFeatureErr).ToNot(HaveOccurred())
@@ -259,7 +204,7 @@ var _ = Describe("feature cleanup", func() {
 				Expect(featuresHandler.Apply()).To(Succeed())
 
 				// then
-				featureTracker, err := getFeatureTracker("crd-verification", appNamespace)
+				featureTracker, err := getFeatureTracker("always-working-feature", appNamespace)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(*featureTracker.Status.Conditions).To(ContainElement(
 					MatchFields(IgnoreExtras, Fields{
@@ -272,12 +217,13 @@ var _ = Describe("feature cleanup", func() {
 
 			It("should indicate failure in preconditions", func() {
 				// given
-				name := "non-existing-resource.non-existing-group.io"
 				featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-					verificationFeatureErr := feature.CreateFeature("non-existing-crd-verification").
+					verificationFeatureErr := feature.CreateFeature("precondition-fail").
 						For(handler).
 						UsingConfig(envTest.Config).
-						PreConditions(feature.EnsureCRDIsInstalled(name)).
+						PreConditions(func(f *feature.Feature) error {
+							return fmt.Errorf("during test always fail")
+						}).
 						Load()
 
 					Expect(verificationFeatureErr).ToNot(HaveOccurred())
@@ -289,7 +235,7 @@ var _ = Describe("feature cleanup", func() {
 				Expect(featuresHandler.Apply()).ToNot(Succeed())
 
 				// then
-				featureTracker, err := getFeatureTracker("non-existing-crd-verification", appNamespace)
+				featureTracker, err := getFeatureTracker("precondition-fail", appNamespace)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(*featureTracker.Status.Conditions).To(ContainElement(
 					MatchFields(IgnoreExtras, Fields{
@@ -334,7 +280,7 @@ var _ = Describe("feature cleanup", func() {
 			It("should correctly indicate source in the feature tracker", func() {
 				// given
 				featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-					emptyFeatureErr := feature.CreateFeature("empty-feature").
+					emptyFeatureErr := feature.CreateFeature("always-working-feature").
 						For(handler).
 						UsingConfig(envTest.Config).
 						Load()
@@ -348,7 +294,7 @@ var _ = Describe("feature cleanup", func() {
 				Expect(featuresHandler.Apply()).To(Succeed())
 
 				// then
-				featureTracker, err := getFeatureTracker("empty-feature", appNamespace)
+				featureTracker, err := getFeatureTracker("always-working-feature", appNamespace)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(featureTracker.Spec.Source).To(
 					MatchFields(IgnoreExtras, Fields{
@@ -572,14 +518,6 @@ func createSecret(name, namespace string) func(f *feature.Feature) error {
 	}
 }
 
-func newNamespace(name string) *v1.Namespace {
-	return &v1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-		},
-	}
-}
-
 func getFeatureTracker(featureName, appNamespace string) (*featurev1.FeatureTracker, error) { //nolint:unparam //reason appNs
 	tracker := featurev1.NewFeatureTracker(featureName, appNamespace)
 	err := envTestClient.Get(context.Background(), client.ObjectKey{
@@ -601,7 +539,7 @@ func newDSCInitialization(ns string) *dsciv1.DSCInitialization {
 }
 
 func getNamespace(namespace string) (*v1.Namespace, error) {
-	ns := newNamespace(namespace)
+	ns := fixtures.NewNamespace(namespace)
 	err := envTestClient.Get(context.Background(), types.NamespacedName{Name: namespace}, ns)
 
 	return ns, err

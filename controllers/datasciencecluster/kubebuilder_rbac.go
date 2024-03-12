@@ -4,13 +4,24 @@ package datasciencecluster
 //+kubebuilder:rbac:groups="datasciencecluster.opendatahub.io",resources=datascienceclusters/finalizers,verbs=update;patch
 //+kubebuilder:rbac:groups="datasciencecluster.opendatahub.io",resources=datascienceclusters,verbs=get;list;watch;create;update;patch;delete
 
-/* Service Mesh prerequisite */
-// +kubebuilder:rbac:groups="maistra.io",resources=servicemeshcontrolplanes,verbs=create;get;list;patch;update;use;watch
-
 /* Serverless prerequisite */
 // +kubebuilder:rbac:groups="networking.istio.io",resources=gateways,verbs=*
 // +kubebuilder:rbac:groups="operator.knative.dev",resources=knativeservings,verbs=*
 // +kubebuilder:rbac:groups="config.openshift.io",resources=ingresses,verbs=get
+
+/* Service Mesh Integration */
+// +kubebuilder:rbac:groups="maistra.io",resources=servicemeshcontrolplanes,verbs=create;get;list;patch;update;use;watch
+// +kubebuilder:rbac:groups="maistra.io",resources=servicemeshmemberrolls,verbs=create;get;list;patch;update;use;watch
+// +kubebuilder:rbac:groups="maistra.io",resources=servicemeshmembers,verbs=create;get;list;patch;update;use;watch
+// +kubebuilder:rbac:groups="maistra.io",resources=servicemeshmembers/finalizers,verbs=create;get;list;patch;update;use;watch
+// +kubebuilder:rbac:groups="networking.istio.io",resources=virtualservices/status,verbs=update;patch;delete
+// +kubebuilder:rbac:groups="networking.istio.io",resources=virtualservices/finalizers,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="networking.istio.io",resources=virtualservices,verbs=*
+// +kubebuilder:rbac:groups="networking.istio.io",resources=gateways,verbs=*
+// +kubebuilder:rbac:groups="networking.istio.io",resources=envoyfilters,verbs=*
+// +kubebuilder:rbac:groups="security.istio.io",resources=authorizationpolicies,verbs=*
+// +kubebuilder:rbac:groups="authorino.kuadrant.io",resources=authconfigs,verbs=*
+// +kubebuilder:rbac:groups="operator.authorino.kuadrant.io",resources=authorinos,verbs=*
 
 /* This is for DSP */
 //+kubebuilder:rbac:groups="datasciencepipelinesapplications.opendatahub.io",resources=datasciencepipelinesapplications/status,verbs=update;patch;get
@@ -92,10 +103,6 @@ package datasciencecluster
 
 // +kubebuilder:rbac:groups="networking.k8s.io",resources=networkpolicies,verbs=get;create;list;watch;delete;update;patch
 // +kubebuilder:rbac:groups="networking.k8s.io",resources=ingresses,verbs=create;delete;list;update;watch;patch;get
-
-// +kubebuilder:rbac:groups="networking.istio.io",resources=virtualservices/status,verbs=update;patch;delete
-// +kubebuilder:rbac:groups="networking.istio.io",resources=virtualservices/finalizers,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="networking.istio.io",resources=virtualservices,verbs=*
 
 // +kubebuilder:rbac:groups="monitoring.coreos.com",resources=servicemonitors,verbs=get;create;delete;update;watch;list;patch;deletecollection
 // +kubebuilder:rbac:groups="monitoring.coreos.com",resources=podmonitors,verbs=get;create;delete;update;watch;list;patch
@@ -185,7 +192,7 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="core",resources=endpoints,verbs=watch;list;get;create;update;delete
 
 // +kubebuilder:rbac:groups="core",resources=configmaps/status,verbs=get;update;patch;delete
-// +kubebuilder:rbac:groups="core",resources=configmaps,verbs=get;create;watch;patch;delete;list;update
+// +kubebuilder:rbac:groups="core",resources=configmaps,verbs=get;create;update;watch;patch;delete;list
 
 // +kubebuilder:rbac:groups="core",resources=clusterversions,verbs=watch;list
 // +kubebuilder:rbac:groups="config.openshift.io",resources=clusterversions,verbs=watch;list
@@ -250,5 +257,6 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="maistra.io",resources=servicemeshmembers/finalizers,verbs=create;get;list;patch;update;use;watch
 
 /* Only for RHOAI */
+
 // +kubebuilder:rbac:groups="user.openshift.io",resources=groups,verbs=get;create;list;watch;patch;delete
 // +kubebuilder:rbac:groups="console.openshift.io",resources=consolelinks,verbs=create;get;patch;delete

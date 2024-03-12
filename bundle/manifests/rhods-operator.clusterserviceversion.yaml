@@ -106,7 +106,7 @@ metadata:
     capabilities: Full Lifecycle
     categories: AI/Machine Learning, Big Data
     certified: "False"
-    containerImage: quay.io/opendatahub/opendatahub-operator:v2.8.0
+    containerImage: quay.io/opendatahub/opendatahub-operator:v2.0.0
     createdAt: "2023-8-23T00:00:00Z"
     olm.skipRange: '>=1.0.0 <2.0.0'
     operatorframework.io/initialization-resource: |-
@@ -165,7 +165,7 @@ metadata:
     operators.operatorframework.io/internal-objects: '[dscinitialization.opendatahub.io]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/red-hat-data-services/rhods-operator
-  name: rhods-operator.v2.4.0
+  name: rhods-operator.v2.9.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -374,6 +374,12 @@ spec:
           - tokenreviews
           verbs:
           - create
+        - apiGroups:
+          - authorino.kuadrant.io
+          resources:
+          - authconfigs
+          verbs:
+          - '*'
         - apiGroups:
           - authorization.k8s.io
           resources:
@@ -1204,6 +1210,12 @@ spec:
         - apiGroups:
           - networking.istio.io
           resources:
+          - envoyfilters
+          verbs:
+          - '*'
+        - apiGroups:
+          - networking.istio.io
+          resources:
           - gateways
           verbs:
           - '*'
@@ -1281,6 +1293,12 @@ spec:
           - patch
           - update
           - watch
+        - apiGroups:
+          - operator.authorino.kuadrant.io
+          resources:
+          - authorinos
+          verbs:
+          - '*'
         - apiGroups:
           - operator.knative.dev
           resources:
@@ -1422,6 +1440,12 @@ spec:
           - patch
           - update
           - watch
+        - apiGroups:
+          - security.istio.io
+          resources:
+          - authorizationpolicies
+          verbs:
+          - '*'
         - apiGroups:
           - security.openshift.io
           resources:
@@ -1744,18 +1768,6 @@ spec:
           - patch
           - update
           - watch
-        - apiGroups:
-          - authentication.k8s.io
-          resources:
-          - tokenreviews
-          verbs:
-          - create
-        - apiGroups:
-          - authorization.k8s.io
-          resources:
-          - subjectaccessreviews
-          verbs:
-          - create
         serviceAccountName: redhat-ods-operator-controller-manager
       deployments:
       - label:
@@ -1803,44 +1815,15 @@ spec:
                   requests:
                     cpu: 500m
                     memory: 256Mi
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  capabilities:
+                    drop:
+                    - ALL
               securityContext:
                 runAsNonRoot: true
               serviceAccountName: redhat-ods-operator-controller-manager
               terminationGracePeriodSeconds: 10
-      permissions:
-      - rules:
-        - apiGroups:
-          - ""
-          resources:
-          - configmaps
-          verbs:
-          - get
-          - list
-          - watch
-          - create
-          - update
-          - patch
-          - delete
-        - apiGroups:
-          - coordination.k8s.io
-          resources:
-          - leases
-          verbs:
-          - get
-          - list
-          - watch
-          - create
-          - update
-          - patch
-          - delete
-        - apiGroups:
-          - ""
-          resources:
-          - events
-          verbs:
-          - create
-          - patch
-        serviceAccountName: redhat-ods-operator-controller-manager
     strategy: deployment
   installModes:
   - supported: false
@@ -1861,11 +1844,10 @@ spec:
   - training
   - kserve
   - distributed-workloads
-  - trustyai
   links:
   - name: Red Hat OpenShift AI
     url: https://www.redhat.com/en/technologies/cloud-computing/openshift/openshift-ai
   minKubeVersion: 1.22.0
   provider:
     name: Red Hat
-  version: 2.8.0
+  version: 2.9.0

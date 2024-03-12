@@ -9,6 +9,7 @@ import (
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlLog "sigs.k8s.io/controller-runtime/pkg/log"
@@ -143,8 +144,53 @@ func (f *Feature) applyManifests() error {
 	return applyErrors.ErrorOrNil()
 }
 
+func (f *Feature) CreateConfigMap(cfgMapName string, data map[string]string) error {
+	configMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      cfgMapName,
+			Namespace: f.Spec.AppNamespace,
+			OwnerReferences: []metav1.OwnerReference{
+				f.AsOwnerReference(),
+			},
+		},
+		Data: data,
+	}
+
+	err := f.Client.Get(context.TODO(), client.ObjectKey{
+		Namespace: configMap.Namespace,
+		Name:      configMap.Name,
+	}, configMap)
+	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			err = f.Client.Create(context.TODO(), configMap)
+			if err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+	} else {
+		err = f.Client.Update(context.TODO(), configMap)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (f *Feature) addCleanup(cleanupFuncs ...Action) {
 	f.cleanups = append(f.cleanups, cleanupFuncs...)
+}
+
+func (f *Feature) ApplyManifest(path string) error {
+	m := createManifestFrom(embeddedFiles, path)
+
+	if err := m.process(f.Spec); err != nil {
+		return err
+	}
+
+	return f.apply(m)
 }
 
 type apply func(data string) error

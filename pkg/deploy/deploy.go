@@ -405,18 +405,44 @@ func ApplyParams(componentPath string, imageParamsMap map[string]string, isUpdat
 	return nil
 }
 
-// SubscriptionExists checks if a Subscription for the operator exists in the given namespace.
-// if exsit, return object; if not exsit, return nil.
-func SubscriptionExists(cli client.Client, namespace string, name string) (*ofapiv1alpha1.Subscription, error) {
+// GetSubscription checks if a Subscription for the operator exists in the given namespace.
+// if exist, return object; otherwise, return error.
+func GetSubscription(cli client.Client, namespace string, name string) (*ofapiv1alpha1.Subscription, error) {
 	sub := &ofapiv1alpha1.Subscription{}
 	if err := cli.Get(context.TODO(), client.ObjectKey{Namespace: namespace, Name: name}, sub); err != nil {
-		if apierrs.IsNotFound(err) {
-			return nil, nil
-		}
+		// real error or 'not found' both return here
 		return nil, err
 	}
-
 	return sub, nil
+}
+
+func ClusterSubscriptionExists(cli client.Client, name string) (bool, error) {
+	subscriptionList := &ofapiv1alpha1.SubscriptionList{}
+	if err := cli.List(context.TODO(), subscriptionList); err != nil {
+		return false, err
+	}
+
+	for _, sub := range subscriptionList.Items {
+		if sub.Name == name {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// DeleteExistingSubscription deletes given Subscription if it exists
+// Do not error if the Subscription does not exist.
+func DeleteExistingSubscription(cli client.Client, operatorNs string, subsName string) error {
+	sub, err := GetSubscription(cli, operatorNs, subsName)
+	if err != nil {
+		return client.IgnoreNotFound(err)
+	}
+
+	if err := cli.Delete(context.TODO(), sub); client.IgnoreNotFound(err) != nil {
+		return fmt.Errorf("error deleting subscription %s: %w", sub.Name, err)
+	}
+
+	return nil
 }
 
 // OperatorExists checks if an Operator with 'operatorPrefix' is installed.
@@ -424,15 +450,13 @@ func SubscriptionExists(cli client.Client, namespace string, name string) (*ofap
 // TODO: if we need to check exact version of the operator installed, can append vX.Y.Z later.
 func OperatorExists(cli client.Client, operatorPrefix string) (bool, error) {
 	opConditionList := &ofapiv2.OperatorConditionList{}
-	if err := cli.List(context.TODO(), opConditionList); err != nil {
-		if !apierrs.IsNotFound(err) { // real error to run List()
-			return false, err
-		}
-	} else {
-		for _, opCondition := range opConditionList.Items {
-			if strings.HasPrefix(opCondition.Name, operatorPrefix) {
-				return true, nil
-			}
+	err := cli.List(context.TODO(), opConditionList)
+	if err != nil {
+		return false, err
+	}
+	for _, opCondition := range opConditionList.Items {
+		if strings.HasPrefix(opCondition.Name, operatorPrefix) {
+			return true, nil
 		}
 	}
 
