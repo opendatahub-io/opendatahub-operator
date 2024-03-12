@@ -9,7 +9,6 @@ import (
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -159,43 +158,8 @@ func (f *Feature) createApplier(m Manifest) applier {
 	}
 
 	return func(objects []*unstructured.Unstructured) error {
-		return createResources(f.Client, objects, ownedBy(f))
+		return createResources(f.Client, objects, OwnedBy(f))
 	}
-}
-
-func (f *Feature) CreateConfigMap(cfgMapName string, data map[string]string) error {
-	configMap := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      cfgMapName,
-			Namespace: f.Spec.AppNamespace,
-			OwnerReferences: []metav1.OwnerReference{
-				f.AsOwnerReference(),
-			},
-		},
-		Data: data,
-	}
-
-	err := f.Client.Get(context.TODO(), client.ObjectKey{
-		Namespace: configMap.Namespace,
-		Name:      configMap.Name,
-	}, configMap)
-	if err != nil {
-		if k8serrors.IsNotFound(err) {
-			err = f.Client.Create(context.TODO(), configMap)
-			if err != nil {
-				return err
-			}
-		} else {
-			return err
-		}
-	} else {
-		err = f.Client.Update(context.TODO(), configMap)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 func (f *Feature) addCleanup(cleanupFuncs ...Action) {
@@ -227,14 +191,8 @@ func (f *Feature) AsOwnerReference() metav1.OwnerReference {
 	return f.Tracker.ToOwnerReference()
 }
 
-func ownedBy(f *Feature) cluster.MetaOptions {
-	return func(obj metav1.Object) error {
-		obj.SetOwnerReferences([]metav1.OwnerReference{
-			f.AsOwnerReference(),
-		})
-
-		return nil
-	}
+func OwnedBy(f *Feature) cluster.MetaOptions {
+	return cluster.WithOwnerReference(f.AsOwnerReference())
 }
 
 // updateFeatureTrackerStatus updates conditions of a FeatureTracker.

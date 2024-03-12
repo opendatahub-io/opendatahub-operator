@@ -54,13 +54,17 @@ func subjectExistInRoleBinding(subjectList []authv1.Subject, serviceAccountName,
 }
 
 // CreateSecret creates secrets required by dashboard component in downstream.
-func CreateSecret(cli client.Client, name, namespace string) error {
+func CreateSecret(cli client.Client, name, namespace string, metaOptions ...MetaOptions) error {
 	desiredSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
 		},
 		Type: corev1.SecretTypeOpaque,
+	}
+
+	if err := ApplyMetaOptions(desiredSecret, metaOptions...); err != nil {
+		return err
 	}
 
 	foundSecret := &corev1.Secret{}
@@ -78,6 +82,42 @@ func CreateSecret(cli client.Client, name, namespace string) error {
 	return nil
 }
 
+func CreateConfigMap(c client.Client, name string, namespace string, data map[string]string, metaOptions ...MetaOptions) (*corev1.ConfigMap, error) {
+	configMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Data: data,
+	}
+
+	if err := ApplyMetaOptions(configMap, metaOptions...); err != nil {
+		return nil, err
+	}
+
+	err := c.Get(context.TODO(), client.ObjectKey{
+		Namespace: configMap.Namespace,
+		Name:      configMap.Name,
+	}, configMap)
+	if err != nil {
+		if apierrs.IsNotFound(err) {
+			err = c.Create(context.TODO(), configMap)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, err
+		}
+	} else {
+		err = c.Update(context.TODO(), configMap)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return configMap, nil
+}
+
 // CreateNamespace creates namespace required by workbenches component in downstream.
 func CreateNamespace(cli client.Client, namespace string, metaOptions ...MetaOptions) (*corev1.Namespace, error) {
 	desiredNamespace := &corev1.Namespace{
@@ -86,10 +126,8 @@ func CreateNamespace(cli client.Client, namespace string, metaOptions ...MetaOpt
 		},
 	}
 
-	for _, option := range metaOptions {
-		if err := option(desiredNamespace); err != nil {
-			return nil, err
-		}
+	if err := ApplyMetaOptions(desiredNamespace, metaOptions...); err != nil {
+		return nil, err
 	}
 
 	foundNamespace := &corev1.Namespace{}
@@ -107,35 +145,4 @@ func CreateNamespace(cli client.Client, namespace string, metaOptions ...MetaOpt
 	}
 
 	return foundNamespace, nil
-}
-
-// MetaOptions allows to add additional settings for the object being created through a chain
-// of functions which are applied on metav1.Object before actual resource creation.
-type MetaOptions func(obj metav1.Object) error
-
-func WithLabels(labels ...string) MetaOptions {
-	return func(obj metav1.Object) error {
-		labelsMap, err := extractKeyValues(labels)
-		if err != nil {
-			return fmt.Errorf("failed unable to set labels: %w", err)
-		}
-
-		obj.SetLabels(labelsMap)
-
-		return nil
-	}
-}
-
-func extractKeyValues(kv []string) (map[string]string, error) {
-	lenKV := len(kv)
-	if lenKV%2 != 0 {
-		return nil, fmt.Errorf("passed elements should be in key/value pairs, but got %d elements", lenKV)
-	}
-
-	kvMap := make(map[string]string, lenKV%2)
-	for i := 0; i < lenKV; i += 2 {
-		kvMap[kv[i]] = kv[i+1]
-	}
-
-	return kvMap, nil
 }
