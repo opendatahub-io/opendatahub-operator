@@ -138,7 +138,7 @@ func (k *Kserve) configureServerless(cli client.Client, instance *dsciv1.DSCInit
 			return dependOpsErrors
 		}
 
-		serverlessFeatures := feature.ComponentFeaturesHandler(k, instance, k.configureServerlessFeatures())
+		serverlessFeatures := feature.ComponentFeaturesHandler(k.GetComponentName(), instance, k.configureServerlessFeatures())
 
 		if err := serverlessFeatures.Apply(); err != nil {
 			return err
@@ -148,7 +148,7 @@ func (k *Kserve) configureServerless(cli client.Client, instance *dsciv1.DSCInit
 }
 
 func (k *Kserve) removeServerlessFeatures(instance *dsciv1.DSCInitializationSpec) error {
-	serverlessFeatures := feature.ComponentFeaturesHandler(k, instance, k.configureServerlessFeatures())
+	serverlessFeatures := feature.ComponentFeaturesHandler(k.GetComponentName(), instance, k.configureServerlessFeatures())
 
 	return serverlessFeatures.Delete()
 }

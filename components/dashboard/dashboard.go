@@ -1,5 +1,6 @@
 // Package dashboard provides utility functions to config Open Data Hub Dashboard: A web dashboard that displays
 // installed Open Data Hub components with easy access to component UIs and documentation
+// +groupName=datasciencecluster.opendatahub.io
 package dashboard
 
 import (
@@ -13,7 +14,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -29,13 +29,15 @@ var (
 	Path             = deploy.DefaultManifestPath + "/" + ComponentName + "/base"         // ODH
 	PathModelServing = deploy.DefaultManifestPath + "/" + ComponentName + "/modelserving" // ODH modelserving
 	PathCRDs         = deploy.DefaultManifestPath + "/" + ComponentName + "/crd"          // ODH + RHOAI
+	PathConsoleLink  = deploy.DefaultManifestPath + "/" + ComponentName + "/consolelink"  // ODH consolelink
 
 	ComponentNameSupported    = "rhods-dashboard"
-	PathSupported             = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/rhoai"            // RHOAI
-	PathSupportedModelServing = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/modelserving"     // RHOAI modelserving
-	PathISVSM                 = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps/apps-onprem" // RHOAI APPS
-	PathISVAddOn              = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps/apps-addon"  // RHOAI APPS
-	PathConsoleLink           = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/consolelink"      // RHOAI
+	PathSupported             = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/rhoai"              // RHOAI
+	PathSupportedModelServing = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/modelserving"       // RHOAI modelserving
+	PathISVSM                 = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps/apps-onprem"   // RHOAI APPS
+	PathISVAddOn              = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps/apps-addon"    // RHOAI APPS
+	PathConsoleLinkSupported  = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/consolelink"        // RHOAI
+	PathODHDashboardConfig    = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/odhdashboardconfig" // RHOAI odhdashboardconfig
 
 	NameConsoleLink      = "console"
 	NamespaceConsoleLink = "openshift-console"
@@ -83,7 +85,6 @@ func (d *Dashboard) GetComponentName() string {
 //nolint:gocyclo
 func (d *Dashboard) ReconcileComponent(ctx context.Context,
 	cli client.Client,
-	resConf *rest.Config,
 	owner metav1.Object,
 	dscispec *dsciv1.DSCInitializationSpec,
 	currentComponentExist bool,
@@ -134,7 +135,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 
 		// 3. Update image parameters
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (d.DevFlags == nil || len(d.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(PathSupported, d.SetImageParamsMap(imageParamMap), false); err != nil {
+			if err := deploy.ApplyParams(PathSupported, imageParamMap, false); err != nil {
 				return err
 			}
 		}
@@ -169,7 +170,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		if platform == deploy.ManagedRhods {
 			if enabled {
 				// first check if the service is up, so prometheus won't fire alerts when it is just startup
-				if err := monitoring.WaitForDeploymentAvailable(ctx, resConf, ComponentNameSupported, dscispec.ApplicationsNamespace, 20, 3); err != nil {
+				if err := monitoring.WaitForDeploymentAvailable(ctx, cli, ComponentNameSupported, dscispec.ApplicationsNamespace, 20, 3); err != nil {
 					return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 				}
 				fmt.Printf("deployment for %s is done, updating monitoring rules\n", ComponentNameSupported)
@@ -195,10 +196,10 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		if err := deploy.DeployManifestsFromPath(cli, owner, PathModelServing, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 			return fmt.Errorf("failed to set dashboard modelserving from %s: %w", PathModelServing, err)
 		}
-		// consolelink, TODO: uncomment once we want to add consoleline for ODH + need update logic
-		// if err := d.deployConsoleLink(cli, owner, dscispec.ApplicationsNamespace, ComponentNameSupported); err != nil {
-		// 	return err
-		// }
+		// consolelink
+		if err := d.deployConsoleLink(cli, owner, platform, dscispec.ApplicationsNamespace, ComponentName); err != nil {
+			return err
+		}
 		return nil
 	}
 }
@@ -214,6 +215,20 @@ func (d *Dashboard) deployCRDsForPlatform(cli client.Client, owner metav1.Object
 
 func (d *Dashboard) applyRHOAISpecificConfigs(cli client.Client, owner metav1.Object, namespace string, platform deploy.Platform) error {
 	enabled := d.ManagementState == operatorv1.Managed
+
+	// set proper group name
+	dashboardConfig := filepath.Join(PathODHDashboardConfig, "odhdashboardconfig.yaml")
+	adminGroups := map[deploy.Platform]string{
+		deploy.SelfManagedRhods: "rhods-admins",
+		deploy.ManagedRhods:     "dedicated-admins",
+	}[platform]
+
+	if err := common.ReplaceStringsInFile(dashboardConfig, map[string]string{"<admin_groups>": adminGroups}); err != nil {
+		return err
+	}
+	if err := deploy.DeployManifestsFromPath(cli, owner, PathODHDashboardConfig, namespace, ComponentNameSupported, enabled); err != nil {
+		return fmt.Errorf("failed to create OdhDashboardConfig from %s: %w", PathODHDashboardConfig, err)
+	}
 	// ISV
 	path := PathISVSM
 	if platform == deploy.ManagedRhods {
@@ -226,11 +241,23 @@ func (d *Dashboard) applyRHOAISpecificConfigs(cli client.Client, owner metav1.Ob
 }
 
 func (d *Dashboard) deployConsoleLink(cli client.Client, owner metav1.Object, platform deploy.Platform, namespace, componentName string) error {
-	sectionTitle := "OpenShift Managed Services"
-	if platform == deploy.SelfManagedRhods {
+	var manifestsPath, sectionTitle, routeName string
+	switch platform {
+	case deploy.SelfManagedRhods:
 		sectionTitle = "OpenShift Self Managed Services"
+		manifestsPath = PathConsoleLinkSupported
+		routeName = componentName
+	case deploy.ManagedRhods:
+		sectionTitle = "OpenShift Managed Services"
+		manifestsPath = PathConsoleLinkSupported
+		routeName = componentName
+	default:
+		sectionTitle = "OpenShift Open Data Hub"
+		manifestsPath = PathConsoleLink
+		routeName = "odh-dashboard"
 	}
-	pathConsoleLink := filepath.Join(PathConsoleLink, "consolelink.yaml")
+
+	pathConsoleLink := filepath.Join(manifestsPath, "consolelink.yaml")
 
 	consoleRoute := &routev1.Route{}
 	if err := cli.Get(context.TODO(), client.ObjectKey{Name: NameConsoleLink, Namespace: NamespaceConsoleLink}, consoleRoute); err != nil {
@@ -240,7 +267,7 @@ func (d *Dashboard) deployConsoleLink(cli client.Client, owner metav1.Object, pl
 	domainIndex := strings.Index(consoleRoute.Spec.Host, ".")
 	consoleLinkDomain := consoleRoute.Spec.Host[domainIndex+1:]
 	err := common.ReplaceStringsInFile(pathConsoleLink, map[string]string{
-		"<dashboard-url>": "https://rhods-dashboard-" + namespace + "." + consoleLinkDomain,
+		"<dashboard-url>": "https://" + routeName + "-" + namespace + "." + consoleLinkDomain,
 		"<section-title>": sectionTitle,
 	})
 	if err != nil {

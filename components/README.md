@@ -10,7 +10,7 @@ To ensure a component is integrated seamlessly in the operator, follow the steps
 ### Add Component to DataScienceCluster API spec
 
 DataScienceCluster CRD is responsible for defining the component fields and exposing them to end users.
-Add your component to it's [api spec](https://github.com/opendatahub-io/opendatahub-operator/blob/main/apis/datasciencecluster/v1/datasciencecluster_types.go#L40):
+Add your component to it's [api spec](../docs/api-overview.md#datascienceclusterspec):
 
 ```go
 type Components struct {
@@ -35,9 +35,8 @@ can be found [here](https://github.com/opendatahub-io/opendatahub-operator/tree/
       Cleanup(cli client.Client, DSCISpec *dsci.DSCInitializationSpec) error
       GetComponentName() string
       GetManagementState() operatorv1.ManagementState
-      SetImageParamsMap(imageMap map[string]string) map[string]string
+      OverrideManifests(platform string) error
       UpdatePrometheusConfig(cli client.Client, enable bool, component string) error
-      WaitForDeploymentAvailable(ctx context.Context, r *rest.Config, c string, n string, i int, t int) error
     }
     ```
 ### Add reconcile and Events

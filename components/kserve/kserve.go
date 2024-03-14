@@ -1,4 +1,5 @@
 // Package kserve provides utility functions to config Kserve as the Controller for serving ML models on arbitrary frameworks
+// +groupName=datasciencecluster.opendatahub.io
 package kserve
 
 import (
@@ -9,7 +10,6 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -94,7 +94,7 @@ func (k *Kserve) GetComponentName() string {
 	return ComponentName
 }
 
-func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resConf *rest.Config, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
+func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
 	// paramMap for Kserve to use.
 	var imageParamMap = map[string]string{}
 
@@ -128,7 +128,7 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resC
 
 		// Update image parameters only when we do not have customized manifests set
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (k.DevFlags == nil || len(k.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(Path, k.SetImageParamsMap(imageParamMap), false); err != nil {
+			if err := deploy.ApplyParams(Path, imageParamMap, false); err != nil {
 				return err
 			}
 		}
@@ -151,7 +151,7 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resC
 		}
 		// Update image parameters for odh-model-controller
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (k.DevFlags == nil || len(k.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(DependentPath, k.SetImageParamsMap(dependentParamMap), false); err != nil {
+			if err := deploy.ApplyParams(DependentPath, dependentParamMap, false); err != nil {
 				return err
 			}
 		}
@@ -168,7 +168,7 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, resC
 	if platform == deploy.ManagedRhods {
 		if enabled {
 			// first check if the service is up, so prometheus won't fire alerts when it is just startup
-			if err := monitoring.WaitForDeploymentAvailable(ctx, resConf, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
+			if err := monitoring.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
 				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 			}
 			fmt.Printf("deployment for %s is done, updating monitoing rules", ComponentName)

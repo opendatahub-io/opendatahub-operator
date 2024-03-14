@@ -55,7 +55,7 @@ const (
 	finalizerName = "dscinitialization.opendatahub.io/finalizer"
 )
 
-// This ar is required by the .spec.TrustedCABundle field. When a user goes from Unmanaged to Managed, update all
+// This ar is required by the .spec.TrustedCABundle field on Reconcile Update Event. When a user goes from Unmanaged to Managed, update all
 // namespaces irrespective of any changes in the configmap.
 var managementStateChangeTrustedCA = false
 
@@ -144,9 +144,8 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return reconcile.Result{}, err
 	}
 
-	// Verify odh-trusted-ca-bundle Configmap is configured for the namespaces
-	err = trustedcabundle.ConfigureTrustedCABundle(ctx, r.Client, r.Log, instance, managementStateChangeTrustedCA)
-	if err != nil {
+	// Check ManagementState to verify if odh-trusted-ca-bundle Configmap should be configured for namespaces
+	if err := trustedcabundle.ConfigureTrustedCABundle(ctx, r.Client, r.Log, instance, managementStateChangeTrustedCA); err != nil {
 		return reconcile.Result{}, err
 	}
 	managementStateChangeTrustedCA = false
@@ -387,7 +386,7 @@ func (r *DSCInitializationReconciler) watchDSCResource(_ client.Object) []reconc
 		// do not handle if cannot get list
 		return nil
 	}
-	if len(instanceList.Items) == 0 && !upgrade.HasDeleteConfigMap(r.Client) {
+	if len(instanceList.Items) == 0 && !upgrade.HasDeleteConfigMap(context.TODO(), r.Client) {
 		r.Log.Info("Found no DSC instance in cluster but not in uninstalltion process, reset monitoring stack config")
 
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "backup"}}}

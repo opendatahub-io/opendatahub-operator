@@ -42,16 +42,16 @@ type Manifest interface {
 	Process(data any) ([]*unstructured.Unstructured, error)
 }
 
-type baseManifest struct {
+type rawManifest struct {
 	name,
 	path string
 	patch bool
 	fsys  fs.FS
 }
 
-var _ Manifest = (*baseManifest)(nil)
+var _ Manifest = (*rawManifest)(nil)
 
-func (b *baseManifest) Process(_ any) ([]*unstructured.Unstructured, error) {
+func (b *rawManifest) Process(_ any) ([]*unstructured.Unstructured, error) {
 	manifestFile, err := b.fsys.Open(b.path)
 	if err != nil {
 		return nil, err
@@ -88,7 +88,10 @@ func (t *templateManifest) Process(data any) ([]*unstructured.Unstructured, erro
 		return nil, fmt.Errorf("failed to create file: %w", err)
 	}
 
-	tmpl, err := template.New(t.name).Funcs(template.FuncMap{"ReplaceChar": ReplaceChar}).Parse(string(content))
+	tmpl, err := template.New(t.name).
+		Option("missingkey=error").
+		Funcs(template.FuncMap{"ReplaceChar": ReplaceChar}).
+		Parse(string(content))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse template: %w", err)
 	}
@@ -169,7 +172,7 @@ func loadManifestsFrom(fsys fs.FS, path string) ([]Manifest, error) {
 		if isTemplateManifest(path) {
 			manifests = append(manifests, CreateTemplateManifestFrom(fsys, path))
 		} else {
-			manifests = append(manifests, CreateBaseManifestFrom(fsys, path))
+			manifests = append(manifests, CreateRawManifestFrom(fsys, path))
 		}
 
 		return nil
@@ -182,10 +185,10 @@ func loadManifestsFrom(fsys fs.FS, path string) ([]Manifest, error) {
 	return manifests, nil
 }
 
-func CreateBaseManifestFrom(fsys fs.FS, path string) *baseManifest { //nolint:golint,revive //No need to export baseManifest.
+func CreateRawManifestFrom(fsys fs.FS, path string) *rawManifest { //nolint:golint,revive //No need to export rawManifest.
 	basePath := filepath.Base(path)
 
-	return &baseManifest{
+	return &rawManifest{
 		name:  basePath,
 		path:  path,
 		patch: strings.Contains(basePath, ".patch"),

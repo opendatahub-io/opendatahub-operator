@@ -1,5 +1,6 @@
 // Package datasciencepipelines provides utility functions to config Data Science Pipelines:
 // Pipeline solution for end to end MLOps workflows that support the Kubeflow Pipelines SDK and Tekton
+// +groupName=datasciencecluster.opendatahub.io
 package datasciencepipelines
 
 import (
@@ -9,7 +10,6 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -21,6 +21,7 @@ import (
 var (
 	ComponentName = "data-science-pipelines-operator"
 	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
+	OverlayPath   = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays"
 )
 
 // Verifies that Dashboard implements ComponentInterface.
@@ -56,18 +57,27 @@ func (d *DataSciencePipelines) GetComponentName() string {
 
 func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 	cli client.Client,
-	resConf *rest.Config,
 	owner metav1.Object,
 	dscispec *dsciv1.DSCInitializationSpec,
 	_ bool,
 ) error {
 	var imageParamMap = map[string]string{
+		// v1
 		"IMAGES_APISERVER":         "RELATED_IMAGE_ODH_ML_PIPELINES_API_SERVER_IMAGE",
 		"IMAGES_ARTIFACT":          "RELATED_IMAGE_ODH_ML_PIPELINES_ARTIFACT_MANAGER_IMAGE",
 		"IMAGES_PERSISTENTAGENT":   "RELATED_IMAGE_ODH_ML_PIPELINES_PERSISTENCEAGENT_IMAGE",
 		"IMAGES_SCHEDULEDWORKFLOW": "RELATED_IMAGE_ODH_ML_PIPELINES_SCHEDULEDWORKFLOW_IMAGE",
 		"IMAGES_CACHE":             "RELATED_IMAGE_ODH_ML_PIPELINES_CACHE_IMAGE",
 		"IMAGES_DSPO":              "RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_OPERATOR_CONTROLLER_IMAGE",
+		// v2
+		"IMAGESV2_ARGO_APISERVER":          "RELATED_IMAGE_ODH_ML_PIPELINES_API_SERVER_V2_IMAGE",
+		"IMAGESV2_ARGO_PERSISTENCEAGENT":   "RELATED_IMAGE_ODH_ML_PIPELINES_PERSISTENCEAGENT_V2_IMAGE",
+		"IMAGESV2_ARGO_SCHEDULEDWORKFLOW":  "RELATED_IMAGE_ODH_ML_PIPELINES_SCHEDULEDWORKFLOW_V2_IMAGE",
+		"IMAGESV2_ARGO_ARGOEXEC":           "RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_ARGO_ARGOEXEC_IMAGE",
+		"IMAGESV2_ARGO_WORKFLOWCONTROLLER": "RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_ARGO_WORKFLOWCONTROLLER_IMAGE",
+		"V2_DRIVER_IMAGE":                  "RELATED_IMAGE_ODH_ML_PIPELINES_DRIVER_IMAGE",
+		"V2_LAUNCHER_IMAGE":                "RELATED_IMAGE_ODH_ML_PIPELINES_LAUNCHER_IMAGE",
+		"IMAGESV2_ARGO_MLMDGRPC":           "RELATED_IMAGE_ODH_MLMD_GRPC_SERVER_IMAGE",
 	}
 
 	enabled := d.GetManagementState() == operatorv1.Managed
@@ -87,21 +97,27 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 		// skip check if the dependent operator has beeninstalled, this is done in dashboard
 		// Update image parameters only when we do not have customized manifests set
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (d.DevFlags == nil || len(d.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(Path, d.SetImageParamsMap(imageParamMap), false); err != nil {
+			if err := deploy.ApplyParams(Path, imageParamMap, false); err != nil {
 				return err
 			}
 		}
 	}
 
-	if err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+	// new overlay
+	manifestsPath := filepath.Join(OverlayPath, "rhoai")
+	if platform == deploy.OpenDataHub || platform == "" {
+		manifestsPath = filepath.Join(OverlayPath, "odh")
+	}
+	if err = deploy.DeployManifestsFromPath(cli, owner, manifestsPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 		return err
 	}
+
 	// CloudService Monitoring handling
 	if platform == deploy.ManagedRhods {
 		if enabled {
 			// first check if the service is up, so prometheus won't fire alerts when it is just startup
 			// only 1 replica should be very quick
-			if err := monitoring.WaitForDeploymentAvailable(ctx, resConf, ComponentName, dscispec.ApplicationsNamespace, 10, 1); err != nil {
+			if err := monitoring.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 10, 1); err != nil {
 				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 			}
 			fmt.Printf("deployment for %s is done, updating monitoring rules\n", ComponentName)

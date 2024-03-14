@@ -39,7 +39,7 @@ var _ = Describe("Manifest Processing", func() {
 
 	})
 
-	Describe("baseManifest Process", func() {
+	Describe("Raw Manifest Processing", func() {
 		BeforeEach(func() {
 			resourceYaml := `
 apiVersion: v1
@@ -55,9 +55,9 @@ data:
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		It("should process the base manifest with no substitutions", func() {
+		It("should process the raw manifest with no substitutions", func() {
 			// given
-			manifest := feature.CreateBaseManifestFrom(inMemFS, path)
+			manifest := feature.CreateRawManifestFrom(inMemFS, path)
 
 			data := feature.Spec{
 				TargetNamespace: "not-used",
@@ -74,9 +74,8 @@ data:
 		})
 	})
 
-	Describe("TemplateManifest Process", func() {
-		BeforeEach(func() {
-			resourceYaml := `
+	Describe("Templated Manifest Processing", func() {
+		resourceYaml := `
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -85,9 +84,27 @@ metadata:
 data:
   key: Data
 `
+
+		BeforeEach(func() {
 			path = "path/to/template.yaml"
 			err := afero.WriteFile(inMemFS.Afs, path, []byte(resourceYaml), 0644)
 			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("should fail when template refers to non existing key", func() {
+			// given
+			pathToBrokenTpl := filepath.Join("broken", path)
+			Expect(afero.WriteFile(inMemFS.Afs, pathToBrokenTpl, []byte(resourceYaml+"\n {{ .NotExistingKey }}"), 0644)).To(Succeed())
+			data := map[string]string{
+				"TargetNamespace": "template-ns",
+			}
+			manifest := feature.CreateTemplateManifestFrom(inMemFS, pathToBrokenTpl)
+
+			// when
+			_, err := manifest.Process(data)
+
+			// then
+			Expect(err).Should(MatchError(ContainSubstring("at <.NotExistingKey>: map has no entry for key")))
 		})
 
 		It("should substitute target namespace in the templated manifest", func() {
@@ -111,7 +128,7 @@ data:
 
 	})
 
-	Describe("KustomizeManifest Process", func() {
+	Describe("Kustomize Manifest Processing", func() {
 		BeforeEach(func() {
 			path = "/path/to/kustomization/" // base path here
 			kustFsys = filesys.MakeFsInMemory()
