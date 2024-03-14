@@ -10,8 +10,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Generate files
+        id: generate-files
         run: |
-          make generate manifests api-docs
+          CMD="make generate manifests api-docs"
+          $CMD
+          echo "CMD=$CMD" >> $GITHUB_OUTPUT
       - name: Ensure generated files are up-to-date
         id: check_generated_files
         run : |
@@ -30,7 +33,7 @@ jobs:
           message: |
               ## This PR can't be merged just yet 😢
 
-                Please run `make generate manifests api-docs` and commit the changes.
+                Please run `${{ steps.generate-files.outputs.CMD }}` and commit the changes.
 
               For more info: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       - name: Print git status and fail pr
