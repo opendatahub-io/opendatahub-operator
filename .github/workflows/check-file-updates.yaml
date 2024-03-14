@@ -7,39 +7,37 @@ jobs:
   file-updates:
     permissions:
       pull-requests: write
-    name: Test file updates
+    name: Ensure generated files are included
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Run make commands
+      - name: Generate files
         run: |
-          make generate && make manifests && make api-docs
-      - name: Check for unstaged files
-        id: check_unstaged_files
+          make generate manifests api-docs
+      - name: Ensure generated files are up-to-date
+        id: check_generated_files
         run : |
           if [[ -n $(git status -s) ]]
           then
-            echo "New files to commit available"
-            echo "is_files_to_commit_present=true" >> $GITHUB_OUTPUT
+            echo "Generated files have been missed in the PR"
+            echo "missing_generated_files=true" >> $GITHUB_OUTPUT
           else
             echo "No new files to commit"
-            echo "is_files_to_commit_present=false" >> $GITHUB_OUTPUT
+            echo "missing_generated_files=false" >> $GITHUB_OUTPUT
           fi
-      - name: Generate comments
-        if: ${{ steps.check_unstaged_files.outputs.is_files_to_commit_present == 'true' }}
+      - name: Report issue in PR
+        if: ${{ steps.check_generated_files.outputs.missing_generated_files == 'true' }}
         uses: thollander/actions-comment-pull-request@v2
         with:
           message: |
-              ## Important Message :x:
+              ## This PR can't be merged just yet 😢
 
-              This PR cannot be merged as some files are not upto date. Please run the below commands to auto-generate files and make sure to commit them:
-                - `make generate`
-                - `make manifests`
-                - `make api-docs`
+              Hey there! It looks like some files aren't up to date. No worries though! Just run the commands below to automatically generate those files and make sure to commit them afterwards:
+                - `make generate manifests api-docs`
             
               For more info: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       - name: Print git status and fail pr
-        if: ${{ steps.check_unstaged_files.outputs.is_files_to_commit_present == 'true' }}
+        if: ${{ steps.check_generated_files.outputs.missing_generated_files == 'true' }}
         run: |
           git status
           exit 1
