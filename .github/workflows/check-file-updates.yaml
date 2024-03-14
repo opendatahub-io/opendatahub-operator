@@ -5,7 +5,8 @@ on:
       - "apis/**"
 jobs:
   file-updates:
-    permissions: write-all
+    permissions:
+      pull-requests: write
     name: Test file updates
     runs-on: ubuntu-latest
     steps:
@@ -13,53 +14,32 @@ jobs:
       - name: Run make commands
         run: |
           make generate && make manifests && make api-docs
-      - name: Check git status and find new files
-        id: git_status
+      - name: Check for unstaged files
+        id: check_unstaged_files
         run : |
           if [[ -n $(git status -s) ]]
           then
             echo "New files to commit available"
             echo "is_files_to_commit_present=true" >> $GITHUB_OUTPUT
-            delim=""
-            config_files_joined=""
-            files=$(git status --porcelain | egrep "apis|config" | cut -b4-)
-            for file in $files; do
-              config_files_joined="$config_files_joined$delim$file"
-              delim=","
-            done
-            echo "config_files=$config_files_joined" >> $GITHUB_OUTPUT
-            delim=""
-            docs_files_joined=""
-            files=$(git status --porcelain | egrep "docs" | cut -b4-)
-            for file in $files; do
-              docs_files_joined="$docs_files_joined$delim$file"
-              delim=","
-            done
-            echo "docs_files=$docs_files_joined" >> $GITHUB_OUTPUT
           else
             echo "No new files to commit"
             echo "is_files_to_commit_present=false" >> $GITHUB_OUTPUT
           fi
-      - uses: actions/github-script@v7
-        if: ${{ steps.git_status.outputs.is_files_to_commit_present == 'true' }}
-        name: Generate failure comments
-        env:
-          DOCS_FILES: ${{ steps.git_status.outputs.docs_files }}
-          CONFIG_FILES: ${{ steps.git_status.outputs.config_files }}
-          BRANCH_NAME: ${{ github.head_ref }} 
+      - name: Generate comments
+        if: ${{ steps.check_unstaged_files.outputs.is_files_to_commit_present == 'true' }}
+        uses: thollander/actions-comment-pull-request@v2
         with:
-          script: |
-            const { DOCS_FILES, CONFIG_FILES, BRANCH_NAME } = process.env
-            function getFileList(fileStr){
-              return fileStr.split(",").reduce((acc, curr)=>{
-                acc += `- https://github.com/${context.actor}/${context.repo.repo}/tree/${BRANCH_NAME}/${curr}\n`
-                return acc
-              },"")
-            }
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `## Important Message ❌\nThis PR cannot be merged as some files need to be updated.\n\nPlease run \`make generate && make manifests\` to update the following file(s):\n\n ${getFileList(CONFIG_FILES)}\nPlease run \`make api-docs\` to update the following file(s):\n\n${getFileList(DOCS_FILES)}`
-            })
-            core.setFailed("Please update the config and readme files using make commands")
+          message: |
+              ## Important Message :x:
+
+              This PR cannot be merged as some files are not upto date. Please run the below commands to auto-generate files and make sure to commit them:
+                - `make generate`
+                - `make manifests`
+                - `make api-docs`
+            
+              For more info: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      - name: Print git status and fail pr
+        if: ${{ steps.check_unstaged_files.outputs.is_files_to_commit_present == 'true' }}
+        run: |
+          git status
+          exit 1
