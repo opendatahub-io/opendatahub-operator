@@ -37,6 +37,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
@@ -144,14 +145,14 @@ func CreateDefaultDSCI(cli client.Client, _ deploy.Platform, appNamespace, monNa
 
 	switch {
 	case len(instances.Items) > 1:
-		fmt.Printf("only one instance of DSCInitialization object is allowed. Please delete other instances.\n")
+		fmt.Println("only one instance of DSCInitialization object is allowed. Please delete other instances.")
 		return nil
 	case len(instances.Items) == 1:
 		// Do not patch/update if DSCI already exists.
-		fmt.Printf("DSCInitialization resource already exists. It will not be updated with default DSCI.")
+		fmt.Println("DSCInitialization resource already exists. It will not be updated with default DSCI.")
 		return nil
 	case len(instances.Items) == 0:
-		fmt.Printf("create default DSCI CR.")
+		fmt.Println("create default DSCI CR.")
 		err := cli.Create(context.TODO(), defaultDsci)
 		if err != nil {
 			return err
@@ -178,6 +179,17 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 		if err := unsetOwnerReference(cli, "odh-dashboard-config", appNS); err != nil {
 			return err
 		}
+
+		// remove label created by previous v2 release which is problematic for Managed cluster
+		fmt.Println("removing labels on Operator Namespace")
+		operatorNamespace, err := cluster.GetOperatorNamespace()
+		if err != nil {
+			return err
+		}
+		if err := RemoveLabel(cli, operatorNamespace, "pod-security.kubernetes.io/enforce"); err != nil {
+			return err
+		}
+
 		fmt.Println("creating default DSC CR")
 		if err := CreateDefaultDSC(context.TODO(), cli); err != nil {
 			return err
@@ -186,7 +198,15 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 	}
 
 	if platform == deploy.SelfManagedRhods {
-		fmt.Println("starting deletion of Deployment in selfmanaged cluster")
+		// remove label created by previous v2 release which is problematic for Managed cluster
+		fmt.Println("removing labels on Operator Namespace")
+		operatorNamespace, err := cluster.GetOperatorNamespace()
+		if err != nil {
+			return err
+		}
+		if err := RemoveLabel(cli, operatorNamespace, "pod-security.kubernetes.io/enforce"); err != nil {
+			return err
+		}
 		// If KfDef CRD is not found, we see it as a cluster not pre-installed v1 operator	// Check if kfdef are deployed
 		kfdefCrd := &apiextv1.CustomResourceDefinition{}
 		if err := cli.Get(context.TODO(), client.ObjectKey{Name: "kfdefs.kfdef.apps.kubeflow.org"}, kfdefCrd); err != nil {
@@ -201,10 +221,11 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 		// If KfDef Instances found, and no DSC instances are found in Self-managed, that means this is an upgrade path from
 		// legacy version. Create a default DSC instance
 		kfDefList := &kfdefv1.KfDefList{}
-		err := cli.List(context.TODO(), kfDefList)
+		err = cli.List(context.TODO(), kfDefList)
 		if err != nil {
 			return fmt.Errorf("error getting kfdef instances: : %w", err)
 		}
+		fmt.Println("starting deletion of Deployment in selfmanaged cluster")
 		if len(kfDefList.Items) > 0 {
 			if err = deleteResource(cli, appNS, "deployment"); err != nil {
 				return fmt.Errorf("error deleting deployment: %w", err)
@@ -225,10 +246,7 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 				return err
 			}
 		}
-
-		return err
 	}
-
 	return nil
 }
 
@@ -557,4 +575,19 @@ func deleteStatefulsetsAndCheck(ctx context.Context, cli client.Client, namespac
 	}
 
 	return true, multiErr.ErrorOrNil()
+}
+
+func RemoveLabel(cli client.Client, objectName string, labelKey string) error {
+	foundNamespace := &corev1.Namespace{}
+	if err := cli.Get(context.TODO(), client.ObjectKey{Name: objectName}, foundNamespace); err != nil {
+		if apierrs.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("could not get %s namespace: %w", objectName, err)
+	}
+	delete(foundNamespace.Labels, labelKey)
+	if err := cli.Update(context.TODO(), foundNamespace); err != nil {
+		return fmt.Errorf("error removing %s from %s : %w", labelKey, objectName, err)
+	}
+	return nil
 }

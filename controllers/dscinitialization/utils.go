@@ -36,7 +36,7 @@ var (
 // - Network Policies 'opendatahub' that allow traffic between the ODH namespaces
 // - RoleBinding 'opendatahub'.
 func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, dscInit *dsci.DSCInitialization, name string) error {
-	// Expected namespace for the given name
+	// Expected application namespace for the given name
 	desiredNamespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -47,7 +47,7 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 		},
 	}
 
-	// Create Namespace if it doesn't exist
+	// Create Application Namespace if it doesn't exist
 	foundNamespace := &corev1.Namespace{}
 	err := r.Get(ctx, client.ObjectKey{Name: name}, foundNamespace)
 	if err != nil {
@@ -68,6 +68,7 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 			r.Log.Error(err, "Unable to fetch namespace", "name", name)
 			return err
 		}
+		// Patch Application Namespace if it exists
 	} else if dscInit.Spec.Monitoring.ManagementState == operatorv1.Managed {
 		r.Log.Info("Patching application namespace for Managed cluster", "name", name)
 		labelPatch := `{"metadata":{"labels":{"openshift.io/cluster-monitoring":"true","pod-security.kubernetes.io/enforce":"baseline","opendatahub.io/generated-namespace": "true"}}}`
