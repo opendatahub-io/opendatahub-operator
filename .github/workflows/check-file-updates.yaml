@@ -21,6 +21,7 @@ jobs:
           if [[ -n $(git status -s) ]]
           then
             echo "Generated files have been missed in the PR"
+            git diff
             echo "missing_generated_files=true" >> $GITHUB_OUTPUT
           else
             echo "No new files to commit"
