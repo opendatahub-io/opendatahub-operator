@@ -121,10 +121,6 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="monitoring.coreos.com",resources=probes,verbs=get;create;patch;delete;deletecollection
 // +kubebuilder:rbac:groups="monitoring.coreos.com",resources=prometheusrules,verbs=get;create;patch;delete;deletecollection
 
-//+kubebuilder:rbac:groups=trustyai.opendatahub.io,resources=trustyaiservices,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=trustyai.opendatahub.io,resources=trustyaiservices/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=trustyai.opendatahub.io,resources=trustyaiservices/finalizers,verbs=update
-
 // +kubebuilder:rbac:groups="monitoring.coreos.com",resources=prometheuses/finalizers,verbs=get;create;patch;delete;deletecollection
 // +kubebuilder:rbac:groups="monitoring.coreos.com",resources=prometheuses/status,verbs=get;create;patch;delete;deletecollection
 

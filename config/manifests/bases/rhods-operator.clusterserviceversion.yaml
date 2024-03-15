@@ -36,15 +36,15 @@ metadata:
             },
             "kserve": {
               "managementState": "Managed",
-                "serving": {
-                  "ingressGateway": {
-                    "certificate": {
-                      "type": "SelfSigned"
-                    }
-                  },
-                  "managementState": "Managed",
-                  "name": "knative-serving"
-                }
+              "serving": {
+                "ingressGateway": {
+                  "certificate": {
+                    "type": "SelfSigned"
+                  }
+                },
+                "managementState": "Managed",
+                "name": "knative-serving"
+              }
             },
             "kueue": {
               "managementState": "Removed"
