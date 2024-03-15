@@ -37,7 +37,6 @@ COPY components/ components/
 COPY controllers/ controllers/
 COPY main.go main.go
 COPY pkg/ pkg/
-COPY infrastructure/ infrastructure/
 
 # Copy monitoring config
 COPY config/monitoring/ /opt/odh-manifests/monitoring/

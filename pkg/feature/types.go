@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
-	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/infrastructure/v1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 )
 
 type Spec struct {
