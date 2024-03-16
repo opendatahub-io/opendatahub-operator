@@ -69,7 +69,7 @@ OPERATOR_SDK_VERSION ?= v1.24.1
 GOLANGCI_LINT_VERSION ?= v1.54.0
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.24.2
-CRD_REF_DOCS_VERSION = 0.0.10
+CRD_REF_DOCS_VERSION = 0.0.11
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
