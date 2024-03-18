@@ -93,37 +93,42 @@ type ComponentInterface interface {
 // when set in DSCI: devel Mode defaults(encoder=consoleEncoder,logLevel=Debug,stackTraceLevel=Info with lower case for key
 // when set in DSCI: prod  Mode defaults(encoder=jsonEncoder,   logLevel=Info, stackTraceLevel=Error with upper case for key.
 func (c *Component) ConfigLogger(logger logr.Logger, component string, dscispec *dsciv1.DSCInitializationSpec) logr.Logger {
+	var opts zap.Options
 	if dscispec.DevFlags != nil {
 		switch dscispec.DevFlags.LogMode {
-		case "devel", "development": // 1
-			logger = zap.New(
-				zap.UseDevMode(true),
-				zap.StacktraceLevel(zapcore.InfoLevel),
-				zap.WriteTo(os.Stdout),
-			)
-		case "prod", "production": // 0
-			logger = zap.New(
-				zap.UseDevMode(false),
-				zap.StacktraceLevel(zapcore.ErrorLevel),
-				zap.WriteTo(os.Stdout),
-				zap.Encoder(zapcore.NewJSONEncoder(zapcore.EncoderConfig{ // json format, better for etl
-					LevelKey:       "LogLevel",
-					NameKey:        "Log",
-					CallerKey:      "Caller",
-					MessageKey:     "Message",
-					TimeKey:        "Time",
-					EncodeTime:     zapcore.ISO8601TimeEncoder, // human readable not epoch
-					EncodeDuration: zapcore.SecondsDurationEncoder,
-				})),
-			)
+		case "devel", "development": //  the most logging verbosity
+			opts = zap.Options{
+				Development:     true,
+				StacktraceLevel: zapcore.WarnLevel,
+				Level:           zapcore.InfoLevel,
+				DestWriter:      os.Stdout,
+			}
+		case "prod", "production": // the least logging verbosity
+			opts = zap.Options{
+				Development:     false,
+				StacktraceLevel: zapcore.ErrorLevel,
+				Level:           zapcore.WarnLevel,
+				DestWriter:      os.Stdout,
+				EncoderConfigOptions: []zap.EncoderConfigOption{func(config *zapcore.EncoderConfig) {
+					config.EncodeTime = zapcore.ISO8601TimeEncoder
+					config.EncodeDuration = zapcore.SecondsDurationEncoder
+					config.LevelKey = "LogLevel"
+					config.NameKey = "Log"
+					config.CallerKey = "Caller"
+					config.MessageKey = "Message"
+					config.TimeKey = "Time"
+				}},
+				TimeEncoder: zapcore.ISO8601TimeEncoder, // human readable not epoch
+			}
 		default:
-			fmt.Print("Invalid log mode, fall back to use 'production'")
+			fmt.Println("Invalid log mode, fall back to use 'production' as set in main.go")
+			return logger.WithName("DSC.Component." + component)
 		}
 	} else {
-		fmt.Printf("Not use any devFlags log mode for %s/n", component)
+		// fmt.Printf("Not use any devFlags log mode for %s\n", component)
+		return logger.WithName("DSC.Component." + component)
 	}
-	logger = logger.WithName("DSC.Component." + component)
-	return logger
+	return zap.New(zap.UseFlagOptions(&opts)).WithName("DSC.Component." + component)
 }
 
 // UpdatePrometheusConfig update prometheus-configs.yaml to include/exclude <component>.rules
