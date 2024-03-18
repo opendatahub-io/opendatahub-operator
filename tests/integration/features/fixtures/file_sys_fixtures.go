@@ -5,14 +5,14 @@ import (
 	"path/filepath"
 )
 
-func CreateFile(dir, filename, data string) error {
+func CreateFile(dir, filename, content string) error {
 	filePath := filepath.Join(dir, filename)
 	file, err := os.Create(filePath)
 	if err != nil {
 		return err
 	}
 
-	_, err = file.WriteString(data)
+	_, err = file.WriteString(content)
 	if err != nil {
 		return err
 	}
