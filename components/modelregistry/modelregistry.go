@@ -4,6 +4,7 @@ package modelregistry
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 
 	"github.com/go-logr/logr"
@@ -78,8 +79,7 @@ func (m *ModelRegistry) ReconcileComponent(_ context.Context, cli client.Client,
 		// Update image parameters only when we do not have customized manifests set
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (m.DevFlags == nil || len(m.DevFlags.Manifests) == 0) {
 			if err := deploy.ApplyParams(Path, imageParamMap, false); err != nil {
-				l.Error(err, "failed update image", "path", Path)
-				return err
+				return fmt.Errorf("failed to update image from %s : %w", Path, err)
 			}
 		}
 	}

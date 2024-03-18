@@ -78,8 +78,7 @@ func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client, lo
 		}
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (t.DevFlags == nil || len(t.DevFlags.Manifests) == 0) {
 			if err := deploy.ApplyParams(Path, imageParamMap, false); err != nil {
-				l.Error(err, "failed update image", "path", Path)
-				return err
+				return fmt.Errorf("failed to update image %s: %w", Path, err)
 			}
 		}
 	}

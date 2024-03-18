@@ -137,8 +137,7 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 	}
 
 	if err = deploy.DeployManifestsFromPath(cli, owner, notebookControllerPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
-		l.Error(err, "failed apply manifests", "path", notebookControllerPath)
-		return err
+		return fmt.Errorf("failed to apply manifetss %s: %w", notebookControllerPath, err)
 	}
 	l.WithValues("Path", notebookControllerPath).Info("apply manifests done NBC")
 
@@ -148,13 +147,11 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 			if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
 				// for kf-notebook-controller image
 				if err := deploy.ApplyParams(notebookControllerPath, imageParamMap, false); err != nil {
-					l.Error(err, "failed update image", "path", notebookControllerPath)
-					return err
+					return fmt.Errorf("failed to update image %s: %w", notebookControllerPath, err)
 				}
 				// for odh-notebook-controller image
 				if err := deploy.ApplyParams(kfnotebookControllerPath, imageParamMap, false); err != nil {
-					l.Error(err, "failed update image", "path", kfnotebookControllerPath)
-					return err
+					return fmt.Errorf("failed to update image %s: %w", kfnotebookControllerPath, err)
 				}
 			}
 		}

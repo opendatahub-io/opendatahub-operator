@@ -80,15 +80,13 @@ func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, logger 
 		}
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (r.DevFlags == nil || len(r.DevFlags.Manifests) == 0) {
 			if err := deploy.ApplyParams(RayPath, imageParamMap, true); err != nil {
-				l.Error(err, "failed update image", "path", RayPath)
-				return err
+				return fmt.Errorf("failed to update image from %s : %w", RayPath, err)
 			}
 		}
 	}
 	// Deploy Ray Operator
 	if err := deploy.DeployManifestsFromPath(cli, owner, RayPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
-		l.Error(err, "failed apply manifests", "path", RayPath)
-		return err
+		return fmt.Errorf("failed to apply manifets from %s : %w", RayPath, err)
 	}
 	l.Info("apply manifests done")
 	// CloudService Monitoring handling

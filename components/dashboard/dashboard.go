@@ -123,8 +123,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		}
 		// 1. Deploy CRDs
 		if err := d.deployCRDsForPlatform(cli, owner, dscispec.ApplicationsNamespace, platform); err != nil {
-			l.Error(err, "failed to deploy CRD image")
-			return err
+			return fmt.Errorf("failed to deploy Dashboard CRD: %w", err)
 		}
 
 		// 2. platform specific RBAC
@@ -145,8 +144,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		// 3. Update image parameters
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (d.DevFlags == nil || len(d.DevFlags.Manifests) == 0) {
 			if err := deploy.ApplyParams(PathSupported, imageParamMap, false); err != nil {
-				l.Error(err, "failed update image", "path", PathSupported)
-				return err
+				return fmt.Errorf("failed to update image from %s : %w", PathSupported, err)
 			}
 		}
 	}
@@ -169,11 +167,11 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		}
 
 		// Apply RHOAI specific configs, e.g anaconda screct and cronjob and ISV
-		if err := d.applyRHOAISpecificConfigs(cli, owner, dscispec.ApplicationsNamespace, platform, l); err != nil {
+		if err := d.applyRHOAISpecificConfigs(cli, owner, dscispec.ApplicationsNamespace, platform); err != nil {
 			return err
 		}
 		// consolelink
-		if err := d.deployConsoleLink(cli, owner, platform, dscispec.ApplicationsNamespace, ComponentNameSupported, l); err != nil {
+		if err := d.deployConsoleLink(cli, owner, platform, dscispec.ApplicationsNamespace, ComponentNameSupported); err != nil {
 			return err
 		}
 		// CloudService Monitoring handling
@@ -212,7 +210,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 			return fmt.Errorf("failed to set dashboard modelserving from %s: %w", PathModelServing, err)
 		}
 		// consolelink
-		if err := d.deployConsoleLink(cli, owner, platform, dscispec.ApplicationsNamespace, ComponentName, l); err != nil {
+		if err := d.deployConsoleLink(cli, owner, platform, dscispec.ApplicationsNamespace, ComponentName); err != nil {
 			return err
 		}
 		return nil
@@ -228,7 +226,7 @@ func (d *Dashboard) deployCRDsForPlatform(cli client.Client, owner metav1.Object
 	return deploy.DeployManifestsFromPath(cli, owner, PathCRDs, namespace, componentName, true)
 }
 
-func (d *Dashboard) applyRHOAISpecificConfigs(cli client.Client, owner metav1.Object, namespace string, platform deploy.Platform, l logr.Logger) error {
+func (d *Dashboard) applyRHOAISpecificConfigs(cli client.Client, owner metav1.Object, namespace string, platform deploy.Platform) error {
 	enabled := d.ManagementState == operatorv1.Managed
 
 	// set proper group name
@@ -250,13 +248,12 @@ func (d *Dashboard) applyRHOAISpecificConfigs(cli client.Client, owner metav1.Ob
 		path = PathISVAddOn
 	}
 	if err := deploy.DeployManifestsFromPath(cli, owner, path, namespace, ComponentNameSupported, enabled); err != nil {
-		l.Error(err, "failed to set dashboard ISV", "path", path)
-		return err
+		return fmt.Errorf("failed to set dashboard ISV from %s : %w", Path, err)
 	}
 	return nil
 }
 
-func (d *Dashboard) deployConsoleLink(cli client.Client, owner metav1.Object, platform deploy.Platform, namespace, componentName string, l logr.Logger) error {
+func (d *Dashboard) deployConsoleLink(cli client.Client, owner metav1.Object, platform deploy.Platform, namespace, componentName string) error {
 	var manifestsPath, sectionTitle, routeName string
 	switch platform {
 	case deploy.SelfManagedRhods:
@@ -277,25 +274,21 @@ func (d *Dashboard) deployConsoleLink(cli client.Client, owner metav1.Object, pl
 
 	consoleRoute := &routev1.Route{}
 	if err := cli.Get(context.TODO(), client.ObjectKey{Name: NameConsoleLink, Namespace: NamespaceConsoleLink}, consoleRoute); err != nil {
-		l.Error(err, "error getting console route URL", "name", NameConsoleLink, "namespace", NamespaceConsoleLink)
-		return err
+		return fmt.Errorf("error getting console route URL %s : %w", NameConsoleLink, err)
 	}
 
 	domainIndex := strings.Index(consoleRoute.Spec.Host, ".")
 	consoleLinkDomain := consoleRoute.Spec.Host[domainIndex+1:]
-	err := common.ReplaceStringsInFile(pathConsoleLink, map[string]string{
+	if err := common.ReplaceStringsInFile(pathConsoleLink, map[string]string{
 		"<dashboard-url>": "https://" + routeName + "-" + namespace + "." + consoleLinkDomain,
 		"<section-title>": sectionTitle,
-	})
-	if err != nil {
-		l.Error(err, "error replacing with correct dashboard URL for consolelink")
-		return err
+	}); err != nil {
+		return fmt.Errorf("error replacing with correct dashboard URL for consolelink : %w", err)
 	}
 
 	enabled := d.ManagementState == operatorv1.Managed
-	err = deploy.DeployManifestsFromPath(cli, owner, manifestsPath, namespace, componentName, enabled)
-	if err != nil {
-		return fmt.Errorf("failed to set dashboard consolelink from %s: %w", manifestsPath, err)
+	if err := deploy.DeployManifestsFromPath(cli, owner, PathConsoleLink, namespace, componentName, enabled); err != nil {
+		return fmt.Errorf("failed to set dashboard consolelink %s : %w", pathConsoleLink, err)
 	}
 
 	return nil
@@ -316,14 +309,13 @@ func (d *Dashboard) cleanOauthClient(cli client.Client, dscispec *dsciv1.DSCInit
 		}, oauthClientSecret)
 		if err != nil {
 			if !apierrs.IsNotFound(err) {
-				l.Error(err, "error getting secret")
-				return err
+				return fmt.Errorf("error getting secret %s: %w", name, err)
 			}
 		} else {
 			if err := cli.Delete(context.TODO(), oauthClientSecret); err != nil {
-				l.Error(err, "error deleting oauth client secret")
-				return err
+				return fmt.Errorf("error deleting secret %s: %w", name, err)
 			}
+			l.Info("successfully deleted secret", "secret", name)
 		}
 	}
 	return nil

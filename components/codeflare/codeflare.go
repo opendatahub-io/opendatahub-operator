@@ -95,8 +95,7 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, l
 		// Update image parameters only when we do not have customized manifests set
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (c.DevFlags == nil || len(c.DevFlags.Manifests) == 0) {
 			if err := deploy.ApplyParams(ParamsPath, imageParamMap, true); err != nil {
-				l.Error(err, "failed update image", "path", CodeflarePath+"/bases")
-				return err
+				return fmt.Errorf("failed update image from %s : %w", CodeflarePath+"/bases", err)
 			}
 		}
 	}

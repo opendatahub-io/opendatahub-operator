@@ -101,8 +101,7 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 		// Update image parameters only when we do not have customized manifests set
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (d.DevFlags == nil || len(d.DevFlags.Manifests) == 0) {
 			if err := deploy.ApplyParams(Path, imageParamMap, false); err != nil {
-				l.Error(err, "failed update image", "path", Path)
-				return err
+				return fmt.Errorf("failed to update image from %s : %w", Path, err)
 			}
 		}
 	}

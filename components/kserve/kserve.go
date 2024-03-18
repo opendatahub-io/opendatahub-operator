@@ -132,15 +132,13 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 		// Update image parameters only when we do not have customized manifests set
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (k.DevFlags == nil || len(k.DevFlags.Manifests) == 0) {
 			if err := deploy.ApplyParams(Path, imageParamMap, false); err != nil {
-				l.Error(err, "failed update image", "path", Path)
-				return err
+				return fmt.Errorf("failed to update image from %s : %w", Path, err)
 			}
 		}
 	}
 
 	if err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
-		l.Error(err, "failed apply manifests", "path", Path)
-		return err
+		return fmt.Errorf("failed to apply manifests from %s : %w", Path, err)
 	}
 
 	if enabled {
@@ -157,8 +155,7 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 		// Update image parameters for odh-model-controller
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (k.DevFlags == nil || len(k.DevFlags.Manifests) == 0) {
 			if err := deploy.ApplyParams(DependentPath, dependentParamMap, false); err != nil {
-				l.Error(err, "failed update image", "path", DependentPath)
-				return err
+				return fmt.Errorf("failed to update image %s: %w", DependentPath, err)
 			}
 		}
 	}

@@ -119,15 +119,13 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 		// Update image parameters
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (m.DevFlags == nil || len(m.DevFlags.Manifests) == 0) {
 			if err := deploy.ApplyParams(Path, imageParamMap, false); err != nil {
-				l.Error(err, "failed update image", "path", Path)
-				return err
+				return fmt.Errorf("failed update image from %s : %w", Path, err)
 			}
 		}
 	}
 
 	if err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
-		l.Error(err, "failed apply manifests", "path", Path)
-		return err
+		return fmt.Errorf("failed to apply manifests from %s : %w", Path, err)
 	}
 	l.WithValues("Path", Path).Info("apply manifests done for modelmesh")
 	// For odh-model-controller

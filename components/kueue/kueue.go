@@ -76,15 +76,13 @@ func (k *Kueue) ReconcileComponent(ctx context.Context, cli client.Client, logge
 		}
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (k.DevFlags == nil || len(k.DevFlags.Manifests) == 0) {
 			if err := deploy.ApplyParams(Path, imageParamMap, true); err != nil {
-				l.Error(err, "failed update image", "path", Path)
-				return err
+				return fmt.Errorf("failed to update image from %s : %w", Path, err)
 			}
 		}
 	}
 	// Deploy Kueue Operator
 	if err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
-		l.Error(err, "failed apply manifests", "path", Path)
-		return err
+		return fmt.Errorf("failed to apply manifetss %s: %w", Path, err)
 	}
 	l.Info("apply manifests done")
 	// CloudService Monitoring handling
