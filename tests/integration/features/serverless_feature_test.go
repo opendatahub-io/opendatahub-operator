@@ -73,7 +73,7 @@ var _ = Describe("Serverless feature", func() {
 			var knativeServingCrdObj *apiextensionsv1.CustomResourceDefinition
 
 			BeforeEach(func() {
-				err := fixtures.CreateSubscription(fixtures.KnativeServingSubscription, "openshift-serverless", envTestClient)
+				err := fixtures.CreateSubscription(envTestClient, "openshift-serverless", fixtures.KnativeServingSubscription)
 				Expect(err).ToNot(HaveOccurred())
 
 				// Create KNativeServing the CRD

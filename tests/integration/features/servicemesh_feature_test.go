@@ -77,7 +77,7 @@ var _ = Describe("Service Mesh setup", func() {
 				var smcpCrdObj *apiextensionsv1.CustomResourceDefinition
 
 				BeforeEach(func() {
-					err := fixtures.CreateSubscription(fixtures.OssmSubscription, "openshift-operators", envTestClient)
+					err := fixtures.CreateSubscription(envTestClient, "openshift-operators", fixtures.OssmSubscription)
 					Expect(err).ToNot(HaveOccurred())
 					smcpCrdObj = installServiceMeshCRD()
 				})
@@ -176,7 +176,7 @@ var _ = Describe("Service Mesh setup", func() {
 				BeforeEach(func() {
 					smcpCrdObj = installServiceMeshCRD()
 					objectCleaner = envtestutil.CreateCleaner(envTestClient, envTest.Config, timeout, interval)
-					dsci = newDSCInitialization(namespace)
+					dsci = fixtures.NewDSCInitialization(namespace)
 
 					serviceMeshSpec = &dsci.Spec.ServiceMesh
 

@@ -16,7 +16,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 )
 
-func CreateSubscription(subscriptionYaml, namespace string, client client.Client) error {
+func CreateSubscription(client client.Client, namespace, subscriptionYaml string) error {
 	subscription := &ofapiv1alpha1.Subscription{}
 	if err := yaml.Unmarshal([]byte(subscriptionYaml), subscription); err != nil {
 		return err
@@ -51,7 +51,7 @@ func NewNamespace(name string) *v1.Namespace {
 	}
 }
 
-func GetConfigMap(name, namespace string, client client.Client) (*v1.ConfigMap, error) {
+func GetConfigMap(client client.Client, namespace, name string) (*v1.ConfigMap, error) {
 	cfgMap := &v1.ConfigMap{}
 	err := client.Get(context.Background(), types.NamespacedName{
 		Name: name, Namespace: namespace,
@@ -60,14 +60,14 @@ func GetConfigMap(name, namespace string, client client.Client) (*v1.ConfigMap, 
 	return cfgMap, err
 }
 
-func GetNamespace(namespace string, client client.Client) (*v1.Namespace, error) {
+func GetNamespace(client client.Client, namespace string) (*v1.Namespace, error) {
 	ns := NewNamespace(namespace)
 	err := client.Get(context.Background(), types.NamespacedName{Name: namespace}, ns)
 
 	return ns, err
 }
 
-func GetService(name, namespace string, client client.Client) (*v1.Service, error) {
+func GetService(client client.Client, namespace, name string) (*v1.Service, error) {
 	svc := &v1.Service{}
 	err := client.Get(context.Background(), types.NamespacedName{
 		Name: name, Namespace: namespace,
@@ -95,7 +95,7 @@ func CreateSecret(name, namespace string) func(f *feature.Feature) error {
 	}
 }
 
-func GetFeatureTracker(featureName, appNamespace string, cli client.Client) (*featurev1.FeatureTracker, error) {
+func GetFeatureTracker(cli client.Client, appNamespace, featureName string) (*featurev1.FeatureTracker, error) {
 	tracker := featurev1.NewFeatureTracker(featureName, appNamespace)
 	err := cli.Get(context.Background(), client.ObjectKey{
 		Name: tracker.Name,

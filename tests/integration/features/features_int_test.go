@@ -54,7 +54,7 @@ var _ = Describe("feature preconditions", func() {
 
 		It("should create namespace if it does not exist", func() {
 			// given
-			_, err := fixtures.GetNamespace(namespace, envTestClient)
+			_, err := fixtures.GetNamespace(envTestClient, namespace)
 			Expect(errors.IsNotFound(err)).To(BeTrue())
 			defer objectCleaner.DeleteAll(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
 
@@ -76,7 +76,7 @@ var _ = Describe("feature preconditions", func() {
 
 			// and
 			Eventually(func() error {
-				_, err := fixtures.GetNamespace(namespace, envTestClient)
+				_, err := fixtures.GetNamespace(envTestClient, namespace)
 				return err
 			}).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
 		})
@@ -86,7 +86,7 @@ var _ = Describe("feature preconditions", func() {
 			ns := fixtures.NewNamespace(namespace)
 			Expect(envTestClient.Create(context.Background(), ns)).To(Succeed())
 			Eventually(func() error {
-				_, err := fixtures.GetNamespace(namespace, envTestClient)
+				_, err := fixtures.GetNamespace(envTestClient, namespace)
 				return err
 			}).WithTimeout(timeout).WithPolling(interval).Should(Succeed()) // wait for ns to actually get created
 
@@ -202,7 +202,7 @@ var _ = Describe("feature cleanup", func() {
 				Expect(featuresHandler.Apply()).To(Succeed())
 
 				// then
-				featureTracker, err := fixtures.GetFeatureTracker("always-working-feature", appNamespace, envTestClient)
+				featureTracker, err := fixtures.GetFeatureTracker(envTestClient, appNamespace, "always-working-feature")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(*featureTracker.Status.Conditions).To(ContainElement(
 					MatchFields(IgnoreExtras, Fields{
@@ -233,7 +233,7 @@ var _ = Describe("feature cleanup", func() {
 				Expect(featuresHandler.Apply()).ToNot(Succeed())
 
 				// then
-				featureTracker, err := fixtures.GetFeatureTracker("precondition-fail", appNamespace, envTestClient)
+				featureTracker, err := fixtures.GetFeatureTracker(envTestClient, appNamespace, "precondition-fail")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(*featureTracker.Status.Conditions).To(ContainElement(
 					MatchFields(IgnoreExtras, Fields{
@@ -264,7 +264,7 @@ var _ = Describe("feature cleanup", func() {
 				Expect(featuresHandler.Apply()).ToNot(Succeed())
 
 				// then
-				featureTracker, err := fixtures.GetFeatureTracker("post-condition-failure", appNamespace, envTestClient)
+				featureTracker, err := fixtures.GetFeatureTracker(envTestClient, appNamespace, "post-condition-failure")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(*featureTracker.Status.Conditions).To(ContainElement(
 					MatchFields(IgnoreExtras, Fields{
@@ -292,7 +292,7 @@ var _ = Describe("feature cleanup", func() {
 				Expect(featuresHandler.Apply()).To(Succeed())
 
 				// then
-				featureTracker, err := fixtures.GetFeatureTracker("always-working-feature", appNamespace, envTestClient)
+				featureTracker, err := fixtures.GetFeatureTracker(envTestClient, appNamespace, "always-working-feature")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(featureTracker.Spec.Source).To(
 					MatchFields(IgnoreExtras, Fields{
@@ -319,7 +319,7 @@ var _ = Describe("feature cleanup", func() {
 				Expect(featuresHandler.Apply()).To(Succeed())
 
 				// then
-				featureTracker, err := fixtures.GetFeatureTracker("empty-feature", appNamespace, envTestClient)
+				featureTracker, err := fixtures.GetFeatureTracker(envTestClient, appNamespace, "empty-feature")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(featureTracker.Spec.AppNamespace).To(Equal("default"))
 			})
@@ -371,7 +371,7 @@ var _ = Describe("feature cleanup", func() {
 				Expect(featuresHandler.Apply()).To(Succeed())
 
 				// then
-				service, err := fixtures.GetService("knative-local-gateway", namespace.Name, envTestClient)
+				service, err := fixtures.GetService(envTestClient, namespace.Name, "knative-local-gateway")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(service.Name).To(Equal("knative-local-gateway"))
 			})
@@ -422,7 +422,7 @@ var _ = Describe("feature cleanup", func() {
 				Expect(featuresHandler.Apply()).To(Succeed())
 
 				// then
-				embeddedNs, err := fixtures.GetNamespace("embedded-test-ns", envTestClient)
+				embeddedNs, err := fixtures.GetNamespace(envTestClient, "embedded-test-ns")
 				defer objectCleaner.DeleteAll(embeddedNs)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(embeddedNs.Name).To(Equal("embedded-test-ns"))
@@ -456,7 +456,7 @@ metadata:
 				Expect(featuresHandler.Apply()).To(Succeed())
 
 				// then
-				realNs, err := fixtures.GetNamespace("real-file-test-ns", envTestClient)
+				realNs, err := fixtures.GetNamespace(envTestClient, "real-file-test-ns")
 				defer objectCleaner.DeleteAll(realNs)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(realNs.Name).To(Equal("real-file-test-ns"))
@@ -480,7 +480,7 @@ metadata:
 				Expect(featuresHandler.Apply()).To(Succeed())
 
 				// then
-				cfgMap, err := fixtures.GetConfigMap("my-configmap", featuresHandler.ApplicationsNamespace, envTestClient)
+				cfgMap, err := fixtures.GetConfigMap(envTestClient, featuresHandler.ApplicationsNamespace, "my-configmap")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(cfgMap.Name).To(Equal("my-configmap"))
 				Expect(cfgMap.Data["key"]).To(Equal("value"))
