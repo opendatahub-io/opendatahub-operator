@@ -55,7 +55,7 @@ func (k *Kueue) GetComponentName() string {
 
 func (k *Kueue) ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
 	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
-	l := k.ConfigLogger(logger, ComponentName, dscispec)
+	l := k.ConfigComponentLogger(logger, ComponentName, dscispec)
 	var imageParamMap = map[string]string{
 		"odh-kueue-controller-image": "RELATED_IMAGE_ODH_KUEUE_CONTROLLER_IMAGE", // new kueue image
 	}

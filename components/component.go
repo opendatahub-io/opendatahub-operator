@@ -10,13 +10,12 @@ import (
 
 	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
-	"go.uber.org/zap/zapcore"
 	"gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 )
 
 // Component struct defines the basis for each OpenDataHub component configuration.
@@ -86,49 +85,15 @@ type ComponentInterface interface {
 	GetManagementState() operatorv1.ManagementState
 	OverrideManifests(platform string) error
 	UpdatePrometheusConfig(cli client.Client, enable bool, component string) error
-	ConfigLogger(logger logr.Logger, component string, dscispec *dsciv1.DSCInitializationSpec) logr.Logger
+	ConfigComponentLogger(logger logr.Logger, component string, dscispec *dsciv1.DSCInitializationSpec) logr.Logger
 }
 
-// by default, ConfigLogger with jsonEncoder, logLevel=Info, stackTraceLevel=Error
-// when set in DSCI: devel Mode defaults(encoder=consoleEncoder,logLevel=Debug,stackTraceLevel=Info with lower case for key
-// when set in DSCI: prod  Mode defaults(encoder=jsonEncoder,   logLevel=Info, stackTraceLevel=Error with upper case for key.
-func (c *Component) ConfigLogger(logger logr.Logger, component string, dscispec *dsciv1.DSCInitializationSpec) logr.Logger {
-	var opts zap.Options
+// extend origal ConfigLoggers to include component name.
+func (c *Component) ConfigComponentLogger(logger logr.Logger, component string, dscispec *dsciv1.DSCInitializationSpec) logr.Logger {
 	if dscispec.DevFlags != nil {
-		switch dscispec.DevFlags.LogMode {
-		case "devel", "development": //  the most logging verbosity
-			opts = zap.Options{
-				Development:     true,
-				StacktraceLevel: zapcore.WarnLevel,
-				Level:           zapcore.InfoLevel,
-				DestWriter:      os.Stdout,
-			}
-		case "prod", "production": // the least logging verbosity
-			opts = zap.Options{
-				Development:     false,
-				StacktraceLevel: zapcore.ErrorLevel,
-				Level:           zapcore.WarnLevel,
-				DestWriter:      os.Stdout,
-				EncoderConfigOptions: []zap.EncoderConfigOption{func(config *zapcore.EncoderConfig) {
-					config.EncodeTime = zapcore.ISO8601TimeEncoder
-					config.EncodeDuration = zapcore.SecondsDurationEncoder
-					config.LevelKey = "LogLevel"
-					config.NameKey = "Log"
-					config.CallerKey = "Caller"
-					config.MessageKey = "Message"
-					config.TimeKey = "Time"
-				}},
-				TimeEncoder: zapcore.ISO8601TimeEncoder, // human readable not epoch
-			}
-		default:
-			fmt.Println("Invalid log mode, fall back to use 'production' as set in main.go")
-			return logger.WithName("DSC.Component." + component)
-		}
-	} else {
-		// fmt.Printf("Not use any devFlags log mode for %s\n", component)
-		return logger.WithName("DSC.Component." + component)
+		return common.ConfigLoggers(dscispec.DevFlags.LogMode).WithName("DSC.Components." + component)
 	}
-	return zap.New(zap.UseFlagOptions(&opts)).WithName("DSC.Component." + component)
+	return logger.WithName("DSC.Components." + component)
 }
 
 // UpdatePrometheusConfig update prometheus-configs.yaml to include/exclude <component>.rules

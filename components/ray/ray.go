@@ -57,7 +57,7 @@ func (r *Ray) GetComponentName() string {
 
 func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
 	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
-	l := r.ConfigLogger(logger, ComponentName, dscispec)
+	l := r.ConfigComponentLogger(logger, ComponentName, dscispec)
 
 	var imageParamMap = map[string]string{
 		"odh-kuberay-operator-controller-image": "RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE",

@@ -41,8 +41,6 @@ spec:
             value: 'true'
         args:
         - --leader-elect
-        - --log-level=info
-        - --log-mode=devel
         - --operator-name=opendatahub
         image: controller:latest
         imagePullPolicy: Always

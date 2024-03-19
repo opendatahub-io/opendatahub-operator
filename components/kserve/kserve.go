@@ -97,7 +97,7 @@ func (k *Kserve) GetComponentName() string {
 
 func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 	logger logr.Logger, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
-	l := k.ConfigLogger(logger, ComponentName, dscispec)
+	l := k.ConfigComponentLogger(logger, ComponentName, dscispec)
 	// paramMap for Kserve to use.
 	var imageParamMap = map[string]string{}
 

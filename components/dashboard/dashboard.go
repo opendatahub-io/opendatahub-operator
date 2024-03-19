@@ -92,21 +92,22 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 	dscispec *dsciv1.DSCInitializationSpec,
 	currentComponentExist bool,
 ) error {
+	var l logr.Logger
+	platform, err := deploy.GetPlatform(cli)
+	if err != nil {
+		return err
+	}
+	if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
+		l = d.ConfigComponentLogger(logger, ComponentNameSupported, dscispec)
+	} else {
+		l = d.ConfigComponentLogger(logger, ComponentName, dscispec)
+	}
+
 	var imageParamMap = map[string]string{
 		"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
 	}
 	enabled := d.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
-
-	platform, err := deploy.GetPlatform(cli)
-	if err != nil {
-		return err
-	}
-
-	l := d.ConfigLogger(logger, ComponentName, dscispec)
-	if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
-		l = d.ConfigLogger(logger, ComponentNameSupported, dscispec)
-	}
 
 	// Update Default rolebinding
 	if enabled {
@@ -174,6 +175,8 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		if err := d.deployConsoleLink(cli, owner, platform, dscispec.ApplicationsNamespace, ComponentNameSupported); err != nil {
 			return err
 		}
+		l.Info("apply manifests done")
+
 		// CloudService Monitoring handling
 		if platform == deploy.ManagedRhods {
 			if enabled {
@@ -213,6 +216,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		if err := d.deployConsoleLink(cli, owner, platform, dscispec.ApplicationsNamespace, ComponentName); err != nil {
 			return err
 		}
+		l.Info("apply manifests done")
 		return nil
 	}
 }

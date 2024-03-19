@@ -225,12 +225,10 @@ This will ensure that the doc for the apis are updated accordingly.
 
 #### Controller level
 
-Logger on DSC and DSCI and secretgen can only be changed from CSV with parameters:
---log-level info (as default) || debug || warning || error || panic || dpanic
---log-mode devel (as default) || prod
+Logger on all controllers can only be changed from CSV with parameters: --log-mode devel
+valid value: "" (as default) || prod || production || devel || development
 
 This mainly impacts logging for pod startup, generating common resource, monitoring deployment.
-With "debug", operator even prints Events messages into pod log.
 
 #### Component level
 

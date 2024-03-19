@@ -98,7 +98,7 @@ func (w *Workbenches) GetComponentName() string {
 
 func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
 	owner metav1.Object, dscispec *dsci.DSCInitializationSpec, _ bool) error {
-	l := w.ConfigLogger(logger, ComponentName, dscispec)
+	l := w.ConfigComponentLogger(logger, ComponentName, dscispec)
 	var imageParamMap = map[string]string{
 		"odh-notebook-controller-image":    "RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE",
 		"odh-kf-notebook-controller-image": "RELATED_IMAGE_ODH_KF_NOTEBOOK_CONTROLLER_IMAGE",

@@ -63,7 +63,7 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 	dscispec *dsciv1.DSCInitializationSpec,
 	_ bool,
 ) error {
-	l := d.ConfigLogger(logger, ComponentName, dscispec)
+	l := d.ConfigComponentLogger(logger, ComponentName, dscispec)
 	var imageParamMap = map[string]string{
 		// v1
 		"IMAGES_APISERVER":         "RELATED_IMAGE_ODH_ML_PIPELINES_API_SERVER_IMAGE",

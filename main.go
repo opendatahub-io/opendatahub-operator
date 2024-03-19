@@ -31,7 +31,6 @@ import (
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
-	"go.uber.org/zap/zapcore"
 	admv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -46,7 +45,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
@@ -58,6 +56,7 @@ import (
 	dscicontr "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/webhook"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
@@ -66,11 +65,6 @@ var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
 )
-
-type loggerOption struct {
-	level string // debug, info, warning, error, panic, fatal
-	mode  string // prod, devel
-}
 
 func init() { //nolint:gochecknoinits
 	//+kubebuilder:scaffold:scheme
@@ -106,7 +100,7 @@ func main() { //nolint:funlen
 	var dscApplicationsNamespace string
 	var dscMonitoringNamespace string
 	var operatorName string
-	loggerOpts := loggerOption{}
+	var logmode string
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -118,19 +112,11 @@ func main() { //nolint:funlen
 	flag.StringVar(&dscMonitoringNamespace, "dsc-monitoring-namespace", "opendatahub", "The namespace where data science cluster"+
 		"monitoring stack will be deployed")
 	flag.StringVar(&operatorName, "operator-name", "opendatahub", "The name of the operator")
-	flag.StringVar(&loggerOpts.level, "log-level", "log", "Log level (debug, info, warning, error, dpanic, panic, fatal) or all caps, default to info")
-	flag.StringVar(&loggerOpts.mode, "log-mode", "prod", "Log mode (prod, devel), default to prod -- stracktrace on error")
+	flag.StringVar(&logmode, "log-mode", "", "Log mode ('', prod, devel), default to ''")
 
 	flag.Parse()
 
-	opts := zap.Options{ // default use production mode
-		Development:     false,
-		StacktraceLevel: zapcore.ErrorLevel,
-		Level:           zapcore.InfoLevel,
-		DestWriter:      os.Stdout,
-	}
-	opts.BindFlags(flag.CommandLine)
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+	ctrl.SetLogger(common.ConfigLoggers(logmode))
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,

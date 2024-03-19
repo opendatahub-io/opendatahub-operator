@@ -1771,6 +1771,7 @@ spec:
                 - --health-probe-bind-address=:8081
                 - --metrics-bind-address=0.0.0.0:8080
                 - --leader-elect
+                - --operator-name=opendatahub
                 command:
                 - /manager
                 env:

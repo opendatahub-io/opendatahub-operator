@@ -79,7 +79,7 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 	dscispec *dsciv1.DSCInitializationSpec,
 	_ bool,
 ) error {
-	l := m.ConfigLogger(logger, ComponentName, dscispec)
+	l := m.ConfigComponentLogger(logger, ComponentName, dscispec)
 	var imageParamMap = map[string]string{
 		"odh-mm-rest-proxy":             "RELATED_IMAGE_ODH_MM_REST_PROXY_IMAGE",
 		"odh-modelmesh-runtime-adapter": "RELATED_IMAGE_ODH_MODELMESH_RUNTIME_ADAPTER_IMAGE",
