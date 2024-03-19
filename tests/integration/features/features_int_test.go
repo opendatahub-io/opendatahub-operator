@@ -463,6 +463,30 @@ metadata:
 				Expect(err).ToNot(HaveOccurred())
 				Expect(realNs.Name).To(Equal("real-file-test-ns"))
 			})
+
+			It("should process kustomization manifests directly from the file system", func() {
+				// given
+				featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
+					createCfgMapErr := feature.CreateFeature("create-cfg-map").
+						For(handler).
+						UsingConfig(envTest.Config).
+						Manifests(path.Join(feature.BaseDir, "fake-kust-dir")).
+						Load()
+
+					Expect(createCfgMapErr).ToNot(HaveOccurred())
+
+					return nil
+				})
+
+				// when
+				Expect(featuresHandler.Apply()).To(Succeed())
+
+				// then
+				cfgMap, err := getConfigMap("my-configmap", featuresHandler.ApplicationsNamespace)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(cfgMap.Name).To(Equal("my-configmap"))
+				Expect(cfgMap.Data["key"]).To(Equal("value"))
+			})
 		})
 	})
 
@@ -552,6 +576,15 @@ func getService(name, namespace string) (*v1.Service, error) {
 	}, svc)
 
 	return svc, err
+}
+
+func getConfigMap(name, namespace string) (*v1.ConfigMap, error) {
+	cfgMap := &v1.ConfigMap{}
+	err := envTestClient.Get(context.Background(), types.NamespacedName{
+		Name: name, Namespace: namespace,
+	}, cfgMap)
+
+	return cfgMap, err
 }
 
 func createFile(dir, filename, data string) error {

@@ -5,9 +5,9 @@ and configure these applications.
 
 ### Table of contents
 - [Usage](#usage)
+  - [Prerequisites](#prerequisites)
   - [Installation](#installation)
-- [Dev Preview](#dev-preview)
-  - [Developer Guide](#developer-guide)
+- [Developer Guide](#developer-guide)
     - [Pre-requisites](#pre-requisites)
     - [Download manifests](#download-manifests)
     - [Structure of `COMPONENT_MANIFESTS`](#structure-of-component_manifests)
@@ -20,43 +20,60 @@ and configure these applications.
     - [Build Image](#build-image)
     - [Deployment](#deployment)
   - [Test with customized manifests](#test-with-customized-manifests)
+  - [Update API docs](#update-api-docs)
+  - [Example DSCInitialization](#example-dscinitialization)
   - [Example DataScienceCluster](#example-datasciencecluster)
   - [Run functional Tests](#run-functional-tests)
   - [Run e2e Tests](#run-e2e-tests)
+  - [API Overview](#api-overview)
+  - [Component Integration](#component-integration)
   - [Troubleshooting](#troubleshooting)
+  - [Upgrade testing](#upgrade-testing)
 
 ## Usage
 
+### Prerequisites
+If `single model serving configuration` is used or if `Kserve` component is used then please make sure to install the following operators before proceeding to create a DSCI and DSC instances.
+ - [Authorino operator](https://github.com/Kuadrant/authorino)
+ - [Service Mesh operator](https://github.com/Maistra/istio-operator)
+ - [Serverless operator](https://github.com/openshift-knative/serverless-operator)
+
+Additionally installing `Authorino operator` & `Service Mesh operator` enhances user-experience by providing a single sign on experience.
+
 ### Installation
 
-The latest version of operator can be installed from the `community-operators` catalog on `OperatorHub`. It can also be build
+- The latest version of operator can be installed from the `community-operators` catalog on `OperatorHub`.
+
+  ![ODH operator in OperatorHub](docs/images/OperatorHub%20ODH%20Operator.png)
+
+  Please note that the latest releases are made in the `Fast` channel.
+
+- It can also be build
 and installed from source manually, see the Developer guide for further instructions.
 
-1. Subscribe to operator by creating following subscription
+  1. Subscribe to operator by creating following subscription
 
-    ```console
-    cat <<EOF | oc create -f -
-    apiVersion: operators.coreos.com/v1alpha1
-    kind: Subscription
-    metadata:
-      name: opendatahub-operator
-      namespace: openshift-operators
-    spec:
-      channel: fast
-      name: opendatahub-operator
-      source: community-operators
-      sourceNamespace: openshift-marketplace
-    EOF
-    ```
+      ```console
+      cat <<EOF | oc create -f -
+      apiVersion: operators.coreos.com/v1alpha1
+      kind: Subscription
+      metadata:
+        name: opendatahub-operator
+        namespace: openshift-operators
+      spec:
+        channel: fast
+        name: opendatahub-operator
+        source: community-operators
+        sourceNamespace: openshift-marketplace
+      EOF
+      ```
 
-2. Create [DataScienceCluster](#example-datasciencecluster) CR to enable components
+  2. Create [DSCInitialization](#example-dscinitialization) CR manually.
+    You can also use operator to create default DSCI CR by removing env variable DISABLE_DSC_CONFIG from CSV or changing the value to "false", followed by restarting the operator pod.
 
-## Dev Preview
+  3. Create [DataScienceCluster](#example-datasciencecluster) CR to enable components
 
-Developer Preview of the new Open Data Hub operator codebase is now available.
-Refer [Dev-Preview.md](./docs/Dev-Preview.md) for testing preview features.
-
-### Developer Guide
+## Developer Guide
 
 #### Pre-requisites
 
@@ -65,7 +82,7 @@ Refer [Dev-Preview.md](./docs/Dev-Preview.md) for testing preview features.
 
 #### Download manifests
 
-The `get_all_manifests.sh` script facilitates the process of fetching manifests from remote git repositories. It is configured to work with a predefined map of components and their corresponding manifest locations.
+The [get_all_manifests.sh](/get_all_manifests.sh) script facilitates the process of fetching manifests from remote git repositories. It is configured to work with a predefined map of components and their corresponding manifest locations.
 
 #### Structure of `COMPONENT_MANIFESTS`
 
@@ -110,8 +127,7 @@ Ensure back up before run this command if you have local changes of manifests wa
 
 ##### for build operator image
 
-```
-
+```commandline
 make image-build
 ```
 
@@ -188,14 +204,49 @@ e.g `make image-build -e IMAGE_BUILD_FLAGS="--build-arg USE_LOCAL=true"`
   ```commandline
   operator-sdk run bundle quay.io/<username>/opendatahub-operator-bundle:<VERSION> --namespace $OPERATOR_NAMESPACE
   ```
-
 ### Test with customized manifests
 
 There are 2 ways to test your changes with modification:
 
-1. set `devFlags.ManifestsUri` field of DSCI instance during runtime: this will pull down manifests from remote git repo
-   by using this method, it overwrites manifests and component images if images are set in the params.env file
-2. [Under implementation] build operator image with local manifests
+1. Each component in the `DataScienceCluster` CR has `devFlags.manifests` field, which can be used to pull down the manifests from the remote git repos of the respective components. By using this method, it overwrites manifests and creates customized resources for the respective components.
+
+2. [Under implementation] build operator image with local manifests.
+
+### Update API docs
+
+Whenever a new api is added or a new field is added to the CRD, please make sure to run the command:
+  ```commandline
+  make api-docs 
+  ```
+This will ensure that the doc for the apis are updated accordingly.
+
+### Example DSCInitialization
+
+Below is the default DSCI CR config
+
+```console
+kind: DSCInitialization
+apiVersion: dscinitialization.opendatahub.io/v1
+metadata:
+  name: default-dsci
+spec:
+  applicationsNamespace: opendatahub
+  monitoring:
+    managementState: Managed
+    namespace: opendatahub
+  serviceMesh:
+    controlPlane:
+      metricsCollection: Istio
+      name: data-science-smcp
+      namespace: istio-system
+    managementState: Managed
+  trustedCABundle:
+    customCABundle: ''
+    managementState: Managed
+
+```
+
+Apply this example with modification for your usage.
 
 ### Example DataScienceCluster
 
@@ -219,15 +270,21 @@ spec:
       managementState: Managed
     kserve:
       managementState: Managed
+      serving:
+        ingressGateway:
+          certificate:
+            type: SelfSigned
+        managementState: Managed
+        name: knative-serving
     kueue:
       managementState: Managed
     modelmeshserving:
       managementState: Managed
+    modelregistry:
+      managementState: Managed
     ray:
       managementState: Managed
     workbenches:
-      managementState: Managed
-    trustyai:
       managementState: Managed
 ```
 
@@ -296,6 +353,13 @@ for DataScienceCluster deletion.
 ```shell
 make e2e-test -e OPERATOR_NAMESPACE=<namespace> -e E2E_TEST_FLAGS="--skip-deletion=true"
 ```
+### API Overview
+
+Please refer to [api documentation](docs/api-overview.md)
+
+### Component Integration
+
+Please refer to [components docs](components/README.md)
 
 ### Troubleshooting
 
