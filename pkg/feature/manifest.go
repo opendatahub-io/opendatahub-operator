@@ -2,13 +2,11 @@ package feature
 
 import (
 	"bytes"
-	"embed"
 	"fmt"
 	"html/template"
 	"io"
 	"io/fs"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -24,18 +22,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins"
 )
 
-//go:embed templates
-var embeddedFiles embed.FS
-
 const kustomizationFile = "kustomization.yaml"
-
-var (
-	BaseDir        = "templates"
-	ServiceMeshDir = path.Join(BaseDir, "servicemesh")
-	ServerlessDir  = path.Join(BaseDir, "serverless")
-	AuthDir        = path.Join(ServiceMeshDir, "authorino")
-	KServeDir      = path.Join(ServiceMeshDir, "kserve")
-)
 
 type Manifest interface {
 	// Process allows any arbitrary struct to be passed and used while processing the content of the manifest.

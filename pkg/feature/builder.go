@@ -50,10 +50,10 @@ func (u *usingFeaturesHandler) For(featuresHandler *FeaturesHandler) *featureBui
 		return nil
 	}
 
+	// TODO: make manifest source a required entry.
 	fb := &featureBuilder{
 		name:            u.name,
 		featuresHandler: featuresHandler,
-		fsys:            embeddedFiles,
 		targetNS:        featuresHandler.DSCInitializationSpec.ApplicationsNamespace,
 	}
 
@@ -177,6 +177,7 @@ func (fb *featureBuilder) Load() error {
 	}
 
 	feature.Spec.TargetNamespace = fb.targetNS
+	feature.fsys = fb.fsys
 
 	fb.featuresHandler.features = append(fb.featuresHandler.features, feature)
 

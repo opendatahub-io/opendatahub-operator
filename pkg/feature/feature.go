@@ -3,6 +3,7 @@ package feature
 import (
 	"context"
 	"fmt"
+	"io/fs"
 
 	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
@@ -33,6 +34,7 @@ type Feature struct {
 	preconditions  []Action
 	postconditions []Action
 	loaders        []Action
+	fsys           fs.FS
 
 	Log logr.Logger
 }
@@ -169,7 +171,7 @@ func (f *Feature) addCleanup(cleanupFuncs ...Action) {
 }
 
 func (f *Feature) ApplyManifest(path string) error {
-	m, err := loadManifestsFrom(embeddedFiles, path)
+	m, err := loadManifestsFrom(f.fsys, path)
 	if err != nil {
 		return err
 	}
