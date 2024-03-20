@@ -148,7 +148,7 @@ generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and
 
 GOLANGCI_TMP_FILE = .golangci.mktmp.yml
 .PHONY: fmt
-fmt: golangci-lint yq ## Run go fmt against code.
+fmt: golangci-lint yq ## Formats code and imports.
 	go fmt ./...
 	$(YQ) e '.linters = {"disable-all": true, "enable": ["gci"]}' .golangci.yml  > $(GOLANGCI_TMP_FILE)
 	$(GOLANGCI_LINT) run --config=$(GOLANGCI_TMP_FILE) --fix
