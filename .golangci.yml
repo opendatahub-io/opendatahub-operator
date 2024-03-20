@@ -12,7 +12,6 @@ linters-settings:
     sections:
       - standard
       - default
-      - blank
       - prefix(github.com/opendatahub-io/opendatahub-operator)
       - blank
       - dot
