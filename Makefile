@@ -152,7 +152,7 @@ fmt: golangci-lint yq ## Formats code and imports.
 	go fmt ./...
 	$(YQ) e '.linters = {"disable-all": true, "enable": ["gci"]}' .golangci.yml  > $(GOLANGCI_TMP_FILE)
 	$(GOLANGCI_LINT) run --config=$(GOLANGCI_TMP_FILE) --fix
-CLEANFILES += ${GOLANGCI_TMP_FILE}
+CLEANFILES += $(GOLANGCI_TMP_FILE)
 
 .PHONY: vet
 vet: ## Run go vet against code.
