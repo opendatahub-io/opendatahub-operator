@@ -204,7 +204,7 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 		fmt.Printf("created DataScienceCluster resource\n")
 	case apierrs.IsAlreadyExists(err):
 		// Do not update the DSC if it already exists
-		fmt.Printf("DataScienceCluster resource already exists. It will not be updated with default DSC.\n")
+		fmt.Println("DataScienceCluster resource already exists. It will not be updated with default DSC.")
 		return nil
 	default:
 		return fmt.Errorf("failed to create DataScienceCluster custom resource: %w", err)
@@ -253,14 +253,14 @@ func CreateDefaultDSCI(cli client.Client, _ deploy.Platform, appNamespace, monNa
 
 	switch {
 	case len(instances.Items) > 1:
-		fmt.Printf("only one instance of DSCInitialization object is allowed. Please delete other instances.\n")
+		fmt.Println("only one instance of DSCInitialization object is allowed. Please delete other instances.")
 		return nil
 	case len(instances.Items) == 1:
 		// Do not patch/update if DSCI already exists.
-		fmt.Printf("DSCInitialization resource already exists. It will not be updated with default DSCI.")
+		fmt.Println("DSCInitialization resource already exists. It will not be updated with default DSCI.")
 		return nil
 	case len(instances.Items) == 0:
-		fmt.Printf("create default DSCI CR.")
+		fmt.Println("create default DSCI CR.")
 		err := cli.Create(context.TODO(), defaultDsci)
 		if err != nil {
 			return err
@@ -281,6 +281,9 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 			return err
 		}
 		if err := deleteResource(cli, montNamespace, "statefulset"); err != nil {
+			return err
+		}
+		if err := unsetOwnerReference(cli, "odh-dashboard-config", appNS); err != nil {
 			return err
 		}
 		fmt.Println("creating default DSC CR")
@@ -319,6 +322,9 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 				return err
 			}
 			if err := deleteResource(cli, montNamespace, "statefulset"); err != nil {
+				return err
+			}
+			if err := unsetOwnerReference(cli, "odh-dashboard-config", appNS); err != nil {
 				return err
 			}
 			// create default DSC
@@ -544,6 +550,34 @@ func removOdhApplicationsCR(ctx context.Context, cli client.Client, gvk schema.G
 		return fmt.Errorf("error deleting CR %s : %w", instanceName, err)
 	}
 
+	return nil
+}
+
+func unsetOwnerReference(cli client.Client, instanceName string, applicationNS string) error {
+	OdhDashboardConfig := schema.GroupVersionKind{
+		Group:   "opendatahub.io",
+		Version: "v1alpha",
+		Kind:    "OdhDashboardConfig",
+	}
+	crd := &apiextv1.CustomResourceDefinition{}
+	if err := cli.Get(context.TODO(), client.ObjectKey{Name: "odhdashboardconfigs.opendatahub.io"}, crd); err != nil {
+		return client.IgnoreNotFound(err)
+	}
+	odhObject := &unstructured.Unstructured{}
+	odhObject.SetGroupVersionKind(OdhDashboardConfig)
+	if err := cli.Get(context.TODO(), client.ObjectKey{
+		Namespace: applicationNS,
+		Name:      instanceName,
+	}, odhObject); err != nil {
+		return client.IgnoreNotFound(err)
+	}
+	if odhObject.GetOwnerReferences() != nil {
+		// set to nil as updates
+		odhObject.SetOwnerReferences(nil)
+		if err := cli.Update(context.TODO(), odhObject); err != nil {
+			return fmt.Errorf("error unset ownerreference for CR %s : %w", instanceName, err)
+		}
+	}
 	return nil
 }
 
