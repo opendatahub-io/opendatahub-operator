@@ -6,14 +6,12 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"path/filepath"
 	"time"
 
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -28,7 +26,7 @@ import (
 	. "github.com/onsi/gomega/gstruct"
 )
 
-//go:embed templates
+//go:embed fixtures/templates
 var testEmbeddedFiles embed.FS
 
 const (
@@ -51,12 +49,12 @@ var _ = Describe("feature preconditions", func() {
 
 			testFeatureName := "test-ns-creation"
 			namespace = envtestutil.AppendRandomNameTo(testFeatureName)
-			dsci = newDSCInitialization(namespace)
+			dsci = fixtures.NewDSCInitialization(namespace)
 		})
 
 		It("should create namespace if it does not exist", func() {
 			// given
-			_, err := getNamespace(namespace)
+			_, err := fixtures.GetNamespace(envTestClient, namespace)
 			Expect(errors.IsNotFound(err)).To(BeTrue())
 			defer objectCleaner.DeleteAll(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
 
@@ -78,7 +76,7 @@ var _ = Describe("feature preconditions", func() {
 
 			// and
 			Eventually(func() error {
-				_, err := getNamespace(namespace)
+				_, err := fixtures.GetNamespace(envTestClient, namespace)
 				return err
 			}).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
 		})
@@ -88,7 +86,7 @@ var _ = Describe("feature preconditions", func() {
 			ns := fixtures.NewNamespace(namespace)
 			Expect(envTestClient.Create(context.Background(), ns)).To(Succeed())
 			Eventually(func() error {
-				_, err := getNamespace(namespace)
+				_, err := fixtures.GetNamespace(envTestClient, namespace)
 				return err
 			}).WithTimeout(timeout).WithPolling(interval).Should(Succeed()) // wait for ns to actually get created
 
@@ -133,7 +131,7 @@ var _ = Describe("feature cleanup", func() {
 
 		BeforeAll(func() {
 			namespace = envtestutil.AppendRandomNameTo("test-secret-ownership")
-			dsci = newDSCInitialization(namespace)
+			dsci = fixtures.NewDSCInitialization(namespace)
 			featuresHandler = feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
 				secretCreationErr := feature.CreateFeature(featureName).
 					For(handler).
@@ -141,7 +139,7 @@ var _ = Describe("feature cleanup", func() {
 					PreConditions(
 						feature.CreateNamespaceIfNotExists(namespace),
 					).
-					WithResources(createSecret(secretName, namespace)).
+					WithResources(fixtures.CreateSecret(secretName, namespace)).
 					Load()
 
 				Expect(secretCreationErr).ToNot(HaveOccurred())
@@ -185,7 +183,7 @@ var _ = Describe("feature cleanup", func() {
 			)
 
 			BeforeEach(func() {
-				dsci = newDSCInitialization("default")
+				dsci = fixtures.NewDSCInitialization("default")
 			})
 
 			It("should indicate successful installation in FeatureTracker", func() {
@@ -204,7 +202,7 @@ var _ = Describe("feature cleanup", func() {
 				Expect(featuresHandler.Apply()).To(Succeed())
 
 				// then
-				featureTracker, err := getFeatureTracker("always-working-feature", appNamespace)
+				featureTracker, err := fixtures.GetFeatureTracker(envTestClient, appNamespace, "always-working-feature")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(*featureTracker.Status.Conditions).To(ContainElement(
 					MatchFields(IgnoreExtras, Fields{
@@ -235,7 +233,7 @@ var _ = Describe("feature cleanup", func() {
 				Expect(featuresHandler.Apply()).ToNot(Succeed())
 
 				// then
-				featureTracker, err := getFeatureTracker("precondition-fail", appNamespace)
+				featureTracker, err := fixtures.GetFeatureTracker(envTestClient, appNamespace, "precondition-fail")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(*featureTracker.Status.Conditions).To(ContainElement(
 					MatchFields(IgnoreExtras, Fields{
@@ -266,7 +264,7 @@ var _ = Describe("feature cleanup", func() {
 				Expect(featuresHandler.Apply()).ToNot(Succeed())
 
 				// then
-				featureTracker, err := getFeatureTracker("post-condition-failure", appNamespace)
+				featureTracker, err := fixtures.GetFeatureTracker(envTestClient, appNamespace, "post-condition-failure")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(*featureTracker.Status.Conditions).To(ContainElement(
 					MatchFields(IgnoreExtras, Fields{
@@ -294,7 +292,7 @@ var _ = Describe("feature cleanup", func() {
 				Expect(featuresHandler.Apply()).To(Succeed())
 
 				// then
-				featureTracker, err := getFeatureTracker("always-working-feature", appNamespace)
+				featureTracker, err := fixtures.GetFeatureTracker(envTestClient, appNamespace, "always-working-feature")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(featureTracker.Spec.Source).To(
 					MatchFields(IgnoreExtras, Fields{
@@ -321,7 +319,7 @@ var _ = Describe("feature cleanup", func() {
 				Expect(featuresHandler.Apply()).To(Succeed())
 
 				// then
-				featureTracker, err := getFeatureTracker("empty-feature", appNamespace)
+				featureTracker, err := fixtures.GetFeatureTracker(envTestClient, appNamespace, "empty-feature")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(featureTracker.Spec.AppNamespace).To(Equal("default"))
 			})
@@ -347,7 +345,7 @@ var _ = Describe("feature cleanup", func() {
 				namespace, err = cluster.CreateNamespace(envTestClient, nsName)
 				Expect(err).ToNot(HaveOccurred())
 
-				dsci = newDSCInitialization(nsName)
+				dsci = fixtures.NewDSCInitialization(nsName)
 				dsci.Spec.ServiceMesh.ControlPlane.Namespace = namespace.Name
 			})
 
@@ -373,7 +371,7 @@ var _ = Describe("feature cleanup", func() {
 				Expect(featuresHandler.Apply()).To(Succeed())
 
 				// then
-				service, err := getService("knative-local-gateway", namespace.Name)
+				service, err := fixtures.GetService(envTestClient, namespace.Name, "knative-local-gateway")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(service.Name).To(Equal("knative-local-gateway"))
 			})
@@ -412,7 +410,7 @@ var _ = Describe("feature cleanup", func() {
 						For(handler).
 						UsingConfig(envTest.Config).
 						ManifestSource(testEmbeddedFiles).
-						Manifests(path.Join(feature.BaseDir, "namespace.yaml")).
+						Manifests(path.Join("fixtures", feature.BaseDir, "namespace.yaml")).
 						Load()
 
 					Expect(createNamespaceErr).ToNot(HaveOccurred())
@@ -424,7 +422,7 @@ var _ = Describe("feature cleanup", func() {
 				Expect(featuresHandler.Apply()).To(Succeed())
 
 				// then
-				embeddedNs, err := getNamespace("embedded-test-ns")
+				embeddedNs, err := fixtures.GetNamespace(envTestClient, "embedded-test-ns")
 				defer objectCleaner.DeleteAll(embeddedNs)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(embeddedNs.Name).To(Equal("embedded-test-ns"))
@@ -439,7 +437,7 @@ metadata:
 				// given
 				tempDir := GinkgoT().TempDir()
 
-				Expect(createFile(tempDir, "namespace.yaml", nsYAML)).To(Succeed())
+				Expect(fixtures.CreateFile(tempDir, "namespace.yaml", nsYAML)).To(Succeed())
 
 				featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
 					createServiceErr := feature.CreateFeature("create-namespace").
@@ -458,7 +456,7 @@ metadata:
 				Expect(featuresHandler.Apply()).To(Succeed())
 
 				// then
-				realNs, err := getNamespace("real-file-test-ns")
+				realNs, err := fixtures.GetNamespace(envTestClient, "real-file-test-ns")
 				defer objectCleaner.DeleteAll(realNs)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(realNs.Name).To(Equal("real-file-test-ns"))
@@ -470,7 +468,7 @@ metadata:
 					createCfgMapErr := feature.CreateFeature("create-cfg-map").
 						For(handler).
 						UsingConfig(envTest.Config).
-						Manifests(path.Join(feature.BaseDir, "fake-kust-dir")).
+						Manifests(path.Join("fixtures", feature.BaseDir, "fake-kust-dir")).
 						Load()
 
 					Expect(createCfgMapErr).ToNot(HaveOccurred())
@@ -482,7 +480,7 @@ metadata:
 				Expect(featuresHandler.Apply()).To(Succeed())
 
 				// then
-				cfgMap, err := getConfigMap("my-configmap", featuresHandler.ApplicationsNamespace)
+				cfgMap, err := fixtures.GetConfigMap(envTestClient, featuresHandler.ApplicationsNamespace, "my-configmap")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(cfgMap.Name).To(Equal("my-configmap"))
 				Expect(cfgMap.Data["key"]).To(Equal("value"))
@@ -521,82 +519,4 @@ func createdSecretHasOwnerReferenceToOwningFeature(secretName, namespace string)
 			Name: trackerName,
 		}, tracker)
 	}
-}
-
-func createSecret(name, namespace string) func(f *feature.Feature) error {
-	return func(f *feature.Feature) error {
-		secret := &v1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      name,
-				Namespace: namespace,
-				OwnerReferences: []metav1.OwnerReference{
-					f.AsOwnerReference(),
-				},
-			},
-			Data: map[string][]byte{
-				"test": []byte("test"),
-			},
-		}
-
-		return f.Client.Create(context.TODO(), secret)
-	}
-}
-
-func getFeatureTracker(featureName, appNamespace string) (*featurev1.FeatureTracker, error) { //nolint:unparam //reason appNs
-	tracker := featurev1.NewFeatureTracker(featureName, appNamespace)
-	err := envTestClient.Get(context.Background(), client.ObjectKey{
-		Name: tracker.Name,
-	}, tracker)
-
-	return tracker, err
-}
-
-func newDSCInitialization(ns string) *dsciv1.DSCInitialization {
-	return &dsciv1.DSCInitialization{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "default-dsci",
-		},
-		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: ns,
-		},
-	}
-}
-
-func getNamespace(namespace string) (*v1.Namespace, error) {
-	ns := fixtures.NewNamespace(namespace)
-	err := envTestClient.Get(context.Background(), types.NamespacedName{Name: namespace}, ns)
-
-	return ns, err
-}
-
-func getService(name, namespace string) (*v1.Service, error) {
-	svc := &v1.Service{}
-	err := envTestClient.Get(context.Background(), types.NamespacedName{
-		Name: name, Namespace: namespace,
-	}, svc)
-
-	return svc, err
-}
-
-func getConfigMap(name, namespace string) (*v1.ConfigMap, error) {
-	cfgMap := &v1.ConfigMap{}
-	err := envTestClient.Get(context.Background(), types.NamespacedName{
-		Name: name, Namespace: namespace,
-	}, cfgMap)
-
-	return cfgMap, err
-}
-
-func createFile(dir, filename, data string) error {
-	filePath := filepath.Join(dir, filename)
-	file, err := os.Create(filePath)
-	if err != nil {
-		return err
-	}
-
-	_, err = file.WriteString(data)
-	if err != nil {
-		return err
-	}
-	return file.Sync()
 }
