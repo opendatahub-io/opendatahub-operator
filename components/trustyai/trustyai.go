@@ -4,6 +4,7 @@ package trustyai
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -13,6 +14,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/monitoring"
 )
 
 var (
@@ -53,12 +55,13 @@ func (t *TrustyAI) GetComponentName() string {
 	return ComponentName
 }
 
-func (t *TrustyAI) ReconcileComponent(_ context.Context, cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
+func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
 	var imageParamMap = map[string]string{
 		"trustyaiServiceImage":  "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE",
 		"trustyaiOperatorImage": "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE",
 	}
 	enabled := t.GetManagementState() == operatorv1.Managed
+	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 
 	platform, err := deploy.GetPlatform(cli)
 	if err != nil {
@@ -67,7 +70,7 @@ func (t *TrustyAI) ReconcileComponent(_ context.Context, cli client.Client, owne
 
 	// Return when platform is RHOAI
 	if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
-		return nil
+		enabled = false
 	}
 
 	if enabled {
@@ -84,6 +87,27 @@ func (t *TrustyAI) ReconcileComponent(_ context.Context, cli client.Client, owne
 		}
 	}
 	// Deploy TrustyAI Operator
+	if err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, t.GetComponentName(), enabled); err != nil {
+		return err
+	}
 
-	return deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, t.GetComponentName(), enabled)
+	// CloudService Monitoring handling
+	if platform == deploy.ManagedRhods {
+		if enabled {
+			if err := monitoring.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 10, 1); err != nil {
+				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
+			}
+			fmt.Printf("deployment for %s is done, updating monitoring rules\n", ComponentName)
+		}
+		if err := t.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
+			return err
+		}
+		if err = deploy.DeployManifestsFromPath(cli, owner,
+			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
+			dscispec.Monitoring.Namespace,
+			"prometheus", true); err != nil {
+			return err
+		}
+	}
+	return nil
 }
