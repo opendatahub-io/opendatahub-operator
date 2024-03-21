@@ -36,11 +36,11 @@ var _ = Describe("Service Mesh setup", func() {
 	BeforeEach(func() {
 		c, err := client.New(envTest.Config, client.Options{})
 		Expect(err).ToNot(HaveOccurred())
-		objectCleaner = envtestutil.CreateCleaner(c, envTest.Config, timeout, interval)
+		objectCleaner = envtestutil.CreateCleaner(c, envTest.Config, fixtures.Timeout, fixtures.Interval)
 
 		namespace := envtestutil.AppendRandomNameTo("service-mesh-settings")
 
-		dsci = newDSCInitialization(namespace)
+		dsci = fixtures.NewDSCInitialization(namespace)
 
 		Expect(err).ToNot(HaveOccurred())
 	})
@@ -77,7 +77,7 @@ var _ = Describe("Service Mesh setup", func() {
 				var smcpCrdObj *apiextensionsv1.CustomResourceDefinition
 
 				BeforeEach(func() {
-					err := fixtures.CreateSubscription(fixtures.OssmSubscription, "openshift-operators", envTestClient)
+					err := fixtures.CreateSubscription(envTestClient, "openshift-operators", fixtures.OssmSubscription)
 					Expect(err).ToNot(HaveOccurred())
 					smcpCrdObj = installServiceMeshCRD()
 				})
@@ -175,8 +175,8 @@ var _ = Describe("Service Mesh setup", func() {
 
 				BeforeEach(func() {
 					smcpCrdObj = installServiceMeshCRD()
-					objectCleaner = envtestutil.CreateCleaner(envTestClient, envTest.Config, timeout, interval)
-					dsci = newDSCInitialization(namespace)
+					objectCleaner = envtestutil.CreateCleaner(envTestClient, envTest.Config, fixtures.Timeout, fixtures.Interval)
+					dsci = fixtures.NewDSCInitialization(namespace)
 
 					serviceMeshSpec = &dsci.Spec.ServiceMesh
 
@@ -243,7 +243,7 @@ var _ = Describe("Service Mesh setup", func() {
 							Expect(found).To(BeTrue())
 							return extensionProviders
 
-						}).WithTimeout(timeout).WithPolling(interval).Should(BeEmpty())
+						}).WithTimeout(fixtures.Timeout).WithPolling(fixtures.Interval).Should(BeEmpty())
 					})
 
 				})
@@ -260,7 +260,7 @@ func installServiceMeshCRD() *apiextensionsv1.CustomResourceDefinition {
 	Expect(yaml.Unmarshal([]byte(fixtures.ServiceMeshControlPlaneCRD), smcpCrdObj)).ToNot(HaveOccurred())
 	Expect(envTestClient.Create(context.TODO(), smcpCrdObj)).ToNot(HaveOccurred())
 
-	crdOptions := envtest.CRDInstallOptions{PollInterval: interval, MaxTime: timeout}
+	crdOptions := envtest.CRDInstallOptions{PollInterval: fixtures.Interval, MaxTime: fixtures.Timeout}
 	Expect(envtest.WaitForCRDs(envTest.Config, []*apiextensionsv1.CustomResourceDefinition{smcpCrdObj}, crdOptions)).To(Succeed())
 
 	return smcpCrdObj
