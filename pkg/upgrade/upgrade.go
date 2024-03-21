@@ -286,6 +286,17 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 		if err := unsetOwnerReference(cli, "odh-dashboard-config", appNS); err != nil {
 			return err
 		}
+
+		// remove label created by previous v2 release which is problematic for Managed cluster
+		fmt.Println("removing labels on Operator Namespace")
+		operatorNamespace, err := GetOperatorNamespace()
+		if err != nil {
+			return err
+		}
+		if err := RemoveLabel(cli, operatorNamespace, "pod-security.kubernetes.io/enforce"); err != nil {
+			return err
+		}
+
 		fmt.Println("creating default DSC CR")
 		if err := CreateDefaultDSC(context.TODO(), cli); err != nil {
 			return err
@@ -294,7 +305,15 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 	}
 
 	if platform == deploy.SelfManagedRhods {
-		fmt.Println("starting deletion of Deployment in selfmanaged cluster")
+		// remove label created by previous v2 release which is problematic for Managed cluster
+		fmt.Println("removing labels on Operator Namespace")
+		operatorNamespace, err := GetOperatorNamespace()
+		if err != nil {
+			return err
+		}
+		if err := RemoveLabel(cli, operatorNamespace, "pod-security.kubernetes.io/enforce"); err != nil {
+			return err
+		}
 		// If KfDef CRD is not found, we see it as a cluster not pre-installed v1 operator	// Check if kfdef are deployed
 		kfdefCrd := &apiextv1.CustomResourceDefinition{}
 		if err := cli.Get(context.TODO(), client.ObjectKey{Name: "kfdefs.kfdef.apps.kubeflow.org"}, kfdefCrd); err != nil {
@@ -309,10 +328,11 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 		// If KfDef Instances found, and no DSC instances are found in Self-managed, that means this is an upgrade path from
 		// legacy version. Create a default DSC instance
 		kfDefList := &kfdefv1.KfDefList{}
-		err := cli.List(context.TODO(), kfDefList)
+		err = cli.List(context.TODO(), kfDefList)
 		if err != nil {
 			return fmt.Errorf("error getting kfdef instances: : %w", err)
 		}
+		fmt.Println("starting deletion of Deployment in selfmanaged cluster")
 		if len(kfDefList.Items) > 0 {
 			if err = deleteResource(cli, appNS, "deployment"); err != nil {
 				return fmt.Errorf("error deleting deployment: %w", err)
@@ -332,7 +352,6 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 				return err
 			}
 		}
-		return err
 	}
 	return nil
 }
@@ -741,6 +760,21 @@ func RemoveDeprecatedTrustyAI(cli client.Client, platform deploy.Platform) error
 				}
 			}
 		}
+	}
+	return nil
+}
+
+func RemoveLabel(cli client.Client, objectName string, labelKey string) error {
+	foundNamespace := &corev1.Namespace{}
+	if err := cli.Get(context.TODO(), client.ObjectKey{Name: objectName}, foundNamespace); err != nil {
+		if apierrs.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("could not get %s namespace: %w", objectName, err)
+	}
+	delete(foundNamespace.Labels, labelKey)
+	if err := cli.Update(context.TODO(), foundNamespace); err != nil {
+		return fmt.Errorf("error removing %s from %s : %w", labelKey, objectName, err)
 	}
 	return nil
 }
