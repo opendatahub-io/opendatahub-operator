@@ -11,8 +11,6 @@ import (
 //go:embed templates
 var TestEmbeddedFiles embed.FS
 
-const BaseDir = "templates"
-
 // CreateFile creates a file with the given content in the specified directory.
 func CreateFile(dir, filename, content string) error {
 	filePath := filepath.Join(dir, filename)
