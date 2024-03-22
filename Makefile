@@ -71,6 +71,7 @@ GOLANGCI_LINT_VERSION ?= v1.54.0
 YQ_VERSION ?= v4.12.2
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.24.2
+ENVTEST_PACKAGE_VERSION = v0.0.0-20240320141353-395cfc7486e6
 CRD_REF_DOCS_VERSION = 0.0.11
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
@@ -350,7 +351,7 @@ TEST_SRC=./controllers/... ./tests/integration/... ./pkg/...
 .PHONY: envtest
 envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
 $(ENVTEST): $(LOCALBIN)
-	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@v0.0.0-20240320141353-395cfc7486e6
+	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@$(ENVTEST_PACKAGE_VERSION)
 
 .PHONY: test
 test: unit-test e2e-test
