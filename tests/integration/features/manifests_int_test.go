@@ -123,28 +123,4 @@ metadata:
 		Expect(realNs.Name).To(Equal("real-file-test-ns"))
 	})
 
-	It("should process kustomization manifests directly from the file system", func() {
-		// given
-		featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-			createCfgMapErr := feature.CreateFeature("create-cfg-map").
-				For(handler).
-				UsingConfig(envTest.Config).
-				Manifests(path.Join("fixtures", fixtures.BaseDir, "fake-kust-dir")).
-				Load()
-
-			Expect(createCfgMapErr).ToNot(HaveOccurred())
-
-			return nil
-		})
-
-		// when
-		Expect(featuresHandler.Apply()).To(Succeed())
-
-		// then
-		cfgMap, err := fixtures.GetConfigMap(envTestClient, featuresHandler.ApplicationsNamespace, "my-configmap")
-		Expect(err).ToNot(HaveOccurred())
-		Expect(cfgMap.Name).To(Equal("my-configmap"))
-		Expect(cfgMap.Data["key"]).To(Equal("value"))
-	})
-
 })

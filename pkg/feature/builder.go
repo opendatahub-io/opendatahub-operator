@@ -84,7 +84,7 @@ func createClient(config *rest.Config) partialBuilder {
 	}
 }
 
-func (fb *featureBuilder) Manifests(paths ...string) *featureBuilder {
+func (fb *featureBuilderWithManifestSource) Manifests(paths ...string) *featureBuilderWithManifestSource {
 	fb.builders = append(fb.builders, func(f *Feature) error {
 		var err error
 		var manifests []Manifest
@@ -204,14 +204,15 @@ func (fb *featureBuilder) withDefaultClient() error {
 	return nil
 }
 
+// Used to enforce that Manifests() is called after ManifestSource() in the chain
+type featureBuilderWithManifestSource struct {
+	*featureBuilder
+}
+
 // ManifestSource sets the root file system (fsys) from which manifest paths are loaded
-// TODO: make manifest source a required entry.
-// Current holdup is the incongruity between fs.FS and filesys.FileSystem that the kustomize implementation requires.
-// filesys.FileSystem looks up absolute paths, and if we pass in an fs.FS to search for said kustomization file, we cannot
-// fetch the absolute path from within the fs.FS. For kustomizationManifests, pass in path to kustomization dir, no FS.
-func (fb *featureBuilder) ManifestSource(fsys fs.FS) *featureBuilder {
+func (fb *featureBuilder) ManifestSource(fsys fs.FS) *featureBuilderWithManifestSource {
 	fb.fsys = fsys
-	return fb
+	return &featureBuilderWithManifestSource{featureBuilder: fb}
 }
 
 func (fb *featureBuilder) TargetNamespace(targetNs string) *featureBuilder {
