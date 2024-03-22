@@ -190,13 +190,13 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 					Component: components.Component{ManagementState: operatorv1.Managed},
 				},
 				CodeFlare: codeflare.CodeFlare{
-					Component: components.Component{ManagementState: operatorv1.Removed},
+					Component: components.Component{ManagementState: operatorv1.Managed},
 				},
 				Ray: ray.Ray{
-					Component: components.Component{ManagementState: operatorv1.Removed},
+					Component: components.Component{ManagementState: operatorv1.Managed},
 				},
 				Kueue: kueue.Kueue{
-					Component: components.Component{ManagementState: operatorv1.Removed},
+					Component: components.Component{ManagementState: operatorv1.Managed},
 				},
 				TrustyAI: trustyai.TrustyAI{
 					Component: components.Component{ManagementState: operatorv1.Managed},
@@ -293,6 +293,10 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 		if err := deleteResource(cli, montNamespace, "statefulset"); err != nil {
 			return err
 		}
+		// only for downstream since ODH has a different way to create this CR by dashboard
+		if err := unsetOwnerReference(cli, "odh-dashboard-config", appNS); err != nil {
+			return err
+		}
 		fmt.Println("creating default DSC CR")
 		if err := CreateDefaultDSC(context.TODO(), cli); err != nil {
 			return err
@@ -329,6 +333,10 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 				return err
 			}
 			if err := deleteResource(cli, montNamespace, "statefulset"); err != nil {
+				return err
+			}
+			// only for downstream since ODH has a different way to create this CR by dashboard
+			if err := unsetOwnerReference(cli, "odh-dashboard-config", appNS); err != nil {
 				return err
 			}
 			// create default DSC
@@ -558,6 +566,34 @@ func removOdhApplicationsCR(ctx context.Context, cli client.Client, gvk schema.G
 		return fmt.Errorf("error deleting CR %s : %w", instanceName, err)
 	}
 
+	return nil
+}
+
+func unsetOwnerReference(cli client.Client, instanceName string, applicationNS string) error {
+	OdhDashboardConfig := schema.GroupVersionKind{
+		Group:   "opendatahub.io",
+		Version: "v1alpha",
+		Kind:    "OdhDashboardConfig",
+	}
+	crd := &apiextv1.CustomResourceDefinition{}
+	if err := cli.Get(context.TODO(), client.ObjectKey{Name: "odhdashboardconfigs.opendatahub.io"}, crd); err != nil {
+		return client.IgnoreNotFound(err)
+	}
+	odhObject := &unstructured.Unstructured{}
+	odhObject.SetGroupVersionKind(OdhDashboardConfig)
+	if err := cli.Get(context.TODO(), client.ObjectKey{
+		Namespace: applicationNS,
+		Name:      instanceName,
+	}, odhObject); err != nil {
+		return client.IgnoreNotFound(err)
+	}
+	if odhObject.GetOwnerReferences() != nil {
+		// set to nil as updates
+		odhObject.SetOwnerReferences(nil)
+		if err := cli.Update(context.TODO(), odhObject); err != nil {
+			return fmt.Errorf("error unset ownerreference for CR %s : %w", instanceName, err)
+		}
+	}
 	return nil
 }
 
