@@ -23,6 +23,6 @@ var Templates = struct {
 }{
 	ServiceMeshDir: path.Join(baseDir, "servicemesh"),
 	InstallDir:     path.Join(baseDir, "serving-install"),
-	GatewaysDir:    path.Join(baseDir, "serving-istio-gateways"),
-	Files:         kserveEmbeddedFS,
+	GatewaysDir:    path.Join(baseDir, "servicemesh", "routing"),
+	Files:          kserveEmbeddedFS,
 }

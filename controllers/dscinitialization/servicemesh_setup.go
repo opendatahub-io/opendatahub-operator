@@ -55,9 +55,9 @@ func configureServiceMeshFeatures() feature.FeaturesProvider {
 
 		smcpCreationErr := feature.CreateFeature("mesh-control-plane-creation").
 			For(handler).
-			ManifestSource(dsciEmbeddedFS).
+			ManifestSource(Templates.Files).
 			Manifests(
-				path.Join(meshDir, "create-smcp.tmpl.yaml"),
+				path.Join(Templates.ServiceMeshDir),
 			).
 			PreConditions(
 				servicemesh.EnsureServiceMeshOperatorInstalled,
@@ -78,9 +78,9 @@ func configureServiceMeshFeatures() feature.FeaturesProvider {
 				PreConditions(
 					servicemesh.EnsureServiceMeshInstalled,
 				).
-				ManifestSource(dsciEmbeddedFS).
+				ManifestSource(Templates.Files).
 				Manifests(
-					path.Join(metricsDir),
+					path.Join(Templates.MetricsDir),
 				).
 				Load()
 			if metricsCollectionErr != nil {
@@ -98,11 +98,11 @@ func configureServiceMeshFeatures() feature.FeaturesProvider {
 
 		extAuthzErr := feature.CreateFeature("mesh-control-plane-external-authz").
 			For(handler).
-			ManifestSource(dsciEmbeddedFS).
+			ManifestSource(Templates.Files).
 			Manifests(
-				path.Join(authorinoDir, "auth-smm.tmpl.yaml"),
-				path.Join(authorinoDir, "base"),
-				path.Join(authorinoDir, "mesh-authz-ext-provider.patch.tmpl.yaml"),
+				path.Join(Templates.AuthorinoDir, "base"),
+				path.Join(Templates.AuthorinoDir, "auth-smm.tmpl.yaml"),
+				path.Join(Templates.AuthorinoDir, "mesh-authz-ext-provider.patch.tmpl.yaml"),
 			).
 			WithData(servicemesh.ClusterDetails).
 			PreConditions(
@@ -121,7 +121,7 @@ func configureServiceMeshFeatures() feature.FeaturesProvider {
 					//
 					// To make it part of Service Mesh we have to patch it with injection
 					// enabled instead, otherwise it will not have proxy pod injected.
-					return f.ApplyManifest(path.Join(authorinoDir, "deployment.injection.patch.tmpl.yaml"))
+					return f.ApplyManifest(path.Join(Templates.AuthorinoDir, "deployment.injection.patch.tmpl.yaml"))
 				},
 			).
 			OnDelete(servicemesh.RemoveExtensionProvider).
