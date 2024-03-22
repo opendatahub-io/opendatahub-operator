@@ -67,6 +67,15 @@ func GetNamespace(client client.Client, namespace string) (*v1.Namespace, error)
 	return ns, err
 }
 
+func GetService(client client.Client, namespace, name string) (*v1.Service, error) {
+	svc := &v1.Service{}
+	err := client.Get(context.Background(), types.NamespacedName{
+		Name: name, Namespace: namespace,
+	}, svc)
+
+	return svc, err
+}
+
 func CreateSecret(name, namespace string) func(f *feature.Feature) error {
 	return func(f *feature.Feature) error {
 		secret := &v1.Secret{
