@@ -291,8 +291,8 @@ func (d *Dashboard) deployConsoleLink(cli client.Client, owner metav1.Object, pl
 	}
 
 	enabled := d.ManagementState == operatorv1.Managed
-	if err := deploy.DeployManifestsFromPath(cli, owner, PathConsoleLink, namespace, componentName, enabled); err != nil {
-		return fmt.Errorf("failed to set dashboard consolelink %s : %w", pathConsoleLink, err)
+	if err := deploy.DeployManifestsFromPath(cli, owner, manifestsPath, namespace, componentName, enabled); err != nil {
+		return fmt.Errorf("failed to set dashboard consolelink from %s: %w", manifestsPath, err)
 	}
 
 	return nil
