@@ -204,12 +204,12 @@ func (fb *featureBuilder) withDefaultClient() error {
 	return nil
 }
 
-// Used to enforce that Manifests() is called after ManifestSource() in the chain
+// Used to enforce that Manifests() is called after ManifestSource() in the chain.
 type featureBuilderWithManifestSource struct {
 	*featureBuilder
 }
 
-// ManifestSource sets the root file system (fsys) from which manifest paths are loaded
+// ManifestSource sets the root file system (fsys) from which manifest paths are loaded.
 func (fb *featureBuilder) ManifestSource(fsys fs.FS) *featureBuilderWithManifestSource {
 	fb.fsys = fsys
 	return &featureBuilderWithManifestSource{featureBuilder: fb}
