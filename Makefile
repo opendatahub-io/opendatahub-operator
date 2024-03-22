@@ -14,7 +14,7 @@ IMAGE_TAG_BASE ?= quay.io/opendatahub/opendatahub-operator
 # keep the name based on IMG which already used from command line
 IMG_TAG ?= latest
 # Update IMG to a variable, to keep it consistent across versions for OpenShift CI
-IMG = $(IMAGE_TAG_BASE):$(IMG_TAG)
+IMG ?= $(IMAGE_TAG_BASE):$(IMG_TAG)
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
 BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
@@ -71,6 +71,7 @@ GOLANGCI_LINT_VERSION ?= v1.54.0
 YQ_VERSION ?= v4.12.2
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.24.2
+ENVTEST_PACKAGE_VERSION = v0.0.0-20240320141353-395cfc7486e6
 CRD_REF_DOCS_VERSION = 0.0.11
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
@@ -222,7 +223,7 @@ deploy: prepare ## Deploy controller to the K8s cluster specified in ~/.kube/con
 	$(KUSTOMIZE) build config/default | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
 
 .PHONY: undeploy
-undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
+undeploy: prepare ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 ## Location to install dependencies to
@@ -350,7 +351,7 @@ TEST_SRC=./controllers/... ./tests/integration/... ./pkg/...
 .PHONY: envtest
 envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
 $(ENVTEST): $(LOCALBIN)
-	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+	test -s $(ENVTEST) || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@$(ENVTEST_PACKAGE_VERSION)
 
 .PHONY: test
 test: unit-test e2e-test
