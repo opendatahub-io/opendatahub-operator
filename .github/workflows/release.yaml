@@ -1,0 +1,18 @@
+name: "Deploy on Comment"
+
+# https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  deploy:
+    name: Deploy
+    # Only run if it#s a PR and the comment contains /deploy
+    if: github.event.issue.pull_request && contains(github.event.comment.body, '/deploy')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: test
+        run: |
+          echo this test ran
