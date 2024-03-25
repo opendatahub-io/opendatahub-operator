@@ -9,24 +9,14 @@ jobs:
   golangci:
     name: golangci-lint
     runs-on: ubuntu-latest
-    env:
-      REPOSITORY: go/src/github.com/${{ github.repository }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          path: ${{ env.REPOSITORY }}
       - name: Set up Go env
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
-          go-version-file: ${{ env.REPOSITORY }}/go.mod
-      - name: Set $GOPATH
-        run: |
-          echo "GOPATH=${{ github.workspace }}/go" >> $GITHUB_ENV
-          echo "${{ github.workspace }}/go/bin" >> $GITHUB_PATH
-        shell: bash
+          go-version-file: go.mod
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@v4
         with:
           version: v1.54.0
-          working-directory: ${{ env.REPOSITORY }}
           args: --timeout 5m0s
