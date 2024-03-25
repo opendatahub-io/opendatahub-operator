@@ -84,6 +84,17 @@ func createClient(config *rest.Config) partialBuilder {
 	}
 }
 
+// Used to enforce that Manifests() is called after ManifestSource() in the chain.
+type featureBuilderWithManifestSource struct {
+	*featureBuilder
+}
+
+// ManifestSource sets the root file system (fsys) from which manifest paths are loaded.
+func (fb *featureBuilder) ManifestSource(fsys fs.FS) *featureBuilderWithManifestSource {
+	fb.fsys = fsys
+	return &featureBuilderWithManifestSource{featureBuilder: fb}
+}
+
 func (fb *featureBuilderWithManifestSource) Manifests(paths ...string) *featureBuilderWithManifestSource {
 	fb.builders = append(fb.builders, func(f *Feature) error {
 		var err error
@@ -202,17 +213,6 @@ func (fb *featureBuilder) withDefaultClient() error {
 
 	fb.config = restCfg
 	return nil
-}
-
-// Used to enforce that Manifests() is called after ManifestSource() in the chain.
-type featureBuilderWithManifestSource struct {
-	*featureBuilder
-}
-
-// ManifestSource sets the root file system (fsys) from which manifest paths are loaded.
-func (fb *featureBuilder) ManifestSource(fsys fs.FS) *featureBuilderWithManifestSource {
-	fb.fsys = fsys
-	return &featureBuilderWithManifestSource{featureBuilder: fb}
 }
 
 func (fb *featureBuilder) TargetNamespace(targetNs string) *featureBuilder {

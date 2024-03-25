@@ -6,10 +6,10 @@ import (
 	"path"
 )
 
-//go:embed templates
+//go:embed resources
 var dsciEmbeddedFS embed.FS
 
-const baseDir = "templates"
+const baseDir = "resources"
 
 var Templates = struct {
 	// ServiceMeshDir is the path to the Service Mesh templates.
@@ -18,11 +18,14 @@ var Templates = struct {
 	AuthorinoDir string
 	// GatewaysDir is the path to the Serving Istio gateways templates.
 	MetricsDir string
-	// Files the templates to be used
-	Files fs.FS
+	// Source the templates to be used
+	Source fs.FS
+	// BaseDir is the path to the base of the embedded FS
+	BaseDir string
 }{
 	ServiceMeshDir: path.Join(baseDir, "servicemesh"),
 	AuthorinoDir:   path.Join(baseDir, "authorino"),
 	MetricsDir:     path.Join(baseDir, "metrics-collection"),
-	Files:          dsciEmbeddedFS,
+	Source:         dsciEmbeddedFS,
+	BaseDir:        baseDir,
 }

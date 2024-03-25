@@ -31,12 +31,12 @@ func (k *Kserve) defineServiceMeshFeatures() feature.FeaturesProvider {
 	return func(handler *feature.FeaturesHandler) error {
 		kserveExtAuthzErr := feature.CreateFeature("kserve-external-authz").
 			For(handler).
-			ManifestSource(Templates.Files).
+			ManifestSource(Resources.Source).
 			Manifests(
-				path.Join(Templates.ServiceMeshDir, "activator-envoyfilter.tmpl.yaml"),
-				path.Join(Templates.ServiceMeshDir, "envoy-oauth-temp-fix.tmpl.yaml"),
-				path.Join(Templates.ServiceMeshDir, "kserve-predictor-authorizationpolicy.tmpl.yaml"),
-				path.Join(Templates.ServiceMeshDir, "z-migrations"),
+				path.Join(Resources.ServiceMeshDir, "activator-envoyfilter.tmpl.yaml"),
+				path.Join(Resources.ServiceMeshDir, "envoy-oauth-temp-fix.tmpl.yaml"),
+				path.Join(Resources.ServiceMeshDir, "kserve-predictor-authorizationpolicy.tmpl.yaml"),
+				path.Join(Resources.ServiceMeshDir, "z-migrations"),
 			).
 			WithData(servicemesh.ClusterDetails).
 			Load()
@@ -47,9 +47,9 @@ func (k *Kserve) defineServiceMeshFeatures() feature.FeaturesProvider {
 
 		temporaryFixesErr := feature.CreateFeature("kserve-temporary-fixes").
 			For(handler).
-			ManifestSource(Templates.Files).
+			ManifestSource(Resources.Source).
 			Manifests(
-				path.Join(Templates.ServiceMeshDir, "grpc-envoyfilter-temp-fix.tmpl.yaml"),
+				path.Join(Resources.ServiceMeshDir, "grpc-envoyfilter-temp-fix.tmpl.yaml"),
 			).
 			WithData(servicemesh.ClusterDetails).
 			Load()

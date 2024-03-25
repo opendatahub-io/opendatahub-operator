@@ -55,7 +55,7 @@ func configureServiceMeshFeatures() feature.FeaturesProvider {
 
 		smcpCreationErr := feature.CreateFeature("mesh-control-plane-creation").
 			For(handler).
-			ManifestSource(Templates.Files).
+			ManifestSource(Templates.Source).
 			Manifests(
 				path.Join(Templates.ServiceMeshDir),
 			).
@@ -78,7 +78,7 @@ func configureServiceMeshFeatures() feature.FeaturesProvider {
 				PreConditions(
 					servicemesh.EnsureServiceMeshInstalled,
 				).
-				ManifestSource(Templates.Files).
+				ManifestSource(Templates.Source).
 				Manifests(
 					path.Join(Templates.MetricsDir),
 				).
@@ -98,7 +98,7 @@ func configureServiceMeshFeatures() feature.FeaturesProvider {
 
 		extAuthzErr := feature.CreateFeature("mesh-control-plane-external-authz").
 			For(handler).
-			ManifestSource(Templates.Files).
+			ManifestSource(Templates.Source).
 			Manifests(
 				path.Join(Templates.AuthorinoDir, "base"),
 				path.Join(Templates.AuthorinoDir, "auth-smm.tmpl.yaml"),

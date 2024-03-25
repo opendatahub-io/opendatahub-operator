@@ -189,7 +189,7 @@ func CreateTemplateManifestFrom(fsys fs.FS, path string) *templateManifest { //n
 	return &templateManifest{
 		name:  basePath,
 		path:  path,
-		patch: strings.Contains(basePath, ".patch"),
+		patch: strings.Contains(basePath, ".patch."),
 		fsys:  fsys,
 	}
 }
@@ -213,7 +213,7 @@ func isKustomizeManifest(path string) bool {
 }
 
 func isTemplateManifest(path string) bool {
-	return strings.Contains(filepath.Base(path), ".tmpl")
+	return strings.Contains(filepath.Base(path), ".tmpl.")
 }
 
 func convertToUnstructuredSlice(resources string) ([]*unstructured.Unstructured, error) {
