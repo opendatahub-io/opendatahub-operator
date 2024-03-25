@@ -7,7 +7,6 @@ import (
 	"html/template"
 	"io"
 	"io/fs"
-	"os"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -15,19 +14,10 @@ import (
 
 	"github.com/ghodss/yaml"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"sigs.k8s.io/kustomize/api/krusty"
-	"sigs.k8s.io/kustomize/api/resmap"
-	"sigs.k8s.io/kustomize/kyaml/filesys"
-
-	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins"
 )
 
 //go:embed templates
 var embeddedFiles embed.FS
-
-const kustomizationFile = "kustomization.yaml"
 
 var (
 	BaseDir        = "templates"
@@ -106,55 +96,8 @@ func (t *templateManifest) Process(data any) ([]*unstructured.Unstructured, erro
 	return convertToUnstructuredSlice(resources)
 }
 
-var _ Manifest = (*kustomizeManifest)(nil)
-
-// kustomizeManifest supports paths to kustomization files / directories containing a kustomization file
-// note that it only supports to paths within the mounted files ie: /opt/manifests.
-type kustomizeManifest struct {
-	name,
-	path string // path is to the directory containing a kustomization.yaml file within it or path to kust file itself
-	fsys filesys.FileSystem
-}
-
-func (k *kustomizeManifest) Process(data any) ([]*unstructured.Unstructured, error) {
-	kustomizer := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
-	var resMap resmap.ResMap
-	resMap, resErr := kustomizer.Run(k.fsys, k.path)
-
-	if resErr != nil {
-		return nil, fmt.Errorf("error during resmap resources: %w", resErr)
-	}
-
-	targetNs := getTargetNs(data)
-	if targetNs == "" {
-		return nil, fmt.Errorf("targetNamespaces not defined")
-	}
-
-	if err := plugins.ApplyNamespacePlugin(targetNs, resMap); err != nil {
-		return nil, err
-	}
-
-	componentName := getComponentName(data)
-	if componentName != "" {
-		if err := plugins.ApplyAddLabelsPlugin(componentName, resMap); err != nil {
-			return nil, err
-		}
-	}
-
-	objs, resErr := deploy.GetResources(resMap)
-	if resErr != nil {
-		return nil, resErr
-	}
-	return objs, nil
-}
-
 func loadManifestsFrom(fsys fs.FS, path string) ([]Manifest, error) {
 	var manifests []Manifest
-	if isKustomizeManifest(path) {
-		m := CreateKustomizeManifestFrom(path, filesys.MakeFsOnDisk())
-		manifests = append(manifests, m)
-		return manifests, nil
-	}
 
 	err := fs.WalkDir(fsys, path, func(path string, dirEntry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -207,24 +150,6 @@ func CreateTemplateManifestFrom(fsys fs.FS, path string) *templateManifest { //n
 	}
 }
 
-func CreateKustomizeManifestFrom(path string, fsys filesys.FileSystem) *kustomizeManifest { //nolint:golint,revive //No need to export kustomizeManifest.
-	return &kustomizeManifest{
-		name: filepath.Base(path),
-		path: path,
-		fsys: fsys,
-	}
-}
-
-// parsing helpers
-// isKustomizeManifest checks default filesystem for presence of kustomization file at this path.
-func isKustomizeManifest(path string) bool {
-	if filepath.Base(path) == kustomizationFile {
-		return true
-	}
-	_, err := os.Stat(filepath.Join(path, kustomizationFile))
-	return err == nil
-}
-
 func isTemplateManifest(path string) bool {
 	return strings.Contains(path, ".tmpl")
 }
@@ -245,25 +170,4 @@ func convertToUnstructuredSlice(resources string) ([]*unstructured.Unstructured,
 		objs = append(objs, u)
 	}
 	return objs, nil
-}
-
-func getTargetNs(data any) string {
-	if spec, ok := data.(*Spec); ok {
-		return spec.TargetNamespace
-	}
-	return ""
-}
-
-func getComponentName(data any) string {
-	if featSpec, ok := data.(*Spec); ok {
-		source := featSpec.Source
-		if source == nil {
-			return ""
-		}
-		if source.Type == featurev1.ComponentType {
-			return source.Name
-		}
-		return ""
-	}
-	return ""
 }
