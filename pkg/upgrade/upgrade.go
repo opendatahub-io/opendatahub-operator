@@ -187,13 +187,13 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 					Component: components.Component{ManagementState: operatorv1.Managed},
 				},
 				CodeFlare: codeflare.CodeFlare{
-					Component: components.Component{ManagementState: operatorv1.Removed},
+					Component: components.Component{ManagementState: operatorv1.Managed},
 				},
 				Ray: ray.Ray{
-					Component: components.Component{ManagementState: operatorv1.Removed},
+					Component: components.Component{ManagementState: operatorv1.Managed},
 				},
 				Kueue: kueue.Kueue{
-					Component: components.Component{ManagementState: operatorv1.Removed},
+					Component: components.Component{ManagementState: operatorv1.Managed},
 				},
 			},
 		},
@@ -344,6 +344,7 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 			if err := deleteResource(cli, montNamespace, "statefulset"); err != nil {
 				return err
 			}
+			// only for downstream since ODH has a different way to create this CR by dashboard
 			if err := unsetOwnerReference(cli, "odh-dashboard-config", appNS); err != nil {
 				return err
 			}

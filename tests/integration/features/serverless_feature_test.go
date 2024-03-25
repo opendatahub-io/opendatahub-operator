@@ -36,9 +36,9 @@ var _ = Describe("Serverless feature", func() {
 		// TODO rework
 		c, err := client.New(envTest.Config, client.Options{})
 		Expect(err).ToNot(HaveOccurred())
-		objectCleaner = envtestutil.CreateCleaner(c, envTest.Config, timeout, interval)
+		objectCleaner = envtestutil.CreateCleaner(c, envTest.Config, fixtures.Timeout, fixtures.Interval)
 
-		dsci = newDSCInitialization("default")
+		dsci = fixtures.NewDSCInitialization("default")
 		kserveComponent = &kserve.Kserve{}
 	})
 
@@ -73,7 +73,7 @@ var _ = Describe("Serverless feature", func() {
 			var knativeServingCrdObj *apiextensionsv1.CustomResourceDefinition
 
 			BeforeEach(func() {
-				err := fixtures.CreateSubscription(fixtures.KnativeServingSubscription, "openshift-serverless", envTestClient)
+				err := fixtures.CreateSubscription(envTestClient, "openshift-serverless", fixtures.KnativeServingSubscription)
 				Expect(err).ToNot(HaveOccurred())
 
 				// Create KNativeServing the CRD
@@ -83,7 +83,7 @@ var _ = Describe("Serverless feature", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(c.Create(context.TODO(), knativeServingCrdObj)).To(Succeed())
 
-				crdOptions := envtest.CRDInstallOptions{PollInterval: interval, MaxTime: timeout}
+				crdOptions := envtest.CRDInstallOptions{PollInterval: fixtures.Interval, MaxTime: fixtures.Timeout}
 				err = envtest.WaitForCRDs(envTest.Config, []*apiextensionsv1.CustomResourceDefinition{knativeServingCrdObj}, crdOptions)
 				Expect(err).ToNot(HaveOccurred())
 			})
@@ -271,7 +271,7 @@ var _ = Describe("Serverless feature", func() {
 				}
 
 				return nil
-			}).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
+			}).WithTimeout(fixtures.Timeout).WithPolling(fixtures.Interval).Should(Succeed())
 		})
 
 		It("should not create any TLS secret if certificate is user provided", func() {
@@ -306,7 +306,7 @@ var _ = Describe("Serverless feature", func() {
 				}
 
 				return nil
-			}).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
+			}).WithTimeout(fixtures.Timeout).WithPolling(fixtures.Interval).Should(Succeed())
 		})
 
 	})
