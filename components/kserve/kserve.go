@@ -4,6 +4,7 @@ package kserve
 
 import (
 	"context"
+	"embed"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	obo "github.com/opendatahub-io/opendatahub-operator/v2/pkg/observibility"
 )
 
 var (
@@ -28,6 +30,9 @@ var (
 	ServiceMeshOperator    = "servicemeshoperator"
 	ServerlessOperator     = "serverless-operator"
 )
+
+//go:embed resources/obo
+var rootFS embed.FS
 
 // Verifies that Kserve implements ComponentInterface.
 var _ components.ComponentInterface = (*Kserve)(nil)
@@ -176,7 +181,8 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 			l.Info("deployment is done, updating monitoing rules")
 		}
 		// kesrve rules
-		if err := k.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
+
+		if err := obo.UpdatePrometheusConfigNew(ctx, cli, enabled && monitoringEnabled, ComponentName, rootFS, dscispec); err != nil {
 			return err
 		}
 		l.Info("updating SRE monitoring done")

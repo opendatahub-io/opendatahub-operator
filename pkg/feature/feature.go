@@ -98,6 +98,7 @@ func (f *Feature) applyFeature() error {
 
 	for i := range f.manifests {
 		manifest := f.manifests[i]
+
 		apply := f.createApplier(manifest)
 
 		objs, processErr := manifest.Process(f.Spec)
@@ -158,7 +159,6 @@ func (f *Feature) createApplier(m Manifest) applier {
 			}
 		}
 	}
-
 	return func(objects []*unstructured.Unstructured) error {
 		return applyResources(f.Client, objects, OwnedBy(f))
 	}

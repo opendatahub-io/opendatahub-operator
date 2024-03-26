@@ -1,0 +1,14 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: rhoai-ms-viewer
+  labels:
+    monitoring.rhobs/stack: rhoai-cmo-ms
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-monitoring-view
+subjects:
+- kind: ServiceAccount
+  name: rhoai-ms-prometheus
+  namespace: {{ .MonNamespace }}

@@ -4,6 +4,7 @@ package workbenches
 
 import (
 	"context"
+	"embed"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	obo "github.com/opendatahub-io/opendatahub-operator/v2/pkg/observibility"
 )
 
 var (
@@ -33,6 +35,9 @@ var (
 
 // Verifies that Workbench implements ComponentInterface.
 var _ components.ComponentInterface = (*Workbenches)(nil)
+
+//go:embed resources
+var rootFS embed.FS
 
 // Workbenches struct holds the configuration for the Workbenches component.
 // +kubebuilder:object:generate=true
@@ -187,7 +192,8 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 			}
 			l.Info("deployment is done, updating monitoring rules")
 		}
-		if err := w.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
+
+		if err := obo.UpdatePrometheusConfigNew(ctx, cli, enabled && monitoringEnabled, ComponentName, rootFS, dscispec); err != nil {
 			return err
 		}
 		if err = deploy.DeployManifestsFromPath(cli, owner,

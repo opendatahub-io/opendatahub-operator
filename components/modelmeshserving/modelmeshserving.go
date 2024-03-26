@@ -4,6 +4,7 @@ package modelmeshserving
 
 import (
 	"context"
+	"embed"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	obo "github.com/opendatahub-io/opendatahub-operator/v2/pkg/observibility"
 )
 
 var (
@@ -28,6 +30,9 @@ var (
 
 // Verifies that Dashboard implements ComponentInterface.
 var _ components.ComponentInterface = (*ModelMeshServing)(nil)
+
+//go:embed resources
+var rootFS embed.FS
 
 // ModelMeshServing struct holds the configuration for the ModelMeshServing component.
 // +kubebuilder:object:generate=true
@@ -158,11 +163,12 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 			l.Info("deployment is done, updating monitoring rules")
 		}
 		// first model-mesh rules
-		if err := m.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
+
+		if err := obo.UpdatePrometheusConfigNew(ctx, cli, enabled && monitoringEnabled, ComponentName, rootFS, dscispec); err != nil {
 			return err
 		}
 		// then odh-model-controller rules
-		if err := m.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, DependentComponentName); err != nil {
+		if err := obo.UpdatePrometheusConfigNew(ctx, cli, enabled && monitoringEnabled, DependentComponentName, rootFS, dscispec); err != nil {
 			return err
 		}
 		if err = deploy.DeployManifestsFromPath(cli, owner,

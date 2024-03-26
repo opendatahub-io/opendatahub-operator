@@ -3,6 +3,7 @@ package kueue
 
 import (
 	"context"
+	"embed"
 	"fmt"
 	"path/filepath"
 
@@ -15,12 +16,16 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	obo "github.com/opendatahub-io/opendatahub-operator/v2/pkg/observibility"
 )
 
 var (
 	ComponentName = "kueue"
 	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/rhoai" // same path for both odh and rhoai
 )
+
+//go:embed resources
+var rootFS embed.FS
 
 // Verifies that Kueue implements ComponentInterface.
 var _ components.ComponentInterface = (*Kueue)(nil)
@@ -94,7 +99,8 @@ func (k *Kueue) ReconcileComponent(ctx context.Context, cli client.Client, logge
 			}
 			l.Info("deployment is done, updating monitoring rules")
 		}
-		if err := k.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
+
+		if err := obo.UpdatePrometheusConfigNew(ctx, cli, enabled && monitoringEnabled, ComponentName, rootFS, dscispec); err != nil {
 			return err
 		}
 		if err = deploy.DeployManifestsFromPath(cli, owner,

@@ -116,14 +116,29 @@ func WaitForResourceToBeCreated(namespace string, gvk schema.GroupVersionKind) A
 
 				return false, err
 			}
-
 			if len(list.Items) > 0 {
 				f.Log.Info("resource created", "namespace", namespace, "resource", gvk)
 
 				return true, nil
 			}
-
 			return false, nil
+		})
+	}
+}
+
+func WaitForManagedSecret(name string, namespace string) Action {
+	return func(f *Feature) error {
+		f.Log.Info("waiting for secrete to become ready", "namespace", namespace, "duration (s)", duration.Seconds())
+		managedSecret := &corev1.Secret{}
+		return wait.PollUntilContextTimeout(context.TODO(), interval, duration, false, func(ctx context.Context) (bool, error) {
+			err := f.Client.Get(ctx, client.ObjectKey{
+				Namespace: namespace,
+				Name:      name,
+			}, managedSecret)
+			if err != nil {
+				return false, client.IgnoreNotFound(err)
+			}
+			return true, nil
 		})
 	}
 }

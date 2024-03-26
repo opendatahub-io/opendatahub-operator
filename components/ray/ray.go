@@ -5,6 +5,7 @@ package ray
 
 import (
 	"context"
+	"embed"
 	"fmt"
 	"path/filepath"
 
@@ -17,12 +18,16 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	obo "github.com/opendatahub-io/opendatahub-operator/v2/pkg/observibility"
 )
 
 var (
 	ComponentName = "ray"
 	RayPath       = deploy.DefaultManifestPath + "/" + ComponentName + "/openshift"
 )
+
+//go:embed resources
+var rootFS embed.FS
 
 // Verifies that Ray implements ComponentInterface.
 var _ components.ComponentInterface = (*Ray)(nil)
@@ -98,7 +103,8 @@ func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, logger 
 			}
 			l.Info("deployment is done, updating monitoring rules")
 		}
-		if err := r.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
+
+		if err := obo.UpdatePrometheusConfigNew(ctx, cli, enabled && monitoringEnabled, ComponentName, rootFS, dscispec); err != nil {
 			return err
 		}
 		if err = deploy.DeployManifestsFromPath(cli, owner,

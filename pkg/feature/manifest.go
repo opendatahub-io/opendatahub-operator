@@ -43,6 +43,7 @@ func (b *rawManifest) Process(_ any) ([]*unstructured.Unstructured, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
+
 	resources := string(content)
 
 	return convertToUnstructuredSlice(resources)

@@ -1,0 +1,49 @@
+apiVersion: monitoring.rhobs/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  labels:
+    obo: rhoai-cmo-amc
+  name: rhoai-alertmanagerconfig
+  namespace: {{ .MonNamespace }}
+spec:
+  route:
+    groupBy: ['alertname', 'cluster', 'service', 'job', 'email_to']
+    groupWait: 30s
+    groupInterval: 5m
+    repeatInterval: 4h
+    receiver: alerts-sink
+    routes:
+    - match:
+        alertname: DeadManSnitch
+        receiver: deadman-snitch
+        repeat_interval: 5m
+    - match:
+        route: user-notifications
+        receiver: user-notifications
+        repeat_interval: 12h
+    - match:
+        severity: critical
+      receiver: {{ .PagerDutyReceiver }}  # this is new one, used to be replacded directly "aisrhods" with "receiver: PagerDuty": "receiver: alerts-sink",
+  receivers:
+    - name: 'user-notifications'
+      emailConfigs:
+      - sendResolved: false
+        to: '{{ .NotificationEmail }}'
+        from: 'redhat-openshift-alert@{{ .SMTPDoamin }}'
+        html: '{{ template "email-rhoai-body.tmpl" . }}'
+        headers: 
+          subject: '{{ template "email-rhoai-subject.tmpl" . }}'
+        smarthost: '{{ .SMTPHost }}:{{ .SMTPPort }}'
+        authUsername: '{{ .SMTPUSER }}'
+        authPassword:
+          name: redhat-rhods-smtp  # we use secret redhat-rhods-smtp which already in the Managed cluster
+          key: password
+        requireTLS: true
+    - name: 'PagerDuty'
+      pagerdutyConfigs:
+      - serviceKey: {{ .PagerDutyKey }}
+        sendResolved: true
+    - name: 'deadman-snitch'
+      webhookConfigs:
+        - url: '{{ .DeadManSnitchURL }}?m=just+checking+in'
+          sendResolved: false

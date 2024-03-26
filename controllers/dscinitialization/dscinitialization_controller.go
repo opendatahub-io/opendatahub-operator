@@ -42,13 +42,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/trustedcabundle"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
 
 const (
@@ -75,8 +73,13 @@ type DSCInitializationReconciler struct { //nolint:golint,revive // Readability
 // +kubebuilder:rbac:groups="features.opendatahub.io",resources=featuretrackers/status,verbs=get;update;patch;delete
 // +kubebuilder:rbac:groups="kfdef.apps.kubeflow.org",resources=kfdefs,verbs=get;list;watch;create;update;patch;delete
 
+// WEN: below are moved from old monitoring.go not sure if we need all of these or not
+// +kubebuilder:rbac:groups="route.openshift.io",resources=routers/metrics,verbs=get
+// +kubebuilder:rbac:groups="route.openshift.io",resources=routers/federate,verbs=get
+// +kubebuilder:rbac:groups="image.openshift.io",resources=registry/metrics,verbs=get
+
 // Reconcile contains controller logic specific to DSCInitialization instance updates.
-func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:funlen,gocyclo,maintidx
+func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:funlen
 	r.Log.Info("Reconciling DSCInitialization.", "DSCInitialization Request.Name", req.Name)
 
 	instances := &dsciv1.DSCInitializationList{}
@@ -150,6 +153,30 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 	managementStateChangeTrustedCA = false
 
+	r.Log.Info("Standard Reconciling workflow to create namespaces")
+	err = r.createOdhNamespace(ctx, instance, namespace)
+	if err != nil {
+		// no need to log error as it was already logged in createOdhNamespace
+		return reconcile.Result{}, err
+	}
+
+	// Start reconciling
+	if instance.Status.Conditions == nil {
+		reason := status.ReconcileInit
+		message := "Initializing DSCInitialization resource"
+		instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
+			status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
+			saved.Status.Phase = status.PhaseProgressing
+		})
+		if err != nil {
+			r.Log.Error(err, "Failed to add conditions to status of DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
+			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError",
+				"%s for instance %s", message, instance.Name)
+
+			return reconcile.Result{}, err
+		}
+	}
+
 	// Get platform
 	platform, err := cluster.GetPlatform(r.Client)
 	if err != nil {
@@ -158,124 +185,63 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return reconcile.Result{}, err
 	}
 
-	switch req.Name {
-	case "prometheus": // prometheus configmap
-		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == cluster.ManagedRhods {
-			r.Log.Info("Monitoring enabled to restart deployment", "cluster", "Managed Service Mode")
-			err := r.configureManagedMonitoring(ctx, instance, "updates")
-			if err != nil {
-				return reconcile.Result{}, err
-			}
-		}
-
-		return ctrl.Result{}, nil
-	case "addon-managed-odh-parameters":
-		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == cluster.ManagedRhods {
-			r.Log.Info("Monitoring enabled when notification updated", "cluster", "Managed Service Mode")
-			err := r.configureManagedMonitoring(ctx, instance, "updates")
-			if err != nil {
-				return reconcile.Result{}, err
-			}
-		}
-
-		return ctrl.Result{}, nil
-	case "backup": // revert back to the original prometheus.yml
-		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == cluster.ManagedRhods {
-			r.Log.Info("Monitoring enabled to restore back", "cluster", "Managed Service Mode")
-			err := r.configureManagedMonitoring(ctx, instance, "revertbackup")
-			if err != nil {
-				return reconcile.Result{}, err
-			}
-		}
-
-		return ctrl.Result{}, nil
-	default:
-		// Check namespace is not exist, then create
-		namespace := instance.Spec.ApplicationsNamespace
-		r.Log.Info("Standard Reconciling workflow to create namespaces")
-		err = r.createOdhNamespace(ctx, instance, namespace)
+	switch platform {
+	case cluster.SelfManagedRhods:
+		err := r.createUserGroup(ctx, instance, "rhods-admins")
 		if err != nil {
-			// no need to log error as it was already logged in createOdhNamespace
 			return reconcile.Result{}, err
 		}
-
-		// Start reconciling
-		if instance.Status.Conditions == nil {
-			reason := status.ReconcileInit
-			message := "Initializing DSCInitialization resource"
-			instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
-				status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
-				saved.Status.Phase = status.PhaseProgressing
-			})
-			if err != nil {
-				r.Log.Error(err, "Failed to add conditions to status of DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
-				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError",
-					"%s for instance %s", message, instance.Name)
-
-				return reconcile.Result{}, err
-			}
+		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
+			r.Log.Info("Monitoring enabled, won't apply changes", "cluster", "Self-Managed RHODS Mode")
+			// do not apply segment-io for SelfManaged, unless we need it?
 		}
-
-		switch platform {
-		case cluster.SelfManagedRhods:
-			err := r.createUserGroup(ctx, instance, "rhods-admins")
-			if err != nil {
-				return reconcile.Result{}, err
-			}
-			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
-				r.Log.Info("Monitoring enabled, won't apply changes", "cluster", "Self-Managed RHODS Mode")
-				err = r.configureCommonMonitoring(instance)
-				if err != nil {
-					return reconcile.Result{}, err
-				}
-			}
-		case cluster.ManagedRhods:
-			osdConfigsPath := filepath.Join(deploy.DefaultManifestPath, "osd-configs")
-			err = deploy.DeployManifestsFromPath(r.Client, instance, osdConfigsPath, r.ApplicationsNamespace, "osd", true)
-			if err != nil {
-				r.Log.Error(err, "Failed to apply osd specific configs from manifests", "Manifests path", osdConfigsPath)
-				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to apply "+osdConfigsPath)
-
-				return reconcile.Result{}, err
-			}
-			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
-				r.Log.Info("Monitoring enabled in initialization stage", "cluster", "Managed Service Mode")
-				err := r.configureManagedMonitoring(ctx, instance, "init")
-				if err != nil {
-					return reconcile.Result{}, err
-				}
-				err = r.configureCommonMonitoring(instance)
-				if err != nil {
-					return reconcile.Result{}, err
-				}
-			}
-		default:
-			err := r.createUserGroup(ctx, instance, "odh-admins")
-			if err != nil {
-				return reconcile.Result{}, err
-			}
-			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
-				r.Log.Info("Monitoring enabled, won't apply changes", "cluster", "ODH Mode")
-			}
-		}
-
-		// Apply Service Mesh configurations
-		if errServiceMesh := r.configureServiceMesh(instance); errServiceMesh != nil {
-			return reconcile.Result{}, errServiceMesh
-		}
-
-		// Finish reconciling
-		_, err = status.UpdateWithRetry[*dsciv1.DSCInitialization](ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
-			status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, status.ReconcileCompletedMessage)
-			saved.Status.Phase = status.PhaseReady
-		})
+	case cluster.ManagedRhods:
+		// this is for config dedicated-admins,
+		// TODO: maybe we can move it into configureCommonMonitoring() later
+		osdConfigsPath := filepath.Join(deploy.DefaultManifestPath, "osd-configs")
+		err = deploy.DeployManifestsFromPath(r.Client, instance, osdConfigsPath, r.ApplicationsNamespace, "osd", true)
 		if err != nil {
-			r.Log.Error(err, "failed to update DSCInitialization status after successfully completed reconciliation")
-			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to update DSCInitialization status")
-		}
+			r.Log.Error(err, "Failed to apply osd specific configs from manifests", "Manifests path", osdConfigsPath)
+			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to apply "+osdConfigsPath)
 
-		return ctrl.Result{}, nil
+			return reconcile.Result{}, err
+		}
+		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
+			r.Log.Info("Monitoring enabled in initialization stage", "cluster", "Managed Service Mode")
+			if errObservibility := r.configureObservibility(instance); errObservibility != nil {
+				return reconcile.Result{}, errObservibility
+			}
+		}
+	default:
+		err := r.createUserGroup(ctx, instance, "odh-admins")
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
+			r.Log.Info("Monitoring enabled, won't apply changes, but i am testing it so lets do it", "cluster", "ODH Mode")
+			// TODO: if we want to have the feature in ODH we need uncomment logic here
+			if errObservibility := r.configureObservibility(instance); errObservibility != nil {
+				return reconcile.Result{}, errObservibility
+			}
+		}
 	}
+
+	// Apply Service Mesh configurations
+	if errServiceMesh := r.configureServiceMesh(instance); errServiceMesh != nil {
+		return reconcile.Result{}, errServiceMesh
+	}
+
+	// Finish reconciling
+	_, err = status.UpdateWithRetry[*dsciv1.DSCInitialization](ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
+		status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, status.ReconcileCompletedMessage)
+		saved.Status.Phase = status.PhaseReady
+	})
+
+	if err != nil {
+		r.Log.Error(err, "failed to update DSCInitialization status after successfully completed reconciliation")
+		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to update DSCInitialization status")
+	}
+	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -297,9 +263,7 @@ func (r *DSCInitializationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.ServiceAccount{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&corev1.Service{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&routev1.Route{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
-		Watches(&source.Kind{Type: &dscv1.DataScienceCluster{}}, handler.EnqueueRequestsFromMapFunc(r.watchDSCResource), builder.WithPredicates(DSCDeletionPredicate)).
 		Watches(&source.Kind{Type: &corev1.Secret{}}, handler.EnqueueRequestsFromMapFunc(r.watchMonitoringSecretResource), builder.WithPredicates(SecretContentChangedPredicate)).
-		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchMonitoringConfigMapResource), builder.WithPredicates(CMContentChangedPredicate)).
 		Complete(r)
 }
 
@@ -340,15 +304,7 @@ var dsciPredicateStateChangeTrustedCA = predicate.Funcs{
 	},
 }
 
-func (r *DSCInitializationReconciler) watchMonitoringConfigMapResource(a client.Object) []reconcile.Request {
-	if a.GetName() == "prometheus" && a.GetNamespace() == "redhat-ods-monitoring" {
-		r.Log.Info("Found monitoring configmap has updated, start reconcile")
-
-		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "prometheus", Namespace: "redhat-ods-monitoring"}}}
-	}
-	return nil
-}
-
+// we will need this function to work with Managed cluster which is having secret to config smtp.
 func (r *DSCInitializationReconciler) watchMonitoringSecretResource(a client.Object) []reconcile.Request {
 	operatorNs, err := cluster.GetOperatorNamespace()
 	if err != nil {
@@ -359,20 +315,6 @@ func (r *DSCInitializationReconciler) watchMonitoringSecretResource(a client.Obj
 		r.Log.Info("Found monitoring secret has updated, start reconcile")
 
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "addon-managed-odh-parameters", Namespace: operatorNs}}}
-	}
-	return nil
-}
-
-func (r *DSCInitializationReconciler) watchDSCResource(_ client.Object) []reconcile.Request {
-	instanceList := &dscv1.DataScienceClusterList{}
-	if err := r.Client.List(context.TODO(), instanceList); err != nil {
-		// do not handle if cannot get list
-		return nil
-	}
-	if len(instanceList.Items) == 0 && !upgrade.HasDeleteConfigMap(context.TODO(), r.Client) {
-		r.Log.Info("Found no DSC instance in cluster but not in uninstalltion process, reset monitoring stack config")
-
-		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "backup"}}}
 	}
 	return nil
 }

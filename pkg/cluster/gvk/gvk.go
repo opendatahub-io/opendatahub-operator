@@ -28,10 +28,17 @@ var (
 	}
 	OdhDocument = schema.GroupVersionKind{
 		Group:   "dashboard.opendatahub.io",
-		Version: "v1", Kind: "OdhDocument",
+		Version: "v1",
+		Kind:    "OdhDocument",
 	}
 	OdhQuickStart = schema.GroupVersionKind{
 		Group:   "console.openshift.io",
 		Version: "v1", Kind: "OdhQuickStart",
+	}
+
+	PrometheusRule = schema.GroupVersionKind{
+		Group:   "monitoring.rhobs",
+		Version: "v1",
+		Kind:    "PrometheusRule",
 	}
 )
