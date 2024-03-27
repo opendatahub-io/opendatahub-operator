@@ -42,7 +42,6 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -141,6 +140,15 @@ func main() { //nolint:funlen
 	}
 
 	(&webhook.OpenDataHubWebhook{}).SetupWithManager(mgr)
+
+	mgrRestConfig := mgr.GetConfig()
+	client := mgr.GetClient()
+	tokenReview := &authentication.TokenReview{
+		Spec: authentication.TokenReviewSpec{
+			Token: mgrRestConfig.BearerToken,
+		},
+	}
+	// pass to DSCIReconciler ? ??
 
 	if err = (&dscicontr.DSCInitializationReconciler{
 		Client:                mgr.GetClient(),

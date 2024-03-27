@@ -14,7 +14,7 @@ import (
 func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsciv1.DSCInitialization) error {
 	switch instance.Spec.ServiceMesh.ManagementState {
 	case operatorv1.Managed:
-		serviceMeshFeatures := feature.ClusterFeaturesHandler(instance, configureServiceMeshFeatures())
+		serviceMeshFeatures := feature.ClusterFeaturesHandler(instance, r.configureServiceMeshFeatures())
 
 		if err := serviceMeshFeatures.Apply(); err != nil {
 			r.Log.Error(err, "failed applying service mesh resources")
@@ -36,7 +36,7 @@ func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsciv1.DSCI
 func (r *DSCInitializationReconciler) removeServiceMesh(instance *dsciv1.DSCInitialization) error {
 	// on condition of Managed, do not handle Removed when set to Removed it trigger DSCI reconcile to clean up
 	if instance.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
-		serviceMeshFeatures := feature.ClusterFeaturesHandler(instance, configureServiceMeshFeatures())
+		serviceMeshFeatures := feature.ClusterFeaturesHandler(instance, r.configureServiceMeshFeatures())
 
 		if err := serviceMeshFeatures.Delete(); err != nil {
 			r.Log.Error(err, "failed deleting service mesh resources")
@@ -49,7 +49,7 @@ func (r *DSCInitializationReconciler) removeServiceMesh(instance *dsciv1.DSCInit
 	return nil
 }
 
-func configureServiceMeshFeatures() feature.FeaturesProvider {
+func (r *DSCInitializationReconciler) configureServiceMeshFeatures() feature.FeaturesProvider {
 	return func(handler *feature.FeaturesHandler) error {
 		serviceMeshSpec := handler.DSCInitializationSpec.ServiceMesh
 
@@ -86,9 +86,14 @@ func configureServiceMeshFeatures() feature.FeaturesProvider {
 			}
 		}
 
+		// AuthRefs takes in obtained audiences slice and this can be used to overwrite default if different.
+		//
+		audiences := []string{"audience0"}
+		r.Audiences....
+
 		cfgMapErr := feature.CreateFeature("mesh-shared-configmap").
 			For(handler).
-			WithResources(servicemesh.MeshRefs, servicemesh.AuthRefs).
+			WithResources(servicemesh.MeshRefs, servicemesh.AuthRefs(audiences)).
 			Load()
 		if cfgMapErr != nil {
 			return cfgMapErr
