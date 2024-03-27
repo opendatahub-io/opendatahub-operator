@@ -369,7 +369,10 @@ func (r *DSCInitializationReconciler) watchMonitoringConfigMapResource(a client.
 }
 
 func (r *DSCInitializationReconciler) watchMonitoringSecretResource(a client.Object) []reconcile.Request {
-	operatorNs := cluster.GetOperatorNamespace()
+	operatorNs, err := cluster.GetOperatorNamespace()
+	if err != nil {
+		return nil
+	}
 
 	if a.GetName() == "addon-managed-odh-parameters" && a.GetNamespace() == operatorNs {
 		r.Log.Info("Found monitoring secret has updated, start reconcile")

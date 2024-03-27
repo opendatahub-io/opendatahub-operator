@@ -32,9 +32,9 @@ func GetDomain(c client.Client) (string, error) {
 	return domain, err
 }
 
-func GetOperatorNamespace() string {
-	data, _ := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
-	return string(data)
+func GetOperatorNamespace() (string, error) {
+	data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
+	return string(data), err
 }
 
 // getClusterServiceVersion retries the clusterserviceversions available in the operator namespace.

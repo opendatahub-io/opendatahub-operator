@@ -159,7 +159,11 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 
 	// r.Log.Info("Success: inject alertmanage-configs.yaml for dev mode")
 
-	operatorNs := cluster.GetOperatorNamespace()
+	operatorNs, err := cluster.GetOperatorNamespace()
+	if err != nil {
+		r.Log.Error(err, "error getting operator namespace for smtp secret")
+		return err
+	}
 
 	// Get SMTP receiver email secret (assume operator namespace for managed service is not configurable)
 	smtpEmailSecret, err := r.waitForManagedSecret(ctx, "addon-managed-odh-parameters", operatorNs)

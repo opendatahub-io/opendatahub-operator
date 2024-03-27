@@ -460,7 +460,10 @@ func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(a client
 	}
 
 	// Trigger reconcile function when uninstall configmap is created
-	operatorNs := cluster.GetOperatorNamespace()
+	operatorNs, err := cluster.GetOperatorNamespace()
+	if err != nil {
+		return nil
+	}
 
 	if a.GetNamespace() == operatorNs {
 		labels := a.GetLabels()
