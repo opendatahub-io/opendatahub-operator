@@ -7,7 +7,7 @@ GITHUB_URL="https://github.com/"
 # in the format of "repo-org:repo-name:branch-name:source-folder:target-folder".
 declare -A COMPONENT_MANIFESTS=(
     ["codeflare"]="opendatahub-io:codeflare-operator:main:config:codeflare"
-    ["ray"]="opendatahub-io:kuberay:master:ray-operator/config:ray"
+    ["ray"]="opendatahub-io:kuberay:dev:ray-operator/config:ray"
     ["kueue"]="opendatahub-io:kueue:dev:config:kueue"
     ["data-science-pipelines-operator"]="opendatahub-io:data-science-pipelines-operator:main:config:data-science-pipelines-operator"
     ["odh-dashboard"]="opendatahub-io:odh-dashboard:incubation:manifests:dashboard"

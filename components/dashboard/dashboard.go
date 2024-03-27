@@ -27,6 +27,7 @@ import (
 var (
 	ComponentName    = "dashboard"
 	Path             = deploy.DefaultManifestPath + "/" + ComponentName + "/base"         // ODH
+	PathISV          = deploy.DefaultManifestPath + "/" + ComponentName + "/apps"         // ODH APPS
 	PathModelServing = deploy.DefaultManifestPath + "/" + ComponentName + "/modelserving" // ODH modelserving
 	PathCRDs         = deploy.DefaultManifestPath + "/" + ComponentName + "/crd"          // ODH + RHOAI
 	PathConsoleLink  = deploy.DefaultManifestPath + "/" + ComponentName + "/consolelink"  // ODH consolelink
@@ -192,6 +193,10 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		if err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 			return err
 		}
+		// ISV
+		if err = deploy.DeployManifestsFromPath(cli, owner, PathISV, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+			return err
+		}
 		// modelserving
 		if err := deploy.DeployManifestsFromPath(cli, owner, PathModelServing, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 			return fmt.Errorf("failed to set dashboard modelserving from %s: %w", PathModelServing, err)
@@ -275,9 +280,9 @@ func (d *Dashboard) deployConsoleLink(cli client.Client, owner metav1.Object, pl
 	}
 
 	enabled := d.ManagementState == operatorv1.Managed
-	err = deploy.DeployManifestsFromPath(cli, owner, PathConsoleLink, namespace, componentName, enabled)
+	err = deploy.DeployManifestsFromPath(cli, owner, manifestsPath, namespace, componentName, enabled)
 	if err != nil {
-		return fmt.Errorf("failed to set dashboard consolelink from %s: %w", PathConsoleLink, err)
+		return fmt.Errorf("failed to set dashboard consolelink from %s: %w", manifestsPath, err)
 	}
 
 	return nil
