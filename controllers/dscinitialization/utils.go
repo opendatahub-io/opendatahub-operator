@@ -22,7 +22,6 @@ import (
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
 
 var (
@@ -123,11 +122,8 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 	// Patch downstream Operator Namespace if it is monitoring enabled
 	if dscInit.Spec.Monitoring.ManagementState == operatorv1.Managed {
 		if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
-			operatorNs, err := upgrade.GetOperatorNamespace()
-			if err != nil {
-				r.Log.Error(err, "error getting operator namespace")
-				return err
-			}
+			operatorNs := cluster.GetOperatorNamespace()
+
 			r.Log.Info("Patching operator namespace", "name", operatorNs)
 			labelPatch := `{"metadata":{"labels":{"pod-security.kubernetes.io/enforce":"baseline"}}}`
 			operatorNamespace := &corev1.Namespace{}

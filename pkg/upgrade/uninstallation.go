@@ -69,10 +69,8 @@ func OperatorUninstall(ctx context.Context, cli client.Client) error {
 	// We can only assume the subscription is using standard names
 	// if user install by creating different named subs, then we will not know the name
 	// we cannot remove CSV before remove subscription because that need SA account
-	operatorNs, err := GetOperatorNamespace()
-	if err != nil {
-		return err
-	}
+	operatorNs := cluster.GetOperatorNamespace()
+
 	fmt.Printf("Removing operator subscription which in turn will remove installplan\n")
 	subsName := "opendatahub-operator"
 	if platform == deploy.SelfManagedRhods {
@@ -113,10 +111,7 @@ func removeDSCInitialization(ctx context.Context, cli client.Client) error {
 // It returns false in all other cases.
 func HasDeleteConfigMap(ctx context.Context, c client.Client) bool {
 	// Get watchNamespace
-	operatorNamespace, err := GetOperatorNamespace()
-	if err != nil {
-		return false
-	}
+	operatorNamespace := cluster.GetOperatorNamespace()
 
 	// If delete configMap is added, uninstall the operator and the resources
 	deleteConfigMapList := &corev1.ConfigMapList{}
@@ -134,12 +129,9 @@ func HasDeleteConfigMap(ctx context.Context, c client.Client) bool {
 
 func removeCSV(ctx context.Context, c client.Client) error {
 	// Get watchNamespace
-	operatorNamespace, err := GetOperatorNamespace()
-	if err != nil {
-		return err
-	}
+	operatorNamespace := cluster.GetOperatorNamespace()
 
-	operatorCsv, err := getClusterServiceVersion(ctx, c, operatorNamespace)
+	operatorCsv, err := cluster.GetClusterServiceVersion(ctx, c, operatorNamespace)
 	if err != nil {
 		return err
 	}

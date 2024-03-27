@@ -53,6 +53,7 @@ import (
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
 
@@ -459,10 +460,8 @@ func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(a client
 	}
 
 	// Trigger reconcile function when uninstall configmap is created
-	operatorNs, err := upgrade.GetOperatorNamespace()
-	if err != nil {
-		return nil
-	}
+	operatorNs := cluster.GetOperatorNamespace()
+
 	if a.GetNamespace() == operatorNs {
 		labels := a.GetLabels()
 		if val, ok := labels[upgrade.DeleteConfigMapLabel]; ok && val == "true" {

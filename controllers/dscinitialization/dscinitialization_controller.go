@@ -46,6 +46,7 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/trustedcabundle"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
@@ -368,10 +369,8 @@ func (r *DSCInitializationReconciler) watchMonitoringConfigMapResource(a client.
 }
 
 func (r *DSCInitializationReconciler) watchMonitoringSecretResource(a client.Object) []reconcile.Request {
-	operatorNs, err := upgrade.GetOperatorNamespace()
-	if err != nil {
-		return nil
-	}
+	operatorNs := cluster.GetOperatorNamespace()
+
 	if a.GetName() == "addon-managed-odh-parameters" && a.GetNamespace() == operatorNs {
 		r.Log.Info("Found monitoring secret has updated, start reconcile")
 
