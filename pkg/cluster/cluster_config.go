@@ -37,7 +37,7 @@ func GetOperatorNamespace() (string, error) {
 	return string(data), err
 }
 
-// getClusterServiceVersion retries the clusterserviceversions available in the operator namespace.
+// GetClusterServiceVersion retries the clusterserviceversions available in the operator namespace.
 func GetClusterServiceVersion(ctx context.Context, c client.Client, watchNameSpace string) (*ofapi.ClusterServiceVersion, error) {
 	clusterServiceVersionList := &ofapi.ClusterServiceVersionList{}
 	if err := c.List(ctx, clusterServiceVersionList, client.InNamespace(watchNameSpace)); err != nil {
