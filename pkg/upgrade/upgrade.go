@@ -187,13 +187,13 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 					Component: components.Component{ManagementState: operatorv1.Managed},
 				},
 				CodeFlare: codeflare.CodeFlare{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+					Component: components.Component{ManagementState: operatorv1.Removed},
 				},
 				Ray: ray.Ray{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+					Component: components.Component{ManagementState: operatorv1.Removed},
 				},
 				Kueue: kueue.Kueue{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+					Component: components.Component{ManagementState: operatorv1.Removed},
 				},
 			},
 		},

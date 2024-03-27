@@ -111,7 +111,7 @@ func setupDSCInstance() *dsc.DataScienceCluster {
 				},
 				CodeFlare: codeflare.CodeFlare{
 					Component: components.Component{
-						ManagementState: operatorv1.Managed,
+						ManagementState: operatorv1.Removed,
 					},
 				},
 				Ray: ray.Ray{
