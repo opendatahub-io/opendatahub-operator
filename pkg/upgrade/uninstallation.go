@@ -13,6 +13,7 @@ import (
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 const (
@@ -40,7 +41,7 @@ func OperatorUninstall(ctx context.Context, cli client.Client) error {
 	// Delete generated namespaces by the operator
 	generatedNamespaces := &corev1.NamespaceList{}
 	nsOptions := []client.ListOption{
-		client.MatchingLabels{cluster.ODHGeneratedNamespaceLabel: "true"},
+		client.MatchingLabels{labels.ODH.OwnedNamespace: "true"},
 	}
 	if err := cli.List(ctx, generatedNamespaces, nsOptions...); err != nil {
 		return fmt.Errorf("error getting generated namespaces : %w", err)

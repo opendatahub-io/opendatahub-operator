@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 const (
@@ -57,7 +58,7 @@ func CreateOdhTrustedCABundleConfigMap(ctx context.Context, cli client.Client, n
 			Name:      CAConfigMapName,
 			Namespace: namespace,
 			Labels: map[string]string{
-				"app.kubernetes.io/part-of": "opendatahub-operator",
+				labels.K8SCommon.PartOf: "opendatahub-operator",
 				// Label required for the Cluster Network Operator(CNO) to inject the cluster trusted CA bundle
 				// into .data["ca-bundle.crt"]
 				"config.openshift.io/inject-trusted-cabundle": "true",

@@ -37,9 +37,10 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
-// createDefaultDSC creates a default instance of DSC.
+// CreateDefaultDSC creates a default instance of DSC.
 // Note: When the platform is not Managed, and a DSC instance already exists, the function doesn't re-create/update the resource.
 func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 	// Set the default DSC name depending on the platform
@@ -482,7 +483,7 @@ func deleteDeploymentsAndCheck(ctx context.Context, cli client.Client, namespace
 		v2 := false
 		selectorLabels := deployment.Spec.Selector.MatchLabels
 		for label := range selectorLabels {
-			if strings.Contains(label, "app.opendatahub.io/") {
+			if strings.Contains(label, labels.ODHAppPrefix) {
 				// this deployment has the new label, this is a v2 to v2 upgrade
 				// there is no need to recreate it, as labels are matching
 				v2 = true
@@ -534,7 +535,7 @@ func deleteStatefulsetsAndCheck(ctx context.Context, cli client.Client, namespac
 		statefulset := statefulset
 		selectorLabels := statefulset.Spec.Selector.MatchLabels
 		for label := range selectorLabels {
-			if strings.Contains(label, "app.opendatahub.io/") {
+			if strings.Contains(label, labels.ODHAppPrefix) {
 				v2 = true
 				continue
 			}

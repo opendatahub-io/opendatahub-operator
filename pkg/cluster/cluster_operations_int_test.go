@@ -8,6 +8,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -97,7 +98,7 @@ var _ = Describe("Creating cluster resources", func() {
 				"config-regs",
 				"default",
 				data,
-				cluster.WithLabels("apps.kubernetes.io/part-of", "opendatahub"),
+				cluster.WithLabels(labels.K8SCommon.PartOf, "opendatahub"),
 				cluster.WithOwnerReference(metav1.OwnerReference{
 					APIVersion: "v1",
 					Kind:       "Namespace",
@@ -109,7 +110,7 @@ var _ = Describe("Creating cluster resources", func() {
 			defer objectCleaner.DeleteAll(configMap)
 
 			// then
-			Expect(configMap.Labels).To(HaveKeyWithValue("apps.kubernetes.io/part-of", "opendatahub"))
+			Expect(configMap.Labels).To(HaveKeyWithValue(labels.K8SCommon.PartOf, "opendatahub"))
 			getOwnerRefName := func(reference metav1.OwnerReference) string {
 				return reference.Name
 			}

@@ -46,6 +46,7 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins"
 )
 
@@ -225,7 +226,7 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 		var componentCounter []string
 		if resourceLabels != nil {
 			for i := range resourceLabels {
-				if strings.Contains(i, "app.opendatahub.io") {
+				if strings.Contains(i, labels.ODHAppPrefix) {
 					compFound := strings.Split(i, "/")[1]
 					componentCounter = append(componentCounter, compFound)
 				}
@@ -244,7 +245,7 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 		}
 
 		existingOwnerReferences := obj.GetOwnerReferences()
-		selector := "app.opendatahub.io/" + componentName
+		selector := labels.ODH.Component(componentName)
 		// only removed the resource with our label applied, not the same name resource maually created by user
 		if existingOwnerReferences == nil && resourceLabels[selector] == "true" {
 			return cli.Delete(ctx, found)
@@ -298,7 +299,7 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 	// Preserve app.opendatahub.io/<component> labels of previous versions of existing objects
 	foundLabels := make(map[string]string)
 	for k, v := range found.GetLabels() {
-		if strings.Contains(k, "app.opendatahub.io") {
+		if strings.Contains(k, labels.ODHAppPrefix) {
 			foundLabels[k] = v
 		}
 	}

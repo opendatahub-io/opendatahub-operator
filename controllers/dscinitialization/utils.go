@@ -22,6 +22,7 @@ import (
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 var (
@@ -41,7 +42,7 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 			Labels: map[string]string{
-				cluster.ODHGeneratedNamespaceLabel:   "true",
+				labels.ODH.OwnedNamespace:            "true",
 				"pod-security.kubernetes.io/enforce": "baseline",
 			},
 		},
@@ -90,7 +91,7 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 					ObjectMeta: metav1.ObjectMeta{
 						Name: monitoringName,
 						Labels: map[string]string{
-							cluster.ODHGeneratedNamespaceLabel:   "true",
+							labels.ODH.OwnedNamespace:            "true",
 							"pod-security.kubernetes.io/enforce": "baseline",
 							"openshift.io/cluster-monitoring":    "true",
 						},
@@ -237,7 +238,7 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.
 								*/
 								NamespaceSelector: &metav1.LabelSelector{ // AND logic
 									MatchLabels: map[string]string{
-										cluster.ODHGeneratedNamespaceLabel: "true",
+										labels.ODH.OwnedNamespace: "true",
 									},
 								},
 							},
