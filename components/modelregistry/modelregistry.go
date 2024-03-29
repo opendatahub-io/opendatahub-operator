@@ -16,6 +16,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 var (
@@ -85,7 +86,7 @@ func (m *ModelRegistry) ReconcileComponent(_ context.Context, cli client.Client,
 		}
 
 		// Create odh-model-registries namespace
-		_, err := cluster.CreateNamespace(cli, "odh-model-registries", cluster.WithLabels(cluster.ODHGeneratedNamespaceLabel, "true"))
+		_, err := cluster.CreateNamespace(cli, "odh-model-registries", cluster.WithLabels(labels.ODH.OwnedNamespace, "true"))
 		if err != nil {
 			return err
 		}
