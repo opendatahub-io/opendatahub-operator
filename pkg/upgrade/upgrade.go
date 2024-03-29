@@ -32,6 +32,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/trainingoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/infrastructure/v1"
@@ -179,6 +180,9 @@ func CreateDefaultDSC(cli client.Client, _ deploy.Platform) error {
 					Component: components.Component{ManagementState: operatorv1.Managed},
 				},
 				ModelRegistry: modelregistry.ModelRegistry{
+					Component: components.Component{ManagementState: operatorv1.Removed},
+				},
+				TrainingOperator: trainingoperator.TrainingOperator{
 					Component: components.Component{ManagementState: operatorv1.Removed},
 				},
 			},

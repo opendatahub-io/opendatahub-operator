@@ -57,6 +57,9 @@ metadata:
               },
               "workbenches": {
                 "managementState": "Managed"
+              },
+              trainingoperator: {
+                "managementState": "Removed"
               }
             }
           }
