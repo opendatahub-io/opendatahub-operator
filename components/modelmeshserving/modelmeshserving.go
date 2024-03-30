@@ -75,7 +75,6 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 	cli client.Client,
 	owner metav1.Object,
 	dscispec *dsciv1.DSCInitializationSpec,
-	_ bool,
 ) error {
 	var imageParamMap = map[string]string{
 		"odh-mm-rest-proxy":             "RELATED_IMAGE_ODH_MM_REST_PROXY_IMAGE",

@@ -59,7 +59,6 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 	cli client.Client,
 	owner metav1.Object,
 	dscispec *dsciv1.DSCInitializationSpec,
-	_ bool,
 ) error {
 	var imageParamMap = map[string]string{
 		// v1

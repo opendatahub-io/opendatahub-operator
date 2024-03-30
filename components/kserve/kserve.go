@@ -94,7 +94,7 @@ func (k *Kserve) GetComponentName() string {
 	return ComponentName
 }
 
-func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
+func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
 	// paramMap for Kserve to use.
 	var imageParamMap = map[string]string{}
 

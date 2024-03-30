@@ -54,7 +54,7 @@ func (r *Ray) GetComponentName() string {
 	return ComponentName
 }
 
-func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
+func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
 	var imageParamMap = map[string]string{
 		"odh-kuberay-operator-controller-image": "RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE",
 		"namespace":                             dscispec.ApplicationsNamespace,
