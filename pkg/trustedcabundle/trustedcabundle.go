@@ -119,7 +119,7 @@ func IsTrustedCABundleUpdated(ctx context.Context, cli client.Client, dscInit *d
 		return false, err
 	}
 
-	if ShouldInjectTrustedBundle(usernamespace) {
+	if !ShouldInjectTrustedBundle(usernamespace) {
 		return false, nil
 	}
 
