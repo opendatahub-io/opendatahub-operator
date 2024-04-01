@@ -308,7 +308,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 	}
 
 	// Reconcile component
-	err = component.ReconcileComponent(ctx, r.Client, instance, r.DataScienceCluster.DSCISpec, instance.Status.InstalledComponents[componentName])
+	err = component.ReconcileComponent(ctx, r.Client, r.Log, instance, r.DataScienceCluster.DSCISpec, instance.Status.InstalledComponents[componentName])
 
 	if err != nil {
 		// reconciliation failed: log errors, raise event and update status accordingly
@@ -356,14 +356,6 @@ func (r *DataScienceClusterReconciler) reportError(err error, instance *dsc.Data
 	r.Log.Error(err, message, "instance.Name", instance.Name)
 	r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DataScienceClusterReconcileError",
 		"%s for instance %s", message, instance.Name)
-	// TODO:Set error phase only for creation/deletion errors of DSC CR
-	// instance, err = r.updateStatus(instance, func(saved *dsc.DataScienceCluster) {
-	//	 status.SetErrorCondition(&saved.Status.Conditions, status.ReconcileFailed, fmt.Sprintf("%s : %v", message, err))
-	//	 saved.Status.Phase = status.PhaseError
-	// })
-	// if err != nil {
-	//	 r.Log.Error(err, "failed to update DataScienceCluster status after error", "instance.Name", instance.Name)
-	// }
 	return instance
 }
 

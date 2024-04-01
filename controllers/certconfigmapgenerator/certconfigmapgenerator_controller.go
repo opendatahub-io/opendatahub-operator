@@ -17,7 +17,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
@@ -25,8 +24,6 @@ import (
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/trustedcabundle"
 )
-
-var configmapGenLog = log.Log.WithName("cert-configmap-generator")
 
 // CertConfigmapGeneratorReconciler holds the controller configuration.
 type CertConfigmapGeneratorReconciler struct { //nolint:golint,revive // Readability
@@ -37,7 +34,7 @@ type CertConfigmapGeneratorReconciler struct { //nolint:golint,revive // Readabi
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *CertConfigmapGeneratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	configmapGenLog.Info("Adding controller for Configmap Generation.")
+	r.Log.Info("Adding controller for Configmap Generation.")
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("cert-configmap-generator-controller").
 		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchTrustedCABundleConfigMapResource), builder.WithPredicates(ConfigMapChangedPredicate)).
