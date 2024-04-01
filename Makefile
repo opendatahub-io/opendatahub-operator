@@ -64,7 +64,8 @@ GOLANGCI_LINT ?= $(LOCALBIN)/golangci-lint
 CRD_REF_DOCS ?= $(LOCALBIN)/crd-ref-docs
 YQ ?= $(LOCALBIN)/yq
 ## Tool Versions
-KUSTOMIZE_VERSION ?= v3.8.7
+# KUSTOMIZE_VERSION is updated to v4.4.1 as from this version kustomize supports for s390x and ppc64le
+KUSTOMIZE_VERSION ?= v4.4.1
 CONTROLLER_GEN_VERSION ?= v0.9.2
 OPERATOR_SDK_VERSION ?= v1.24.1
 GOLANGCI_LINT_VERSION ?= v1.54.0
@@ -102,6 +103,16 @@ IMAGE_BUILD_FLAGS ?= --build-arg USE_LOCAL=false
 OPERATOR_MAKE_ENV_FILE = local.mk
 -include $(OPERATOR_MAKE_ENV_FILE)
 
+# Buildx function for building multi-arch image
+define func_buildx
+	# copy existing Dockerfile and insert --platform=${BUILDPLATFORM} into Dockerfile.cross, and preserve the original Dockerfile
+	sed -e '1 s/\(^FROM\)/FROM --platform=\$$\{BUILDPLATFORM\}/; t' -e ' 1,// s//FROM --platform=\$$\{BUILDPLATFORM\}/' $1 > Dockerfile.cross
+	- docker buildx create --name project-v3-builder
+	docker buildx use project-v3-builder
+	- docker buildx build --push --platform=$2 --tag $3 -f Dockerfile.cross .
+	- docker buildx rm project-v3-builder
+	rm Dockerfile.cross
+endef
 
 .PHONY: default
 default: manifests lint unit-test build
@@ -178,6 +189,13 @@ api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-
 .PHONY: build
 build: generate fmt vet ## Build manager binary.
 	go build -o bin/manager main.go
+
+# Build multi-arch image
+
+PLATFORMS ?= linux/amd64,linux/s390x,linux/ppc64le
+.PHONY: docker-buildx
+docker-buildx: ## Build and push docker image for the manager for cross-platform support
+	$(call func_buildx,./Dockerfiles/Dockerfile,$(PLATFORMS),$(IMG))
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
@@ -281,6 +299,12 @@ bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then val
 .PHONY: bundle-build
 bundle-build: bundle
 	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/bundle.Dockerfile -t $(BUNDLE_IMG) .
+
+# Bundle-Build multi-arch image
+
+.PHONY: bundle-docker-buildx
+bundle-docker-buildx: ## Build and push docker image for the manager for cross-platform support
+	$(call func_buildx,./Dockerfiles/bundle.Dockerfile,$(PLATFORMS),$(BUNDLE_IMG))
 
 .PHONY: bundle-push
 bundle-push: ## Push the bundle image.
