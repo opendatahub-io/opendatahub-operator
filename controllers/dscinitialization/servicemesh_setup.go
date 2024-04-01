@@ -12,7 +12,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 )
 
-// default value of audiences in DSCI.SM.auth spec
+// Default value of audiences for DSCI.SM.auth.
 var defaultAudiences = []string{"https://kubernetes.default.svc"}
 
 func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsciv1.DSCInitialization) error {

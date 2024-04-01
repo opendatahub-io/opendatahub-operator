@@ -31,14 +31,12 @@ func MeshRefs(f *feature.Feature) error {
 
 // AuthRefs stores authorization configuration in the config map, so it can
 // be easily accessed by other components which rely on this information.
-func AuthRefs(a []string) feature.Action {
+func AuthRefs(audiences []string) feature.Action {
 	return func(f *feature.Feature) error {
-		audiences := a
-		// if its default value and the bootstrap logic audiences is different, then overwrite this.
 		namespace := f.Spec.AppNamespace
 
 		audiencesList := ""
-		if audiences != nil && len(audiences) > 0 {
+		if len(audiences) > 0 {
 			audiencesList = strings.Join(audiences, ",")
 		}
 		data := map[string]string{

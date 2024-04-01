@@ -19,10 +19,7 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
-	authentication "k8s.io/api/authentication/v1"
 	"os"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	addonv1alpha1 "github.com/openshift/addon-operator/apis/addons/v1alpha1"
 	ocappsv1 "github.com/openshift/api/apps/v1"
@@ -36,6 +33,7 @@ import (
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	admv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
+	authentication "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	authv1 "k8s.io/api/rbac/v1"
@@ -45,6 +43,7 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -152,13 +151,10 @@ func main() { //nolint:funlen
 		},
 	}
 
-	if err := authClient.Create(context.Background(), tokenReview, &client.CreateOptions{}); err != nil {
-		panic(fmt.Errorf("error creating TokenReview: %w", err))
+	if err = authClient.Create(context.Background(), tokenReview, &client.CreateOptions{}); err != nil {
+		setupLog.Error(err, "error creating TokenReview")
 	}
-
 	audiences := tokenReview.Status.Audiences
-	fmt.Println("Audiences:", audiences)
-	// pass to DSCIReconciler ? ??
 
 	if err = (&dscicontr.DSCInitializationReconciler{
 		Client:                mgr.GetClient(),
