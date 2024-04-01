@@ -16,7 +16,7 @@ declare -A COMPONENT_MANIFESTS=(
     ["notebooks"]="opendatahub-io:notebooks:main:manifests:notebooks"
     ["trustyai"]="trustyai-explainability:trustyai-service-operator:release/1.10.2:config:trustyai-service-operator"
     ["model-mesh"]="opendatahub-io:modelmesh-serving:release-0.11.1:config:model-mesh"
-    ["odh-model-controller"]="opendatahub-io:odh-model-controller:release-0.12.0:config:odh-model-controller"
+    ["odh-model-controller"]="opendatahub-io:odh-model-controller:release-0.11.1:config:odh-model-controller"
     ["kserve"]="opendatahub-io:kserve:release-v0.11.1:config:kserve"
     ["modelregistry"]="opendatahub-io:model-registry-operator:main:config:model-registry-operator"
 )
