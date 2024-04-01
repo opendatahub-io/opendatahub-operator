@@ -13,6 +13,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 const (
@@ -97,8 +98,8 @@ func (k *Kserve) setDefaultDeploymentMode(ctx context.Context, cli client.Client
 		listOpts := []client.ListOption{
 			client.InNamespace(dscispec.ApplicationsNamespace),
 			client.MatchingLabels{
-				"app.opendatahub.io/kserve": "true",
-				"control-plane":             "kserve-controller-manager",
+				labels.ODH.Component(ComponentName): "true",
+				"control-plane":                     "kserve-controller-manager",
 			},
 		}
 		if err := cli.List(ctx, podList, listOpts...); err != nil {
