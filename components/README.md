@@ -31,14 +31,16 @@ can be found [here](https://github.com/opendatahub-io/opendatahub-operator/tree/
 
     ```go
     type ComponentInterface interface {
-      ReconcileComponent(cli client.Client, owner metav1.Object, DSCISpec *dsci.DSCInitializationSpec) error
-      Cleanup(cli client.Client, DSCISpec *dsci.DSCInitializationSpec) error
+      ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger, owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec, currentComponentStatus bool) error
+      Cleanup(cli client.Client, DSCISpec *dsciv1.DSCInitializationSpec) error
       GetComponentName() string
       GetManagementState() operatorv1.ManagementState
       OverrideManifests(platform string) error
       UpdatePrometheusConfig(cli client.Client, enable bool, component string) error
+      ConfigComponentLogger(logger logr.Logger, component string, dscispec *dsciv1.DSCInitializationSpec) logr.Logger
     }
     ```
+
 ### Add reconcile and Events
 
 - Once you set up the new component module, add the component to [Reconcile](https://github.com/opendatahub-io/opendatahub-operator/blob/acaaf31f43e371456363f3fd272aec91ba413482/controllers/datasciencecluster/datasciencecluster_controller.go#L135) 
