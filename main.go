@@ -19,7 +19,10 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
+	authentication "k8s.io/api/authentication/v1"
 	"os"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	addonv1alpha1 "github.com/openshift/addon-operator/apis/addons/v1alpha1"
 	ocappsv1 "github.com/openshift/api/apps/v1"
@@ -142,12 +145,19 @@ func main() { //nolint:funlen
 	(&webhook.OpenDataHubWebhook{}).SetupWithManager(mgr)
 
 	mgrRestConfig := mgr.GetConfig()
-	client := mgr.GetClient()
+	authClient := mgr.GetClient()
 	tokenReview := &authentication.TokenReview{
 		Spec: authentication.TokenReviewSpec{
 			Token: mgrRestConfig.BearerToken,
 		},
 	}
+
+	if err := authClient.Create(context.Background(), tokenReview, &client.CreateOptions{}); err != nil {
+		panic(fmt.Errorf("error creating TokenReview: %w", err))
+	}
+
+	audiences := tokenReview.Status.Audiences
+	fmt.Println("Audiences:", audiences)
 	// pass to DSCIReconciler ? ??
 
 	if err = (&dscicontr.DSCInitializationReconciler{
@@ -156,6 +166,7 @@ func main() { //nolint:funlen
 		Log:                   ctrl.Log.WithName("controllers").WithName("DSCInitialization"),
 		Recorder:              mgr.GetEventRecorderFor("dscinitialization-controller"),
 		ApplicationsNamespace: dscApplicationsNamespace,
+		Audiences:             audiences,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DSCInitiatlization")
 		os.Exit(1)

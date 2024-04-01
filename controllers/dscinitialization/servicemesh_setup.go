@@ -2,6 +2,7 @@ package dscinitialization
 
 import (
 	"path"
+	"reflect"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -10,6 +11,9 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 )
+
+// default value of audiences in DSCI.SM.auth spec
+var defaultAudiences = []string{"https://kubernetes.default.svc"}
 
 func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsciv1.DSCInitialization) error {
 	switch instance.Spec.ServiceMesh.ManagementState {
@@ -87,9 +91,12 @@ func (r *DSCInitializationReconciler) configureServiceMeshFeatures() feature.Fea
 		}
 
 		// AuthRefs takes in obtained audiences slice and this can be used to overwrite default if different.
-		//
-		audiences := []string{"audience0"}
-		r.Audiences....
+		var audiences []string
+		if isDefaultAudiences(handler.ServiceMesh.Auth.Audiences) {
+			audiences = r.Audiences
+		} else {
+			audiences = *handler.ServiceMesh.Auth.Audiences
+		}
 
 		cfgMapErr := feature.CreateFeature("mesh-shared-configmap").
 			For(handler).
@@ -134,4 +141,11 @@ func (r *DSCInitializationReconciler) configureServiceMeshFeatures() feature.Fea
 
 		return nil
 	}
+}
+
+func isDefaultAudiences(specAudiences *[]string) bool {
+	if specAudiences != nil && !reflect.DeepEqual(*specAudiences, defaultAudiences) {
+		return false
+	}
+	return true
 }
