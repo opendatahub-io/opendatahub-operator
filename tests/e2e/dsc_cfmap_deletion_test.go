@@ -15,7 +15,7 @@ import (
 
 	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
 
@@ -97,7 +97,7 @@ func (tc *testContext) testDSCDeletionUsingConfigMap() error {
 func (tc *testContext) testOwnedNamespacesDeletion() error {
 	if err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
 		namespaces, err := tc.kubeClient.CoreV1().Namespaces().List(ctx, metav1.ListOptions{
-			LabelSelector: cluster.ODHGeneratedNamespaceLabel,
+			LabelSelector: labels.ODH.OwnedNamespace,
 		})
 
 		return len(namespaces.Items) == 0, err
