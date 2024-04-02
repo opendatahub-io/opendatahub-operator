@@ -144,8 +144,5 @@ func (r *DSCInitializationReconciler) configureServiceMeshFeatures() feature.Fea
 }
 
 func isDefaultAudiences(specAudiences *[]string) bool {
-	if specAudiences != nil && !reflect.DeepEqual(*specAudiences, defaultAudiences) {
-		return false
-	}
-	return true
+	return specAudiences == nil || reflect.DeepEqual(*specAudiences, defaultAudiences) 
 }
