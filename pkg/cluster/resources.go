@@ -79,7 +79,7 @@ func CreateSecret(cli client.Client, name, namespace string, metaOptions ...Meta
 	return nil
 }
 
-func CreateConfigMap(c client.Client, name string, namespace string, data map[string]string, metaOptions ...MetaOptions) (*corev1.ConfigMap, error) {
+func CreateOrUpdateConfigMap(c client.Client, name string, namespace string, data map[string]string, metaOptions ...MetaOptions) (*corev1.ConfigMap, error) {
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -92,27 +92,27 @@ func CreateConfigMap(c client.Client, name string, namespace string, data map[st
 		return nil, err
 	}
 
-	err := c.Get(context.TODO(), client.ObjectKey{
-		Namespace: configMap.Namespace,
-		Name:      configMap.Name,
+
+	getErr := c.Get(context.TODO(), client.ObjectKey{
+		Name:      name,
+		Namespace: namespace,
 	}, configMap)
-	if err != nil {
-		if apierrs.IsNotFound(err) {
-			err = c.Create(context.TODO(), configMap)
-			if err != nil {
+	
+	if getErr != nil {
+		if apierrs.IsNotFound(getErr) {
+			if err := c.Create(context.TODO(), configMap); err != nil {
 				return nil, err
 			}
 		} else {
-			return nil, err
-		}
-	} else {
-		err = c.Update(context.TODO(), configMap)
-		if err != nil {
-			return nil, err
+			return nil, getErr
 		}
 	}
 
-	return configMap, nil
+	for key, value := range data {
+		configMap.Data[key] = value
+	}
+
+	return configMap, c.Update(context.TODO(), configMap)
 }
 
 // CreateNamespace creates namespace required by workbenches component in downstream.
