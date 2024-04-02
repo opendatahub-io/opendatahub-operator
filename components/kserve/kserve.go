@@ -183,13 +183,13 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 		l.Info("updating SRE monitoring done")
 	}
 
-	return k.configureServiceMesh(dscispec)
+	return k.configureServiceMesh(cli, dscispec)
 }
 
-func (k *Kserve) Cleanup(_ client.Client, instance *dsciv1.DSCInitializationSpec) error {
+func (k *Kserve) Cleanup(cli client.Client, instance *dsciv1.DSCInitializationSpec) error {
 	if removeServerlessErr := k.removeServerlessFeatures(instance); removeServerlessErr != nil {
 		return removeServerlessErr
 	}
 
-	return k.removeServiceMeshConfigurations(instance)
+	return k.removeServiceMeshConfigurations(cli, instance)
 }
