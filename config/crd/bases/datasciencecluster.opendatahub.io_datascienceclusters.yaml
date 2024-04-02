@@ -465,7 +465,7 @@ spec:
                         type: string
                     type: object
                   trainingoperator:
-                    description: TrainingOperator component configuration.
+                    description: Training Operator component configuration.
                     properties:
                       devFlags:
                         description: Add developer fields

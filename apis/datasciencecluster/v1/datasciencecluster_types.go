@@ -81,7 +81,7 @@ type Components struct {
 	// ModelRegistry component configuration.
 	ModelRegistry modelregistry.ModelRegistry `json:"modelregistry,omitempty"`
 
-	//TrainingOperator component configuration.
+	//Training Operator component configuration.
 	TrainingOperator trainingoperator.TrainingOperator `json:"trainingoperator,omitempty"`
 }
 

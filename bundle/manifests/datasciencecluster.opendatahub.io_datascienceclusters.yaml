@@ -464,7 +464,7 @@ spec:
                         type: string
                     type: object
                   trainingoperator:
-                    description: Training-operator component configuration.
+                    description: Training Operator component configuration.
                     properties:
                       devFlags:
                         description: Add developer fields
@@ -483,12 +483,12 @@ spec:
                                   description: 'sourcePath is the subpath within contextDir
                                     where kustomize builds start. Examples include
                                     any sub-folder or path: `base`, `overlays/dev`,
-                                    `default`, `odh` etc'
+                                    `default`, `odh` etc.'
                                   type: string
                                 uri:
                                   default: ""
                                   description: uri is the URI point to a git repo
-                                    with tag/branch. e.g  https://github.com/org/repo/tarball/<tag/branch>
+                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
                                   type: string
                               type: object
                             type: array

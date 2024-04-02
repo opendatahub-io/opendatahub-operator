@@ -52,14 +52,14 @@ metadata:
               "ray": {
                 "managementState": "Managed"
               },
+              "trainingoperator": {
+                "managementState": "Removed"
+              },
               "trustyai": {
                 "managementState": "Managed"
               },
               "workbenches": {
                 "managementState": "Managed"
-              },
-              trainingoperator: {
-                "managementState": "Removed"
               }
             }
           }
