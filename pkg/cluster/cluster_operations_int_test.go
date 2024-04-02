@@ -137,7 +137,7 @@ var _ = Describe("Creating cluster resources", func() {
 				"default",
 				map[string]string{
 					"test-key": "new-value",
-					"new-key": "sth-new",
+					"new-key":  "sth-new",
 				},
 			)
 			Expect(err).ToNot(HaveOccurred())
@@ -146,7 +146,7 @@ var _ = Describe("Creating cluster resources", func() {
 			// then
 			Expect(updatedConfigMap.Data).To(HaveKeyWithValue("test-key", "new-value"))
 			Expect(updatedConfigMap.Data).To(HaveKeyWithValue("new-key", "sth-new"))
-			
+
 		})
 	})
 

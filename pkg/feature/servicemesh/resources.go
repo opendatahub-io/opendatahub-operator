@@ -43,7 +43,7 @@ func AuthRefs(f *feature.Feature) error {
 		"AUTH_PROVIDER":   namespace + "-auth-provider",
 		"AUTHORINO_LABEL": "security.opendatahub.io/authorization-group=default",
 	}
-	
+
 	_, err := cluster.CreateOrUpdateConfigMap(
 		f.Client,
 		"auth-refs",

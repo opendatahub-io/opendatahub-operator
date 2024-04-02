@@ -92,12 +92,11 @@ func CreateOrUpdateConfigMap(c client.Client, name string, namespace string, dat
 		return nil, err
 	}
 
-
 	getErr := c.Get(context.TODO(), client.ObjectKey{
 		Name:      name,
 		Namespace: namespace,
 	}, configMap)
-	
+
 	if getErr != nil {
 		if apierrs.IsNotFound(getErr) {
 			if err := c.Create(context.TODO(), configMap); err != nil {
