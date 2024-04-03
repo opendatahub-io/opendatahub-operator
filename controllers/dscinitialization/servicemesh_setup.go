@@ -1,19 +1,28 @@
 package dscinitialization
 
 import (
+	"context"
+	"fmt"
 	"path"
 	"reflect"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	authentication "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 )
 
-// Default value of audiences for DSCI.SM.auth.
-var defaultAudiences = []string{"https://kubernetes.default.svc"}
+var (
+	// Default value of audiences for DSCI.SM.auth.
+	defaultAudiences = []string{"https://kubernetes.default.svc"}
+	smSetupLog       = ctrl.Log.WithName("setup")
+)
 
 func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsciv1.DSCInitialization) error {
 	switch instance.Spec.ServiceMesh.ManagementState {
@@ -33,7 +42,6 @@ func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsciv1.DSCI
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -92,7 +100,7 @@ func (r *DSCInitializationReconciler) configureServiceMeshFeatures() feature.Fea
 
 		cfgMapErr := feature.CreateFeature("mesh-shared-configmap").
 			For(handler).
-			WithResources(servicemesh.MeshRefs, servicemesh.AuthRefs(definedAudiencesOrDefault(handler.ServiceMesh.Auth.Audiences, r.Audiences))).
+			WithResources(servicemesh.MeshRefs, servicemesh.AuthRefs(definedAudiencesOrDefault(handler.ServiceMesh.Auth.Audiences))).
 			Load()
 		if cfgMapErr != nil {
 			return cfgMapErr
@@ -140,9 +148,41 @@ func isDefaultAudiences(specAudiences *[]string) bool {
 }
 
 // definedAudiencesOrDefault returns the default audiences if the provided audiences are default, otherwise it returns the provided audiences.
-func definedAudiencesOrDefault(handlerAudiences *[]string, defaultAudiences []string) []string {
-	if isDefaultAudiences(handlerAudiences) {
+func definedAudiencesOrDefault(specAudiences *[]string) []string {
+	if isDefaultAudiences(specAudiences) {
+		return fetchClusterAudiences()
+	}
+	return *specAudiences
+}
+
+func fetchClusterAudiences() []string {
+	restCfg, err := config.GetConfig()
+	if err != nil {
+		smSetupLog.Error(err, "Error getting config, using default audiences")
 		return defaultAudiences
 	}
-	return *handlerAudiences
+
+	tokenReview := &authentication.TokenReview{
+		Spec: authentication.TokenReviewSpec{
+			Token: restCfg.BearerToken,
+		},
+	}
+
+	tokenReviewClient, err := client.New(restCfg, client.Options{})
+	if err != nil {
+		smSetupLog.Error(err, "Error creating client, using default audiences")
+		return defaultAudiences
+	}
+
+	if err = tokenReviewClient.Create(context.Background(), tokenReview, &client.CreateOptions{}); err != nil {
+		smSetupLog.Error(err, "Error creating TokenReview, using default audiences")
+		return defaultAudiences
+	}
+
+	if tokenReview.Status.Error != "" || !tokenReview.Status.Authenticated {
+		smSetupLog.Error(fmt.Errorf(tokenReview.Status.Error), "Error with token review authentication status, using default audiences")
+		return defaultAudiences
+	}
+
+	return tokenReview.Status.Audiences
 }

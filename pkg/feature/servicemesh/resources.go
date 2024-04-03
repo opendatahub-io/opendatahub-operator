@@ -1,6 +1,7 @@
 package servicemesh
 
 import (
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"strings"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -42,7 +43,7 @@ func AuthRefs(audiences []string) feature.Action {
 		data := map[string]string{
 			"AUTH_AUDIENCE":   audiencesList,
 			"AUTH_PROVIDER":   namespace + "-auth-provider",
-			"AUTHORINO_LABEL": "security.opendatahub.io/authorization-group=default",
+			"AUTHORINO_LABEL": labels.ODH.AuthorizationGroup("default"),
 		}
 
 		_, err := cluster.CreateOrUpdateConfigMap(

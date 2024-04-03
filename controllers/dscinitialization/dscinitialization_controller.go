@@ -67,7 +67,6 @@ type DSCInitializationReconciler struct { //nolint:golint,revive // Readability
 	Log                   logr.Logger
 	Recorder              record.EventRecorder
 	ApplicationsNamespace string
-	Audiences             []string
 }
 
 // +kubebuilder:rbac:groups="dscinitialization.opendatahub.io",resources=dscinitializations/status,verbs=get;update;patch;delete

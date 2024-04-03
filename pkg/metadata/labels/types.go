@@ -1,6 +1,7 @@
 package labels
 
 const ODHAppPrefix = "app.opendatahub.io"
+const ODHSecurityPrefix = "security.opendatahub.io"
 
 // K8SCommon keeps common kubernetes labels [1]
 // used across the project.
@@ -13,11 +14,13 @@ var K8SCommon = struct {
 
 // ODH holds Open Data Hub specific labels grouped by types.
 var ODH = struct {
-	OwnedNamespace string
-	Component      func(string) string
+	OwnedNamespace     string
+	Component          func(string) string
+	AuthorizationGroup func(string) string
 }{
 	OwnedNamespace: "opendatahub.io/generated-namespace",
 	Component: func(name string) string {
 		return ODHAppPrefix + "/" + name
 	},
+	AuthorizationGroup: func(group string) string { return ODHSecurityPrefix + "/authorization-group=" + group },
 }

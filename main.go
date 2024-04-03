@@ -33,7 +33,6 @@ import (
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	admv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
-	authentication "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	authv1 "k8s.io/api/rbac/v1"
@@ -145,28 +144,12 @@ func main() { //nolint:funlen
 
 	(&webhook.OpenDataHubWebhook{}).SetupWithManager(mgr)
 
-	tokenReview := &authentication.TokenReview{
-		Spec: authentication.TokenReviewSpec{
-			Token: mgr.GetConfig().BearerToken,
-		},
-	}
-
-	var audiences []string
-	if err = mgr.GetClient().Create(context.Background(), tokenReview, &client.CreateOptions{}); err != nil {
-		setupLog.Error(err, "error creating TokenReview, unable to obtain the cluster config")
-	} else if tokenReview.Status.Error != "" || !tokenReview.Status.Authenticated {
-		setupLog.Error(err, "error with token review authentication status")
-	} else {
-		audiences = tokenReview.Status.Audiences
-	}
-
 	if err = (&dscicontr.DSCInitializationReconciler{
 		Client:                mgr.GetClient(),
 		Scheme:                mgr.GetScheme(),
 		Log:                   ctrl.Log.WithName(operatorName).WithName("controllers").WithName("DSCInitialization"),
 		Recorder:              mgr.GetEventRecorderFor("dscinitialization-controller"),
 		ApplicationsNamespace: dscApplicationsNamespace,
-		Audiences:             audiences,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DSCInitiatlization")
 		os.Exit(1)
