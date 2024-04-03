@@ -143,18 +143,18 @@ func main() { //nolint:funlen
 
 	(&webhook.OpenDataHubWebhook{}).SetupWithManager(mgr)
 
-	mgrRestConfig := mgr.GetConfig()
-	authClient := mgr.GetClient()
 	tokenReview := &authentication.TokenReview{
 		Spec: authentication.TokenReviewSpec{
-			Token: mgrRestConfig.BearerToken,
+			Token: mgr.GetConfig().BearerToken,
 		},
 	}
 
-	if err = authClient.Create(context.Background(), tokenReview, &client.CreateOptions{}); err != nil {
-		setupLog.Error(err, "error creating TokenReview")
+	var audiences []string
+	if err = mgr.GetClient().Create(context.Background(), tokenReview, &client.CreateOptions{}); err != nil {
+		setupLog.Error(err, "error creating TokenReview, unable to obtain the cluster config")
+	} else {
+		audiences = tokenReview.Status.Audiences
 	}
-	audiences := tokenReview.Status.Audiences
 
 	if err = (&dscicontr.DSCInitializationReconciler{
 		Client:                mgr.GetClient(),
