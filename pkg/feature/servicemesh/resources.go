@@ -1,11 +1,11 @@
 package servicemesh
 
 import (
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"strings"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 // MeshRefs stores service mesh configuration in the config map, so it can
