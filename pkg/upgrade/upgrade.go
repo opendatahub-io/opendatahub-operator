@@ -38,6 +38,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kueue"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/trainingoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -90,6 +91,9 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 				},
 				Kueue: kueue.Kueue{
 					Component: components.Component{ManagementState: operatorv1.Managed},
+				},
+				TrainingOperator: trainingoperator.TrainingOperator{
+					Component: components.Component{ManagementState: operatorv1.Removed},
 				},
 			},
 		},

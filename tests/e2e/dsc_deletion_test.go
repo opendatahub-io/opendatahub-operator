@@ -119,6 +119,5 @@ func (tc *testContext) testDeletionExistDSCI() error {
 			return fmt.Errorf("error getting DSCI instance :%w", err)
 		}
 	}
-
-	return nil
+	return err
 }

@@ -47,7 +47,7 @@ To deploy ODH components seamlessly, ODH operator will watch two CRDs:
       spec:
         components:
           codeflare:
-            managementState: Removed
+            managementState: Managed
           dashboard:
             managementState: Managed
           datasciencepipelines:
@@ -55,9 +55,13 @@ To deploy ODH components seamlessly, ODH operator will watch two CRDs:
           kserve:
             managementState: Managed
           modelmeshserving:
-            managementState: Removed
+            managementState: Managed
           ray:
-            managementState: Removed
+            managementState: Managed
+          kueue:
+            managementState: Managed
+          trainingoperator:
+            managementState: Managed
           workbenches:
             managementState: Managed
     ```
