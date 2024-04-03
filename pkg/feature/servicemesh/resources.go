@@ -18,7 +18,7 @@ func MeshRefs(f *feature.Feature) error {
 		"MESH_NAMESPACE":     meshConfig.Namespace,
 	}
 
-	_, err := cluster.CreateConfigMap(
+	_, err := cluster.CreateOrUpdateConfigMap(
 		f.Client,
 		"service-mesh-refs",
 		namespace,
@@ -34,7 +34,6 @@ func MeshRefs(f *feature.Feature) error {
 func AuthRefs(f *feature.Feature) error {
 	audiences := f.Spec.Auth.Audiences
 	namespace := f.Spec.AppNamespace
-
 	audiencesList := ""
 	if audiences != nil && len(*audiences) > 0 {
 		audiencesList = strings.Join(*audiences, ",")
@@ -45,7 +44,7 @@ func AuthRefs(f *feature.Feature) error {
 		"AUTHORINO_LABEL": "security.opendatahub.io/authorization-group=default",
 	}
 
-	_, err := cluster.CreateConfigMap(
+	_, err := cluster.CreateOrUpdateConfigMap(
 		f.Client,
 		"auth-refs",
 		namespace,
