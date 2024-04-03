@@ -52,6 +52,9 @@ metadata:
               "ray": {
                 "managementState": "Managed"
               },
+              "trainingoperator": {
+                "managementState": "Removed"
+              },
               "trustyai": {
                 "managementState": "Managed"
               },

@@ -32,6 +32,8 @@ spec:
       managementState: "Managed"
     kueue:
       managementState: "Managed"
+    trainingoperator:
+      managementState: "Removed"
     ray:
       managementState: "Managed"
     workbenches:
