@@ -90,17 +90,9 @@ func (r *DSCInitializationReconciler) configureServiceMeshFeatures() feature.Fea
 			}
 		}
 
-		// AuthRefs takes in obtained audiences slice and this can be used to overwrite default if different.
-		var audiences []string
-		if isDefaultAudiences(handler.ServiceMesh.Auth.Audiences) {
-			audiences = r.Audiences
-		} else {
-			audiences = *handler.ServiceMesh.Auth.Audiences
-		}
-
 		cfgMapErr := feature.CreateFeature("mesh-shared-configmap").
 			For(handler).
-			WithResources(servicemesh.MeshRefs, servicemesh.AuthRefs(audiences)).
+			WithResources(servicemesh.MeshRefs, servicemesh.AuthRefs(definedAudiencesOrDefault(handler.ServiceMesh.Auth.Audiences, r.Audiences))).
 			Load()
 		if cfgMapErr != nil {
 			return cfgMapErr
@@ -144,5 +136,13 @@ func (r *DSCInitializationReconciler) configureServiceMeshFeatures() feature.Fea
 }
 
 func isDefaultAudiences(specAudiences *[]string) bool {
-	return specAudiences == nil || reflect.DeepEqual(*specAudiences, defaultAudiences) 
+	return specAudiences == nil || reflect.DeepEqual(*specAudiences, defaultAudiences)
+}
+
+// definedAudiencesOrDefault returns the default audiences if the provided audiences are default, otherwise it returns the provided audiences.
+func definedAudiencesOrDefault(handlerAudiences *[]string, defaultAudiences []string) []string {
+	if isDefaultAudiences(handlerAudiences) {
+		return defaultAudiences
+	}
+	return *handlerAudiences
 }

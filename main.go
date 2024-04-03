@@ -152,6 +152,8 @@ func main() { //nolint:funlen
 	var audiences []string
 	if err = mgr.GetClient().Create(context.Background(), tokenReview, &client.CreateOptions{}); err != nil {
 		setupLog.Error(err, "error creating TokenReview, unable to obtain the cluster config")
+	} else if tokenReview.Status.Error != "" || !tokenReview.Status.Authenticated {
+		setupLog.Error(err, "error with token review authentication status")
 	} else {
 		audiences = tokenReview.Status.Audiences
 	}
