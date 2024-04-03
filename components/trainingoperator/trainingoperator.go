@@ -1,7 +1,6 @@
-// Package ray provides utility functions to config Ray as part of the stack
+// Package trainingoperator provides utility functions to config trainingoperator as part of the stack
 // which makes managing distributed compute infrastructure in the cloud easy and intuitive for Data Scientists
-// +groupName=datasciencecluster.opendatahub.io
-package ray
+package trainingoperator
 
 import (
 	"context"
@@ -20,20 +19,20 @@ import (
 )
 
 var (
-	ComponentName = "ray"
-	RayPath       = deploy.DefaultManifestPath + "/" + ComponentName + "/openshift"
+	ComponentName        = "trainingoperator"
+	TrainingOperatorPath = deploy.DefaultManifestPath + "/" + ComponentName + "/rhoai"
 )
 
-// Verifies that Ray implements ComponentInterface.
-var _ components.ComponentInterface = (*Ray)(nil)
+// Verifies that TrainingOperator implements ComponentInterface.
+var _ components.ComponentInterface = (*TrainingOperator)(nil)
 
-// Ray struct holds the configuration for the Ray component.
+// TrainingOperator struct holds the configuration for the TrainingOperator component.
 // +kubebuilder:object:generate=true
-type Ray struct {
+type TrainingOperator struct {
 	components.Component `json:""`
 }
 
-func (r *Ray) OverrideManifests(_ string) error {
+func (r *TrainingOperator) OverrideManifests(_ string) error {
 	// If devflags are set, update default manifests path
 	if len(r.DevFlags.Manifests) != 0 {
 		manifestConfig := r.DevFlags.Manifests[0]
@@ -45,23 +44,23 @@ func (r *Ray) OverrideManifests(_ string) error {
 		if manifestConfig.SourcePath != "" {
 			defaultKustomizePath = manifestConfig.SourcePath
 		}
-		RayPath = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
+		TrainingOperatorPath = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
 	}
 
 	return nil
 }
 
-func (r *Ray) GetComponentName() string {
+func (r *TrainingOperator) GetComponentName() string {
 	return ComponentName
 }
 
-func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
+func (r *TrainingOperator) ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
 	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
 	l := r.ConfigComponentLogger(logger, ComponentName, dscispec)
 
 	var imageParamMap = map[string]string{
-		"odh-kuberay-operator-controller-image": "RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE",
-		"namespace":                             dscispec.ApplicationsNamespace,
+		"odh-training-operator-controller-image": "RELATED_IMAGE_ODH_TRAINING_OPERATOR_IMAGE",
+		"namespace":                              dscispec.ApplicationsNamespace,
 	}
 
 	enabled := r.GetManagementState() == operatorv1.Managed
@@ -79,25 +78,26 @@ func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, logger 
 			}
 		}
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (r.DevFlags == nil || len(r.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(RayPath, imageParamMap, true); err != nil {
-				return fmt.Errorf("failed to update image from %s : %w", RayPath, err)
+			if err := deploy.ApplyParams(TrainingOperatorPath, imageParamMap, true); err != nil {
+				return err
 			}
 		}
 	}
-	// Deploy Ray Operator
-	if err := deploy.DeployManifestsFromPath(cli, owner, RayPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
-		return fmt.Errorf("failed to apply manifets from %s : %w", RayPath, err)
+	// Deploy Training Operator
+	if err := deploy.DeployManifestsFromPath(cli, owner, TrainingOperatorPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+		return err
 	}
 	l.Info("apply manifests done")
 	// CloudService Monitoring handling
 	if platform == deploy.ManagedRhods {
 		if enabled {
-			// first check if the service is up, so prometheus won't fire alerts when it is just startup
+			// first check if the service is up, so prometheus wont fire alerts when it is just startup
 			if err := monitoring.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
 				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 			}
-			l.Info("deployment is done, updating monitoring rules")
+			fmt.Printf("deployment for %s is done, updating monitoring rules\n", ComponentName)
 		}
+		l.Info("deployment is done, updating monitoring rules")
 		if err := r.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
 		}

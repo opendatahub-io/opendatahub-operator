@@ -118,6 +118,8 @@ func (tc *testContext) testAllApplicationDeletion() error {
 	if err = tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.ModelRegistry)); err != nil {
 		return err
 	}
-
+	if err = tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.TrainingOperator)); err != nil {
+		return err
+	}
 	return err
 }
