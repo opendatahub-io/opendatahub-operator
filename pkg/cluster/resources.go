@@ -142,3 +142,14 @@ func CreateNamespace(cli client.Client, namespace string, metaOptions ...MetaOpt
 
 	return foundNamespace, nil
 }
+
+func DeleteNamespace(cli client.Client, namespace string) error {
+	// Delete namespace if exists
+	foundNamespace := &corev1.Namespace{}
+	if err := cli.Get(context.TODO(), client.ObjectKey{
+		Name: namespace,
+	}, foundNamespace); err != nil {
+		return client.IgnoreNotFound(err)
+	}
+	return cli.Delete(context.TODO(), foundNamespace)
+}

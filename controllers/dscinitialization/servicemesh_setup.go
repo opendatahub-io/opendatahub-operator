@@ -192,7 +192,10 @@ func (r *DSCInitializationReconciler) authorizationFeatures(instance *dsciv1.DSC
 					return f.ApplyManifest(path.Join(feature.AuthDir, "deployment.injection.patch.tmpl"))
 				},
 			).
-			OnDelete(servicemesh.RemoveExtensionProvider).
+			OnDelete(
+				servicemesh.RemoveExtensionProvider,
+				servicemesh.RemoveAuthProviderNamespace,
+			).
 			Load()
 		if extAuthzErr != nil {
 			return extAuthzErr

@@ -202,7 +202,10 @@ var _ = Describe("Service Mesh setup", func() {
 						return feature.CreateFeature("control-plane-with-external-authz-provider").
 							For(handler).
 							Manifests(path.Join(feature.AuthDir, "mesh-authz-ext-provider.patch.tmpl")).
-							OnDelete(servicemesh.RemoveExtensionProvider).
+							OnDelete(
+								servicemesh.RemoveExtensionProvider,
+								servicemesh.RemoveAuthProviderNamespace,
+							).
 							UsingConfig(envTest.Config).
 							Load()
 					})
