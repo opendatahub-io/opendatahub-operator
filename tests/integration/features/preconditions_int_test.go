@@ -44,7 +44,7 @@ var _ = Describe("feature preconditions", func() {
 			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
 				testFeatureErr := feature.CreateFeature("create-new-ns").
 					For(handler).
-					PreConditions(feature.CreateNamespaceIfNotExists(namespace)).
+					PreConditions(feature.CreateNamespaceNoOwnership(namespace)).
 					UsingConfig(envTest.Config).
 					Load()
 
@@ -81,7 +81,7 @@ var _ = Describe("feature preconditions", func() {
 			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
 				testFeatureErr := feature.CreateFeature("create-new-ns").
 					For(handler).
-					PreConditions(feature.CreateNamespaceIfNotExists(namespace)).
+					PreConditions(feature.CreateNamespaceNoOwnership(namespace)).
 					UsingConfig(envTest.Config).
 					Load()
 

@@ -29,7 +29,7 @@ var _ = Describe("Manifest sources", func() {
 		nsName := envtestutil.AppendRandomNameTo("smcp-ns")
 
 		var err error
-		namespace, err = cluster.CreateNamespace(envTestClient, nsName)
+		namespace, err = cluster.CreateNamespaceIfNotExists(envTestClient, nsName)
 		Expect(err).ToNot(HaveOccurred())
 
 		dsci = fixtures.NewDSCInitialization(nsName)
@@ -65,7 +65,7 @@ var _ = Describe("Manifest sources", func() {
 
 	It("should be able to process an embedded YAML file from the default location", func() {
 		// given
-		knativeNs, nsErr := cluster.CreateNamespace(envTestClient, "knative-serving")
+		knativeNs, nsErr := cluster.CreateNamespaceIfNotExists(envTestClient, "knative-serving")
 		Expect(nsErr).ToNot(HaveOccurred())
 		defer objectCleaner.DeleteAll(knativeNs)
 

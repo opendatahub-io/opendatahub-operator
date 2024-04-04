@@ -53,8 +53,3 @@ func RemoveExtensionProvider(f *feature.Feature) error {
 
 	return f.Client.Update(context.TODO(), smcp)
 }
-
-func RemoveAuthProviderNamespace(f *feature.Feature) error {
-	// No need to call ResolveAuthNamespace() here
-	return cluster.DeleteNamespace(f.Client, f.Spec.Auth.Namespace)
-}

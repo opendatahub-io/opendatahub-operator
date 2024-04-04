@@ -5,5 +5,9 @@ import (
 )
 
 func ServingCertificateResource(f *feature.Feature) error {
-	return f.CreateSelfSignedCertificate(f.Spec.KnativeCertificateSecret, f.Spec.Serving.IngressGateway.Certificate.Type, f.Spec.KnativeIngressDomain, f.Spec.ControlPlane.Namespace)
+	return f.CreateSelfSignedCertificate(f.Spec.KnativeCertificateSecret,
+		f.Spec.Serving.IngressGateway.Certificate.Type,
+		f.Spec.KnativeIngressDomain,
+		f.Spec.ControlPlane.Namespace,
+	)
 }
