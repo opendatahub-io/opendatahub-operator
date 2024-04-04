@@ -100,7 +100,7 @@ func (r *DSCInitializationReconciler) configureServiceMeshFeatures() feature.Fea
 
 		cfgMapErr := feature.CreateFeature("mesh-shared-configmap").
 			For(handler).
-			WithResources(servicemesh.MeshRefs, servicemesh.AuthRefs(definedAudiencesOrDefault(handler.ServiceMesh.Auth.Audiences))).
+			WithResources(servicemesh.MeshRefs, servicemesh.AuthRefs(DefinedAudiencesOrDefault(handler.ServiceMesh.Auth.Audiences))).
 			Load()
 		if cfgMapErr != nil {
 			return cfgMapErr
@@ -143,13 +143,13 @@ func (r *DSCInitializationReconciler) configureServiceMeshFeatures() feature.Fea
 	}
 }
 
-func isDefaultAudiences(specAudiences *[]string) bool {
+func IsDefaultAudiences(specAudiences *[]string) bool {
 	return specAudiences == nil || reflect.DeepEqual(*specAudiences, defaultAudiences)
 }
 
-// definedAudiencesOrDefault returns the default audiences if the provided audiences are default, otherwise it returns the provided audiences.
-func definedAudiencesOrDefault(specAudiences *[]string) []string {
-	if isDefaultAudiences(specAudiences) {
+// DefinedAudiencesOrDefault returns the default audiences if the provided audiences are default, otherwise it returns the provided audiences.
+func DefinedAudiencesOrDefault(specAudiences *[]string) []string {
+	if IsDefaultAudiences(specAudiences) {
 		return fetchClusterAudiences()
 	}
 	return *specAudiences
