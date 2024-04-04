@@ -20,15 +20,6 @@ const (
 	duration = 5 * time.Minute
 )
 
-func EnsureAuthNamespaceExists(f *feature.Feature) error {
-	if resolveNsErr := ResolveAuthNamespace(f); resolveNsErr != nil {
-		return resolveNsErr
-	}
-
-	_, err := cluster.CreateNamespace(f.Client, f.Spec.Auth.Namespace)
-	return err
-}
-
 func EnsureServiceMeshOperatorInstalled(f *feature.Feature) error {
 	if err := feature.EnsureOperatorIsInstalled("servicemeshoperator")(f); err != nil {
 		return fmt.Errorf("failed to find the pre-requisite Service Mesh Operator subscription, please ensure Service Mesh Operator is installed. %w", err)

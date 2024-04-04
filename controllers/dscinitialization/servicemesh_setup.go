@@ -94,8 +94,12 @@ func configureServiceMeshFeatures() feature.FeaturesProvider {
 			return cfgMapErr
 		}
 
+		authNs := servicemesh.CreateAuthNamespace(serviceMeshSpec.Auth.Namespace,
+			handler.DSCInitializationSpec.ApplicationsNamespace)
+
 		extAuthzErr := feature.CreateFeature("mesh-control-plane-external-authz").
 			For(handler).
+			TargetNamespace(authNs).
 			Manifests(
 				path.Join(feature.AuthDir, "auth-smm.tmpl"),
 				path.Join(feature.AuthDir, "base"),
@@ -105,7 +109,7 @@ func configureServiceMeshFeatures() feature.FeaturesProvider {
 			PreConditions(
 				feature.EnsureOperatorIsInstalled("authorino-operator"),
 				servicemesh.EnsureServiceMeshInstalled,
-				servicemesh.EnsureAuthNamespaceExists,
+				feature.CreateNamespaceIfNotExists(authNs),
 			).
 			PostConditions(
 				feature.WaitForPodsToBeReady(serviceMeshSpec.ControlPlane.Namespace),
