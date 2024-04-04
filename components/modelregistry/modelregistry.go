@@ -89,8 +89,9 @@ func (m *ModelRegistry) ReconcileComponent(_ context.Context, cli client.Client,
 		}
 
 		// Create odh-model-registries namespace
-		// We do not delete this namespace even when ModelRegistry is Removed or operaotr is uninstalled
+		// We do not delete this namespace even when ModelRegistry is Removed
 		// because this namespace will contain user created model registry instances.
+		// This namespace will be deleted only when operator is uninstalled.
 		_, err := cluster.CreateNamespace(cli, "odh-model-registries", modelRegistryLabels)
 		if err != nil {
 			return err
