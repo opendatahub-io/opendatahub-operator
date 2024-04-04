@@ -40,7 +40,7 @@ can be found [here](https://github.com/opendatahub-io/opendatahub-operator/tree/
       ConfigComponentLogger(logger logr.Logger, component string, dscispec *dsciv1.DSCInitializationSpec) logr.Logger
     }
     ```
-
+  
 ### Add reconcile and Events
 
 - Once you set up the new component module, add the component to [Reconcile](https://github.com/opendatahub-io/opendatahub-operator/blob/acaaf31f43e371456363f3fd272aec91ba413482/controllers/datasciencecluster/datasciencecluster_controller.go#L135) 
