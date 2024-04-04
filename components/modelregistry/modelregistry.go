@@ -20,8 +20,11 @@ import (
 )
 
 var (
-	ComponentName = "model-registry-operator"
-	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/odh"
+	ComponentName       = "model-registry-operator"
+	Path                = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/odh"
+	modelRegistryLabels = cluster.WithLabels(
+		labels.ODH.OwnedNamespace, "true",
+	)
 )
 
 // Verifies that ModelRegistry implements ComponentInterface.
@@ -86,7 +89,9 @@ func (m *ModelRegistry) ReconcileComponent(_ context.Context, cli client.Client,
 		}
 
 		// Create odh-model-registries namespace
-		_, err := cluster.CreateNamespace(cli, "odh-model-registries", cluster.WithLabels(labels.ODH.OwnedNamespace, "true"))
+		// We do not delete this namespace even when ModelRegistry is Removed or operaotr is uninstalled
+		// because this namespace will contain user created model registry instances.
+		_, err := cluster.CreateNamespace(cli, "odh-model-registries", modelRegistryLabels)
 		if err != nil {
 			return err
 		}
