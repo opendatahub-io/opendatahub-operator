@@ -1,8 +1,9 @@
 package dscinitialization_test
 
 import (
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
 	"testing"
+
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
