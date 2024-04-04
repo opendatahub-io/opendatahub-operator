@@ -37,7 +37,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/client-go/util/retry"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -150,7 +149,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		reason := status.ReconcileFailed
 		message := "Failed to get a valid DSCInitialization instance, please create a DSCI instance"
 		r.Log.Info(message)
-		instance, err = r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
+		instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
 			status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
 			saved.Status.Phase = status.PhaseError
 		})
@@ -198,7 +197,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	if instance.Status.Conditions == nil {
 		reason := status.ReconcileInit
 		message := "Initializing DataScienceCluster resource"
-		instance, err = r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
+		instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
 			status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
 			saved.Status.Phase = status.PhaseProgressing
 		})
@@ -221,7 +220,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	// Process errors for components
 	if componentErrors != nil {
 		r.Log.Info("DataScienceCluster Deployment Incomplete.")
-		instance, err = r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
+		instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
 			status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompletedWithComponentErrors,
 				fmt.Sprintf("DataScienceCluster resource reconciled with component errors: %v", componentErrors))
 			saved.Status.Phase = status.PhaseReady
@@ -238,7 +237,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	// finalize reconciliation
-	instance, err = r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
+	instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
 		status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, "DataScienceCluster resource reconciled successfully")
 		saved.Status.Phase = status.PhaseReady
 	})
@@ -262,7 +261,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 
 	enabled := component.GetManagementState() == v1.Managed
 	// First set conditions to reflect a component is about to be reconciled
-	instance, err := r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
+	instance, err := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
 		message := "Component is disabled"
 		if enabled {
 			message = "Component is enabled"
@@ -280,7 +279,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 	if err != nil {
 		// reconciliation failed: log errors, raise event and update status accordingly
 		instance = r.reportError(err, instance, "failed to reconcile "+componentName+" on DataScienceCluster")
-		instance, _ = r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
+		instance, _ = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
 			if enabled {
 				status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileFailed, fmt.Sprintf("Component reconciliation failed: %v", err), corev1.ConditionFalse)
 			} else {
@@ -291,7 +290,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 		return instance, err
 	}
 	// reconciliation succeeded: update status accordingly
-	instance, err = r.updateStatus(ctx, instance, func(saved *dsc.DataScienceCluster) {
+	instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
 		if saved.Status.InstalledComponents == nil {
 			saved.Status.InstalledComponents = make(map[string]bool)
 		}
@@ -411,28 +410,6 @@ func (r *DataScienceClusterReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		// this predicates prevents meaningless reconciliations from being triggered
 		WithEventFilter(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{})).
 		Complete(r)
-}
-
-func (r *DataScienceClusterReconciler) updateStatus(ctx context.Context, original *dsc.DataScienceCluster, update func(saved *dsc.DataScienceCluster),
-) (*dsc.DataScienceCluster, error) {
-	saved := &dsc.DataScienceCluster{}
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		err := r.Client.Get(ctx, client.ObjectKeyFromObject(original), saved)
-		if err != nil {
-			return err
-		}
-		// update status here
-		update(saved)
-
-		// Try to update
-		err = r.Client.Status().Update(context.TODO(), saved)
-
-		// Return err itself here (not wrapped inside another error)
-		// so that RetryOnConflict can identify it correctly.
-		return err
-	})
-
-	return saved, err
 }
 
 func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(a client.Object) []reconcile.Request {
