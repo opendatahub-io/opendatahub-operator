@@ -19,10 +19,23 @@ const (
 	duration = 5 * time.Minute
 )
 
-func EnsureOperatorIsInstalled(name string) Action {
+type MissingOperatorError struct {
+	OperatorName string
+}
+
+func (e *MissingOperatorError) Error() string {
+	return fmt.Sprintf("missing operator %q", e.OperatorName)
+}
+
+func EnsureOperatorIsInstalled(operatorName string) Action {
 	return func(f *Feature) error {
-		if found, err := deploy.ClusterSubscriptionExists(f.Client, name); !found || err != nil {
-			return fmt.Errorf("failed to find the pre-requisite operator subscription %q, please ensure operator is installed. %w", name, err)
+		if found, err := deploy.ClusterSubscriptionExists(f.Client, operatorName); !found || err != nil {
+			return fmt.Errorf(
+				"failed to find the pre-requisite operator subscription %q, please ensure operator is installed. %w %w",
+				operatorName,
+				&MissingOperatorError{OperatorName: operatorName},
+				err,
+			)
 		}
 		return nil
 	}

@@ -5,9 +5,11 @@ import (
 	"path"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
@@ -16,13 +18,27 @@ import (
 func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsciv1.DSCInitialization) error {
 	switch instance.Spec.ServiceMesh.ManagementState {
 	case operatorv1.Managed:
-		serviceMeshFeatures := feature.ClusterFeaturesHandler(instance, r.configureServiceMeshFeatures())
 
-		if err := serviceMeshFeatures.Apply(); err != nil {
-			r.Log.Error(err, "failed applying service mesh resources")
-			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed applying service mesh resources")
+		capabilities := []*feature.HandlerWithReporter[*dsciv1.DSCInitialization]{
+			r.serviceMeshCapability(instance, serviceMeshCondition(status.ConfiguredReason, "Service Mesh configured")),
+		}
+
+		authzCapability, err := r.authorizationCapability(instance, authorizationCondition(status.ConfiguredReason, "Service Mesh Authorization configured"))
+		if err != nil {
 			return err
 		}
+		capabilities = append(capabilities, authzCapability)
+
+		for _, capability := range capabilities {
+			capabilityErr := capability.Apply()
+			instance, _ = capability.ReportCondition(r.Client, instance, capabilityErr)
+			if capabilityErr != nil {
+				r.Log.Error(capabilityErr, "failed applying service mesh resources")
+				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed applying service mesh resources")
+				return capabilityErr
+			}
+		}
+
 	case operatorv1.Unmanaged:
 		r.Log.Info("ServiceMesh CR is not configured by the operator, we won't do anything")
 	case operatorv1.Removed:
@@ -38,23 +54,69 @@ func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsciv1.DSCI
 func (r *DSCInitializationReconciler) removeServiceMesh(instance *dsciv1.DSCInitialization) error {
 	// on condition of Managed, do not handle Removed when set to Removed it trigger DSCI reconcile to clean up
 	if instance.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
-		serviceMeshFeatures := feature.ClusterFeaturesHandler(instance, r.configureServiceMeshFeatures())
+		capabilities := []*feature.HandlerWithReporter[*dsciv1.DSCInitialization]{
+			r.serviceMeshCapability(instance, serviceMeshCondition(status.RemovedReason, "Service Mesh removed")),
+		}
 
-		if err := serviceMeshFeatures.Delete(); err != nil {
-			r.Log.Error(err, "failed deleting service mesh resources")
-			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed deleting service mesh resources")
-
+		authzCapability, err := r.authorizationCapability(instance, authorizationCondition(status.RemovedReason, "Service Mesh Authorization removed"))
+		if err != nil {
 			return err
+		}
+
+		capabilities = append(capabilities, authzCapability)
+
+		for _, capability := range capabilities {
+			capabilityErr := capability.Delete()
+			instance, _ = capability.ReportCondition(r.Client, instance, capabilityErr)
+			if capabilityErr != nil {
+				r.Log.Error(capabilityErr, "failed deleting service mesh resources")
+				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed deleting service mesh resources")
+
+				return capabilityErr
+			}
 		}
 	}
 
 	return nil
 }
 
-func (r *DSCInitializationReconciler) configureServiceMeshFeatures() feature.FeaturesProvider {
-	return func(handler *feature.FeaturesHandler) error {
-		serviceMeshSpec := handler.DSCInitializationSpec.ServiceMesh
+func (r *DSCInitializationReconciler) serviceMeshCapability(instance *dsciv1.DSCInitialization, initialCondition *conditionsv1.Condition) *feature.HandlerWithReporter[*dsciv1.DSCInitialization] { //nolint:lll // Reason: generics are long
+	return &feature.HandlerWithReporter[*dsciv1.DSCInitialization]{
+		FeaturesHandler: feature.ClusterFeaturesHandler(instance, r.serviceMeshCapabilityFeatures(instance)),
+		Reporter:        createCapabilityReporter(initialCondition),
+	}
+}
 
+func (r *DSCInitializationReconciler) authorizationCapability(instance *dsciv1.DSCInitialization, condition *conditionsv1.Condition) (*feature.HandlerWithReporter[*dsciv1.DSCInitialization], error) { //nolint:lll // Reason: generics are long
+	authorinoInstalled, err := deploy.ClusterSubscriptionExists(r.Client, "authorino-operator")
+	if err != nil {
+		return nil, fmt.Errorf("failed to list subscriptions %w", err)
+	}
+
+	if !authorinoInstalled {
+		authzMissingOperatorCondition := &conditionsv1.Condition{
+			Type:    status.CapabilityServiceMeshAuthorization,
+			Status:  corev1.ConditionFalse,
+			Reason:  status.MissingOperatorReason,
+			Message: "Authorino operator is not installed on the cluster, skipping authorization capability",
+		}
+
+		return &feature.HandlerWithReporter[*dsciv1.DSCInitialization]{
+			// Noop feature handler results in invoking reporter to set MissingOperator condition for authorino
+			FeaturesHandler: feature.EmptyFeaturesHandler,
+			Reporter:        createCapabilityReporter(authzMissingOperatorCondition),
+		}, nil
+	}
+
+	return &feature.HandlerWithReporter[*dsciv1.DSCInitialization]{
+		FeaturesHandler: feature.ClusterFeaturesHandler(instance, r.authorizationFeatures(instance)),
+		Reporter:        createCapabilityReporter(condition),
+	}, nil
+}
+
+func (r *DSCInitializationReconciler) serviceMeshCapabilityFeatures(instance *dsciv1.DSCInitialization) feature.FeaturesProvider {
+	return func(handler *feature.FeaturesHandler) (err error) { //nolint:lll,nonamedreturns // Reason: we use the named return to handle errors in a unified fashion through deferred function.
+		serviceMeshSpec := instance.Spec.ServiceMesh
 		smcpCreationErr := feature.CreateFeature("mesh-control-plane-creation").
 			For(handler).
 			Manifests(
@@ -96,46 +158,45 @@ func (r *DSCInitializationReconciler) configureServiceMeshFeatures() feature.Fea
 			return cfgMapErr
 		}
 
-		authorinoInstalled, err := deploy.ClusterSubscriptionExists(r.Client, "authorino-operator")
-		if err != nil {
-			return fmt.Errorf("failed to list subscriptions %w", err)
-		}
+		return nil
+	}
+}
 
-		if authorinoInstalled {
-			extAuthzErr := feature.CreateFeature("mesh-control-plane-external-authz").
-				For(handler).
-				Manifests(
-					path.Join(feature.AuthDir, "auth-smm.tmpl"),
-					path.Join(feature.AuthDir, "base"),
-					path.Join(feature.AuthDir, "mesh-authz-ext-provider.patch.tmpl"),
-				).
-				WithData(servicemesh.ClusterDetails).
-				PreConditions(
-					feature.EnsureOperatorIsInstalled("authorino-operator"),
-					servicemesh.EnsureServiceMeshInstalled,
-					servicemesh.EnsureAuthNamespaceExists,
-				).
-				PostConditions(
-					feature.WaitForPodsToBeReady(serviceMeshSpec.ControlPlane.Namespace),
-					func(f *feature.Feature) error {
-						return feature.WaitForPodsToBeReady(handler.DSCInitializationSpec.ServiceMesh.Auth.Namespace)(f)
-					},
-					func(f *feature.Feature) error {
-						// We do not have the control over deployment resource creation.
-						// It is created by Authorino operator using Authorino CR
-						//
-						// To make it part of Service Mesh we have to patch it with injection
-						// enabled instead, otherwise it will not have proxy pod injected.
-						return f.ApplyManifest(path.Join(feature.AuthDir, "deployment.injection.patch.tmpl"))
-					},
-				).
-				OnDelete(servicemesh.RemoveExtensionProvider).
-				Load()
-			if extAuthzErr != nil {
-				return extAuthzErr
-			}
-		} else {
-			r.Log.Info("Authorino operator is not installed on the cluster, skipping authorization capability")
+func (r *DSCInitializationReconciler) authorizationFeatures(instance *dsciv1.DSCInitialization) feature.FeaturesProvider {
+	return func(handler *feature.FeaturesHandler) error {
+		serviceMeshSpec := instance.Spec.ServiceMesh
+
+		extAuthzErr := feature.CreateFeature("mesh-control-plane-external-authz").
+			For(handler).
+			Manifests(
+				path.Join(feature.AuthDir, "auth-smm.tmpl"),
+				path.Join(feature.AuthDir, "base"),
+				path.Join(feature.AuthDir, "mesh-authz-ext-provider.patch.tmpl"),
+			).
+			WithData(servicemesh.ClusterDetails).
+			PreConditions(
+				feature.EnsureOperatorIsInstalled("authorino-operator"),
+				servicemesh.EnsureServiceMeshInstalled,
+				servicemesh.EnsureAuthNamespaceExists,
+			).
+			PostConditions(
+				feature.WaitForPodsToBeReady(serviceMeshSpec.ControlPlane.Namespace),
+				func(f *feature.Feature) error {
+					return feature.WaitForPodsToBeReady(handler.DSCInitializationSpec.ServiceMesh.Auth.Namespace)(f)
+				},
+				func(f *feature.Feature) error {
+					// We do not have the control over deployment resource creation.
+					// It is created by Authorino operator using Authorino CR
+					//
+					// To make it part of Service Mesh we have to patch it with injection
+					// enabled instead, otherwise it will not have proxy pod injected.
+					return f.ApplyManifest(path.Join(feature.AuthDir, "deployment.injection.patch.tmpl"))
+				},
+			).
+			OnDelete(servicemesh.RemoveExtensionProvider).
+			Load()
+		if extAuthzErr != nil {
+			return extAuthzErr
 		}
 
 		return nil
