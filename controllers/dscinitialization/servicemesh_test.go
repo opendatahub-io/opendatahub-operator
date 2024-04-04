@@ -1,8 +1,6 @@
 package dscinitialization_test
 
 import (
-	"testing"
-
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -10,11 +8,6 @@ import (
 )
 
 var defaultAudiences = []string{"https://kubernetes.default.svc"}
-
-func TestAudience(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Audience Suite")
-}
 
 var _ = Describe("Audience", func() {
 	Describe("IsDefaultAudiences", func() {
