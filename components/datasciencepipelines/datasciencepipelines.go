@@ -10,12 +10,15 @@ import (
 
 	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/monitoring"
 )
 
@@ -104,6 +107,10 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 				return fmt.Errorf("failed to update image from %s : %w", Path, err)
 			}
 		}
+		// Check for existing Argo Workflows
+		if err := unmanagedArgoWorkFlowExists(ctx, cli); err != nil {
+			return err
+		}
 	}
 
 	// new overlay
@@ -140,4 +147,21 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 	}
 
 	return nil
+}
+
+func unmanagedArgoWorkFlowExists(ctx context.Context,
+	cli client.Client) error {
+	workflowCRD := &apiextensionsv1.CustomResourceDefinition{}
+	if err := cli.Get(ctx, client.ObjectKey{Name: "workflows.argoproj.io"}, workflowCRD); err != nil {
+		if apierrs.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to get Workflow CRD : %w", err)
+	}
+	// Verify if existing workflow is deployed by ODH
+	_, odhLabelExists := workflowCRD.Labels[labels.ODH.Component(ComponentName)]
+	if odhLabelExists {
+		return nil
+	}
+	return fmt.Errorf("failed to deploy DSP. Argo Workflow CRD already exists but not deployed by this operator . Remove CRD to upgrade")
 }
