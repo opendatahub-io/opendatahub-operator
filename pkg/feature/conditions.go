@@ -21,6 +21,11 @@ const (
 
 type MissingOperatorError struct {
 	OperatorName string
+	Err          error
+}
+
+func (e *MissingOperatorError) Unwrap() error {
+	return e.Err
 }
 
 func (e *MissingOperatorError) Error() string {
@@ -31,10 +36,9 @@ func EnsureOperatorIsInstalled(operatorName string) Action {
 	return func(f *Feature) error {
 		if found, err := deploy.ClusterSubscriptionExists(f.Client, operatorName); !found || err != nil {
 			return fmt.Errorf(
-				"failed to find the pre-requisite operator subscription %q, please ensure operator is installed. %w %w",
+				"failed to find the pre-requisite operator subscription %q, please ensure operator is installed. %w",
 				operatorName,
-				&MissingOperatorError{OperatorName: operatorName},
-				err,
+				&MissingOperatorError{OperatorName: operatorName, Err: err},
 			)
 		}
 		return nil
