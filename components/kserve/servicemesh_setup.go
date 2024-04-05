@@ -44,18 +44,6 @@ func (k *Kserve) defineServiceMeshFeatures() feature.FeaturesProvider {
 			return kserveExtAuthzErr
 		}
 
-		temporaryFixesErr := feature.CreateFeature("kserve-temporary-fixes").
-			For(handler).
-			Manifests(
-				path.Join(feature.KServeDir, "grpc-envoyfilter-temp-fix.tmpl"),
-			).
-			WithData(servicemesh.ClusterDetails).
-			Load()
-
-		if temporaryFixesErr != nil {
-			return temporaryFixesErr
-		}
-
 		return nil
 	}
 }
