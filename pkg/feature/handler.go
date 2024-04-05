@@ -1,3 +1,4 @@
+//nolint:structcheck // Reason: false positive, complains about unused fields in HandlerWithReporter
 package feature
 
 import (
@@ -10,6 +11,13 @@ import (
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 )
+
+type featureHandler interface {
+	Apply() error
+	Delete() error
+}
+
+var _ featureHandler = (*FeaturesHandler)(nil)
 
 // FeaturesHandler coordinates feature creations and removal from within controllers.
 type FeaturesHandler struct {
@@ -25,15 +33,32 @@ var EmptyFeaturesHandler = &FeaturesHandler{
 	featuresProviders: []FeaturesProvider{},
 }
 
+var _ featureHandler = (*HandlerWithReporter[client.Object])(nil)
+
 // HandlerWithReporter is a wrapper around FeaturesHandler and status.Reporter
 // It is intended apply features related to a given resource capabilities and report its status using custom reporter.
 type HandlerWithReporter[T client.Object] struct {
-	*FeaturesHandler
-	*status.Reporter[T]
+	handler  *FeaturesHandler
+	reporter *status.Reporter[T]
 }
 
-func (h HandlerWithReporter[T]) ReportCondition(c client.Client, instance T, err error) (T, error) { //nolint:ireturn // Reason: to statisfy client.Object interface
-	return h.Reporter.ReportCondition(c, instance, err)
+func NewHandlerWithReporter[T client.Object](handler *FeaturesHandler, reporter *status.Reporter[T]) *HandlerWithReporter[T] {
+	return &HandlerWithReporter[T]{
+		handler:  handler,
+		reporter: reporter,
+	}
+}
+
+func (h HandlerWithReporter[T]) Apply() error {
+	applyErr := h.handler.Apply()
+	_, reportErr := h.reporter.ReportCondition(applyErr)
+	return multierror.Append(applyErr, reportErr).ErrorOrNil()
+}
+
+func (h HandlerWithReporter[T]) Delete() error {
+	deleteErr := h.handler.Delete()
+	_, reportErr := h.reporter.ReportCondition(deleteErr)
+	return multierror.Append(deleteErr, reportErr).ErrorOrNil()
 }
 
 // FeaturesProvider is a function which allow to define list of features

@@ -31,7 +31,6 @@ func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsciv1.DSCI
 
 		for _, capability := range capabilities {
 			capabilityErr := capability.Apply()
-			instance, _ = capability.ReportCondition(r.Client, instance, capabilityErr)
 			if capabilityErr != nil {
 				r.Log.Error(capabilityErr, "failed applying service mesh resources")
 				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed applying service mesh resources")
@@ -67,7 +66,6 @@ func (r *DSCInitializationReconciler) removeServiceMesh(instance *dsciv1.DSCInit
 
 		for _, capability := range capabilities {
 			capabilityErr := capability.Delete()
-			instance, _ = capability.ReportCondition(r.Client, instance, capabilityErr)
 			if capabilityErr != nil {
 				r.Log.Error(capabilityErr, "failed deleting service mesh resources")
 				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed deleting service mesh resources")
@@ -81,10 +79,10 @@ func (r *DSCInitializationReconciler) removeServiceMesh(instance *dsciv1.DSCInit
 }
 
 func (r *DSCInitializationReconciler) serviceMeshCapability(instance *dsciv1.DSCInitialization, initialCondition *conditionsv1.Condition) *feature.HandlerWithReporter[*dsciv1.DSCInitialization] { //nolint:lll // Reason: generics are long
-	return &feature.HandlerWithReporter[*dsciv1.DSCInitialization]{
-		FeaturesHandler: feature.ClusterFeaturesHandler(instance, r.serviceMeshCapabilityFeatures(instance)),
-		Reporter:        createCapabilityReporter(initialCondition),
-	}
+	return feature.NewHandlerWithReporter(
+		feature.ClusterFeaturesHandler(instance, r.serviceMeshCapabilityFeatures(instance)),
+		createCapabilityReporter(r.Client, instance, initialCondition),
+	)
 }
 
 func (r *DSCInitializationReconciler) authorizationCapability(instance *dsciv1.DSCInitialization, condition *conditionsv1.Condition) (*feature.HandlerWithReporter[*dsciv1.DSCInitialization], error) { //nolint:lll // Reason: generics are long
@@ -101,17 +99,17 @@ func (r *DSCInitializationReconciler) authorizationCapability(instance *dsciv1.D
 			Message: "Authorino operator is not installed on the cluster, skipping authorization capability",
 		}
 
-		return &feature.HandlerWithReporter[*dsciv1.DSCInitialization]{
+		return feature.NewHandlerWithReporter(
 			// Noop feature handler results in invoking reporter to set MissingOperator condition for authorino
-			FeaturesHandler: feature.EmptyFeaturesHandler,
-			Reporter:        createCapabilityReporter(authzMissingOperatorCondition),
-		}, nil
+			feature.EmptyFeaturesHandler,
+			createCapabilityReporter(r.Client, instance, authzMissingOperatorCondition),
+		), nil
 	}
 
-	return &feature.HandlerWithReporter[*dsciv1.DSCInitialization]{
-		FeaturesHandler: feature.ClusterFeaturesHandler(instance, r.authorizationFeatures(instance)),
-		Reporter:        createCapabilityReporter(condition),
-	}, nil
+	return feature.NewHandlerWithReporter(
+		feature.ClusterFeaturesHandler(instance, r.authorizationFeatures(instance)),
+		createCapabilityReporter(r.Client, instance, condition),
+	), nil
 }
 
 func (r *DSCInitializationReconciler) serviceMeshCapabilityFeatures(instance *dsciv1.DSCInitialization) feature.FeaturesProvider {

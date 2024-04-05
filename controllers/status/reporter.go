@@ -12,6 +12,8 @@ import (
 // Reporter defines how the condition should be updated.
 // Its centerpiece is an calculateCondition closure which contains the logic of how the given condition should be calculated.
 type Reporter[T client.Object] struct {
+	object             T
+	client             client.Client
 	calculateCondition CalculateCondition[T]
 }
 
@@ -21,15 +23,17 @@ type Reporter[T client.Object] struct {
 type CalculateCondition[T client.Object] func(err error) SaveStatusFunc[T]
 
 // NewStatusReporter creates r new Reporter with all required fields.
-func NewStatusReporter[T client.Object](update CalculateCondition[T]) *Reporter[T] {
+func NewStatusReporter[T client.Object](cli client.Client, object T, calculate CalculateCondition[T]) *Reporter[T] {
 	return &Reporter[T]{
-		calculateCondition: update,
+		object:             object,
+		client:             cli,
+		calculateCondition: calculate,
 	}
 }
 
 // ReportCondition updates the status of the object using the calculateCondition function.
-func (r *Reporter[T]) ReportCondition(c client.Client, instance T, optionalErr error) (T, error) {
-	return UpdateWithRetry[T](context.Background(), c, instance, r.calculateCondition(optionalErr))
+func (r *Reporter[T]) ReportCondition(optionalErr error) (T, error) {
+	return UpdateWithRetry[T](context.Background(), r.client, r.object, r.calculateCondition(optionalErr))
 }
 
 // SaveStatusFunc is a closure function that allow to define custom logic of updating status of a concrete resource object.

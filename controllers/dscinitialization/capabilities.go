@@ -5,6 +5,7 @@ import (
 
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
@@ -29,8 +30,10 @@ func authorizationCondition(reason, message string) *conditionsv1.Condition {
 	}
 }
 
-func createCapabilityReporter(condition *conditionsv1.Condition) *status.Reporter[*dsciv1.DSCInitialization] {
+func createCapabilityReporter(cli client.Client, object *dsciv1.DSCInitialization, condition *conditionsv1.Condition) *status.Reporter[*dsciv1.DSCInitialization] {
 	return status.NewStatusReporter[*dsciv1.DSCInitialization](
+		cli,
+		object,
 		func(err error) status.SaveStatusFunc[*dsciv1.DSCInitialization] {
 			return func(saved *dsciv1.DSCInitialization) {
 				if err != nil {
