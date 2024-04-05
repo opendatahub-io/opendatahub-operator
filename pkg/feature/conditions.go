@@ -20,16 +20,23 @@ const (
 )
 
 type MissingOperatorError struct {
-	OperatorName string
-	Err          error
+	operatorName string
+	err          error
+}
+
+func NewMissingOperatorError(operatorName string, err error) *MissingOperatorError {
+	return &MissingOperatorError{
+		operatorName: operatorName,
+		err:          err,
+	}
 }
 
 func (e *MissingOperatorError) Unwrap() error {
-	return e.Err
+	return e.err
 }
 
 func (e *MissingOperatorError) Error() string {
-	return fmt.Sprintf("missing operator %q", e.OperatorName)
+	return fmt.Sprintf("missing operator %q", e.operatorName)
 }
 
 func EnsureOperatorIsInstalled(operatorName string) Action {
@@ -38,7 +45,7 @@ func EnsureOperatorIsInstalled(operatorName string) Action {
 			return fmt.Errorf(
 				"failed to find the pre-requisite operator subscription %q, please ensure operator is installed. %w",
 				operatorName,
-				&MissingOperatorError{OperatorName: operatorName, Err: err},
+				NewMissingOperatorError(operatorName, err),
 			)
 		}
 		return nil

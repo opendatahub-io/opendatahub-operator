@@ -100,7 +100,8 @@ func (r *DSCInitializationReconciler) authorizationCapability(instance *dsciv1.D
 		}
 
 		return feature.NewHandlerWithReporter(
-			// Noop feature handler results in invoking reporter to set MissingOperator condition for authorino
+			// EmptyFeaturesHandler acts as all the authorization features are disabled (calling Apply/Delete has no actual effect on the cluster)
+			// but it's going to be reported as CapabilityServiceMeshAuthorization/MissingOperator condition/reason
 			feature.EmptyFeaturesHandler,
 			createCapabilityReporter(r.Client, instance, authzMissingOperatorCondition),
 		), nil

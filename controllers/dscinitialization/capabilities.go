@@ -30,22 +30,23 @@ func authorizationCondition(reason, message string) *conditionsv1.Condition {
 	}
 }
 
-func createCapabilityReporter(cli client.Client, object *dsciv1.DSCInitialization, condition *conditionsv1.Condition) *status.Reporter[*dsciv1.DSCInitialization] {
+func createCapabilityReporter(cli client.Client, object *dsciv1.DSCInitialization, successfulCondition *conditionsv1.Condition) *status.Reporter[*dsciv1.DSCInitialization] {
 	return status.NewStatusReporter[*dsciv1.DSCInitialization](
 		cli,
 		object,
 		func(err error) status.SaveStatusFunc[*dsciv1.DSCInitialization] {
 			return func(saved *dsciv1.DSCInitialization) {
+				actualCondition := successfulCondition.DeepCopy()
 				if err != nil {
-					condition.Status = corev1.ConditionFalse
-					condition.Message = err.Error()
-					condition.Reason = status.CapabilityFailed
+					actualCondition.Status = corev1.ConditionFalse
+					actualCondition.Message = err.Error()
+					actualCondition.Reason = status.CapabilityFailed
 					var missingOperatorErr *feature.MissingOperatorError
 					if errors.As(err, &missingOperatorErr) {
-						condition.Reason = status.MissingOperatorReason
+						actualCondition.Reason = status.MissingOperatorReason
 					}
 				}
-				conditionsv1.SetStatusCondition(&saved.Status.Conditions, *condition)
+				conditionsv1.SetStatusCondition(&saved.Status.Conditions, *actualCondition)
 			}
 		},
 	)

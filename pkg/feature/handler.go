@@ -52,12 +52,16 @@ func NewHandlerWithReporter[T client.Object](handler *FeaturesHandler, reporter 
 func (h HandlerWithReporter[T]) Apply() error {
 	applyErr := h.handler.Apply()
 	_, reportErr := h.reporter.ReportCondition(applyErr)
+	// We could have failed during Apply phase as well as during reporting.
+	// We should return both errors to the caller.
 	return multierror.Append(applyErr, reportErr).ErrorOrNil()
 }
 
 func (h HandlerWithReporter[T]) Delete() error {
 	deleteErr := h.handler.Delete()
 	_, reportErr := h.reporter.ReportCondition(deleteErr)
+	// We could have failed during Delete phase as well as during reporting.
+	// We should return both errors to the caller.
 	return multierror.Append(deleteErr, reportErr).ErrorOrNil()
 }
 
