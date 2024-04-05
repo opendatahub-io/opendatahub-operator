@@ -123,7 +123,7 @@ func (r *DSCInitializationReconciler) serviceMeshCapabilityFeatures(instance *ds
 			).
 			PreConditions(
 				servicemesh.EnsureServiceMeshOperatorInstalled,
-				feature.CreateNamespaceNoOwnership(serviceMeshSpec.ControlPlane.Namespace),
+				feature.CreateNamespaceIfNotExists(serviceMeshSpec.ControlPlane.Namespace),
 			).
 			PostConditions(
 				feature.WaitForPodsToBeReady(serviceMeshSpec.ControlPlane.Namespace),
@@ -194,6 +194,7 @@ func (r *DSCInitializationReconciler) authorizationFeatures(instance *dsciv1.DSC
 			).
 			OnDelete(
 				servicemesh.RemoveExtensionProvider,
+				servicemesh.RemoveAuthProviderNamespace,
 			).
 			Load()
 		if extAuthzErr != nil {

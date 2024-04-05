@@ -41,7 +41,7 @@ var _ = Describe("feature cleanup", func() {
 					For(handler).
 					UsingConfig(envTest.Config).
 					PreConditions(
-						feature.CreateNamespaceNoOwnership(namespace),
+						feature.CreateNamespaceIfNotExists(namespace),
 					).
 					WithResources(fixtures.CreateSecret(secretName, namespace)).
 					Load()

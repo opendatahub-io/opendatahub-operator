@@ -11,6 +11,7 @@ import (
 // be easily accessed by other components which rely on this information.
 func MeshRefs(f *feature.Feature) error {
 	meshConfig := f.Spec.ControlPlane
+	namespace := f.Spec.AppNamespace
 
 	data := map[string]string{
 		"CONTROL_PLANE_NAME": meshConfig.Name,
@@ -20,7 +21,7 @@ func MeshRefs(f *feature.Feature) error {
 	_, err := cluster.CreateOrUpdateConfigMap(
 		f.Client,
 		"service-mesh-refs",
-		f.Spec.AppNamespace,
+		namespace,
 		data,
 		feature.OwnedBy(f),
 	)
@@ -32,20 +33,21 @@ func MeshRefs(f *feature.Feature) error {
 // be easily accessed by other components which rely on this information.
 func AuthRefs(f *feature.Feature) error {
 	audiences := f.Spec.Auth.Audiences
+	namespace := f.Spec.AppNamespace
 	audiencesList := ""
 	if audiences != nil && len(*audiences) > 0 {
 		audiencesList = strings.Join(*audiences, ",")
 	}
 	data := map[string]string{
 		"AUTH_AUDIENCE":   audiencesList,
-		"AUTH_PROVIDER":   f.Spec.AppNamespace + "-auth-provider",
+		"AUTH_PROVIDER":   namespace + "-auth-provider",
 		"AUTHORINO_LABEL": "security.opendatahub.io/authorization-group=default",
 	}
 
 	_, err := cluster.CreateOrUpdateConfigMap(
 		f.Client,
 		"auth-refs",
-		f.Spec.AppNamespace,
+		namespace,
 		data,
 		feature.OwnedBy(f),
 	)

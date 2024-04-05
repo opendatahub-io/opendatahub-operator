@@ -30,10 +30,6 @@ var (
 	kfnotebookControllerPath    = deploy.DefaultManifestPath + "/odh-notebook-controller/kf-notebook-controller/overlays/openshift"
 	notebookImagesPath          = deploy.DefaultManifestPath + "/notebooks/overlays/additional"
 	notebookImagesPathSupported = deploy.DefaultManifestPath + "/jupyterhub/notebook-images/overlays/additional"
-	RhoaiNamespace              = "rhods-notebooks"
-	RhoaiNamespaceLabels        = cluster.WithLabels(
-		labels.ODH.OwnedNamespace, "true",
-	)
 )
 
 // Verifies that Workbench implements ComponentInterface.
@@ -128,8 +124,7 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 			}
 		}
 		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
-			// we do not set ownership on this namespace as it should not be deleted upon deletion of the operator
-			_, err := cluster.CreateNamespaceIfNotExists(cli, RhoaiNamespace, RhoaiNamespaceLabels)
+			_, err := cluster.CreateNamespace(cli, "rhods-notebooks", cluster.WithLabels(labels.ODH.OwnedNamespace, "true"))
 			if err != nil {
 				return err
 			}

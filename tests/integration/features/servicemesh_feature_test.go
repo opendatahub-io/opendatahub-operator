@@ -5,7 +5,6 @@ import (
 	"path"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -205,6 +204,7 @@ var _ = Describe("Service Mesh setup", func() {
 							Manifests(path.Join(feature.AuthDir, "mesh-authz-ext-provider.patch.tmpl")).
 							OnDelete(
 								servicemesh.RemoveExtensionProvider,
+								servicemesh.RemoveAuthProviderNamespace,
 							).
 							UsingConfig(envTest.Config).
 							Load()
@@ -234,7 +234,7 @@ var _ = Describe("Service Mesh setup", func() {
 					})
 
 					// then
-					By("verifying that extension provider has been removed and namespace is gone too", func() {
+					By("verifying that extension provider has been removed", func() {
 						Expect(handler.Delete()).To(Succeed())
 						Eventually(func() []interface{} {
 
@@ -244,10 +244,6 @@ var _ = Describe("Service Mesh setup", func() {
 							extensionProviders, found, err := unstructured.NestedSlice(serviceMeshControlPlane.Object, "spec", "techPreview", "meshConfig", "extensionProviders")
 							Expect(err).ToNot(HaveOccurred())
 							Expect(found).To(BeTrue())
-
-							_, err = fixtures.GetNamespace(envTestClient, serviceMeshSpec.Auth.Namespace)
-							Expect(errors.IsNotFound(err)).To(BeTrue())
-
 							return extensionProviders
 
 						}).WithTimeout(fixtures.Timeout).WithPolling(fixtures.Interval).Should(BeEmpty())
