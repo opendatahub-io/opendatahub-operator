@@ -16,15 +16,15 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 var (
-	ComponentName       = "model-registry-operator"
-	Path                = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/odh"
-	modelRegistryLabels = cluster.WithLabels(
-		labels.ODH.OwnedNamespace, "true",
-	)
+	ComponentName = "model-registry-operator"
+	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/odh"
+	// we should not apply this label to the namespace, as it triggered namspace deletion during operator uninstall
+	// modelRegistryLabels = cluster.WithLabels(
+	// 	labels.ODH.OwnedNamespace, "true",
+	// ).
 )
 
 // Verifies that ModelRegistry implements ComponentInterface.
@@ -89,10 +89,8 @@ func (m *ModelRegistry) ReconcileComponent(_ context.Context, cli client.Client,
 		}
 
 		// Create odh-model-registries namespace
-		// We do not delete this namespace even when ModelRegistry is Removed
-		// because this namespace will contain user created model registry instances.
-		// This namespace will be deleted only when operator is uninstalled.
-		_, err := cluster.CreateNamespace(cli, "odh-model-registries", modelRegistryLabels)
+		// We do not delete this namespace even when ModelRegistry is Removed or when operator is uninstalled.
+		_, err := cluster.CreateNamespace(cli, "odh-model-registries")
 		if err != nil {
 			return err
 		}
