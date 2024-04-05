@@ -20,7 +20,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
 
 // +kubebuilder:rbac:groups="route.openshift.io",resources=routers/metrics,verbs=get
@@ -160,11 +159,12 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 
 	// r.Log.Info("Success: inject alertmanage-configs.yaml for dev mode")
 
-	operatorNs, err := upgrade.GetOperatorNamespace()
+	operatorNs, err := cluster.GetOperatorNamespace()
 	if err != nil {
 		r.Log.Error(err, "error getting operator namespace for smtp secret")
 		return err
 	}
+
 	// Get SMTP receiver email secret (assume operator namespace for managed service is not configurable)
 	smtpEmailSecret, err := r.waitForManagedSecret(ctx, "addon-managed-odh-parameters", operatorNs)
 	if err != nil {

@@ -3,7 +3,6 @@ package upgrade
 import (
 	"context"
 	"fmt"
-	"os"
 	"reflect"
 	"strings"
 	"time"
@@ -11,7 +10,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
-	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -39,125 +37,10 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
-const (
-	// DeleteConfigMapLabel is the label for configMap used to trigger operator uninstall
-	// TODO: Label should be updated if addon name changes.
-	DeleteConfigMapLabel = "api.openshift.com/addon-managed-odh-delete"
-)
-
-// OperatorUninstall deletes all the externally generated resources. This includes monitoring resources and applications
-// installed by KfDef.
-func OperatorUninstall(ctx context.Context, cli client.Client) error {
-	platform, err := deploy.GetPlatform(cli)
-	if err != nil {
-		return err
-	}
-
-	if err := RemoveKfDefInstances(ctx, cli); err != nil {
-		return err
-	}
-
-	if err := removeDSCInitialization(ctx, cli); err != nil {
-		return err
-	}
-
-	// Delete generated namespaces by the operator
-	generatedNamespaces := &corev1.NamespaceList{}
-	nsOptions := []client.ListOption{
-		client.MatchingLabels{cluster.ODHGeneratedNamespaceLabel: "true"},
-	}
-	if err := cli.List(ctx, generatedNamespaces, nsOptions...); err != nil {
-		return fmt.Errorf("error getting generated namespaces : %w", err)
-	}
-
-	// Return if any one of the namespaces is Terminating due to resources that are in process of deletion. (e.g. CRDs)
-	for _, namespace := range generatedNamespaces.Items {
-		if namespace.Status.Phase == corev1.NamespaceTerminating {
-			return fmt.Errorf("waiting for namespace %v to be deleted", namespace.Name)
-		}
-	}
-
-	for _, namespace := range generatedNamespaces.Items {
-		namespace := namespace
-		if namespace.Status.Phase == corev1.NamespaceActive {
-			if err := cli.Delete(ctx, &namespace); err != nil {
-				return fmt.Errorf("error deleting namespace %v: %w", namespace.Name, err)
-			}
-			fmt.Printf("Namespace %s deleted as a part of uninstallation.\n", namespace.Name)
-		}
-	}
-
-	// give enough time for namespace deletion before proceed
-	time.Sleep(10 * time.Second)
-
-	// We can only assume the subscription is using standard names
-	// if user install by creating different named subs, then we will not know the name
-	// we cannot remove CSV before remove subscription because that need SA account
-	operatorNs, err := GetOperatorNamespace()
-	if err != nil {
-		return err
-	}
-	fmt.Printf("Removing operator subscription which in turn will remove installplan\n")
-	subsName := "opendatahub-operator"
-	if platform == deploy.SelfManagedRhods {
-		subsName = "rhods-operator"
-	} else if platform == deploy.ManagedRhods {
-		subsName = "addon-managed-odh"
-	}
-	if err := deploy.DeleteExistingSubscription(cli, operatorNs, subsName); err != nil {
-		return err
-	}
-
-	fmt.Printf("Removing the operator CSV in turn remove operator deployment\n")
-	err = removeCSV(ctx, cli)
-
-	fmt.Printf("All resources deleted as part of uninstall.")
-	return err
-}
-
-func removeDSCInitialization(ctx context.Context, cli client.Client) error {
-	instanceList := &dsci.DSCInitializationList{}
-
-	if err := cli.List(ctx, instanceList); err != nil {
-		return err
-	}
-
-	var multiErr *multierror.Error
-	for _, dsciInstance := range instanceList.Items {
-		dsciInstance := dsciInstance
-		if err := cli.Delete(ctx, &dsciInstance); !apierrs.IsNotFound(err) {
-			multiErr = multierror.Append(multiErr, err)
-		}
-	}
-
-	return multiErr.ErrorOrNil()
-}
-
-// HasDeleteConfigMap returns true if delete configMap is added to the operator namespace by managed-tenants repo.
-// It returns false in all other cases.
-func HasDeleteConfigMap(ctx context.Context, c client.Client) bool {
-	// Get watchNamespace
-	operatorNamespace, err := GetOperatorNamespace()
-	if err != nil {
-		return false
-	}
-
-	// If delete configMap is added, uninstall the operator and the resources
-	deleteConfigMapList := &corev1.ConfigMapList{}
-	cmOptions := []client.ListOption{
-		client.InNamespace(operatorNamespace),
-		client.MatchingLabels{DeleteConfigMapLabel: "true"},
-	}
-
-	if err := c.List(ctx, deleteConfigMapList, cmOptions...); err != nil {
-		return false
-	}
-	return len(deleteConfigMapList.Items) != 0
-}
-
-// createDefaultDSC creates a default instance of DSC.
+// CreateDefaultDSC creates a default instance of DSC.
 // Note: When the platform is not Managed, and a DSC instance already exists, the function doesn't re-create/update the resource.
 func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 	// Set the default DSC name depending on the platform
@@ -289,7 +172,7 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 
 		// remove label created by previous v2 release which is problematic for Managed cluster
 		fmt.Println("removing labels on Operator Namespace")
-		operatorNamespace, err := GetOperatorNamespace()
+		operatorNamespace, err := cluster.GetOperatorNamespace()
 		if err != nil {
 			return err
 		}
@@ -307,7 +190,7 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 	if platform == deploy.SelfManagedRhods {
 		// remove label created by previous v2 release which is problematic for Managed cluster
 		fmt.Println("removing labels on Operator Namespace")
-		operatorNamespace, err := GetOperatorNamespace()
+		operatorNamespace, err := cluster.GetOperatorNamespace()
 		if err != nil {
 			return err
 		}
@@ -403,16 +286,6 @@ func CleanupExistingResource(ctx context.Context, cli client.Client, platform de
 	return multiErr.ErrorOrNil()
 }
 
-func GetOperatorNamespace() (string, error) {
-	data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
-	if err == nil {
-		if ns := strings.TrimSpace(string(data)); len(ns) > 0 {
-			return ns, nil
-		}
-	}
-	return "", err
-}
-
 func RemoveKfDefInstances(ctx context.Context, cli client.Client) error {
 	// Check if kfdef are deployed
 	kfdefCrd := &apiextv1.CustomResourceDefinition{}
@@ -446,52 +319,6 @@ func RemoveKfDefInstances(ctx context.Context, cli client.Client) error {
 		}
 	}
 	return nil
-}
-
-func removeCSV(ctx context.Context, c client.Client) error {
-	// Get watchNamespace
-	operatorNamespace, err := GetOperatorNamespace()
-	if err != nil {
-		return err
-	}
-
-	operatorCsv, err := getClusterServiceVersion(ctx, c, operatorNamespace)
-	if err != nil {
-		return err
-	}
-
-	if operatorCsv != nil {
-		fmt.Printf("Deleting CSV %s\n", operatorCsv.Name)
-		err = c.Delete(ctx, operatorCsv)
-		if err != nil {
-			if apierrs.IsNotFound(err) {
-				return nil
-			}
-
-			return fmt.Errorf("error deleting clusterserviceversion: %w", err)
-		}
-		fmt.Printf("Clusterserviceversion %s deleted as a part of uninstall.\n", operatorCsv.Name)
-		return nil
-	}
-	fmt.Printf("No clusterserviceversion for the operator found.\n")
-	return nil
-}
-
-// getClusterServiceVersion retries the clusterserviceversions available in the operator namespace.
-func getClusterServiceVersion(ctx context.Context, c client.Client, watchNameSpace string) (*ofapi.ClusterServiceVersion, error) {
-	clusterServiceVersionList := &ofapi.ClusterServiceVersionList{}
-	if err := c.List(ctx, clusterServiceVersionList, client.InNamespace(watchNameSpace)); err != nil {
-		return nil, fmt.Errorf("failed listign cluster service versions: %w", err)
-	}
-
-	for _, csv := range clusterServiceVersionList.Items {
-		for _, operatorCR := range csv.Spec.CustomResourceDefinitions.Owned {
-			if operatorCR.Kind == "DataScienceCluster" {
-				return &csv, nil
-			}
-		}
-	}
-	return nil, nil
 }
 
 func deleteDeprecatedResources(ctx context.Context, cli client.Client, namespace string, resourceList []string, resourceType client.ObjectList) error {
@@ -656,7 +483,7 @@ func deleteDeploymentsAndCheck(ctx context.Context, cli client.Client, namespace
 		v2 := false
 		selectorLabels := deployment.Spec.Selector.MatchLabels
 		for label := range selectorLabels {
-			if strings.Contains(label, "app.opendatahub.io/") {
+			if strings.Contains(label, labels.ODHAppPrefix) {
 				// this deployment has the new label, this is a v2 to v2 upgrade
 				// there is no need to recreate it, as labels are matching
 				v2 = true
@@ -708,7 +535,7 @@ func deleteStatefulsetsAndCheck(ctx context.Context, cli client.Client, namespac
 		statefulset := statefulset
 		selectorLabels := statefulset.Spec.Selector.MatchLabels
 		for label := range selectorLabels {
-			if strings.Contains(label, "app.opendatahub.io/") {
+			if strings.Contains(label, labels.ODHAppPrefix) {
 				v2 = true
 				continue
 			}
