@@ -53,7 +53,7 @@ func (k *Kserve) defineServiceMeshFeatures(cli client.Client) feature.FeaturesPr
 				return kserveExtAuthzErr
 			}
 		} else {
-			fmt.Printf("WARN: Authorino operator is not installed on the cluster, skipping authorization capability\n")
+			fmt.Println("WARN: Authorino operator is not installed on the cluster, skipping authorization capability")
 		}
 
 		temporaryFixesErr := feature.CreateFeature("kserve-temporary-fixes").
