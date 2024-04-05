@@ -194,7 +194,6 @@ func (r *DSCInitializationReconciler) authorizationFeatures(instance *dsciv1.DSC
 			).
 			OnDelete(
 				servicemesh.RemoveExtensionProvider,
-				servicemesh.RemoveAuthProviderNamespace,
 			).
 			Load()
 		if extAuthzErr != nil {

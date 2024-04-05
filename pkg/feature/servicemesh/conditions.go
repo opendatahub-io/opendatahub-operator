@@ -20,12 +20,13 @@ const (
 	duration = 5 * time.Minute
 )
 
+// Create namesapce for authorino and set ownership so we can delete it by operator.
 func EnsureAuthNamespaceExists(f *feature.Feature) error {
 	if resolveNsErr := ResolveAuthNamespace(f); resolveNsErr != nil {
 		return resolveNsErr
 	}
 
-	_, err := cluster.CreateNamespace(f.Client, f.Spec.Auth.Namespace)
+	_, err := cluster.CreateNamespace(f.Client, f.Spec.Auth.Namespace, feature.OwnedBy(f))
 	return err
 }
 
