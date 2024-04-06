@@ -20,7 +20,7 @@ const (
 	duration = 5 * time.Minute
 )
 
-// Create namesapce for authorino and set ownership so we can delete it by operator.
+// EnsureAuthNamespaceExists creates a namespace for the Authorization provider and set ownership so it will be garbage collected when the operator is uninstalled.
 func EnsureAuthNamespaceExists(f *feature.Feature) error {
 	if resolveNsErr := ResolveAuthNamespace(f); resolveNsErr != nil {
 		return resolveNsErr
