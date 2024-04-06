@@ -124,8 +124,8 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 			}
 		}
 		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
-			// we do not set ownership on this namespace
-			// but by this label, it gets deleted upon odh operator uninstallation
+			// Intentionally leaving the ownership unset for this namespace.
+			// Specifying this label triggers its deletion when the operator is uninstalled.
 			_, err := cluster.CreateNamespace(cli, "rhods-notebooks", cluster.WithLabels(labels.ODH.OwnedNamespace, "true"))
 			if err != nil {
 				return err
