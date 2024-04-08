@@ -66,6 +66,18 @@ const (
 )
 
 const (
+	CapabilityServiceMesh              conditionsv1.ConditionType = "CapabilityServiceMesh"
+	CapabilityServiceMeshAuthorization conditionsv1.ConditionType = "CapabilityServiceMeshAuthorization"
+)
+
+const (
+	MissingOperatorReason string = "MissingOperator"
+	ConfiguredReason      string = "Configured"
+	RemovedReason         string = "Removed"
+	CapabilityFailed      string = "CapabilityFailed"
+)
+
+const (
 	ReadySuffix = "Ready"
 )
 
