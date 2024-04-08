@@ -42,6 +42,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
@@ -265,6 +266,33 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 	return nil
 }
 
+func getDashboardWatsonResources(ns string) []ResourceSpec {
+	metadataName := []string{"metadata", "name"}
+	specAppName := []string{"spec", "appName"}
+	appName := []string{"watson-studio"}
+
+	return []ResourceSpec{
+		{
+			Gvk:       gvk.OdhQuickStart,
+			Namespace: ns,
+			Path:      specAppName,
+			Values:    appName,
+		},
+		{
+			Gvk:       gvk.OdhDocument,
+			Namespace: ns,
+			Path:      specAppName,
+			Values:    appName,
+		},
+		{
+			Gvk:       gvk.OdhApplication,
+			Namespace: ns,
+			Path:      metadataName,
+			Values:    appName,
+		},
+	}
+}
+
 // TODO: remove function once we have a generic solution across all components.
 func CleanupExistingResource(ctx context.Context, cli client.Client, platform deploy.Platform, dscApplicationsNamespace, dscMonitoringNamespace string) error {
 	var multiErr *multierror.Error
@@ -308,10 +336,15 @@ func CleanupExistingResource(ctx context.Context, cli client.Client, platform de
 		Kind:    "OdhApplication",
 	}
 	multiErr = multierror.Append(multiErr, removOdhApplicationsCR(ctx, cli, JupyterhubApp, "jupyterhub", dscApplicationsNamespace))
+
+	// to take a reference
+	toDelete := getDashboardWatsonResources(dscApplicationsNamespace)
+	multiErr = multierror.Append(multiErr, deleteResources(ctx, cli, &toDelete))
+
 	return multiErr.ErrorOrNil()
 }
 
-func deleteResources(ctx context.Context, c client.Client, resources *[]ResourceSpec) error { //nolint: deadcode, unused
+func deleteResources(ctx context.Context, c client.Client, resources *[]ResourceSpec) error {
 	var errors *multierror.Error
 
 	for _, res := range *resources {
@@ -322,7 +355,7 @@ func deleteResources(ctx context.Context, c client.Client, resources *[]Resource
 	return errors.ErrorOrNil()
 }
 
-func deleteOneResource(ctx context.Context, c client.Client, res ResourceSpec) error { //nolint: unused
+func deleteOneResource(ctx context.Context, c client.Client, res ResourceSpec) error {
 	list := &unstructured.UnstructuredList{}
 	list.SetGroupVersionKind(res.Gvk)
 
