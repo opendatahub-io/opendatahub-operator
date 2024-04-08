@@ -107,6 +107,7 @@ declare -A COMPONENT_MANIFESTS=(
   ["new-component"]="<repo-org>:<repo-name>:<branch-name>:<source-folder>:<target-folder>"
 )
 ```
+
 #### Customizing Manifests Source
 You have the flexibility to change the source of the manifests. Invoke the `get_all_manifests.sh` script with specific flags, as illustrated below:
 
@@ -220,6 +221,36 @@ Whenever a new api is added or a new field is added to the CRD, please make sure
   ```
 This will ensure that the doc for the apis are updated accordingly.
 
+### Enabled logging
+
+#### Controller level
+
+Logger on all controllers can only be changed from CSV with parameters: --log-mode devel
+valid value: "" (as default) || prod || production || devel || development
+
+This mainly impacts logging for pod startup, generating common resource, monitoring deployment.
+
+#### Component level
+
+Logger on components can be changed by DSCI devFlags during runtime.
+By default, if not set .spec.devFlags.logmode, it uses INFO level
+Modification applies to all components, not only these "Managed" ones
+Update DSCI CR with .spec.devFlags.logmode, see example :
+
+```console
+apiVersion: dscinitialization.opendatahub.io/v1
+kind: DSCInitialization
+metadata:
+  name: default-dsci
+spec:
+  devFlags:
+    logmode: development
+  ...
+```
+
+Avaiable value for logmode is "devel", "development", "prod", "production".
+The first two work the same set to DEBUG level; the later two work the same, using ERROR level.
+
 ### Example DSCInitialization
 
 Below is the default DSCI CR config
@@ -283,6 +314,8 @@ spec:
     modelregistry:
       managementState: Managed
     ray:
+      managementState: Managed
+    trainingoperator:
       managementState: Managed
     trustyai:
       managementState: Managed

@@ -32,7 +32,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -124,7 +123,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	if instance.Status.Conditions == nil {
 		reason := status.ReconcileInit
 		message := "Initializing DSCInitialization resource"
-		instance, err = r.updateStatus(ctx, instance, func(saved *dsciv1.DSCInitialization) {
+		instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
 			status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
 			saved.Status.Phase = status.PhaseProgressing
 		})
@@ -204,7 +203,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		if instance.Status.Conditions == nil {
 			reason := status.ReconcileInit
 			message := "Initializing DSCInitialization resource"
-			instance, err = r.updateStatus(ctx, instance, func(saved *dsciv1.DSCInitialization) {
+			instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
 				status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
 				saved.Status.Phase = status.PhaseProgressing
 			})
@@ -266,7 +265,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 
 		// Finish reconciling
-		_, err = r.updateStatus(ctx, instance, func(saved *dsciv1.DSCInitialization) {
+		_, err = status.UpdateWithRetry[*dsciv1.DSCInitialization](ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
 			status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, status.ReconcileCompletedMessage)
 			saved.Status.Phase = status.PhaseReady
 		})
@@ -302,24 +301,6 @@ func (r *DSCInitializationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&source.Kind{Type: &corev1.Secret{}}, handler.EnqueueRequestsFromMapFunc(r.watchMonitoringSecretResource), builder.WithPredicates(SecretContentChangedPredicate)).
 		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchMonitoringConfigMapResource), builder.WithPredicates(CMContentChangedPredicate)).
 		Complete(r)
-}
-
-func (r *DSCInitializationReconciler) updateStatus(ctx context.Context, original *dsciv1.DSCInitialization, update func(saved *dsciv1.DSCInitialization),
-) (*dsciv1.DSCInitialization, error) {
-	saved := &dsciv1.DSCInitialization{}
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		if err := r.Client.Get(ctx, client.ObjectKeyFromObject(original), saved); err != nil {
-			return err
-		}
-
-		update(saved)
-
-		// Return err itself here (not wrapped inside another error)
-		// so that RetryOnConflict can identify it correctly.
-		return r.Client.Status().Update(ctx, saved)
-	})
-
-	return saved, err
 }
 
 var SecretContentChangedPredicate = predicate.Funcs{

@@ -45,7 +45,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
@@ -57,6 +56,7 @@ import (
 	dscicontr "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/webhook"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
@@ -99,6 +99,9 @@ func main() { //nolint:funlen
 	var probeAddr string
 	var dscApplicationsNamespace string
 	var dscMonitoringNamespace string
+	var operatorName string
+	var logmode string
+
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
@@ -108,13 +111,12 @@ func main() { //nolint:funlen
 		"applications will be deployed")
 	flag.StringVar(&dscMonitoringNamespace, "dsc-monitoring-namespace", "opendatahub", "The namespace where data science cluster"+
 		"monitoring stack will be deployed")
-	opts := zap.Options{
-		Development: true,
-	}
-	opts.BindFlags(flag.CommandLine)
+	flag.StringVar(&operatorName, "operator-name", "opendatahub", "The name of the operator")
+	flag.StringVar(&logmode, "log-mode", "", "Log mode ('', prod, devel), default to ''")
+
 	flag.Parse()
 
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+	ctrl.SetLogger(common.ConfigLoggers(logmode))
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
@@ -145,7 +147,7 @@ func main() { //nolint:funlen
 	if err = (&dscicontr.DSCInitializationReconciler{
 		Client:                mgr.GetClient(),
 		Scheme:                mgr.GetScheme(),
-		Log:                   ctrl.Log.WithName("controllers").WithName("DSCInitialization"),
+		Log:                   ctrl.Log.WithName(operatorName).WithName("controllers").WithName("DSCInitialization"),
 		Recorder:              mgr.GetEventRecorderFor("dscinitialization-controller"),
 		ApplicationsNamespace: dscApplicationsNamespace,
 	}).SetupWithManager(mgr); err != nil {
@@ -156,7 +158,7 @@ func main() { //nolint:funlen
 	if err = (&datascienceclustercontrollers.DataScienceClusterReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
-		Log:    ctrl.Log.WithName("controllers").WithName("DataScienceCluster"),
+		Log:    ctrl.Log.WithName(operatorName).WithName("controllers").WithName("DataScienceCluster"),
 		DataScienceCluster: &datascienceclustercontrollers.DataScienceClusterConfig{
 			DSCISpec: &dsci.DSCInitializationSpec{
 				ApplicationsNamespace: dscApplicationsNamespace,
@@ -171,6 +173,7 @@ func main() { //nolint:funlen
 	if err = (&secretgenerator.SecretGeneratorReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		Log:    ctrl.Log.WithName(operatorName).WithName("controllers").WithName("SecretGenerator"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "SecretGenerator")
 		os.Exit(1)
