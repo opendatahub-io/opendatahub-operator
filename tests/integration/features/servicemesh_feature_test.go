@@ -6,7 +6,6 @@ import (
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -202,8 +201,8 @@ var _ = Describe("Service Mesh setup", func() {
 							ManifestSource(fixtures.TestEmbeddedFiles).
 							Manifests(path.Join("templates", "mesh-authz-ext-provider.patch.tmpl.yaml")).
 							OnDelete(
-                servicemesh.RemoveExtensionProvider,
-              ).
+								servicemesh.RemoveExtensionProvider,
+							).
 							UsingConfig(envTest.Config).
 							Load()
 					})

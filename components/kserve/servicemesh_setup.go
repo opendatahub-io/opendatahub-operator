@@ -32,7 +32,7 @@ func (k *Kserve) removeServiceMeshConfigurations(cli client.Client, dscispec *ds
 
 func (k *Kserve) defineServiceMeshFeatures(cli client.Client) feature.FeaturesProvider {
 	return func(handler *feature.FeaturesHandler) error {
-    authorinoInstalled, err := deploy.ClusterSubscriptionExists(cli, "authorino-operator")
+		authorinoInstalled, err := deploy.ClusterSubscriptionExists(cli, "authorino-operator")
 		if err != nil {
 			return fmt.Errorf("failed to list subscriptions %w", err)
 		}
@@ -41,11 +41,11 @@ func (k *Kserve) defineServiceMeshFeatures(cli client.Client) feature.FeaturesPr
 			kserveExtAuthzErr := feature.CreateFeature("kserve-external-authz").
 				For(handler).
 				ManifestSource(Resources.Source).
-			  Manifests(
-				path.Join(Resources.ServiceMeshDir, "activator-envoyfilter.tmpl.yaml"),
-				path.Join(Resources.ServiceMeshDir, "envoy-oauth-temp-fix.tmpl.yaml"),
-				path.Join(Resources.ServiceMeshDir, "kserve-predictor-authorizationpolicy.tmpl.yaml"),
-				path.Join(Resources.ServiceMeshDir, "z-migrations"),
+				Manifests(
+					path.Join(Resources.ServiceMeshDir, "activator-envoyfilter.tmpl.yaml"),
+					path.Join(Resources.ServiceMeshDir, "envoy-oauth-temp-fix.tmpl.yaml"),
+					path.Join(Resources.ServiceMeshDir, "kserve-predictor-authorizationpolicy.tmpl.yaml"),
+					path.Join(Resources.ServiceMeshDir, "z-migrations"),
 				).
 				WithData(servicemesh.ClusterDetails).
 				Load()
