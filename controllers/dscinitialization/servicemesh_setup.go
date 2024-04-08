@@ -121,7 +121,9 @@ func configureServiceMeshFeatures() feature.FeaturesProvider {
 					return f.ApplyManifest(path.Join(feature.AuthDir, "deployment.injection.patch.tmpl"))
 				},
 			).
-			OnDelete(servicemesh.RemoveExtensionProvider).
+			OnDelete(
+				servicemesh.RemoveExtensionProvider,
+			).
 			Load()
 		if extAuthzErr != nil {
 			return extAuthzErr

@@ -112,7 +112,8 @@ func CreateOrUpdateConfigMap(c client.Client, name string, namespace string, dat
 	return configMap, c.Update(context.TODO(), configMap)
 }
 
-// CreateNamespace creates namespace required by workbenches component in downstream.
+// CreateNamespace creates a namespace and apply metadata.
+// If a namespace already exists, the operation has no effect on it.
 func CreateNamespace(cli client.Client, namespace string, metaOptions ...MetaOptions) (*corev1.Namespace, error) {
 	desiredNamespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{

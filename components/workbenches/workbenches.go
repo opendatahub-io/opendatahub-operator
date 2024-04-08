@@ -121,6 +121,8 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 			}
 		}
 		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
+			// Intentionally leaving the ownership unset for this namespace.
+			// Specifying this label triggers its deletion when the operator is uninstalled.
 			_, err := cluster.CreateNamespace(cli, "rhods-notebooks", cluster.WithLabels(labels.ODH.OwnedNamespace, "true"))
 			if err != nil {
 				return err
@@ -132,7 +134,6 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 			return err
 		}
 	}
-
 	if err = deploy.DeployManifestsFromPath(cli, owner, notebookControllerPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 		return err
 	}
