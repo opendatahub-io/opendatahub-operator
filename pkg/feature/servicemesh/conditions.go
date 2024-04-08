@@ -20,12 +20,13 @@ const (
 	duration = 5 * time.Minute
 )
 
+// EnsureAuthNamespaceExists creates a namespace for the Authorization provider and set ownership so it will be garbage collected when the operator is uninstalled.
 func EnsureAuthNamespaceExists(f *feature.Feature) error {
 	if resolveNsErr := ResolveAuthNamespace(f); resolveNsErr != nil {
 		return resolveNsErr
 	}
 
-	_, err := cluster.CreateNamespace(f.Client, f.Spec.Auth.Namespace)
+	_, err := cluster.CreateNamespace(f.Client, f.Spec.Auth.Namespace, feature.OwnedBy(f))
 	return err
 }
 
