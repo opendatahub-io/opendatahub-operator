@@ -3,11 +3,14 @@ package dscinitialization
 import (
 	"context"
 	"crypto/rand"
+	"fmt"
 	"reflect"
 	"time"
 
+	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	ocuserv1 "github.com/openshift/api/user/v1"
+	authentication "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	authv1 "k8s.io/api/rbac/v1"
@@ -20,6 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
@@ -439,4 +443,42 @@ func (r *DSCInitializationReconciler) createUserGroup(ctx context.Context, dscIn
 	}
 
 	return nil
+}
+
+func IsDefaultAudiences(specAudiences *[]string) bool {
+	return specAudiences == nil || reflect.DeepEqual(*specAudiences, defaultAudiences)
+}
+
+// GetEffectiveClusterAudiences returns the audiences defined for the cluster, falling back to the default audiences if needed.
+func GetEffectiveClusterAudiences(specAudiences *[]string, cli client.Client, log logr.Logger) []string {
+	if IsDefaultAudiences(specAudiences) {
+		return fetchClusterAudiences(cli, log)
+	}
+	return *specAudiences
+}
+
+func fetchClusterAudiences(cli client.Client, log logr.Logger) []string {
+	token, err := cluster.GetSAToken()
+	if err != nil {
+		log.Error(err, "Error getting token, using default audiences")
+		return defaultAudiences
+	}
+
+	tokenReview := &authentication.TokenReview{
+		Spec: authentication.TokenReviewSpec{
+			Token: token,
+		},
+	}
+
+	if err = cli.Create(context.Background(), tokenReview, &client.CreateOptions{}); err != nil {
+		log.Error(err, "Error creating TokenReview, using default audiences")
+		return defaultAudiences
+	}
+
+	if tokenReview.Status.Error != "" || !tokenReview.Status.Authenticated {
+		log.Error(fmt.Errorf(tokenReview.Status.Error), "Error with token review authentication status, using default audiences")
+		return defaultAudiences
+	}
+
+	return tokenReview.Status.Audiences
 }

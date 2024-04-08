@@ -37,6 +37,11 @@ func GetOperatorNamespace() (string, error) {
 	return string(data), err
 }
 
+func GetSAToken() (string, error) {
+	data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/token")
+	return string(data), err
+}
+
 // GetClusterServiceVersion retries the clusterserviceversions available in the operator namespace.
 func GetClusterServiceVersion(ctx context.Context, c client.Client, watchNameSpace string) (*ofapi.ClusterServiceVersion, error) {
 	clusterServiceVersionList := &ofapi.ClusterServiceVersionList{}
