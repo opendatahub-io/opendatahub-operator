@@ -20,7 +20,7 @@ metadata:
           "spec": {
             "components": {
               "codeflare": {
-                "managementState": "Managed"
+                "managementState": "Removed"
               },
               "dashboard": {
                 "managementState": "Managed"
@@ -41,13 +41,13 @@ metadata:
                 }
               },
               "kueue": {
-                "managementState": "Managed"
+                "managementState": "Removed"
               },
               "modelmeshserving": {
                 "managementState": "Managed"
               },
               "ray": {
-                "managementState": "Managed"
+                "managementState": "Removed"
               },
               "workbenches": {
                 "managementState": "Managed"
