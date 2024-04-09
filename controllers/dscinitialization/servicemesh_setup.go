@@ -10,14 +10,10 @@ import (
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
-)
-
-var (
-	// Default value of audiences for DSCI.SM.auth.
-	defaultAudiences = []string{"https://kubernetes.default.svc"}
 )
 
 func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsciv1.DSCInitialization) error {
@@ -152,9 +148,11 @@ func (r *DSCInitializationReconciler) serviceMeshCapabilityFeatures(instance *ds
 			}
 		}
 
+		audiences := cluster.GetEffectiveClusterAudiences(r.Client, r.Log, handler.ServiceMesh.Auth.Audiences, cluster.GetSAToken)
+
 		cfgMapErr := feature.CreateFeature("mesh-shared-configmap").
 			For(handler).
-			WithResources(servicemesh.MeshRefs, servicemesh.AuthRefs(GetEffectiveClusterAudiences(handler.ServiceMesh.Auth.Audiences, r.Client, r.Log))).
+			WithResources(servicemesh.MeshRefs, servicemesh.AuthRefs(audiences)).
 			Load()
 		if cfgMapErr != nil {
 			return cfgMapErr
