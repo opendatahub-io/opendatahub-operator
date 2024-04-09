@@ -114,10 +114,11 @@ func TestOdhOperator(t *testing.T) {
 
 	// Run deletion if skipDeletion is not set
 	if !skipDeletion {
-		t.Run("delete components", deletionTestSuite)
-
 		// This test case recreates entire DSC again and deletes afterward
-		t.Run("remove components by using labeled configmap", cfgMapDeletionTestSuite)
+		// this is a negative test case, since by using the positive CM('true'), even CSV gets deleted which leaves no operator pod in prow
+		t.Run("components should not be removed if wrongly labeled configmap", cfgMapDeletionTestSuite)
+
+		t.Run("delete components", deletionTestSuite)
 	}
 }
 

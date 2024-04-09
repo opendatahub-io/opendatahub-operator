@@ -14,12 +14,18 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 )
 
 func deletionTestSuite(t *testing.T) {
 	testCtx, err := NewTestContext()
 	require.NoError(t, err)
+
+	t.Run("ensure all components created", func(t *testing.T) {
+		err = testCtx.testAllApplicationCreation(t)
+		require.NoError(t, err, "Error to create DSC instance")
+	})
 
 	t.Run(testCtx.testDsc.Name, func(t *testing.T) {
 		t.Run("Deletion: DataScienceCluster instance", func(t *testing.T) {
@@ -29,6 +35,10 @@ func deletionTestSuite(t *testing.T) {
 		t.Run("Deletion: Application Resource", func(t *testing.T) {
 			err = testCtx.testAllApplicationDeletion()
 			require.NoError(t, err, "Error to delete component")
+		})
+		t.Run("Deletion: DSCI instance", func(t *testing.T) {
+			err = testCtx.testDSCIDeletion()
+			require.NoError(t, err, "Error to delete DSCI instance")
 		})
 	})
 }
@@ -122,4 +132,25 @@ func (tc *testContext) testAllApplicationDeletion() error {
 		return err
 	}
 	return err
+}
+
+func (tc *testContext) testDSCIDeletion() error {
+	// Delete test DSCI resource if found
+
+	dsciLookupKey := types.NamespacedName{Name: tc.testDSCI.Name}
+	expectedDSCI := &dsci.DSCInitialization{}
+
+	err := tc.customClient.Get(tc.ctx, dsciLookupKey, expectedDSCI)
+	if err == nil {
+		dscierr := tc.customClient.Delete(tc.ctx, expectedDSCI, &client.DeleteOptions{})
+		if dscierr != nil {
+			return fmt.Errorf("error deleting DSCI instance %s: %w", expectedDSCI.Name, dscierr)
+		}
+	} else if !errors.IsNotFound(err) {
+		if err != nil {
+			return fmt.Errorf("error getting DSCI instance :%w", err)
+		}
+	}
+
+	return nil
 }
