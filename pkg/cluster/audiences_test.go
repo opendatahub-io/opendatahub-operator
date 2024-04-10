@@ -61,9 +61,9 @@ type stubAudiencesClient struct {
 	stubAudiences []string
 }
 
-// controller-runtime fake client package does not allow to hook into request/response chain, unlike client-go 
+// controller-runtime fake client package does not allow to hook into request/response chain, unlike client-go
 // fake clientset, where we could use "reactors" [1]
-// Tto manipulate TokenReview.Status (from where the audiences are read) we need to hook 
+// To manipulate TokenReview.Status (from where the audiences are read) we need to hook
 // into response of the Create operation, so stubbing client.Client#Create is the easiest and sufficient option.
 //
 // [1] https://pkg.go.dev/k8s.io/client-go@v0.29.3/testing#Fake.AddReactor
