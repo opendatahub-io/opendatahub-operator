@@ -40,11 +40,15 @@ can be found [here](https://github.com/opendatahub-io/opendatahub-operator/tree/
       WaitForDeploymentAvailable(ctx context.Context, r *rest.Config, c string, n string, i int, t int) error
     }
     ```
+
 ### Add reconcile and Events
 
 - Once you set up the new component module, add the component to [Reconcile](https://github.com/opendatahub-io/opendatahub-operator/blob/acaaf31f43e371456363f3fd272aec91ba413482/controllers/datasciencecluster/datasciencecluster_controller.go#L135) 
   function in order to deploy manifests.
 - This will also enable/add status updates of the component in the operator.
+
+### Reconcile Workflow
+![Component Reconcile Workflow.png](Component%20Reconcile%20Workflow.png)
 
 ### Add Unit and e2e tests
 
