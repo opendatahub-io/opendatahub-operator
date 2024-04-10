@@ -141,14 +141,6 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="monitoring.coreos.com",resources=thanosrulers/status,verbs=get;create;patch;delete;deletecollection
 // +kubebuilder:rbac:groups="monitoring.coreos.com",resources=probes,verbs=get;create;patch;delete;deletecollection
 
-// TODO: cleanup when DSP do the switch
-// +kubebuilder:rbac:groups="mcad.ibm.com",resources=appwrappers,verbs=create;delete;list;patch;get
-
-// +kubebuilder:rbac:groups="workload.codeflare.dev",resources=appwrappers,verbs=create;delete;list;patch;get;deletecollection;update;watch
-// +kubebuilder:rbac:groups="workload.codeflare.dev",resources=appwrappers/finalizers,verbs=create;delete;list;patch;get;deletecollection;update;watch
-// +kubebuilder:rbac:groups="workload.codeflare.dev",resources=appwrappers/status,verbs=create;delete;list;patch;get;deletecollection;update;watch
-// +kubebuilder:rbac:groups="workload.codeflare.dev",resources=queuejobs,verbs=create;delete;list;patch;get;deletecollection;update;watch
-
 // +kubebuilder:rbac:groups="machinelearning.seldon.io",resources=seldondeployments,verbs=*
 
 // +kubebuilder:rbac:groups="machine.openshift.io",resources=machinesets,verbs=list;patch;delete
@@ -204,9 +196,6 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="coordination.k8s.io",resources=leases,verbs=get;list;watch;create;update;patch;delete
 
 // +kubebuilder:rbac:groups="controller-runtime.sigs.k8s.io",resources=controllermanagerconfigs,verbs=get;create;patch;delete
-
-// +kubebuilder:rbac:groups="codeflare.codeflare.dev",resources=mcads,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="codeflare.codeflare.dev",resources=instascales,verbs=get;list;watch;create;update;patch;delete
 
 // +kubebuilder:rbac:groups="cert-manager.io",resources=certificates;issuers,verbs=create;patch
 
