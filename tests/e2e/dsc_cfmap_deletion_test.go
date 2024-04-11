@@ -23,17 +23,13 @@ func cfgMapDeletionTestSuite(t *testing.T) {
 	defer removeDeletionConfigMap(testCtx)
 
 	t.Run(testCtx.testDsc.Name, func(t *testing.T) {
-		// t.Run("create data science cluster", func(t *testing.T) {
-		// 	err = testCtx.testDSCCreation()
-		// 	require.NoError(t, err, "Error to create DSC instance")
-		// })
 		t.Run("create configmap but set to disable deletion", func(t *testing.T) {
 			err = testCtx.testDSCDeletionUsingConfigMap("false")
 			require.NoError(t, err, "Configmap should not delete DSC instance")
 		})
 
 		t.Run("owned namespaces should be not deleted", func(t *testing.T) {
-			err = testCtx.testOwnedNamespacesAllExist(0)
+			err = testCtx.testOwnedNamespacesAllExist()
 			require.NoError(t, err, "Error while deleting owned namespaces")
 		})
 	})
@@ -58,7 +54,7 @@ func (tc *testContext) testDSCDeletionUsingConfigMap(enableDeletion string) erro
 
 	return nil
 }
-func (tc *testContext) testOwnedNamespacesAllExist(count int) error {
+func (tc *testContext) testOwnedNamespacesAllExist() error {
 	namespaces, err := tc.kubeClient.CoreV1().Namespaces().List(tc.ctx, metav1.ListOptions{
 		LabelSelector: labels.ODH.OwnedNamespace,
 	})
@@ -66,26 +62,12 @@ func (tc *testContext) testOwnedNamespacesAllExist(count int) error {
 	if err != nil {
 		return fmt.Errorf("failed getting owned namespaces %w", err)
 	}
-	if len(namespaces.Items) == count {
+	if len(namespaces.Items) == 0 {
 		return fmt.Errorf("all namespaces are gone")
 	}
 
 	return nil
 }
-
-// func (tc *testContext) testOwnedNamespacesDeletion() error {
-// 	if err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
-// 		namespaces, err := tc.kubeClient.CoreV1().Namespaces().List(ctx, metav1.ListOptions{
-// 			LabelSelector: labels.ODH.OwnedNamespace,
-// 		})
-
-// 		return len(namespaces.Items) == 0, err
-// 	}); err != nil {
-// 		return fmt.Errorf("failed waiting for all owned namespaces to be deleted: %w", err)
-// 	}
-
-// 	return nil
-// }
 
 func removeDeletionConfigMap(tc *testContext) {
 	_ = tc.kubeClient.CoreV1().ConfigMaps(tc.operatorNamespace).Delete(context.TODO(), "delete-self-managed", metav1.DeleteOptions{})

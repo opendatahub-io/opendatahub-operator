@@ -29,7 +29,7 @@ func deletionTestSuite(t *testing.T) {
 
 	t.Run(testCtx.testDsc.Name, func(t *testing.T) {
 		t.Run("Deletion: DataScienceCluster instance", func(t *testing.T) {
-			err = testCtx.testDSCDeletion()
+			err = testCtx.testDeletionExistDSC()
 			require.NoError(t, err, "Error to delete DSC instance")
 		})
 		t.Run("Deletion: Application Resource", func(t *testing.T) {
@@ -37,13 +37,13 @@ func deletionTestSuite(t *testing.T) {
 			require.NoError(t, err, "Error to delete component")
 		})
 		t.Run("Deletion: DSCI instance", func(t *testing.T) {
-			err = testCtx.testDSCIDeletion()
+			err = testCtx.testDeletionExistDSCI()
 			require.NoError(t, err, "Error to delete DSCI instance")
 		})
 	})
 }
 
-func (tc *testContext) testDSCDeletion() error {
+func (tc *testContext) testDeletionExistDSC() error {
 	// Delete test DataScienceCluster resource if found
 
 	dscLookupKey := types.NamespacedName{Name: tc.testDsc.Name}
@@ -134,7 +134,9 @@ func (tc *testContext) testAllApplicationDeletion() error {
 	return err
 }
 
-func (tc *testContext) testDSCIDeletion() error {
+// To test if  DSCI CR is in the cluster and no problem to delete it
+// if fail on any of these two conditios, fail test.
+func (tc *testContext) testDeletionExistDSCI() error {
 	// Delete test DSCI resource if found
 
 	dsciLookupKey := types.NamespacedName{Name: tc.testDSCI.Name}
