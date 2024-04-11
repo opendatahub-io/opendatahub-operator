@@ -634,8 +634,10 @@ spec:
             description: DataScienceClusterStatus defines the observed state of DataScienceCluster.
             properties:
               conditions:
-                description: Conditions describes the state of the DataScienceCluster
-                  resource.
+                description: |-
+                  Conditions describes the state of the DataScienceCluster resource.
+                  standard known .status.conditions.type are: "Available", "Progressing", "Degraded"
+                  Extra .status.conditions.type are : "ReconcileSuccess" "CapabilityDSPv2Argo" and <component>Ready
                 items:
                   description: |-
                     Condition represents the state of the operator's
@@ -673,6 +675,9 @@ spec:
                 description: |-
                   Phase describes the Phase of DataScienceCluster reconciliation state
                   This is used by OLM UI to provide status information to the user
+                  Newer API types should use conditions instead. Phase was essentially a state-machine enumeration field, that contradicted system-design principles and hampered evolution, since adding new enum values breaks backward compatibility.
+                  Rather than encouraging clients to infer implicit properties from phases, we prefer to explicitly expose the individual conditions that clients need to monitor.
+                  Known .status.phase are: "Created", "Error", "Ready" "Deleting"
                 type: string
               relatedObjects:
                 description: |-

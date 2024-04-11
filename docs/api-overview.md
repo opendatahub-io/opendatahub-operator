@@ -480,8 +480,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `phase` _string_ | Phase describes the Phase of DataScienceCluster reconciliation state<br />This is used by OLM UI to provide status information to the user |  |  |
-| `conditions` _Condition array_ | Conditions describes the state of the DataScienceCluster resource. |  |  |
+| `phase` _string_ | Phase describes the Phase of DataScienceCluster reconciliation state<br />This is used by OLM UI to provide status information to the user<br />Newer API types should use conditions instead. Phase was essentially a state-machine enumeration field, that contradicted system-design principles and hampered evolution, since adding new enum values breaks backward compatibility.<br />Rather than encouraging clients to infer implicit properties from phases, we prefer to explicitly expose the individual conditions that clients need to monitor.<br />Known .status.phase are: "Created", "Error", "Ready" "Deleting" |  |  |
+| `conditions` _Condition array_ | Conditions describes the state of the DataScienceCluster resource.<br />standard known .status.conditions.type are: "Available", "Progressing", "Degraded"<br />Extra .status.conditions.type are : "ReconcileSuccess" "CapabilityDSPv2Argo" and <component>Ready |  |  |
 | `relatedObjects` _[ObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectreference-v1-core) array_ | RelatedObjects is a list of objects created and maintained by this operator.<br />Object references will be added to this list after they have been created AND found in the cluster. |  |  |
 | `errorMessage` _string_ |  |  |  |
 | `installedComponents` _object (keys:string, values:boolean)_ | List of components with status if installed or not |  |  |
@@ -629,8 +629,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `phase` _string_ | Phase describes the Phase of DSCInitializationStatus<br />This is used by OLM UI to provide status information to the user |  |  |
-| `conditions` _Condition array_ | Conditions describes the state of the DSCInitializationStatus resource |  |  |
+| `phase` _string_ | Phase describes the Phase of DSCInitializationStatus<br />This is used by OLM UI to provide status information to the user<br />The pattern of using phase is deprecated.<br />Newer API types should use conditions instead. Phase was essentially a state-machine enumeration field, that contradicted system-design principles and hampered evolution, since adding new enum values breaks backward compatibility.<br />Rather than encouraging clients to infer implicit properties from phases, we prefer to explicitly expose the individual conditions that clients need to monitor.<br />Known .status.phase are: "Created", "Error", "Ready" "Deleting" |  |  |
+| `conditions` _Condition array_ | Conditions describes the state of the DSCInitializationStatus resource<br />standard known .status.conditions.type are: "Available", "Progressing", "Degraded"<br />Extra .status.conditions.type are : "ReconcileSuccess", "CapabilityServiceMesh", "CapabilityServiceMeshAuthorization" |  |  |
 | `relatedObjects` _[ObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectreference-v1-core) array_ | RelatedObjects is a list of objects created and maintained by this operator.<br />Object references will be added to this list after they have been created AND found in the cluster |  |  |
 | `errorMessage` _string_ |  |  |  |
 | `release` _[Release](#release)_ | Version and release type |  |  |

@@ -10,11 +10,13 @@ import (
 
 	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -63,7 +65,7 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context,
 	owner metav1.Object,
 	dscispec *dsciv1.DSCInitializationSpec,
 	platform cluster.Platform,
-	_ bool) error {
+	_ bool) (conditionsv1.Condition, error) {
 	l := c.ConfigComponentLogger(logger, ComponentName, dscispec)
 	var imageParamMap = map[string]string{
 		"codeflare-operator-controller-image": "RELATED_IMAGE_ODH_CODEFLARE_OPERATOR_IMAGE", // no need mcad, embedded in cfo
@@ -71,12 +73,11 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context,
 
 	enabled := c.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
-
 	if enabled {
 		if c.DevFlags != nil {
 			// Download manifests and update paths
 			if err := c.OverrideManifests(ctx, platform); err != nil {
-				return err
+				return status.FailedComponentCondition(ComponentName, err)
 			}
 		}
 		// check if the CodeFlare operator is installed: it should not be installed
@@ -84,16 +85,16 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context,
 		dependentOperator := CodeflareOperator
 
 		if found, err := cluster.OperatorExists(ctx, cli, dependentOperator); err != nil {
-			return fmt.Errorf("operator exists throws error %w", err)
+			return status.FailedComponentCondition(ComponentName, fmt.Errorf("operator exists throws error %w", err))
 		} else if found {
-			return fmt.Errorf("operator %s is found. Please uninstall the operator before enabling %s component",
-				dependentOperator, ComponentName)
+			return status.FailedComponentCondition(ComponentName, fmt.Errorf("operator %s is found. Please uninstall the operator before enabling %s component",
+				dependentOperator, ComponentName))
 		}
 
 		// Update image parameters only when we do not have customized manifests set
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (c.DevFlags == nil || len(c.DevFlags.Manifests) == 0) {
 			if err := deploy.ApplyParams(ParamsPath, imageParamMap, map[string]string{"namespace": dscispec.ApplicationsNamespace}); err != nil {
-				return fmt.Errorf("failed update image from %s : %w", CodeflarePath+"/bases", err)
+				return status.FailedComponentCondition(ComponentName, fmt.Errorf("failed update image from %s : %w", CodeflarePath+"/bases", err))
 			}
 		}
 	}
@@ -103,13 +104,13 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context,
 		CodeflarePath,
 		dscispec.ApplicationsNamespace,
 		ComponentName, enabled); err != nil {
-		return err
+		return status.FailedComponentCondition(ComponentName, fmt.Errorf("failed to apply manifests %s: %w", CodeflarePath, err))
 	}
 	l.Info("apply manifests done")
 
 	if enabled {
 		if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
-			return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
+			return status.FailedComponentCondition(ComponentName, fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err))
 		}
 	}
 
@@ -117,16 +118,16 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context,
 	if platform == cluster.ManagedRhods {
 		// inject prometheus codeflare*.rules in to /opt/manifests/monitoring/prometheus/prometheus-configs.yaml
 		if err := c.UpdatePrometheusConfig(cli, l, enabled && monitoringEnabled, ComponentName); err != nil {
-			return err
+			return status.FailedComponentCondition(ComponentName, err)
 		}
 		if err := deploy.DeployManifestsFromPath(ctx, cli, owner,
 			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
 			dscispec.Monitoring.Namespace,
 			"prometheus", true); err != nil {
-			return err
+			return status.FailedComponentCondition(ComponentName, err)
 		}
 		l.Info("updating SRE monitoring done")
 	}
 
-	return nil
+	return status.SuccessComponentCondition(ComponentName), nil
 }

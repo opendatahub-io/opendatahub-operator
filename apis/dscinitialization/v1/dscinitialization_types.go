@@ -99,11 +99,17 @@ type TrustedCABundleSpec struct {
 type DSCInitializationStatus struct {
 	// Phase describes the Phase of DSCInitializationStatus
 	// This is used by OLM UI to provide status information to the user
+	// The pattern of using phase is deprecated.
+	// Newer API types should use conditions instead. Phase was essentially a state-machine enumeration field, that contradicted system-design principles and hampered evolution, since adding new enum values breaks backward compatibility.
+	// Rather than encouraging clients to infer implicit properties from phases, we prefer to explicitly expose the individual conditions that clients need to monitor.
+	// Known .status.phase are: "Created", "Error", "Ready" "Deleting"
 	Phase string `json:"phase,omitempty"`
 
 	// Conditions describes the state of the DSCInitializationStatus resource
 	// +operator-sdk:csv:customresourcedefinitions:type=status
 	// +optional
+	// standard known .status.conditions.type are: "Available", "Progressing", "Degraded"
+	// Extra .status.conditions.type are : "ReconcileSuccess", "CapabilityServiceMesh", "CapabilityServiceMeshAuthorization"
 	Conditions []conditionsv1.Condition `json:"conditions,omitempty"`
 
 	// RelatedObjects is a list of objects created and maintained by this operator.

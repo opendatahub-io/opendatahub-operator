@@ -80,7 +80,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	currentOperatorReleaseVersion, err := cluster.GetRelease(ctx, r.Client)
 	if err != nil {
-		r.Log.Error(err, "failed to get operator release version")
+		r.Log.Error(err, "Failed to get operator release version")
 		return ctrl.Result{}, err
 	}
 
@@ -137,16 +137,14 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	// Start reconciling
 	if instance.Status.Conditions == nil {
-		reason := status.ReconcileInit
-		message := "Initializing DSCInitialization resource"
-		instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
-			status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
-			saved.Status.Phase = status.PhaseProgressing
+		instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(dsci *dsciv1.DSCInitialization) {
+			status.UpdateCondition(&dsci.Status.Conditions, *status.InitControllerCondition(status.DSCIReconcileStartMessage))
+			dsci.Status.Phase = status.PhaseCreated
 		})
 		if err != nil {
 			r.Log.Error(err, "Failed to add conditions to status of DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
 			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError",
-				"%s for instance %s", message, instance.Name)
+				"%s for instance %s", status.DSCIReconcileFailedMessage, instance.Name)
 
 			return reconcile.Result{}, err
 		}
@@ -251,20 +249,23 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 		// Apply Service Mesh configurations
 		if errServiceMesh := r.configureServiceMesh(ctx, instance); errServiceMesh != nil {
+			_, _ = status.UpdateWithRetry(ctx, r.Client, instance, func(dsci *dsciv1.DSCInitialization) {
+				status.SetErrorCondition(&dsci.Status.Conditions, status.CapabilityFailed, status.DSCIReconcileFailedMessage)
+				dsci.Status.Phase = status.PhaseError
+			})
 			return reconcile.Result{}, errServiceMesh
 		}
 
 		// Finish reconciling
-		_, err = status.UpdateWithRetry[*dsciv1.DSCInitialization](ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
-			status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, status.ReconcileCompletedMessage)
-			saved.Status.Phase = status.PhaseReady
-			saved.Status.Release = currentOperatorReleaseVersion
+		_, err = status.UpdateWithRetry[*dsciv1.DSCInitialization](ctx, r.Client, instance, func(dsci *dsciv1.DSCInitialization) {
+			status.SetCompleteCondition(&dsci.Status.Conditions, status.ReconcileSuccessReason, status.DSCIReconcileSuccessMessage)
+			dsci.Status.Phase = status.PhaseReady
+			dsci.Status.Release = currentOperatorReleaseVersion
 		})
 		if err != nil {
-			r.Log.Error(err, "failed to update DSCInitialization status after successfully completed reconciliation")
-			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to update DSCInitialization status")
+			r.Log.Error(err, "Failed to update DSCInitialization status after successfully completed reconciliation")
+			r.Recorder.Eventf(instance, corev1.EventTypeNormal, "DSCInitializationSuccessful", "Failed to update DSCInitialization status")
 		}
-
 		return ctrl.Result{}, nil
 	}
 }
