@@ -108,7 +108,7 @@ metadata:
     operators.operatorframework.io/internal-objects: '[dscinitialization.opendatahub.io]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/opendatahub-io/opendatahub-operator
-  name: opendatahub-operator.v2.10.1
+  name: REPLACE_IMAGE:latest
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -1675,13 +1675,12 @@ spec:
                 - --health-probe-bind-address=:8081
                 - --metrics-bind-address=0.0.0.0:8080
                 - --leader-elect
-                - --operator-name=opendatahub
                 command:
                 - /manager
                 env:
                 - name: DISABLE_DSC_CONFIG
                   value: "true"
-                image: REPLACE_IMAGE:latest
+                image: quay.io/wenzhou/opendatahub-operator:2.10.1
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:

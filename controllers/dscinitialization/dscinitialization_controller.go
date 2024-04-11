@@ -25,6 +25,7 @@ import (
 	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
+	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
@@ -121,16 +122,15 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	var err error
 	// Start reconciling
 	if instance.Status.Conditions == nil {
-		reason := status.ReconcileInit
-		message := "Initializing DSCInitialization resource"
-		instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
-			status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
-			saved.Status.Phase = status.PhaseProgressing
+		instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(dsci *dsciv1.DSCInitialization) {
+			conditionsv1.SetStatusCondition(&dsci.Status.Conditions, *status.SetDefaultDSCIConditionInit())
+			// TODO: cleanup phase in DSCI
+			dsci.Status.Phase = string(status.Created)
 		})
 		if err != nil {
-			r.Log.Error(err, "Failed to add conditions to status of DSCInitialization resource.", "DSCInitialization Request.Name", req.Name)
-			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError",
-				"%s for instance %s", message, instance.Name)
+			r.Log.Error(err, "Failed to add DSCInitialization CR's .status.conditions.", "DSCInitialization Request.Name", req.Name)
+			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationInitError",
+				"for instance %s", instance.Name)
 
 			return reconcile.Result{}, err
 		}
@@ -201,16 +201,15 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 		// Start reconciling
 		if instance.Status.Conditions == nil {
-			reason := status.ReconcileInit
-			message := "Initializing DSCInitialization resource"
-			instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
-				status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
-				saved.Status.Phase = status.PhaseProgressing
+			instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(dsci *dsciv1.DSCInitialization) {
+				conditionsv1.SetStatusCondition(&dsci.Status.Conditions, *status.SetDefaultDSCIConditionInit())
+				// TODO: cleanup phase in DSCI
+				dsci.Status.Phase = string(status.Created)
 			})
 			if err != nil {
 				r.Log.Error(err, "Failed to add conditions to status of DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
 				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError",
-					"%s for instance %s", message, instance.Name)
+					"for instance %s", instance.Name)
 
 				return reconcile.Result{}, err
 			}
@@ -261,13 +260,21 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 		// Apply Service Mesh configurations
 		if errServiceMesh := r.configureServiceMesh(instance); errServiceMesh != nil {
+			_, _ = status.UpdateWithRetry(ctx, r.Client, instance, func(dsci *dsciv1.DSCInitialization) {
+				status.SetErrorCondition(&dsci.Status.Conditions, status.CapabilityFailed, status.DSCIReconcileFailedMessage)
+				// TODO: cleanup phase in DSCI
+				dsci.Status.Phase = string(status.Progress)
+			})
+
 			return reconcile.Result{}, errServiceMesh
 		}
 
 		// Finish reconciling
-		_, err = status.UpdateWithRetry[*dsciv1.DSCInitialization](ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
-			status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, status.ReconcileCompletedMessage)
-			saved.Status.Phase = status.PhaseReady
+		_, err = status.UpdateWithRetry[*dsciv1.DSCInitialization](ctx, r.Client, instance, func(dsci *dsciv1.DSCInitialization) {
+			conditionsv1.SetStatusCondition(&dsci.Status.Conditions, *status.SetDefaultDSCIConditionComplete())
+			status.RemoveComponentCondition(&dsci.Status.Conditions, status.Progress)
+			// TODO: cleanup phase in DSCI
+			dsci.Status.Phase = string(status.Ready)
 		})
 		if err != nil {
 			r.Log.Error(err, "failed to update DSCInitialization status after successfully completed reconciliation")

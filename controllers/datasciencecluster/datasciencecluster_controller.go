@@ -28,6 +28,7 @@ import (
 	ocbuildv1 "github.com/openshift/api/build/v1"
 	ocimgv1 "github.com/openshift/api/image/v1"
 	v1 "github.com/openshift/api/operator/v1"
+	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	admv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -114,6 +115,16 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	// delete DSC CR and let reconcile requeue
 	// sometimes with finalzier DSC CR wont get deleted, force to remove finalizer here
 	if upgrade.HasDeleteConfigMap(ctx, r.Client) {
+		// Newly added update condition
+		instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(dsc *dsc.DataScienceCluster) {
+			conditionsv1.SetStatusCondition(&dsc.Status.Conditions, *status.SetReconcileDSCCondition(status.ReconcileFailed, status.DSCIMissingMessage))
+			// TODO cleanup phase in DSC
+			dsc.Status.Phase = string(status.Deleting)
+		})
+		if err != nil {
+			r.Log.Error(err, "failed to update DataScienceCluster conditions when deleting DSC CR")
+			// DO not handle error to reconcile, continue with deletion
+		}
 		if controllerutil.ContainsFinalizer(instance, finalizerName) {
 			if controllerutil.RemoveFinalizer(instance, finalizerName) {
 				if err := r.Update(ctx, instance); err != nil {
@@ -149,12 +160,13 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	// Update phase to error state if DataScienceCluster is created without valid DSCInitialization
 	switch len(dsciInstances.Items) { // only handle number as 0 or 1, others won't be existed since webhook block creation
 	case 0:
-		reason := status.ReconcileFailed
-		message := "Failed to get a valid DSCInitialization instance, please create a DSCI instance"
-		r.Log.Info(message)
-		instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
-			status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
-			saved.Status.Phase = status.PhaseError
+
+		r.Log.Info(status.DSCIMissingMessage)
+		instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(dsc *dsc.DataScienceCluster) {
+			// it was to set the progressiongcondition here
+			conditionsv1.SetStatusCondition(&dsc.Status.Conditions, *status.SetReconcileDSCCondition(status.ReconcileFailed, status.DSCIMissingMessage))
+			// TODO cleanup phase in DSC
+			dsc.Status.Phase = string(status.Error)
 		})
 		if err != nil {
 			r.reportError(err, instance, "failed to update DataScienceCluster condition")
@@ -196,15 +208,15 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return ctrl.Result{}, nil
 	}
 	// Check preconditions if this is an upgrade
-	if instance.Status.Phase == status.PhaseReady {
+	if instance.Status.Phase == string(status.Ready) {
 		// Check for existence of Argo Workflows if DSP is
 		if instance.Status.InstalledComponents[datasciencepipelines.ComponentName] {
 			if err := datasciencepipelines.UnmanagedArgoWorkFlowExists(ctx, r.Client); err != nil {
 				message := fmt.Sprintf("Failed upgrade: %v ", err.Error())
-				_, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
-					status.SetExistingArgoCondition(&saved.Status.Conditions, status.ArgoWorkflowExist, message)
-					status.SetErrorCondition(&saved.Status.Conditions, status.ArgoWorkflowExist, message)
-					saved.Status.Phase = status.PhaseError
+				_, err = status.UpdateWithRetry(ctx, r.Client, instance, func(dsc *dsc.DataScienceCluster) {
+					status.SetComponentCondition(&dsc.Status.Conditions, status.SetExistingArgoCondition(status.ArgoWorkflowReason, message))
+					status.SetErrorCondition(&dsc.Status.Conditions, status.ArgoWorkflowReason, message)
+					dsc.Status.Phase = string(status.Error)
 				})
 				return ctrl.Result{}, err
 			}
@@ -213,11 +225,11 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	// Start reconciling
 	if instance.Status.Conditions == nil {
-		reason := status.ReconcileInit
-		message := "Initializing DataScienceCluster resource"
-		instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
-			status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
-			saved.Status.Phase = status.PhaseProgressing
+		instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(dsc *dsc.DataScienceCluster) {
+			// it was to set progressingcondition here
+			conditionsv1.SetStatusCondition(&dsc.Status.Conditions, *status.SetDefaultDSCCondition())
+			// TODO cleanup phase in DSC
+			dsc.Status.Phase = string(status.Created)
 		})
 		if err != nil {
 			_ = r.reportError(err, instance, fmt.Sprintf("failed to add conditions to status of DataScienceCluster resource name %s", req.Name))
@@ -239,9 +251,12 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	if componentErrors != nil {
 		r.Log.Info("DataScienceCluster Deployment Incomplete.")
 		instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
-			status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompletedWithComponentErrors,
+			// status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompletedWithComponentErrors,
+			status.SetErrorCondition(&saved.Status.Conditions, status.ReconcileCompletedWithComponentErrors,
 				fmt.Sprintf("DataScienceCluster resource reconciled with component errors: %v", componentErrors))
-			saved.Status.Phase = status.PhaseReady
+			// TODO cleanup phase in DSC, here is different from code base
+			// Ref: https://github.com/opendatahub-io/opendatahub-operator/pull/779
+			saved.Status.Phase = string(status.Error)
 		})
 		if err != nil {
 			r.Log.Error(err, "failed to update DataScienceCluster conditions with incompleted reconciliation")
@@ -255,9 +270,11 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	// finalize reconciliation
-	instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
-		status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, "DataScienceCluster resource reconciled successfully")
-		saved.Status.Phase = status.PhaseReady
+	instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(dsc *dsc.DataScienceCluster) {
+		status.SetCompleteCondition(&dsc.Status.Conditions, status.ReconcileCompleted, "DataScienceCluster resource reconciled successfully")
+		conditionsv1.RemoveStatusCondition(&dsc.Status.Conditions, status.CapabilityDSPv2Argo)
+		// TODO clean phase in DSC
+		dsc.Status.Phase = string(status.Ready)
 	})
 	if err != nil {
 		r.Log.Error(err, "failed to update DataScienceCluster conditions after successfully completed reconciliation")
@@ -283,12 +300,8 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 	// First set conditions to reflect a component is about to be reconciled
 	// only set to init condition e.g Unknonw for the very first time when component is not in the list
 	if !isExistStatus {
-		message := "Component is disabled"
-		if enabled {
-			message = "Component is enabled"
-		}
 		instance, err := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
-			status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileInit, message, corev1.ConditionUnknown)
+			status.SetComponentCondition(&saved.Status.Conditions, status.SetInitComponentCondition(componentName, enabled))
 		})
 		if err != nil {
 			_ = r.reportError(err, instance, "failed to update DataScienceCluster conditions before first time reconciling "+componentName)
@@ -296,34 +309,39 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 		}
 	}
 	// Reconcile component
-	err := component.ReconcileComponent(ctx, r.Client, r.Log, instance, r.DataScienceCluster.DSCISpec, installedComponentValue)
-
+	reconcileCondition, err := component.ReconcileComponent(ctx, r.Client, r.Log, instance, r.DataScienceCluster.DSCISpec, installedComponentValue)
 	if err != nil {
 		// reconciliation failed: log errors, raise event and update status accordingly
 		instance = r.reportError(err, instance, "failed to reconcile "+componentName+" on DataScienceCluster")
-		instance, _ = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
+		instance, _ = status.UpdateWithRetry(ctx, r.Client, instance, func(dsc *dsc.DataScienceCluster) {
 			if enabled {
 				if strings.Contains(err.Error(), datasciencepipelines.ArgoWorkflowCRD+" CRD already exists") {
-					status.SetExistingArgoCondition(&saved.Status.Conditions, status.ArgoWorkflowExist, fmt.Sprintf("Component update failed: %v", err))
+					status.SetComponentCondition(&dsc.Status.Conditions,
+						status.SetExistingArgoCondition(status.ArgoWorkflowReason, fmt.Sprintf("Component update failed: %v", err)),
+					)
+					dsc.Status.Phase = string(status.Error)
 				} else {
-					status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileFailed, fmt.Sprintf("Component reconciliation failed: %v", err), corev1.ConditionFalse)
+					status.SetComponentCondition(&dsc.Status.Conditions, reconcileCondition)
 				}
 			} else {
-				status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileFailed, fmt.Sprintf("Component removal failed: %v", err), corev1.ConditionFalse)
+				reconcileCondition.Reason = status.RemoveFailed
+				status.SetComponentCondition(&dsc.Status.Conditions, reconcileCondition)
 			}
 		})
 		return instance, err
 	}
 	// reconciliation succeeded: update status accordingly
-	instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
-		if saved.Status.InstalledComponents == nil {
-			saved.Status.InstalledComponents = make(map[string]bool)
+	instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(dsc *dsc.DataScienceCluster) {
+		// TODO: get rid of InstalledComponents map from DSC .status, should use .status.<component>.conditions.<installed>.stutus to check
+		// this need to work with dashboard together and or maybe QE to be notified too
+		if dsc.Status.InstalledComponents == nil {
+			dsc.Status.InstalledComponents = make(map[string]bool)
 		}
-		saved.Status.InstalledComponents[componentName] = enabled
+		dsc.Status.InstalledComponents[componentName] = enabled
 		if enabled {
-			status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileCompleted, "Component reconciled successfully", corev1.ConditionTrue)
+			status.SetComponentCondition(&dsc.Status.Conditions, status.GetDefaultComponentCondition(componentName))
 		} else {
-			status.RemoveComponentCondition(&saved.Status.Conditions, componentName)
+			status.RemoveComponentCondition(&dsc.Status.Conditions, conditionsv1.ConditionType(componentName+"Ready"))
 		}
 	})
 	if err != nil {

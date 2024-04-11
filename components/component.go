@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	"gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -79,7 +80,7 @@ type ManifestsConfig struct {
 
 type ComponentInterface interface {
 	ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
-		owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec, currentComponentStatus bool) error
+		owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec, currentComponentStatus bool) (conditionsv1.Condition, error)
 	Cleanup(cli client.Client, DSCISpec *dsciv1.DSCInitializationSpec) error
 	GetComponentName() string
 	GetManagementState() operatorv1.ManagementState

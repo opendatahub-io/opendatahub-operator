@@ -99,7 +99,7 @@ func createFeatureTrackerStatusReporter(f *Feature) *status.Reporter[*featurev1.
 	return status.NewStatusReporter(f.Client, f.Tracker, func(err error) status.SaveStatusFunc[*featurev1.FeatureTracker] {
 		updatedCondition := func(saved *featurev1.FeatureTracker) {
 			status.SetCompleteCondition(&saved.Status.Conditions, string(featurev1.ConditionReason.FeatureCreated), fmt.Sprintf("Applied feature [%s] successfully", f.Name))
-			saved.Status.Phase = status.PhaseReady
+			saved.Status.Phase = string(status.Ready)
 		}
 		if err != nil {
 			reason := featurev1.ConditionReason.FailedApplying // generic reason when error is not related to any specific step of the feature apply
@@ -109,7 +109,7 @@ func createFeatureTrackerStatusReporter(f *Feature) *status.Reporter[*featurev1.
 			}
 			updatedCondition = func(saved *featurev1.FeatureTracker) {
 				status.SetErrorCondition(&saved.Status.Conditions, string(reason), fmt.Sprintf("Failed applying [%s]: %+v", f.Name, err))
-				saved.Status.Phase = status.PhaseError
+				saved.Status.Phase = string(status.Error)
 			}
 		}
 

@@ -48,6 +48,7 @@ func OperatorUninstall(ctx context.Context, cli client.Client) error {
 	}
 
 	// Return if any one of the namespaces is Terminating due to resources that are in process of deletion. (e.g. CRDs)
+	// due to missing .status.conditions in namespace, only .status.phase is available for check
 	for _, namespace := range generatedNamespaces.Items {
 		if namespace.Status.Phase == corev1.NamespaceTerminating {
 			return fmt.Errorf("waiting for namespace %v to be deleted", namespace.Name)

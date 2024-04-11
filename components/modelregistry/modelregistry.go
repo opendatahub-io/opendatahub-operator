@@ -9,11 +9,13 @@ import (
 
 	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -30,7 +32,7 @@ var (
 // Verifies that ModelRegistry implements ComponentInterface.
 var _ components.ComponentInterface = (*ModelRegistry)(nil)
 
-// ModelRegistry struct holds the configuration for the ModelRegistry component.
+// ModelRegistry struct holds the configuration for the ModelRegistry componenm.
 // +kubebuilder:object:generate=true
 type ModelRegistry struct {
 	components.Component `json:""`
@@ -59,7 +61,7 @@ func (m *ModelRegistry) GetComponentName() string {
 }
 
 func (m *ModelRegistry) ReconcileComponent(_ context.Context, cli client.Client, logger logr.Logger,
-	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
+	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) (conditionsv1.Condition, error) {
 	l := m.ConfigComponentLogger(logger, ComponentName, dscispec)
 	var imageParamMap = map[string]string{
 		"IMAGES_MODELREGISTRY_OPERATOR": "RELATED_IMAGE_ODH_MODEL_REGISTRY_OPERATOR_IMAGE",
@@ -70,21 +72,21 @@ func (m *ModelRegistry) ReconcileComponent(_ context.Context, cli client.Client,
 
 	platform, err := cluster.GetPlatform(cli)
 	if err != nil {
-		return err
+		return status.UpdateFailedCondition(ComponentName, err)
 	}
 
 	if enabled {
 		if m.DevFlags != nil {
 			// Download manifests and update paths
 			if err = m.OverrideManifests(string(platform)); err != nil {
-				return err
+				return status.UpdateFailedCondition(ComponentName, err)
 			}
 		}
 
 		// Update image parameters only when we do not have customized manifests set
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (m.DevFlags == nil || len(m.DevFlags.Manifests) == 0) {
 			if err := deploy.ApplyParams(Path, imageParamMap, false); err != nil {
-				return fmt.Errorf("failed to update image from %s : %w", Path, err)
+				return status.UpdateFailedCondition(ComponentName, fmt.Errorf("failed to update image from %s : %w", Path, err))
 			}
 		}
 
@@ -92,11 +94,13 @@ func (m *ModelRegistry) ReconcileComponent(_ context.Context, cli client.Client,
 		// We do not delete this namespace even when ModelRegistry is Removed or when operator is uninstalled.
 		_, err := cluster.CreateNamespace(cli, "odh-model-registries")
 		if err != nil {
-			return err
+			return status.UpdateFailedCondition(ComponentName, err)
 		}
 	}
 	// Deploy ModelRegistry Operator
-	err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, m.GetComponentName(), enabled)
+	if err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, m.GetComponentName(), enabled); err != nil {
+		return status.UpdateFailedCondition(ComponentName, fmt.Errorf("failed to apply manifests from %s : %w", Path, err))
+	}
 	l.Info("apply manifests done")
-	return err
+	return status.GetDefaultComponentCondition(ComponentName), nil
 }

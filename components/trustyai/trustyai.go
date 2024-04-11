@@ -9,11 +9,13 @@ import (
 
 	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -54,7 +56,7 @@ func (t *TrustyAI) GetComponentName() string {
 }
 
 func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
-	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
+	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) (conditionsv1.Condition, error) {
 	var imageParamMap = map[string]string{
 		"trustyaiServiceImage":  "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE",
 		"trustyaiOperatorImage": "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE",
@@ -66,25 +68,25 @@ func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client, lo
 
 	platform, err := cluster.GetPlatform(cli)
 	if err != nil {
-		return err
+		return status.UpdateFailedCondition(ComponentName, err)
 	}
 
 	if enabled {
 		if t.DevFlags != nil {
 			// Download manifests and update paths
 			if err = t.OverrideManifests(string(platform)); err != nil {
-				return err
+				return status.UpdateFailedCondition(ComponentName, err)
 			}
 		}
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (t.DevFlags == nil || len(t.DevFlags.Manifests) == 0) {
 			if err := deploy.ApplyParams(Path, imageParamMap, false); err != nil {
-				return fmt.Errorf("failed to update image %s: %w", Path, err)
+				return status.UpdateFailedCondition(ComponentName, err)
 			}
 		}
 	}
 	// Deploy TrustyAI Operator
 	if err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, t.GetComponentName(), enabled); err != nil {
-		return err
+		return status.UpdateFailedCondition(ComponentName, fmt.Errorf("failed to apply manifetss %s: %w", Path, err))
 	}
 	l.Info("apply manifests done")
 
@@ -92,20 +94,20 @@ func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client, lo
 	if platform == cluster.ManagedRhods {
 		if enabled {
 			if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 10, 1); err != nil {
-				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
+				return status.UpdateFailedCondition(ComponentName, fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err))
 			}
 			l.Info("deployment is done, updating monitoring rules")
 		}
 		if err := t.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
-			return err
+			return status.UpdateFailedCondition(ComponentName, err)
 		}
 		if err = deploy.DeployManifestsFromPath(cli, owner,
 			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
 			dscispec.Monitoring.Namespace,
 			"prometheus", true); err != nil {
-			return err
+			return status.UpdateFailedCondition(ComponentName, err)
 		}
 		l.Info("updating SRE monitoring done")
 	}
-	return nil
+	return status.GetDefaultComponentCondition(ComponentName), nil
 }
