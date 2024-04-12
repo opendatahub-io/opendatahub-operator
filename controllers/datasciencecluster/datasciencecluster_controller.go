@@ -20,6 +20,7 @@ package datasciencecluster
 import (
 	"context"
 	"fmt"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	"strings"
 	"time"
 
@@ -192,6 +193,20 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 		return ctrl.Result{}, nil
 	}
+	// Check preconditions if this is an upgrade
+	if instance.Status.Phase == status.PhaseReady {
+		// Check for existence of Argo Workflows if DSP is
+		if instance.Status.InstalledComponents[datasciencepipelines.ComponentName] {
+			if err := datasciencepipelines.UnmanagedArgoWorkFlowExists(ctx, r.Client); err != nil {
+				message := fmt.Sprintf("Failed upgrade: %v ", err.Error())
+				instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
+					status.SetExistingArgoCondition(&saved.Status.Conditions, status.ArgoWorkflowExist, message)
+					status.SetErrorCondition(&saved.Status.Conditions, status.ArgoWorkflowExist, message)
+				})
+				return ctrl.Result{}, err
+			}
+		}
+	}
 
 	// Start reconciling
 	if instance.Status.Conditions == nil {
@@ -281,12 +296,15 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 		instance = r.reportError(err, instance, "failed to reconcile "+componentName+" on DataScienceCluster")
 		instance, _ = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
 			if enabled {
-				status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileFailed, fmt.Sprintf("Component reconciliation failed: %v", err), corev1.ConditionFalse)
+				if componentName == datasciencepipelines.ComponentName && strings.Contains(err.Error(), datasciencepipelines.ArgoWorkflowCRD) {
+					status.SetExistingArgoCondition(&saved.Status.Conditions, status.ArgoWorkflowExist, fmt.Sprintf("Component update failed: %v", err))
+				} else {
+					status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileFailed, fmt.Sprintf("Component reconciliation failed: %v", err), corev1.ConditionFalse)
+				}
 			} else {
 				status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileFailed, fmt.Sprintf("Component removal failed: %v", err), corev1.ConditionFalse)
 			}
 		})
-
 		return instance, err
 	}
 	// reconciliation succeeded: update status accordingly

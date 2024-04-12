@@ -23,9 +23,10 @@ import (
 )
 
 var (
-	ComponentName = "data-science-pipelines-operator"
-	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
-	OverlayPath   = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays"
+	ComponentName   = "data-science-pipelines-operator"
+	Path            = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
+	OverlayPath     = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays"
+	ArgoWorkflowCRD = "workflows.argoproj.io"
 )
 
 // Verifies that Dashboard implements ComponentInterface.
@@ -108,7 +109,7 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 			}
 		}
 		// Check for existing Argo Workflows
-		if err := unmanagedArgoWorkFlowExists(ctx, cli); err != nil {
+		if err := UnmanagedArgoWorkFlowExists(ctx, cli); err != nil {
 			return err
 		}
 	}
@@ -149,19 +150,20 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 	return nil
 }
 
-func unmanagedArgoWorkFlowExists(ctx context.Context,
+func UnmanagedArgoWorkFlowExists(ctx context.Context,
 	cli client.Client) error {
 	workflowCRD := &apiextensionsv1.CustomResourceDefinition{}
-	if err := cli.Get(ctx, client.ObjectKey{Name: "workflows.argoproj.io"}, workflowCRD); err != nil {
+	if err := cli.Get(ctx, client.ObjectKey{Name: ArgoWorkflowCRD}, workflowCRD); err != nil {
 		if apierrs.IsNotFound(err) {
 			return nil
 		}
-		return fmt.Errorf("failed to get Workflow CRD : %w", err)
+		return fmt.Errorf("failed to get existing Workflow CRD : %w", err)
 	}
 	// Verify if existing workflow is deployed by ODH
 	_, odhLabelExists := workflowCRD.Labels[labels.ODH.Component(ComponentName)]
 	if odhLabelExists {
 		return nil
 	}
-	return fmt.Errorf("failed to deploy DSP. Argo Workflow CRD already exists but not deployed by this operator . Remove CRD to upgrade")
+	return fmt.Errorf(" %v CRD already exists but not deployed by this operator. Remove existing Argo workflows or set datasciencepipelines to Removed to proceed ",
+		ArgoWorkflowCRD)
 }
