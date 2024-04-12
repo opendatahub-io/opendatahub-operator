@@ -202,6 +202,7 @@ func GetResources(resMap resmap.ResMap) ([]*unstructured.Unstructured, error) {
 	return resources, nil
 }
 
+//nolint:gocyclo
 func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Unstructured, owner metav1.Object, applicationNamespace, componentName string, enabled bool) error {
 	resourceName := obj.GetName()
 	namespace := obj.GetNamespace()
