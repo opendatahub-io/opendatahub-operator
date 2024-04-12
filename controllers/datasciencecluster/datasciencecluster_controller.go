@@ -23,6 +23,8 @@ import (
 	"strings"
 	"time"
 
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+
 	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
 	ocbuildv1 "github.com/openshift/api/build/v1"
@@ -202,6 +204,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 				_, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
 					status.SetExistingArgoCondition(&saved.Status.Conditions, status.ArgoWorkflowExist, message)
 					status.SetErrorCondition(&saved.Status.Conditions, status.ArgoWorkflowExist, message)
+					saved.Status.Phase = status.PhaseError
 				})
 				return ctrl.Result{}, err
 			}
@@ -425,6 +428,8 @@ func (r *DataScienceClusterReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		Owns(&corev1.ServiceAccount{}, builder.WithPredicates(saPredicates)).
 		Watches(&source.Kind{Type: &dsci.DSCInitialization{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources)).
 		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources), builder.WithPredicates(configMapPredicates)).
+		Watches(&source.Kind{Type: &apiextensionsv1.CustomResourceDefinition{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources),
+			builder.WithPredicates(argoWorkflowCRDPredicates)).
 		// this predicates prevents meaningless reconciliations from being triggered
 		WithEventFilter(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{})).
 		Complete(r)
@@ -463,4 +468,17 @@ func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(a client
 	}
 
 	return nil
+}
+
+// argoWorkflowCRDPredicates filters the delete events to trigger reconcile when Argo Workflow CRD is deleted.
+var argoWorkflowCRDPredicates = predicate.Funcs{
+	DeleteFunc: func(e event.DeleteEvent) bool {
+		if e.Object.GetName() == datasciencepipelines.ArgoWorkflowCRD {
+			labels := e.Object.GetLabels()
+			if _, ok := labels["app.opendatahub.io/"+datasciencepipelines.ComponentName]; !ok {
+				return true
+			}
+		}
+		return false
+	},
 }
