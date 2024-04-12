@@ -296,7 +296,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 		instance = r.reportError(err, instance, "failed to reconcile "+componentName+" on DataScienceCluster")
 		instance, _ = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
 			if enabled {
-				if strings.Contains(err.Error(), datasciencepipelines.ArgoWorkflowCRD) {
+				if strings.Contains(err.Error(), datasciencepipelines.ArgoWorkflowCRD+" CRD already exists") {
 					status.SetExistingArgoCondition(&saved.Status.Conditions, status.ArgoWorkflowExist, fmt.Sprintf("Component update failed: %v", err))
 				} else {
 					status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileFailed, fmt.Sprintf("Component reconciliation failed: %v", err), corev1.ConditionFalse)
