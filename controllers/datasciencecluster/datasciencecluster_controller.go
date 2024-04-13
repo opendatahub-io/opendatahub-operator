@@ -216,12 +216,13 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	// Check preconditions if this is an upgrade
 	if instance.Status.Phase == status.PhaseReady {
 		// Check for existence of Argo Workflows if DSP is
-		if instance.Status.InstalledComponents[datasciencepipelines.ComponentName] {
+		if instance.Spec.Components.DataSciencePipelines.ManagementState == v1.Managed {
 			if err := datasciencepipelines.UnmanagedArgoWorkFlowExists(ctx, r.Client); err != nil {
 				message := fmt.Sprintf("Failed upgrade: %v ", err.Error())
 				_, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
 					status.SetExistingArgoCondition(&saved.Status.Conditions, status.ArgoWorkflowExist, message)
 					status.SetErrorCondition(&saved.Status.Conditions, status.ArgoWorkflowExist, message)
+					saved.Status.InstalledComponents[datasciencepipelines.ComponentName] = false
 					saved.Status.Phase = status.PhaseError
 				})
 				return ctrl.Result{}, err
@@ -316,6 +317,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 			if enabled {
 				if strings.Contains(err.Error(), datasciencepipelines.ArgoWorkflowCRD+" CRD already exists") {
 					status.SetExistingArgoCondition(&saved.Status.Conditions, status.ArgoWorkflowExist, fmt.Sprintf("Component update failed: %v", err))
+					saved.Status.InstalledComponents[datasciencepipelines.ComponentName] = false
 				} else {
 					status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileFailed, fmt.Sprintf("Component reconciliation failed: %v", err), corev1.ConditionFalse)
 				}
@@ -476,6 +478,12 @@ func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(a client
 		requestName = "default-dsc"
 	default:
 		return nil
+	}
+
+	if a.GetObjectKind().GroupVersionKind().Kind == "CustomResourceDefinition" {
+		return []reconcile.Request{{
+			NamespacedName: types.NamespacedName{Name: requestName},
+		}}
 	}
 
 	// Trigger reconcile function when uninstall configmap is created
