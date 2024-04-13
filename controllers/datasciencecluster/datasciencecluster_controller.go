@@ -55,6 +55,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
 
@@ -473,11 +474,13 @@ func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(a client
 var argoWorkflowCRDPredicates = predicate.Funcs{
 	DeleteFunc: func(e event.DeleteEvent) bool {
 		if e.Object.GetName() == datasciencepipelines.ArgoWorkflowCRD {
-			labels := e.Object.GetLabels()
-			if _, ok := labels["app.opendatahub.io/"+datasciencepipelines.ComponentName]; !ok {
-				return true
+			labelList := e.Object.GetLabels()
+			// CRD to be deleted with label "app.opendatahub.io/datasciencepipeline":"true", should not trigger reconcile
+			if value, exist := labelList[labels.ODH.Component(datasciencepipelines.ComponentName)]; value == "true" && exist {
+				return false
 			}
 		}
-		return false
+		// CRD to be deleted either not with label or label value is not "true", should trigger reconcile
+		return true
 	},
 }
