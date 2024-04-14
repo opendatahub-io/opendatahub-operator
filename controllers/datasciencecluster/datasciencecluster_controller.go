@@ -34,6 +34,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	authv1 "k8s.io/api/rbac/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -52,6 +53,7 @@ import (
 	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -79,7 +81,7 @@ const (
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:gocyclo,maintidx
+func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:maintidx,gocyclo
 	r.Log.Info("Reconciling DataScienceCluster resources", "Request.Name", req.Name)
 
 	instances := &dsc.DataScienceClusterList{}
@@ -211,6 +213,22 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 		return ctrl.Result{}, nil
 	}
+	// Check preconditions if this is an upgrade
+	if instance.Status.Phase == status.PhaseReady {
+		// Check for existence of Argo Workflows if DSP is
+		if instance.Spec.Components.DataSciencePipelines.ManagementState == v1.Managed {
+			if err := datasciencepipelines.UnmanagedArgoWorkFlowExists(ctx, r.Client); err != nil {
+				message := fmt.Sprintf("Failed upgrade: %v ", err.Error())
+				_, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
+					status.SetExistingArgoCondition(&saved.Status.Conditions, status.ArgoWorkflowExist, message)
+					status.SetErrorCondition(&saved.Status.Conditions, status.ArgoWorkflowExist, message)
+					saved.Status.InstalledComponents[datasciencepipelines.ComponentName] = false
+					saved.Status.Phase = status.PhaseError
+				})
+				return ctrl.Result{}, err
+			}
+		}
+	}
 
 	// Start reconciling
 	if instance.Status.Conditions == nil {
@@ -297,7 +315,12 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 		instance = r.reportError(err, instance, "failed to reconcile "+componentName+" on DataScienceCluster")
 		instance, _ = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
 			if enabled {
-				status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileFailed, fmt.Sprintf("Component reconciliation failed: %v", err), corev1.ConditionFalse)
+				if strings.Contains(err.Error(), datasciencepipelines.ArgoWorkflowCRD+" CRD already exists") {
+					status.SetExistingArgoCondition(&saved.Status.Conditions, status.ArgoWorkflowExist, fmt.Sprintf("Component update failed: %v", err))
+					saved.Status.InstalledComponents[datasciencepipelines.ComponentName] = false
+				} else {
+					status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileFailed, fmt.Sprintf("Component reconciliation failed: %v", err), corev1.ConditionFalse)
+				}
 			} else {
 				status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileFailed, fmt.Sprintf("Component removal failed: %v", err), corev1.ConditionFalse)
 			}
@@ -434,6 +457,8 @@ func (r *DataScienceClusterReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		Owns(&corev1.ServiceAccount{}, builder.WithPredicates(saPredicates)).
 		Watches(&source.Kind{Type: &dsci.DSCInitialization{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources)).
 		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources), builder.WithPredicates(configMapPredicates)).
+		Watches(&source.Kind{Type: &apiextensionsv1.CustomResourceDefinition{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources),
+			builder.WithPredicates(argoWorkflowCRDPredicates)).
 		// this predicates prevents meaningless reconciliations from being triggered
 		WithEventFilter(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{})).
 		Complete(r)
@@ -455,6 +480,12 @@ func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(a client
 		return nil
 	}
 
+	if a.GetObjectKind().GroupVersionKind().Kind == "CustomResourceDefinition" {
+		return []reconcile.Request{{
+			NamespacedName: types.NamespacedName{Name: requestName},
+		}}
+	}
+
 	// Trigger reconcile function when uninstall configmap is created
 	operatorNs, err := cluster.GetOperatorNamespace()
 	if err != nil {
@@ -471,4 +502,17 @@ func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(a client
 		return nil
 	}
 	return nil
+}
+
+// argoWorkflowCRDPredicates filters the delete events to trigger reconcile when Argo Workflow CRD is deleted.
+var argoWorkflowCRDPredicates = predicate.Funcs{
+	DeleteFunc: func(e event.DeleteEvent) bool {
+		if e.Object.GetName() == datasciencepipelines.ArgoWorkflowCRD {
+			labels := e.Object.GetLabels()
+			if _, ok := labels["app.opendatahub.io/"+datasciencepipelines.ComponentName]; !ok {
+				return true
+			}
+		}
+		return false
+	},
 }

@@ -22,6 +22,7 @@ import (
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 )
 
@@ -72,6 +73,7 @@ const (
 const (
 	CapabilityServiceMesh              conditionsv1.ConditionType = "CapabilityServiceMesh"
 	CapabilityServiceMeshAuthorization conditionsv1.ConditionType = "CapabilityServiceMeshAuthorization"
+	CapabilityDSPv2Argo                conditionsv1.ConditionType = "CapabilityDSPv2Argo"
 )
 
 const (
@@ -79,6 +81,7 @@ const (
 	ConfiguredReason      string = "Configured"
 	RemovedReason         string = "Removed"
 	CapabilityFailed      string = "CapabilityFailed"
+	ArgoWorkflowExist     string = "ArgoWorkflowExist"
 )
 
 const (
@@ -149,7 +152,7 @@ func SetErrorCondition(conditions *[]conditionsv1.Condition, reason string, mess
 	})
 	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
 		Type:    conditionsv1.ConditionUpgradeable,
-		Status:  corev1.ConditionUnknown,
+		Status:  corev1.ConditionFalse,
 		Reason:  reason,
 		Message: message,
 	})
@@ -188,6 +191,7 @@ func SetCompleteCondition(conditions *[]conditionsv1.Condition, reason string, m
 		Reason:  reason,
 		Message: message,
 	})
+	conditionsv1.RemoveStatusCondition(conditions, CapabilityDSPv2Argo)
 }
 
 // SetComponentCondition appends Condition Type with const ReadySuffix for given component
@@ -223,4 +227,15 @@ func RemoveComponentCondition(conditions *[]conditionsv1.Condition, component st
 		condType = component + ReadySuffix
 	}
 	conditionsv1.RemoveStatusCondition(conditions, conditionsv1.ConditionType(condType))
+}
+
+func SetExistingArgoCondition(conditions *[]conditionsv1.Condition, reason, message string) {
+	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
+		Type:    CapabilityDSPv2Argo,
+		Status:  corev1.ConditionFalse,
+		Reason:  reason,
+		Message: message,
+	})
+
+	SetComponentCondition(conditions, datasciencepipelines.ComponentName, ReconcileFailed, message, corev1.ConditionFalse)
 }
