@@ -296,7 +296,7 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 	// TODO: Remove this when we have generalize custom config requirements across all components
 	if componentName == "kserve" {
 		// do not reconcile kserve resource with annotation "opendatahub.io/managed: false"
-		if found.GetAnnotations()[annotation.ManagedAnnotation] == "false" {
+		if found.GetAnnotations()[annotation.ManagedByODHOperator] == "false" {
 			return nil
 		}
 		// do not patch resources field in Kserve deployment i.e allows users to update resources field

@@ -1,7 +1,7 @@
 package annotations
 
 // skip reconcile.
-const ManagedAnnotation = "opendatahub.io/managed"
+const ManagedByODHOperator = "opendatahub.io/managed"
 
 // trust CA bundler.
 const InjectionOfCABundleAnnotatoion = "security.opendatahub.io/inject-trusted-ca-bundle"
