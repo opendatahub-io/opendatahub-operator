@@ -122,7 +122,7 @@ metadata:
     operators.operatorframework.io/internal-objects: '[dscinitialization.opendatahub.io]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/opendatahub-io/opendatahub-operator
-  name: opendatahub-operator.v2.10.0
+  name: opendatahub-operator.v2.10.1
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -463,30 +463,6 @@ spec:
           verbs:
           - create
           - patch
-        - apiGroups:
-          - codeflare.codeflare.dev
-          resources:
-          - instascales
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - codeflare.codeflare.dev
-          resources:
-          - mcads
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
         - apiGroups:
           - config.openshift.io
           resources:
@@ -1009,16 +985,6 @@ spec:
           - update
           - use
           - watch
-        - apiGroups:
-          - mcad.ibm.com
-          resources:
-          - appwrappers
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
         - apiGroups:
           - modelregistry.opendatahub.io
           resources:
@@ -1699,58 +1665,6 @@ spec:
           - list
           - patch
           - watch
-        - apiGroups:
-          - workload.codeflare.dev
-          resources:
-          - appwrappers
-          verbs:
-          - create
-          - delete
-          - deletecollection
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - workload.codeflare.dev
-          resources:
-          - appwrappers/finalizers
-          verbs:
-          - create
-          - delete
-          - deletecollection
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - workload.codeflare.dev
-          resources:
-          - appwrappers/status
-          verbs:
-          - create
-          - delete
-          - deletecollection
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - workload.codeflare.dev
-          resources:
-          - queuejobs
-          verbs:
-          - create
-          - delete
-          - deletecollection
-          - get
-          - list
-          - patch
-          - update
-          - watch
         serviceAccountName: opendatahub-operator-controller-manager
       deployments:
       - label:
@@ -1863,7 +1777,7 @@ spec:
   selector:
     matchLabels:
       component: opendatahub-operator
-  version: 2.10.0
+  version: 2.10.1
   webhookdefinitions:
   - admissionReviewVersions:
     - v1

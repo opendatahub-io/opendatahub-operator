@@ -1,6 +1,11 @@
 package labels
 
-const ODHAppPrefix = "app.opendatahub.io"
+const (
+	ODHAppPrefix      = "app.opendatahub.io"
+	InjectTrustCA     = "config.openshift.io/inject-trusted-cabundle"
+	SecurityEnforce   = "pod-security.kubernetes.io/enforce"
+	ClusterMonitoring = "openshift.io/cluster-monitoring"
+)
 
 // K8SCommon keeps common kubernetes labels [1]
 // used across the project.

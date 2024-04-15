@@ -6,15 +6,13 @@ import (
 	"errors"
 	"math/big"
 	"strconv"
+
+	annotation "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
 //nolint:golint,revive,stylecheck //CAPS is preferred for const
 const (
-	SECRET_NAME_ANNOTATION         = "secret-generator.opendatahub.io/name"
-	SECRET_TYPE_ANNOTATION         = "secret-generator.opendatahub.io/type"
-	SECRET_LENGTH_ANNOTATION       = "secret-generator.opendatahub.io/complexity"
-	SECRET_OAUTH_CLIENT_ANNOTATION = "secret-generator.opendatahub.io/oauth-client-route"
-	SECRET_DEFAULT_COMPLEXITY      = 16
+	SECRET_DEFAULT_COMPLEXITY = 16
 
 	letterRunes = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 
@@ -41,21 +39,21 @@ func NewSecretFrom(annotations map[string]string) (*Secret, error) {
 	var secret Secret
 
 	// Get name from annotation
-	if secretName, found := annotations[SECRET_NAME_ANNOTATION]; found {
+	if secretName, found := annotations[annotation.SecretNameAnnotation]; found {
 		secret.Name = secretName
 	} else {
 		return nil, errors.New(errNameAnnotationNotFound)
 	}
 
 	// Get type from annotation
-	if secretType, found := annotations[SECRET_TYPE_ANNOTATION]; found {
+	if secretType, found := annotations[annotation.SecretTypeAnnotation]; found {
 		secret.Type = secretType
 	} else {
 		return nil, errors.New(errTypeAnnotationNotFound)
 	}
 
 	// Get complexity from annotation
-	if secretComplexity, found := annotations[SECRET_LENGTH_ANNOTATION]; found {
+	if secretComplexity, found := annotations[annotation.SecretLengthAnnotation]; found {
 		secretComplexity, err := strconv.Atoi(secretComplexity)
 		if err != nil {
 			return nil, err
@@ -65,7 +63,7 @@ func NewSecretFrom(annotations map[string]string) (*Secret, error) {
 		secret.Complexity = SECRET_DEFAULT_COMPLEXITY
 	}
 
-	if secretOAuthClientRoute, found := annotations[SECRET_OAUTH_CLIENT_ANNOTATION]; found {
+	if secretOAuthClientRoute, found := annotations[annotation.SecretOauthClientAnnotation]; found {
 		secret.OAuthClientRoute = secretOAuthClientRoute
 	}
 
