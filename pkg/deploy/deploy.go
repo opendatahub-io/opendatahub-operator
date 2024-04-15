@@ -46,6 +46,7 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	annotation "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins"
 )
@@ -288,12 +289,20 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 		return nil
 	}
 
-	// do not reconcile kserve resource with annotation "opendatahub.io/managed: false"
-	if found.GetAnnotations()["opendatahub.io/managed"] == "false" && componentName == "kserve" {
-		return nil
+	// Kserve specific workflow:
+	// TODO: Remove this when we have generalize custom config requirements across all components
+	if componentName == "kserve" {
+		// do not reconcile kserve resource with annotation "opendatahub.io/managed: false"
+		if found.GetAnnotations()[annotation.ManagedAnnotation] == "false" {
+			return nil
+		}
+		// do not patch resources field in Kserve deployment i.e allows users to update resources field
+		if err := removeResourcesFromDeployment(obj); err != nil {
+			return err
+		}
 	}
 
-	// Preserve app.opendatahub.io/<component> labels of previous versions of existing objects
+	// Preserve "app.opendatahub.io/<component>" labels of previous versions of existing objects
 	foundLabels := make(map[string]string)
 	for k, v := range found.GetLabels() {
 		if strings.Contains(k, labels.ODHAppPrefix) {
@@ -400,6 +409,44 @@ func ApplyParams(componentPath string, imageParamsMap map[string]string, isUpdat
 	err = os.Remove(backupPath)
 
 	return err
+}
+
+// removeResourcesFromDeployment checks if the provided resource is a Deployment,
+// and if so, removes the resources field from each container in the Deployment. This ensures we do not overwrite the
+// resources field when Patch is applied with the returned unstructured resource.
+func removeResourcesFromDeployment(u *unstructured.Unstructured) error {
+	// Check if the resource is a Deployment. This can be expanded to other resources as well.
+	if u.GetKind() != "Deployment" {
+		return nil
+	}
+	// Navigate to the containers array in the Deployment spec
+	containers, exists, err := unstructured.NestedSlice(u.Object, "spec", "template", "spec", "containers")
+	if err != nil {
+		return fmt.Errorf("error when trying to retrieve containers from Deployment: %w", err)
+	}
+	// Return if no containers exist
+	if !exists {
+		return nil
+	}
+
+	// Iterate over the containers to remove the resources field
+	for i := range containers {
+		container, ok := containers[i].(map[string]interface{})
+		// If containers field is not in expected type, return.
+		if !ok {
+			return nil
+		}
+		// Check and delete the resources field. This can be expanded to any whitelisted field.
+		delete(container, "resources")
+		containers[i] = container
+	}
+
+	// Update the containers in the original unstructured object
+	if err := unstructured.SetNestedSlice(u.Object, containers, "spec", "template", "spec", "containers"); err != nil {
+		return fmt.Errorf("failed to update containers in Deployment: %w", err)
+	}
+
+	return nil
 }
 
 // GetSubscription checks if a Subscription for the operator exists in the given namespace.
