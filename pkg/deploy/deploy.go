@@ -46,6 +46,7 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	annotation "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins"
 )
@@ -292,7 +293,7 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 	// TODO: Remove this when we have generalize custom config requirements across all components
 	if componentName == "kserve" {
 		// do not reconcile kserve resource with annotation "opendatahub.io/managed: false"
-		if found.GetAnnotations()["opendatahub.io/managed"] == "false" {
+		if found.GetAnnotations()[annotation.ManagedAnnotation] == "false" {
 			return nil
 		}
 		// do not patch resources field in Kserve deployment i.e allows users to update resources field
@@ -301,7 +302,7 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 		}
 	}
 
-	// Preserve app.opendatahub.io/<component> labels of previous versions of existing objects
+	// Preserve "app.opendatahub.io/<component>" labels of previous versions of existing objects
 	foundLabels := make(map[string]string)
 	for k, v := range found.GetLabels() {
 		if strings.Contains(k, labels.ODHAppPrefix) {

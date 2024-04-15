@@ -41,8 +41,8 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 			Labels: map[string]string{
-				labels.ODH.OwnedNamespace:            "true",
-				"pod-security.kubernetes.io/enforce": "baseline",
+				labels.ODH.OwnedNamespace: "true",
+				labels.SecurityEnforce:    "baseline",
 			},
 		},
 	}
@@ -90,9 +90,9 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 					ObjectMeta: metav1.ObjectMeta{
 						Name: monitoringName,
 						Labels: map[string]string{
-							labels.ODH.OwnedNamespace:            "true",
-							"pod-security.kubernetes.io/enforce": "baseline",
-							"openshift.io/cluster-monitoring":    "true",
+							labels.ODH.OwnedNamespace: "true",
+							labels.SecurityEnforce:    "baseline",
+							labels.ClusterMonitoring:  "true",
 						},
 					},
 				}
