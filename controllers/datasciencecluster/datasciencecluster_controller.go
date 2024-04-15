@@ -476,7 +476,7 @@ var argoWorkflowCRDPredicates = predicate.Funcs{
 		if e.Object.GetName() == datasciencepipelines.ArgoWorkflowCRD {
 			labelList := e.Object.GetLabels()
 			// CRD to be deleted with label "app.opendatahub.io/datasciencepipeline":"true", should not trigger reconcile
-			if value, exist := labelList[labels.ODH.Component(datasciencepipelines.ComponentName)]; value == "true" && exist {
+			if value, exist := labelList[labels.ODH.Component(datasciencepipelines.ComponentName)]; exist && value == "true" {
 				return false
 			}
 		}
