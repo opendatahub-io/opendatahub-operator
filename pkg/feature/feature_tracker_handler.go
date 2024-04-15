@@ -2,6 +2,7 @@ package feature
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -9,7 +10,22 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 )
+
+// withConditionReasonError is a wrapper around an error which provides a reason for a feature condition.
+type withConditionReasonError struct {
+	reason featurev1.FeatureConditionReason
+	err    error
+}
+
+func (e *withConditionReasonError) Unwrap() error {
+	return e.err
+}
+
+func (e *withConditionReasonError) Error() string {
+	return e.err.Error()
+}
 
 // createFeatureTracker instantiates FeatureTracker for a given Feature. It's a cluster-scoped resource used
 // to track creation and removal of all owned resources which belong to this Feature.
@@ -24,8 +40,8 @@ func (f *Feature) createFeatureTracker() error {
 		return err
 	}
 
-	if err := f.ensureGVKSet(tracker); err != nil {
-		return err
+	if gvkErr := f.ensureGVKSet(tracker); gvkErr != nil {
+		return gvkErr
 	}
 
 	f.Tracker = tracker
@@ -34,16 +50,8 @@ func (f *Feature) createFeatureTracker() error {
 }
 
 func removeFeatureTracker(f *Feature) error {
-	if f.Tracker != nil {
-		return deleteTracker(f)
-	}
-
-	if err := setFeatureTrackerIfAbsent(f); err != nil {
-		if k8serrors.IsNotFound(err) {
-			// There is nothing to delete
-			return nil
-		}
-		return err
+	if err := getFeatureTrackerIfAbsent(f); err != nil {
+		return client.IgnoreNotFound(err)
 	}
 
 	return deleteTracker(f)
@@ -62,11 +70,13 @@ func (f *Feature) getFeatureTracker() (*featurev1.FeatureTracker, error) {
 	return tracker, err
 }
 
-func setFeatureTrackerIfAbsent(f *Feature) error {
-	tracker, err := f.getFeatureTracker()
+func deleteTracker(f *Feature) error {
+	return client.IgnoreNotFound(f.Client.Delete(context.Background(), f.Tracker))
+}
 
-	f.Tracker = tracker
-
+func getFeatureTrackerIfAbsent(f *Feature) error {
+	var err error
+	f.Tracker, err = f.getFeatureTracker()
 	return err
 }
 
@@ -85,10 +95,24 @@ func (f *Feature) ensureGVKSet(obj runtime.Object) error {
 	return nil
 }
 
-func deleteTracker(f *Feature) error {
-	err := f.Client.Delete(context.Background(), f.Tracker)
-	if err != nil && !k8serrors.IsNotFound(err) {
-		return err
-	}
-	return nil
+func createFeatureTrackerStatusReporter(f *Feature) *status.Reporter[*featurev1.FeatureTracker] {
+	return status.NewStatusReporter(f.Client, f.Tracker, func(err error) status.SaveStatusFunc[*featurev1.FeatureTracker] {
+		updatedCondition := func(saved *featurev1.FeatureTracker) {
+			status.SetCompleteCondition(&saved.Status.Conditions, string(featurev1.ConditionReason.FeatureCreated), fmt.Sprintf("Applied feature [%s] successfully", f.Name))
+			saved.Status.Phase = status.PhaseReady
+		}
+		if err != nil {
+			reason := featurev1.ConditionReason.FailedApplying // generic reason when error is not related to any specific step of the feature apply
+			var conditionErr *withConditionReasonError
+			if errors.As(err, &conditionErr) {
+				reason = conditionErr.reason
+			}
+			updatedCondition = func(saved *featurev1.FeatureTracker) {
+				status.SetErrorCondition(&saved.Status.Conditions, string(reason), fmt.Sprintf("Failed applying [%s]: %+v", f.Name, err))
+				saved.Status.Phase = status.PhaseError
+			}
+		}
+
+		return updatedCondition
+	})
 }
