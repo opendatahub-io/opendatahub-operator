@@ -40,6 +40,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+
+	annotation "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
 const (
@@ -61,7 +63,7 @@ func (r *SecretGeneratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Watch only new secrets with the corresponding annotation
 	predicates := predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
-			if _, found := e.Object.GetAnnotations()[SECRET_NAME_ANNOTATION]; found {
+			if _, found := e.Object.GetAnnotations()[annotation.SecretNameAnnotation]; found {
 				return true
 			}
 			return false
@@ -72,7 +74,7 @@ func (r *SecretGeneratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// this only watch for secret deletion if has with annotation
 		// e.g. dashboard-oauth-client but not dashboard-oauth-client-generated
 		DeleteFunc: func(e event.DeleteEvent) bool {
-			if _, found := e.Object.GetAnnotations()[SECRET_NAME_ANNOTATION]; found {
+			if _, found := e.Object.GetAnnotations()[annotation.SecretNameAnnotation]; found {
 				return true
 			}
 			return false
