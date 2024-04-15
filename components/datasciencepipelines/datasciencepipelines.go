@@ -159,11 +159,11 @@ func UnmanagedArgoWorkFlowExists(ctx context.Context,
 		}
 		return fmt.Errorf("failed to get existing Workflow CRD : %w", err)
 	}
-	// Verify if existing workflow is deployed by ODH
-	_, odhLabelExists := workflowCRD.Labels[labels.ODH.Component(ComponentName)]
-	if odhLabelExists {
-		return nil
+	// Verify if existing workflow is deployed by ODH with label
+	odhLabelValue, odhLabelExists := workflowCRD.Labels[labels.ODH.Component(ComponentName)]
+	if odhLabelExists && odhLabelValue != "true" {
+		return fmt.Errorf(" %v CRD already exists but not deployed by this operator. Remove existing Argo workflows or set datasciencepipelines to Removed to proceed ",
+			ArgoWorkflowCRD)
 	}
-	return fmt.Errorf(" %v CRD already exists but not deployed by this operator. Remove existing Argo workflows or set datasciencepipelines to Removed to proceed ",
-		ArgoWorkflowCRD)
+	return nil
 }
