@@ -15,6 +15,7 @@ import (
 
 	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/dashboard"
@@ -24,9 +25,9 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/trainingoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
-	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/infrastructure/v1"
 )
 
 func (tc *testContext) waitForControllerDeployment(name string, replicas int32) error {
@@ -115,7 +116,7 @@ func setupDSCInstance(name string) *dsc.DataScienceCluster {
 				},
 				CodeFlare: codeflare.CodeFlare{
 					Component: components.Component{
-						ManagementState: operatorv1.Removed,
+						ManagementState: operatorv1.Managed,
 					},
 				},
 				Ray: ray.Ray{
@@ -134,6 +135,11 @@ func setupDSCInstance(name string) *dsc.DataScienceCluster {
 					},
 				},
 				ModelRegistry: modelregistry.ModelRegistry{
+					Component: components.Component{
+						ManagementState: operatorv1.Managed,
+					},
+				},
+				TrainingOperator: trainingoperator.TrainingOperator{
 					Component: components.Component{
 						ManagementState: operatorv1.Managed,
 					},

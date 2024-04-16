@@ -1,3 +1,4 @@
+// +groupName=datasciencecluster.opendatahub.io
 package kueue
 
 import (
@@ -5,9 +6,9 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -30,10 +31,10 @@ type Kueue struct {
 	components.Component `json:""`
 }
 
-func (r *Kueue) OverrideManifests(_ string) error {
+func (k *Kueue) OverrideManifests(_ string) error {
 	// If devflags are set, update default manifests path
-	if len(r.DevFlags.Manifests) != 0 {
-		manifestConfig := r.DevFlags.Manifests[0]
+	if len(k.DevFlags.Manifests) != 0 {
+		manifestConfig := k.DevFlags.Manifests[0]
 		if err := deploy.DownloadManifests(ComponentName, manifestConfig); err != nil {
 			return err
 		}
@@ -48,16 +49,18 @@ func (r *Kueue) OverrideManifests(_ string) error {
 	return nil
 }
 
-func (r *Kueue) GetComponentName() string {
+func (k *Kueue) GetComponentName() string {
 	return ComponentName
 }
 
-func (r *Kueue) ReconcileComponent(ctx context.Context, cli client.Client, resConf *rest.Config, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
+func (k *Kueue) ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
+	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
+	l := k.ConfigComponentLogger(logger, ComponentName, dscispec)
 	var imageParamMap = map[string]string{
 		"odh-kueue-controller-image": "RELATED_IMAGE_ODH_KUEUE_CONTROLLER_IMAGE", // new kueue image
 	}
 
-	enabled := r.GetManagementState() == operatorv1.Managed
+	enabled := k.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 	platform, err := deploy.GetPlatform(cli)
 	if err != nil {
@@ -65,32 +68,33 @@ func (r *Kueue) ReconcileComponent(ctx context.Context, cli client.Client, resCo
 	}
 
 	if enabled {
-		if r.DevFlags != nil {
+		if k.DevFlags != nil {
 			// Download manifests and update paths
-			if err = r.OverrideManifests(string(platform)); err != nil {
+			if err = k.OverrideManifests(string(platform)); err != nil {
 				return err
 			}
 		}
-		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (r.DevFlags == nil || len(r.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(Path, r.SetImageParamsMap(imageParamMap), true); err != nil {
-				return err
+		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (k.DevFlags == nil || len(k.DevFlags.Manifests) == 0) {
+			if err := deploy.ApplyParams(Path, imageParamMap, true); err != nil {
+				return fmt.Errorf("failed to update image from %s : %w", Path, err)
 			}
 		}
 	}
 	// Deploy Kueue Operator
 	if err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
-		return err
+		return fmt.Errorf("failed to apply manifetss %s: %w", Path, err)
 	}
+	l.Info("apply manifests done")
 	// CloudService Monitoring handling
 	if platform == deploy.ManagedRhods {
 		if enabled {
 			// first check if the service is up, so prometheus won't fire alerts when it is just startup
-			if err := monitoring.WaitForDeploymentAvailable(ctx, resConf, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
+			if err := monitoring.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
 				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 			}
-			fmt.Printf("deployment for %s is done, updating monitoring rules\n", ComponentName)
+			l.Info("deployment is done, updating monitoring rules")
 		}
-		if err := r.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
+		if err := k.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
 		}
 		if err = deploy.DeployManifestsFromPath(cli, owner,
@@ -99,6 +103,7 @@ func (r *Kueue) ReconcileComponent(ctx context.Context, cli client.Client, resCo
 			"prometheus", true); err != nil {
 			return err
 		}
+		l.Info("updating SRE monitoring done")
 	}
 
 	return nil

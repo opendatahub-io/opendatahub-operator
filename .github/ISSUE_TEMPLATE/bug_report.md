@@ -1,24 +1,16 @@
 ---
-name: Bug report v1
-about: Create a report to help us improve v1 operator
+name: End support for v1
+about: How To
 labels: bug, v1
 ---
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+# What
 
-**To Reproduce**
-Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+In the summer of 2023, a new operator, v2, was released with enhanced support for ODH. 
+For more details, please refer to the blog post: [ODH Operator v2.0 Blog]([https://opendatahub.io/blog/2023-07-24-odh-operator-v2.0-blog/)
 
-**Expected behavior**
-A clear and concise description of what you expected to happen.
+During the autumn of 2023, the project decided to end the support period for ODH operator v1. The release version v1.11.0 marks the final release for operator v1; thereafter, v2.4.0 takes over. Consequently, no new feature developments or bug fixes will be pursued for v1.
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
+# How
 
-**Additional context**
-Add any other context about the problem here.
+We strongly recommend you switch from v1 to v2, see upgrade blog: https://opendatahub.io/docs/upgrading-open-data-hub/#upgrading-the-odh-operator-v1_upgradev

@@ -10,7 +10,7 @@ To ensure a component is integrated seamlessly in the operator, follow the steps
 ### Add Component to DataScienceCluster API spec
 
 DataScienceCluster CRD is responsible for defining the component fields and exposing them to end users.
-Add your component to it's [api spec](https://github.com/opendatahub-io/opendatahub-operator/blob/main/apis/datasciencecluster/v1/datasciencecluster_types.go#L40):
+Add your component to it's [api spec](../docs/api-overview.md#datascienceclusterspec):
 
 ```go
 type Components struct {
@@ -31,20 +31,24 @@ can be found [here](https://github.com/opendatahub-io/opendatahub-operator/tree/
 
     ```go
     type ComponentInterface interface {
-      ReconcileComponent(cli client.Client, owner metav1.Object, DSCISpec *dsci.DSCInitializationSpec) error
-      Cleanup(cli client.Client, DSCISpec *dsci.DSCInitializationSpec) error
+      ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger, owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec, currentComponentStatus bool) error
+      Cleanup(cli client.Client, DSCISpec *dsciv1.DSCInitializationSpec) error
       GetComponentName() string
       GetManagementState() operatorv1.ManagementState
-      SetImageParamsMap(imageMap map[string]string) map[string]string
+      OverrideManifests(platform string) error
       UpdatePrometheusConfig(cli client.Client, enable bool, component string) error
-      WaitForDeploymentAvailable(ctx context.Context, r *rest.Config, c string, n string, i int, t int) error
+      ConfigComponentLogger(logger logr.Logger, component string, dscispec *dsciv1.DSCInitializationSpec) logr.Logger
     }
     ```
+  
 ### Add reconcile and Events
 
 - Once you set up the new component module, add the component to [Reconcile](https://github.com/opendatahub-io/opendatahub-operator/blob/acaaf31f43e371456363f3fd272aec91ba413482/controllers/datasciencecluster/datasciencecluster_controller.go#L135) 
   function in order to deploy manifests.
 - This will also enable/add status updates of the component in the operator.
+
+### Reconcile Workflow
+![Component Reconcile Workflow.png](Component%20Reconcile%20Workflow.png)
 
 ### Add Unit and e2e tests
 

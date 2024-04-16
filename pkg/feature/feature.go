@@ -9,12 +9,13 @@ import (
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlLog "sigs.k8s.io/controller-runtime/pkg/log"
 
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
 type Feature struct {
@@ -25,7 +26,7 @@ type Feature struct {
 
 	Client client.Client
 
-	manifests []manifest
+	manifests []Manifest
 
 	cleanups       []Action
 	resources      []Action
@@ -53,7 +54,7 @@ func (f *Feature) Apply() (err error) {
 		return nil
 	}
 
-	if trackerErr := f.createFeatureTracker(); err != nil {
+	if trackerErr := f.createFeatureTracker(); trackerErr != nil {
 		return trackerErr
 	}
 
@@ -63,8 +64,10 @@ func (f *Feature) Apply() (err error) {
 	f.updateFeatureTrackerStatus(conditionsv1.ConditionProgressing, "True", phase, fmt.Sprintf("Applying feature %s", f.Name))
 	defer func() {
 		if err != nil {
+			f.updateFeatureTrackerStatus(conditionsv1.ConditionProgressing, "False", phase, fmt.Sprintf("Feature %s finished", f.Name))
 			f.updateFeatureTrackerStatus(conditionsv1.ConditionDegraded, "True", phase, err.Error())
 		} else {
+			f.updateFeatureTrackerStatus(conditionsv1.ConditionProgressing, "False", phase, fmt.Sprintf("Feature %s finished", f.Name))
 			f.updateFeatureTrackerStatus(conditionsv1.ConditionAvailable, "True", phase, fmt.Sprintf("Feature %s applied successfully", f.Name))
 		}
 	}()
@@ -94,16 +97,19 @@ func (f *Feature) Apply() (err error) {
 		}
 	}
 
-	phase = featurev1.ProcessTemplates
+	phase = featurev1.ApplyManifests
 	for i := range f.manifests {
-		if err := f.manifests[i].process(f.Spec); err != nil {
+		var objs []*unstructured.Unstructured
+		manifest := f.manifests[i]
+		apply := f.createApplier(manifest)
+
+		if objs, err = manifest.Process(f.Spec); err != nil {
 			return errors.WithStack(err)
 		}
-	}
 
-	phase = featurev1.ApplyManifests
-	if err := f.applyManifests(); err != nil {
-		return errors.WithStack(err)
+		if err = apply(objs); err != nil {
+			return errors.WithStack(err)
+		}
 	}
 
 	phase = featurev1.PostConditions
@@ -135,48 +141,27 @@ func (f *Feature) Cleanup() error {
 	return cleanupErrors.ErrorOrNil()
 }
 
-func (f *Feature) applyManifests() error {
-	var applyErrors *multierror.Error
-	for _, m := range f.manifests {
-		applyErrors = multierror.Append(applyErrors, f.apply(m))
-	}
+type applier func(objects []*unstructured.Unstructured) error
 
-	return applyErrors.ErrorOrNil()
-}
-
-func (f *Feature) CreateConfigMap(cfgMapName string, data map[string]string) error {
-	configMap := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      cfgMapName,
-			Namespace: f.Spec.AppNamespace,
-			OwnerReferences: []metav1.OwnerReference{
-				f.AsOwnerReference(),
-			},
-		},
-		Data: data,
-	}
-
-	err := f.Client.Get(context.TODO(), client.ObjectKey{
-		Namespace: configMap.Namespace,
-		Name:      configMap.Name,
-	}, configMap)
-	if err != nil {
-		if k8serrors.IsNotFound(err) {
-			err = f.Client.Create(context.TODO(), configMap)
-			if err != nil {
-				return err
+func (f *Feature) createApplier(m Manifest) applier {
+	switch manifest := m.(type) {
+	case *templateManifest:
+		if manifest.patch {
+			return func(objects []*unstructured.Unstructured) error {
+				return patchResources(f.Client, objects)
 			}
-		} else {
-			return err
 		}
-	} else {
-		err = f.Client.Update(context.TODO(), configMap)
-		if err != nil {
-			return err
+	case *rawManifest:
+		if manifest.patch {
+			return func(objects []*unstructured.Unstructured) error {
+				return patchResources(f.Client, objects)
+			}
 		}
 	}
 
-	return nil
+	return func(objects []*unstructured.Unstructured) error {
+		return createResources(f.Client, objects, OwnedBy(f))
+	}
 }
 
 func (f *Feature) addCleanup(cleanupFuncs ...Action) {
@@ -184,46 +169,32 @@ func (f *Feature) addCleanup(cleanupFuncs ...Action) {
 }
 
 func (f *Feature) ApplyManifest(path string) error {
-	m := createManifestFrom(embeddedFiles, path)
-
-	if err := m.process(f.Spec); err != nil {
+	m, err := loadManifestsFrom(embeddedFiles, path)
+	if err != nil {
 		return err
 	}
+	for i := range m {
+		var objs []*unstructured.Unstructured
+		manifest := m[i]
+		apply := f.createApplier(manifest)
 
-	return f.apply(m)
-}
-
-type apply func(data string) error
-
-func (f *Feature) apply(m manifest) error {
-	var applier apply
-	targetPath := m.targetPath()
-
-	if m.patch {
-		applier = func(data string) error {
-			f.Log.Info("patching using manifest", "feature", f.Name, "name", m.name, "path", targetPath)
-
-			return f.patchResources(data)
+		if objs, err = manifest.Process(f.Spec); err != nil {
+			return errors.WithStack(err)
 		}
-	} else {
-		applier = func(data string) error {
-			f.Log.Info("applying manifest", "feature", f.Name, "name", m.name, "path", targetPath)
 
-			return f.createResources(data)
+		if err = apply(objs); err != nil {
+			return errors.WithStack(err)
 		}
 	}
-
-	if err := applier(m.processedContent); err != nil {
-		f.Log.Error(err, "failed to create resource", "feature", f.Name, "name", m.name, "path", targetPath)
-
-		return err
-	}
-
 	return nil
 }
 
 func (f *Feature) AsOwnerReference() metav1.OwnerReference {
 	return f.Tracker.ToOwnerReference()
+}
+
+func OwnedBy(f *Feature) cluster.MetaOptions {
+	return cluster.WithOwnerReference(f.AsOwnerReference())
 }
 
 // updateFeatureTrackerStatus updates conditions of a FeatureTracker.

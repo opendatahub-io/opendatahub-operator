@@ -1,4 +1,5 @@
 // Package modelmeshserving provides utility functions to config MoModelMesh, a general-purpose model serving management/routing layer
+// +groupName=datasciencecluster.opendatahub.io
 package modelmeshserving
 
 import (
@@ -7,9 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -73,11 +74,12 @@ func (m *ModelMeshServing) GetComponentName() string {
 
 func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 	cli client.Client,
-	resConf *rest.Config,
+	logger logr.Logger,
 	owner metav1.Object,
 	dscispec *dsciv1.DSCInitializationSpec,
 	_ bool,
 ) error {
+	l := m.ConfigComponentLogger(logger, ComponentName, dscispec)
 	var imageParamMap = map[string]string{
 		"odh-mm-rest-proxy":             "RELATED_IMAGE_ODH_MM_REST_PROXY_IMAGE",
 		"odh-modelmesh-runtime-adapter": "RELATED_IMAGE_ODH_MODELMESH_RUNTIME_ADAPTER_IMAGE",
@@ -116,17 +118,16 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 		}
 		// Update image parameters
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (m.DevFlags == nil || len(m.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(Path, m.SetImageParamsMap(imageParamMap), false); err != nil {
-				return err
+			if err := deploy.ApplyParams(Path, imageParamMap, false); err != nil {
+				return fmt.Errorf("failed update image from %s : %w", Path, err)
 			}
 		}
 	}
 
-	err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled)
-	if err != nil {
-		return err
+	if err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+		return fmt.Errorf("failed to apply manifests from %s : %w", Path, err)
 	}
-
+	l.WithValues("Path", Path).Info("apply manifests done for modelmesh")
 	// For odh-model-controller
 	if enabled {
 		if err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace,
@@ -135,7 +136,7 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 		}
 		// Update image parameters for odh-model-controller
 		if dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "" {
-			if err := deploy.ApplyParams(DependentPath, m.SetImageParamsMap(dependentImageParamMap), false); err != nil {
+			if err := deploy.ApplyParams(DependentPath, dependentImageParamMap, false); err != nil {
 				return err
 			}
 		}
@@ -147,14 +148,15 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 		}
 	}
 
+	l.WithValues("Path", DependentPath).Info("apply manifests done for odh-model-controller")
 	// CloudService Monitoring handling
 	if platform == deploy.ManagedRhods {
 		if enabled {
 			// first check if service is up, so prometheus won't fire alerts when it is just startup
-			if err := monitoring.WaitForDeploymentAvailable(ctx, resConf, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
+			if err := monitoring.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
 				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 			}
-			fmt.Printf("deployment for %s is done, updating monitoring rules\n", ComponentName)
+			l.Info("deployment is done, updating monitoring rules")
 		}
 		// first model-mesh rules
 		if err := m.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
@@ -170,6 +172,7 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 			"prometheus", true); err != nil {
 			return err
 		}
+		l.Info("updating SRE monitoring done")
 	}
 
 	return nil

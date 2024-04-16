@@ -9,5 +9,5 @@ spec:
       extensionProviders:
       - name: {{ .AppNamespace }}-auth-provider
         envoyExtAuthzGrpc:
-          service: {{ .AuthProviderName }}-authorization.{{ .Auth.Namespace }}.svc.cluster.local
+          service: {{ .AuthProviderName }}-authorino-authorization.{{ .Auth.Namespace }}.svc.cluster.local
           port: 50051

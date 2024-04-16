@@ -1,4 +1,5 @@
 // Package workbenches provides utility functions to config Workbenches to secure Jupyter Notebook in Kubernetes environments with support for OAuth
+// +groupName=datasciencecluster.opendatahub.io
 package workbenches
 
 import (
@@ -7,15 +8,16 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/monitoring"
 )
 
@@ -95,7 +97,9 @@ func (w *Workbenches) GetComponentName() string {
 	return ComponentName
 }
 
-func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client, resConf *rest.Config, owner metav1.Object, dscispec *dsci.DSCInitializationSpec, _ bool) error {
+func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
+	owner metav1.Object, dscispec *dsci.DSCInitializationSpec, _ bool) error {
+	l := w.ConfigComponentLogger(logger, ComponentName, dscispec)
 	var imageParamMap = map[string]string{
 		"odh-notebook-controller-image":    "RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE",
 		"odh-kf-notebook-controller-image": "RELATED_IMAGE_ODH_KF_NOTEBOOK_CONTROLLER_IMAGE",
@@ -120,9 +124,10 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 			}
 		}
 		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
-			_, err := cluster.CreateNamespace(cli, "rhods-notebooks", cluster.WithLabels(cluster.ODHGeneratedNamespaceLabel, "true"))
+			// Intentionally leaving the ownership unset for this namespace.
+			// Specifying this label triggers its deletion when the operator is uninstalled.
+			_, err := cluster.CreateNamespace(cli, "rhods-notebooks", cluster.WithLabels(labels.ODH.OwnedNamespace, "true"))
 			if err != nil {
-				// no need to log error as it was already logged in createOdhNamespace
 				return err
 			}
 		}
@@ -132,22 +137,22 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 			return err
 		}
 	}
-
 	if err = deploy.DeployManifestsFromPath(cli, owner, notebookControllerPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
-		return err
+		return fmt.Errorf("failed to apply manifetss %s: %w", notebookControllerPath, err)
 	}
+	l.WithValues("Path", notebookControllerPath).Info("apply manifests done NBC")
 
 	// Update image parameters for nbc in downstream
 	if enabled {
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (w.DevFlags == nil || len(w.DevFlags.Manifests) == 0) {
 			if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
 				// for kf-notebook-controller image
-				if err := deploy.ApplyParams(notebookControllerPath, w.SetImageParamsMap(imageParamMap), false); err != nil {
-					return err
+				if err := deploy.ApplyParams(notebookControllerPath, imageParamMap, false); err != nil {
+					return fmt.Errorf("failed to update image %s: %w", notebookControllerPath, err)
 				}
 				// for odh-notebook-controller image
-				if err := deploy.ApplyParams(kfnotebookControllerPath, w.SetImageParamsMap(imageParamMap), false); err != nil {
-					return err
+				if err := deploy.ApplyParams(kfnotebookControllerPath, imageParamMap, false); err != nil {
+					return fmt.Errorf("failed to update image %s: %w", kfnotebookControllerPath, err)
 				}
 			}
 		}
@@ -172,15 +177,16 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 		ComponentName, enabled); err != nil {
 		return err
 	}
+	l.WithValues("Path", manifestsPath).Info("apply manifests done notebook image")
 	// CloudService Monitoring handling
 	if platform == deploy.ManagedRhods {
 		if enabled {
 			// first check if the service is up, so prometheus wont fire alerts when it is just startup
 			// only 1 replica set timeout to 1min
-			if err := monitoring.WaitForDeploymentAvailable(ctx, resConf, ComponentName, dscispec.ApplicationsNamespace, 10, 1); err != nil {
+			if err := monitoring.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 10, 1); err != nil {
 				return fmt.Errorf("deployments for %s are not ready to server: %w", ComponentName, err)
 			}
-			fmt.Printf("deployments for %s are done, updating monitoring rules\n", ComponentName)
+			l.Info("deployment is done, updating monitoring rules")
 		}
 		if err := w.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
@@ -191,6 +197,7 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 			"prometheus", true); err != nil {
 			return err
 		}
+		l.Info("updating SRE monitoring done")
 	}
 
 	return nil

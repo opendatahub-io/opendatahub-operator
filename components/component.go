@@ -1,3 +1,4 @@
+// +groupName=datasciencecluster.opendatahub.io
 package components
 
 import (
@@ -7,13 +8,14 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 )
 
 // Component struct defines the basis for each OpenDataHub component configuration.
@@ -46,10 +48,6 @@ func (c *Component) Cleanup(_ client.Client, _ *dsciv1.DSCInitializationSpec) er
 	return nil
 }
 
-func (c *Component) SetImageParamsMap(imageMap map[string]string) map[string]string {
-	return imageMap
-}
-
 // DevFlags defines list of fields that can be used by developers to test customizations. This is not recommended
 // to be used in production environment.
 // +kubebuilder:object:generate=true
@@ -80,13 +78,22 @@ type ManifestsConfig struct {
 }
 
 type ComponentInterface interface {
-	ReconcileComponent(ctx context.Context, cli client.Client, resConf *rest.Config, owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec, currentComponentStatus bool) error
+	ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
+		owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec, currentComponentStatus bool) error
 	Cleanup(cli client.Client, DSCISpec *dsciv1.DSCInitializationSpec) error
 	GetComponentName() string
 	GetManagementState() operatorv1.ManagementState
-	SetImageParamsMap(imageMap map[string]string) map[string]string
 	OverrideManifests(platform string) error
 	UpdatePrometheusConfig(cli client.Client, enable bool, component string) error
+	ConfigComponentLogger(logger logr.Logger, component string, dscispec *dsciv1.DSCInitializationSpec) logr.Logger
+}
+
+// extend origal ConfigLoggers to include component name.
+func (c *Component) ConfigComponentLogger(logger logr.Logger, component string, dscispec *dsciv1.DSCInitializationSpec) logr.Logger {
+	if dscispec.DevFlags != nil {
+		return common.ConfigLoggers(dscispec.DevFlags.LogMode).WithName("DSC.Components." + component)
+	}
+	return logger.WithName("DSC.Components." + component)
 }
 
 // UpdatePrometheusConfig update prometheus-configs.yaml to include/exclude <component>.rules
@@ -103,28 +110,30 @@ func (c *Component) UpdatePrometheusConfig(_ client.Client, enable bool, compone
 			Namespace string `yaml:"namespace"`
 		} `yaml:"metadata"`
 		Data struct {
-			PrometheusYML      string `yaml:"prometheus.yml"`
-			OperatorRules      string `yaml:"operator-recording.rules"`
-			DeadManSnitchRules string `yaml:"deadmanssnitch-alerting.rules"`
-			CFRRules           string `yaml:"codeflare-recording.rules"`
-			CRARules           string `yaml:"codeflare-alerting.rules"`
-			DashboardRRules    string `yaml:"rhods-dashboard-recording.rules"`
-			DashboardARules    string `yaml:"rhods-dashboard-alerting.rules"`
-			DSPRRules          string `yaml:"data-science-pipelines-operator-recording.rules"`
-			DSPARules          string `yaml:"data-science-pipelines-operator-alerting.rules"`
-			MMRRules           string `yaml:"model-mesh-recording.rules"`
-			MMARules           string `yaml:"model-mesh-alerting.rules"`
-			OdhModelRRules     string `yaml:"odh-model-controller-recording.rules"`
-			OdhModelARules     string `yaml:"odh-model-controller-alerting.rules"`
-			RayARules          string `yaml:"ray-alerting.rules"`
-			WorkbenchesRRules  string `yaml:"workbenches-recording.rules"`
-			WorkbenchesARules  string `yaml:"workbenches-alerting.rules"`
-			KserveRRules       string `yaml:"kserve-recording.rules"`
-			KserveARules       string `yaml:"kserve-alerting.rules"`
-			TrustyAIRRules     string `yaml:"trustyai-recording.rules"`
-			TrustyAIARules     string `yaml:"trustyai-alerting.rules"`
-			KueueRRules        string `yaml:"kueue-recording.rules"`
-			KueueARules        string `yaml:"kueue-alerting.rules"`
+			PrometheusYML          string `yaml:"prometheus.yml"`
+			OperatorRules          string `yaml:"operator-recording.rules"`
+			DeadManSnitchRules     string `yaml:"deadmanssnitch-alerting.rules"`
+			CFRRules               string `yaml:"codeflare-recording.rules"`
+			CRARules               string `yaml:"codeflare-alerting.rules"`
+			DashboardRRules        string `yaml:"rhods-dashboard-recording.rules"`
+			DashboardARules        string `yaml:"rhods-dashboard-alerting.rules"`
+			DSPRRules              string `yaml:"data-science-pipelines-operator-recording.rules"`
+			DSPARules              string `yaml:"data-science-pipelines-operator-alerting.rules"`
+			MMRRules               string `yaml:"model-mesh-recording.rules"`
+			MMARules               string `yaml:"model-mesh-alerting.rules"`
+			OdhModelRRules         string `yaml:"odh-model-controller-recording.rules"`
+			OdhModelARules         string `yaml:"odh-model-controller-alerting.rules"`
+			RayARules              string `yaml:"ray-alerting.rules"`
+			WorkbenchesRRules      string `yaml:"workbenches-recording.rules"`
+			WorkbenchesARules      string `yaml:"workbenches-alerting.rules"`
+			KserveRRules           string `yaml:"kserve-recording.rules"`
+			KserveARules           string `yaml:"kserve-alerting.rules"`
+			TrustyAIRRules         string `yaml:"trustyai-recording.rules"`
+			TrustyAIARules         string `yaml:"trustyai-alerting.rules"`
+			KueueRRules            string `yaml:"kueue-recording.rules"`
+			KueueARules            string `yaml:"kueue-alerting.rules"`
+			TrainingOperatorRRules string `yaml:"trainingoperator-recording.rules"`
+			TrainingOperatorARules string `yaml:"trainingoperator-alerting.rules"`
 		} `yaml:"data"`
 	}
 	var configMap ConfigMap

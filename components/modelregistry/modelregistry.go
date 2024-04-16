@@ -1,23 +1,30 @@
 // Package modelregistry provides utility functions to config ModelRegistry, an ML Model metadata repository service
+// +groupName=datasciencecluster.opendatahub.io
 package modelregistry
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 
+	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 var (
 	ComponentName = "model-registry-operator"
 	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/odh"
+	// we should not apply this label to the namespace, as it triggered namspace deletion during operator uninstall
+	// modelRegistryLabels = cluster.WithLabels(
+	// 	labels.ODH.OwnedNamespace, "true",
+	// ).
 )
 
 // Verifies that ModelRegistry implements ComponentInterface.
@@ -51,8 +58,9 @@ func (m *ModelRegistry) GetComponentName() string {
 	return ComponentName
 }
 
-func (m *ModelRegistry) ReconcileComponent(_ context.Context, cli client.Client, _ *rest.Config,
+func (m *ModelRegistry) ReconcileComponent(_ context.Context, cli client.Client, logger logr.Logger,
 	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
+	l := m.ConfigComponentLogger(logger, ComponentName, dscispec)
 	var imageParamMap = map[string]string{
 		"IMAGES_MODELREGISTRY_OPERATOR": "RELATED_IMAGE_ODH_MODEL_REGISTRY_OPERATOR_IMAGE",
 		"IMAGES_GRPC_SERVICE":           "RELATED_IMAGE_ODH_MLMD_GRPC_SERVER_IMAGE",
@@ -75,13 +83,20 @@ func (m *ModelRegistry) ReconcileComponent(_ context.Context, cli client.Client,
 
 		// Update image parameters only when we do not have customized manifests set
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (m.DevFlags == nil || len(m.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(Path, m.SetImageParamsMap(imageParamMap), false); err != nil {
-				return err
+			if err := deploy.ApplyParams(Path, imageParamMap, false); err != nil {
+				return fmt.Errorf("failed to update image from %s : %w", Path, err)
 			}
+		}
+
+		// Create odh-model-registries namespace
+		// We do not delete this namespace even when ModelRegistry is Removed or when operator is uninstalled.
+		_, err := cluster.CreateNamespace(cli, "odh-model-registries")
+		if err != nil {
+			return err
 		}
 	}
 	// Deploy ModelRegistry Operator
 	err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, m.GetComponentName(), enabled)
-
+	l.Info("apply manifests done")
 	return err
 }

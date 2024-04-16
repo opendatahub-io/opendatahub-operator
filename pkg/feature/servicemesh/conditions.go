@@ -20,20 +20,19 @@ const (
 	duration = 5 * time.Minute
 )
 
+// EnsureAuthNamespaceExists creates a namespace for the Authorization provider and set ownership so it will be garbage collected when the operator is uninstalled.
 func EnsureAuthNamespaceExists(f *feature.Feature) error {
 	if resolveNsErr := ResolveAuthNamespace(f); resolveNsErr != nil {
 		return resolveNsErr
 	}
 
-	_, err := cluster.CreateNamespace(f.Client, f.Spec.Auth.Namespace)
+	_, err := cluster.CreateNamespace(f.Client, f.Spec.Auth.Namespace, feature.OwnedBy(f))
 	return err
 }
 
 func EnsureServiceMeshOperatorInstalled(f *feature.Feature) error {
-	if err := feature.EnsureCRDIsInstalled("servicemeshcontrolplanes.maistra.io")(f); err != nil {
-		f.Log.Info("Failed to find the pre-requisite Service Mesh Control Plane CRD, please ensure Service Mesh Operator is installed.")
-
-		return err
+	if err := feature.EnsureOperatorIsInstalled("servicemeshoperator")(f); err != nil {
+		return fmt.Errorf("failed to find the pre-requisite Service Mesh Operator subscription, please ensure Service Mesh Operator is installed. %w", err)
 	}
 
 	return nil

@@ -9,7 +9,11 @@ import (
 	"io/fs"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
+
+	"github.com/ghodss/yaml"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 //go:embed templates
@@ -23,17 +27,77 @@ var (
 	KServeDir      = path.Join(ServiceMeshDir, "kserve")
 )
 
-type manifest struct {
-	name,
-	path,
-	processedContent string
-	template,
-	patch bool
-	fsys fs.FS
+type Manifest interface {
+	// Process allows any arbitrary struct to be passed and used while processing the content of the manifest.
+	Process(data any) ([]*unstructured.Unstructured, error)
 }
 
-func loadManifestsFrom(fsys fs.FS, path string) ([]manifest, error) {
-	var manifests []manifest
+type rawManifest struct {
+	name,
+	path string
+	patch bool
+	fsys  fs.FS
+}
+
+var _ Manifest = (*rawManifest)(nil)
+
+func (b *rawManifest) Process(_ any) ([]*unstructured.Unstructured, error) {
+	manifestFile, err := b.fsys.Open(b.path)
+	if err != nil {
+		return nil, err
+	}
+	defer manifestFile.Close()
+
+	content, err := io.ReadAll(manifestFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file: %w", err)
+	}
+	resources := string(content)
+
+	return convertToUnstructuredSlice(resources)
+}
+
+var _ Manifest = (*templateManifest)(nil)
+
+type templateManifest struct {
+	name,
+	path string
+	patch bool
+	fsys  fs.FS
+}
+
+func (t *templateManifest) Process(data any) ([]*unstructured.Unstructured, error) {
+	manifestFile, err := t.fsys.Open(t.path)
+	if err != nil {
+		return nil, err
+	}
+	defer manifestFile.Close()
+
+	content, err := io.ReadAll(manifestFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create file: %w", err)
+	}
+
+	tmpl, err := template.New(t.name).
+		Option("missingkey=error").
+		Funcs(template.FuncMap{"ReplaceChar": ReplaceChar}).
+		Parse(string(content))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse template: %w", err)
+	}
+
+	var buffer bytes.Buffer
+	if err := tmpl.Execute(&buffer, data); err != nil {
+		return nil, fmt.Errorf("failed to execute template: %w", err)
+	}
+
+	resources := buffer.String()
+
+	return convertToUnstructuredSlice(resources)
+}
+
+func loadManifestsFrom(fsys fs.FS, path string) ([]Manifest, error) {
+	var manifests []Manifest
 
 	err := fs.WalkDir(fsys, path, func(path string, dirEntry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -48,8 +112,11 @@ func loadManifestsFrom(fsys fs.FS, path string) ([]manifest, error) {
 		if dirEntry.IsDir() {
 			return nil
 		}
-		m := createManifestFrom(fsys, path)
-		manifests = append(manifests, m)
+		if isTemplateManifest(path) {
+			manifests = append(manifests, CreateTemplateManifestFrom(fsys, path))
+		} else {
+			manifests = append(manifests, CreateRawManifestFrom(fsys, path))
+		}
 
 		return nil
 	})
@@ -61,58 +128,46 @@ func loadManifestsFrom(fsys fs.FS, path string) ([]manifest, error) {
 	return manifests, nil
 }
 
-func createManifestFrom(fsys fs.FS, path string) manifest {
+func CreateRawManifestFrom(fsys fs.FS, path string) *rawManifest { //nolint:golint,revive //No need to export rawManifest.
 	basePath := filepath.Base(path)
-	m := manifest{
-		name:     basePath,
-		path:     path,
-		patch:    strings.Contains(basePath, ".patch"),
-		template: filepath.Ext(path) == ".tmpl",
-		fsys:     fsys,
-	}
 
-	return m
+	return &rawManifest{
+		name:  basePath,
+		path:  path,
+		patch: strings.Contains(basePath, ".patch"),
+		fsys:  fsys,
+	}
 }
 
-func (m *manifest) targetPath() string {
-	return fmt.Sprintf("%s%s", m.path[:len(m.path)-len(filepath.Ext(m.path))], ".yaml")
+func CreateTemplateManifestFrom(fsys fs.FS, path string) *templateManifest { //nolint:golint,revive //No need to export templateManifest.
+	basePath := filepath.Base(path)
+
+	return &templateManifest{
+		name:  basePath,
+		path:  path,
+		patch: strings.Contains(basePath, ".patch"),
+		fsys:  fsys,
+	}
 }
 
-func (m *manifest) process(data interface{}) error {
-	manifestFile, err := m.open()
-	if err != nil {
-		return err
-	}
-
-	defer manifestFile.Close()
-
-	content, err := io.ReadAll(manifestFile)
-	if err != nil {
-		return fmt.Errorf("failed to create file: %w", err)
-	}
-
-	if !m.template {
-		// If, by convention, the file is not suffixed with `.tmpl` we do not need to trigger template processing.
-		// It's safe to return at this point.
-		m.processedContent = string(content)
-		return nil
-	}
-
-	tmpl, err := template.New(m.name).Funcs(template.FuncMap{"ReplaceChar": ReplaceChar}).Parse(string(content))
-	if err != nil {
-		return fmt.Errorf("failed to create file: %w", err)
-	}
-
-	var buffer bytes.Buffer
-	if err := tmpl.Execute(&buffer, data); err != nil {
-		return err
-	}
-
-	m.processedContent = buffer.String()
-
-	return nil
+func isTemplateManifest(path string) bool {
+	return strings.Contains(path, ".tmpl")
 }
 
-func (m *manifest) open() (fs.File, error) {
-	return m.fsys.Open(m.path)
+func convertToUnstructuredSlice(resources string) ([]*unstructured.Unstructured, error) {
+	splitter := regexp.MustCompile(YamlSeparator)
+	objectStrings := splitter.Split(resources, -1)
+	objs := make([]*unstructured.Unstructured, 0, len(objectStrings))
+	for _, str := range objectStrings {
+		if strings.TrimSpace(str) == "" {
+			continue
+		}
+		u := &unstructured.Unstructured{}
+		if err := yaml.Unmarshal([]byte(str), u); err != nil {
+			return nil, err
+		}
+
+		objs = append(objs, u)
+	}
+	return objs, nil
 }

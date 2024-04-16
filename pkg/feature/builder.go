@@ -4,6 +4,7 @@ import (
 	"io/fs"
 
 	"github.com/hashicorp/go-multierror"
+	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/pkg/errors"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/client-go/rest"
@@ -12,7 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
-	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/infrastructure/v1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 )
 
 type partialBuilder func(f *Feature) error
@@ -23,6 +24,7 @@ type featureBuilder struct {
 	builders        []partialBuilder
 	featuresHandler *FeaturesHandler
 	fsys            fs.FS
+	targetNS        string
 }
 
 func CreateFeature(name string) *usingFeaturesHandler { //nolint:golint,revive //No need to export featureBuilder.
@@ -52,6 +54,7 @@ func (u *usingFeaturesHandler) For(featuresHandler *FeaturesHandler) *featureBui
 		name:            u.name,
 		featuresHandler: featuresHandler,
 		fsys:            embeddedFiles,
+		targetNS:        featuresHandler.DSCInitializationSpec.ApplicationsNamespace,
 	}
 
 	// Ensures creation of .Spec object is always invoked first
@@ -76,7 +79,7 @@ func createClient(config *rest.Config) partialBuilder {
 
 		var multiErr *multierror.Error
 		s := f.Client.Scheme()
-		multiErr = multierror.Append(multiErr, featurev1.AddToScheme(s), apiextv1.AddToScheme(s))
+		multiErr = multierror.Append(multiErr, featurev1.AddToScheme(s), apiextv1.AddToScheme(s), ofapiv1alpha1.AddToScheme(s))
 
 		return multiErr.ErrorOrNil()
 	}
@@ -85,7 +88,7 @@ func createClient(config *rest.Config) partialBuilder {
 func (fb *featureBuilder) Manifests(paths ...string) *featureBuilder {
 	fb.builders = append(fb.builders, func(f *Feature) error {
 		var err error
-		var manifests []manifest
+		var manifests []Manifest
 
 		for _, path := range paths {
 			manifests, err = loadManifestsFrom(fb.fsys, path)
@@ -173,6 +176,8 @@ func (fb *featureBuilder) Load() error {
 		}
 	}
 
+	feature.Spec.TargetNamespace = fb.targetNS
+
 	fb.featuresHandler.features = append(fb.featuresHandler.features, feature)
 
 	return nil
@@ -203,5 +208,11 @@ func (fb *featureBuilder) withDefaultClient() error {
 // If ManifestSource is not called in the builder chain, the default source will be the embeddedFiles.
 func (fb *featureBuilder) ManifestSource(fsys fs.FS) *featureBuilder {
 	fb.fsys = fsys
+	return fb
+}
+
+func (fb *featureBuilder) TargetNamespace(targetNs string) *featureBuilder {
+	fb.targetNS = targetNs
+
 	return fb
 }

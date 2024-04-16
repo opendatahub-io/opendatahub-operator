@@ -32,7 +32,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -46,6 +45,7 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/trustedcabundle"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
@@ -55,7 +55,7 @@ const (
 	finalizerName = "dscinitialization.opendatahub.io/finalizer"
 )
 
-// This ar is required by the .spec.TrustedCABundle field. When a user goes from Unmanaged to Managed, update all
+// This ar is required by the .spec.TrustedCABundle field on Reconcile Update Event. When a user goes from Unmanaged to Managed, update all
 // namespaces irrespective of any changes in the configmap.
 var managementStateChangeTrustedCA = false
 
@@ -123,7 +123,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	if instance.Status.Conditions == nil {
 		reason := status.ReconcileInit
 		message := "Initializing DSCInitialization resource"
-		instance, err = r.updateStatus(ctx, instance, func(saved *dsciv1.DSCInitialization) {
+		instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
 			status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
 			saved.Status.Phase = status.PhaseProgressing
 		})
@@ -144,9 +144,8 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return reconcile.Result{}, err
 	}
 
-	// Verify odh-trusted-ca-bundle Configmap is configured for the namespaces
-	err = trustedcabundle.ConfigureTrustedCABundle(ctx, r.Client, r.Log, instance, managementStateChangeTrustedCA)
-	if err != nil {
+	// Check ManagementState to verify if odh-trusted-ca-bundle Configmap should be configured for namespaces
+	if err := trustedcabundle.ConfigureTrustedCABundle(ctx, r.Client, r.Log, instance, managementStateChangeTrustedCA); err != nil {
 		return reconcile.Result{}, err
 	}
 	managementStateChangeTrustedCA = false
@@ -204,7 +203,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		if instance.Status.Conditions == nil {
 			reason := status.ReconcileInit
 			message := "Initializing DSCInitialization resource"
-			instance, err = r.updateStatus(ctx, instance, func(saved *dsciv1.DSCInitialization) {
+			instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
 				status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
 				saved.Status.Phase = status.PhaseProgressing
 			})
@@ -266,7 +265,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 
 		// Finish reconciling
-		_, err = r.updateStatus(ctx, instance, func(saved *dsciv1.DSCInitialization) {
+		_, err = status.UpdateWithRetry[*dsciv1.DSCInitialization](ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
 			status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, status.ReconcileCompletedMessage)
 			saved.Status.Phase = status.PhaseReady
 		})
@@ -302,24 +301,6 @@ func (r *DSCInitializationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&source.Kind{Type: &corev1.Secret{}}, handler.EnqueueRequestsFromMapFunc(r.watchMonitoringSecretResource), builder.WithPredicates(SecretContentChangedPredicate)).
 		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchMonitoringConfigMapResource), builder.WithPredicates(CMContentChangedPredicate)).
 		Complete(r)
-}
-
-func (r *DSCInitializationReconciler) updateStatus(ctx context.Context, original *dsciv1.DSCInitialization, update func(saved *dsciv1.DSCInitialization),
-) (*dsciv1.DSCInitialization, error) {
-	saved := &dsciv1.DSCInitialization{}
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		if err := r.Client.Get(ctx, client.ObjectKeyFromObject(original), saved); err != nil {
-			return err
-		}
-
-		update(saved)
-
-		// Return err itself here (not wrapped inside another error)
-		// so that RetryOnConflict can identify it correctly.
-		return r.Client.Status().Update(ctx, saved)
-	})
-
-	return saved, err
 }
 
 var SecretContentChangedPredicate = predicate.Funcs{
@@ -369,10 +350,11 @@ func (r *DSCInitializationReconciler) watchMonitoringConfigMapResource(a client.
 }
 
 func (r *DSCInitializationReconciler) watchMonitoringSecretResource(a client.Object) []reconcile.Request {
-	operatorNs, err := upgrade.GetOperatorNamespace()
+	operatorNs, err := cluster.GetOperatorNamespace()
 	if err != nil {
 		return nil
 	}
+
 	if a.GetName() == "addon-managed-odh-parameters" && a.GetNamespace() == operatorNs {
 		r.Log.Info("Found monitoring secret has updated, start reconcile")
 
@@ -387,7 +369,7 @@ func (r *DSCInitializationReconciler) watchDSCResource(_ client.Object) []reconc
 		// do not handle if cannot get list
 		return nil
 	}
-	if len(instanceList.Items) == 0 && !upgrade.HasDeleteConfigMap(r.Client) {
+	if len(instanceList.Items) == 0 && !upgrade.HasDeleteConfigMap(context.TODO(), r.Client) {
 		r.Log.Info("Found no DSC instance in cluster but not in uninstalltion process, reset monitoring stack config")
 
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "backup"}}}

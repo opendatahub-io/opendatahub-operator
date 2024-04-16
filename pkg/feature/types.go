@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
-	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/infrastructure/v1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 )
 
 type Spec struct {
@@ -13,6 +13,7 @@ type Spec struct {
 	AuthProviderName         string
 	OAuth                    OAuth
 	AppNamespace             string
+	TargetNamespace          string
 	Domain                   string
 	KnativeCertificateSecret string
 	KnativeIngressDomain     string
