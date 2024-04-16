@@ -40,11 +40,12 @@ func (k *Kserve) defineServiceMeshFeatures(cli client.Client) feature.FeaturesPr
 		if authorinoInstalled {
 			kserveExtAuthzErr := feature.CreateFeature("kserve-external-authz").
 				For(handler).
+				ManifestSource(Resources.Source).
 				Manifests(
-					path.Join(feature.KServeDir, "activator-envoyfilter.tmpl"),
-					path.Join(feature.KServeDir, "envoy-oauth-temp-fix.tmpl"),
-					path.Join(feature.KServeDir, "kserve-predictor-authorizationpolicy.tmpl"),
-					path.Join(feature.KServeDir, "z-migrations"),
+					path.Join(Resources.ServiceMeshDir, "activator-envoyfilter.tmpl.yaml"),
+					path.Join(Resources.ServiceMeshDir, "envoy-oauth-temp-fix.tmpl.yaml"),
+					path.Join(Resources.ServiceMeshDir, "kserve-predictor-authorizationpolicy.tmpl.yaml"),
+					path.Join(Resources.ServiceMeshDir, "z-migrations"),
 				).
 				WithData(servicemesh.ClusterDetails).
 				Load()
