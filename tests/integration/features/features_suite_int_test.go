@@ -3,10 +3,8 @@ package features_test
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"path/filepath"
 	"testing"
-	"time"
 
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	v1 "k8s.io/api/core/v1"
@@ -42,7 +40,6 @@ func TestFeaturesIntegration(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	rand.Seed(time.Now().UTC().UnixNano())
 
 	ctx, cancel = context.WithCancel(context.TODO())
 
