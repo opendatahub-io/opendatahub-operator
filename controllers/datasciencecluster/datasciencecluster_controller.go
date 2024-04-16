@@ -448,7 +448,7 @@ func (r *DataScienceClusterReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		Owns(&admv1.MutatingWebhookConfiguration{}).
 		Owns(&admv1.ValidatingWebhookConfiguration{}, builder.WithPredicates(modelMeshwebhookPredicates)).
 		Owns(&corev1.ServiceAccount{}, builder.WithPredicates(saPredicates)).
-		Watches(&source.Kind{Type: &dsci.DSCInitialization{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources)).
+		Watches(&source.Kind{Type: &dsci.DSCInitialization{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterForDSCI)).
 		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources), builder.WithPredicates(configMapPredicates)).
 		Watches(&source.Kind{Type: &apiextensionsv1.CustomResourceDefinition{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources),
 			builder.WithPredicates(argoWorkflowCRDPredicates)).
@@ -457,6 +457,29 @@ func (r *DataScienceClusterReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		Complete(r)
 }
 
+func (r *DataScienceClusterReconciler) watchDataScienceClusterForDSCI(a client.Object) []reconcile.Request {
+	instanceList := &dsc.DataScienceClusterList{}
+	err := r.Client.List(context.TODO(), instanceList)
+	if err != nil {
+		return nil
+	}
+	var requestName string
+	switch {
+	case len(instanceList.Items) == 1:
+		requestName = instanceList.Items[0].Name
+	case len(instanceList.Items) == 0:
+		requestName = "default-dsc"
+	default:
+		return nil
+	}
+	// When DSCI CR gets created, trigger reconcile function
+	if a.GetObjectKind().GroupVersionKind().Kind == "DSCInitialization" || a.GetName() == "default-dsci" {
+		return []reconcile.Request{{
+			NamespacedName: types.NamespacedName{Name: requestName},
+		}}
+	}
+	return nil
+}
 func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(a client.Object) []reconcile.Request {
 	instanceList := &dsc.DataScienceClusterList{}
 	err := r.Client.List(context.TODO(), instanceList)
@@ -484,7 +507,6 @@ func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(a client
 	if err != nil {
 		return nil
 	}
-
 	if a.GetNamespace() == operatorNs {
 		labels := a.GetLabels()
 		if val, ok := labels[upgrade.DeleteConfigMapLabel]; ok && val == "true" {
