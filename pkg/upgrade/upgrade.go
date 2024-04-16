@@ -329,6 +329,9 @@ func CleanupExistingResource(ctx context.Context, cli client.Client, platform de
 	deprecatedOperatorSM := []string{"rhods-monitor-federation2"}
 	multiErr = multierror.Append(multiErr, deleteDeprecatedServiceMonitors(ctx, cli, dscMonitoringNamespace, deprecatedOperatorSM))
 
+	// Remove deprecated opendatahub namespace(owned by kuberay)
+	multiErr = multierror.Append(multiErr, deleteDeprecatedNamespace(ctx, cli, "opendatahub"))
+
 	// Handling for dashboard Jupyterhub CR, see jira #443
 	JupyterhubApp := schema.GroupVersionKind{
 		Group:   "dashboard.opendatahub.io",
@@ -686,5 +689,46 @@ func RemoveLabel(cli client.Client, objectName string, labelKey string) error {
 	if err := cli.Update(context.TODO(), foundNamespace); err != nil {
 		return fmt.Errorf("error removing %s from %s : %w", labelKey, objectName, err)
 	}
+	return nil
+}
+
+func deleteDeprecatedNamespace(ctx context.Context, cli client.Client, namespace string) error {
+	foundNamespace := &corev1.Namespace{}
+	if err := cli.Get(ctx, client.ObjectKey{Name: namespace}, foundNamespace); err != nil {
+		if apierrs.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("could not get %s namespace: %w", namespace, err)
+	}
+
+	// Check if namespace is owned by DSC
+	isOwnedByDSC := false
+	for _, owner := range foundNamespace.OwnerReferences {
+		if owner.Kind == "DataScienceCluster" {
+			isOwnedByDSC = true
+		}
+	}
+	if !isOwnedByDSC {
+		return nil
+	}
+
+	// Check if namespace has pods running
+	podList := &corev1.PodList{}
+	listOpts := []client.ListOption{
+		client.InNamespace(namespace),
+	}
+	if err := cli.List(ctx, podList, listOpts...); err != nil {
+		return fmt.Errorf("error getting pods from namespace %s: %w", namespace, err)
+	}
+	if len(podList.Items) != 0 {
+		fmt.Printf("Skip deletion of namespace %s due to running Pods in it\n", namespace)
+		return nil
+	}
+
+	// Delete namespace if no pods found
+	if err := cli.Delete(ctx, foundNamespace); err != nil {
+		return fmt.Errorf("could not delete %s namespace: %w", namespace, err)
+	}
+
 	return nil
 }
