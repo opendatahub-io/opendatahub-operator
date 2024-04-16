@@ -171,8 +171,8 @@ func (r *DSCInitializationReconciler) authorizationFeatures(instance *dsciv1.DSC
 			For(handler).
 			ManifestSource(Templates.Source).
 			Manifests(
-				path.Join(Templates.AuthorinoDir, "base"),
 				path.Join(Templates.AuthorinoDir, "auth-smm.tmpl.yaml"),
+				path.Join(Templates.AuthorinoDir, "base"),
 				path.Join(Templates.AuthorinoDir, "mesh-authz-ext-provider.patch.tmpl.yaml"),
 			).
 			WithData(servicemesh.ClusterDetails).
