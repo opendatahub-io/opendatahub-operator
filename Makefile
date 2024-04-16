@@ -69,7 +69,7 @@ YQ ?= $(LOCALBIN)/yq
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v3.8.7
 CONTROLLER_GEN_VERSION ?= v0.9.2
-OPERATOR_SDK_VERSION ?= v1.24.1
+OPERATOR_SDK_VERSION ?= v1.31.0
 GOLANGCI_LINT_VERSION ?= v1.54.0
 YQ_VERSION ?= v4.12.2
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
@@ -336,7 +336,7 @@ catalog-build: opm ## Build a catalog image.
 catalog-push: ## Push a catalog image.
 	$(MAKE) image-push IMG=$(CATALOG_IMG)
 
-TOOLBOX_GOLANG_VERSION := 1.19
+TOOLBOX_GOLANG_VERSION := 1.20
 TOOLBOX_OPERATOR_SDK_VERSION := 1.24.1
 
 # Generate a Toolbox container for locally testing changes easily
