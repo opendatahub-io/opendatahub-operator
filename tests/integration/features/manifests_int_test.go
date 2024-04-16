@@ -40,64 +40,14 @@ var _ = Describe("Manifest sources", func() {
 		objectCleaner.DeleteAll(namespace)
 	})
 
-	It("should be able to process an embedded template from the default location", func() {
-		// given
-		featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-			createServiceErr := feature.CreateFeature("create-local-gw-svc").
-				For(handler).
-				UsingConfig(envTest.Config).
-				Manifests(path.Join(feature.ServerlessDir, "serving-istio-gateways", "local-gateway-svc.tmpl")).
-				Load()
-
-			Expect(createServiceErr).ToNot(HaveOccurred())
-
-			return nil
-		})
-
-		// when
-		Expect(featuresHandler.Apply()).To(Succeed())
-
-		// then
-		service, err := fixtures.GetService(envTestClient, namespace.Name, "knative-local-gateway")
-		Expect(err).ToNot(HaveOccurred())
-		Expect(service.Name).To(Equal("knative-local-gateway"))
-	})
-
-	It("should be able to process an embedded YAML file from the default location", func() {
-		// given
-		knativeNs, nsErr := cluster.CreateNamespace(envTestClient, "knative-serving")
-		Expect(nsErr).ToNot(HaveOccurred())
-		defer objectCleaner.DeleteAll(knativeNs)
-
-		featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-			createGatewayErr := feature.CreateFeature("create-local-gateway").
-				For(handler).
-				UsingConfig(envTest.Config).
-				Manifests(path.Join(feature.ServerlessDir, "serving-istio-gateways", "istio-local-gateway.yaml")).
-				Load()
-
-			Expect(createGatewayErr).ToNot(HaveOccurred())
-
-			return nil
-		})
-
-		// when
-		Expect(featuresHandler.Apply()).To(Succeed())
-
-		// then
-		gateway, err := getGateway(envTest.Config, "knative-serving", "knative-local-gateway")
-		Expect(err).ToNot(HaveOccurred())
-		Expect(gateway).ToNot(BeNil())
-	})
-
-	It("should be able to process an embedded file from a non default location", func() {
+	It("should be able to process an embedded YAML file", func() {
 		// given
 		featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
 			createNamespaceErr := feature.CreateFeature("create-namespace").
 				For(handler).
 				UsingConfig(envTest.Config).
 				ManifestSource(fixtures.TestEmbeddedFiles).
-				Manifests(path.Join(feature.BaseDir, "namespace.yaml")).
+				Manifests(path.Join(fixtures.BaseDir, "namespace.yaml")).
 				Load()
 
 			Expect(createNamespaceErr).ToNot(HaveOccurred())
@@ -113,6 +63,30 @@ var _ = Describe("Manifest sources", func() {
 		defer objectCleaner.DeleteAll(embeddedNs)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(embeddedNs.Name).To(Equal("embedded-test-ns"))
+	})
+
+	It("should be able to process an embedded template file", func() {
+		// given
+		featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
+			createServiceErr := feature.CreateFeature("create-local-gw-svc").
+				For(handler).
+				UsingConfig(envTest.Config).
+				ManifestSource(fixtures.TestEmbeddedFiles).
+				Manifests(path.Join(fixtures.BaseDir, "local-gateway-svc.tmpl.yaml")).
+				Load()
+
+			Expect(createServiceErr).ToNot(HaveOccurred())
+
+			return nil
+		})
+
+		// when
+		Expect(featuresHandler.Apply()).To(Succeed())
+
+		// then
+		service, err := fixtures.GetService(envTestClient, namespace.Name, "knative-local-gateway")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(service.Name).To(Equal("knative-local-gateway"))
 	})
 
 	const nsYAML = `apiVersion: v1

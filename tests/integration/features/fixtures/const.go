@@ -7,4 +7,5 @@ const (
 	Timeout = 5 * time.Second
 	// Interval is the default interval for polling for a condition to be met.
 	Interval = 250 * time.Millisecond
+	BaseDir  = "templates"
 )

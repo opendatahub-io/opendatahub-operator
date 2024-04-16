@@ -2,29 +2,16 @@ package feature
 
 import (
 	"bytes"
-	"embed"
 	"fmt"
 	"html/template"
 	"io"
 	"io/fs"
-	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
 
 	"github.com/ghodss/yaml"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-)
-
-//go:embed templates
-var embeddedFiles embed.FS
-
-var (
-	BaseDir        = "templates"
-	ServiceMeshDir = path.Join(BaseDir, "servicemesh")
-	ServerlessDir  = path.Join(BaseDir, "serverless")
-	AuthDir        = path.Join(ServiceMeshDir, "authorino")
-	KServeDir      = path.Join(ServiceMeshDir, "kserve")
 )
 
 type Manifest interface {
@@ -145,13 +132,13 @@ func CreateTemplateManifestFrom(fsys fs.FS, path string) *templateManifest { //n
 	return &templateManifest{
 		name:  basePath,
 		path:  path,
-		patch: strings.Contains(basePath, ".patch"),
+		patch: strings.Contains(basePath, ".patch."),
 		fsys:  fsys,
 	}
 }
 
 func isTemplateManifest(path string) bool {
-	return strings.Contains(path, ".tmpl")
+	return strings.Contains(filepath.Base(path), ".tmpl.")
 }
 
 func convertToUnstructuredSlice(resources string) ([]*unstructured.Unstructured, error) {

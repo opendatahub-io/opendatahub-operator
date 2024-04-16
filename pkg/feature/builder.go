@@ -53,7 +53,6 @@ func (u *usingFeaturesHandler) For(featuresHandler *FeaturesHandler) *featureBui
 	fb := &featureBuilder{
 		name:            u.name,
 		featuresHandler: featuresHandler,
-		fsys:            embeddedFiles,
 		targetNS:        featuresHandler.DSCInitializationSpec.ApplicationsNamespace,
 	}
 
@@ -85,7 +84,18 @@ func createClient(config *rest.Config) partialBuilder {
 	}
 }
 
-func (fb *featureBuilder) Manifests(paths ...string) *featureBuilder {
+// Used to enforce that Manifests() is called after ManifestSource() in the chain.
+type featureBuilderWithManifestSource struct {
+	*featureBuilder
+}
+
+// ManifestSource sets the root file system (fsys) from which manifest paths are loaded.
+func (fb *featureBuilder) ManifestSource(fsys fs.FS) *featureBuilderWithManifestSource {
+	fb.fsys = fsys
+	return &featureBuilderWithManifestSource{featureBuilder: fb}
+}
+
+func (fb *featureBuilderWithManifestSource) Manifests(paths ...string) *featureBuilderWithManifestSource {
 	fb.builders = append(fb.builders, func(f *Feature) error {
 		var err error
 		var manifests []Manifest
@@ -177,6 +187,7 @@ func (fb *featureBuilder) Load() error {
 	}
 
 	feature.Spec.TargetNamespace = fb.targetNS
+	feature.fsys = fb.fsys
 
 	fb.featuresHandler.features = append(fb.featuresHandler.features, feature)
 
@@ -202,13 +213,6 @@ func (fb *featureBuilder) withDefaultClient() error {
 
 	fb.config = restCfg
 	return nil
-}
-
-// ManifestSource sets the root file system (fsys) from which manifest paths are loaded
-// If ManifestSource is not called in the builder chain, the default source will be the embeddedFiles.
-func (fb *featureBuilder) ManifestSource(fsys fs.FS) *featureBuilder {
-	fb.fsys = fsys
-	return fb
 }
 
 func (fb *featureBuilder) TargetNamespace(targetNs string) *featureBuilder {
