@@ -162,8 +162,8 @@ func UnmanagedArgoWorkFlowExists(ctx context.Context,
 	// Verify if existing workflow is deployed by ODH with label
 	odhLabelValue, odhLabelExists := workflowCRD.Labels[labels.ODH.Component(ComponentName)]
 	if odhLabelExists && odhLabelValue != "true" {
-		return fmt.Errorf(" %v CRD already exists but not deployed by this operator. Remove existing Argo workflows or set datasciencepipelines to Removed to proceed ",
-			ArgoWorkflowCRD)
+		return fmt.Errorf(" %v CRD already exists but not deployed by this operator. "+
+			"Remove existing Argo workflows or set `spec.components.datasciencepipelines.managementState` to Removed to proceed ", ArgoWorkflowCRD)
 	}
 	return nil
 }
