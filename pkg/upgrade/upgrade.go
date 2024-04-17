@@ -732,7 +732,8 @@ func deleteDeprecatedNamespace(ctx context.Context, cli client.Client, namespace
 		return fmt.Errorf("error getting pods from namespace %s: %w", namespace, err)
 	}
 	if len(podList.Items) != 0 {
-		return nil
+        fmt.Printf("Skip deletion of namespace %s due to running Pods in it\n", namespace)
+        return nil
 	}
 
 	// Delete namespace if no pods found
