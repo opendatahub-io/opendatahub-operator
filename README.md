@@ -77,8 +77,8 @@ and installed from source manually, see the Developer guide for further instruct
 
 #### Pre-requisites
 
-- Go version **go1.19**
-- operator-sdk version can be updated to **v1.24.1**
+- Go version **go1.20**
+- operator-sdk version can be updated to **v1.31.1**
 
 #### Download manifests
 
