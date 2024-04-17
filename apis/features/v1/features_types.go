@@ -23,7 +23,7 @@ type FeatureTracker struct {
 	Status FeatureTrackerStatus `json:"status,omitempty"`
 }
 
-// NewFeatureTracker instantiate FeatureTracker instance.
+// NewFeatureTracker instantiate FeatureTracker.
 func NewFeatureTracker(name, appNamespace string) *FeatureTracker {
 	return &FeatureTracker{
 		TypeMeta: metav1.TypeMeta{
@@ -36,19 +36,30 @@ func NewFeatureTracker(name, appNamespace string) *FeatureTracker {
 	}
 }
 
-type FeaturePhase string
+type FeatureConditionReason string
 type OwnerType string
 
+var ConditionReason = struct {
+	FailedApplying, // generic reason when error is not related to any specific step of the feature apply
+	PreConditions,
+	ResourceCreation,
+	LoadTemplateData,
+	ApplyManifests,
+	PostConditions,
+	FeatureCreated FeatureConditionReason
+}{
+	FailedApplying:   "FailedApplying",
+	PreConditions:    "PreConditions",
+	ResourceCreation: "ResourceCreation",
+	LoadTemplateData: "LoadTemplateData",
+	ApplyManifests:   "ApplyManifests",
+	PostConditions:   "PostConditions",
+	FeatureCreated:   "FeatureCreated",
+}
+
 const (
-	FeatureCreated   FeaturePhase = "FeatureCreated"
-	PreConditions    FeaturePhase = "FeaturePreConditions"
-	ResourceCreation FeaturePhase = "ResourceCreation"
-	LoadTemplateData FeaturePhase = "LoadTemplateData"
-	ProcessTemplates FeaturePhase = "ProcessTemplates"
-	ApplyManifests   FeaturePhase = "ApplyManifests"
-	PostConditions   FeaturePhase = "FeaturePostConditions"
-	ComponentType    OwnerType    = "Component"
-	DSCIType         OwnerType    = "DSCI"
+	ComponentType OwnerType = "Component"
+	DSCIType      OwnerType = "DSCI"
 )
 
 func (s *FeatureTracker) ToOwnerReference() metav1.OwnerReference {
@@ -74,8 +85,11 @@ type FeatureTrackerSpec struct {
 
 // FeatureTrackerStatus defines the observed state of FeatureTracker.
 type FeatureTrackerStatus struct {
+	// Phase describes the Phase of FeatureTracker reconciliation state.
+	// This is used by OLM UI to provide status information to the user.
+	Phase string `json:"phase,omitempty"`
 	// +optional
-	Conditions *[]conditionsv1.Condition `json:"conditions,omitempty"`
+	Conditions []conditionsv1.Condition `json:"conditions,omitempty"`
 }
 
 // +kubebuilder:object:root=true

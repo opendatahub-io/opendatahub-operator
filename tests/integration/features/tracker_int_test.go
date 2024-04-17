@@ -8,6 +8,7 @@ import (
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/integration/features/fixtures"
 
@@ -16,20 +17,21 @@ import (
 	. "github.com/onsi/gomega/gstruct"
 )
 
-var _ = Describe("Feature tracking capability - for keeping relationship between features enabled by operator and resources created in the cluster", func() {
-	Context("ensuring feature trackers indicate status and phase", func() {
+var _ = Describe("Feature tracking capability", func() {
 
-		const appNamespace = "default"
+	const appNamespace = "default"
 
-		var (
-			dsci *dsciv1.DSCInitialization
-		)
+	var (
+		dsci *dsciv1.DSCInitialization
+	)
 
-		BeforeEach(func() {
-			dsci = fixtures.NewDSCInitialization("default")
-		})
+	BeforeEach(func() {
+		dsci = fixtures.NewDSCInitialization("default")
+	})
 
-		It("should indicate successful installation in FeatureTracker", func() {
+	Context("Reporting progress when applying Feature", func() {
+
+		It("should indicate successful installation in FeatureTracker through Status conditions", func() {
 			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
 				verificationFeatureErr := feature.CreateFeature("always-working-feature").
 					For(handler).
@@ -47,16 +49,17 @@ var _ = Describe("Feature tracking capability - for keeping relationship between
 			// then
 			featureTracker, err := fixtures.GetFeatureTracker(envTestClient, appNamespace, "always-working-feature")
 			Expect(err).ToNot(HaveOccurred())
-			Expect(*featureTracker.Status.Conditions).To(ContainElement(
+			Expect(featureTracker.Status.Phase).To(Equal(status.PhaseReady))
+			Expect(featureTracker.Status.Conditions).To(ContainElement(
 				MatchFields(IgnoreExtras, Fields{
 					"Type":   Equal(conditionsv1.ConditionAvailable),
 					"Status": Equal(corev1.ConditionTrue),
-					"Reason": Equal(string(featurev1.FeatureCreated)),
+					"Reason": Equal(string(featurev1.ConditionReason.FeatureCreated)),
 				}),
 			))
 		})
 
-		It("should indicate failure in preconditions", func() {
+		It("should indicate when failure occurs in preconditions through Status conditions", func() {
 			// given
 			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
 				verificationFeatureErr := feature.CreateFeature("precondition-fail").
@@ -78,16 +81,17 @@ var _ = Describe("Feature tracking capability - for keeping relationship between
 			// then
 			featureTracker, err := fixtures.GetFeatureTracker(envTestClient, appNamespace, "precondition-fail")
 			Expect(err).ToNot(HaveOccurred())
-			Expect(*featureTracker.Status.Conditions).To(ContainElement(
+			Expect(featureTracker.Status.Phase).To(Equal(status.PhaseError))
+			Expect(featureTracker.Status.Conditions).To(ContainElement(
 				MatchFields(IgnoreExtras, Fields{
 					"Type":   Equal(conditionsv1.ConditionDegraded),
 					"Status": Equal(corev1.ConditionTrue),
-					"Reason": Equal(string(featurev1.PreConditions)),
+					"Reason": Equal(string(featurev1.ConditionReason.PreConditions)),
 				}),
 			))
 		})
 
-		It("should indicate failure in post-conditions", func() {
+		It("should indicate when failure occurs in post-conditions through Status conditions", func() {
 			// given
 			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
 				verificationFeatureErr := feature.CreateFeature("post-condition-failure").
@@ -109,14 +113,18 @@ var _ = Describe("Feature tracking capability - for keeping relationship between
 			// then
 			featureTracker, err := fixtures.GetFeatureTracker(envTestClient, appNamespace, "post-condition-failure")
 			Expect(err).ToNot(HaveOccurred())
-			Expect(*featureTracker.Status.Conditions).To(ContainElement(
+			Expect(featureTracker.Status.Phase).To(Equal(status.PhaseError))
+			Expect(featureTracker.Status.Conditions).To(ContainElement(
 				MatchFields(IgnoreExtras, Fields{
 					"Type":   Equal(conditionsv1.ConditionDegraded),
 					"Status": Equal(corev1.ConditionTrue),
-					"Reason": Equal(string(featurev1.PostConditions)),
+					"Reason": Equal(string(featurev1.ConditionReason.PostConditions)),
 				}),
 			))
 		})
+	})
+
+	Context("adding metadata of FeatureTracker origin", func() {
 
 		It("should correctly indicate source in the feature tracker", func() {
 			// given
@@ -168,5 +176,4 @@ var _ = Describe("Feature tracking capability - for keeping relationship between
 		})
 
 	})
-
 })
