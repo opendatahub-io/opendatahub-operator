@@ -5,6 +5,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 // MeshRefs stores service mesh configuration in the config map, so it can
@@ -31,26 +32,28 @@ func MeshRefs(f *feature.Feature) error {
 
 // AuthRefs stores authorization configuration in the config map, so it can
 // be easily accessed by other components which rely on this information.
-func AuthRefs(f *feature.Feature) error {
-	audiences := f.Spec.Auth.Audiences
-	namespace := f.Spec.AppNamespace
-	audiencesList := ""
-	if audiences != nil && len(*audiences) > 0 {
-		audiencesList = strings.Join(*audiences, ",")
-	}
-	data := map[string]string{
-		"AUTH_AUDIENCE":   audiencesList,
-		"AUTH_PROVIDER":   namespace + "-auth-provider",
-		"AUTHORINO_LABEL": "security.opendatahub.io/authorization-group=default",
-	}
+func AuthRefs(audiences []string) feature.Action {
+	return func(f *feature.Feature) error {
+		namespace := f.Spec.AppNamespace
 
-	_, err := cluster.CreateOrUpdateConfigMap(
-		f.Client,
-		"auth-refs",
-		namespace,
-		data,
-		feature.OwnedBy(f),
-	)
+		audiencesList := ""
+		if len(audiences) > 0 {
+			audiencesList = strings.Join(audiences, ",")
+		}
+		data := map[string]string{
+			"AUTH_AUDIENCE":   audiencesList,
+			"AUTH_PROVIDER":   namespace + "-auth-provider",
+			"AUTHORINO_LABEL": labels.ODH.AuthorizationGroup("default"),
+		}
 
-	return err
+		_, err := cluster.CreateOrUpdateConfigMap(
+			f.Client,
+			"auth-refs",
+			namespace,
+			data,
+			feature.OwnedBy(f),
+		)
+
+		return err
+	}
 }

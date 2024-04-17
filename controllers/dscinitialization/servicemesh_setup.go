@@ -10,6 +10,7 @@ import (
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
@@ -18,7 +19,6 @@ import (
 func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsciv1.DSCInitialization) error {
 	switch instance.Spec.ServiceMesh.ManagementState {
 	case operatorv1.Managed:
-
 		capabilities := []*feature.HandlerWithReporter[*dsciv1.DSCInitialization]{
 			r.serviceMeshCapability(instance, serviceMeshCondition(status.ConfiguredReason, "Service Mesh configured")),
 		}
@@ -46,7 +46,6 @@ func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsciv1.DSCI
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -151,9 +150,11 @@ func (r *DSCInitializationReconciler) serviceMeshCapabilityFeatures(instance *ds
 			}
 		}
 
+		audiences := cluster.GetEffectiveClusterAudiences(r.Client, r.Log, handler.ServiceMesh.Auth.Audiences, cluster.GetSAToken)
+
 		cfgMapErr := feature.CreateFeature("mesh-shared-configmap").
 			For(handler).
-			WithResources(servicemesh.MeshRefs, servicemesh.AuthRefs).
+			WithResources(servicemesh.MeshRefs, servicemesh.AuthRefs(audiences)).
 			Load()
 		if cfgMapErr != nil {
 			return cfgMapErr
