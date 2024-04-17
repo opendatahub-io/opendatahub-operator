@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 // MetaOptions allows to add additional settings for the object being created through a chain
@@ -24,6 +26,12 @@ func WithOwnerReference(ownerReferences ...metav1.OwnerReference) MetaOptions {
 	return func(obj metav1.Object) error {
 		obj.SetOwnerReferences(ownerReferences)
 		return nil
+	}
+}
+
+func OwnedBy(owner metav1.Object, scheme *runtime.Scheme) MetaOptions {
+	return func(obj metav1.Object) error {
+		return controllerutil.SetOwnerReference(owner, obj, scheme)
 	}
 }
 
