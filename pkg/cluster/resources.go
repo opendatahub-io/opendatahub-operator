@@ -79,6 +79,9 @@ func CreateSecret(cli client.Client, name, namespace string, metaOptions ...Meta
 	return nil
 }
 
+// CreateOrUpdateConfigMap creates a new configmap or updates an existing one.
+// If the configmap already exists, it will be updated with the merged Data and MetaOptions, if any.
+// ConfigMap.ObjectMeta.[Name|Namespace] is required, it returns error otherwise.
 func CreateOrUpdateConfigMap(c client.Client, desiredCfgMap *corev1.ConfigMap, metaOptions ...MetaOptions) error {
 	if desiredCfgMap.GetName() == "" || desiredCfgMap.GetNamespace() == "" {
 		return fmt.Errorf("configmap name and namespace must be set")
