@@ -47,7 +47,6 @@ var _ = Describe("Creating and updating resources", func() {
 			err := feature.CreateResources(envTestClient, testObjects, metaOptions...)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Check if object has been created
 			cm, err := fixtures.GetConfigMap(envTestClient, testNamespace, "test-configmap")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(cm).NotTo(BeNil())
@@ -95,10 +94,10 @@ var _ = Describe("Creating and updating resources", func() {
 		})
 	})
 
-	When("the a metaOption function fails", func() {
+	When("a metaOption function fails", func() {
 		It("should return the error", func() {
 			failingMetaOption := func(o metav1.Object) error {
-				return fmt.Errorf("simulated meta option error")
+				return fmt.Errorf("stubbed meta option error")
 			}
 
 			metaOptions = append(metaOptions, failingMetaOption)
