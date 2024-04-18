@@ -24,13 +24,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
 const (
 	YamlSeparator = "(?m)^---[ \t]*$"
 )
 
-func createResources(cli client.Client, objects []*unstructured.Unstructured, metaOptions ...cluster.MetaOptions) error {
+func CreateResources(cli client.Client, objects []*unstructured.Unstructured, metaOptions ...cluster.MetaOptions) error {
 	for _, object := range objects {
 		for _, opt := range metaOptions {
 			if err := opt(object); err != nil {
@@ -40,20 +41,31 @@ func createResources(cli client.Client, objects []*unstructured.Unstructured, me
 
 		name := object.GetName()
 		namespace := object.GetNamespace()
+		managed, exists := object.GetAnnotations()[annotations.ManagedByODHOperator]
 
 		err := cli.Get(context.TODO(), k8stypes.NamespacedName{Name: name, Namespace: namespace}, object.DeepCopy())
-		if err == nil {
-			// object already exists, skip reconcile allowing users to tweak it
-			continue
-		}
-		if !k8serrors.IsNotFound(err) {
+		if err != nil && !k8serrors.IsNotFound(err) {
 			return errors.WithStack(err)
 		}
 
-		err = cli.Create(context.TODO(), object)
-		if err != nil {
-			return errors.WithStack(err)
+		if exists && managed == "true" {
+			// update or create object since we manage it
+			if err == nil {
+				if err := cli.Update(context.TODO(), object); err != nil {
+					return errors.WithStack(err)
+				}
+			} else {
+				if err := cli.Create(context.TODO(), object); err != nil {
+					return errors.WithStack(err)
+				}
+			}
+		} else if err != nil {
+			// object does not exist and should be created
+			if err := cli.Create(context.TODO(), object); err != nil {
+				return errors.WithStack(err)
+			}
 		}
+		// object exists and is not managed, skip reconcile allowing users to tweak it
 	}
 
 	return nil

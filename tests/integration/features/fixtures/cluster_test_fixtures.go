@@ -23,13 +23,13 @@ func CreateSubscription(client client.Client, namespace, subscriptionYaml string
 	}
 
 	ns := NewNamespace(namespace)
-	if err := createOrUpdateNamespace(client, ns); err != nil {
+	if err := CreateOrUpdateNamespace(client, ns); err != nil {
 		return err
 	}
 	return createOrUpdateSubscription(client, subscription)
 }
 
-func createOrUpdateNamespace(client client.Client, ns *v1.Namespace) error {
+func CreateOrUpdateNamespace(client client.Client, ns *v1.Namespace) error {
 	_, err := controllerutil.CreateOrUpdate(context.Background(), client, ns, func() error {
 		return nil
 	})

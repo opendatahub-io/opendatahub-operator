@@ -12,11 +12,17 @@ import (
 
 	"github.com/ghodss/yaml"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
+
+const annotationTrue = "true"
 
 type Manifest interface {
 	// Process allows any arbitrary struct to be passed and used while processing the content of the manifest.
 	Process(data any) ([]*unstructured.Unstructured, error)
+	// SetManaged sets all non-patch objects to be managed/reconciled by setting the annotation.
+	SetManaged([]*unstructured.Unstructured) []*unstructured.Unstructured
 }
 
 type rawManifest struct {
@@ -42,6 +48,22 @@ func (b *rawManifest) Process(_ any) ([]*unstructured.Unstructured, error) {
 	resources := string(content)
 
 	return convertToUnstructuredSlice(resources)
+}
+
+func (b *rawManifest) SetManaged(objs []*unstructured.Unstructured) []*unstructured.Unstructured {
+	if b.patch {
+		return objs
+	}
+	for _, obj := range objs {
+		objAnnos := obj.GetAnnotations()
+		if objAnnos == nil {
+			objAnnos = make(map[string]string)
+		}
+
+		objAnnos[annotations.ManagedByODHOperator] = annotationTrue
+		obj.SetAnnotations(objAnnos)
+	}
+	return objs
 }
 
 var _ Manifest = (*templateManifest)(nil)
@@ -81,6 +103,22 @@ func (t *templateManifest) Process(data any) ([]*unstructured.Unstructured, erro
 	resources := buffer.String()
 
 	return convertToUnstructuredSlice(resources)
+}
+
+func (t *templateManifest) SetManaged(objs []*unstructured.Unstructured) []*unstructured.Unstructured {
+	if t.patch {
+		return objs
+	}
+	for _, obj := range objs {
+		objAnnos := obj.GetAnnotations()
+		if objAnnos == nil {
+			objAnnos = make(map[string]string)
+		}
+
+		objAnnos[annotations.ManagedByODHOperator] = annotationTrue
+		obj.SetAnnotations(objAnnos)
+	}
+	return objs
 }
 
 func loadManifestsFrom(fsys fs.FS, path string) ([]Manifest, error) {
