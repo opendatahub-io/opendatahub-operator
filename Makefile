@@ -288,7 +288,11 @@ bundle-push: ## Push the bundle image.
 
 .PHONY: deploy-bundle
 deploy-bundle: operator-sdk bundle-build bundle-push
-	$(OPERATOR_SDK) run bundle $(BUNDLE_IMG)
+	$(OPERATOR_SDK) run bundle $(BUNDLE_IMG)  -n $(OPERATOR_NAMESPACE)
+
+.PHONY: upgrade-bundle
+upgrade-bundle: operator-sdk bundle-build bundle-push ## Upgrade bundle
+	$(OPERATOR_SDK) run bundle-upgrade $(BUNDLE_IMG) -n $(OPERATOR_NAMESPACE)
 
 .PHONY: opm
 OPM = ./bin/opm

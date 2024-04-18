@@ -3,6 +3,9 @@ package servicemesh
 import (
 	"strings"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 )
@@ -18,15 +21,17 @@ func MeshRefs(f *feature.Feature) error {
 		"MESH_NAMESPACE":     meshConfig.Namespace,
 	}
 
-	_, err := cluster.CreateOrUpdateConfigMap(
+	return cluster.CreateOrUpdateConfigMap(
 		f.Client,
-		"service-mesh-refs",
-		namespace,
-		data,
+		&corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "service-mesh-refs",
+				Namespace: namespace,
+			},
+			Data: data,
+		},
 		feature.OwnedBy(f),
 	)
-
-	return err
 }
 
 // AuthRefs stores authorization configuration in the config map, so it can
@@ -44,13 +49,15 @@ func AuthRefs(f *feature.Feature) error {
 		"AUTHORINO_LABEL": "security.opendatahub.io/authorization-group=default",
 	}
 
-	_, err := cluster.CreateOrUpdateConfigMap(
+	return cluster.CreateOrUpdateConfigMap(
 		f.Client,
-		"auth-refs",
-		namespace,
-		data,
+		&corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "auth-refs",
+				Namespace: namespace,
+			},
+			Data: data,
+		},
 		feature.OwnedBy(f),
 	)
-
-	return err
 }
