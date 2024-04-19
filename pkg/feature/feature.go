@@ -106,7 +106,7 @@ func (f *Feature) applyFeature() error {
 		}
 
 		if f.Managed {
-			objs = manifest.SetManaged(objs)
+			manifest.MarkAsManaged(objs)
 		}
 
 		if err := apply(objs); err != nil {
@@ -183,7 +183,7 @@ func (f *Feature) ApplyManifest(path string) error {
 		}
 
 		if f.Managed {
-			objs = manifest.SetManaged(objs)
+			manifest.MarkAsManaged(objs)
 		}
 
 		if err = apply(objs); err != nil {

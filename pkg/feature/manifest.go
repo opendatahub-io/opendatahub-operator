@@ -19,8 +19,8 @@ import (
 type Manifest interface {
 	// Process allows any arbitrary struct to be passed and used while processing the content of the manifest.
 	Process(data any) ([]*unstructured.Unstructured, error)
-	// SetManaged sets all non-patch objects to be managed/reconciled by setting the annotation.
-	SetManaged([]*unstructured.Unstructured) []*unstructured.Unstructured
+	// MarkAsManaged sets all non-patch objects to be managed/reconciled by setting the annotation.
+	MarkAsManaged(objects []*unstructured.Unstructured)
 }
 
 type rawManifest struct {
@@ -48,11 +48,10 @@ func (b *rawManifest) Process(_ any) ([]*unstructured.Unstructured, error) {
 	return convertToUnstructuredSlice(resources)
 }
 
-func (b *rawManifest) SetManaged(objects []*unstructured.Unstructured) []*unstructured.Unstructured {
+func (b *rawManifest) MarkAsManaged(objects []*unstructured.Unstructured) {
 	if !b.patch {
 		markAsManaged(objects)
 	}
-	return objects
 }
 
 var _ Manifest = (*templateManifest)(nil)
@@ -94,12 +93,10 @@ func (t *templateManifest) Process(data any) ([]*unstructured.Unstructured, erro
 	return convertToUnstructuredSlice(resources)
 }
 
-func (t *templateManifest) SetManaged(objects []*unstructured.Unstructured) []*unstructured.Unstructured {
+func (t *templateManifest) MarkAsManaged(objects []*unstructured.Unstructured) {
 	if !t.patch {
 		markAsManaged(objects)
 	}
-
-	return objects
 }
 
 func markAsManaged(objs []*unstructured.Unstructured) {
