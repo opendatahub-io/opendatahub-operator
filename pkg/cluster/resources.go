@@ -133,18 +133,14 @@ func CreateNamespace(cli client.Client, namespace string, metaOptions ...MetaOpt
 	}
 
 	foundNamespace := &corev1.Namespace{}
-	err := cli.Get(context.TODO(), client.ObjectKey{Name: namespace}, foundNamespace)
-	if err != nil {
-		if apierrs.IsNotFound(err) {
-			err = cli.Create(context.TODO(), desiredNamespace)
-			if err != nil && !apierrs.IsAlreadyExists(err) {
-				return nil, err
-			}
-			desiredNamespace.DeepCopyInto(foundNamespace)
-		} else {
-			return nil, err
-		}
+	if getErr := cli.Get(context.TODO(), client.ObjectKey{Name: namespace}, foundNamespace); client.IgnoreNotFound(getErr) != nil {
+		return nil, getErr
 	}
 
-	return foundNamespace, nil
+	createErr := cli.Create(context.TODO(), desiredNamespace)
+	if apierrs.IsAlreadyExists(createErr) {
+		return foundNamespace, nil
+	}
+
+	return desiredNamespace, client.IgnoreAlreadyExists(createErr)
 }
