@@ -50,20 +50,11 @@ func (b *rawManifest) Process(_ any) ([]*unstructured.Unstructured, error) {
 	return convertToUnstructuredSlice(resources)
 }
 
-func (b *rawManifest) SetManaged(objs []*unstructured.Unstructured) []*unstructured.Unstructured {
-	if b.patch {
-		return objs
+func (b *rawManifest) SetManaged(objects []*unstructured.Unstructured) []*unstructured.Unstructured {
+	if !b.patch {
+		markAsManaged(objects)
 	}
-	for _, obj := range objs {
-		objAnnos := obj.GetAnnotations()
-		if objAnnos == nil {
-			objAnnos = make(map[string]string)
-		}
-
-		objAnnos[annotations.ManagedByODHOperator] = annotationTrue
-		obj.SetAnnotations(objAnnos)
-	}
-	return objs
+	return objects
 }
 
 var _ Manifest = (*templateManifest)(nil)
@@ -105,20 +96,24 @@ func (t *templateManifest) Process(data any) ([]*unstructured.Unstructured, erro
 	return convertToUnstructuredSlice(resources)
 }
 
-func (t *templateManifest) SetManaged(objs []*unstructured.Unstructured) []*unstructured.Unstructured {
-	if t.patch {
-		return objs
+func (t *templateManifest) SetManaged(objects []*unstructured.Unstructured) []*unstructured.Unstructured {
+	if !t.patch {
+		markAsManaged(objects)
 	}
+
+	return objects
+}
+
+func markAsManaged(objs []*unstructured.Unstructured) {
 	for _, obj := range objs {
-		objAnnos := obj.GetAnnotations()
-		if objAnnos == nil {
-			objAnnos = make(map[string]string)
+		objAnnotations := obj.GetAnnotations()
+		if objAnnotations == nil {
+			objAnnotations = make(map[string]string)
 		}
 
-		objAnnos[annotations.ManagedByODHOperator] = annotationTrue
-		obj.SetAnnotations(objAnnos)
+		objAnnotations[annotations.ManagedByODHOperator] = "true"
+		obj.SetAnnotations(objAnnotations)
 	}
-	return objs
 }
 
 func loadManifestsFrom(fsys fs.FS, path string) ([]Manifest, error) {
