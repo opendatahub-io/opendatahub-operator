@@ -88,50 +88,18 @@ func (tc *testContext) testApplicationDeletion(component components.ComponentInt
 func (tc *testContext) testAllApplicationDeletion() error {
 	// Deletion all listed components' deployments
 
-	var err error
-	if err = tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.Dashboard)); err != nil {
+	components, err := tc.testDsc.GetComponents()
+	if err != nil {
 		return err
 	}
 
-	if err = tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.ModelMeshServing)); err != nil {
-		return err
+	for _, c := range components {
+		if err = tc.testApplicationDeletion(c); err != nil {
+			return err
+		}
 	}
 
-	if err = tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.Kserve)); err != nil {
-		return err
-	}
-
-	if err = tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.Workbenches)); err != nil {
-		return err
-	}
-
-	if err = tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.DataSciencePipelines)); err != nil {
-		return err
-	}
-
-	if err = tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.CodeFlare)); err != nil {
-		return err
-	}
-
-	if err = tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.Ray)); err != nil {
-		return err
-	}
-
-	if err := tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.Kueue)); err != nil {
-		return err
-	}
-
-	if err := tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.TrustyAI)); err != nil { //nolint:revive,nolintlint
-		return err
-	}
-
-	if err = tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.ModelRegistry)); err != nil {
-		return err
-	}
-	if err = tc.testApplicationDeletion(&(tc.testDsc.Spec.Components.TrainingOperator)); err != nil {
-		return err
-	}
-	return err
+	return nil
 }
 
 // To test if  DSCI CR is in the cluster and no problem to delete it
