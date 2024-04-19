@@ -79,6 +79,9 @@ func CreateSecret(cli client.Client, name, namespace string, metaOptions ...Meta
 	return nil
 }
 
+// CreateOrUpdateConfigMap creates a new configmap or updates an existing one.
+// If the configmap already exists, it will be updated with the merged Data and MetaOptions, if any.
+// ConfigMap.ObjectMeta.Name and ConfigMap.ObjectMeta.Namespace are both required, it returns an error otherwise.
 func CreateOrUpdateConfigMap(c client.Client, desiredCfgMap *corev1.ConfigMap, metaOptions ...MetaOptions) error {
 	if desiredCfgMap.GetName() == "" || desiredCfgMap.GetNamespace() == "" {
 		return fmt.Errorf("configmap name and namespace must be set")
@@ -132,18 +135,14 @@ func CreateNamespace(cli client.Client, namespace string, metaOptions ...MetaOpt
 	}
 
 	foundNamespace := &corev1.Namespace{}
-	err := cli.Get(context.TODO(), client.ObjectKey{Name: namespace}, foundNamespace)
-	if err != nil {
-		if apierrs.IsNotFound(err) {
-			err = cli.Create(context.TODO(), desiredNamespace)
-			if err != nil && !apierrs.IsAlreadyExists(err) {
-				return nil, err
-			}
-			desiredNamespace.DeepCopyInto(foundNamespace)
-		} else {
-			return nil, err
-		}
+	if getErr := cli.Get(context.TODO(), client.ObjectKey{Name: namespace}, foundNamespace); client.IgnoreNotFound(getErr) != nil {
+		return nil, getErr
 	}
 
-	return foundNamespace, nil
+	createErr := cli.Create(context.TODO(), desiredNamespace)
+	if apierrs.IsAlreadyExists(createErr) {
+		return foundNamespace, nil
+	}
+
+	return desiredNamespace, client.IgnoreAlreadyExists(createErr)
 }

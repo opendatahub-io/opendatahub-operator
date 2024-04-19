@@ -2,14 +2,21 @@ package e2e_test
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"strings"
+	"testing"
 
+	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -28,6 +35,12 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trainingoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
+)
+
+const (
+	servicemeshNamespace = "openshift-operators"
+	servicemeshOpName    = "servicemeshoperator"
+	serverlessOpName     = "serverless-operator"
 )
 
 func (tc *testContext) waitForControllerDeployment(name string, replicas int32) error {
@@ -72,6 +85,9 @@ func setupDSCICR(name string) *dsci.DSCInitialization {
 			TrustedCABundle: dsci.TrustedCABundleSpec{
 				ManagementState: "Managed",
 				CustomCABundle:  "",
+			},
+			ServiceMesh: infrav1.ServiceMeshSpec{
+				ManagementState: "Managed",
 			},
 		},
 	}
@@ -151,6 +167,22 @@ func setupDSCInstance(name string) *dsc.DataScienceCluster {
 	return dscTest
 }
 
+func setupSubscription(name string, ns string) *ofapi.Subscription {
+	return &ofapi.Subscription{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: ns,
+		},
+		Spec: &ofapi.SubscriptionSpec{
+			CatalogSource:          "redhat-operators",
+			CatalogSourceNamespace: "openshift-marketplace",
+			Channel:                "stable",
+			Package:                name,
+			InstallPlanApproval:    ofapi.ApprovalAutomatic,
+		},
+	}
+}
+
 func (tc *testContext) validateCRD(crdName string) error {
 	crd := &apiextv1.CustomResourceDefinition{}
 	obj := client.ObjectKey{
@@ -180,4 +212,205 @@ func (tc *testContext) validateCRD(crdName string) error {
 	})
 
 	return err
+}
+
+func (tc *testContext) wait(isReady func(ctx context.Context) (bool, error)) error {
+	return wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, true, isReady)
+}
+
+func getCSV(cli client.Client, name string, namespace string) (*ofapi.ClusterServiceVersion, error) {
+	isMatched := func(csv *ofapi.ClusterServiceVersion, name string) bool {
+		return strings.Contains(csv.ObjectMeta.Name, name)
+	}
+
+	opt := &client.ListOptions{
+		Namespace: namespace,
+	}
+	csvList := &ofapi.ClusterServiceVersionList{}
+	err := cli.List(context.TODO(), csvList, opt)
+	if err != nil {
+		return nil, err
+	}
+
+	// do not use range Items to avoid pointer to the loop variable
+	for i := 0; i < len(csvList.Items); i++ {
+		csv := &csvList.Items[i]
+		if isMatched(csv, name) {
+			return csv, nil
+		}
+	}
+
+	return nil, errors.NewNotFound(schema.GroupResource{}, name)
+}
+
+// Use existing or create a new one.
+func getSubscription(tc *testContext, name string, ns string) (*ofapi.Subscription, error) {
+	createSubscription := func(name string, ns string) (*ofapi.Subscription, error) {
+		// this just creates a manifest
+		sub := setupSubscription(name, ns)
+
+		if err := tc.customClient.Create(tc.ctx, sub); err != nil {
+			return nil, fmt.Errorf("error creating subscription: %w", err)
+		}
+
+		return sub, nil
+	}
+
+	sub := &ofapi.Subscription{}
+	key := types.NamespacedName{
+		Namespace: ns,
+		Name:      name,
+	}
+
+	err := tc.customClient.Get(tc.ctx, key, sub)
+	if errors.IsNotFound(err) {
+		return createSubscription(name, ns)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("error getting subscription: %w", err)
+	}
+
+	return sub, nil
+}
+
+func waitCSV(tc *testContext, name string, ns string) error {
+	interval := tc.resourceRetryInterval
+	timeout := tc.resourceCreationTimeout * 3 // just empirical value
+
+	isReady := func(ctx context.Context) (bool, error) {
+		csv, err := getCSV(tc.customClient, name, ns)
+		if errors.IsNotFound(err) {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+
+		return csv.Status.Phase == "Succeeded", nil
+	}
+
+	err := wait.PollUntilContextTimeout(tc.ctx, interval, timeout, false, isReady)
+	if err != nil {
+		return fmt.Errorf("Error installing %s CSV: %w", name, err)
+	}
+
+	return nil
+}
+
+func getInstallPlanName(tc *testContext, name string, ns string) (string, error) {
+	sub := &ofapi.Subscription{}
+
+	// waits for InstallPlanRef and copies value out of the closure
+	err := tc.wait(func(ctx context.Context) (bool, error) {
+		_sub, err := getSubscription(tc, name, ns)
+		if err != nil {
+			return false, err
+		}
+		*sub = *_sub
+		return sub.Status.InstallPlanRef != nil, nil
+	})
+
+	if err != nil {
+		return "", fmt.Errorf("Error creating subscription %s: %w", name, err)
+	}
+
+	return sub.Status.InstallPlanRef.Name, nil
+}
+
+func getInstallPlan(tc *testContext, name string, ns string) (*ofapi.InstallPlan, error) {
+	// it creates subscription under the hood if needed and waits for InstallPlan reference
+	planName, err := getInstallPlanName(tc, name, ns)
+	if err != nil {
+		return nil, err
+	}
+
+	obj := &ofapi.InstallPlan{}
+	key := types.NamespacedName{
+		Namespace: ns,
+		Name:      planName,
+	}
+
+	err = tc.customClient.Get(tc.ctx, key, obj)
+	if err != nil {
+		return nil, err
+	}
+
+	return obj, nil
+}
+
+func approveInstallPlan(tc *testContext, plan *ofapi.InstallPlan) error {
+	obj := &ofapi.InstallPlan{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "InstallPlan",
+			APIVersion: "operators.coreos.com/v1alpha1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      plan.ObjectMeta.Name,
+			Namespace: plan.ObjectMeta.Namespace,
+		},
+		Spec: ofapi.InstallPlanSpec{
+			Approved:                   true,
+			Approval:                   ofapi.ApprovalAutomatic,
+			ClusterServiceVersionNames: plan.Spec.ClusterServiceVersionNames,
+		},
+	}
+	force := true
+	opt := &client.PatchOptions{
+		FieldManager: "e2e-test",
+		Force:        &force,
+	}
+
+	err := tc.customClient.Patch(tc.ctx, obj, client.Apply, opt)
+	if err != nil {
+		return fmt.Errorf("Error patching InstallPlan %s: %w", obj.ObjectMeta.Name, err)
+	}
+
+	return nil
+}
+
+func ensureOperator(tc *testContext, name string, ns string) error {
+	// it creates subscription under the hood if needed
+	plan, err := getInstallPlan(tc, name, ns)
+	if err != nil {
+		return err
+	}
+
+	// in CI InstallPlan is in Manual mode
+	if !plan.Spec.Approved {
+		err = approveInstallPlan(tc, plan)
+		if err != nil {
+			return err
+		}
+	}
+
+	return waitCSV(tc, name, ns)
+}
+
+func ensureServicemeshOperators(t *testing.T, tc *testContext) error { //nolint: thelper
+	ops := []string{
+		serverlessOpName,
+		servicemeshOpName,
+	}
+	var errors *multierror.Error
+	c := make(chan error)
+
+	for _, op := range ops {
+		op := op // to avoid loop variable in the closures
+		t.Logf("Ensuring %s is installed", op)
+		go func(op string) {
+			err := ensureOperator(tc, op, servicemeshNamespace)
+			c <- err
+		}(op)
+	}
+
+	for i := 0; i < len(ops); i++ {
+		err := <-c
+		errors = multierror.Append(errors, err)
+	}
+
+	return errors.ErrorOrNil()
+}
+
+func (tc *testContext) setUp(t *testing.T) error { //nolint: thelper
+	return ensureServicemeshOperators(t, tc)
 }
