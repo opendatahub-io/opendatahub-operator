@@ -44,7 +44,7 @@ var _ = Describe("Creating and updating resources", func() {
 
 	When("an object does not exist", func() {
 		It("should create the object", func() {
-			err := feature.CreateResources(envTestClient, testObjects, metaOptions...)
+			err := feature.ApplyResources(envTestClient, testObjects, metaOptions...)
 			Expect(err).NotTo(HaveOccurred())
 
 			cm, err := fixtures.GetConfigMap(envTestClient, testNamespace, "test-configmap")
@@ -63,7 +63,7 @@ var _ = Describe("Creating and updating resources", func() {
 			}
 
 			// createResources should update this object
-			err := feature.CreateResources(envTestClient, testObjects, metaOptions...)
+			err := feature.ApplyResources(envTestClient, testObjects, metaOptions...)
 			Expect(err).NotTo(HaveOccurred())
 
 			cm, err := fixtures.GetConfigMap(envTestClient, testNamespace, "test-configmap")
@@ -85,7 +85,7 @@ var _ = Describe("Creating and updating resources", func() {
 			}
 
 			// createResources should not update this object
-			err := feature.CreateResources(envTestClient, testObjects, metaOptions...)
+			err := feature.ApplyResources(envTestClient, testObjects, metaOptions...)
 			Expect(err).NotTo(HaveOccurred())
 
 			cm, err := fixtures.GetConfigMap(envTestClient, testNamespace, "test-configmap")
@@ -102,7 +102,7 @@ var _ = Describe("Creating and updating resources", func() {
 
 			metaOptions = append(metaOptions, failingMetaOption)
 
-			err := feature.CreateResources(envTestClient, testObjects, metaOptions...)
+			err := feature.ApplyResources(envTestClient, testObjects, metaOptions...)
 			Expect(err).To(HaveOccurred())
 		})
 	})

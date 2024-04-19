@@ -17,7 +17,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/pkg/errors"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8stypes "k8s.io/apimachinery/pkg/types"
@@ -31,7 +30,7 @@ const (
 	YamlSeparator = "(?m)^---[ \t]*$"
 )
 
-func CreateResources(cli client.Client, objects []*unstructured.Unstructured, metaOptions ...cluster.MetaOptions) error {
+func ApplyResources(cli client.Client, objects []*unstructured.Unstructured, metaOptions ...cluster.MetaOptions) error {
 	for _, object := range objects {
 		for _, opt := range metaOptions {
 			if err := opt(object); err != nil {
@@ -41,31 +40,27 @@ func CreateResources(cli client.Client, objects []*unstructured.Unstructured, me
 
 		name := object.GetName()
 		namespace := object.GetNamespace()
-		managed, exists := object.GetAnnotations()[annotations.ManagedByODHOperator]
 
 		err := cli.Get(context.TODO(), k8stypes.NamespacedName{Name: name, Namespace: namespace}, object.DeepCopy())
-		if err != nil && !k8serrors.IsNotFound(err) {
-			return errors.WithStack(err)
+		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				// object does not exist and should be created
+				if err = cli.Create(context.TODO(), object); err != nil {
+					return fmt.Errorf("failed to create object %s/%s: %w", namespace, name, err)
+				}
+				continue
+			}
+			return fmt.Errorf("failed to get object %s/%s: %w", namespace, name, err)
 		}
 
-		if exists && managed == "true" {
+		isManaged, isAnnotated := object.GetAnnotations()[annotations.ManagedByODHOperator]
+		if isAnnotated && isManaged == "true" {
 			// update or create object since we manage it
-			if err == nil {
-				if err := cli.Update(context.TODO(), object); err != nil {
-					return errors.WithStack(err)
-				}
-			} else {
-				if err := cli.Create(context.TODO(), object); err != nil {
-					return errors.WithStack(err)
-				}
-			}
-		} else if err != nil {
-			// object does not exist and should be created
-			if err := cli.Create(context.TODO(), object); err != nil {
-				return errors.WithStack(err)
+			if err = cli.Update(context.TODO(), object); err != nil {
+				return fmt.Errorf("failed to update object %s/%s: %w", namespace, name, err)
 			}
 		}
-		// object exists and is not managed, skip reconcile allowing users to tweak it
+		// object exists and is not manged, skip reconcile allowing users to tweak it
 	}
 
 	return nil
