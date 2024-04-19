@@ -16,8 +16,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
-const annotationTrue = "true"
-
 type Manifest interface {
 	// Process allows any arbitrary struct to be passed and used while processing the content of the manifest.
 	Process(data any) ([]*unstructured.Unstructured, error)
