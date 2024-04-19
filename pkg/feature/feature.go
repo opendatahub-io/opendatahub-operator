@@ -160,7 +160,7 @@ func (f *Feature) createApplier(m Manifest) applier {
 	}
 
 	return func(objects []*unstructured.Unstructured) error {
-		return ApplyResources(f.Client, objects, OwnedBy(f))
+		return applyResources(f.Client, objects, OwnedBy(f))
 	}
 }
 

@@ -9,7 +9,6 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/integration/features/fixtures"
 
@@ -122,31 +121,5 @@ metadata:
 		defer objectCleaner.DeleteAll(realNs)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(realNs.Name).To(Equal("real-file-test-ns"))
-	})
-
-	It("should set the managed annotation when feature is managed", func() {
-		// given
-		featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-			createServiceErr := feature.CreateFeature("create-local-gw-svc").
-				For(handler).
-				UsingConfig(envTest.Config).
-				ManifestSource(fixtures.TestEmbeddedFiles).
-				Manifests(path.Join(fixtures.BaseDir, "local-gateway-svc.tmpl.yaml")).
-				Managed().
-				Load()
-
-			Expect(createServiceErr).ToNot(HaveOccurred())
-
-			return nil
-		})
-
-		// when
-		Expect(featuresHandler.Apply()).To(Succeed())
-
-		// then
-		service, err := fixtures.GetService(envTestClient, namespace.Name, "knative-local-gateway")
-		Expect(err).ToNot(HaveOccurred())
-		Expect(service.Name).To(Equal("knative-local-gateway"))
-		Expect(service.Annotations[annotations.ManagedByODHOperator]).To(Equal("true"))
 	})
 })

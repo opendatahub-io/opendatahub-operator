@@ -30,7 +30,7 @@ const (
 	YamlSeparator = "(?m)^---[ \t]*$"
 )
 
-func ApplyResources(cli client.Client, objects []*unstructured.Unstructured, metaOptions ...cluster.MetaOptions) error {
+func applyResources(cli client.Client, objects []*unstructured.Unstructured, metaOptions ...cluster.MetaOptions) error {
 	for _, object := range objects {
 		for _, opt := range metaOptions {
 			if err := opt(object); err != nil {
