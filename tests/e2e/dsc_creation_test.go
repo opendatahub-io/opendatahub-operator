@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -22,6 +23,7 @@ import (
 
 	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 )
 
@@ -32,6 +34,10 @@ const (
 func creationTestSuite(t *testing.T) {
 	testCtx, err := NewTestContext()
 	require.NoError(t, err)
+
+	err = testCtx.setUp(t)
+	require.NoError(t, err, "error setting up environment")
+
 	t.Run(testCtx.testDsc.Name, func(t *testing.T) {
 		t.Run("Creation of DSCI CR", func(t *testing.T) {
 			err = testCtx.testDSCICreation()
@@ -50,6 +56,14 @@ func creationTestSuite(t *testing.T) {
 		t.Run("Validate all deployed components", func(t *testing.T) {
 			err = testCtx.testAllApplicationCreation(t)
 			require.NoError(t, err, "error testing deployments for DataScienceCluster: "+testCtx.testDsc.Name)
+		})
+		t.Run("Validate DSCInitialization instance", func(t *testing.T) {
+			err = testCtx.validateDSCI()
+			require.NoError(t, err, "error validating DSCInitialization instance")
+		})
+		t.Run("Validate DataScienceCluster instance", func(t *testing.T) {
+			err = testCtx.validateDSC()
+			require.NoError(t, err, "error validating DataScienceCluster instance")
 		})
 		t.Run("Validate Ownerrefrences exist", func(t *testing.T) {
 			err = testCtx.testOwnerrefrences()
@@ -104,6 +118,26 @@ func (tc *testContext) testDSCICreation() error {
 	return nil
 }
 
+func waitDSCReady(tc *testContext) error {
+	err := tc.wait(func(ctx context.Context) (bool, error) {
+		key := types.NamespacedName{Name: tc.testDsc.Name}
+		dsc := &dsc.DataScienceCluster{}
+
+		err := tc.customClient.Get(tc.ctx, key, dsc)
+		if err != nil {
+			return false, err
+		}
+
+		return dsc.Status.Phase == "Ready", nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("Error waiting Ready state for DSC %v: %w", tc.testDsc.Name, err)
+	}
+
+	return nil
+}
+
 func (tc *testContext) testDSCCreation() error {
 	// Create DataScienceCluster resource if not already created
 
@@ -142,7 +176,7 @@ func (tc *testContext) testDSCCreation() error {
 		}
 	}
 
-	return nil
+	return waitDSCReady(tc)
 }
 
 func (tc *testContext) requireInstalled(t *testing.T, gvk schema.GroupVersionKind) {
@@ -243,11 +277,7 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint
 		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.Kserve))
 		// test Unmanaged state, since servicemesh is not installed.
 		if tc.testDsc.Spec.Components.Kserve.ManagementState == operatorv1.Managed {
-			if err != nil && tc.testDsc.Spec.Components.Kserve.Serving.ManagementState == operatorv1.Unmanaged {
-				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Workbenches.GetComponentName())
-			} else {
-				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Kserve.GetComponentName())
-			}
+			require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Kserve.GetComponentName())
 		} else {
 			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.Kserve.GetComponentName())
 		}
@@ -378,6 +408,54 @@ func (tc *testContext) testApplicationCreation(component components.ComponentInt
 	})
 
 	return err
+}
+
+func (tc *testContext) validateDSCI() error {
+	// expected
+	expServiceMeshSpec := infrav1.ServiceMeshSpec{
+		ManagementState: operatorv1.Managed,
+		ControlPlane: infrav1.ControlPlaneSpec{
+			Name:              "data-science-smcp",
+			Namespace:         "istio-system",
+			MetricsCollection: "Istio",
+		},
+		Auth: infrav1.AuthSpec{
+			Audiences: &[]string{"https://kubernetes.default.svc"},
+		},
+	}
+
+	// actual
+	act := tc.testDSCI
+
+	if !reflect.DeepEqual(act.Spec.ServiceMesh, expServiceMeshSpec) {
+		err := fmt.Errorf("Expected service mesh spec %v, got %v",
+			expServiceMeshSpec, act.Spec.ServiceMesh)
+		return err
+	}
+
+	return nil
+}
+
+func (tc *testContext) validateDSC() error {
+	expServingSpec := infrav1.ServingSpec{
+		ManagementState: operatorv1.Unmanaged,
+		Name:            "knative-serving",
+		IngressGateway: infrav1.IngressGatewaySpec{
+			Certificate: infrav1.CertificateSpec{
+				Type: infrav1.SelfSigned,
+			},
+		},
+	}
+
+	act := tc.testDsc
+
+	if act.Spec.Components.Kserve.Serving != expServingSpec {
+		err := fmt.Errorf("Expected serving spec %v, got %v",
+			expServingSpec, act.Spec.Components.Kserve.Serving)
+		return err
+	}
+
+	return nil
 }
 
 func (tc *testContext) testOwnerrefrences() error {
