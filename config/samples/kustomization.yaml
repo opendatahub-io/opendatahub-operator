@@ -5,5 +5,4 @@ kind: Kustomization
 resources:
 - datasciencecluster_v1_datasciencecluster.yaml
 - dscinitialization_v1_dscinitialization.yaml
-- featuretracker_v1_features.yaml
 #+kubebuilder:scaffold:manifestskustomizesamples
