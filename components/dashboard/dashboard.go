@@ -22,7 +22,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/monitoring"
 )
 
 var (
@@ -62,7 +61,7 @@ func (d *Dashboard) OverrideManifests(platform string) error {
 			return err
 		}
 		// If overlay is defined, update paths
-		if platform == string(deploy.ManagedRhods) || platform == string(deploy.SelfManagedRhods) {
+		if platform == string(cluster.ManagedRhods) || platform == string(cluster.SelfManagedRhods) {
 			defaultKustomizePath := "overlays/rhoai"
 			if manifestConfig.SourcePath != "" {
 				defaultKustomizePath = manifestConfig.SourcePath
@@ -93,11 +92,11 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 	currentComponentExist bool,
 ) error {
 	var l logr.Logger
-	platform, err := deploy.GetPlatform(cli)
+	platform, err := cluster.GetPlatform(cli)
 	if err != nil {
 		return err
 	}
-	if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
+	if platform == cluster.SelfManagedRhods || platform == cluster.ManagedRhods {
 		l = d.ConfigComponentLogger(logger, ComponentNameSupported, dscispec)
 	} else {
 		l = d.ConfigComponentLogger(logger, ComponentName, dscispec)
@@ -128,14 +127,14 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		}
 
 		// 2. platform specific RBAC
-		if platform == deploy.OpenDataHub || platform == "" {
+		if platform == cluster.OpenDataHub || platform == "" {
 			err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "odh-dashboard")
 			if err != nil {
 				return err
 			}
 		}
 
-		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
+		if platform == cluster.SelfManagedRhods || platform == cluster.ManagedRhods {
 			err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "rhods-dashboard")
 			if err != nil {
 				return err
@@ -153,7 +152,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 	// common: Deploy odh-dashboard manifests
 	// TODO: check if we can have the same component name odh-dashboard for both, or still keep rhods-dashboard for RHOAI
 	switch platform {
-	case deploy.SelfManagedRhods, deploy.ManagedRhods:
+	case cluster.SelfManagedRhods, cluster.ManagedRhods:
 		// anaconda
 		if err := cluster.CreateSecret(cli, "anaconda-ce-access", dscispec.ApplicationsNamespace); err != nil {
 			return fmt.Errorf("failed to create access-secret for anaconda: %w", err)
@@ -178,10 +177,10 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		l.Info("apply manifests done")
 
 		// CloudService Monitoring handling
-		if platform == deploy.ManagedRhods {
+		if platform == cluster.ManagedRhods {
 			if enabled {
 				// first check if the service is up, so prometheus won't fire alerts when it is just startup
-				if err := monitoring.WaitForDeploymentAvailable(ctx, cli, ComponentNameSupported, dscispec.ApplicationsNamespace, 20, 3); err != nil {
+				if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentNameSupported, dscispec.ApplicationsNamespace, 20, 3); err != nil {
 					return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 				}
 				l.Info("deployment is done, updating monitoring rules")
@@ -221,23 +220,23 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 	}
 }
 
-func (d *Dashboard) deployCRDsForPlatform(cli client.Client, owner metav1.Object, namespace string, platform deploy.Platform) error {
+func (d *Dashboard) deployCRDsForPlatform(cli client.Client, owner metav1.Object, namespace string, platform cluster.Platform) error {
 	componentName := ComponentName
-	if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
+	if platform == cluster.SelfManagedRhods || platform == cluster.ManagedRhods {
 		componentName = ComponentNameSupported
 	}
 	// we only deploy CRD, we do not remove CRD
 	return deploy.DeployManifestsFromPath(cli, owner, PathCRDs, namespace, componentName, true)
 }
 
-func (d *Dashboard) applyRHOAISpecificConfigs(cli client.Client, owner metav1.Object, namespace string, platform deploy.Platform) error {
+func (d *Dashboard) applyRHOAISpecificConfigs(cli client.Client, owner metav1.Object, namespace string, platform cluster.Platform) error {
 	enabled := d.ManagementState == operatorv1.Managed
 
 	// set proper group name
 	dashboardConfig := filepath.Join(PathODHDashboardConfig, "odhdashboardconfig.yaml")
-	adminGroups := map[deploy.Platform]string{
-		deploy.SelfManagedRhods: "rhods-admins",
-		deploy.ManagedRhods:     "dedicated-admins",
+	adminGroups := map[cluster.Platform]string{
+		cluster.SelfManagedRhods: "rhods-admins",
+		cluster.ManagedRhods:     "dedicated-admins",
 	}[platform]
 
 	if err := common.ReplaceStringsInFile(dashboardConfig, map[string]string{"<admin_groups>": adminGroups}); err != nil {
@@ -248,7 +247,7 @@ func (d *Dashboard) applyRHOAISpecificConfigs(cli client.Client, owner metav1.Ob
 	}
 	// ISV
 	path := PathISVSM
-	if platform == deploy.ManagedRhods {
+	if platform == cluster.ManagedRhods {
 		path = PathISVAddOn
 	}
 	if err := deploy.DeployManifestsFromPath(cli, owner, path, namespace, ComponentNameSupported, enabled); err != nil {
@@ -257,14 +256,14 @@ func (d *Dashboard) applyRHOAISpecificConfigs(cli client.Client, owner metav1.Ob
 	return nil
 }
 
-func (d *Dashboard) deployConsoleLink(cli client.Client, owner metav1.Object, platform deploy.Platform, namespace, componentName string) error {
+func (d *Dashboard) deployConsoleLink(cli client.Client, owner metav1.Object, platform cluster.Platform, namespace, componentName string) error {
 	var manifestsPath, sectionTitle, routeName string
 	switch platform {
-	case deploy.SelfManagedRhods:
+	case cluster.SelfManagedRhods:
 		sectionTitle = "OpenShift Self Managed Services"
 		manifestsPath = PathConsoleLinkSupported
 		routeName = componentName
-	case deploy.ManagedRhods:
+	case cluster.ManagedRhods:
 		sectionTitle = "OpenShift Managed Services"
 		manifestsPath = PathConsoleLinkSupported
 		routeName = componentName

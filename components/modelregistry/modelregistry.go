@@ -68,7 +68,7 @@ func (m *ModelRegistry) ReconcileComponent(_ context.Context, cli client.Client,
 	}
 	enabled := m.GetManagementState() == operatorv1.Managed
 
-	platform, err := deploy.GetPlatform(cli)
+	platform, err := cluster.GetPlatform(cli)
 	if err != nil {
 		return err
 	}

@@ -1,3 +1,5 @@
+// Package upgrade provides functions of upgrade ODH from v1 to v2 and vaiours v2 versions.
+// It contains both the logic to upgrade the ODH components and the logic to cleanup the deprecated resources.
 package upgrade
 
 import (
@@ -41,8 +43,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
@@ -123,7 +123,7 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 // createDefaultDSCI creates a default instance of DSCI
 // If there exists an instance already, it patches the DSCISpec with default values
 // Note: DSCI CR modifcations are not supported, as it is the initial prereq setting for the components.
-func CreateDefaultDSCI(cli client.Client, _ deploy.Platform, appNamespace, monNamespace string) error {
+func CreateDefaultDSCI(cli client.Client, _ cluster.Platform, appNamespace, monNamespace string) error {
 	defaultDsciSpec := &dsci.DSCInitializationSpec{
 		ApplicationsNamespace: appNamespace,
 		Monitoring: dsci.Monitoring{
@@ -177,9 +177,9 @@ func CreateDefaultDSCI(cli client.Client, _ deploy.Platform, appNamespace, monNa
 	return nil
 }
 
-func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS string, montNamespace string) error {
+func UpdateFromLegacyVersion(cli client.Client, platform cluster.Platform, appNS string, montNamespace string) error {
 	// If platform is Managed, remove Kfdefs and create default dsc
-	if platform == deploy.ManagedRhods {
+	if platform == cluster.ManagedRhods {
 		fmt.Println("starting deletion of Deployment in managed cluster")
 		if err := deleteResource(cli, appNS, "deployment"); err != nil {
 			return err
@@ -213,7 +213,7 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 		return RemoveKfDefInstances(context.TODO(), cli)
 	}
 
-	if platform == deploy.SelfManagedRhods {
+	if platform == cluster.SelfManagedRhods {
 		// remove label created by previous v2 release which is problematic for Managed cluster
 		fmt.Println("removing labels on Operator Namespace")
 		operatorNamespace, err := cluster.GetOperatorNamespace()
@@ -273,19 +273,19 @@ func getDashboardWatsonResources(ns string) []ResourceSpec {
 
 	return []ResourceSpec{
 		{
-			Gvk:       gvk.OdhQuickStart,
+			Gvk:       cluster.OdhQuickStart,
 			Namespace: ns,
 			Path:      specAppName,
 			Values:    appName,
 		},
 		{
-			Gvk:       gvk.OdhDocument,
+			Gvk:       cluster.OdhDocument,
 			Namespace: ns,
 			Path:      specAppName,
 			Values:    appName,
 		},
 		{
-			Gvk:       gvk.OdhApplication,
+			Gvk:       cluster.OdhApplication,
 			Namespace: ns,
 			Path:      metadataName,
 			Values:    appName,
@@ -294,10 +294,10 @@ func getDashboardWatsonResources(ns string) []ResourceSpec {
 }
 
 // TODO: remove function once we have a generic solution across all components.
-func CleanupExistingResource(ctx context.Context, cli client.Client, platform deploy.Platform, dscApplicationsNamespace, dscMonitoringNamespace string) error {
+func CleanupExistingResource(ctx context.Context, cli client.Client, platform cluster.Platform, dscApplicationsNamespace, dscMonitoringNamespace string) error {
 	var multiErr *multierror.Error
 	// Special Handling of cleanup of deprecated model monitoring stack
-	if platform == deploy.ManagedRhods {
+	if platform == cluster.ManagedRhods {
 		deprecatedDeployments := []string{"rhods-prometheus-operator"}
 		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedDeployments, &appsv1.DeploymentList{}))
 
