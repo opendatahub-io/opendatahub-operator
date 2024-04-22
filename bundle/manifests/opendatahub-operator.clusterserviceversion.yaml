@@ -96,20 +96,6 @@ metadata:
               "managementState": "Managed"
             }
           }
-        },
-        {
-          "apiVersion": "features.opendatahub.io/v1",
-          "kind": "FeatureTracker",
-          "metadata": {
-            "labels": {
-              "app.kubernetes.io/created-by": "opendatahub-operator",
-              "app.kubernetes.io/instance": "default",
-              "app.kubernetes.io/managed-by": "kustomize",
-              "app.kubernetes.io/name": "default-feature",
-              "app.kubernetes.io/part-of": "opendatahub-operator"
-            },
-            "name": "default-feature"
-          }
         }
       ]
     capabilities: Full Lifecycle
@@ -1682,6 +1668,7 @@ spec:
                 kubectl.kubernetes.io/default-container: manager
               labels:
                 control-plane: controller-manager
+                name: opendatahub-operator
             spec:
               containers:
               - args:
