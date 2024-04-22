@@ -11,7 +11,7 @@ metadata:
 spec:
   components:
     codeflare:
-      managementState: "Removed"
+      managementState: "Managed"
     dashboard:
       managementState: "Managed"
     datasciencepipelines:
@@ -31,8 +31,8 @@ spec:
     modelmeshserving:
       managementState: "Managed"
     kueue:
-      managementState: "Removed"
+      managementState: "Managed"
     ray:
-      managementState: "Removed"
+      managementState: "Managed"
     workbenches:
       managementState: "Managed"
