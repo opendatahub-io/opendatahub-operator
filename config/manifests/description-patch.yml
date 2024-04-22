@@ -16,5 +16,5 @@ spec:
     * Data Science Pipelines - Pipeline solution for end to end MLOps workflows that support the Kubeflow Pipelines SDK and Tekton
     * Model Mesh - ModelMesh Serving is the Controller for managing ModelMesh, a general-purpose model serving management/routing layer
     * Distributed Workloads(Incubation) - Stack built to make managing distributed compute infrastructure in the cloud easy and intuitive for Data Scientists. This stack consists of three components 
-                                          Codeflare , KubeRay and Kueue.
-    * Kserve - Kserve is the Controller for for serving machine learning (ML) models on arbitrary frameworks
+                                          Codeflare , KubeRay, Kueue and Training Operator(new component)
+    * Kserve - Kserve is the Controller for serving machine learning (ML) models on arbitrary frameworks
