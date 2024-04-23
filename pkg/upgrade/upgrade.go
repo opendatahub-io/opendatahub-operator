@@ -43,6 +43,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
@@ -273,19 +274,19 @@ func getDashboardWatsonResources(ns string) []ResourceSpec {
 
 	return []ResourceSpec{
 		{
-			Gvk:       cluster.OdhQuickStart,
+			Gvk:       gvk.OdhQuickStart,
 			Namespace: ns,
 			Path:      specAppName,
 			Values:    appName,
 		},
 		{
-			Gvk:       cluster.OdhDocument,
+			Gvk:       gvk.OdhDocument,
 			Namespace: ns,
 			Path:      specAppName,
 			Values:    appName,
 		},
 		{
-			Gvk:       cluster.OdhApplication,
+			Gvk:       gvk.OdhApplication,
 			Namespace: ns,
 			Path:      metadataName,
 			Values:    appName,

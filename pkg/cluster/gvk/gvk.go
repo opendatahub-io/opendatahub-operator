@@ -1,4 +1,4 @@
-package cluster
+package gvk
 
 import "k8s.io/apimachinery/pkg/runtime/schema"
 

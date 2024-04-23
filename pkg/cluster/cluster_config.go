@@ -11,13 +11,15 @@ import (
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
 // +kubebuilder:rbac:groups="config.openshift.io",resources=ingresses,verbs=get
 
 func GetDomain(c client.Client) (string, error) {
 	ingress := &unstructured.Unstructured{}
-	ingress.SetGroupVersionKind(OpenshiftIngress)
+	ingress.SetGroupVersionKind(gvk.OpenshiftIngress)
 
 	if err := c.Get(context.TODO(), client.ObjectKey{
 		Namespace: "",
