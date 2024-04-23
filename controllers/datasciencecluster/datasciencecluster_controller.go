@@ -278,21 +278,25 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 	componentName := component.GetComponentName()
 
 	enabled := component.GetManagementState() == v1.Managed
+	installedComponentValue, isExistStatus := instance.Status.InstalledComponents[componentName]
+
 	// First set conditions to reflect a component is about to be reconciled
-	instance, err := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
+	// only set to init condition e.g Unknonw for the very first time when component is not in the list
+	if !isExistStatus {
 		message := "Component is disabled"
 		if enabled {
 			message = "Component is enabled"
 		}
-		status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileInit, message, corev1.ConditionUnknown)
-	})
-	if err != nil {
-		instance = r.reportError(err, instance, "failed to update DataScienceCluster conditions before reconciling "+componentName)
-		// try to continue with reconciliation, as further updates can fix the status
+		instance, err := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
+			status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileInit, message, corev1.ConditionUnknown)
+		})
+		if err != nil {
+			_ = r.reportError(err, instance, "failed to update DataScienceCluster conditions before first time reconciling "+componentName)
+			// try to continue with reconciliation, as further updates can fix the status
+		}
 	}
-
 	// Reconcile component
-	err = component.ReconcileComponent(ctx, r.Client, r.Log, instance, r.DataScienceCluster.DSCISpec, instance.Status.InstalledComponents[componentName])
+	err := component.ReconcileComponent(ctx, r.Client, r.Log, instance, r.DataScienceCluster.DSCISpec, installedComponentValue)
 
 	if err != nil {
 		// reconciliation failed: log errors, raise event and update status accordingly

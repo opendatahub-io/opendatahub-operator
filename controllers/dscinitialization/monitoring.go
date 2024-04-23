@@ -77,7 +77,7 @@ func (r *DSCInitializationReconciler) configureManagedMonitoring(ctx context.Con
 	}
 
 	if initial == "init" {
-		err := common.UpdatePodSecurityRolebinding(r.Client, []string{"redhat-ods-monitoring"}, dscInit.Spec.Monitoring.Namespace)
+		err := cluster.UpdatePodSecurityRolebinding(r.Client, dscInit.Spec.Monitoring.Namespace, "redhat-ods-monitoring")
 		if err != nil {
 			return fmt.Errorf("error to update monitoring security rolebinding: %w", err)
 		}
@@ -130,7 +130,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 	// r.Log.Info("Success: inject alertmanage-configs.yaml")
 
 	// special handling for dev-mod
-	consolelinkDomain, err := common.GetDomain(r.Client, NameConsoleLink, NamespaceConsoleLink)
+	consolelinkDomain, err := cluster.GetDomain(r.Client)
 	if err != nil {
 		return fmt.Errorf("error getting console route URL : %w", err)
 	}
@@ -208,7 +208,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsci.DSCInitialization, 
 		return err
 	}
 	// Update prometheus-config for dashboard, dsp and workbench
-	consolelinkDomain, err := common.GetDomain(r.Client, NameConsoleLink, NamespaceConsoleLink)
+	consolelinkDomain, err := cluster.GetDomain(r.Client)
 	if err != nil {
 		return fmt.Errorf("error getting console route URL : %w", err)
 	}
