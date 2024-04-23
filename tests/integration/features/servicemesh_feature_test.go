@@ -286,7 +286,7 @@ func createServiceMeshControlPlane(name, namespace string) {
 }
 
 func createSMCPInCluster(smcpObj *unstructured.Unstructured, namespace string) error {
-	smcpObj.SetGroupVersionKind(cluster.ServiceMeshControlPlaneGVK)
+	smcpObj.SetGroupVersionKind(cluster.ServiceMeshControlPlane)
 	smcpObj.SetNamespace(namespace)
 	if err := envTestClient.Create(context.TODO(), smcpObj); err != nil {
 		return err
@@ -323,7 +323,7 @@ func createSMCPInCluster(smcpObj *unstructured.Unstructured, namespace string) e
 
 func getServiceMeshControlPlane(namespace, name string) (*unstructured.Unstructured, error) {
 	smcpObj := &unstructured.Unstructured{}
-	smcpObj.SetGroupVersionKind(cluster.ServiceMeshControlPlaneGVK)
+	smcpObj.SetGroupVersionKind(cluster.ServiceMeshControlPlane)
 
 	err := envTestClient.Get(context.TODO(), client.ObjectKey{
 		Namespace: namespace,

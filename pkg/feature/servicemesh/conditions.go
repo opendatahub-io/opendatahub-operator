@@ -74,7 +74,7 @@ func WaitForControlPlaneToBeReady(f *feature.Feature) error {
 
 func CheckControlPlaneComponentReadiness(c client.Client, smcpName, smcpNs string) (bool, error) {
 	smcpObj := &unstructured.Unstructured{}
-	smcpObj.SetGroupVersionKind(cluster.ServiceMeshControlPlaneGVK)
+	smcpObj.SetGroupVersionKind(cluster.ServiceMeshControlPlane)
 	err := c.Get(context.TODO(), client.ObjectKey{
 		Namespace: smcpNs,
 		Name:      smcpName,

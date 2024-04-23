@@ -16,7 +16,7 @@ func RemoveExtensionProvider(f *feature.Feature) error {
 
 	mesh := f.Spec.ControlPlane
 	smcp := &unstructured.Unstructured{}
-	smcp.SetGroupVersionKind(cluster.ServiceMeshControlPlaneGVK)
+	smcp.SetGroupVersionKind(cluster.ServiceMeshControlPlane)
 
 	if err := f.Client.Get(context.TODO(), client.ObjectKey{
 		Namespace: mesh.Namespace,

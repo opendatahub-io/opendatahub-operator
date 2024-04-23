@@ -17,7 +17,7 @@ import (
 
 func GetDomain(c client.Client) (string, error) {
 	ingress := &unstructured.Unstructured{}
-	ingress.SetGroupVersionKind(OpenshiftIngressGVK)
+	ingress.SetGroupVersionKind(OpenshiftIngress)
 
 	if err := c.Get(context.TODO(), client.ObjectKey{
 		Namespace: "",

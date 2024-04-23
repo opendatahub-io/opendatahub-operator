@@ -17,7 +17,7 @@ const (
 
 func EnsureServerlessAbsent(f *feature.Feature) error {
 	list := &unstructured.UnstructuredList{}
-	list.SetGroupVersionKind(cluster.KnativeServingGVK)
+	list.SetGroupVersionKind(cluster.KnativeServing)
 
 	if err := f.Client.List(context.TODO(), list, client.InNamespace("")); err != nil {
 		return fmt.Errorf("failed to list KnativeServings: %w", err)
@@ -53,4 +53,4 @@ func EnsureServerlessOperatorInstalled(f *feature.Feature) error {
 	return nil
 }
 
-var EnsureServerlessServingDeployed = feature.WaitForResourceToBeCreated(KnativeServingNamespace, cluster.KnativeServingGVK)
+var EnsureServerlessServingDeployed = feature.WaitForResourceToBeCreated(KnativeServingNamespace, cluster.KnativeServing)
