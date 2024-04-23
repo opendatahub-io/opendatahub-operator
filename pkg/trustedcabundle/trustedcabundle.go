@@ -1,3 +1,4 @@
+// Package trustedcabundle provides utility functions to create and check trusted CA bundle configmap from DSCI CRD
 package trustedcabundle
 
 import (

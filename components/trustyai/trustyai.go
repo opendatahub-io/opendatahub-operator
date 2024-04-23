@@ -14,8 +14,8 @@ import (
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/monitoring"
 )
 
 var (
@@ -67,13 +67,13 @@ func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client, lo
 	enabled := t.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 
-	platform, err := deploy.GetPlatform(cli)
+	platform, err := cluster.GetPlatform(cli)
 	if err != nil {
 		return err
 	}
 
 	// Return when platform is RHOAI
-	if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
+	if platform == cluster.SelfManagedRhods || platform == cluster.ManagedRhods {
 		enabled = false
 	}
 
@@ -97,9 +97,9 @@ func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client, lo
 	l.Info("apply manifests done")
 
 	// CloudService Monitoring handling
-	if platform == deploy.ManagedRhods {
+	if platform == cluster.ManagedRhods {
 		if enabled {
-			if err := monitoring.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 10, 1); err != nil {
+			if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 10, 1); err != nil {
 				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 			}
 			l.Info("deployment is done, updating monitoring rules")

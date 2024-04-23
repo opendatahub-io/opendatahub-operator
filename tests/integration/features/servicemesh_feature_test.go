@@ -13,7 +13,7 @@ import (
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
@@ -286,7 +286,7 @@ func createServiceMeshControlPlane(name, namespace string) {
 }
 
 func createSMCPInCluster(smcpObj *unstructured.Unstructured, namespace string) error {
-	smcpObj.SetGroupVersionKind(cluster.ServiceMeshControlPlaneGVK)
+	smcpObj.SetGroupVersionKind(gvk.ServiceMeshControlPlane)
 	smcpObj.SetNamespace(namespace)
 	if err := envTestClient.Create(context.TODO(), smcpObj); err != nil {
 		return err
@@ -323,7 +323,7 @@ func createSMCPInCluster(smcpObj *unstructured.Unstructured, namespace string) e
 
 func getServiceMeshControlPlane(namespace, name string) (*unstructured.Unstructured, error) {
 	smcpObj := &unstructured.Unstructured{}
-	smcpObj.SetGroupVersionKind(cluster.ServiceMeshControlPlaneGVK)
+	smcpObj.SetGroupVersionKind(gvk.ServiceMeshControlPlane)
 
 	err := envTestClient.Get(context.TODO(), client.ObjectKey{
 		Namespace: namespace,
