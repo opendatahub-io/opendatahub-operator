@@ -17,7 +17,6 @@ import (
 	"context"
 	"fmt"
 
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -34,7 +33,7 @@ func applyResources(cli client.Client, objects []*unstructured.Unstructured, met
 	for _, object := range objects {
 		for _, opt := range metaOptions {
 			if err := opt(object); err != nil {
-				return err // return immediately if any of the MetaOptions functions fail
+				return err
 			}
 		}
 
@@ -42,27 +41,26 @@ func applyResources(cli client.Client, objects []*unstructured.Unstructured, met
 		namespace := object.GetNamespace()
 
 		err := cli.Get(context.TODO(), k8stypes.NamespacedName{Name: name, Namespace: namespace}, object.DeepCopy())
-		if err != nil {
-			if k8serrors.IsNotFound(err) {
-				// object does not exist and should be created
-				if err = cli.Create(context.TODO(), object); err != nil {
-					return fmt.Errorf("failed to create object %s/%s: %w", namespace, name, err)
-				}
-				continue
-			}
+		if client.IgnoreNotFound(err) != nil {
 			return fmt.Errorf("failed to get object %s/%s: %w", namespace, name, err)
 		}
 
+		if err != nil {
+			// object does not exist and should be created
+			if createErr := cli.Create(context.TODO(), object); client.IgnoreAlreadyExists(createErr) != nil {
+				return fmt.Errorf("failed to create object %s/%s: %w", namespace, name, createErr)
+			}
+		}
+		// object exists, check if it is managed
 		isManaged, isAnnotated := object.GetAnnotations()[annotations.ManagedByODHOperator]
 		if isAnnotated && isManaged == "true" {
-			// update or create object since we manage it
-			if err = cli.Update(context.TODO(), object); err != nil {
-				return fmt.Errorf("failed to update object %s/%s: %w", namespace, name, err)
+			// update the object since we manage it
+			if updateErr := cli.Update(context.TODO(), object); updateErr != nil {
+				return fmt.Errorf("failed to update object %s/%s: %w", namespace, name, updateErr)
 			}
 		}
 		// object exists and is not manged, skip reconcile allowing users to tweak it
 	}
-
 	return nil
 }
 
