@@ -7,7 +7,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 )
 
@@ -17,7 +17,7 @@ const (
 
 func EnsureServerlessAbsent(f *feature.Feature) error {
 	list := &unstructured.UnstructuredList{}
-	list.SetGroupVersionKind(cluster.KnativeServingGVK)
+	list.SetGroupVersionKind(gvk.KnativeServing)
 
 	if err := f.Client.List(context.TODO(), list, client.InNamespace("")); err != nil {
 		return fmt.Errorf("failed to list KnativeServings: %w", err)
@@ -53,4 +53,4 @@ func EnsureServerlessOperatorInstalled(f *feature.Feature) error {
 	return nil
 }
 
-var EnsureServerlessServingDeployed = feature.WaitForResourceToBeCreated(KnativeServingNamespace, cluster.KnativeServingGVK)
+var EnsureServerlessServingDeployed = feature.WaitForResourceToBeCreated(KnativeServingNamespace, gvk.KnativeServing)
