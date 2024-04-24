@@ -15,3 +15,9 @@ spec:
         protocol: HTTPS
       tls:
         mode: ISTIO_MUTUAL
+    - hosts:
+      - '*.svc.cluster.local'
+      port:
+        name: http
+        number: 8082
+        protocol: HTTP

@@ -11,6 +11,10 @@ spec:
       port: 80
       protocol: TCP
       targetPort: 8081
+    - name: http
+      port: 8082
+      protocol: TCP
+      targetPort: 8082      
   selector:
     knative: ingressgateway
   type: ClusterIP
