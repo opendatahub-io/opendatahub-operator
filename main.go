@@ -207,8 +207,8 @@ func main() { //nolint:funlen
 		os.Exit(1)
 	}
 	// Check if user opted for disabling DSC configuration
-	_, disableDSCConfig := os.LookupEnv("DISABLE_DSC_CONFIG")
-	if disableDSCConfig {
+	disableDSCConfig, existDSCConfig := os.LookupEnv("DISABLE_DSC_CONFIG")
+	if existDSCConfig && disableDSCConfig != "false" {
 		setupLog.Info("DSCI auto creation is disabled")
 	} else {
 		var createDefaultDSCIFunc manager.RunnableFunc = func(ctx context.Context) error {
