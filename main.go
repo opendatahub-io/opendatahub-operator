@@ -204,10 +204,21 @@ func main() {
 		os.Exit(1)
 	}
 	// Check if user opted for disabling DSC configuration
-	_, disableDSCConfig := os.LookupEnv("DISABLE_DSC_CONFIG")
-	if !disableDSCConfig {
-		if err = upgrade.CreateDefaultDSCI(setupClient, platform, dscApplicationsNamespace, dscMonitoringNamespace); err != nil {
-			setupLog.Error(err, "unable to create initial setup for the operator")
+	disableDSCConfig, existDSCConfig := os.LookupEnv("DISABLE_DSC_CONFIG")
+	if existDSCConfig && disableDSCConfig != "false" {
+		setupLog.Info("DSCI auto creation is disabled")
+	} else {
+		var createDefaultDSCIFunc manager.RunnableFunc = func(ctx context.Context) error {
+			err := upgrade.CreateDefaultDSCI(setupClient, platform, dscApplicationsNamespace, dscMonitoringNamespace)
+			if err != nil {
+				setupLog.Error(err, "unable to create initial setup for the operator")
+			}
+			return err
+		}
+		err := mgr.Add(createDefaultDSCIFunc)
+		if err != nil {
+			setupLog.Error(err, "error scheduling DSCI creation")
+			os.Exit(1)
 		}
 	}
 
