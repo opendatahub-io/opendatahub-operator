@@ -208,12 +208,7 @@ func main() {
 		}
 	}
 
-	// Apply update from legacy operator
-	if err = upgrade.UpdateFromLegacyVersion(setupClient, platform, dscApplicationsNamespace, dscMonitoringNamespace); err != nil {
-		setupLog.Error(err, "unable to update from legacy operator version")
-	}
-
-	// Remove TrustyAI forRHOAI
+	// Remove TrustyAI for RHOAI
 	// TODO: Remove below check when trustyai manifests are removed in midstream
 	if err = upgrade.RemoveDeprecatedTrustyAI(setupClient, platform); err != nil {
 		setupLog.Error(err, "unable to remove trustyai from DSC")
