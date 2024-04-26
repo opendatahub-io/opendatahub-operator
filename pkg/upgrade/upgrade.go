@@ -4,7 +4,6 @@ package upgrade
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -19,7 +18,6 @@ import (
 	authv1 "k8s.io/api/rbac/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -42,19 +40,11 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trainingoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/action"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
-
-type ResourceSpec struct {
-	Gvk       schema.GroupVersionKind
-	Namespace string
-	// path to the field, like "metadata", "name"
-	Path []string
-	// set of values for the field to match object, any one matches
-	Values []string
-}
 
 // CreateDefaultDSC creates a default instance of DSC.
 // Note: When the platform is not Managed, and a DSC instance already exists, the function doesn't re-create/update the resource.
@@ -267,12 +257,12 @@ func UpdateFromLegacyVersion(cli client.Client, platform cluster.Platform, appNS
 	return nil
 }
 
-func getDashboardWatsonResources(ns string) []ResourceSpec {
+func getDashboardWatsonResources(ns string) []action.ResourceSpec {
 	metadataName := []string{"metadata", "name"}
 	specAppName := []string{"spec", "appName"}
 	appName := []string{"watson-studio"}
 
-	return []ResourceSpec{
+	return []action.ResourceSpec{
 		{
 			Gvk:       gvk.OdhQuickStart,
 			Namespace: ns,
@@ -343,58 +333,9 @@ func CleanupExistingResource(ctx context.Context, cli client.Client, platform cl
 
 	// to take a reference
 	toDelete := getDashboardWatsonResources(dscApplicationsNamespace)
-	multiErr = multierror.Append(multiErr, deleteResources(ctx, cli, &toDelete))
+	multiErr = multierror.Append(multiErr, action.NewDelete(cli).Exec(ctx, toDelete...))
 
 	return multiErr.ErrorOrNil()
-}
-
-func deleteResources(ctx context.Context, c client.Client, resources *[]ResourceSpec) error {
-	var errors *multierror.Error
-
-	for _, res := range *resources {
-		err := deleteOneResource(ctx, c, res)
-		errors = multierror.Append(errors, err)
-	}
-
-	return errors.ErrorOrNil()
-}
-
-func deleteOneResource(ctx context.Context, c client.Client, res ResourceSpec) error {
-	list := &unstructured.UnstructuredList{}
-	list.SetGroupVersionKind(res.Gvk)
-
-	err := c.List(ctx, list, client.InNamespace(res.Namespace))
-	if err != nil {
-		if errors.Is(err, &meta.NoKindMatchError{}) {
-			fmt.Printf("Could not delete %v: CRD not found\n", res.Gvk)
-			return nil
-		}
-		return fmt.Errorf("failed to list %s: %w", res.Gvk.Kind, err)
-	}
-
-	for _, item := range list.Items {
-		item := item
-		v, ok, err := unstructured.NestedString(item.Object, res.Path...)
-		if err != nil {
-			return fmt.Errorf("failed to get field %v for %s %s/%s: %w", res.Path, res.Gvk.Kind, res.Namespace, item.GetName(), err)
-		}
-
-		if !ok {
-			return fmt.Errorf("unexisting path to delete: %v", res.Path)
-		}
-
-		for _, toDelete := range res.Values {
-			if v == toDelete {
-				err = c.Delete(ctx, &item)
-				if err != nil {
-					return fmt.Errorf("failed to delete %s %s/%s: %w", res.Gvk.Kind, res.Namespace, item.GetName(), err)
-				}
-				fmt.Println("Deleted object", item.GetName(), res.Gvk, "in namespace", res.Namespace)
-			}
-		}
-	}
-
-	return nil
 }
 
 func RemoveKfDefInstances(ctx context.Context, cli client.Client) error {
