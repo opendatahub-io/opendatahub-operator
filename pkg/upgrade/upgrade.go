@@ -12,8 +12,6 @@ import (
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
@@ -382,31 +380,13 @@ func RemoveKfDefInstances(ctx context.Context, cli client.Client) error {
 }
 
 func unsetOwnerReference(cli client.Client, instanceName string, applicationNS string) error {
-	OdhDashboardConfig := schema.GroupVersionKind{
-		Group:   "opendatahub.io",
-		Version: "v1alpha",
-		Kind:    "OdhDashboardConfig",
-	}
-	crd := &apiextv1.CustomResourceDefinition{}
-	if err := cli.Get(context.TODO(), client.ObjectKey{Name: "odhdashboardconfigs.opendatahub.io"}, crd); err != nil {
-		return client.IgnoreNotFound(err)
-	}
-	odhObject := &unstructured.Unstructured{}
-	odhObject.SetGroupVersionKind(OdhDashboardConfig)
-	if err := cli.Get(context.TODO(), client.ObjectKey{
-		Namespace: applicationNS,
-		Name:      instanceName,
-	}, odhObject); err != nil {
-		return client.IgnoreNotFound(err)
-	}
-	if odhObject.GetOwnerReferences() != nil {
-		// set to nil as updates
-		odhObject.SetOwnerReferences(nil)
-		if err := cli.Update(context.TODO(), odhObject); err != nil {
-			return fmt.Errorf("error unset ownerreference for CR %s : %w", instanceName, err)
-		}
-	}
-	return nil
+	return action.NewDeleteOwnersReferences(cli).
+		Exec(context.TODO(), action.ResourceSpec{
+			Gvk:       gvk.OdhDashboardConfig,
+			Namespace: applicationNS,
+			Path:      []string{"metadata", "name"},
+			Values:    []string{instanceName},
+		})
 }
 
 func deleteResource(cli client.Client, namespace string, resourceType string) error {
