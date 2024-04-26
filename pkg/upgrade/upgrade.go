@@ -5,19 +5,15 @@ package upgrade
 import (
 	"context"
 	"fmt"
-	"strings"
-	"time"
 
 	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
@@ -419,137 +415,22 @@ func deleteResource(cli client.Client, namespace string, resourceType string) er
 	// deployments and recreated them.
 	// because we can't proceed if a deployment is not deleted, we use exponential backoff
 	// to retry the deletion until it succeeds
-	var err error
+
+	toDelete := action.ResourceSpec{
+		Namespace: namespace,
+	}
+
 	switch resourceType {
 	case "deployment":
-		err = wait.ExponentialBackoffWithContext(context.TODO(), wait.Backoff{
-			// 5, 10, ,20, 40 then timeout
-			Duration: 5 * time.Second,
-			Factor:   2.0,
-			Jitter:   0.1,
-			Steps:    4,
-			Cap:      1 * time.Minute,
-		}, func(ctx context.Context) (bool, error) {
-			done, err := deleteDeploymentsAndCheck(ctx, cli, namespace)
-			return done, err
-		})
+		toDelete.Gvk = gvk.Deployment
 	case "statefulset":
-		err = wait.ExponentialBackoffWithContext(context.TODO(), wait.Backoff{
-			// 10, 20 then timeout
-			Duration: 10 * time.Second,
-			Factor:   2.0,
-			Jitter:   0.1,
-			Steps:    2,
-			Cap:      1 * time.Minute,
-		}, func(ctx context.Context) (bool, error) {
-			done, err := deleteStatefulsetsAndCheck(ctx, cli, namespace)
-			return done, err
-		})
-	}
-	return err
-}
-
-func deleteDeploymentsAndCheck(ctx context.Context, cli client.Client, namespace string) (bool, error) {
-	// Delete Deployment objects
-	var multiErr *multierror.Error
-	deployments := &appsv1.DeploymentList{}
-	listOpts := &client.ListOptions{
-		Namespace: namespace,
+		toDelete.Gvk = gvk.StatefulSet
 	}
 
-	if err := cli.List(ctx, deployments, listOpts); err != nil {
-		return false, nil //nolint:nilerr
-	}
-	// filter deployment which has the new label to limit that we do not overkill other deployment
-	// this logic can be used even when upgrade from v2.4 to v2.5 without remove it
-	markedForDeletion := []appsv1.Deployment{}
-	for _, deployment := range deployments.Items {
-		deployment := deployment
-		v2 := false
-		selectorLabels := deployment.Spec.Selector.MatchLabels
-		for label := range selectorLabels {
-			if strings.Contains(label, labels.ODHAppPrefix) {
-				// this deployment has the new label, this is a v2 to v2 upgrade
-				// there is no need to recreate it, as labels are matching
-				v2 = true
-				continue
-			}
-		}
-		if !v2 {
-			markedForDeletion = append(markedForDeletion, deployment)
-			multiErr = multierror.Append(multiErr, cli.Delete(ctx, &deployment))
-		}
-	}
+	matcher := action.Not(action.MatchMapKeyContains(labels.ODHAppPrefix, "spec", "selector", "matchLabels"))
+	act := action.NewDeleteMatched(cli, matcher)
 
-	for _, deployment := range markedForDeletion {
-		deployment := deployment
-		if e := cli.Get(ctx, client.ObjectKey{
-			Namespace: namespace,
-			Name:      deployment.Name,
-		}, &deployment); e != nil {
-			if apierrs.IsNotFound(e) {
-				// resource has been successfully deleted
-				continue
-			}
-			// unexpected error, report it
-			multiErr = multierror.Append(multiErr, e) //nolint:staticcheck,wastedassign
-		}
-		// resource still exists, wait for it to be deleted
-		return false, nil
-	}
-
-	return true, multiErr.ErrorOrNil()
-}
-
-func deleteStatefulsetsAndCheck(ctx context.Context, cli client.Client, namespace string) (bool, error) {
-	// Delete statefulset objects
-	var multiErr *multierror.Error
-	statefulsets := &appsv1.StatefulSetList{}
-	listOpts := &client.ListOptions{
-		Namespace: namespace,
-	}
-
-	if err := cli.List(ctx, statefulsets, listOpts); err != nil {
-		return false, nil //nolint:nilerr
-	}
-
-	// even only we have one item to delete to avoid nil point still use range
-	markedForDeletion := []appsv1.StatefulSet{}
-	for _, statefulset := range statefulsets.Items {
-		v2 := false
-		statefulset := statefulset
-		selectorLabels := statefulset.Spec.Selector.MatchLabels
-		for label := range selectorLabels {
-			if strings.Contains(label, labels.ODHAppPrefix) {
-				v2 = true
-				continue
-			}
-		}
-		if !v2 {
-			markedForDeletion = append(markedForDeletion, statefulset)
-			multiErr = multierror.Append(multiErr, cli.Delete(ctx, &statefulset))
-		}
-	}
-
-	for _, statefulset := range markedForDeletion {
-		statefulset := statefulset
-		if e := cli.Get(ctx, client.ObjectKey{
-			Namespace: namespace,
-			Name:      statefulset.Name,
-		}, &statefulset); e != nil {
-			if apierrs.IsNotFound(e) {
-				// resource has been successfully deleted
-				continue
-			}
-			// unexpected error, report it
-			multiErr = multierror.Append(multiErr, e)
-		} else {
-			// resource still exists, wait for it to be deleted
-			return false, nil
-		}
-	}
-
-	return true, multiErr.ErrorOrNil()
+	return act.ExecWithRetry(context.TODO(), action.IfAnyLeft(matcher), toDelete)
 }
 
 func RemoveLabel(cli client.Client, objectName string, labelKey string) error {
