@@ -414,18 +414,12 @@ func deleteResource(cli client.Client, namespace string, resourceType string) er
 }
 
 func RemoveLabel(cli client.Client, objectName string, labelKey string) error {
-	foundNamespace := &corev1.Namespace{}
-	if err := cli.Get(context.TODO(), client.ObjectKey{Name: objectName}, foundNamespace); err != nil {
-		if apierrs.IsNotFound(err) {
-			return nil
-		}
-		return fmt.Errorf("could not get %s namespace: %w", objectName, err)
-	}
-	delete(foundNamespace.Labels, labelKey)
-	if err := cli.Update(context.TODO(), foundNamespace); err != nil {
-		return fmt.Errorf("error removing %s from %s : %w", labelKey, objectName, err)
-	}
-	return nil
+	return action.NewDeleteLabel(cli, labelKey).
+		Exec(context.TODO(), action.ResourceSpec{
+			Gvk:    gvk.Namespace,
+			Path:   []string{"metadata", "name"},
+			Values: []string{objectName},
+		})
 }
 
 func deleteDeprecatedNamespace(ctx context.Context, cli client.Client, namespace string) error {
