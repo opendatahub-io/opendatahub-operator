@@ -5,17 +5,13 @@ package upgrade
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
-	routev1 "github.com/openshift/api/route/v1"
-	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	authv1 "k8s.io/api/rbac/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -284,55 +280,95 @@ func getDashboardWatsonResources(ns string) []action.ResourceSpec {
 	}
 }
 
+func getModelMeshResources(ns string, platform cluster.Platform) []action.ResourceSpec {
+	metadataName := []string{"metadata", "name"}
+	var toDelete []action.ResourceSpec
+
+	if platform == cluster.ManagedRhods {
+		del := []action.ResourceSpec{
+			{
+				Gvk:       gvk.Deployment,
+				Namespace: ns,
+				Path:      metadataName,
+				Values:    []string{"rhods-prometheus-operator"},
+			},
+			{
+				Gvk:       gvk.StatefulSet,
+				Namespace: ns,
+				Path:      metadataName,
+				Values:    []string{"prometheus-rhods-model-monitoring"},
+			},
+			{
+				Gvk:       gvk.Service,
+				Namespace: ns,
+				Path:      metadataName,
+				Values:    []string{"rhods-model-monitoring"},
+			},
+			{
+				Gvk:       gvk.Route,
+				Namespace: ns,
+				Path:      metadataName,
+				Values:    []string{"rhods-model-monitoring"},
+			},
+			{
+				Gvk:       gvk.Secret,
+				Namespace: ns,
+				Path:      metadataName,
+				Values:    []string{"rhods-monitoring-oauth-config"},
+			},
+			{
+				Gvk:       gvk.ClusterRole,
+				Namespace: ns,
+				Path:      metadataName,
+				Values:    []string{"rhods-namespace-read", "rhods-prometheus-operator"},
+			},
+			{
+				Gvk:       gvk.ClusterRoleBinding,
+				Namespace: ns,
+				Path:      metadataName,
+				Values:    []string{"rhods-namespace-read", "rhods-prometheus-operator"},
+			},
+			{
+				Gvk:       gvk.ServiceAccount,
+				Namespace: ns,
+				Path:      metadataName,
+				Values:    []string{"rhods-prometheus-operator"},
+			},
+			{
+				Gvk:       gvk.ServiceMonitor,
+				Namespace: ns,
+				Path:      metadataName,
+				Values:    []string{"modelmesh-federated-metrics"},
+			},
+		}
+		toDelete = append(toDelete, del...)
+	}
+	// common logic for both self-managed and managed
+	del := action.ResourceSpec{
+		Gvk:       gvk.ServiceMonitor,
+		Namespace: ns,
+		Path:      metadataName,
+		Values:    []string{"rhods-monitor-federation2"},
+	}
+
+	toDelete = append(toDelete, del)
+	return toDelete
+}
+
 // TODO: remove function once we have a generic solution across all components.
 func CleanupExistingResource(ctx context.Context, cli client.Client, platform cluster.Platform, dscApplicationsNamespace, dscMonitoringNamespace string) error {
 	var multiErr *multierror.Error
 	// Special Handling of cleanup of deprecated model monitoring stack
-	if platform == cluster.ManagedRhods {
-		deprecatedDeployments := []string{"rhods-prometheus-operator"}
-		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedDeployments, &appsv1.DeploymentList{}))
-
-		deprecatedStatefulsets := []string{"prometheus-rhods-model-monitoring"}
-		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedStatefulsets, &appsv1.StatefulSetList{}))
-
-		deprecatedServices := []string{"rhods-model-monitoring"}
-		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedServices, &corev1.ServiceList{}))
-
-		deprecatedRoutes := []string{"rhods-model-monitoring"}
-		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedRoutes, &routev1.RouteList{}))
-
-		deprecatedSecrets := []string{"rhods-monitoring-oauth-config"}
-		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedSecrets, &corev1.SecretList{}))
-
-		deprecatedClusterroles := []string{"rhods-namespace-read", "rhods-prometheus-operator"}
-		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedClusterroles, &authv1.ClusterRoleList{}))
-
-		deprecatedClusterrolebindings := []string{"rhods-namespace-read", "rhods-prometheus-operator"}
-		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedClusterrolebindings, &authv1.ClusterRoleBindingList{}))
-
-		deprecatedServiceAccounts := []string{"rhods-prometheus-operator"}
-		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedServiceAccounts, &corev1.ServiceAccountList{}))
-
-		deprecatedServicemonitors := []string{"modelmesh-federated-metrics"}
-		multiErr = multierror.Append(multiErr, deleteDeprecatedServiceMonitors(ctx, cli, dscMonitoringNamespace, deprecatedServicemonitors))
-	}
-	// common logic for both self-managed and managed
-	deprecatedOperatorSM := []string{"rhods-monitor-federation2"}
-	multiErr = multierror.Append(multiErr, deleteDeprecatedServiceMonitors(ctx, cli, dscMonitoringNamespace, deprecatedOperatorSM))
 
 	// Remove deprecated opendatahub namespace(owned by kuberay)
 	multiErr = multierror.Append(multiErr, deleteDeprecatedNamespace(ctx, cli, "opendatahub"))
 
 	// Handling for dashboard Jupyterhub CR, see jira #443
-	JupyterhubApp := schema.GroupVersionKind{
-		Group:   "dashboard.opendatahub.io",
-		Version: "v1",
-		Kind:    "OdhApplication",
-	}
-	multiErr = multierror.Append(multiErr, removOdhApplicationsCR(ctx, cli, JupyterhubApp, "jupyterhub", dscApplicationsNamespace))
+	multiErr = multierror.Append(multiErr, removOdhApplicationsCR(ctx, cli, gvk.OdhApplication, "jupyterhub", dscApplicationsNamespace))
 
-	// to take a reference
-	toDelete := getDashboardWatsonResources(dscApplicationsNamespace)
+	toDelete := getModelMeshResources(dscMonitoringNamespace, platform)
+	toDelete = append(toDelete, getDashboardWatsonResources(dscApplicationsNamespace)...)
+
 	multiErr = multierror.Append(multiErr, action.NewDelete(cli).Exec(ctx, toDelete...))
 
 	return multiErr.ErrorOrNil()
@@ -371,62 +407,6 @@ func RemoveKfDefInstances(ctx context.Context, cli client.Client) error {
 		}
 	}
 	return nil
-}
-
-func deleteDeprecatedResources(ctx context.Context, cli client.Client, namespace string, resourceList []string, resourceType client.ObjectList) error {
-	var multiErr *multierror.Error
-	listOpts := &client.ListOptions{Namespace: namespace}
-	if err := cli.List(ctx, resourceType, listOpts); err != nil {
-		multiErr = multierror.Append(multiErr, err)
-	}
-	items := reflect.ValueOf(resourceType).Elem().FieldByName("Items")
-	for i := 0; i < items.Len(); i++ {
-		item := items.Index(i).Addr().Interface().(client.Object) //nolint:errcheck,forcetypeassert
-		for _, name := range resourceList {
-			if name == item.GetName() {
-				fmt.Printf("Attempting to delete %s in namespace %s\n", item.GetName(), namespace)
-				err := cli.Delete(ctx, item)
-				if err != nil {
-					if apierrs.IsNotFound(err) {
-						fmt.Printf("Could not find %s in namespace %s\n", item.GetName(), namespace)
-					} else {
-						multiErr = multierror.Append(multiErr, err)
-					}
-				}
-				fmt.Printf("Successfully deleted %s\n", item.GetName())
-			}
-		}
-	}
-	return multiErr.ErrorOrNil()
-}
-
-// Need to handle ServiceMonitor deletion separately as the generic function does not work for ServiceMonitors because of how the package is built.
-func deleteDeprecatedServiceMonitors(ctx context.Context, cli client.Client, namespace string, resourceList []string) error {
-	var multiErr *multierror.Error
-	listOpts := &client.ListOptions{Namespace: namespace}
-	servicemonitors := &monitoringv1.ServiceMonitorList{}
-	if err := cli.List(ctx, servicemonitors, listOpts); err != nil {
-		multiErr = multierror.Append(multiErr, err)
-	}
-
-	for _, servicemonitor := range servicemonitors.Items {
-		servicemonitor := servicemonitor
-		for _, name := range resourceList {
-			if name == servicemonitor.Name {
-				fmt.Printf("Attempting to delete %s in namespace %s\n", servicemonitor.Name, namespace)
-				err := cli.Delete(ctx, servicemonitor)
-				if err != nil {
-					if apierrs.IsNotFound(err) {
-						fmt.Printf("Could not find %s in namespace %s\n", servicemonitor.Name, namespace)
-					} else {
-						multiErr = multierror.Append(multiErr, err)
-					}
-				}
-				fmt.Printf("Successfully deleted %s\n", servicemonitor.Name)
-			}
-		}
-	}
-	return multiErr.ErrorOrNil()
 }
 
 func removOdhApplicationsCR(ctx context.Context, cli client.Client, gvk schema.GroupVersionKind, instanceName string, applicationNS string) error {
