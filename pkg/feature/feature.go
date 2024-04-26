@@ -22,6 +22,7 @@ type Feature struct {
 	Name    string
 	Spec    *Spec
 	Enabled bool
+	Managed bool
 	Tracker *featurev1.FeatureTracker
 
 	Client client.Client
@@ -104,6 +105,10 @@ func (f *Feature) applyFeature() error {
 			return &withConditionReasonError{reason: featurev1.ConditionReason.ApplyManifests, err: processErr}
 		}
 
+		if f.Managed {
+			manifest.MarkAsManaged(objs)
+		}
+
 		if err := apply(objs); err != nil {
 			return &withConditionReasonError{reason: featurev1.ConditionReason.ApplyManifests, err: err}
 		}
@@ -155,7 +160,7 @@ func (f *Feature) createApplier(m Manifest) applier {
 	}
 
 	return func(objects []*unstructured.Unstructured) error {
-		return createResources(f.Client, objects, OwnedBy(f))
+		return applyResources(f.Client, objects, OwnedBy(f))
 	}
 }
 
@@ -175,6 +180,10 @@ func (f *Feature) ApplyManifest(path string) error {
 
 		if objs, err = manifest.Process(f.Spec); err != nil {
 			return errors.WithStack(err)
+		}
+
+		if f.Managed {
+			manifest.MarkAsManaged(objs)
 		}
 
 		if err = apply(objs); err != nil {

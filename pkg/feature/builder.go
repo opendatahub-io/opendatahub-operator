@@ -25,6 +25,7 @@ type featureBuilder struct {
 	featuresHandler *FeaturesHandler
 	fsys            fs.FS
 	targetNS        string
+	managed         bool
 }
 
 func CreateFeature(name string) *usingFeaturesHandler { //nolint:golint,revive //No need to export featureBuilder.
@@ -188,6 +189,7 @@ func (fb *featureBuilder) Load() error {
 
 	feature.Spec.TargetNamespace = fb.targetNS
 	feature.fsys = fb.fsys
+	feature.Managed = fb.managed
 
 	fb.featuresHandler.features = append(fb.featuresHandler.features, feature)
 
@@ -217,6 +219,12 @@ func (fb *featureBuilder) withDefaultClient() error {
 
 func (fb *featureBuilder) TargetNamespace(targetNs string) *featureBuilder {
 	fb.targetNS = targetNs
+
+	return fb
+}
+
+func (fb *featureBuilder) Managed() *featureBuilder {
+	fb.managed = true
 
 	return fb
 }

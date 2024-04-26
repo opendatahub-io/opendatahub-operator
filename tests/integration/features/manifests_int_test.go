@@ -122,5 +122,4 @@ metadata:
 		Expect(err).ToNot(HaveOccurred())
 		Expect(realNs.Name).To(Equal("real-file-test-ns"))
 	})
-
 })
