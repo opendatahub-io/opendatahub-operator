@@ -363,11 +363,15 @@ func CleanupExistingResource(ctx context.Context, cli client.Client, platform cl
 	// Remove deprecated opendatahub namespace(owned by kuberay)
 	multiErr = multierror.Append(multiErr, deleteDeprecatedNamespace(ctx, cli, "opendatahub"))
 
-	// Handling for dashboard Jupyterhub CR, see jira #443
-	multiErr = multierror.Append(multiErr, removOdhApplicationsCR(ctx, cli, gvk.OdhApplication, "jupyterhub", dscApplicationsNamespace))
-
 	toDelete := getModelMeshResources(dscMonitoringNamespace, platform)
 	toDelete = append(toDelete, getDashboardWatsonResources(dscApplicationsNamespace)...)
+	// Handling for dashboard Jupyterhub CR, see jira #443
+	toDelete = append(toDelete, action.ResourceSpec{
+		Gvk:       gvk.OdhApplication,
+		Namespace: dscApplicationsNamespace,
+		Path:      []string{"metadata", "name"},
+		Values:    []string{"jupyterhub"},
+	})
 
 	multiErr = multierror.Append(multiErr, action.NewDelete(cli).Exec(ctx, toDelete...))
 
@@ -406,29 +410,6 @@ func RemoveKfDefInstances(ctx context.Context, cli client.Client) error {
 			return fmt.Errorf("error deleting kfdef %v : %w", kfdef.Name, err)
 		}
 	}
-	return nil
-}
-
-func removOdhApplicationsCR(ctx context.Context, cli client.Client, gvk schema.GroupVersionKind, instanceName string, applicationNS string) error {
-	// first check if CRD in cluster
-	crd := &apiextv1.CustomResourceDefinition{}
-	if err := cli.Get(ctx, client.ObjectKey{Name: "odhapplications.dashboard.opendatahub.io"}, crd); err != nil {
-		return client.IgnoreNotFound(err)
-	}
-
-	// then check if CR in cluster to delete
-	odhObject := &unstructured.Unstructured{}
-	odhObject.SetGroupVersionKind(gvk)
-	if err := cli.Get(ctx, client.ObjectKey{
-		Namespace: applicationNS,
-		Name:      instanceName,
-	}, odhObject); err != nil {
-		return client.IgnoreNotFound(err)
-	}
-	if err := cli.Delete(ctx, odhObject); err != nil {
-		return fmt.Errorf("error deleting CR %s : %w", instanceName, err)
-	}
-
 	return nil
 }
 
