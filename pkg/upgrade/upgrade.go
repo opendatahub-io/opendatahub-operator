@@ -379,38 +379,10 @@ func CleanupExistingResource(ctx context.Context, cli client.Client, platform cl
 }
 
 func RemoveKfDefInstances(ctx context.Context, cli client.Client) error {
-	// Check if kfdef are deployed
-	kfdefCrd := &apiextv1.CustomResourceDefinition{}
-
-	err := cli.Get(ctx, client.ObjectKey{Name: "kfdefs.kfdef.apps.kubeflow.org"}, kfdefCrd)
-	if err != nil {
-		if apierrs.IsNotFound(err) {
-			// If no Crd found, return, since its a new Installation
-			return nil
-		}
-		return fmt.Errorf("error retrieving kfdef CRD : %w", err)
-	}
-	expectedKfDefList := &kfdefv1.KfDefList{}
-	err = cli.List(ctx, expectedKfDefList)
-	if err != nil {
-		return fmt.Errorf("error getting list of kfdefs: %w", err)
-	}
-	// Delete kfdefs
-	for _, kfdef := range expectedKfDefList.Items {
-		kfdef := kfdef
-		// Remove finalizer
-		updatedKfDef := &kfdef
-		updatedKfDef.Finalizers = []string{}
-		err = cli.Update(ctx, updatedKfDef)
-		if err != nil {
-			return fmt.Errorf("error removing finalizers from kfdef %v : %w", kfdef.Name, err)
-		}
-		err = cli.Delete(ctx, updatedKfDef)
-		if err != nil {
-			return fmt.Errorf("error deleting kfdef %v : %w", kfdef.Name, err)
-		}
-	}
-	return nil
+	return action.NewDeleteWithFinalizer(cli).
+		Exec(ctx, action.ResourceSpec{
+			Gvk: gvk.KfDef,
+		})
 }
 
 func unsetOwnerReference(cli client.Client, instanceName string, applicationNS string) error {
