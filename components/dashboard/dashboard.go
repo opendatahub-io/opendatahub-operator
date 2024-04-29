@@ -171,7 +171,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 			return err
 		}
 		// consolelink
-		if err := d.deployConsoleLink(cli, owner, platform, dscispec.ApplicationsNamespace, ComponentNameSupported); err != nil {
+		if err := d.deployConsoleLink(ctx, cli, owner, platform, dscispec.ApplicationsNamespace, ComponentNameSupported); err != nil {
 			return err
 		}
 		l.Info("apply manifests done")
@@ -212,7 +212,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 			return fmt.Errorf("failed to set dashboard modelserving from %s: %w", PathModelServing, err)
 		}
 		// consolelink
-		if err := d.deployConsoleLink(cli, owner, platform, dscispec.ApplicationsNamespace, ComponentName); err != nil {
+		if err := d.deployConsoleLink(ctx, cli, owner, platform, dscispec.ApplicationsNamespace, ComponentName); err != nil {
 			return err
 		}
 		l.Info("apply manifests done")
@@ -256,7 +256,7 @@ func (d *Dashboard) applyRHOAISpecificConfigs(cli client.Client, owner metav1.Ob
 	return nil
 }
 
-func (d *Dashboard) deployConsoleLink(cli client.Client, owner metav1.Object, platform cluster.Platform, namespace, componentName string) error {
+func (d *Dashboard) deployConsoleLink(ctx context.Context, cli client.Client, owner metav1.Object, platform cluster.Platform, namespace, componentName string) error {
 	var manifestsPath, sectionTitle, routeName string
 	switch platform {
 	case cluster.SelfManagedRhods:
@@ -276,7 +276,7 @@ func (d *Dashboard) deployConsoleLink(cli client.Client, owner metav1.Object, pl
 	pathConsoleLink := filepath.Join(manifestsPath, "consolelink.yaml")
 
 	consoleRoute := &routev1.Route{}
-	if err := cli.Get(context.Background(), client.ObjectKey{Name: NameConsoleLink, Namespace: NamespaceConsoleLink}, consoleRoute); err != nil {
+	if err := cli.Get(ctx, client.ObjectKey{Name: NameConsoleLink, Namespace: NamespaceConsoleLink}, consoleRoute); err != nil {
 		return fmt.Errorf("error getting console route URL %s : %w", NameConsoleLink, err)
 	}
 
