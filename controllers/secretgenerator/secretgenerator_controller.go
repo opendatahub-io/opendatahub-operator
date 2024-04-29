@@ -227,7 +227,7 @@ func (r *SecretGeneratorReconciler) createOAuthClient(ctx context.Context, name 
 			if err != nil {
 				return fmt.Errorf("failed to get DataScienceCluster custom resource data: %w", err)
 			}
-			if err = r.Client.Patch(context.TODO(), oauthClient, client.RawPatch(types.ApplyPatchType, data),
+			if err = r.Client.Patch(ctx, oauthClient, client.RawPatch(types.ApplyPatchType, data),
 				client.ForceOwnership, client.FieldOwner("rhods-operator")); err != nil {
 				return fmt.Errorf("failed to patch existing OAuthClient CR: %w", err)
 			}

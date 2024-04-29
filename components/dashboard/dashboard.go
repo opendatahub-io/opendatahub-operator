@@ -112,7 +112,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 	if enabled {
 		// Update Default rolebinding
 		// cleanup OAuth client related secret and CR if dashboard is in 'installed false' status
-		if err := d.cleanOauthClient(cli, dscispec, currentComponentExist, l); err != nil {
+		if err := d.cleanOauthClient(ctx, cli, dscispec, currentComponentExist, l); err != nil {
 			return err
 		}
 		if d.DevFlags != nil {
@@ -276,7 +276,7 @@ func (d *Dashboard) deployConsoleLink(cli client.Client, owner metav1.Object, pl
 	pathConsoleLink := filepath.Join(manifestsPath, "consolelink.yaml")
 
 	consoleRoute := &routev1.Route{}
-	if err := cli.Get(context.TODO(), client.ObjectKey{Name: NameConsoleLink, Namespace: NamespaceConsoleLink}, consoleRoute); err != nil {
+	if err := cli.Get(context.Background(), client.ObjectKey{Name: NameConsoleLink, Namespace: NamespaceConsoleLink}, consoleRoute); err != nil {
 		return fmt.Errorf("error getting console route URL %s : %w", NameConsoleLink, err)
 	}
 
@@ -297,7 +297,7 @@ func (d *Dashboard) deployConsoleLink(cli client.Client, owner metav1.Object, pl
 	return nil
 }
 
-func (d *Dashboard) cleanOauthClient(cli client.Client, dscispec *dsciv1.DSCInitializationSpec, currentComponentExist bool, l logr.Logger) error {
+func (d *Dashboard) cleanOauthClient(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec, currentComponentExist bool, l logr.Logger) error {
 	// Remove previous oauth-client secrets
 	// Check if component is going from state of `Not Installed --> Installed`
 	// Assumption: Component is currently set to enabled
@@ -306,7 +306,7 @@ func (d *Dashboard) cleanOauthClient(cli client.Client, dscispec *dsciv1.DSCInit
 		fmt.Println("Cleanup any left secret")
 		// Delete client secrets from previous installation
 		oauthClientSecret := &v1.Secret{}
-		err := cli.Get(context.TODO(), client.ObjectKey{
+		err := cli.Get(ctx, client.ObjectKey{
 			Namespace: dscispec.ApplicationsNamespace,
 			Name:      name,
 		}, oauthClientSecret)
@@ -315,7 +315,7 @@ func (d *Dashboard) cleanOauthClient(cli client.Client, dscispec *dsciv1.DSCInit
 				return fmt.Errorf("error getting secret %s: %w", name, err)
 			}
 		} else {
-			if err := cli.Delete(context.TODO(), oauthClientSecret); err != nil {
+			if err := cli.Delete(ctx, oauthClientSecret); err != nil {
 				return fmt.Errorf("error deleting secret %s: %w", name, err)
 			}
 			l.Info("successfully deleted secret", "secret", name)
