@@ -111,7 +111,7 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 // createDefaultDSCI creates a default instance of DSCI
 // If there exists an instance already, it patches the DSCISpec with default values
 // Note: DSCI CR modifcations are not supported, as it is the initial prereq setting for the components.
-func CreateDefaultDSCI(cli client.Client, _ cluster.Platform, appNamespace, monNamespace string) error {
+func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ cluster.Platform, appNamespace, monNamespace string) error {
 	defaultDsciSpec := &dsci.DSCInitializationSpec{
 		ApplicationsNamespace: appNamespace,
 		Monitoring: dsci.Monitoring{
@@ -143,7 +143,7 @@ func CreateDefaultDSCI(cli client.Client, _ cluster.Platform, appNamespace, monN
 	}
 
 	instances := &dsci.DSCInitializationList{}
-	if err := cli.List(context.TODO(), instances); err != nil {
+	if err := cli.List(ctx, instances); err != nil {
 		return err
 	}
 
@@ -157,7 +157,7 @@ func CreateDefaultDSCI(cli client.Client, _ cluster.Platform, appNamespace, monN
 		return nil
 	case len(instances.Items) == 0:
 		fmt.Println("create default DSCI CR.")
-		err := cli.Create(context.TODO(), defaultDsci)
+		err := cli.Create(ctx, defaultDsci)
 		if err != nil {
 			return err
 		}

@@ -189,7 +189,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 	// r.Log.Info("Success: update alertmanager with manifests")
 
 	// Create alertmanager-proxy secret
-	if err := createMonitoringProxySecret(r.Client, "alertmanager-proxy", dsciInit); err != nil {
+	if err := createMonitoringProxySecret(ctx, r.Client, "alertmanager-proxy", dsciInit); err != nil {
 		r.Log.Error(err, "error to create secret alertmanager-proxy")
 		return err
 	}
@@ -312,7 +312,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsci.DSCInitialization, 
 	// Check if Prometheus deployment from legacy version exists(check for initContainer)
 	// Need to delete wait-for-deployment initContainer
 	existingPromDep := &appsv1.Deployment{}
-	err = r.Client.Get(context.TODO(), client.ObjectKey{
+	err = r.Client.Get(ctx, client.ObjectKey{
 		Namespace: dsciInit.Spec.Monitoring.Namespace,
 		Name:      "prometheus",
 	}, existingPromDep)
@@ -322,7 +322,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsci.DSCInitialization, 
 		}
 	}
 	if len(existingPromDep.Spec.Template.Spec.InitContainers) > 0 {
-		err = r.Client.Delete(context.TODO(), existingPromDep)
+		err = r.Client.Delete(ctx, existingPromDep)
 		if err != nil {
 			return fmt.Errorf("error deleting legacy prometheus deployment %w", err)
 		}
@@ -336,7 +336,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsci.DSCInitialization, 
 	}
 
 	// Create prometheus-proxy secret
-	if err := createMonitoringProxySecret(r.Client, "prometheus-proxy", dsciInit); err != nil {
+	if err := createMonitoringProxySecret(ctx, r.Client, "prometheus-proxy", dsciInit); err != nil {
 		return err
 	}
 	// r.Log.Info("Success: create prometheus-proxy secret")
@@ -355,7 +355,7 @@ func configureBlackboxExporter(ctx context.Context, dsciInit *dsci.DSCInitializa
 	// Check if Blackbox exporter deployment from legacy version exists(check for initContainer)
 	// Need to delete wait-for-deployment initContainer
 	existingBlackboxExp := &appsv1.Deployment{}
-	err = r.Client.Get(context.TODO(), client.ObjectKey{
+	err = r.Client.Get(ctx, client.ObjectKey{
 		Namespace: dsciInit.Spec.Monitoring.Namespace,
 		Name:      "blackbox-exporter",
 	}, existingBlackboxExp)
@@ -365,7 +365,7 @@ func configureBlackboxExporter(ctx context.Context, dsciInit *dsci.DSCInitializa
 		}
 	}
 	if len(existingBlackboxExp.Spec.Template.Spec.InitContainers) > 0 {
-		err = r.Client.Delete(context.TODO(), existingBlackboxExp)
+		err = r.Client.Delete(ctx, existingBlackboxExp)
 		if err != nil {
 			return fmt.Errorf("error deleting legacy blackbox deployment %w", err)
 		}
@@ -396,7 +396,7 @@ func configureBlackboxExporter(ctx context.Context, dsciInit *dsci.DSCInitializa
 	return nil
 }
 
-func createMonitoringProxySecret(cli client.Client, name string, dsciInit *dsci.DSCInitialization) error {
+func createMonitoringProxySecret(ctx context.Context, cli client.Client, name string, dsciInit *dsci.DSCInitialization) error {
 	sessionSecret, err := GenerateRandomHex(32)
 	if err != nil {
 		return err
@@ -413,7 +413,7 @@ func createMonitoringProxySecret(cli client.Client, name string, dsciInit *dsci.
 	}
 
 	foundProxySecret := &corev1.Secret{}
-	err = cli.Get(context.TODO(), client.ObjectKey{Name: name, Namespace: dsciInit.Spec.Monitoring.Namespace}, foundProxySecret)
+	err = cli.Get(ctx, client.ObjectKey{Name: name, Namespace: dsciInit.Spec.Monitoring.Namespace}, foundProxySecret)
 	if err != nil {
 		if apierrs.IsNotFound(err) {
 			// Set Controller reference
@@ -421,7 +421,7 @@ func createMonitoringProxySecret(cli client.Client, name string, dsciInit *dsci.
 			if err != nil {
 				return err
 			}
-			err = cli.Create(context.TODO(), desiredProxySecret)
+			err = cli.Create(ctx, desiredProxySecret)
 			if err != nil && !apierrs.IsAlreadyExists(err) {
 				return err
 			}
