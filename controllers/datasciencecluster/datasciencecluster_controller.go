@@ -123,7 +123,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 				r.Log.Info("Removed finalizer for DataScienceCluster", "name", instance.Name, "finalizer", finalizerName)
 			}
 		}
-		if err := r.Client.Delete(context.TODO(), instance, []client.DeleteOption{}...); err != nil {
+		if err := r.Client.Delete(ctx, instance, []client.DeleteOption{}...); err != nil {
 			if !apierrs.IsNotFound(err) {
 				return reconcile.Result{}, err
 			}

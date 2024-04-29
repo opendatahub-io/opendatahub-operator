@@ -212,13 +212,12 @@ func main() { //nolint:funlen
 		setupLog.Info("DSCI auto creation is disabled")
 	} else {
 		var createDefaultDSCIFunc manager.RunnableFunc = func(ctx context.Context) error {
-			err := upgrade.CreateDefaultDSCI(setupClient, platform, dscApplicationsNamespace, dscMonitoringNamespace)
+			err := upgrade.CreateDefaultDSCI(ctx, setupClient, platform, dscApplicationsNamespace, dscMonitoringNamespace)
 			if err != nil {
 				setupLog.Error(err, "unable to create initial setup for the operator")
 			}
 			return err
 		}
-
 		err := mgr.Add(createDefaultDSCIFunc)
 		if err != nil {
 			setupLog.Error(err, "error scheduling DSCI creation")
