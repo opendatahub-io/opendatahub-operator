@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -57,11 +58,13 @@ func (c *CodeFlare) GetComponentName() string {
 	return ComponentName
 }
 
-func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
+func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
+	l := c.ConfigComponentLogger(logger, ComponentName, dscispec)
 	var imageParamMap = map[string]string{
 		"codeflare-operator-controller-image": "RELATED_IMAGE_ODH_CODEFLARE_OPERATOR_IMAGE", // no need mcad, embedded in cfo
 		"namespace":                           dscispec.ApplicationsNamespace,
 	}
+
 	enabled := c.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 	platform, err := deploy.GetPlatform(cli)
@@ -91,8 +94,8 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, o
 
 		// Update image parameters only when we do not have customized manifests set
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (c.DevFlags == nil || len(c.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(ParamsPath, c.SetImageParamsMap(imageParamMap), true); err != nil {
-				return err
+			if err := deploy.ApplyParams(ParamsPath, imageParamMap, true); err != nil {
+				return fmt.Errorf("failed update image from %s : %w", CodeflarePath+"/bases", err)
 			}
 		}
 	}
@@ -104,7 +107,7 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, o
 		ComponentName, enabled); err != nil {
 		return err
 	}
-
+	l.Info("apply manifests done")
 	// CloudServiceMonitoring handling
 	if platform == deploy.ManagedRhods {
 		if enabled {
@@ -112,7 +115,7 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, o
 			if err := monitoring.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
 				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 			}
-			fmt.Printf("deployment for %s is done, updating monitoring rules\n", ComponentName)
+			l.Info("deployment is done, updating monitoring rules")
 		}
 
 		// inject prometheus codeflare*.rules in to /opt/manifests/monitoring/prometheus/prometheus-configs.yaml
@@ -125,6 +128,7 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, o
 			"prometheus", true); err != nil {
 			return err
 		}
+		l.Info("updating SRE monitoring done")
 	}
 
 	return nil

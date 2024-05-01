@@ -82,6 +82,11 @@ spec:
                   - type
                   type: object
                 type: array
+              phase:
+                description: Phase describes the Phase of FeatureTracker reconciliation
+                  state. This is used by OLM UI to provide status information to the
+                  user.
+                type: string
             type: object
         type: object
     served: true

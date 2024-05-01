@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	v1 "k8s.io/api/core/v1"
@@ -86,26 +87,33 @@ func (d *Dashboard) GetComponentName() string {
 //nolint:gocyclo
 func (d *Dashboard) ReconcileComponent(ctx context.Context,
 	cli client.Client,
+	logger logr.Logger,
 	owner metav1.Object,
 	dscispec *dsciv1.DSCInitializationSpec,
 	currentComponentExist bool,
 ) error {
+	var l logr.Logger
+	platform, err := deploy.GetPlatform(cli)
+	if err != nil {
+		return err
+	}
+	if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
+		l = d.ConfigComponentLogger(logger, ComponentNameSupported, dscispec)
+	} else {
+		l = d.ConfigComponentLogger(logger, ComponentName, dscispec)
+	}
+
 	var imageParamMap = map[string]string{
 		"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
 	}
 	enabled := d.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 
-	platform, err := deploy.GetPlatform(cli)
-	if err != nil {
-		return err
-	}
-
-	// For only "add" if dashboard is Managed, we do not remove if set to Removed
+	// Update Default rolebinding
 	if enabled {
 		// Update Default rolebinding
 		// cleanup OAuth client related secret and CR if dashboard is in 'installed false' status
-		if err := d.cleanOauthClient(cli, dscispec, currentComponentExist); err != nil {
+		if err := d.cleanOauthClient(cli, dscispec, currentComponentExist, l); err != nil {
 			return err
 		}
 		if d.DevFlags != nil {
@@ -116,7 +124,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		}
 		// 1. Deploy CRDs
 		if err := d.deployCRDsForPlatform(cli, owner, dscispec.ApplicationsNamespace, platform); err != nil {
-			return fmt.Errorf("failed to deploy %s crds %s: %w", ComponentName, PathCRDs, err)
+			return fmt.Errorf("failed to deploy Dashboard CRD: %w", err)
 		}
 
 		// 2. platform specific RBAC
@@ -136,8 +144,8 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 
 		// 3. Update image parameters
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (d.DevFlags == nil || len(d.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(PathSupported, d.SetImageParamsMap(imageParamMap), false); err != nil {
-				return err
+			if err := deploy.ApplyParams(PathSupported, imageParamMap, false); err != nil {
+				return fmt.Errorf("failed to update image from %s : %w", PathSupported, err)
 			}
 		}
 	}
@@ -152,7 +160,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		}
 		// overlay which including ../../base + anaconda-ce-validator
 		if err := deploy.DeployManifestsFromPath(cli, owner, PathSupported, dscispec.ApplicationsNamespace, ComponentNameSupported, enabled); err != nil {
-			return err
+			return fmt.Errorf("failed to apply manifests from %s: %w", PathSupported, err)
 		}
 		// modelserving
 		if err := deploy.DeployManifestsFromPath(cli, owner, PathSupportedModelServing, dscispec.ApplicationsNamespace, ComponentNameSupported, enabled); err != nil {
@@ -167,6 +175,8 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		if err := d.deployConsoleLink(cli, owner, platform, dscispec.ApplicationsNamespace, ComponentNameSupported); err != nil {
 			return err
 		}
+		l.Info("apply manifests done")
+
 		// CloudService Monitoring handling
 		if platform == deploy.ManagedRhods {
 			if enabled {
@@ -174,7 +184,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 				if err := monitoring.WaitForDeploymentAvailable(ctx, cli, ComponentNameSupported, dscispec.ApplicationsNamespace, 20, 3); err != nil {
 					return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 				}
-				fmt.Printf("deployment for %s is done, updating monitoring rules\n", ComponentNameSupported)
+				l.Info("deployment is done, updating monitoring rules")
 			}
 
 			if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentNameSupported); err != nil {
@@ -186,6 +196,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 				"prometheus", true); err != nil {
 				return err
 			}
+			l.Info("updating SRE monitoring done")
 		}
 		return nil
 	default:
@@ -205,6 +216,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		if err := d.deployConsoleLink(cli, owner, platform, dscispec.ApplicationsNamespace, ComponentName); err != nil {
 			return err
 		}
+		l.Info("apply manifests done")
 		return nil
 	}
 }
@@ -240,7 +252,7 @@ func (d *Dashboard) applyRHOAISpecificConfigs(cli client.Client, owner metav1.Ob
 		path = PathISVAddOn
 	}
 	if err := deploy.DeployManifestsFromPath(cli, owner, path, namespace, ComponentNameSupported, enabled); err != nil {
-		return fmt.Errorf("failed to set dashboard ISV from %s: %w", path, err)
+		return fmt.Errorf("failed to set dashboard ISV from %s : %w", Path, err)
 	}
 	return nil
 }
@@ -266,29 +278,27 @@ func (d *Dashboard) deployConsoleLink(cli client.Client, owner metav1.Object, pl
 
 	consoleRoute := &routev1.Route{}
 	if err := cli.Get(context.TODO(), client.ObjectKey{Name: NameConsoleLink, Namespace: NamespaceConsoleLink}, consoleRoute); err != nil {
-		return fmt.Errorf("error getting console route URL: %w", err)
+		return fmt.Errorf("error getting console route URL %s : %w", NameConsoleLink, err)
 	}
 
 	domainIndex := strings.Index(consoleRoute.Spec.Host, ".")
 	consoleLinkDomain := consoleRoute.Spec.Host[domainIndex+1:]
-	err := common.ReplaceStringsInFile(pathConsoleLink, map[string]string{
+	if err := common.ReplaceStringsInFile(pathConsoleLink, map[string]string{
 		"<dashboard-url>": "https://" + routeName + "-" + namespace + "." + consoleLinkDomain,
 		"<section-title>": sectionTitle,
-	})
-	if err != nil {
-		return fmt.Errorf("error replacing with correct dashboard url for ConsoleLink: %w", err)
+	}); err != nil {
+		return fmt.Errorf("error replacing with correct dashboard URL for consolelink : %w", err)
 	}
 
 	enabled := d.ManagementState == operatorv1.Managed
-	err = deploy.DeployManifestsFromPath(cli, owner, manifestsPath, namespace, componentName, enabled)
-	if err != nil {
+	if err := deploy.DeployManifestsFromPath(cli, owner, manifestsPath, namespace, componentName, enabled); err != nil {
 		return fmt.Errorf("failed to set dashboard consolelink from %s: %w", manifestsPath, err)
 	}
 
 	return nil
 }
 
-func (d *Dashboard) cleanOauthClient(cli client.Client, dscispec *dsciv1.DSCInitializationSpec, currentComponentExist bool) error {
+func (d *Dashboard) cleanOauthClient(cli client.Client, dscispec *dsciv1.DSCInitializationSpec, currentComponentExist bool, l logr.Logger) error {
 	// Remove previous oauth-client secrets
 	// Check if component is going from state of `Not Installed --> Installed`
 	// Assumption: Component is currently set to enabled
@@ -307,8 +317,9 @@ func (d *Dashboard) cleanOauthClient(cli client.Client, dscispec *dsciv1.DSCInit
 			}
 		} else {
 			if err := cli.Delete(context.TODO(), oauthClientSecret); err != nil {
-				return fmt.Errorf("error deleting oauth client secret: %w", err)
+				return fmt.Errorf("error deleting secret %s: %w", name, err)
 			}
+			l.Info("successfully deleted secret", "secret", name)
 		}
 	}
 	return nil

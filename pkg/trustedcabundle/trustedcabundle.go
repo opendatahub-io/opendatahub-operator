@@ -17,13 +17,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	annotation "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 const (
-	InjectionOfCABundleAnnotatoion = "security.opendatahub.io/inject-trusted-ca-bundle"
-	CAConfigMapName                = "odh-trusted-ca-bundle"
-	CADataFieldName                = "odh-ca-bundle.crt"
+	CAConfigMapName = "odh-trusted-ca-bundle"
+	CADataFieldName = "odh-ca-bundle.crt"
 )
 
 func ShouldInjectTrustedBundle(ns client.Object) bool {
@@ -37,7 +37,7 @@ func ShouldInjectTrustedBundle(ns client.Object) bool {
 // return true if namespace has annotation "security.opendatahub.io/inject-trusted-ca-bundle: false"
 // return false if annotation is "true" or not set.
 func HasCABundleAnnotationDisabled(ns client.Object) bool {
-	if value, found := ns.GetAnnotations()[InjectionOfCABundleAnnotatoion]; found {
+	if value, found := ns.GetAnnotations()[annotation.InjectionOfCABundleAnnotatoion]; found {
 		shouldInject, err := strconv.ParseBool(value)
 		return err == nil && !shouldInject
 	}
@@ -59,9 +59,9 @@ func CreateOdhTrustedCABundleConfigMap(ctx context.Context, cli client.Client, n
 			Namespace: namespace,
 			Labels: map[string]string{
 				labels.K8SCommon.PartOf: "opendatahub-operator",
-				// Label required for the Cluster Network Operator(CNO) to inject the cluster trusted CA bundle
-				// into .data["ca-bundle.crt"]
-				"config.openshift.io/inject-trusted-cabundle": "true",
+				// Label 'config.openshift.io/inject-trusted-cabundle' required for the Cluster Network Operator(CNO)
+				// to inject the cluster trusted CA bundle into .data["ca-bundle.crt"]
+				labels.InjectTrustCA: "true",
 			},
 		},
 		// Add the DSCInitialzation specified TrustedCABundle.CustomCABundle to CM's data.odh-ca-bundle.crt field

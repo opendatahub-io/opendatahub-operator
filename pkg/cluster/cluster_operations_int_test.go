@@ -6,6 +6,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	ctrlruntime "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -78,7 +79,7 @@ var _ = Describe("Creating cluster resources", func() {
 
 	})
 
-	Context("config map creation", func() {
+	Context("config map manipulation", func() {
 
 		var objectCleaner *envtestutil.Cleaner
 
@@ -86,18 +87,24 @@ var _ = Describe("Creating cluster resources", func() {
 			objectCleaner = envtestutil.CreateCleaner(envTestClient, envTest.Config, timeout, interval)
 		})
 
+		configMapMeta := metav1.ObjectMeta{
+			Name:      "config-regs",
+			Namespace: "default",
+		}
+
 		It("should create configmap with labels and owner reference", func() {
 			// given
-			data := map[string]string{
-				"test-key": "test-value",
+			configMap := &v1.ConfigMap{
+				ObjectMeta: configMapMeta,
+				Data: map[string]string{
+					"test-key": "test-value",
+				},
 			}
 
 			// when
-			configMap, err := cluster.CreateOrUpdateConfigMap(
+			err := cluster.CreateOrUpdateConfigMap(
 				envTestClient,
-				"config-regs",
-				"default",
-				data,
+				configMap,
 				cluster.WithLabels(labels.K8SCommon.PartOf, "opendatahub"),
 				cluster.WithOwnerReference(metav1.OwnerReference{
 					APIVersion: "v1",
@@ -110,43 +117,52 @@ var _ = Describe("Creating cluster resources", func() {
 			defer objectCleaner.DeleteAll(configMap)
 
 			// then
-			Expect(configMap.Labels).To(HaveKeyWithValue(labels.K8SCommon.PartOf, "opendatahub"))
+			actualConfigMap := &v1.ConfigMap{}
+			Expect(envTestClient.Get(context.Background(), ctrlruntime.ObjectKeyFromObject(configMap), actualConfigMap)).To(Succeed())
+			Expect(actualConfigMap.Labels).To(HaveKeyWithValue(labels.K8SCommon.PartOf, "opendatahub"))
 			getOwnerRefName := func(reference metav1.OwnerReference) string {
 				return reference.Name
 			}
-			Expect(configMap.OwnerReferences[0]).To(WithTransform(getOwnerRefName, Equal("default")))
+			Expect(actualConfigMap.OwnerReferences[0]).To(WithTransform(getOwnerRefName, Equal("default")))
 		})
 
 		It("should be able to update existing config map", func() {
 			// given
-			data := map[string]string{
-				"test-key": "test-value",
-			}
+			createErr := cluster.CreateOrUpdateConfigMap(
+				envTestClient,
+				&v1.ConfigMap{
+					ObjectMeta: configMapMeta,
+					Data: map[string]string{
+						"test-key": "test-value",
+					},
+				},
+				cluster.WithLabels("test-step", "create-configmap"),
+			)
+			Expect(createErr).ToNot(HaveOccurred())
 
 			// when
-			configMap, err := cluster.CreateOrUpdateConfigMap(
-				envTestClient,
-				"config-regs",
-				"default",
-				data,
-			)
-			Expect(err).ToNot(HaveOccurred())
-			updatedConfigMap, err := cluster.CreateOrUpdateConfigMap(
-				envTestClient,
-				"config-regs",
-				"default",
-				map[string]string{
+			updatedConfigMap := &v1.ConfigMap{
+				ObjectMeta: configMapMeta,
+				Data: map[string]string{
 					"test-key": "new-value",
 					"new-key":  "sth-new",
 				},
+			}
+
+			updateErr := cluster.CreateOrUpdateConfigMap(
+				envTestClient,
+				updatedConfigMap,
+				cluster.WithLabels("test-step", "update-existing-configmap"),
 			)
-			Expect(err).ToNot(HaveOccurred())
-			defer objectCleaner.DeleteAll(configMap)
+			Expect(updateErr).ToNot(HaveOccurred())
+			defer objectCleaner.DeleteAll(updatedConfigMap)
 
 			// then
-			Expect(updatedConfigMap.Data).To(HaveKeyWithValue("test-key", "new-value"))
-			Expect(updatedConfigMap.Data).To(HaveKeyWithValue("new-key", "sth-new"))
-
+			actualConfigMap := &v1.ConfigMap{}
+			Expect(envTestClient.Get(context.Background(), ctrlruntime.ObjectKeyFromObject(updatedConfigMap), actualConfigMap)).To(Succeed())
+			Expect(actualConfigMap.Data).To(HaveKeyWithValue("test-key", "new-value"))
+			Expect(actualConfigMap.Data).To(HaveKeyWithValue("new-key", "sth-new"))
+			Expect(actualConfigMap.Labels).To(HaveKeyWithValue("test-step", "update-existing-configmap"))
 		})
 	})
 

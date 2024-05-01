@@ -9,6 +9,7 @@ import (
 	"time"
 
 	routev1 "github.com/openshift/api/route/v1"
+	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -104,6 +105,7 @@ func TestOdhOperator(t *testing.T) {
 	utilruntime.Must(dsc.AddToScheme(scheme))
 	utilruntime.Must(featurev1.AddToScheme(scheme))
 	utilruntime.Must(monitoringv1.AddToScheme(scheme))
+	utilruntime.Must(ofapi.AddToScheme(scheme))
 
 	// individual test suites after the operator is running
 	if !t.Run("validate operator pod is running", testODHOperatorValidation) {
@@ -114,10 +116,11 @@ func TestOdhOperator(t *testing.T) {
 
 	// Run deletion if skipDeletion is not set
 	if !skipDeletion {
-		t.Run("delete components", deletionTestSuite)
-
 		// This test case recreates entire DSC again and deletes afterward
-		t.Run("remove components by using labeled configmap", cfgMapDeletionTestSuite)
+		// this is a negative test case, since by using the positive CM('true'), even CSV gets deleted which leaves no operator pod in prow
+		t.Run("components should not be removed if labeled is set to 'false' on configmap", cfgMapDeletionTestSuite)
+
+		t.Run("delete components", deletionTestSuite)
 	}
 }
 

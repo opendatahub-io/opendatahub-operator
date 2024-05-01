@@ -87,20 +87,6 @@ metadata:
               "managementState": "Managed"
             }
           }
-        },
-        {
-          "apiVersion": "features.opendatahub.io/v1",
-          "kind": "FeatureTracker",
-          "metadata": {
-            "labels": {
-              "app.kubernetes.io/created-by": "rhods-operator",
-              "app.kubernetes.io/instance": "default",
-              "app.kubernetes.io/managed-by": "kustomize",
-              "app.kubernetes.io/name": "default-feature",
-              "app.kubernetes.io/part-of": "rhods-operator"
-            },
-            "name": "default-feature"
-          }
         }
       ]
     capabilities: Full Lifecycle
@@ -513,30 +499,6 @@ spec:
           verbs:
           - create
           - patch
-        - apiGroups:
-          - codeflare.codeflare.dev
-          resources:
-          - instascales
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - codeflare.codeflare.dev
-          resources:
-          - mcads
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
         - apiGroups:
           - config.openshift.io
           resources:
@@ -1059,16 +1021,6 @@ spec:
           - update
           - use
           - watch
-        - apiGroups:
-          - mcad.ibm.com
-          resources:
-          - appwrappers
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
         - apiGroups:
           - monitoring.coreos.com
           resources:
@@ -1697,58 +1649,6 @@ spec:
           - list
           - patch
           - watch
-        - apiGroups:
-          - workload.codeflare.dev
-          resources:
-          - appwrappers
-          verbs:
-          - create
-          - delete
-          - deletecollection
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - workload.codeflare.dev
-          resources:
-          - appwrappers/finalizers
-          verbs:
-          - create
-          - delete
-          - deletecollection
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - workload.codeflare.dev
-          resources:
-          - appwrappers/status
-          verbs:
-          - create
-          - delete
-          - deletecollection
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - workload.codeflare.dev
-          resources:
-          - queuejobs
-          verbs:
-          - create
-          - delete
-          - deletecollection
-          - get
-          - list
-          - patch
-          - update
-          - watch
         serviceAccountName: redhat-ods-operator-controller-manager
       deployments:
       - label:
@@ -1766,6 +1666,7 @@ spec:
                 kubectl.kubernetes.io/default-container: manager
               labels:
                 control-plane: controller-manager
+                name: opendatahub-operator
             spec:
               containers:
               - args:

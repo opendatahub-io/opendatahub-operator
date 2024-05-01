@@ -188,7 +188,7 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 		if err != nil {
 			return err
 		}
-		if err := RemoveLabel(cli, operatorNamespace, "pod-security.kubernetes.io/enforce"); err != nil {
+		if err := RemoveLabel(cli, operatorNamespace, labels.SecurityEnforce); err != nil {
 			return err
 		}
 
@@ -206,7 +206,7 @@ func UpdateFromLegacyVersion(cli client.Client, platform deploy.Platform, appNS 
 		if err != nil {
 			return err
 		}
-		if err := RemoveLabel(cli, operatorNamespace, "pod-security.kubernetes.io/enforce"); err != nil {
+		if err := RemoveLabel(cli, operatorNamespace, labels.SecurityEnforce); err != nil {
 			return err
 		}
 		// If KfDef CRD is not found, we see it as a cluster not pre-installed v1 operator	// Check if kfdef are deployed

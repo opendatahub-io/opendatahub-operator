@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
@@ -61,10 +62,12 @@ func (d *DataSciencePipelines) GetComponentName() string {
 
 func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 	cli client.Client,
+	logger logr.Logger,
 	owner metav1.Object,
 	dscispec *dsciv1.DSCInitializationSpec,
 	_ bool,
 ) error {
+	l := d.ConfigComponentLogger(logger, ComponentName, dscispec)
 	var imageParamMap = map[string]string{
 		// v1
 		"IMAGES_APISERVER":         "RELATED_IMAGE_ODH_ML_PIPELINES_API_SERVER_IMAGE",
@@ -101,8 +104,8 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 		// skip check if the dependent operator has beeninstalled, this is done in dashboard
 		// Update image parameters only when we do not have customized manifests set
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (d.DevFlags == nil || len(d.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(Path, d.SetImageParamsMap(imageParamMap), false); err != nil {
-				return err
+			if err := deploy.ApplyParams(Path, imageParamMap, false); err != nil {
+				return fmt.Errorf("failed to update image from %s : %w", Path, err)
 			}
 		}
 		// Check for existing Argo Workflows
@@ -119,6 +122,7 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 	if err = deploy.DeployManifestsFromPath(cli, owner, manifestsPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 		return err
 	}
+	l.Info("apply manifests done")
 
 	// CloudService Monitoring handling
 	if platform == deploy.ManagedRhods {
@@ -128,7 +132,7 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 			if err := monitoring.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 10, 1); err != nil {
 				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 			}
-			fmt.Printf("deployment for %s is done, updating monitoring rules\n", ComponentName)
+			l.Info("deployment is done, updating monitoring rules")
 		}
 
 		if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
@@ -140,6 +144,7 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 			"prometheus", true); err != nil {
 			return err
 		}
+		l.Info("updating SRE monitoring done")
 	}
 
 	return nil
@@ -154,11 +159,11 @@ func UnmanagedArgoWorkFlowExists(ctx context.Context,
 		}
 		return fmt.Errorf("failed to get existing Workflow CRD : %w", err)
 	}
-	// Verify if existing workflow is deployed by ODH
-	_, odhLabelExists := workflowCRD.Labels[labels.ODH.Component(ComponentName)]
-	if odhLabelExists {
+	// Verify if existing workflow is deployed by ODH with label
+	odhLabelValue, odhLabelExists := workflowCRD.Labels[labels.ODH.Component(ComponentName)]
+	if odhLabelExists && odhLabelValue == "true" {
 		return nil
 	}
-	return fmt.Errorf(" %v CRD already exists but not deployed by this operator. Remove existing Argo workflows or set datasciencepipelines to Removed to proceed ",
-		ArgoWorkflowCRD)
+	return fmt.Errorf("%s CRD already exists but not deployed by this operator. "+
+		"Remove existing Argo workflows or set `spec.components.datasciencepipelines.managementState` to Removed to proceed ", ArgoWorkflowCRD)
 }
