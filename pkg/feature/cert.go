@@ -14,19 +14,15 @@ import (
 	"strings"
 	"time"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 )
 
-func (f *Feature) CreateSelfSignedCertificate(secretName string, certificateType infrav1.CertType, domain, namespace string) error {
-	if certificateType != infrav1.SelfSigned {
-		return nil
-	}
-
+func (f *Feature) CreateSelfSignedCertificate(secretName string, domain, namespace string) error {
 	meta := metav1.ObjectMeta{
 		Name:      secretName,
 		Namespace: namespace,
@@ -125,4 +121,113 @@ func generateCertificate(addr string) ([]byte, []byte, error) {
 	}
 
 	return certBuffer.Bytes(), keyBuffer.Bytes(), nil
+}
+
+// GetDefaultIngressCertificate copies ingress cert secrets from openshift-ingress ns to given namespace.
+func (f *Feature) GetDefaultIngressCertificate(namespace string) error {
+	defaultIngressCtrl, err := f.findAvailableIngressController()
+	if err != nil {
+		return fmt.Errorf("failed to get ingress controller: %w", err)
+	}
+
+	defaultIngressCertName := GetDefaultIngressCertSecretName(defaultIngressCtrl)
+
+	defaultIngressSecret, err := f.getSecret("openshift-ingress", defaultIngressCertName)
+	if err != nil {
+		return err
+	}
+
+	err = f.copySecretToNamespace(defaultIngressSecret, namespace)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (f *Feature) findAvailableIngressController() (*operatorv1.IngressController, error) {
+	defaultIngressCtrlList := &operatorv1.IngressControllerList{}
+	listOpts := []client.ListOption{
+		client.InNamespace("openshift-ingress-operator"),
+	}
+
+	err := f.Client.List(context.TODO(), defaultIngressCtrlList, listOpts...)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, ingressCtrl := range defaultIngressCtrlList.Items {
+		for _, condition := range ingressCtrl.Status.Conditions {
+			if condition.Type == operatorv1.IngressControllerAvailableConditionType && condition.Status == operatorv1.ConditionTrue {
+				return &ingressCtrl, nil
+			}
+		}
+	}
+	return nil, err
+}
+
+func GetDefaultIngressCertSecretName(ingressCtrl *operatorv1.IngressController) string {
+	if ingressCtrl.Spec.DefaultCertificate != nil {
+		return ingressCtrl.Spec.DefaultCertificate.Name
+	}
+	return "router-certs-" + ingressCtrl.Name
+}
+
+func (f *Feature) getSecret(namespace, name string) (*corev1.Secret, error) {
+	secret := &corev1.Secret{}
+	err := f.Client.Get(context.TODO(), client.ObjectKey{Namespace: namespace, Name: name}, secret)
+	if err != nil {
+		return nil, err
+	}
+	return secret, nil
+}
+
+func (f *Feature) copySecretToNamespace(secret *corev1.Secret, namespace string) error {
+	newSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secret.Name,
+			Namespace: namespace,
+		},
+		Data: secret.Data,
+		Type: secret.Type,
+	}
+
+	existingSecret := &corev1.Secret{}
+	err := f.Client.Get(context.TODO(), client.ObjectKey{Name: secret.Name, Namespace: namespace}, existingSecret)
+	if apierrs.IsNotFound(err) {
+		err = f.Client.Create(context.TODO(), newSecret)
+		if err != nil {
+			return err
+		}
+	} else if err == nil {
+		// Check if secret needs to be updated
+		if isSecretOutdated(existingSecret.Data, newSecret.Data) {
+			err = f.Client.Update(context.TODO(), newSecret)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	return err
+}
+
+// isSecretOutdated compares two secret data of type map[string][]byte and returns true if they are not equal equal
+func isSecretOutdated(existingSecretData, newSecretData map[string][]byte) bool {
+	if len(existingSecretData) != len(newSecretData) {
+		return true
+	}
+
+	for key, value1 := range existingSecretData {
+		value2, ok := newSecretData[key]
+		if !ok {
+			return true
+		}
+		if !bytes.Equal(value1, value2) {
+			return true
+		}
+	}
+
+	return false
 }

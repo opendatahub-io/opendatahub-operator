@@ -26,6 +26,7 @@ import (
 	ocbuildv1 "github.com/openshift/api/build/v1"
 	ocimgv1 "github.com/openshift/api/image/v1"
 	ocv1 "github.com/openshift/api/oauth/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	ocuserv1 "github.com/openshift/api/user/v1"
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -93,6 +94,7 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(admv1.AddToScheme(scheme))
 	utilruntime.Must(apiregistrationv1.AddToScheme(scheme))
 	utilruntime.Must(monitoringv1.AddToScheme(scheme))
+	utilruntime.Must(operatorv1.AddToScheme(scheme))
 }
 
 func main() { //nolint:funlen
