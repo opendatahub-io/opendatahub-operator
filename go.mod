@@ -80,8 +80,8 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/net v0.21.0 // indirect
 	golang.org/x/oauth2 v0.17.0 // indirect
-	golang.org/x/sys v0.17.0 // indirect
-	golang.org/x/term v0.17.0 // indirect
+	golang.org/x/sys v0.18.0 // indirect
+	golang.org/x/term v0.18.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
 	golang.org/x/tools v0.14.0 // indirect
@@ -104,6 +104,7 @@ replace (
 	github.com/mattn/go-sqlite3 => github.com/mattn/go-sqlite3 v1.14.18
 	github.com/tektoncd/pipeline => github.com/tektoncd/pipeline v0.12.0
 	go.uber.org/multierr => go.uber.org/multierr v1.6.0
+	golang.org/x/net => golang.org/x/net v0.23.0
 	google.golang.org/grpc => google.golang.org/grpc v1.63.2
 	k8s.io/api => k8s.io/api v0.26.0
 	k8s.io/client-go => k8s.io/client-go v0.26.0
