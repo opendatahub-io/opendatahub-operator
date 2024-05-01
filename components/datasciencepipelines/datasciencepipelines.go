@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,6 +18,7 @@ import (
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -66,7 +68,7 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 	owner metav1.Object,
 	dscispec *dsciv1.DSCInitializationSpec,
 	_ bool,
-) error {
+) (conditionsv1.Condition, error) {
 	l := d.ConfigComponentLogger(logger, ComponentName, dscispec)
 	var imageParamMap = map[string]string{
 		// v1
@@ -92,25 +94,25 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 
 	platform, err := cluster.GetPlatform(cli)
 	if err != nil {
-		return err
+		return status.UpdateFailedCondition(ComponentName, err)
 	}
 	if enabled {
 		if d.DevFlags != nil {
 			// Download manifests and update paths
 			if err = d.OverrideManifests(string(platform)); err != nil {
-				return err
+				return status.UpdateFailedCondition(ComponentName, err)
 			}
 		}
 		// skip check if the dependent operator has beeninstalled, this is done in dashboard
 		// Update image parameters only when we do not have customized manifests set
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (d.DevFlags == nil || len(d.DevFlags.Manifests) == 0) {
 			if err := deploy.ApplyParams(Path, imageParamMap, false); err != nil {
-				return fmt.Errorf("failed to update image from %s : %w", Path, err)
+				return status.UpdateFailedCondition(ComponentName, fmt.Errorf("failed to update image from %s : %w", Path, err))
 			}
 		}
 		// Check for existing Argo Workflows
 		if err := UnmanagedArgoWorkFlowExists(ctx, cli); err != nil {
-			return err
+			return status.UpdateFailedCondition(ComponentName, err)
 		}
 	}
 
@@ -120,7 +122,7 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 		manifestsPath = filepath.Join(OverlayPath, "odh")
 	}
 	if err = deploy.DeployManifestsFromPath(cli, owner, manifestsPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
-		return err
+		return status.UpdateFailedCondition(ComponentName, fmt.Errorf("failed to apply manifests %s: %w", manifestsPath, err))
 	}
 	l.Info("apply manifests done")
 
@@ -130,24 +132,24 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 			// first check if the service is up, so prometheus won't fire alerts when it is just startup
 			// only 1 replica should be very quick
 			if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 10, 1); err != nil {
-				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
+				return status.UpdateFailedCondition(ComponentName, fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err))
 			}
 			l.Info("deployment is done, updating monitoring rules")
 		}
 
 		if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
-			return err
+			return status.UpdateFailedCondition(ComponentName, err)
 		}
 		if err = deploy.DeployManifestsFromPath(cli, owner,
 			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
 			dscispec.Monitoring.Namespace,
 			"prometheus", true); err != nil {
-			return err
+			return status.UpdateFailedCondition(ComponentName, err)
 		}
 		l.Info("updating SRE monitoring done")
 	}
 
-	return nil
+	return status.GetDefaultComponentCondition(ComponentName), nil
 }
 
 func UnmanagedArgoWorkFlowExists(ctx context.Context,
@@ -157,7 +159,7 @@ func UnmanagedArgoWorkFlowExists(ctx context.Context,
 		if apierrs.IsNotFound(err) {
 			return nil
 		}
-		return fmt.Errorf("failed to get existing Workflow CRD : %w", err)
+		return fmt.Errorf("failed to get Workflow CRD : %w", err)
 	}
 	// Verify if existing workflow is deployed by ODH with label
 	odhLabelValue, odhLabelExists := workflowCRD.Labels[labels.ODH.Component(ComponentName)]

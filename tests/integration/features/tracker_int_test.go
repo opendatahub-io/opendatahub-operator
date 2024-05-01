@@ -49,7 +49,7 @@ var _ = Describe("Feature tracking capability", func() {
 			// then
 			featureTracker, err := fixtures.GetFeatureTracker(envTestClient, appNamespace, "always-working-feature")
 			Expect(err).ToNot(HaveOccurred())
-			Expect(featureTracker.Status.Phase).To(Equal(status.PhaseReady))
+			Expect(featureTracker.Status.Phase).To(Equal(string(status.Ready)))
 			Expect(featureTracker.Status.Conditions).To(ContainElement(
 				MatchFields(IgnoreExtras, Fields{
 					"Type":   Equal(conditionsv1.ConditionAvailable),
@@ -81,7 +81,7 @@ var _ = Describe("Feature tracking capability", func() {
 			// then
 			featureTracker, err := fixtures.GetFeatureTracker(envTestClient, appNamespace, "precondition-fail")
 			Expect(err).ToNot(HaveOccurred())
-			Expect(featureTracker.Status.Phase).To(Equal(status.PhaseError))
+			Expect(featureTracker.Status.Phase).To(Equal(string(status.Error)))
 			Expect(featureTracker.Status.Conditions).To(ContainElement(
 				MatchFields(IgnoreExtras, Fields{
 					"Type":   Equal(conditionsv1.ConditionDegraded),
@@ -113,7 +113,7 @@ var _ = Describe("Feature tracking capability", func() {
 			// then
 			featureTracker, err := fixtures.GetFeatureTracker(envTestClient, appNamespace, "post-condition-failure")
 			Expect(err).ToNot(HaveOccurred())
-			Expect(featureTracker.Status.Phase).To(Equal(status.PhaseError))
+			Expect(featureTracker.Status.Phase).To(Equal(string(status.Error)))
 			Expect(featureTracker.Status.Conditions).To(ContainElement(
 				MatchFields(IgnoreExtras, Fields{
 					"Type":   Equal(conditionsv1.ConditionDegraded),

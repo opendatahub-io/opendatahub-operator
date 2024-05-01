@@ -174,6 +174,7 @@ func AddCABundleConfigMapInAllNamespaces(ctx context.Context, cli client.Client,
 	for i := range namespaceList.Items {
 		ns := &namespaceList.Items[i]
 		// check namespace status if not Active, then skip
+		// due to missing .status.conditions in namespace, only .status.phase is available for check
 		if ns.Status.Phase != corev1.NamespaceActive {
 			continue
 		}

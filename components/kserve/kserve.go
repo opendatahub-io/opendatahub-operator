@@ -10,12 +10,14 @@ import (
 
 	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -94,8 +96,9 @@ func (k *Kserve) GetComponentName() string {
 	return ComponentName
 }
 
+//nolint:gocyclo
 func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
-	logger logr.Logger, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
+	logger logr.Logger, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) (conditionsv1.Condition, error) {
 	l := k.ConfigComponentLogger(logger, ComponentName, dscispec)
 	// paramMap for Kserve to use.
 	var imageParamMap = map[string]string{}
@@ -109,52 +112,52 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 	platform, err := cluster.GetPlatform(cli)
 	if err != nil {
-		return err
+		return status.UpdateFailedCondition(ComponentName, err)
 	}
 
 	if !enabled {
 		if err := k.removeServerlessFeatures(dscispec); err != nil {
-			return err
+			return status.UpdateFailedCondition(ComponentName, err)
 		}
 	} else {
 		// Configure dependencies
 		if err := k.configureServerless(cli, dscispec); err != nil {
-			return err
+			return status.UpdateFailedCondition(ComponentName, err)
 		}
 		if k.DevFlags != nil {
 			// Download manifests and update paths
 			if err = k.OverrideManifests(string(platform)); err != nil {
-				return err
+				return status.UpdateFailedCondition(ComponentName, err)
 			}
 		}
 
 		// Update image parameters only when we do not have customized manifests set
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (k.DevFlags == nil || len(k.DevFlags.Manifests) == 0) {
 			if err := deploy.ApplyParams(Path, imageParamMap, false); err != nil {
-				return fmt.Errorf("failed to update image from %s : %w", Path, err)
+				return status.UpdateFailedCondition(ComponentName, fmt.Errorf("failed to update image from %s : %w", Path, err))
 			}
 		}
 	}
 
 	if err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
-		return fmt.Errorf("failed to apply manifests from %s : %w", Path, err)
+		return status.UpdateFailedCondition(ComponentName, fmt.Errorf("failed to apply manifests from %s : %w", Path, err))
 	}
 
 	if enabled {
 		if err := k.setupKserveConfig(ctx, cli, dscispec); err != nil {
-			return err
+			return status.UpdateFailedCondition(ComponentName, err)
 		}
 	}
 	l.WithValues("Path", Path).Info("apply manifests done for kserve")
 	// For odh-model-controller
 	if enabled {
 		if err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "odh-model-controller"); err != nil {
-			return err
+			return status.UpdateFailedCondition(ComponentName, err)
 		}
 		// Update image parameters for odh-model-controller
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (k.DevFlags == nil || len(k.DevFlags.Manifests) == 0) {
 			if err := deploy.ApplyParams(DependentPath, dependentParamMap, false); err != nil {
-				return fmt.Errorf("failed to update image %s: %w", DependentPath, err)
+				return status.UpdateFailedCondition(ComponentName, fmt.Errorf("failed to update image %s: %w", DependentPath, err))
 			}
 		}
 	}
@@ -162,7 +165,7 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 	if err := deploy.DeployManifestsFromPath(cli, owner, DependentPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 		if !strings.Contains(err.Error(), "spec.selector") || !strings.Contains(err.Error(), "field is immutable") {
 			// explicitly ignore error if error contains keywords "spec.selector" and "field is immutable" and return all other error.
-			return err
+			return status.UpdateFailedCondition(ComponentName, err)
 		}
 	}
 	l.WithValues("Path", Path).Info("apply manifests done for odh-model-controller")
@@ -171,18 +174,21 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 		if enabled {
 			// first check if the service is up, so prometheus won't fire alerts when it is just startup
 			if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
-				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
+				return status.UpdateFailedCondition(ComponentName, fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err))
 			}
 			l.Info("deployment is done, updating monitoing rules")
 		}
 		// kesrve rules
 		if err := k.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
-			return err
+			return status.UpdateFailedCondition(ComponentName, err)
 		}
 		l.Info("updating SRE monitoring done")
 	}
 
-	return k.configureServiceMesh(cli, dscispec)
+	if err := k.configureServiceMesh(cli, dscispec); err != nil {
+		return status.UpdateFailedCondition(ComponentName, err)
+	}
+	return status.GetDefaultComponentCondition(ComponentName), nil
 }
 
 func (k *Kserve) Cleanup(cli client.Client, instance *dsciv1.DSCInitializationSpec) error {

@@ -10,11 +10,13 @@ import (
 
 	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -33,10 +35,10 @@ type TrainingOperator struct {
 	components.Component `json:""`
 }
 
-func (r *TrainingOperator) OverrideManifests(_ string) error {
+func (t *TrainingOperator) OverrideManifests(_ string) error {
 	// If devflags are set, update default manifests path
-	if len(r.DevFlags.Manifests) != 0 {
-		manifestConfig := r.DevFlags.Manifests[0]
+	if len(t.DevFlags.Manifests) != 0 {
+		manifestConfig := t.DevFlags.Manifests[0]
 		if err := deploy.DownloadManifests(ComponentName, manifestConfig); err != nil {
 			return err
 		}
@@ -51,42 +53,42 @@ func (r *TrainingOperator) OverrideManifests(_ string) error {
 	return nil
 }
 
-func (r *TrainingOperator) GetComponentName() string {
+func (t *TrainingOperator) GetComponentName() string {
 	return ComponentName
 }
 
-func (r *TrainingOperator) ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
-	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
-	l := r.ConfigComponentLogger(logger, ComponentName, dscispec)
+func (t *TrainingOperator) ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
+	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) (conditionsv1.Condition, error) {
+	l := t.ConfigComponentLogger(logger, ComponentName, dscispec)
 
 	var imageParamMap = map[string]string{
 		"odh-training-operator-controller-image": "RELATED_IMAGE_ODH_TRAINING_OPERATOR_IMAGE",
 		"namespace":                              dscispec.ApplicationsNamespace,
 	}
 
-	enabled := r.GetManagementState() == operatorv1.Managed
+	enabled := t.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 	platform, err := cluster.GetPlatform(cli)
 	if err != nil {
-		return err
+		return status.UpdateFailedCondition(ComponentName, err)
 	}
 
 	if enabled {
-		if r.DevFlags != nil {
+		if t.DevFlags != nil {
 			// Download manifests and update paths
-			if err = r.OverrideManifests(string(platform)); err != nil {
-				return err
+			if err = t.OverrideManifests(string(platform)); err != nil {
+				return status.UpdateFailedCondition(ComponentName, err)
 			}
 		}
-		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (r.DevFlags == nil || len(r.DevFlags.Manifests) == 0) {
+		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (t.DevFlags == nil || len(t.DevFlags.Manifests) == 0) {
 			if err := deploy.ApplyParams(TrainingOperatorPath, imageParamMap, true); err != nil {
-				return err
+				return status.UpdateFailedCondition(ComponentName, err)
 			}
 		}
 	}
 	// Deploy Training Operator
 	if err := deploy.DeployManifestsFromPath(cli, owner, TrainingOperatorPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
-		return err
+		return status.UpdateFailedCondition(ComponentName, fmt.Errorf("failed to apply manifests %s: %w", TrainingOperatorPath, err))
 	}
 	l.Info("apply manifests done")
 	// CloudService Monitoring handling
@@ -94,22 +96,22 @@ func (r *TrainingOperator) ReconcileComponent(ctx context.Context, cli client.Cl
 		if enabled {
 			// first check if the service is up, so prometheus wont fire alerts when it is just startup
 			if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
-				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
+				return status.UpdateFailedCondition(ComponentName, fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err))
 			}
 			fmt.Printf("deployment for %s is done, updating monitoring rules\n", ComponentName)
 		}
 		l.Info("deployment is done, updating monitoring rules")
-		if err := r.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
-			return err
+		if err := t.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
+			return status.UpdateFailedCondition(ComponentName, err)
 		}
 		if err = deploy.DeployManifestsFromPath(cli, owner,
 			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
 			dscispec.Monitoring.Namespace,
 			"prometheus", true); err != nil {
-			return err
+			return status.UpdateFailedCondition(ComponentName, err)
 		}
 		l.Info("updating SRE monitoring done")
 	}
 
-	return nil
+	return status.GetDefaultComponentCondition(ComponentName), nil
 }
