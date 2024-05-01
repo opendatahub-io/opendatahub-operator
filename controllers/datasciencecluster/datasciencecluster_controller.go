@@ -154,6 +154,8 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		r.Log.Info(message)
 		instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
 			status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
+			// Patch Degraded with True status
+			status.SetGeneralCondition(&saved.Status.Conditions, "Degraded", reason, message, corev1.ConditionTrue)
 			saved.Status.Phase = status.PhaseError
 		})
 		if err != nil {
