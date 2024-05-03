@@ -26,7 +26,12 @@ module.exports = ({ github, core }) => {
                     const splitArr = branchUrl.split("/")
                     const idx = splitArr.indexOf("tree")
                     const branchName = splitArr.slice(idx + 1).join("/")
-                    core.exportVariable(componentName.toUpperCase(), branchName);
+                    if(componentName === "notebook-controller"){
+                        core.exportVariable("component_spec_odh-notebook-controller".toLowerCase(), branchName);
+                        core.exportVariable("component_spec_kf-notebook-controller".toLowerCase(), branchName);
+                    }else{
+                        core.exportVariable("component_spec_"+componentName.toLowerCase(), branchName);
+                    }
                 })
             }
         })
@@ -35,4 +40,3 @@ module.exports = ({ github, core }) => {
         core.setFailed(`Action failed with error ${e}`);
     })
 }
-

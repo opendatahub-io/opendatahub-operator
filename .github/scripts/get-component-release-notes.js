@@ -15,7 +15,6 @@ module.exports = ({ github, core }) => {
             'Accept': 'application/vnd.github.text+json'
         }
     }).then((result) => {
-        const allowedComponents = ["dashboard", "notebooks", "notebook-controller", "trustyai", "kserve", "modelmesh-serving", "model-registry", "kueue", "codeflare", "kuberay", "dsp"]
         let outputStr = "## Component Release Notes\n"
         result.data.forEach((issue) => {
             issueCommentBody = issue.body_text
@@ -24,9 +23,7 @@ module.exports = ({ github, core }) => {
                 components = components.splice(2, components.length - 1)
                 components.forEach(component => {
                     [componentName, branchUrl, tagUrl] = component.split("|")
-                    if (allowedComponents.includes(componentName)) {
                         outputStr += `- **${componentName.charAt(0).toUpperCase() + componentName.slice(1)}**: ${tagUrl}\n`
-                    }
                 })
             }
         })
@@ -36,4 +33,3 @@ module.exports = ({ github, core }) => {
         core.setFailed(`Action failed with error ${e}`);
     })
 }
-

@@ -11,4 +11,4 @@ runs:
           script({github, core})
     - name: Update versions
       shell: bash
-      run: ./.github/scripts/update-manifests-tags.sh ${{ env.CODEFLARE }} ${{ env.KUBERAY }} ${{ env.KUEUE }} ${{ env.DSP }} ${{ env.DASHBOARD }} ${{ env.NOTEBOOK-CONTROLLER }} ${{ env.NOTEBOOK-CONTROLLER }} ${{ env.NOTEBOOKS }} ${{ env.TRUSTYAI }} ${{ env.MODELMESH }} ${{ env.ODH-MODEL-CONTROLLER }} ${{ env.KSERVE }} ${{ env.MODEL-REGISTRY }}
+      run: ./.github/scripts/update-manifests-tags.sh

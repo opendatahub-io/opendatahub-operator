@@ -22,8 +22,8 @@ jobs:
           body-includes: "#Release#"
       - name: Set version/tracker-url in env
         run: |
-          echo "VERSION=$(echo "${{ steps.fc.outputs.comment-body }}" | grep version | cut -d "=" -f2)" >> $GITHUB_ENV
-          echo "TRACKER_URL=$(echo "${{ steps.fc.outputs.comment-body }}" | grep tracker-url | cut -d "=" -f2)" >> $GITHUB_ENV
+          echo "VERSION=$(echo "${{ steps.fc.outputs.comment-body }}" | awk -F= '$1 ~ /version$/{print $2}')" >> $GITHUB_ENV
+          echo "TRACKER_URL=$(echo "${{ steps.fc.outputs.comment-body }}" | awk -F= '$1 ~ /tracker-url$/{print $2}')" >> $GITHUB_ENV
       - uses: fregante/setup-git-user@v2
       - name: Create and push version tags
         run: |
@@ -50,15 +50,15 @@ jobs:
     name: Create community operators prod pr # https://github.com/redhat-openshift-ecosystem/community-operators-prod
     runs-on: ubuntu-latest
     steps:
-      - uses: tibdex/github-app-token@v1
-        id: generate-token
+      - name: Get release data from pr
+        uses: peter-evans/find-comment@v3
+        id: fc
         with:
-          app_id: ${{ secrets.APP_ID }}
-          private_key: ${{ secrets.APP_PRIVATE_KEY }}
-      - name: Set env variables
-        uses: opendatahub-io/opendatahub-operator/.github/actions/set-shared-env@incubation
-        with:
-          pat-token: ${{ steps.generate-token.outputs.token }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body-includes: "#Release#"
+      - name: Set version/tracker-url in env
+        run: |
+          echo "VERSION=$(echo "${{ steps.fc.outputs.comment-body }}" | awk -F= '$1 ~ /version$/{print $2}')" >> $GITHUB_ENV
       - name: Checkout opendatahub-operator
         uses: actions/checkout@v4
         with:
