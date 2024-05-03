@@ -20,11 +20,10 @@ import (
 )
 
 var (
-	ComponentName       = "codeflare"
-	CodeflarePath       = deploy.DefaultManifestPath + "/" + ComponentName + "/default"
-	CodeflareOperator   = "codeflare-operator"
-	RHCodeflareOperator = "rhods-codeflare-operator"
-	ParamsPath          = deploy.DefaultManifestPath + "/" + ComponentName + "/manager"
+	ComponentName     = "codeflare"
+	CodeflarePath     = deploy.DefaultManifestPath + "/" + ComponentName + "/default"
+	CodeflareOperator = "codeflare-operator"
+	ParamsPath        = deploy.DefaultManifestPath + "/" + ComponentName + "/manager"
 )
 
 // Verifies that CodeFlare implements ComponentInterface.
@@ -79,11 +78,8 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, l
 			}
 		}
 		// check if the CodeFlare operator is installed: it should not be installed
+		// Both ODH and RHOAI should have the same operator name
 		dependentOperator := CodeflareOperator
-		// overwrite dependent operator if downstream not match upstream
-		if platform == cluster.SelfManagedRhods || platform == cluster.ManagedRhods {
-			dependentOperator = RHCodeflareOperator
-		}
 
 		if found, err := deploy.OperatorExists(cli, dependentOperator); err != nil {
 			return fmt.Errorf("operator exists throws error %w", err)

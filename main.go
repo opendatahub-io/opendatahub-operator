@@ -182,7 +182,7 @@ func main() { //nolint:funlen
 	if err = (&certconfigmapgenerator.CertConfigmapGeneratorReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
-		Log:    ctrl.Log.WithName("controllers").WithName("CertConfigmapGenerator"),
+		Log:    ctrl.Log.WithName(operatorName).WithName("controllers").WithName("CertConfigmapGenerator"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CertConfigmapGenerator")
 		os.Exit(1)
