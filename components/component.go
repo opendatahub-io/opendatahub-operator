@@ -15,7 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
+	ctrlogger "github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 )
 
 // Component struct defines the basis for each OpenDataHub component configuration.
@@ -91,7 +91,7 @@ type ComponentInterface interface {
 // extend origal ConfigLoggers to include component name.
 func (c *Component) ConfigComponentLogger(logger logr.Logger, component string, dscispec *dsciv1.DSCInitializationSpec) logr.Logger {
 	if dscispec.DevFlags != nil {
-		return common.ConfigLoggers(dscispec.DevFlags.LogMode).WithName("DSC.Components." + component)
+		return ctrlogger.ConfigLoggers(dscispec.DevFlags.LogMode).WithName("DSC.Components." + component)
 	}
 	return logger.WithName("DSC.Components." + component)
 }
