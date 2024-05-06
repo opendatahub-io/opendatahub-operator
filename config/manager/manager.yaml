@@ -41,7 +41,6 @@ spec:
           - name: DISABLE_DSC_CONFIG
             value: 'true'
         args:
-        - --leader-elect
         - --operator-name=opendatahub
         image: controller:latest
         imagePullPolicy: Always
