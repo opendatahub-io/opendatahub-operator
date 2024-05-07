@@ -46,7 +46,7 @@ COPY config/partners/ /opt/odh-manifests/partners/
 COPY config/osd-configs/ /opt/odh-manifests/osd-configs/
 
 # Build
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o manager main.go
+RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -a -o manager main.go
 
 ################################################################################
 FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
