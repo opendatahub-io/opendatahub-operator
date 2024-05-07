@@ -79,11 +79,11 @@ func OperatorUninstall(ctx context.Context, cli client.Client) error {
 	subsName := "opendatahub-operator"
 	if platform == cluster.SelfManagedRhods {
 		subsName = "rhods-operator"
-	} else if platform == cluster.ManagedRhods {
-		subsName = "addon-managed-odh"
 	}
-	if err := DeleteExistingSubscription(cli, operatorNs, subsName); err != nil {
-		return err
+	if platform != cluster.ManagedRhods {
+		if err := DeleteExistingSubscription(cli, operatorNs, subsName); err != nil {
+			return err
+		}
 	}
 
 	fmt.Printf("Removing the operator CSV in turn remove operator deployment\n")
