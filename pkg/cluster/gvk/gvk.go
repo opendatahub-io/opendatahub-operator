@@ -34,4 +34,10 @@ var (
 		Group:   "console.openshift.io",
 		Version: "v1", Kind: "OdhQuickStart",
 	}
+
+	OdhDashboardConfig = schema.GroupVersionKind{
+		Group:   "opendatahub.io",
+		Version: "v1alpha",
+		Kind:    "OdhDashboardConfig",
+	}
 )

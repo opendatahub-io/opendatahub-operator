@@ -267,6 +267,18 @@ func UpdateFromLegacyVersion(cli client.Client, platform cluster.Platform, appNS
 	return nil
 }
 
+func getJPHOdhDocumentResources(namespace string, matchedName []string) []ResourceSpec {
+	metadataName := []string{"metadata", "name"}
+	return []ResourceSpec{
+		{
+			Gvk:       gvk.OdhDocument,
+			Namespace: namespace,
+			Path:      metadataName,
+			Values:    matchedName,
+		},
+	}
+}
+
 func getDashboardWatsonResources(ns string) []ResourceSpec {
 	metadataName := []string{"metadata", "name"}
 	specAppName := []string{"spec", "appName"}
@@ -333,13 +345,19 @@ func CleanupExistingResource(ctx context.Context, cli client.Client, platform cl
 	// Remove deprecated opendatahub namespace(owned by kuberay)
 	multiErr = multierror.Append(multiErr, deleteDeprecatedNamespace(ctx, cli, "opendatahub"))
 
-	// Handling for dashboard Jupyterhub CR, see jira #443
-	JupyterhubApp := schema.GroupVersionKind{
-		Group:   "dashboard.opendatahub.io",
-		Version: "v1",
-		Kind:    "OdhApplication",
-	}
-	multiErr = multierror.Append(multiErr, removOdhApplicationsCR(ctx, cli, JupyterhubApp, "jupyterhub", dscApplicationsNamespace))
+	// Handling for dashboard OdhApplication Jupyterhub CR, see jira #443
+	multiErr = multierror.Append(multiErr, removOdhApplicationsCR(ctx, cli, gvk.OdhApplication, "jupyterhub", dscApplicationsNamespace))
+
+	// Handling for dashboard OdhDocument Jupyterhub CR, see jira #443 comments
+	odhDocJPH := getJPHOdhDocumentResources(
+		dscApplicationsNamespace,
+		[]string{
+			"jupyterhub-install-python-packages",
+			"jupyterhub-update-server-settings",
+			"jupyterhub-view-installed-packages",
+			"jupyterhub-use-s3-bucket-data",
+		})
+	multiErr = multierror.Append(multiErr, deleteResources(ctx, cli, &odhDocJPH))
 
 	// to take a reference
 	toDelete := getDashboardWatsonResources(dscApplicationsNamespace)
@@ -512,17 +530,12 @@ func removOdhApplicationsCR(ctx context.Context, cli client.Client, gvk schema.G
 }
 
 func unsetOwnerReference(cli client.Client, instanceName string, applicationNS string) error {
-	OdhDashboardConfig := schema.GroupVersionKind{
-		Group:   "opendatahub.io",
-		Version: "v1alpha",
-		Kind:    "OdhDashboardConfig",
-	}
 	crd := &apiextv1.CustomResourceDefinition{}
 	if err := cli.Get(context.TODO(), client.ObjectKey{Name: "odhdashboardconfigs.opendatahub.io"}, crd); err != nil {
 		return client.IgnoreNotFound(err)
 	}
 	odhObject := &unstructured.Unstructured{}
-	odhObject.SetGroupVersionKind(OdhDashboardConfig)
+	odhObject.SetGroupVersionKind(gvk.OdhDashboardConfig)
 	if err := cli.Get(context.TODO(), client.ObjectKey{
 		Namespace: applicationNS,
 		Name:      instanceName,
