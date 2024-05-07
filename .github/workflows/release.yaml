@@ -45,46 +45,47 @@ jobs:
           generate_release_notes: true
           append_body: true
           make_latest: true
-  create-community-operators-pr:
-    needs: [gh-release]
-    name: Create community operators prod pr # https://github.com/redhat-openshift-ecosystem/community-operators-prod
-    runs-on: ubuntu-latest
-    steps:
-      - name: Get release data from pr
-        uses: peter-evans/find-comment@v3
-        id: fc
-        with:
-          issue-number: ${{ github.event.pull_request.number }}
-          body-includes: "#Release#"
-      - name: Set version/tracker-url in env
-        run: |
-          echo "VERSION=$(echo "${{ steps.fc.outputs.comment-body }}" | awk -F= '$1 ~ /version$/{print $2}')" >> $GITHUB_ENV
-      - name: Checkout opendatahub-operator
-        uses: actions/checkout@v4
-        with:
-          path: ./opendatahub-operator
-          ref: v${{ env.VERSION }}
-      - name: Checkout redhat-openshift-ecosystem/community-operators-prod
-        uses: actions/checkout@v4
-        with:
-          token: <PAT> # We need a token with repo rights
-          repository: redhat-openshift-ecosystem/community-operators-prod # replaced with redhat-openshift-ecosystem/community-operators-prod
-          path: ./community-operators-prod
-      - name: Copy bundle files and add annotation
-        run : |
-          cd community-operators-prod
-          mkdir -p community-operators-prod/operators/opendatahub-operator/${{ env.VERSION }}
-          cp -a ../opendatahub-operator/bundle/. operators/opendatahub-operator/${{ env.VERSION }}/
-          echo "
-            # OpenShift specific version
-            com.redhat.openshift.versions: v4.9" >> operators/opendatahub-operator/${{ env.VERSION }}/metadata/annotations.yaml
-          sed -i -e "s|image: REPLACE_IMAGE:latest.*|image: quay.io/opendatahub/opendatahub-operator:v${{ env.VERSION }}|g"  operators/opendatahub-operator/${{ env.VERSION }}/manifests/opendatahub-operator.clusterserviceversion.yaml
-      - name: Create community operators prod pr
-        uses: peter-evans/create-pull-request@v6
-        with:
-          path: ./community-operators-prod
-          token: <PAT> # We need a token with repo rights
-          push-to-fork: opendatahub-io/community-operators-prod # Here we can fork community-operators-prod into opendatahub-io and use opendatahub-io/community-operators-prod. eg:https://github.com/maistra/community-operators-prod
-          commit-message: ODH Release v${{ env.VERSION }}
-          delete-branch: true
-          title: operator opendatahub-operator (${{ env.VERSION }})
+  # To be enabled later.
+  # create-community-operators-pr:
+  #   needs: [gh-release]
+  #   name: Create community operators prod pr # https://github.com/redhat-openshift-ecosystem/community-operators-prod
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Get release data from pr
+  #       uses: peter-evans/find-comment@v3
+  #       id: fc
+  #       with:
+  #         issue-number: ${{ github.event.pull_request.number }}
+  #         body-includes: "#Release#"
+  #     - name: Set version/tracker-url in env
+  #       run: |
+  #         echo "VERSION=$(echo "${{ steps.fc.outputs.comment-body }}" | awk -F= '$1 ~ /version$/{print $2}')" >> $GITHUB_ENV
+  #     - name: Checkout opendatahub-operator
+  #       uses: actions/checkout@v4
+  #       with:
+  #         path: ./opendatahub-operator
+  #         ref: v${{ env.VERSION }}
+  #     - name: Checkout redhat-openshift-ecosystem/community-operators-prod
+  #       uses: actions/checkout@v4
+  #       with:
+  #         token: <PAT> # We need a token with repo rights
+  #         repository: redhat-openshift-ecosystem/community-operators-prod # replaced with redhat-openshift-ecosystem/community-operators-prod
+  #         path: ./community-operators-prod
+  #     - name: Copy bundle files and add annotation
+  #       run : |
+  #         cd community-operators-prod
+  #         mkdir -p community-operators-prod/operators/opendatahub-operator/${{ env.VERSION }}
+  #         cp -a ../opendatahub-operator/bundle/. operators/opendatahub-operator/${{ env.VERSION }}/
+  #         echo "
+  #           # OpenShift specific version
+  #           com.redhat.openshift.versions: v4.9" >> operators/opendatahub-operator/${{ env.VERSION }}/metadata/annotations.yaml
+  #         sed -i -e "s|image: REPLACE_IMAGE:latest.*|image: quay.io/opendatahub/opendatahub-operator:v${{ env.VERSION }}|g"  operators/opendatahub-operator/${{ env.VERSION }}/manifests/opendatahub-operator.clusterserviceversion.yaml
+  #     - name: Create community operators prod pr
+  #       uses: peter-evans/create-pull-request@v6
+  #       with:
+  #         path: ./community-operators-prod
+  #         token: <PAT> # We need a token with repo rights
+  #         push-to-fork: opendatahub-io/community-operators-prod # Here we can fork community-operators-prod into opendatahub-io and use opendatahub-io/community-operators-prod. eg:https://github.com/maistra/community-operators-prod
+  #         commit-message: ODH Release v${{ env.VERSION }}
+  #         delete-branch: true
+  #         title: operator opendatahub-operator (${{ env.VERSION }})

@@ -49,8 +49,8 @@ jobs:
           delete-branch: true
       - name: Push version tag to quay.io
         run: |
-          skopeo login -u <QUAY_USERNAME> -p ${{ secrets.QUAY_PASSWORD }} quay.io/opendatahub # Store PODMAN_PASSWORD of opendatahub-io here as a secret.
-          skopeo copy docker://quay.io/opendatahub/opendatahub-operator:pr-${{ steps.cpr-dry-run.outputs.pull-request-number }} docker://quay.io/opendatahub/opendatahub-operator:${{ env.VERSION }}
+          skopeo login -u ${{ secrets.QUAY_ID }} -p ${{ secrets.QUAY_TOKEN }} quay.io/{{ secrets.QUAY_ORG }}
+          skopeo copy docker://quay.io/{{ secrets.QUAY_ORG }}/opendatahub-operator:pr-${{ steps.cpr-dry-run.outputs.pull-request-number }} docker://quay.io/{{ secrets.QUAY_ORG }}/opendatahub-operator:${{ env.VERSION }}
           echo "Successfully updated tag to quay.io with version: ${{ env.VERSION }}"
   release-branch-pr:
     needs: dry-run-pr
@@ -93,7 +93,7 @@ jobs:
           branch: odh-release/version-update
           delete-branch: true
           title: "ODH Release ${{ env.VERSION }}: Version Update"
-          # reviewers: "VaishnaviHire,zdtsw,AjayJagan,ykaliuta" TODO
+          reviewers: "VaishnaviHire,zdtsw"
       - name: Wait for checks to pass
         env:
           GH_TOKEN: ${{ steps.generate-token.outputs.token }}
