@@ -17,7 +17,7 @@ pr_has_status() {
 # waiting for 5 minutes before each check as e2e can take a lot of time.
 while pr_has_status $1 pending; do
   echo "PR checks still pending, retrying in 5 minutes..."
-  sleep 300000
+  sleep 5m
 done
 
 pr_has_status $1 fail && { echo "!!PR checks failed!!"; exit 1; }
