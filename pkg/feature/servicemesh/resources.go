@@ -38,14 +38,19 @@ func MeshRefs(f *feature.Feature) error {
 // be easily accessed by other components which rely on this information.
 func AuthRefs(f *feature.Feature) error {
 	audiences := f.Spec.Auth.Audiences
-	namespace := f.Spec.AppNamespace
+	appNamespace := f.Spec.AppNamespace
+	authNamespace := f.Spec.Auth.Namespace
+	if len(authNamespace) == 0 {
+		authNamespace = appNamespace + "-auth-provider"
+	}
 	audiencesList := ""
 	if audiences != nil && len(*audiences) > 0 {
 		audiencesList = strings.Join(*audiences, ",")
 	}
 	data := map[string]string{
 		"AUTH_AUDIENCE":   audiencesList,
-		"AUTH_PROVIDER":   namespace + "-auth-provider",
+		"AUTH_PROVIDER":   appNamespace + "-auth-provider",
+		"AUTH_NAMESPACE":  authNamespace,
 		"AUTHORINO_LABEL": "security.opendatahub.io/authorization-group=default",
 	}
 
@@ -54,7 +59,7 @@ func AuthRefs(f *feature.Feature) error {
 		&corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "auth-refs",
-				Namespace: namespace,
+				Namespace: appNamespace,
 			},
 			Data: data,
 		},
