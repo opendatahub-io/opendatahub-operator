@@ -309,6 +309,25 @@ data:
           target_label: __address__
           replacement: ${1}:8080
 
+    - job_name: 'Kueue Operator'
+      honor_labels: true
+      metrics_path: /metrics
+      scheme: http
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - <odh_application_namespace>
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          regex: ^(kueue-metrics-service)$
+          target_label: kubernetes_name
+          action: keep
+        - source_labels: [__address__]
+          regex: (.+):(\d+)
+          target_label: __address__
+          replacement: ${1}:8080
+
     - job_name: 'TrustyAI Controller Manager'
       honor_labels: true
       metrics_path: /metrics
@@ -1239,6 +1258,20 @@ data:
             description: This alert fires when the KubeRay Operator is not running.
             triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/kuberay-operator-availability.md'
             summary: Alerting for KubeRay Operator
+
+  kueue-alerting.rules: |
+    groups:
+    - name: Distributed Workloads Kueue
+      interval: 1m
+      rules:
+        - alert: Kueue Operator is not running
+          expr: absent(up{job=~'Kueue Operator'}) or up{job=~'Kueue Operator'} != 1
+          labels:
+            severity: warning
+          annotations:
+            description: This alert fires when the Kueue Operator is not running.
+            triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/kueue-operator-availability.md'
+            summary: Alerting for Kueue Operator
 
   workbenches-recording.rules: |
     groups:
