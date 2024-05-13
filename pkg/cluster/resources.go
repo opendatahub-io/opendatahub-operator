@@ -174,3 +174,16 @@ func WaitForDeploymentAvailable(ctx context.Context, c client.Client, componentN
 		return true, nil
 	})
 }
+
+func CreateWithRetry(ctx context.Context, cli client.Client, obj client.Object, timeoutMin int) error {
+	interval := time.Second * 5 // arbitrary value
+	timeout := time.Duration(timeoutMin) * time.Minute
+
+	return wait.PollUntilContextTimeout(ctx, interval, timeout, true, func(ctx context.Context) (bool, error) {
+		err := cli.Create(ctx, obj)
+		if err != nil {
+			return false, nil //nolint:nilerr
+		}
+		return true, nil
+	})
+}
