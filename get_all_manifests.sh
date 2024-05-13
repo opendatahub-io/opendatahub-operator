@@ -6,7 +6,7 @@ GITHUB_URL="https://github.com/"
 # component: notebook, dsp, kserve, dashbaord, cf/ray/kueue/trainingoperator, trustyai, modelmesh, modelregistry.
 # in the format of "repo-org:repo-name:branch-name:source-folder:target-folder".
 declare -A COMPONENT_MANIFESTS=(
-    ["codeflare"]="opendatahub-io:codeflare-operator:v1.4.0-odh:config:codeflare"
+    ["codeflare"]="opendatahub-io:codeflare-operator:v1.4.1-odh:config:codeflare"
     ["ray"]="opendatahub-io:kuberay:v1.1.0-odh:ray-operator/config:ray"
     ["kueue"]="opendatahub-io:kueue:v0.6.2-odh:config:kueue"
     ["data-science-pipelines-operator"]="opendatahub-io:data-science-pipelines-operator:v2.2.0:config:data-science-pipelines-operator"
