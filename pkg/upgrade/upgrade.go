@@ -7,8 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"strings"
-	"time"
 
 	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -23,7 +21,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
@@ -44,7 +41,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 type ResourceSpec struct {
@@ -178,95 +174,6 @@ func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ cluster.Platfor
 	return nil
 }
 
-func UpdateFromLegacyVersion(cli client.Client, platform cluster.Platform, appNS string, montNamespace string) error {
-	// If platform is Managed, remove Kfdefs and create default dsc
-	if platform == cluster.ManagedRhods {
-		fmt.Println("starting deletion of Deployment in managed cluster")
-		if err := deleteResource(cli, appNS, "deployment"); err != nil {
-			return err
-		}
-		// this is for the modelmesh monitoring part from v1 to v2
-		if err := deleteResource(cli, montNamespace, "deployment"); err != nil {
-			return err
-		}
-		if err := deleteResource(cli, montNamespace, "statefulset"); err != nil {
-			return err
-		}
-		// only for downstream since ODH has a different way to create this CR by dashboard
-		if err := unsetOwnerReference(cli, "odh-dashboard-config", appNS); err != nil {
-			return err
-		}
-
-		// remove label created by previous v2 release which is problematic for Managed cluster
-		fmt.Println("removing labels on Operator Namespace")
-		operatorNamespace, err := cluster.GetOperatorNamespace()
-		if err != nil {
-			return err
-		}
-		if err := RemoveLabel(cli, operatorNamespace, labels.SecurityEnforce); err != nil {
-			return err
-		}
-
-		fmt.Println("creating default DSC CR")
-		if err := CreateDefaultDSC(context.TODO(), cli); err != nil {
-			return err
-		}
-		return RemoveKfDefInstances(context.TODO(), cli)
-	}
-
-	if platform == cluster.SelfManagedRhods {
-		// remove label created by previous v2 release which is problematic for Managed cluster
-		fmt.Println("removing labels on Operator Namespace")
-		operatorNamespace, err := cluster.GetOperatorNamespace()
-		if err != nil {
-			return err
-		}
-		if err := RemoveLabel(cli, operatorNamespace, labels.SecurityEnforce); err != nil {
-			return err
-		}
-		// If KfDef CRD is not found, we see it as a cluster not pre-installed v1 operator	// Check if kfdef are deployed
-		kfdefCrd := &apiextv1.CustomResourceDefinition{}
-		if err := cli.Get(context.TODO(), client.ObjectKey{Name: "kfdefs.kfdef.apps.kubeflow.org"}, kfdefCrd); err != nil {
-			if apierrs.IsNotFound(err) {
-				// If no Crd found, return, since its a new Installation
-				// return empty list
-				return nil
-			}
-			return fmt.Errorf("error retrieving kfdef CRD : %w", err)
-		}
-
-		// If KfDef Instances found, and no DSC instances are found in Self-managed, that means this is an upgrade path from
-		// legacy version. Create a default DSC instance
-		kfDefList := &kfdefv1.KfDefList{}
-		err = cli.List(context.TODO(), kfDefList)
-		if err != nil {
-			return fmt.Errorf("error getting kfdef instances: : %w", err)
-		}
-		fmt.Println("starting deletion of Deployment in selfmanaged cluster")
-		if len(kfDefList.Items) > 0 {
-			if err = deleteResource(cli, appNS, "deployment"); err != nil {
-				return fmt.Errorf("error deleting deployment: %w", err)
-			}
-			// this is for the modelmesh monitoring part from v1 to v2
-			if err := deleteResource(cli, montNamespace, "deployment"); err != nil {
-				return err
-			}
-			if err := deleteResource(cli, montNamespace, "statefulset"); err != nil {
-				return err
-			}
-			// only for downstream since ODH has a different way to create this CR by dashboard
-			if err := unsetOwnerReference(cli, "odh-dashboard-config", appNS); err != nil {
-				return err
-			}
-			// create default DSC
-			if err = CreateDefaultDSC(context.TODO(), cli); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
 func getJPHOdhDocumentResources(namespace string, matchedName []string) []ResourceSpec {
 	metadataName := []string{"metadata", "name"}
 	return []ResourceSpec{
@@ -342,7 +249,7 @@ func CleanupExistingResource(ctx context.Context, cli client.Client, platform cl
 	deprecatedOperatorSM := []string{"rhods-monitor-federation2"}
 	multiErr = multierror.Append(multiErr, deleteDeprecatedServiceMonitors(ctx, cli, dscMonitoringNamespace, deprecatedOperatorSM))
 
-	// Remove deprecated opendatahub namespace(owned by kuberay)
+	// Remove deprecated opendatahub namespace(previously owned by kuberay and Kueue)
 	multiErr = multierror.Append(multiErr, deleteDeprecatedNamespace(ctx, cli, "opendatahub"))
 
 	// Handling for dashboard OdhApplication Jupyterhub CR, see jira #443
@@ -358,6 +265,12 @@ func CleanupExistingResource(ctx context.Context, cli client.Client, platform cl
 			"jupyterhub-use-s3-bucket-data",
 		})
 	multiErr = multierror.Append(multiErr, deleteResources(ctx, cli, &odhDocJPH))
+	// only apply on RHOAI since ODH has a different way to create this CR by dashboard
+	if platform == cluster.SelfManagedRhods || platform == cluster.ManagedRhods {
+		if err := unsetOwnerReference(cli, "odh-dashboard-config", dscApplicationsNamespace); err != nil {
+			return err
+		}
+	}
 
 	// to take a reference
 	toDelete := getDashboardWatsonResources(dscApplicationsNamespace)
@@ -550,145 +463,6 @@ func unsetOwnerReference(cli client.Client, instanceName string, applicationNS s
 		}
 	}
 	return nil
-}
-
-func deleteResource(cli client.Client, namespace string, resourceType string) error {
-	// In v2, Deployment selectors use a label "app.opendatahub.io/<componentName>" which is
-	// not present in v1. Since label selectors are immutable, we need to delete the existing
-	// deployments and recreated them.
-	// because we can't proceed if a deployment is not deleted, we use exponential backoff
-	// to retry the deletion until it succeeds
-	var err error
-	switch resourceType {
-	case "deployment":
-		err = wait.ExponentialBackoffWithContext(context.TODO(), wait.Backoff{
-			// 5, 10, ,20, 40 then timeout
-			Duration: 5 * time.Second,
-			Factor:   2.0,
-			Jitter:   0.1,
-			Steps:    4,
-			Cap:      1 * time.Minute,
-		}, func(ctx context.Context) (bool, error) {
-			done, err := deleteDeploymentsAndCheck(ctx, cli, namespace)
-			return done, err
-		})
-	case "statefulset":
-		err = wait.ExponentialBackoffWithContext(context.TODO(), wait.Backoff{
-			// 10, 20 then timeout
-			Duration: 10 * time.Second,
-			Factor:   2.0,
-			Jitter:   0.1,
-			Steps:    2,
-			Cap:      1 * time.Minute,
-		}, func(ctx context.Context) (bool, error) {
-			done, err := deleteStatefulsetsAndCheck(ctx, cli, namespace)
-			return done, err
-		})
-	}
-	return err
-}
-
-func deleteDeploymentsAndCheck(ctx context.Context, cli client.Client, namespace string) (bool, error) {
-	// Delete Deployment objects
-	var multiErr *multierror.Error
-	deployments := &appsv1.DeploymentList{}
-	listOpts := &client.ListOptions{
-		Namespace: namespace,
-	}
-
-	if err := cli.List(ctx, deployments, listOpts); err != nil {
-		return false, nil //nolint:nilerr
-	}
-	// filter deployment which has the new label to limit that we do not overkill other deployment
-	// this logic can be used even when upgrade from v2.4 to v2.5 without remove it
-	markedForDeletion := []appsv1.Deployment{}
-	for _, deployment := range deployments.Items {
-		deployment := deployment
-		v2 := false
-		selectorLabels := deployment.Spec.Selector.MatchLabels
-		for label := range selectorLabels {
-			if strings.Contains(label, labels.ODHAppPrefix) {
-				// this deployment has the new label, this is a v2 to v2 upgrade
-				// there is no need to recreate it, as labels are matching
-				v2 = true
-				continue
-			}
-		}
-		if !v2 {
-			markedForDeletion = append(markedForDeletion, deployment)
-			multiErr = multierror.Append(multiErr, cli.Delete(ctx, &deployment))
-		}
-	}
-
-	for _, deployment := range markedForDeletion {
-		deployment := deployment
-		if e := cli.Get(ctx, client.ObjectKey{
-			Namespace: namespace,
-			Name:      deployment.Name,
-		}, &deployment); e != nil {
-			if apierrs.IsNotFound(e) {
-				// resource has been successfully deleted
-				continue
-			}
-			// unexpected error, report it
-			multiErr = multierror.Append(multiErr, e) //nolint:staticcheck,wastedassign
-		}
-		// resource still exists, wait for it to be deleted
-		return false, nil
-	}
-
-	return true, multiErr.ErrorOrNil()
-}
-
-func deleteStatefulsetsAndCheck(ctx context.Context, cli client.Client, namespace string) (bool, error) {
-	// Delete statefulset objects
-	var multiErr *multierror.Error
-	statefulsets := &appsv1.StatefulSetList{}
-	listOpts := &client.ListOptions{
-		Namespace: namespace,
-	}
-
-	if err := cli.List(ctx, statefulsets, listOpts); err != nil {
-		return false, nil //nolint:nilerr
-	}
-
-	// even only we have one item to delete to avoid nil point still use range
-	markedForDeletion := []appsv1.StatefulSet{}
-	for _, statefulset := range statefulsets.Items {
-		v2 := false
-		statefulset := statefulset
-		selectorLabels := statefulset.Spec.Selector.MatchLabels
-		for label := range selectorLabels {
-			if strings.Contains(label, labels.ODHAppPrefix) {
-				v2 = true
-				continue
-			}
-		}
-		if !v2 {
-			markedForDeletion = append(markedForDeletion, statefulset)
-			multiErr = multierror.Append(multiErr, cli.Delete(ctx, &statefulset))
-		}
-	}
-
-	for _, statefulset := range markedForDeletion {
-		statefulset := statefulset
-		if e := cli.Get(ctx, client.ObjectKey{
-			Namespace: namespace,
-			Name:      statefulset.Name,
-		}, &statefulset); e != nil {
-			if apierrs.IsNotFound(e) {
-				// resource has been successfully deleted
-				continue
-			}
-			// unexpected error, report it
-			multiErr = multierror.Append(multiErr, e)
-		} else {
-			// resource still exists, wait for it to be deleted
-			return false, nil
-		}
-	}
-
-	return true, multiErr.ErrorOrNil()
 }
 
 func RemoveLabel(cli client.Client, objectName string, labelKey string) error {

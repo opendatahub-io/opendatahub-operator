@@ -208,20 +208,24 @@ func main() { //nolint:funlen
 		}
 	}
 
+	// Cleanup resources from previous v2 releases
 	var cleanExistingResourceFunc manager.RunnableFunc = func(ctx context.Context) error {
 		if err = upgrade.CleanupExistingResource(ctx, setupClient, platform, dscApplicationsNamespace, dscMonitoringNamespace); err != nil {
 			setupLog.Error(err, "unable to perform cleanup")
 		}
 		return err
 	}
+
+	// Create default DSC CR for managed RHODS
+	if platform == cluster.ManagedRhods {
+		if err := upgrade.CreateDefaultDSC(context.TODO(), setupClient); err != nil {
+			setupLog.Error(err, "unable to create default DSC CR by the operator")
+			os.Exit(1)
+		}
+	}
 	err = mgr.Add(cleanExistingResourceFunc)
 	if err != nil {
 		setupLog.Error(err, "error remove deprecated resources from previous version")
-	}
-
-	// Apply update from legacy operator
-	if err = upgrade.UpdateFromLegacyVersion(setupClient, platform, dscApplicationsNamespace, dscMonitoringNamespace); err != nil {
-		setupLog.Error(err, "unable to update from legacy operator version")
 	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
