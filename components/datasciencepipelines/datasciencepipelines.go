@@ -1,5 +1,5 @@
 // Package datasciencepipelines provides utility functions to config Data Science Pipelines:
-// Pipeline solution for end to end MLOps workflows that support the Kubeflow Pipelines SDK and Tekton
+// Pipeline solution for end to end MLOps workflows that support the Kubeflow Pipelines SDK, Tekton and Argo Workflows.
 // +groupName=datasciencecluster.opendatahub.io
 package datasciencepipelines
 
@@ -17,9 +17,9 @@ import (
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/monitoring"
 )
 
 var (
@@ -90,7 +90,7 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 	enabled := d.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 
-	platform, err := deploy.GetPlatform(cli)
+	platform, err := cluster.GetPlatform(cli)
 	if err != nil {
 		return err
 	}
@@ -116,7 +116,7 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 
 	// new overlay
 	manifestsPath := filepath.Join(OverlayPath, "rhoai")
-	if platform == deploy.OpenDataHub || platform == "" {
+	if platform == cluster.OpenDataHub || platform == "" {
 		manifestsPath = filepath.Join(OverlayPath, "odh")
 	}
 	if err = deploy.DeployManifestsFromPath(cli, owner, manifestsPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
@@ -125,11 +125,11 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 	l.Info("apply manifests done")
 
 	// CloudService Monitoring handling
-	if platform == deploy.ManagedRhods {
+	if platform == cluster.ManagedRhods {
 		if enabled {
 			// first check if the service is up, so prometheus won't fire alerts when it is just startup
 			// only 1 replica should be very quick
-			if err := monitoring.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 10, 1); err != nil {
+			if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 10, 1); err != nil {
 				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 			}
 			l.Info("deployment is done, updating monitoring rules")

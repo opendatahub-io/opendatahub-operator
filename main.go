@@ -55,8 +55,8 @@ import (
 	datascienceclustercontrollers "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
 	dscicontr "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
 
@@ -179,7 +179,7 @@ func main() {
 	if err = (&certconfigmapgenerator.CertConfigmapGeneratorReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
-		Log:    ctrl.Log.WithName("controllers").WithName("CertConfigmapGenerator"),
+		Log:    ctrl.Log.WithName(operatorName).WithName("controllers").WithName("CertConfigmapGenerator"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CertConfigmapGenerator")
 		os.Exit(1)
@@ -198,16 +198,27 @@ func main() {
 		os.Exit(1)
 	}
 	// Get operator platform
-	platform, err := deploy.GetPlatform(setupClient)
+	platform, err := cluster.GetPlatform(setupClient)
 	if err != nil {
 		setupLog.Error(err, "error getting platform")
 		os.Exit(1)
 	}
 	// Check if user opted for disabling DSC configuration
-	_, disableDSCConfig := os.LookupEnv("DISABLE_DSC_CONFIG")
-	if !disableDSCConfig {
-		if err = upgrade.CreateDefaultDSCI(setupClient, platform, dscApplicationsNamespace, dscMonitoringNamespace); err != nil {
-			setupLog.Error(err, "unable to create initial setup for the operator")
+	disableDSCConfig, existDSCConfig := os.LookupEnv("DISABLE_DSC_CONFIG")
+	if existDSCConfig && disableDSCConfig != "false" {
+		setupLog.Info("DSCI auto creation is disabled")
+	} else {
+		var createDefaultDSCIFunc manager.RunnableFunc = func(ctx context.Context) error {
+			err := upgrade.CreateDefaultDSCI(ctx, setupClient, platform, dscApplicationsNamespace, dscMonitoringNamespace)
+			if err != nil {
+				setupLog.Error(err, "unable to create initial setup for the operator")
+			}
+			return err
+		}
+		err := mgr.Add(createDefaultDSCIFunc)
+		if err != nil {
+			setupLog.Error(err, "error scheduling DSCI creation")
+			os.Exit(1)
 		}
 	}
 

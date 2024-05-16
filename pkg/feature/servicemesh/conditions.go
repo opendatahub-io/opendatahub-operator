@@ -12,6 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 )
 
@@ -74,7 +75,7 @@ func WaitForControlPlaneToBeReady(f *feature.Feature) error {
 
 func CheckControlPlaneComponentReadiness(c client.Client, smcpName, smcpNs string) (bool, error) {
 	smcpObj := &unstructured.Unstructured{}
-	smcpObj.SetGroupVersionKind(cluster.ServiceMeshControlPlaneGVK)
+	smcpObj.SetGroupVersionKind(gvk.ServiceMeshControlPlane)
 	err := c.Get(context.TODO(), client.ObjectKey{
 		Namespace: smcpNs,
 		Name:      smcpName,

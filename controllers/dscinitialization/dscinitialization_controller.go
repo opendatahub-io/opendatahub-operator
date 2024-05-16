@@ -173,7 +173,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	managementStateChangeTrustedCA = false
 
 	// Get platform
-	platform, err := deploy.GetPlatform(r.Client)
+	platform, err := cluster.GetPlatform(r.Client)
 	if err != nil {
 		r.Log.Error(err, "Failed to determine platform (odh vs managed vs self-managed)")
 		return reconcile.Result{}, err
@@ -181,7 +181,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	switch req.Name {
 	case "prometheus": // prometheus configmap
-		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == deploy.ManagedRhods {
+		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == cluster.ManagedRhods {
 			r.Log.Info("Monitoring enabled to restart deployment", "cluster", "Managed Service Mode")
 			err := r.configureManagedMonitoring(ctx, instance, "updates")
 			if err != nil {
@@ -190,7 +190,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 		return ctrl.Result{}, nil
 	case "addon-managed-odh-parameters":
-		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == deploy.ManagedRhods {
+		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == cluster.ManagedRhods {
 			r.Log.Info("Monitoring enabled when notification updated", "cluster", "Managed Service Mode")
 			err := r.configureManagedMonitoring(ctx, instance, "updates")
 			if err != nil {
@@ -199,7 +199,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 		return ctrl.Result{}, nil
 	case "backup": // revert back to the original prometheus.yml
-		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == deploy.ManagedRhods {
+		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == cluster.ManagedRhods {
 			r.Log.Info("Monitoring enabled to restore back", "cluster", "Managed Service Mode")
 			err := r.configureManagedMonitoring(ctx, instance, "revertbackup")
 			if err != nil {
@@ -234,7 +234,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 
 		switch platform {
-		case deploy.SelfManagedRhods:
+		case cluster.SelfManagedRhods:
 			err := r.createUserGroup(ctx, instance, "rhods-admins")
 			if err != nil {
 				return reconcile.Result{}, err
@@ -246,7 +246,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 					return reconcile.Result{}, err
 				}
 			}
-		case deploy.ManagedRhods:
+		case cluster.ManagedRhods:
 			osdConfigsPath := filepath.Join(deploy.DefaultManifestPath, "osd-configs")
 			err = deploy.DeployManifestsFromPath(r.Client, instance, osdConfigsPath, r.ApplicationsNamespace, "osd", true)
 			if err != nil {

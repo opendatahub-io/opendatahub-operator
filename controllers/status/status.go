@@ -239,3 +239,13 @@ func SetExistingArgoCondition(conditions *[]conditionsv1.Condition, reason, mess
 
 	SetComponentCondition(conditions, datasciencepipelines.ComponentName, ReconcileFailed, message, corev1.ConditionFalse)
 }
+
+// General function to patch any type of condition.
+func SetGeneralCondition(conditions *[]conditionsv1.Condition, conditionType string, reason string, message string, status corev1.ConditionStatus) {
+	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
+		Type:    conditionsv1.ConditionType(conditionType),
+		Status:  status,
+		Reason:  reason,
+		Message: message,
+	})
+}

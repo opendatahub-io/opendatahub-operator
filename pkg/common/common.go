@@ -15,10 +15,10 @@ limitations under the License.
 */
 
 // Package common contains utility functions used by different components
+// for cluster related common operations, refer to package cluster
 package common
 
 import (
-	"context"
 	"crypto/sha256"
 	b64 "encoding/base64"
 	"fmt"
@@ -27,9 +27,7 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
-	routev1 "github.com/openshift/api/route/v1"
 	"go.uber.org/zap/zapcore"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
@@ -119,16 +117,6 @@ func GetMonitoringData(data string) (string, error) {
 	encodedData := b64.StdEncoding.EncodeToString(hashSum)
 
 	return encodedData, nil
-}
-
-// Use openshift-console namespace to get host domain.
-func GetDomain(cli client.Client, name string, namespace string) (string, error) {
-	consoleRoute := &routev1.Route{}
-	if err := cli.Get(context.TODO(), client.ObjectKey{Name: name, Namespace: namespace}, consoleRoute); err != nil {
-		return "", fmt.Errorf("error getting %s route URL: %w", name, err)
-	}
-	domainIndex := strings.Index(consoleRoute.Spec.Host, ".")
-	return consoleRoute.Spec.Host[domainIndex+1:], nil
 }
 
 // to use different mode for logging, e.g. development, production

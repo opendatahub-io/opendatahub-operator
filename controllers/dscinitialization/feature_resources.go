@@ -14,9 +14,9 @@ const baseDir = "resources"
 var Templates = struct {
 	// ServiceMeshDir is the path to the Service Mesh templates.
 	ServiceMeshDir string
-	// InstallDir is the path to the Serving install templates.
+	// AuthorinoDir is the path to the Authorino templates.
 	AuthorinoDir string
-	// GatewaysDir is the path to the Serving Istio gateways templates.
+	// MetricsDir is the path to the Metrics Collection templates.
 	MetricsDir string
 	// Source the templates to be used
 	Source fs.FS

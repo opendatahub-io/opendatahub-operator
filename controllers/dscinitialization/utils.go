@@ -20,6 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
@@ -190,11 +191,11 @@ func (r *DSCInitializationReconciler) createDefaultRoleBinding(ctx context.Conte
 }
 
 func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.Context, name string, dscInit *dsci.DSCInitialization) error {
-	platform, err := deploy.GetPlatform(r.Client)
+	platform, err := cluster.GetPlatform(r.Client)
 	if err != nil {
 		return err
 	}
-	if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
+	if platform == cluster.ManagedRhods || platform == cluster.SelfManagedRhods {
 		// Deploy networkpolicy for operator namespace
 		err = deploy.DeployManifestsFromPath(r.Client, dscInit, networkpolicyPath+"/operator", "redhat-ods-operator", "networkpolicy", true)
 		if err != nil {

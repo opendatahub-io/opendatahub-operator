@@ -12,23 +12,27 @@ import (
 
 	"github.com/ghodss/yaml"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
 type Manifest interface {
 	// Process allows any arbitrary struct to be passed and used while processing the content of the manifest.
 	Process(data any) ([]*unstructured.Unstructured, error)
+	// MarkAsManaged sets all non-patch objects to be managed/reconciled by setting the annotation.
+	MarkAsManaged(objects []*unstructured.Unstructured)
 }
 
-type baseManifest struct {
+type rawManifest struct {
 	name,
 	path string
 	patch bool
 	fsys  fs.FS
 }
 
-var _ Manifest = (*baseManifest)(nil)
+var _ Manifest = (*rawManifest)(nil)
 
-func (b *baseManifest) Process(_ any) ([]*unstructured.Unstructured, error) {
+func (b *rawManifest) Process(_ any) ([]*unstructured.Unstructured, error) {
 	manifestFile, err := b.fsys.Open(b.path)
 	if err != nil {
 		return nil, err
@@ -42,6 +46,12 @@ func (b *baseManifest) Process(_ any) ([]*unstructured.Unstructured, error) {
 	resources := string(content)
 
 	return convertToUnstructuredSlice(resources)
+}
+
+func (b *rawManifest) MarkAsManaged(objects []*unstructured.Unstructured) {
+	if !b.patch {
+		markAsManaged(objects)
+	}
 }
 
 var _ Manifest = (*templateManifest)(nil)
@@ -83,6 +93,24 @@ func (t *templateManifest) Process(data any) ([]*unstructured.Unstructured, erro
 	return convertToUnstructuredSlice(resources)
 }
 
+func (t *templateManifest) MarkAsManaged(objects []*unstructured.Unstructured) {
+	if !t.patch {
+		markAsManaged(objects)
+	}
+}
+
+func markAsManaged(objs []*unstructured.Unstructured) {
+	for _, obj := range objs {
+		objAnnotations := obj.GetAnnotations()
+		if objAnnotations == nil {
+			objAnnotations = make(map[string]string)
+		}
+
+		objAnnotations[annotations.ManagedByODHOperator] = "true"
+		obj.SetAnnotations(objAnnotations)
+	}
+}
+
 func loadManifestsFrom(fsys fs.FS, path string) ([]Manifest, error) {
 	var manifests []Manifest
 
@@ -102,7 +130,7 @@ func loadManifestsFrom(fsys fs.FS, path string) ([]Manifest, error) {
 		if isTemplateManifest(path) {
 			manifests = append(manifests, CreateTemplateManifestFrom(fsys, path))
 		} else {
-			manifests = append(manifests, CreateBaseManifestFrom(fsys, path))
+			manifests = append(manifests, CreateRawManifestFrom(fsys, path))
 		}
 
 		return nil
@@ -115,10 +143,10 @@ func loadManifestsFrom(fsys fs.FS, path string) ([]Manifest, error) {
 	return manifests, nil
 }
 
-func CreateBaseManifestFrom(fsys fs.FS, path string) *baseManifest { //nolint:golint,revive //No need to export baseManifest.
+func CreateRawManifestFrom(fsys fs.FS, path string) *rawManifest { //nolint:golint,revive //No need to export rawManifest.
 	basePath := filepath.Base(path)
 
-	return &baseManifest{
+	return &rawManifest{
 		name:  basePath,
 		path:  path,
 		patch: strings.Contains(basePath, ".patch"),

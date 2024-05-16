@@ -124,7 +124,7 @@ _Appears in:_
 ## datasciencecluster.opendatahub.io/datasciencepipelines
 
 Package datasciencepipelines provides utility functions to config Data Science Pipelines:
-Pipeline solution for end to end MLOps workflows that support the Kubeflow Pipelines SDK and Tekton
+Pipeline solution for end to end MLOps workflows that support the Kubeflow Pipelines SDK, Tekton and Argo Workflows.
 
 
 
