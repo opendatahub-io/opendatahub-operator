@@ -58,7 +58,7 @@ func (m *ModelRegistry) GetComponentName() string {
 	return ComponentName
 }
 
-func (m *ModelRegistry) ReconcileComponent(_ context.Context, cli client.Client, logger logr.Logger,
+func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
 	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
 	l := m.ConfigComponentLogger(logger, ComponentName, dscispec)
 	var imageParamMap = map[string]string{
@@ -98,5 +98,14 @@ func (m *ModelRegistry) ReconcileComponent(_ context.Context, cli client.Client,
 	// Deploy ModelRegistry Operator
 	err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, m.GetComponentName(), enabled)
 	l.Info("apply manifests done")
+
+	// Wait for deployment available
+	if enabled {
+		// first check if the service is up
+		if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 10, 2); err != nil {
+			return fmt.Errorf("deployments for %s are not ready to server: %w", ComponentName, err)
+		}
+	}
+
 	return err
 }

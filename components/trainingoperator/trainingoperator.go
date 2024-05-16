@@ -89,13 +89,18 @@ func (r *TrainingOperator) ReconcileComponent(ctx context.Context, cli client.Cl
 		return err
 	}
 	l.Info("apply manifests done")
+
+	// Wait for deployment available
+	if enabled {
+		// first check if the service is up, so prometheus wont fire alerts when it is just startup
+		if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
+			return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
+		}
+	}
+
 	// CloudService Monitoring handling
 	if platform == cluster.ManagedRhods {
 		if enabled {
-			// first check if the service is up, so prometheus wont fire alerts when it is just startup
-			if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
-				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
-			}
 			fmt.Printf("deployment for %s is done, updating monitoring rules\n", ComponentName)
 		}
 		l.Info("deployment is done, updating monitoring rules")

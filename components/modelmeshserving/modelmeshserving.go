@@ -148,13 +148,18 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 	}
 
 	l.WithValues("Path", DependentPath).Info("apply manifests done for odh-model-controller")
+
+	// Wait for deployment available
+	if enabled {
+		// first check if service is up, so prometheus won't fire alerts when it is just startup
+		if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
+			return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
+		}
+	}
+
 	// CloudService Monitoring handling
 	if platform == cluster.ManagedRhods {
 		if enabled {
-			// first check if service is up, so prometheus won't fire alerts when it is just startup
-			if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
-				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
-			}
 			l.Info("deployment is done, updating monitoring rules")
 		}
 		// first model-mesh rules
