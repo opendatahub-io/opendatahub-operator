@@ -2,9 +2,7 @@ package cluster_test
 
 import (
 	"context"
-	"math/rand"
 	"testing"
-	"time"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -33,8 +31,6 @@ func TestClusterOperationsIntegration(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	rand.Seed(time.Now().UTC().UnixNano())
-
 	ctx, cancel = context.WithCancel(context.TODO())
 
 	opts := zap.Options{Development: true}

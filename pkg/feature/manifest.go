@@ -2,34 +2,25 @@ package feature
 
 import (
 	"bytes"
-	"embed"
 	"fmt"
 	"html/template"
 	"io"
 	"io/fs"
-	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
 
 	"github.com/ghodss/yaml"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-)
 
-//go:embed templates
-var embeddedFiles embed.FS
-
-var (
-	BaseDir        = "templates"
-	ServiceMeshDir = path.Join(BaseDir, "servicemesh")
-	ServerlessDir  = path.Join(BaseDir, "serverless")
-	AuthDir        = path.Join(ServiceMeshDir, "authorino")
-	KServeDir      = path.Join(ServiceMeshDir, "kserve")
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
 type Manifest interface {
 	// Process allows any arbitrary struct to be passed and used while processing the content of the manifest.
 	Process(data any) ([]*unstructured.Unstructured, error)
+	// MarkAsManaged sets all non-patch objects to be managed/reconciled by setting the annotation.
+	MarkAsManaged(objects []*unstructured.Unstructured)
 }
 
 type rawManifest struct {
@@ -55,6 +46,12 @@ func (b *rawManifest) Process(_ any) ([]*unstructured.Unstructured, error) {
 	resources := string(content)
 
 	return convertToUnstructuredSlice(resources)
+}
+
+func (b *rawManifest) MarkAsManaged(objects []*unstructured.Unstructured) {
+	if !b.patch {
+		markAsManaged(objects)
+	}
 }
 
 var _ Manifest = (*templateManifest)(nil)
@@ -94,6 +91,24 @@ func (t *templateManifest) Process(data any) ([]*unstructured.Unstructured, erro
 	resources := buffer.String()
 
 	return convertToUnstructuredSlice(resources)
+}
+
+func (t *templateManifest) MarkAsManaged(objects []*unstructured.Unstructured) {
+	if !t.patch {
+		markAsManaged(objects)
+	}
+}
+
+func markAsManaged(objs []*unstructured.Unstructured) {
+	for _, obj := range objs {
+		objAnnotations := obj.GetAnnotations()
+		if objAnnotations == nil {
+			objAnnotations = make(map[string]string)
+		}
+
+		objAnnotations[annotations.ManagedByODHOperator] = "true"
+		obj.SetAnnotations(objAnnotations)
+	}
 }
 
 func loadManifestsFrom(fsys fs.FS, path string) ([]Manifest, error) {
@@ -145,13 +160,13 @@ func CreateTemplateManifestFrom(fsys fs.FS, path string) *templateManifest { //n
 	return &templateManifest{
 		name:  basePath,
 		path:  path,
-		patch: strings.Contains(basePath, ".patch"),
+		patch: strings.Contains(basePath, ".patch."),
 		fsys:  fsys,
 	}
 }
 
 func isTemplateManifest(path string) bool {
-	return strings.Contains(path, ".tmpl")
+	return strings.Contains(filepath.Base(path), ".tmpl.")
 }
 
 func convertToUnstructuredSlice(resources string) ([]*unstructured.Unstructured, error) {

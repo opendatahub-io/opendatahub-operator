@@ -3,7 +3,7 @@
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
-VERSION ?= 2.9.0
+VERSION ?= 2.12.0
 # IMAGE_TAG_BASE defines the opendatahub.io namespace and part of the image name for remote images.
 # This variable is used to construct full image tags for bundle and catalog images.
 #
@@ -67,7 +67,7 @@ YQ ?= $(LOCALBIN)/yq
 # KUSTOMIZE_VERSION is updated to v4.4.1 as from this version kustomize supports for s390x and ppc64le
 KUSTOMIZE_VERSION ?= v4.4.1
 CONTROLLER_GEN_VERSION ?= v0.9.2
-OPERATOR_SDK_VERSION ?= v1.24.1
+OPERATOR_SDK_VERSION ?= v1.31.0
 GOLANGCI_LINT_VERSION ?= v1.54.0
 YQ_VERSION ?= v4.12.2
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
@@ -88,7 +88,7 @@ SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
 # E2E tests additional flags
-E2E_TEST_FLAGS = "--skip-deletion=false" -timeout 15m # See README.md, default go test timeout 10m
+E2E_TEST_FLAGS = "--skip-deletion=false" -timeout 20m # See README.md, default go test timeout 10m
 
 # Default image-build is to not use local odh-manifests folder
 # set to "true" to use local instead
@@ -312,7 +312,11 @@ bundle-push: ## Push the bundle image.
 
 .PHONY: deploy-bundle
 deploy-bundle: operator-sdk bundle-build bundle-push
-	$(OPERATOR_SDK) run bundle $(BUNDLE_IMG)
+	$(OPERATOR_SDK) run bundle $(BUNDLE_IMG)  -n $(OPERATOR_NAMESPACE)
+
+.PHONY: upgrade-bundle
+upgrade-bundle: operator-sdk bundle-build bundle-push ## Upgrade bundle
+	$(OPERATOR_SDK) run bundle-upgrade $(BUNDLE_IMG) -n $(OPERATOR_NAMESPACE)
 
 .PHONY: opm
 OPM = ./bin/opm
@@ -355,7 +359,7 @@ catalog-build: opm ## Build a catalog image.
 catalog-push: ## Push a catalog image.
 	$(MAKE) image-push IMG=$(CATALOG_IMG)
 
-TOOLBOX_GOLANG_VERSION := 1.19
+TOOLBOX_GOLANG_VERSION := 1.20
 TOOLBOX_OPERATOR_SDK_VERSION := 1.24.1
 
 # Generate a Toolbox container for locally testing changes easily

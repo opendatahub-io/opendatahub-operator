@@ -23,13 +23,13 @@ func CreateSubscription(client client.Client, namespace, subscriptionYaml string
 	}
 
 	ns := NewNamespace(namespace)
-	if err := createOrUpdateNamespace(client, ns); err != nil {
+	if err := CreateOrUpdateNamespace(client, ns); err != nil {
 		return err
 	}
 	return createOrUpdateSubscription(client, subscription)
 }
 
-func createOrUpdateNamespace(client client.Client, ns *v1.Namespace) error {
+func CreateOrUpdateNamespace(client client.Client, ns *v1.Namespace) error {
 	_, err := controllerutil.CreateOrUpdate(context.Background(), client, ns, func() error {
 		return nil
 	})
@@ -49,15 +49,6 @@ func NewNamespace(name string) *v1.Namespace {
 			Name: name,
 		},
 	}
-}
-
-func GetConfigMap(client client.Client, namespace, name string) (*v1.ConfigMap, error) {
-	cfgMap := &v1.ConfigMap{}
-	err := client.Get(context.Background(), types.NamespacedName{
-		Name: name, Namespace: namespace,
-	}, cfgMap)
-
-	return cfgMap, err
 }
 
 func GetNamespace(client client.Client, namespace string) (*v1.Namespace, error) {

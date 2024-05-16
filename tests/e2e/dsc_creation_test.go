@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -22,6 +23,7 @@ import (
 
 	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 )
 
@@ -32,6 +34,10 @@ const (
 func creationTestSuite(t *testing.T) {
 	testCtx, err := NewTestContext()
 	require.NoError(t, err)
+
+	err = testCtx.setUp(t)
+	require.NoError(t, err, "error setting up environment")
+
 	t.Run(testCtx.testDsc.Name, func(t *testing.T) {
 		t.Run("Creation of DSCI CR", func(t *testing.T) {
 			err = testCtx.testDSCICreation()
@@ -50,6 +56,14 @@ func creationTestSuite(t *testing.T) {
 		t.Run("Validate all deployed components", func(t *testing.T) {
 			err = testCtx.testAllApplicationCreation(t)
 			require.NoError(t, err, "error testing deployments for DataScienceCluster: "+testCtx.testDsc.Name)
+		})
+		t.Run("Validate DSCInitialization instance", func(t *testing.T) {
+			err = testCtx.validateDSCI()
+			require.NoError(t, err, "error validating DSCInitialization instance")
+		})
+		t.Run("Validate DataScienceCluster instance", func(t *testing.T) {
+			err = testCtx.validateDSC()
+			require.NoError(t, err, "error validating DataScienceCluster instance")
 		})
 		t.Run("Validate Ownerrefrences exist", func(t *testing.T) {
 			err = testCtx.testOwnerrefrences()
@@ -104,6 +118,26 @@ func (tc *testContext) testDSCICreation() error {
 	return nil
 }
 
+func waitDSCReady(tc *testContext) error {
+	err := tc.wait(func(ctx context.Context) (bool, error) {
+		key := types.NamespacedName{Name: tc.testDsc.Name}
+		dsc := &dsc.DataScienceCluster{}
+
+		err := tc.customClient.Get(tc.ctx, key, dsc)
+		if err != nil {
+			return false, err
+		}
+
+		return dsc.Status.Phase == "Ready", nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("Error waiting Ready state for DSC %v: %w", tc.testDsc.Name, err)
+	}
+
+	return nil
+}
+
 func (tc *testContext) testDSCCreation() error {
 	// Create DataScienceCluster resource if not already created
 
@@ -142,7 +176,7 @@ func (tc *testContext) testDSCCreation() error {
 		}
 	}
 
-	return nil
+	return waitDSCReady(tc)
 }
 
 func (tc *testContext) requireInstalled(t *testing.T, gvk schema.GroupVersionKind) {
@@ -215,121 +249,27 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint
 		return fmt.Errorf("DSC instance is not in Ready phase. Current phase: %v", tc.testDsc.Status.Phase)
 	}
 
-	t.Run("Validate Dashboard", func(t *testing.T) {
-		// speed testing in parallel
-		t.Parallel()
-		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.Dashboard))
-		if tc.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
-			require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Dashboard.GetComponentName())
-		} else {
-			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.Dashboard.GetComponentName())
-		}
-	})
+	components, err := tc.testDsc.GetComponents()
+	if err != nil {
+		return err
+	}
 
-	t.Run("Validate ModelMeshServing", func(t *testing.T) {
-		// speed testing in parallel
-		t.Parallel()
-		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.ModelMeshServing))
-		if tc.testDsc.Spec.Components.ModelMeshServing.ManagementState == operatorv1.Managed {
-			require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.ModelMeshServing.GetComponentName())
-		} else {
-			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.ModelMeshServing.GetComponentName())
-		}
-	})
+	for _, c := range components {
+		c := c
+		name := c.GetComponentName()
+		t.Run("Validate "+name, func(t *testing.T) {
+			t.Parallel()
 
-	t.Run("Validate Kserve", func(t *testing.T) {
-		// speed testing in parallel
-		t.Parallel()
-		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.Kserve))
-		// test Unmanaged state, since servicemesh is not installed.
-		if tc.testDsc.Spec.Components.Kserve.ManagementState == operatorv1.Managed {
-			if err != nil && tc.testDsc.Spec.Components.Kserve.Serving.ManagementState == operatorv1.Unmanaged {
-				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Workbenches.GetComponentName())
+			err = tc.testApplicationCreation(c)
+
+			msg := fmt.Sprintf("error validating application %v when ", name)
+			if c.GetManagementState() == operatorv1.Managed {
+				require.NoError(t, err, msg+"enabled")
 			} else {
-				require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Kserve.GetComponentName())
+				require.Error(t, err, msg+"disabled")
 			}
-		} else {
-			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.Kserve.GetComponentName())
-		}
-	})
-
-	t.Run("Validate Workbenches", func(t *testing.T) {
-		// speed testing in parallel
-		t.Parallel()
-		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.Workbenches))
-		if tc.testDsc.Spec.Components.Workbenches.ManagementState == operatorv1.Managed {
-			require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Workbenches.GetComponentName())
-		} else {
-			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.Workbenches.GetComponentName())
-		}
-	})
-
-	t.Run("Validate DataSciencePipelines", func(t *testing.T) {
-		// speed testing in parallel
-		t.Parallel()
-		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.DataSciencePipelines))
-		if tc.testDsc.Spec.Components.DataSciencePipelines.ManagementState == operatorv1.Managed {
-			require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.DataSciencePipelines.GetComponentName())
-		} else {
-			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.DataSciencePipelines.GetComponentName())
-		}
-	})
-
-	t.Run("Validate CodeFlare", func(t *testing.T) {
-		// speed testing in parallel
-		t.Parallel()
-		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.CodeFlare))
-		if tc.testDsc.Spec.Components.CodeFlare.ManagementState == operatorv1.Managed {
-			// dependent operator error, as expected
-			require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.CodeFlare.GetComponentName())
-		} else {
-			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.CodeFlare.GetComponentName())
-		}
-	})
-
-	t.Run("Validate Ray", func(t *testing.T) {
-		// speed testing in parallel
-		t.Parallel()
-		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.Ray))
-		if tc.testDsc.Spec.Components.Ray.ManagementState == operatorv1.Managed {
-			require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Ray.GetComponentName())
-		} else {
-			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.Ray.GetComponentName())
-		}
-	})
-
-	t.Run("Validate Kueue", func(t *testing.T) {
-		// speed testing in parallel
-		t.Parallel()
-		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.Kueue))
-		if tc.testDsc.Spec.Components.Kueue.ManagementState == operatorv1.Managed {
-			require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.Kueue.GetComponentName())
-		} else {
-			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.Kueue.GetComponentName())
-		}
-	})
-
-	t.Run("Validate TrustyAI", func(t *testing.T) {
-		// speed testing in parallel
-		t.Parallel()
-		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.TrustyAI))
-		if tc.testDsc.Spec.Components.TrustyAI.ManagementState == operatorv1.Managed {
-			require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.TrustyAI.GetComponentName())
-		} else {
-			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.TrustyAI.GetComponentName())
-		}
-	})
-
-	t.Run("Validate ModelRegistry", func(t *testing.T) {
-		// speed testing in parallel
-		t.Parallel()
-		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.ModelRegistry))
-		if tc.testDsc.Spec.Components.ModelRegistry.ManagementState == operatorv1.Managed {
-			require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.ModelRegistry.GetComponentName())
-		} else {
-			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.ModelRegistry.GetComponentName())
-		}
-	})
+		})
+	}
 
 	return nil
 }
@@ -369,6 +309,54 @@ func (tc *testContext) testApplicationCreation(component components.ComponentInt
 	})
 
 	return err
+}
+
+func (tc *testContext) validateDSCI() error {
+	// expected
+	expServiceMeshSpec := infrav1.ServiceMeshSpec{
+		ManagementState: operatorv1.Managed,
+		ControlPlane: infrav1.ControlPlaneSpec{
+			Name:              "data-science-smcp",
+			Namespace:         "istio-system",
+			MetricsCollection: "Istio",
+		},
+		Auth: infrav1.AuthSpec{
+			Audiences: &[]string{"https://kubernetes.default.svc"},
+		},
+	}
+
+	// actual
+	act := tc.testDSCI
+
+	if !reflect.DeepEqual(act.Spec.ServiceMesh, expServiceMeshSpec) {
+		err := fmt.Errorf("Expected service mesh spec %v, got %v",
+			expServiceMeshSpec, act.Spec.ServiceMesh)
+		return err
+	}
+
+	return nil
+}
+
+func (tc *testContext) validateDSC() error {
+	expServingSpec := infrav1.ServingSpec{
+		ManagementState: operatorv1.Unmanaged,
+		Name:            "knative-serving",
+		IngressGateway: infrav1.IngressGatewaySpec{
+			Certificate: infrav1.CertificateSpec{
+				Type: infrav1.SelfSigned,
+			},
+		},
+	}
+
+	act := tc.testDsc
+
+	if act.Spec.Components.Kserve.Serving != expServingSpec {
+		err := fmt.Errorf("Expected serving spec %v, got %v",
+			expServingSpec, act.Spec.Components.Kserve.Serving)
+		return err
+	}
+
+	return nil
 }
 
 func (tc *testContext) testOwnerrefrences() error {

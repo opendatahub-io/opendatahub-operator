@@ -77,8 +77,8 @@ and installed from source manually, see the Developer guide for further instruct
 
 #### Pre-requisites
 
-- Go version **go1.19**
-- operator-sdk version can be updated to **v1.24.1**
+- Go version **go1.20**
+- operator-sdk version can be updated to **v1.31.1**
 
 #### Download manifests
 
@@ -107,6 +107,7 @@ declare -A COMPONENT_MANIFESTS=(
   ["new-component"]="<repo-org>:<repo-name>:<branch-name>:<source-folder>:<target-folder>"
 )
 ```
+
 #### Customizing Manifests Source
 You have the flexibility to change the source of the manifests. Invoke the `get_all_manifests.sh` script with specific flags, as illustrated below:
 
@@ -202,7 +203,7 @@ e.g `make image-build -e IMAGE_BUILD_FLAGS="--build-arg USE_LOCAL=true"`
 - Run the Bundle on a cluster:
   
   ```commandline
-  operator-sdk run bundle quay.io/<username>/opendatahub-operator-bundle:<VERSION> --namespace $OPERATOR_NAMESPACE
+  operator-sdk run bundle quay.io/<username>/opendatahub-operator-bundle:<VERSION> --namespace $OPERATOR_NAMESPACE --decompression-image quay.io/project-codeflare/busybox:1.36
   ```
 ### Test with customized manifests
 
@@ -219,6 +220,51 @@ Whenever a new api is added or a new field is added to the CRD, please make sure
   make api-docs 
   ```
 This will ensure that the doc for the apis are updated accordingly.
+
+### Enabled logging
+
+#### Controller level
+
+Logger on all controllers can only be changed from CSV with parameters: --log-mode devel
+valid value: "" (as default) || prod || production || devel || development
+
+This mainly impacts logging for operator pod startup, generating common resource, monitoring deployment.
+
+| --log-mode value | mapping Log level   | Comments       |
+| ---------------- | ------------------- | -------------- |
+| devel            | debug  / 0          | lowest level   |
+| ""               | info / 1            | default option |
+| default          | info / 1            | default option |
+| prod             | error / 2           | highest level  |
+
+#### Component level
+
+Logger on components can be changed by DSCI devFlags during runtime.
+By default, if not set .spec.devFlags.logmode, it uses INFO level
+Modification applies to all components, not only these "Managed" ones.
+Update DSCI CR with .spec.devFlags.logmode, see example :
+
+```console
+apiVersion: dscinitialization.opendatahub.io/v1
+kind: DSCInitialization
+metadata:
+  name: default-dsci
+spec:
+  devFlags:
+    logmode: development
+  ...
+```
+
+Avaiable value for logmode is "devel", "development", "prod", "production".
+The first two work the same set to DEBUG level; the later two work the same as using ERROR level.
+
+| .spec.devFlags.logmode | stacktrace level | verbosity | Output   | Comments       |
+| ---------------------- | ---------------- | --------- | -------- | -------------- |
+| devel                  | WARN             | INFO      | Console  | lowest level, using epoch time  |
+| development            | WARN             | INFO      | Console  | same as devel  |
+| ""                     | ERROR            | INFO      | JSON     | default option |
+| prod                   | ERROR            | INFO      | JSON     | highest level, using human readable timestamp  |
+| production             | ERROR            | INFO      | JSON     | same as prod   |
 
 ### Example DSCInitialization
 
@@ -283,6 +329,8 @@ spec:
     modelregistry:
       managementState: Managed
     ray:
+      managementState: Managed
+    trainingoperator:
       managementState: Managed
     trustyai:
       managementState: Managed

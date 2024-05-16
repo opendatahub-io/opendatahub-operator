@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: managed-svc
+  namespace: "test-namespace"
+  annotations:
+    opendatahub.io/managed: "true"
+spec:
+  ports:
+    - name: http2
+      port: 80
+      protocol: TCP
+      targetPort: 8081
+  selector:
+    knative: ingressgateway
+  type: ClusterIP

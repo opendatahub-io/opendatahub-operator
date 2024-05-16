@@ -77,6 +77,9 @@ type DevFlags struct {
 	// Custom manifests uri for odh-manifests
 	// +optional
 	ManifestsUri string `json:"manifestsUri,omitempty"`
+	// +kubebuilder:validation:Enum=devel;development;prod;production
+	// +kubebuilder:default="production"
+	LogMode string `json:"logmode,omitempty"`
 }
 
 type TrustedCABundleSpec struct {

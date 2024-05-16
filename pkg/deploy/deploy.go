@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package deploy
+// Package deploy provides utility functions used by each component to deploy manifests to the cluster.
 package deploy
 
 import (
@@ -46,6 +46,7 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	annotation "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins"
 )
@@ -149,7 +150,6 @@ func DeployManifestsFromPath(cli client.Client, owner metav1.Object, manifestPat
 	// Render the Kustomize manifests
 	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
 	fs := filesys.MakeFsOnDisk()
-	fmt.Printf("Updating manifests : %v \n", manifestPath)
 	// Create resmap
 	// Use kustomization file under manifestPath or use `default` overlay
 	var resMap resmap.ResMap
@@ -163,7 +163,7 @@ func DeployManifestsFromPath(cli client.Client, owner metav1.Object, manifestPat
 	}
 
 	if err != nil {
-		return fmt.Errorf("error during resmap resources: %w", err)
+		return err
 	}
 
 	// Apply NamespaceTransformer Plugin
@@ -273,7 +273,7 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 		// Set the owner reference for garbage collection
 		// Skip set on CRD, e.g. we should not delete notebook CRD if we delete DSC instance
 		// Skip on OdhDashboardConfig CR, because we want user to be able to update it
-		if found.GetKind() != "CustomResourceDefinition" || found.GetKind() != "OdhDashboardConfig" {
+		if found.GetKind() != "CustomResourceDefinition" && found.GetKind() != "OdhDashboardConfig" {
 			if err = ctrl.SetControllerReference(owner, metav1.Object(obj), cli.Scheme()); err != nil {
 				return err
 			}
@@ -289,9 +289,24 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 		return nil
 	}
 
-	// do not reconcile kserve resource with annotation "opendatahub.io/managed: false"
-	if found.GetAnnotations()["opendatahub.io/managed"] == "false" && componentName == "kserve" {
-		return nil
+	// Kserve specific workflow:
+	// TODO: Remove this when we have generalize custom config requirements across all components
+	if componentName == "kserve" {
+		// do not reconcile kserve resource with annotation "opendatahub.io/managed: false"
+		if found.GetAnnotations()[annotation.ManagedByODHOperator] == "false" {
+			return nil
+		}
+		// do not patch resources field in Kserve deployment i.e allows users to update resources field
+		if err := removeResourcesFromDeployment(obj); err != nil {
+			return err
+		}
+	}
+
+	// JIRA 6889.  odh-model-controller will be covered by either kserve or model-mesh case
+	if componentName == "model-mesh" {
+		if err := removeResourcesFromDeployment(obj); err != nil {
+			return err
+		}
 	}
 
 	// Preserve app.opendatahub.io/<component> labels of previous versions of existing objects
@@ -389,35 +404,56 @@ func ApplyParams(componentPath string, imageParamsMap map[string]string, isUpdat
 	}
 	if err := writer.Flush(); err != nil {
 		if removeErr := os.Remove(envFilePath); removeErr != nil {
-			fmt.Printf("Failed to remove file: %v", removeErr)
+			return removeErr
 		}
 		if renameErr := os.Rename(backupPath, envFilePath); renameErr != nil {
-			fmt.Printf("Failed to restore file from backup: %v", renameErr)
+			return renameErr
 		}
-		fmt.Printf("Failed to write to file: %v", err)
-
 		return err
 	}
 
 	// cleanup backup file
-	if err := os.Remove(backupPath); err != nil {
-		fmt.Printf("Failed to remove backup file: %v", err)
+	err = os.Remove(backupPath)
 
-		return err
+	return err
+}
+
+// removeResourcesFromDeployment checks if the provided resource is a Deployment,
+// and if so, removes the resources field from each container in the Deployment. This ensures we do not overwrite the
+// resources field when Patch is applied with the returned unstructured resource.
+func removeResourcesFromDeployment(u *unstructured.Unstructured) error {
+	// Check if the resource is a Deployment. This can be expanded to other resources as well.
+	if u.GetKind() != "Deployment" {
+		return nil
+	}
+	// Navigate to the containers array in the Deployment spec
+	containers, exists, err := unstructured.NestedSlice(u.Object, "spec", "template", "spec", "containers")
+	if err != nil {
+		return fmt.Errorf("error when trying to retrieve containers from Deployment: %w", err)
+	}
+	// Return if no containers exist
+	if !exists {
+		return nil
+	}
+
+	// Iterate over the containers to remove the resources field
+	for i := range containers {
+		container, ok := containers[i].(map[string]interface{})
+		// If containers field is not in expected type, return.
+		if !ok {
+			return nil
+		}
+		// Check and delete the resources field. This can be expanded to any whitelisted field.
+		delete(container, "resources")
+		containers[i] = container
+	}
+
+	// Update the containers in the original unstructured object
+	if err := unstructured.SetNestedSlice(u.Object, containers, "spec", "template", "spec", "containers"); err != nil {
+		return fmt.Errorf("failed to update containers in Deployment: %w", err)
 	}
 
 	return nil
-}
-
-// GetSubscription checks if a Subscription for the operator exists in the given namespace.
-// if exist, return object; otherwise, return error.
-func GetSubscription(cli client.Client, namespace string, name string) (*ofapiv1alpha1.Subscription, error) {
-	sub := &ofapiv1alpha1.Subscription{}
-	if err := cli.Get(context.TODO(), client.ObjectKey{Namespace: namespace, Name: name}, sub); err != nil {
-		// real error or 'not found' both return here
-		return nil, err
-	}
-	return sub, nil
 }
 
 func ClusterSubscriptionExists(cli client.Client, name string) (bool, error) {
@@ -432,21 +468,6 @@ func ClusterSubscriptionExists(cli client.Client, name string) (bool, error) {
 		}
 	}
 	return false, nil
-}
-
-// DeleteExistingSubscription deletes given Subscription if it exists
-// Do not error if the Subscription does not exist.
-func DeleteExistingSubscription(cli client.Client, operatorNs string, subsName string) error {
-	sub, err := GetSubscription(cli, operatorNs, subsName)
-	if err != nil {
-		return client.IgnoreNotFound(err)
-	}
-
-	if err := cli.Delete(context.TODO(), sub); client.IgnoreNotFound(err) != nil {
-		return fmt.Errorf("error deleting subscription %s: %w", sub.Name, err)
-	}
-
-	return nil
 }
 
 // OperatorExists checks if an Operator with 'operatorPrefix' is installed.

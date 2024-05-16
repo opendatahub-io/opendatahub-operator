@@ -1,5 +1,5 @@
 // Package datasciencepipelines provides utility functions to config Data Science Pipelines:
-// Pipeline solution for end to end MLOps workflows that support the Kubeflow Pipelines SDK and Tekton
+// Pipeline solution for end to end MLOps workflows that support the Kubeflow Pipelines SDK, Tekton and Argo Workflows.
 // +groupName=datasciencecluster.opendatahub.io
 package datasciencepipelines
 
@@ -8,20 +8,25 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/monitoring"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 var (
-	ComponentName = "data-science-pipelines-operator"
-	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
-	OverlayPath   = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays"
+	ComponentName   = "data-science-pipelines-operator"
+	Path            = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
+	OverlayPath     = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays"
+	ArgoWorkflowCRD = "workflows.argoproj.io"
 )
 
 // Verifies that Dashboard implements ComponentInterface.
@@ -57,10 +62,12 @@ func (d *DataSciencePipelines) GetComponentName() string {
 
 func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 	cli client.Client,
+	logger logr.Logger,
 	owner metav1.Object,
 	dscispec *dsciv1.DSCInitializationSpec,
 	_ bool,
 ) error {
+	l := d.ConfigComponentLogger(logger, ComponentName, dscispec)
 	var imageParamMap = map[string]string{
 		// v1
 		"IMAGES_APISERVER":         "RELATED_IMAGE_ODH_ML_PIPELINES_API_SERVER_IMAGE",
@@ -83,7 +90,7 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 	enabled := d.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 
-	platform, err := deploy.GetPlatform(cli)
+	platform, err := cluster.GetPlatform(cli)
 	if err != nil {
 		return err
 	}
@@ -98,29 +105,34 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 		// Update image parameters only when we do not have customized manifests set
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (d.DevFlags == nil || len(d.DevFlags.Manifests) == 0) {
 			if err := deploy.ApplyParams(Path, imageParamMap, false); err != nil {
-				return err
+				return fmt.Errorf("failed to update image from %s : %w", Path, err)
 			}
+		}
+		// Check for existing Argo Workflows
+		if err := UnmanagedArgoWorkFlowExists(ctx, cli); err != nil {
+			return err
 		}
 	}
 
 	// new overlay
 	manifestsPath := filepath.Join(OverlayPath, "rhoai")
-	if platform == deploy.OpenDataHub || platform == "" {
+	if platform == cluster.OpenDataHub || platform == "" {
 		manifestsPath = filepath.Join(OverlayPath, "odh")
 	}
 	if err = deploy.DeployManifestsFromPath(cli, owner, manifestsPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 		return err
 	}
+	l.Info("apply manifests done")
 
 	// CloudService Monitoring handling
-	if platform == deploy.ManagedRhods {
+	if platform == cluster.ManagedRhods {
 		if enabled {
 			// first check if the service is up, so prometheus won't fire alerts when it is just startup
 			// only 1 replica should be very quick
-			if err := monitoring.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 10, 1); err != nil {
+			if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 10, 1); err != nil {
 				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 			}
-			fmt.Printf("deployment for %s is done, updating monitoring rules\n", ComponentName)
+			l.Info("deployment is done, updating monitoring rules")
 		}
 
 		if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
@@ -132,7 +144,26 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 			"prometheus", true); err != nil {
 			return err
 		}
+		l.Info("updating SRE monitoring done")
 	}
 
 	return nil
+}
+
+func UnmanagedArgoWorkFlowExists(ctx context.Context,
+	cli client.Client) error {
+	workflowCRD := &apiextensionsv1.CustomResourceDefinition{}
+	if err := cli.Get(ctx, client.ObjectKey{Name: ArgoWorkflowCRD}, workflowCRD); err != nil {
+		if apierrs.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to get existing Workflow CRD : %w", err)
+	}
+	// Verify if existing workflow is deployed by ODH with label
+	odhLabelValue, odhLabelExists := workflowCRD.Labels[labels.ODH.Component(ComponentName)]
+	if odhLabelExists && odhLabelValue == "true" {
+		return nil
+	}
+	return fmt.Errorf("%s CRD already exists but not deployed by this operator. "+
+		"Remove existing Argo workflows or set `spec.components.datasciencepipelines.managementState` to Removed to proceed ", ArgoWorkflowCRD)
 }

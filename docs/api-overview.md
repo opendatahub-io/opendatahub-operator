@@ -51,6 +51,7 @@ _Appears in:_
 - [ModelMeshServing](#modelmeshserving)
 - [ModelRegistry](#modelregistry)
 - [Ray](#ray)
+- [TrainingOperator](#trainingoperator)
 - [TrustyAI](#trustyai)
 - [Workbenches](#workbenches)
 
@@ -125,7 +126,7 @@ _Appears in:_
 ## datasciencecluster.opendatahub.io/datasciencepipelines
 
 Package datasciencepipelines provides utility functions to config Data Science Pipelines:
-Pipeline solution for end to end MLOps workflows that support the Kubeflow Pipelines SDK and Tekton
+Pipeline solution for end to end MLOps workflows that support the Kubeflow Pipelines SDK, Tekton and Argo Workflows.
 
 
 
@@ -277,6 +278,30 @@ _Appears in:_
 
 
 
+## datasciencecluster.opendatahub.io/trainingoperator
+
+Package trainingoperator provides utility functions to config trainingoperator as part of the stack
+which makes managing distributed compute infrastructure in the cloud easy and intuitive for Data Scientists
+
+
+
+#### TrainingOperator
+
+
+
+TrainingOperator struct holds the configuration for the TrainingOperator component.
+
+
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `Component` _[Component](#component)_ |  |  |  |
+
+
+
 ## datasciencecluster.opendatahub.io/trustyai
 
 Package trustyai provides utility functions to config TrustyAI, a bias/fairness and explainability toolkit
@@ -379,6 +404,7 @@ _Appears in:_
 | `ray` _[Ray](#ray)_ | Ray component configuration. |  |  |
 | `trustyai` _[TrustyAI](#trustyai)_ | TrustyAI component configuration. |  |  |
 | `modelregistry` _[ModelRegistry](#modelregistry)_ | ModelRegistry component configuration. |  |  |
+| `trainingoperator` _[TrainingOperator](#trainingoperator)_ | Training Operator component configuration. |  |  |
 
 
 #### ControlPlaneSpec
@@ -618,6 +644,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `manifestsUri` _string_ | Custom manifests uri for odh-manifests |  |  |
+| `logmode` _string_ |  | production | Enum: [devel development prod production] <br /> |
 
 
 #### Monitoring

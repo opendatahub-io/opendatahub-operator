@@ -23,6 +23,7 @@ spec:
         kubectl.kubernetes.io/default-container: manager
       labels:
         control-plane: controller-manager
+        name: opendatahub-operator
     spec:
       securityContext:
         runAsNonRoot: true
@@ -40,7 +41,7 @@ spec:
           - name: DISABLE_DSC_CONFIG
             value: 'true'
         args:
-        - --leader-elect
+        - --operator-name=opendatahub
         image: controller:latest
         imagePullPolicy: Always
         name: manager
