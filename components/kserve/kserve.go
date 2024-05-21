@@ -144,14 +144,14 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 		return fmt.Errorf("failed to apply manifests from %s : %w", Path, err)
 	}
 
+	l.WithValues("Path", Path).Info("apply manifests done for kserve")
+
 	if enabled {
 		if err := k.setupKserveConfig(ctx, cli, dscispec); err != nil {
 			return err
 		}
-	}
-	l.WithValues("Path", Path).Info("apply manifests done for kserve")
-	// For odh-model-controller
-	if enabled {
+
+		// For odh-model-controller
 		if err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "odh-model-controller"); err != nil {
 			return err
 		}
