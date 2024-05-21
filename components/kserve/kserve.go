@@ -136,6 +136,10 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 		}
 	}
 
+	if err = k.configureServiceMesh(cli, dscispec); err != nil {
+		return fmt.Errorf("failed configuring service mesh while reconciling kserve component. cause: %w", err)
+	}
+
 	if err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 		return fmt.Errorf("failed to apply manifests from %s : %w", Path, err)
 	}
@@ -182,7 +186,7 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 		l.Info("updating SRE monitoring done")
 	}
 
-	return k.configureServiceMesh(cli, dscispec)
+	return nil
 }
 
 func (k *Kserve) Cleanup(cli client.Client, instance *dsciv1.DSCInitializationSpec) error {
