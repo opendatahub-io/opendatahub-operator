@@ -177,9 +177,7 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 
 	// CloudService Monitoring handling
 	if platform == cluster.ManagedRhods {
-		if enabled {
-			l.Info("deployment is done, updating monitoing rules")
-		}
+		l.Info("deployment is done, updating monitoing rules")
 		// kesrve rules
 		if err := k.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
