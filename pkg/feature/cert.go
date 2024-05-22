@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -213,7 +215,7 @@ func (f *Feature) copySecretToNamespace(secret *corev1.Secret, namespace string)
 	return err
 }
 
-// isSecretOutdated compares two secret data of type map[string][]byte and returns true if they are not equal equal
+// isSecretOutdated compares two secret data of type map[string][]byte and returns true if they are not equal.
 func isSecretOutdated(existingSecretData, newSecretData map[string][]byte) bool {
 	if len(existingSecretData) != len(newSecretData) {
 		return true
