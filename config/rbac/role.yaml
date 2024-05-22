@@ -1085,6 +1085,16 @@ rules:
   - patch
   - watch
 - apiGroups:
+  - operator.openshift.io
+  resources:
+  - ingresscontrollers
+  verbs:
+  - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
   - operators.coreos.com
   resources:
   - catalogsources

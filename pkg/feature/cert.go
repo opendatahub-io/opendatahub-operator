@@ -9,6 +9,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"math/big"
 	"net"
 	"strings"
@@ -127,6 +128,8 @@ func generateCertificate(addr string) ([]byte, []byte, error) {
 
 // GetDefaultIngressCertificate copies ingress cert secrets from openshift-ingress ns to given namespace.
 func (f *Feature) GetDefaultIngressCertificate(namespace string) error {
+	// Add IngressController to scheme
+	utilruntime.Must(operatorv1.Install(f.Client.Scheme()))
 	defaultIngressCtrl, err := FindAvailableIngressController(f.Client)
 	if err != nil {
 		return fmt.Errorf("failed to get ingress controller: %w", err)
