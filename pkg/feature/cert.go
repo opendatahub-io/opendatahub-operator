@@ -125,7 +125,7 @@ func generateCertificate(addr string) ([]byte, []byte, error) {
 
 // GetDefaultIngressCertificate copies ingress cert secrets from openshift-ingress ns to given namespace.
 func (f *Feature) GetDefaultIngressCertificate(namespace string) error {
-	defaultIngressCtrl, err := f.findAvailableIngressController()
+	defaultIngressCtrl, err := FindAvailableIngressController(f.Client)
 	if err != nil {
 		return fmt.Errorf("failed to get ingress controller: %w", err)
 	}
@@ -145,13 +145,13 @@ func (f *Feature) GetDefaultIngressCertificate(namespace string) error {
 	return nil
 }
 
-func (f *Feature) findAvailableIngressController() (*operatorv1.IngressController, error) {
+func FindAvailableIngressController(cli client.Client) (*operatorv1.IngressController, error) {
 	defaultIngressCtrlList := &operatorv1.IngressControllerList{}
 	listOpts := []client.ListOption{
 		client.InNamespace("openshift-ingress-operator"),
 	}
 
-	err := f.Client.List(context.TODO(), defaultIngressCtrlList, listOpts...)
+	err := cli.List(context.TODO(), defaultIngressCtrlList, listOpts...)
 	if err != nil {
 		return nil, err
 	}

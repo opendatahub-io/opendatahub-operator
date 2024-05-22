@@ -20,6 +20,7 @@ package datasciencecluster
 import (
 	"context"
 	"fmt"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"strings"
 	"time"
 
@@ -451,6 +452,7 @@ func (r *DataScienceClusterReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources), builder.WithPredicates(configMapPredicates)).
 		Watches(&source.Kind{Type: &apiextensionsv1.CustomResourceDefinition{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources),
 			builder.WithPredicates(argoWorkflowCRDPredicates)).
+		Watches(&source.Kind{Type: &corev1.Secret{}}, handler.EnqueueRequestsFromMapFunc(r.watchDefaultIngressSecret), builder.WithPredicates(defaultIngressCertSecretPredicates)).
 		// this predicates prevents meaningless reconciliations from being triggered
 		WithEventFilter(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{})).
 		Complete(r)
@@ -525,6 +527,37 @@ var argoWorkflowCRDPredicates = predicate.Funcs{
 			}
 		}
 		// CRD to be deleted either not with label or label value is not "true", should trigger reconcile
+		return true
+	},
+}
+
+func (r *DataScienceClusterReconciler) watchDefaultIngressSecret(a client.Object) []reconcile.Request {
+	requestName, err := r.getRequestName()
+	if err != nil {
+		return nil
+	}
+	// When ingress secret gets created/deleted, trigger reconcile function
+	ingressCtrl, err := feature.FindAvailableIngressController(r.Client)
+	if err != nil {
+		return nil
+	}
+	defaultIngressSecretName := feature.GetDefaultIngressCertSecretName(ingressCtrl)
+	if a.GetName() == defaultIngressSecretName && a.GetNamespace() == "openshift-ingress" {
+		return []reconcile.Request{{
+			NamespacedName: types.NamespacedName{Name: requestName},
+		}}
+	}
+	return nil
+}
+
+// defaultIngressCertSecretPredicates filters delete and create events to trigger reconcile when default ingress cert secret is expired
+// or created.
+var defaultIngressCertSecretPredicates = predicate.Funcs{
+	CreateFunc: func(createEvent event.CreateEvent) bool {
+		return true
+
+	},
+	DeleteFunc: func(e event.DeleteEvent) bool {
 		return true
 	},
 }
