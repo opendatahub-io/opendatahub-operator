@@ -308,6 +308,25 @@ data:
           regex: (.+):(\d+)
           target_label: __address__
           replacement: ${1}:8080
+    
+    - job_name: 'KubeFlow Training Operator'
+      honor_labels: true
+      metrics_path: /metrics
+      scheme: http
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - <odh_application_namespace>
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          regex: ^(training-operator-metrics-service)$
+          target_label: kubernetes_name
+          action: keep
+        - source_labels: [__address__]
+          regex: (.+):(\d+)
+          target_label: __address__
+          replacement: ${1}:8080
 
     - job_name: 'Kueue Operator'
       honor_labels: true
@@ -548,6 +567,20 @@ data:
               description: This alert fires when the CodeFlare Operator takes over 2 min. to come back online. Either CodeFlare Operator is not running and failing to become ready, is misconfigured, or the metrics endpoint is not responding.
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/codeflare-operator-absent-over-time.md'
               summary: Alerting for CodeFlare Operator
+
+  trainingoperator-alerting.rules: |
+    groups:
+    - name: KubeFlow Training Operator
+      interval: 1m
+      rules:
+        - alert: KubeFlow Training Operator is not running
+          expr: absent(up{job=~'KubeFlow Training Operator'}) or up{job=~'KubeFlow Training Operator'} != 1
+          labels:
+            severity: warning
+          annotations:
+            description: This alert fires when the KubeFlow Training Operator is not running.
+            triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/training-operator-availability.md'
+            summary: Alerting for KubeFlow Training Operator
 
   rhods-dashboard-recording.rules: |
     groups:
