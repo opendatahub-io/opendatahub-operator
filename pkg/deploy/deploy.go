@@ -212,7 +212,7 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 
 	// Return if error getting resource in cluster
 	found, err := getResource(ctx, cli, obj)
-	if err != nil && !apierrs.IsNotFound(err) {
+	if client.IgnoreNotFound(err) != nil {
 		return err
 	}
 
@@ -221,7 +221,7 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 	}
 
 	// Create resource if it doesn't exist
-	if apierrs.IsNotFound(err) {
+	if apierrs.IsNotFound(err) || found == nil {
 		return createResource(ctx, cli, obj, owner)
 	}
 
@@ -389,9 +389,21 @@ func OperatorExists(cli client.Client, operatorPrefix string) (bool, error) {
 }
 
 func getResource(ctx context.Context, cli client.Client, obj *unstructured.Unstructured) (*unstructured.Unstructured, error) {
-	found := obj.DeepCopy()
-	err := cli.Get(ctx, types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, found)
-	return found, err
+	foundResources := &unstructured.UnstructuredList{}
+	// Verify we only get resource that matches the object kind
+	listOpts := []client.ListOption{
+		client.InNamespace(obj.GetNamespace()),
+		client.MatchingFields{"kind": obj.GetKind()},
+		client.MatchingFields{"metadata.name": obj.GetName()},
+	}
+	err := cli.List(ctx, foundResources, listOpts...)
+	if client.IgnoreNotFound(err) != nil {
+		return nil, err
+	}
+	if len(foundResources.Items) == 0 {
+		return nil, nil
+	}
+	return &foundResources.Items[0], err
 }
 
 func handleDisabledComponent(ctx context.Context, cli client.Client, found *unstructured.Unstructured, componentName string, owner metav1.Object) error {
@@ -433,19 +445,19 @@ func updateOwnerReferencesAndDelete(ctx context.Context, cli client.Client, foun
 		return nil
 	}
 
-	if existingOwnerReferences == nil || hasInvalidOwnerReferences(existingOwnerReferences) {
+	if existingOwnerReferences == nil || isOwnedByODHCRD(existingOwnerReferences) {
 		return removeOwnerReferencesAndDelete(ctx, cli, found, owner)
 	}
 	return nil
 }
 
-func hasInvalidOwnerReferences(ownerReferences []metav1.OwnerReference) bool {
+func isOwnedByODHCRD(ownerReferences []metav1.OwnerReference) bool {
 	for _, owner := range ownerReferences {
-		if owner.Kind != "DataScienceCluster" && owner.Kind != "DataScienceInitialization" {
-			return false
+		if owner.Kind == "DataScienceCluster" || owner.Kind == "DSCInitialization" {
+			return true
 		}
 	}
-	return true
+	return false
 }
 
 func removeOwnerReferencesAndDelete(ctx context.Context, cli client.Client, found *unstructured.Unstructured, owner metav1.Object) error {
