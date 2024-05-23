@@ -20,7 +20,7 @@ declare -A COMPONENT_MANIFESTS=(
     ["odh-model-controller"]="red-hat-data-services:odh-model-controller:rhoai-2.10:config:odh-model-controller"
     ["kserve"]="red-hat-data-services:kserve:rhoai-2.10:config:kserve"
     ["odh-dashboard"]="red-hat-data-services:odh-dashboard:rhoai-2.10:manifests:dashboard"
-     ["trainingoperator"]="opendatahub-io:training-operator:rhoai-2.10:manifests:trainingoperator"
+    ["trainingoperator"]="red-hat-data-services:training-operator:rhoai-2.10:manifests:trainingoperator"
 )
 
 # Allow overwriting repo using flags component=repo
