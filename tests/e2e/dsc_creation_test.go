@@ -209,6 +209,16 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint
 		})
 	}
 
+	t.Run("Validate TrainingOperator", func(t *testing.T) {
+		// speed testing in parallel
+		t.Parallel()
+		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.TrainingOperator))
+		if tc.testDsc.Spec.Components.TrainingOperator.ManagementState == operatorv1.Managed {
+			require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.TrainingOperator.GetComponentName())
+		} else {
+			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.TrainingOperator.GetComponentName())
+		}
+	})
 	return nil
 }
 

@@ -315,6 +315,8 @@ spec:
       managementState: Managed
     ray:
       managementState: Managed
+    trainingoperator:
+      managementState: Managed
     workbenches:
       managementState: Managed
 ```

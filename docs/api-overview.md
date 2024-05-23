@@ -50,6 +50,7 @@ _Appears in:_
 - [Kueue](#kueue)
 - [ModelMeshServing](#modelmeshserving)
 - [Ray](#ray)
+- [TrainingOperator](#trainingoperator)
 - [TrustyAI](#trustyai)
 - [Workbenches](#workbenches)
 
@@ -357,6 +358,7 @@ _Appears in:_
 | `codeflare` _[CodeFlare](#codeflare)_ | CodeFlare component configuration.<br />If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabled component. |  |  |
 | `ray` _[Ray](#ray)_ | Ray component configuration. |  |  |
 | `trustyai` _[TrustyAI](#trustyai)_ | TrustyAI component configuration. |  |  |
+| `trainingoperator` _[TrainingOperator](#trainingoperator)_ | Training Operator component configuration. |  |  |
 
 
 #### ControlPlaneSpec
