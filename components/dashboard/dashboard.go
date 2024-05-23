@@ -5,6 +5,7 @@ package dashboard
 
 import (
 	"context"
+	"embed"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -22,6 +23,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	obo "github.com/opendatahub-io/opendatahub-operator/v2/pkg/observability"
 )
 
 var (
@@ -41,6 +43,9 @@ var (
 	NameConsoleLink      = "console"
 	NamespaceConsoleLink = "openshift-console"
 )
+
+//go:embed resources
+var rootFS embed.FS
 
 // Verifies that Dashboard implements ComponentInterface.
 var _ components.ComponentInterface = (*Dashboard)(nil)
@@ -177,16 +182,10 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 				if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentNameSupported, dscispec.ApplicationsNamespace, 20, 3); err != nil {
 					return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 				}
-				l.Info("deployment is done, updating monitoring rules")
+				l.Info("deployment is done, creating observability configs")
 			}
 
-			if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentNameSupported); err != nil {
-				return err
-			}
-			if err = deploy.DeployManifestsFromPath(cli, owner,
-				filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
-				dscispec.Monitoring.Namespace,
-				"prometheus", true); err != nil {
+			if err := obo.CreatePrometheusConfigs(ctx, cli, enabled && monitoringEnabled, rootFS, "resources", dscispec); err != nil {
 				return err
 			}
 			l.Info("updating SRE monitoring done")

@@ -1,0 +1,28 @@
+apiVersion: monitoring.rhobs/v1
+kind: ServiceMonitor
+metadata:
+  name: odh-notebook-controller-service-monitor
+  namespace: [[ .Monitoring.Namespace ]]
+spec:
+  namespaceSelector:
+    matchNames:
+      - [[ .ApplicationsNamespace ]]
+  endpoints:
+    - relabelings:
+      - action: keep
+        regex: ^(odh-notebook-controller-service)$
+        sourceLabels:
+          - __meta_kubernetes_service_name
+        targetLabel: kubernetes_name
+      - action: replace
+        regex: '(.+):(\d+)'
+        replacement: '${1}:8080'
+        sourceLabels:
+          - __address__
+        targetLabel: __address__
+      scheme: http
+      honorLabels: true
+      path: /metrics
+  selector:
+    matchLabels:
+      component.opendatahub.io/name: odh-notebook-controller

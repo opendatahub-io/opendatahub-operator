@@ -1,0 +1,21 @@
+apiVersion: monitoring.rhobs/v1
+kind: PrometheusRule
+metadata:
+  name: deadmanssnitch-prometheusrules
+  namespace:  {{ .MonNamespace }}
+  labels:
+    prometheus: k8s
+    app: rhods
+spec:
+  groups:
+    - name: DeadManSnitch
+      interval: 1m
+      rules:
+      - alert: DeadManSnitch
+        expr: vector(1)
+        labels:
+          severity: critical
+          namespace: {{ .MonNamespace }}
+        annotations:
+          description: This is a DeadManSnitch to ensure RHODS monitoring and alerting pipeline is online.
+          summary: Alerting DeadManSnitch

@@ -71,6 +71,7 @@ const (
 	CapabilityServiceMesh              conditionsv1.ConditionType = "CapabilityServiceMesh"
 	CapabilityServiceMeshAuthorization conditionsv1.ConditionType = "CapabilityServiceMeshAuthorization"
 	CapabilityDSPv2Argo                conditionsv1.ConditionType = "CapabilityDSPv2Argo"
+	CapabilityClusterObservability     conditionsv1.ConditionType = "CapabilityClusterObservability"
 )
 
 const (

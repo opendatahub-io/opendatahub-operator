@@ -56,7 +56,6 @@ import (
 	datascienceclustercontrollers "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
 	dscicontr "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
-	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/webhook"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
@@ -128,7 +127,7 @@ func main() { //nolint:funlen
 		os.Exit(1)
 	}
 
-	(&webhook.OpenDataHubWebhook{}).SetupWithManager(mgr)
+	// (&webhook.OpenDataHubWebhook{}).SetupWithManager(mgr)
 
 	if err = (&dscicontr.DSCInitializationReconciler{
 		Client:                mgr.GetClient(),

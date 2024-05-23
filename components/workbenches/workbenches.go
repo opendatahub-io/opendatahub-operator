@@ -4,6 +4,7 @@ package workbenches
 
 import (
 	"context"
+	"embed"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	obo "github.com/opendatahub-io/opendatahub-operator/v2/pkg/observability"
 )
 
 var (
@@ -33,6 +35,9 @@ var (
 
 // Verifies that Workbench implements ComponentInterface.
 var _ components.ComponentInterface = (*Workbenches)(nil)
+
+//go:embed resources
+var rootFS embed.FS
 
 // Workbenches struct holds the configuration for the Workbenches component.
 // +kubebuilder:object:generate=true
@@ -185,15 +190,9 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 			if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 10, 1); err != nil {
 				return fmt.Errorf("deployments for %s are not ready to server: %w", ComponentName, err)
 			}
-			l.Info("deployment is done, updating monitoring rules")
+			l.Info("deployment is done, creating observability configs")
 		}
-		if err := w.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
-			return err
-		}
-		if err = deploy.DeployManifestsFromPath(cli, owner,
-			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
-			dscispec.Monitoring.Namespace,
-			"prometheus", true); err != nil {
+		if err := obo.CreatePrometheusConfigs(ctx, cli, enabled && monitoringEnabled, rootFS, "resources", dscispec); err != nil {
 			return err
 		}
 		l.Info("updating SRE monitoring done")

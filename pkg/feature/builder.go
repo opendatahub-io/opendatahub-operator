@@ -48,6 +48,8 @@ func (u *usingFeaturesHandler) For(featuresHandler *FeaturesHandler) *featureBui
 			Source:           &featuresHandler.source,
 			AppNamespace:     featuresHandler.DSCInitializationSpec.ApplicationsNamespace,
 			AuthProviderName: "authorino",
+			MonNamespace:     featuresHandler.DSCInitializationSpec.Monitoring.Namespace,
+			AlertmanagerData: &AlertmanagerData{},
 		}
 
 		return nil

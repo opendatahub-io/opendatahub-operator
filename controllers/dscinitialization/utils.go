@@ -2,9 +2,8 @@ package dscinitialization
 
 import (
 	"context"
-	"crypto/rand"
+	"path/filepath"
 	"reflect"
-	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	ocuserv1 "github.com/openshift/api/user/v1"
@@ -14,7 +13,6 @@ import (
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -25,10 +23,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
-var (
-	resourceInterval = 10 * time.Second
-	resourceTimeout  = 1 * time.Minute
-)
+var networkpolicyPath = filepath.Join(deploy.DefaultManifestPath, "networkpolicy")
 
 // createOdhNamespace creates a Namespace with given name and with ODH defaults. The defaults include:
 // - Odh specific labels
@@ -341,38 +336,6 @@ func CompareNotebookNetworkPolicies(np1 netv1.NetworkPolicy, np2 netv1.NetworkPo
 	// Two network policies will be equal if the labels and specs are identical
 	return reflect.DeepEqual(np1.ObjectMeta.Labels, np2.ObjectMeta.Labels) &&
 		reflect.DeepEqual(np1.Spec, np2.Spec)
-}
-
-func (r *DSCInitializationReconciler) waitForManagedSecret(ctx context.Context, name string, namespace string) (*corev1.Secret, error) {
-	managedSecret := &corev1.Secret{}
-	err := wait.PollUntilContextTimeout(ctx, resourceInterval, resourceTimeout, false, func(ctx context.Context) (bool, error) {
-		err := r.Client.Get(ctx, client.ObjectKey{
-			Namespace: namespace,
-			Name:      name,
-		}, managedSecret)
-
-		if err != nil {
-			return false, client.IgnoreNotFound(err)
-		}
-		return true, nil
-	})
-
-	return managedSecret, err
-}
-
-func GenerateRandomHex(length int) ([]byte, error) {
-	// Calculate the required number of bytes
-	numBytes := length / 2
-
-	// Create a byte slice with the appropriate size
-	randomBytes := make([]byte, numBytes)
-
-	// Read random bytes from the crypto/rand source
-	if _, err := rand.Read(randomBytes); err != nil {
-		return nil, err
-	}
-
-	return randomBytes, nil
 }
 
 func (r *DSCInitializationReconciler) createOdhCommonConfigMap(ctx context.Context, name string, dscInit *dsci.DSCInitialization) error {

@@ -30,6 +30,15 @@ func authorizationCondition(reason, message string) *conditionsv1.Condition {
 	}
 }
 
+func oboCondition(reason, message string) *conditionsv1.Condition {
+	return &conditionsv1.Condition{
+		Type:    status.CapabilityClusterObservability,
+		Status:  corev1.ConditionTrue,
+		Reason:  reason,
+		Message: message,
+	}
+}
+
 func createCapabilityReporter(cli client.Client, object *dsciv1.DSCInitialization, successfulCondition *conditionsv1.Condition) *status.Reporter[*dsciv1.DSCInitialization] {
 	return status.NewStatusReporter[*dsciv1.DSCInitialization](
 		cli,

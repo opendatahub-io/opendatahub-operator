@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: odh-segment-key-config
+  namespace:  {{ .MonNamespace }}
+data:
+  segmentKeyEnabled: "true"

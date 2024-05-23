@@ -1,0 +1,32 @@
+apiVersion: monitoring.rhobs/v1
+kind: ServiceMonitor
+metadata:
+  name: dspo-service-monitor
+  namespace: [[ .Monitoring.Namespace ]]
+spec:
+  namespaceSelector:
+    matchNames:
+      - [[ .ApplicationsNamespace ]]
+  endpoints:
+    - relabelings:
+        - action: keep
+          sourceLabels:
+            - __meta_kubernetes_service_name
+          regex: ^(data-science-pipelines-operator-service)$
+          targetLabel: kubernetes_name
+        - action: replace
+          sourceLabels:
+            - __address__
+          regex: '(.+):(\d+)'
+          replacement: '${1}:8080'
+          targetLabel: __address__
+      metricRelabelings:
+        - action: replace
+          replacement: [[ .ApplicationsNamespace ]]
+          targetLabel: namespace
+      scheme: http
+      honorLabels: true
+      path: /metrics
+  selector:
+    matchLabels:
+      app.opendatahub.io/data-science-pipelines-operator: true

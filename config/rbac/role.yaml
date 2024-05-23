@@ -976,6 +976,46 @@ rules:
   - get
   - patch
 - apiGroups:
+  - monitoring.rhobs
+  resources:
+  - alertmanager
+  verbs:
+  - create
+  - delete
+  - get
+  - patch
+  - update
+- apiGroups:
+  - monitoring.rhobs
+  resources:
+  - monitoringStack
+  verbs:
+  - create
+  - delete
+  - get
+  - patch
+  - update
+- apiGroups:
+  - monitoring.rhobs
+  resources:
+  - prometheusrule
+  verbs:
+  - create
+  - delete
+  - get
+  - patch
+  - update
+- apiGroups:
+  - monitoring.rhobs
+  resources:
+  - servicemonitor
+  verbs:
+  - create
+  - delete
+  - get
+  - patch
+  - update
+- apiGroups:
   - networking.istio.io
   resources:
   - envoyfilters

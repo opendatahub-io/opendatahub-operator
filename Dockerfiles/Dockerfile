@@ -37,6 +37,7 @@ COPY components/ components/
 COPY controllers/ controllers/
 COPY main.go main.go
 COPY pkg/ pkg/
+COPY config/networkpolicy/  /opt/odh-manifests/networkpolicy/
 
 # Build
 RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -a -o manager main.go
