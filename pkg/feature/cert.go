@@ -9,23 +9,21 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"math/big"
 	"net"
 	"strings"
 	"time"
-
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func (f *Feature) CreateSelfSignedCertificate(secretName string, domain, namespace string) error {
+func (f *Feature) CreateSelfSignedCertificate(secretName, domain, namespace string) error {
 	meta := metav1.ObjectMeta{
 		Name:      secretName,
 		Namespace: namespace,
