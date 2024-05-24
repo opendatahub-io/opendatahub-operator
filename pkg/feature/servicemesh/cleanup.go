@@ -7,7 +7,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 )
 
@@ -16,7 +16,7 @@ func RemoveExtensionProvider(f *feature.Feature) error {
 
 	mesh := f.Spec.ControlPlane
 	smcp := &unstructured.Unstructured{}
-	smcp.SetGroupVersionKind(cluster.ServiceMeshControlPlaneGVK)
+	smcp.SetGroupVersionKind(gvk.ServiceMeshControlPlane)
 
 	if err := f.Client.Get(context.TODO(), client.ObjectKey{
 		Namespace: mesh.Namespace,

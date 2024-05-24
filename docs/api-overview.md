@@ -126,7 +126,7 @@ _Appears in:_
 ## datasciencecluster.opendatahub.io/datasciencepipelines
 
 Package datasciencepipelines provides utility functions to config Data Science Pipelines:
-Pipeline solution for end to end MLOps workflows that support the Kubeflow Pipelines SDK and Tekton
+Pipeline solution for end to end MLOps workflows that support the Kubeflow Pipelines SDK, Tekton and Argo Workflows.
 
 
 
@@ -266,6 +266,30 @@ which makes managing distributed compute infrastructure in the cloud easy and in
 
 
 Ray struct holds the configuration for the Ray component.
+
+
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `Component` _[Component](#component)_ |  |  |  |
+
+
+
+## datasciencecluster.opendatahub.io/trainingoperator
+
+Package trainingoperator provides utility functions to config trainingoperator as part of the stack
+which makes managing distributed compute infrastructure in the cloud easy and intuitive for Data Scientists
+
+
+
+#### TrainingOperator
+
+
+
+TrainingOperator struct holds the configuration for the TrainingOperator component.
 
 
 

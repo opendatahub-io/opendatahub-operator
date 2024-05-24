@@ -6,18 +6,14 @@ import (
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/yaml"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
@@ -202,7 +198,8 @@ var _ = Describe("Service Mesh setup", func() {
 					handler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
 						return feature.CreateFeature("control-plane-with-external-authz-provider").
 							For(handler).
-							Manifests(path.Join(feature.AuthDir, "mesh-authz-ext-provider.patch.tmpl")).
+							ManifestSource(fixtures.TestEmbeddedFiles).
+							Manifests(path.Join("templates", "mesh-authz-ext-provider.patch.tmpl.yaml")).
 							OnDelete(
 								servicemesh.RemoveExtensionProvider,
 							).
@@ -273,24 +270,6 @@ func installServiceMeshCRD() *apiextensionsv1.CustomResourceDefinition {
 	return smcpCrdObj
 }
 
-func getGateway(cfg *rest.Config, namespace, name string) (*unstructured.Unstructured, error) {
-	dynamicClient, err := dynamic.NewForConfig(cfg)
-	if err != nil {
-		return nil, err
-	}
-	gwGvr := schema.GroupVersionResource{
-		Group:    "networking.istio.io",
-		Version:  "v1beta1",
-		Resource: "gateways",
-	}
-
-	gateway, err := dynamicClient.Resource(gwGvr).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
-	if err != nil {
-		return nil, err
-	}
-	return gateway, nil
-}
-
 func createServiceMeshControlPlane(name, namespace string) {
 	serviceMeshControlPlane := &unstructured.Unstructured{
 		Object: map[string]interface{}{
@@ -307,7 +286,7 @@ func createServiceMeshControlPlane(name, namespace string) {
 }
 
 func createSMCPInCluster(smcpObj *unstructured.Unstructured, namespace string) error {
-	smcpObj.SetGroupVersionKind(cluster.ServiceMeshControlPlaneGVK)
+	smcpObj.SetGroupVersionKind(gvk.ServiceMeshControlPlane)
 	smcpObj.SetNamespace(namespace)
 	if err := envTestClient.Create(context.TODO(), smcpObj); err != nil {
 		return err
@@ -344,7 +323,7 @@ func createSMCPInCluster(smcpObj *unstructured.Unstructured, namespace string) e
 
 func getServiceMeshControlPlane(namespace, name string) (*unstructured.Unstructured, error) {
 	smcpObj := &unstructured.Unstructured{}
-	smcpObj.SetGroupVersionKind(cluster.ServiceMeshControlPlaneGVK)
+	smcpObj.SetGroupVersionKind(gvk.ServiceMeshControlPlane)
 
 	err := envTestClient.Get(context.TODO(), client.ObjectKey{
 		Namespace: namespace,

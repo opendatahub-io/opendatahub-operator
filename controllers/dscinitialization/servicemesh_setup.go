@@ -118,8 +118,9 @@ func (r *DSCInitializationReconciler) serviceMeshCapabilityFeatures(instance *ds
 		serviceMeshSpec := instance.Spec.ServiceMesh
 		smcpCreationErr := feature.CreateFeature("mesh-control-plane-creation").
 			For(handler).
+			ManifestSource(Templates.Source).
 			Manifests(
-				path.Join(feature.ServiceMeshDir, "base", "create-smcp.tmpl"),
+				path.Join(Templates.ServiceMeshDir),
 			).
 			PreConditions(
 				servicemesh.EnsureServiceMeshOperatorInstalled,
@@ -140,8 +141,9 @@ func (r *DSCInitializationReconciler) serviceMeshCapabilityFeatures(instance *ds
 				PreConditions(
 					servicemesh.EnsureServiceMeshInstalled,
 				).
+				ManifestSource(Templates.Source).
 				Manifests(
-					path.Join(feature.ServiceMeshDir, "metrics-collection"),
+					path.Join(Templates.MetricsDir),
 				).
 				Load()
 			if metricsCollectionErr != nil {
@@ -167,10 +169,11 @@ func (r *DSCInitializationReconciler) authorizationFeatures(instance *dsciv1.DSC
 
 		extAuthzErr := feature.CreateFeature("mesh-control-plane-external-authz").
 			For(handler).
+			ManifestSource(Templates.Source).
 			Manifests(
-				path.Join(feature.AuthDir, "auth-smm.tmpl"),
-				path.Join(feature.AuthDir, "base"),
-				path.Join(feature.AuthDir, "mesh-authz-ext-provider.patch.tmpl"),
+				path.Join(Templates.AuthorinoDir, "auth-smm.tmpl.yaml"),
+				path.Join(Templates.AuthorinoDir, "base"),
+				path.Join(Templates.AuthorinoDir, "mesh-authz-ext-provider.patch.tmpl.yaml"),
 			).
 			WithData(servicemesh.ClusterDetails).
 			PreConditions(
@@ -189,7 +192,7 @@ func (r *DSCInitializationReconciler) authorizationFeatures(instance *dsciv1.DSC
 					//
 					// To make it part of Service Mesh we have to patch it with injection
 					// enabled instead, otherwise it will not have proxy pod injected.
-					return f.ApplyManifest(path.Join(feature.AuthDir, "deployment.injection.patch.tmpl"))
+					return f.ApplyManifest(path.Join(Templates.AuthorinoDir, "deployment.injection.patch.tmpl.yaml"))
 				},
 			).
 			OnDelete(

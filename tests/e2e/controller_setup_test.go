@@ -9,6 +9,7 @@ import (
 	"time"
 
 	routev1 "github.com/openshift/api/route/v1"
+	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -104,6 +105,7 @@ func TestOdhOperator(t *testing.T) {
 	utilruntime.Must(dsc.AddToScheme(scheme))
 	utilruntime.Must(featurev1.AddToScheme(scheme))
 	utilruntime.Must(monitoringv1.AddToScheme(scheme))
+	utilruntime.Must(ofapi.AddToScheme(scheme))
 
 	// individual test suites after the operator is running
 	if !t.Run("validate operator pod is running", testODHOperatorValidation) {

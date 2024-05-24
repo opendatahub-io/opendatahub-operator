@@ -15,59 +15,17 @@ limitations under the License.
 */
 
 // Package common contains utility functions used by different components
+// for cluster related common operations, refer to package cluster
 package common
 
 import (
-	"context"
 	"crypto/sha256"
 	b64 "encoding/base64"
 	"fmt"
 	"os"
 	"regexp"
 	"strings"
-
-	"github.com/go-logr/logr"
-	routev1 "github.com/openshift/api/route/v1"
-	"go.uber.org/zap/zapcore"
-	authv1 "k8s.io/api/rbac/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
-
-// UpdatePodSecurityRolebinding update default rolebinding which is created in namespace by manifests
-// being used by different components and sre monitoring.
-func UpdatePodSecurityRolebinding(cli client.Client, serviceAccountsList []string, namespace string) error {
-	foundRoleBinding := &authv1.RoleBinding{}
-	err := cli.Get(context.TODO(), client.ObjectKey{Name: namespace, Namespace: namespace}, foundRoleBinding)
-	if err != nil {
-		return err
-	}
-
-	for _, sa := range serviceAccountsList {
-		// Append serviceAccount if not added already
-		if !subjectExistInRoleBinding(foundRoleBinding.Subjects, sa, namespace) {
-			foundRoleBinding.Subjects = append(foundRoleBinding.Subjects, authv1.Subject{
-				Kind:      authv1.ServiceAccountKind,
-				Name:      sa,
-				Namespace: namespace,
-			})
-		}
-	}
-
-	return cli.Update(context.TODO(), foundRoleBinding)
-}
-
-// Internal function used by UpdatePodSecurityRolebinding()
-// Return whether Rolebinding matching service account and namespace exists or not.
-func subjectExistInRoleBinding(subjectList []authv1.Subject, serviceAccountName, namespace string) bool {
-	for _, subject := range subjectList {
-		if subject.Name == serviceAccountName && subject.Namespace == namespace {
-			return true
-		}
-	}
-
-	return false
-}
 
 // ReplaceStringsInFile replaces variable with value in manifests during runtime.
 func ReplaceStringsInFile(fileName string, replacements map[string]string) error {
@@ -157,55 +115,4 @@ func GetMonitoringData(data string) (string, error) {
 	encodedData := b64.StdEncoding.EncodeToString(hashSum)
 
 	return encodedData, nil
-}
-
-// Use openshift-console namespace to get host domain.
-func GetDomain(cli client.Client, name string, namespace string) (string, error) {
-	consoleRoute := &routev1.Route{}
-	if err := cli.Get(context.TODO(), client.ObjectKey{Name: name, Namespace: namespace}, consoleRoute); err != nil {
-		return "", fmt.Errorf("error getting %s route URL: %w", name, err)
-	}
-	domainIndex := strings.Index(consoleRoute.Spec.Host, ".")
-
-	return consoleRoute.Spec.Host[domainIndex+1:], nil
-}
-
-// to use different mode for logging, e.g. development, production
-// when not set mode it falls to "default" which is used by startup main.go.
-func ConfigLoggers(mode string) logr.Logger {
-	var opts zap.Options
-	switch mode {
-	case "devel", "development": //  the most logging verbosity
-		opts = zap.Options{
-			Development:     true,
-			StacktraceLevel: zapcore.WarnLevel,
-			Level:           zapcore.InfoLevel,
-			DestWriter:      os.Stdout,
-		}
-	case "prod", "production": // the least logging verbosity
-		opts = zap.Options{
-			Development:     false,
-			StacktraceLevel: zapcore.ErrorLevel,
-			Level:           zapcore.InfoLevel,
-			DestWriter:      os.Stdout,
-			EncoderConfigOptions: []zap.EncoderConfigOption{func(config *zapcore.EncoderConfig) {
-				config.EncodeTime = zapcore.ISO8601TimeEncoder // human readable not epoch
-				config.EncodeDuration = zapcore.SecondsDurationEncoder
-				config.LevelKey = "LogLevel"
-				config.NameKey = "Log"
-				config.CallerKey = "Caller"
-				config.MessageKey = "Message"
-				config.TimeKey = "Time"
-				config.StacktraceKey = "Stacktrace"
-			}},
-		}
-	default:
-		opts = zap.Options{
-			Development:     false,
-			StacktraceLevel: zapcore.ErrorLevel,
-			Level:           zapcore.InfoLevel,
-			DestWriter:      os.Stdout,
-		}
-	}
-	return zap.New(zap.UseFlagOptions(&opts))
 }

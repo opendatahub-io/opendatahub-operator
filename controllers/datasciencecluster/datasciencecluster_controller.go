@@ -123,7 +123,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 				r.Log.Info("Removed finalizer for DataScienceCluster", "name", instance.Name, "finalizer", finalizerName)
 			}
 		}
-		if err := r.Client.Delete(context.TODO(), instance, []client.DeleteOption{}...); err != nil {
+		if err := r.Client.Delete(ctx, instance, []client.DeleteOption{}...); err != nil {
 			if !apierrs.IsNotFound(err) {
 				return reconcile.Result{}, err
 			}
@@ -154,6 +154,8 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		r.Log.Info(message)
 		instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
 			status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
+			// Patch Degraded with True status
+			status.SetGeneralCondition(&saved.Status.Conditions, "Degraded", reason, message, corev1.ConditionTrue)
 			saved.Status.Phase = status.PhaseError
 		})
 		if err != nil {
@@ -278,21 +280,25 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 	componentName := component.GetComponentName()
 
 	enabled := component.GetManagementState() == v1.Managed
+	installedComponentValue, isExistStatus := instance.Status.InstalledComponents[componentName]
+
 	// First set conditions to reflect a component is about to be reconciled
-	instance, err := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
+	// only set to init condition e.g Unknonw for the very first time when component is not in the list
+	if !isExistStatus {
 		message := "Component is disabled"
 		if enabled {
 			message = "Component is enabled"
 		}
-		status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileInit, message, corev1.ConditionUnknown)
-	})
-	if err != nil {
-		instance = r.reportError(err, instance, "failed to update DataScienceCluster conditions before reconciling "+componentName)
-		// try to continue with reconciliation, as further updates can fix the status
+		instance, err := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
+			status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileInit, message, corev1.ConditionUnknown)
+		})
+		if err != nil {
+			_ = r.reportError(err, instance, "failed to update DataScienceCluster conditions before first time reconciling "+componentName)
+			// try to continue with reconciliation, as further updates can fix the status
+		}
 	}
-
 	// Reconcile component
-	err = component.ReconcileComponent(ctx, r.Client, r.Log, instance, r.DataScienceCluster.DSCISpec, instance.Status.InstalledComponents[componentName])
+	err := component.ReconcileComponent(ctx, r.Client, r.Log, instance, r.DataScienceCluster.DSCISpec, installedComponentValue)
 
 	if err != nil {
 		// reconciliation failed: log errors, raise event and update status accordingly
@@ -426,7 +432,7 @@ func (r *DataScienceClusterReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		Owns(&admv1.MutatingWebhookConfiguration{}).
 		Owns(&admv1.ValidatingWebhookConfiguration{}, builder.WithPredicates(modelMeshwebhookPredicates)).
 		Owns(&corev1.ServiceAccount{}, builder.WithPredicates(saPredicates)).
-		Watches(&source.Kind{Type: &dsci.DSCInitialization{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources)).
+		Watches(&source.Kind{Type: &dsci.DSCInitialization{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterForDSCI)).
 		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources), builder.WithPredicates(configMapPredicates)).
 		Watches(&source.Kind{Type: &apiextensionsv1.CustomResourceDefinition{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources),
 			builder.WithPredicates(argoWorkflowCRDPredicates)).
@@ -435,6 +441,29 @@ func (r *DataScienceClusterReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		Complete(r)
 }
 
+func (r *DataScienceClusterReconciler) watchDataScienceClusterForDSCI(a client.Object) []reconcile.Request {
+	instanceList := &dsc.DataScienceClusterList{}
+	err := r.Client.List(context.TODO(), instanceList)
+	if err != nil {
+		return nil
+	}
+	var requestName string
+	switch {
+	case len(instanceList.Items) == 1:
+		requestName = instanceList.Items[0].Name
+	case len(instanceList.Items) == 0:
+		requestName = "default-dsc"
+	default:
+		return nil
+	}
+	// When DSCI CR gets created, trigger reconcile function
+	if a.GetObjectKind().GroupVersionKind().Kind == "DSCInitialization" || a.GetName() == "default-dsci" {
+		return []reconcile.Request{{
+			NamespacedName: types.NamespacedName{Name: requestName},
+		}}
+	}
+	return nil
+}
 func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(a client.Object) []reconcile.Request {
 	instanceList := &dsc.DataScienceClusterList{}
 	err := r.Client.List(context.TODO(), instanceList)
@@ -456,7 +485,6 @@ func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(a client
 	if err != nil {
 		return nil
 	}
-
 	if a.GetNamespace() == operatorNs {
 		labels := a.GetLabels()
 		if val, ok := labels[upgrade.DeleteConfigMapLabel]; ok && val == "true" {
@@ -465,6 +493,13 @@ func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(a client
 			}}
 		}
 		return nil
+	}
+
+	// Trigger reconcile function when DSCInitialization from Missing to Valid
+	if a.GetObjectKind().GroupVersionKind().Kind == "DSCInitialization" {
+		return []reconcile.Request{{
+			NamespacedName: types.NamespacedName{Name: requestName},
+		}}
 	}
 
 	return nil

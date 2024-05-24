@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package deploy
+// Package deploy provides utility functions used by each component to deploy manifests to the cluster.
 package deploy
 
 import (
@@ -302,7 +302,14 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 		}
 	}
 
-	// Preserve "app.opendatahub.io/<component>" labels of previous versions of existing objects
+	// JIRA 6889.  odh-model-controller will be covered by either kserve or model-mesh case
+	if componentName == "model-mesh" {
+		if err := removeResourcesFromDeployment(obj); err != nil {
+			return err
+		}
+	}
+
+	// Preserve app.opendatahub.io/<component> labels of previous versions of existing objects
 	foundLabels := make(map[string]string)
 	for k, v := range found.GetLabels() {
 		if strings.Contains(k, labels.ODHAppPrefix) {
@@ -449,17 +456,6 @@ func removeResourcesFromDeployment(u *unstructured.Unstructured) error {
 	return nil
 }
 
-// GetSubscription checks if a Subscription for the operator exists in the given namespace.
-// if exist, return object; otherwise, return error.
-func GetSubscription(cli client.Client, namespace string, name string) (*ofapiv1alpha1.Subscription, error) {
-	sub := &ofapiv1alpha1.Subscription{}
-	if err := cli.Get(context.TODO(), client.ObjectKey{Namespace: namespace, Name: name}, sub); err != nil {
-		// real error or 'not found' both return here
-		return nil, err
-	}
-	return sub, nil
-}
-
 func ClusterSubscriptionExists(cli client.Client, name string) (bool, error) {
 	subscriptionList := &ofapiv1alpha1.SubscriptionList{}
 	if err := cli.List(context.TODO(), subscriptionList); err != nil {
@@ -472,21 +468,6 @@ func ClusterSubscriptionExists(cli client.Client, name string) (bool, error) {
 		}
 	}
 	return false, nil
-}
-
-// DeleteExistingSubscription deletes given Subscription if it exists
-// Do not error if the Subscription does not exist.
-func DeleteExistingSubscription(cli client.Client, operatorNs string, subsName string) error {
-	sub, err := GetSubscription(cli, operatorNs, subsName)
-	if err != nil {
-		return client.IgnoreNotFound(err)
-	}
-
-	if err := cli.Delete(context.TODO(), sub); client.IgnoreNotFound(err) != nil {
-		return fmt.Errorf("error deleting subscription %s: %w", sub.Name, err)
-	}
-
-	return nil
 }
 
 // OperatorExists checks if an Operator with 'operatorPrefix' is installed.

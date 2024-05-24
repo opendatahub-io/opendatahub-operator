@@ -15,16 +15,15 @@ import (
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/monitoring"
 )
 
 var (
-	ComponentName       = "codeflare"
-	CodeflarePath       = deploy.DefaultManifestPath + "/" + ComponentName + "/default"
-	CodeflareOperator   = "codeflare-operator"
-	RHCodeflareOperator = "rhods-codeflare-operator"
-	ParamsPath          = deploy.DefaultManifestPath + "/" + ComponentName + "/manager"
+	ComponentName     = "codeflare"
+	CodeflarePath     = deploy.DefaultManifestPath + "/" + ComponentName + "/default"
+	CodeflareOperator = "codeflare-operator"
+	ParamsPath        = deploy.DefaultManifestPath + "/" + ComponentName + "/manager"
 )
 
 // Verifies that CodeFlare implements ComponentInterface.
@@ -67,7 +66,7 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, l
 
 	enabled := c.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
-	platform, err := deploy.GetPlatform(cli)
+	platform, err := cluster.GetPlatform(cli)
 	if err != nil {
 		return err
 	}
@@ -79,11 +78,8 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, l
 			}
 		}
 		// check if the CodeFlare operator is installed: it should not be installed
+		// Both ODH and RHOAI should have the same operator name
 		dependentOperator := CodeflareOperator
-		// overwrite dependent operator if downstream not match upstream
-		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
-			dependentOperator = RHCodeflareOperator
-		}
 
 		if found, err := deploy.OperatorExists(cli, dependentOperator); err != nil {
 			return fmt.Errorf("operator exists throws error %w", err)
@@ -109,10 +105,10 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, l
 	}
 	l.Info("apply manifests done")
 	// CloudServiceMonitoring handling
-	if platform == deploy.ManagedRhods {
+	if platform == cluster.ManagedRhods {
 		if enabled {
 			// first check if the service is up, so prometheus won't fire alerts when it is just startup
-			if err := monitoring.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
+			if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
 				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 			}
 			l.Info("deployment is done, updating monitoring rules")

@@ -1,0 +1,13 @@
+apiVersion: maistra.io/v2
+kind: ServiceMeshControlPlane
+metadata:
+  name: {{ .ControlPlane.Name }}
+  namespace: {{ .ControlPlane.Namespace }}
+spec:
+  techPreview:
+    meshConfig:
+      extensionProviders:
+      - name: {{ .AppNamespace }}-auth-provider
+        envoyExtAuthzGrpc:
+          service: {{ .AuthProviderName }}-authorino-authorization.{{ .Auth.Namespace }}.svc.cluster.local
+          port: 50051

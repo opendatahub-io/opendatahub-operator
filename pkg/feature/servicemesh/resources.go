@@ -3,6 +3,9 @@ package servicemesh
 import (
 	"strings"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 )
@@ -18,39 +21,48 @@ func MeshRefs(f *feature.Feature) error {
 		"MESH_NAMESPACE":     meshConfig.Namespace,
 	}
 
-	_, err := cluster.CreateOrUpdateConfigMap(
+	return cluster.CreateOrUpdateConfigMap(
 		f.Client,
-		"service-mesh-refs",
-		namespace,
-		data,
+		&corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "service-mesh-refs",
+				Namespace: namespace,
+			},
+			Data: data,
+		},
 		feature.OwnedBy(f),
 	)
-
-	return err
 }
 
 // AuthRefs stores authorization configuration in the config map, so it can
 // be easily accessed by other components which rely on this information.
 func AuthRefs(f *feature.Feature) error {
 	audiences := f.Spec.Auth.Audiences
-	namespace := f.Spec.AppNamespace
+	appNamespace := f.Spec.AppNamespace
+	authNamespace := f.Spec.Auth.Namespace
+	if len(authNamespace) == 0 {
+		authNamespace = appNamespace + "-auth-provider"
+	}
 	audiencesList := ""
 	if audiences != nil && len(*audiences) > 0 {
 		audiencesList = strings.Join(*audiences, ",")
 	}
 	data := map[string]string{
 		"AUTH_AUDIENCE":   audiencesList,
-		"AUTH_PROVIDER":   namespace + "-auth-provider",
+		"AUTH_PROVIDER":   appNamespace + "-auth-provider",
+		"AUTH_NAMESPACE":  authNamespace,
 		"AUTHORINO_LABEL": "security.opendatahub.io/authorization-group=default",
 	}
 
-	_, err := cluster.CreateOrUpdateConfigMap(
+	return cluster.CreateOrUpdateConfigMap(
 		f.Client,
-		"auth-refs",
-		namespace,
-		data,
+		&corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "auth-refs",
+				Namespace: appNamespace,
+			},
+			Data: data,
+		},
 		feature.OwnedBy(f),
 	)
-
-	return err
 }
