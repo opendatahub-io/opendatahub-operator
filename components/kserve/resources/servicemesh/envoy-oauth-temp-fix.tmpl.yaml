@@ -1,0 +1,80 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: envoy-oauth-temp-fix-before
+  namespace: {{ .ControlPlane.Namespace }}
+  labels:
+    opendatahub.io/related-to: OSSM-4873
+    app.opendatahub.io/kserve: "true"
+    app.kubernetes.io/part-of: kserve
+spec:
+  workloadSelector:
+    labels:
+      istio: ingressgateway
+  priority: 20
+  configPatches:
+  - applyTo: HTTP_FILTER
+    match:
+      listener:
+        filterChain:
+          filter:
+            name: envoy.filters.network.http_connection_manager
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: envoy.filters.http.lua
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+          inlineCode: |
+           function envoy_on_request(request_handle)
+              local headers = request_handle:headers()
+              if not headers then
+                return
+              end
+
+              local auth = headers:get("authorization")
+              if auth then
+                headers:replace("x-authorization", auth)
+              end
+            end
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: envoy-oauth-temp-fix-after
+  namespace: {{ .ControlPlane.Namespace }}
+  labels:
+    opendatahub.io/related-to: OSSM-4873
+    app.opendatahub.io/kserve: "true"
+    app.kubernetes.io/part-of: kserve
+spec:
+  workloadSelector:
+    labels:
+      istio: ingressgateway
+  priority: 5
+  configPatches:
+  - applyTo: HTTP_FILTER
+    match:
+      listener:
+        filterChain:
+          filter:
+            name: envoy.filters.network.http_connection_manager
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: envoy.filters.http.lua
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+          inlineCode: |
+           function envoy_on_request(request_handle)
+              local headers = request_handle:headers()
+              if not headers then
+                return
+              end
+
+              local xauth = headers:get("x-authorization")
+              if xauth then
+                headers:replace("authorization", xauth)
+                headers.remove("x-authorization")
+              end
+            end

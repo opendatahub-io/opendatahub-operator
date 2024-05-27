@@ -1,5 +1,6 @@
 // Package codeflare provides utility functions to config CodeFlare as part of the stack
 // which makes managing distributed compute infrastructure in the cloud easy and intuitive for Data Scientists
+// +groupName=datasciencecluster.opendatahub.io
 package codeflare
 
 import (
@@ -7,23 +8,22 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/monitoring"
 )
 
 var (
-	ComponentName       = "codeflare"
-	CodeflarePath       = deploy.DefaultManifestPath + "/" + ComponentName + "/default"
-	CodeflareOperator   = "codeflare-operator"
-	RHCodeflareOperator = "rhods-codeflare-operator"
-	ParamsPath          = deploy.DefaultManifestPath + "/" + ComponentName + "/manager"
+	ComponentName     = "codeflare"
+	CodeflarePath     = deploy.DefaultManifestPath + "/" + ComponentName + "/default"
+	CodeflareOperator = "codeflare-operator"
+	ParamsPath        = deploy.DefaultManifestPath + "/" + ComponentName + "/manager"
 )
 
 // Verifies that CodeFlare implements ComponentInterface.
@@ -57,14 +57,16 @@ func (c *CodeFlare) GetComponentName() string {
 	return ComponentName
 }
 
-func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, resConf *rest.Config, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
+func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
+	l := c.ConfigComponentLogger(logger, ComponentName, dscispec)
 	var imageParamMap = map[string]string{
 		"codeflare-operator-controller-image": "RELATED_IMAGE_ODH_CODEFLARE_OPERATOR_IMAGE", // no need mcad, embedded in cfo
 		"namespace":                           dscispec.ApplicationsNamespace,
 	}
+
 	enabled := c.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
-	platform, err := deploy.GetPlatform(cli)
+	platform, err := cluster.GetPlatform(cli)
 	if err != nil {
 		return err
 	}
@@ -76,11 +78,8 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, r
 			}
 		}
 		// check if the CodeFlare operator is installed: it should not be installed
+		// Both ODH and RHOAI should have the same operator name
 		dependentOperator := CodeflareOperator
-		// overwrite dependent operator if downstream not match upstream
-		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
-			dependentOperator = RHCodeflareOperator
-		}
 
 		if found, err := deploy.OperatorExists(cli, dependentOperator); err != nil {
 			return fmt.Errorf("operator exists throws error %w", err)
@@ -91,8 +90,8 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, r
 
 		// Update image parameters only when we do not have customized manifests set
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (c.DevFlags == nil || len(c.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(ParamsPath, c.SetImageParamsMap(imageParamMap), true); err != nil {
-				return err
+			if err := deploy.ApplyParams(ParamsPath, imageParamMap, true); err != nil {
+				return fmt.Errorf("failed update image from %s : %w", CodeflarePath+"/bases", err)
 			}
 		}
 	}
@@ -104,15 +103,15 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, r
 		ComponentName, enabled); err != nil {
 		return err
 	}
-
+	l.Info("apply manifests done")
 	// CloudServiceMonitoring handling
-	if platform == deploy.ManagedRhods {
+	if platform == cluster.ManagedRhods {
 		if enabled {
 			// first check if the service is up, so prometheus won't fire alerts when it is just startup
-			if err := monitoring.WaitForDeploymentAvailable(ctx, resConf, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
+			if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
 				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 			}
-			fmt.Printf("deployment for %s is done, updating monitoring rules\n", ComponentName)
+			l.Info("deployment is done, updating monitoring rules")
 		}
 
 		// inject prometheus codeflare*.rules in to /opt/manifests/monitoring/prometheus/prometheus-configs.yaml
@@ -125,6 +124,7 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, r
 			"prometheus", true); err != nil {
 			return err
 		}
+		l.Info("updating SRE monitoring done")
 	}
 
 	return nil

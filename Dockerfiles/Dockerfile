@@ -1,5 +1,5 @@
 # Build the manager binary
-ARG GOLANG_VERSION=1.19
+ARG GOLANG_VERSION=1.20
 ARG USE_LOCAL=false
 ARG OVERWRITE_MANIFESTS=""
 
@@ -37,10 +37,9 @@ COPY components/ components/
 COPY controllers/ controllers/
 COPY main.go main.go
 COPY pkg/ pkg/
-COPY infrastructure/ infrastructure/
 
 # Build
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o manager main.go
+RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -a -o manager main.go
 
 ################################################################################
 FROM registry.access.redhat.com/ubi8/ubi-minimal:latest

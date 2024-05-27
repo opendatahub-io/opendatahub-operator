@@ -54,3 +54,10 @@ scripts/gke/build/**
 odh-manifests/
 
 cover.out
+
+# Ignore any local.mk files that would be consumed by the Makefile
+local.mk
+
+# Ignore temporary files created by the Makefile
+*.mktmp.*
+

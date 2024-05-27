@@ -12,6 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 )
 
@@ -20,11 +21,19 @@ const (
 	duration = 5 * time.Minute
 )
 
-func EnsureServiceMeshOperatorInstalled(f *feature.Feature) error {
-	if err := feature.EnsureCRDIsInstalled("servicemeshcontrolplanes.maistra.io")(f); err != nil {
-		f.Log.Info("Failed to find the pre-requisite Service Mesh Control Plane CRD, please ensure Service Mesh Operator is installed.")
+// EnsureAuthNamespaceExists creates a namespace for the Authorization provider and set ownership so it will be garbage collected when the operator is uninstalled.
+func EnsureAuthNamespaceExists(f *feature.Feature) error {
+	if resolveNsErr := ResolveAuthNamespace(f); resolveNsErr != nil {
+		return resolveNsErr
+	}
 
-		return err
+	_, err := cluster.CreateNamespace(f.Client, f.Spec.Auth.Namespace, feature.OwnedBy(f))
+	return err
+}
+
+func EnsureServiceMeshOperatorInstalled(f *feature.Feature) error {
+	if err := feature.EnsureOperatorIsInstalled("servicemeshoperator")(f); err != nil {
+		return fmt.Errorf("failed to find the pre-requisite Service Mesh Operator subscription, please ensure Service Mesh Operator is installed. %w", err)
 	}
 
 	return nil
@@ -66,7 +75,7 @@ func WaitForControlPlaneToBeReady(f *feature.Feature) error {
 
 func CheckControlPlaneComponentReadiness(c client.Client, smcpName, smcpNs string) (bool, error) {
 	smcpObj := &unstructured.Unstructured{}
-	smcpObj.SetGroupVersionKind(cluster.ServiceMeshControlPlaneGVK)
+	smcpObj.SetGroupVersionKind(gvk.ServiceMeshControlPlane)
 	err := c.Get(context.TODO(), client.ObjectKey{
 		Namespace: smcpNs,
 		Name:      smcpName,

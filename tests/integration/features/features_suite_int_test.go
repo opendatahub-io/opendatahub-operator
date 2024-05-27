@@ -3,12 +3,12 @@ package features_test
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"path/filepath"
 	"testing"
-	"time"
 
+	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	v1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes"
@@ -40,7 +40,6 @@ func TestFeaturesIntegration(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	rand.Seed(time.Now().UTC().UnixNano())
 
 	ctx, cancel = context.WithCancel(context.TODO())
 
@@ -57,6 +56,8 @@ var _ = BeforeSuite(func() {
 
 	utilruntime.Must(v1.AddToScheme(testScheme))
 	utilruntime.Must(featurev1.AddToScheme(testScheme))
+	utilruntime.Must(apiextensionsv1.AddToScheme(testScheme))
+	utilruntime.Must(ofapiv1alpha1.AddToScheme(testScheme))
 
 	envTest = &envtest.Environment{
 		CRDInstallOptions: envtest.CRDInstallOptions{
@@ -64,7 +65,7 @@ var _ = BeforeSuite(func() {
 			Paths: []string{
 				filepath.Join(projectDir, "config", "crd", "bases"),
 				filepath.Join(projectDir, "config", "crd", "dashboard-crds"),
-				filepath.Join(projectDir, "tests", "integration", "features", "crd"),
+				filepath.Join(projectDir, "tests", "integration", "features", "fixtures", "crd"),
 			},
 			ErrorIfPathMissing: true,
 			CleanUpAfterUse:    false,

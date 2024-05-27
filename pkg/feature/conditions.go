@@ -2,14 +2,16 @@ package feature
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 const (
@@ -17,9 +19,36 @@ const (
 	duration = 5 * time.Minute
 )
 
-func EnsureCRDIsInstalled(name string) Action {
+type MissingOperatorError struct {
+	operatorName string
+	err          error
+}
+
+func NewMissingOperatorError(operatorName string, err error) *MissingOperatorError {
+	return &MissingOperatorError{
+		operatorName: operatorName,
+		err:          err,
+	}
+}
+
+func (e *MissingOperatorError) Unwrap() error {
+	return e.err
+}
+
+func (e *MissingOperatorError) Error() string {
+	return fmt.Sprintf("missing operator %q", e.operatorName)
+}
+
+func EnsureOperatorIsInstalled(operatorName string) Action {
 	return func(f *Feature) error {
-		return f.Client.Get(context.TODO(), client.ObjectKey{Name: name}, &apiextv1.CustomResourceDefinition{})
+		if found, err := deploy.ClusterSubscriptionExists(f.Client, operatorName); !found || err != nil {
+			return fmt.Errorf(
+				"failed to find the pre-requisite operator subscription %q, please ensure operator is installed. %w",
+				operatorName,
+				NewMissingOperatorError(operatorName, err),
+			)
+		}
+		return nil
 	}
 }
 

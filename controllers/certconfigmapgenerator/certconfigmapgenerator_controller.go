@@ -17,16 +17,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	annotation "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/trustedcabundle"
 )
-
-var configmapGenLog = log.Log.WithName("cert-configmap-generator")
 
 // CertConfigmapGeneratorReconciler holds the controller configuration.
 type CertConfigmapGeneratorReconciler struct { //nolint:golint,revive // Readability
@@ -37,7 +35,7 @@ type CertConfigmapGeneratorReconciler struct { //nolint:golint,revive // Readabi
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *CertConfigmapGeneratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	configmapGenLog.Info("Adding controller for Configmap Generation.")
+	r.Log.Info("Adding controller for Configmap Generation.")
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("cert-configmap-generator-controller").
 		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchTrustedCABundleConfigMapResource), builder.WithPredicates(ConfigMapChangedPredicate)).
@@ -49,19 +47,17 @@ func (r *CertConfigmapGeneratorReconciler) SetupWithManager(mgr ctrl.Manager) er
 // ca bundle in every new namespace created.
 func (r *CertConfigmapGeneratorReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	// Request includes namespace that is newly created or where odh-trusted-ca-bundle configmap is updated.
-	r.Log.Info("Reconciling certConfigMapGenerator.", " CertConfigMapGenerator Request.Namespace", req.NamespacedName)
+	r.Log.Info("Reconciling CertConfigMapGenerator.", " Request.Namespace", req.NamespacedName)
 	// Get namespace instance
 	userNamespace := &corev1.Namespace{}
-	err := r.Client.Get(ctx, client.ObjectKey{Name: req.Namespace}, userNamespace)
-	if err != nil {
-		return ctrl.Result{}, errors.WithMessage(err, "error getting user namespace to inject trustedCA bundle ")
+	if err := r.Client.Get(ctx, client.ObjectKey{Name: req.Namespace}, userNamespace); err != nil {
+		return ctrl.Result{}, errors.WithMessage(err, "error getting namespace to inject trustedCA bundle")
 	}
 
 	// Get DSCI instance
 	dsciInstances := &dsci.DSCInitializationList{}
-	err = r.Client.List(ctx, dsciInstances)
-	if err != nil {
-		r.Log.Error(err, "Failed to retrieve DSCInitialization resource for certconfigmapgenerator ", "CertConfigmapGenerator Request.Name", req.Name)
+	if err := r.Client.List(ctx, dsciInstances); err != nil {
+		r.Log.Error(err, "Failed to retrieve DSCInitialization resource for CertConfigMapGenerator ", "Request.Name", req.Name)
 		return ctrl.Result{}, err
 	}
 
@@ -71,41 +67,36 @@ func (r *CertConfigmapGeneratorReconciler) Reconcile(ctx context.Context, req ct
 		return ctrl.Result{}, nil
 	case 1:
 		dsciInstance = &dsciInstances.Items[0]
-	default:
-		message := "only one instance of DSCInitialization object is allowed"
-		return ctrl.Result{}, errors.New(message)
 	}
 
 	if dsciInstance.Spec.TrustedCABundle.ManagementState != operatorv1.Managed {
 		return ctrl.Result{}, nil
 	}
 
-	// Verify if namespace did not opt out of trustedCABundle injection
+	// Delete odh-trusted-ca-bundle Configmap if namespace has annoation set to opt-out CA bundle injection
 	if trustedcabundle.HasCABundleAnnotationDisabled(userNamespace) {
-		r.Log.Info("Namespace has opted-out of CA bundle injection using annotation ", "namespace", userNamespace.Name,
-			"annotation", trustedcabundle.InjectionOfCABundleAnnotatoion)
-		err := trustedcabundle.DeleteOdhTrustedCABundleConfigMap(ctx, r.Client, req.Namespace)
-		if err != nil {
+		r.Log.Info("Namespace has opted-out of CA bundle injection using annotation", "namespace", userNamespace.Name,
+			"annotation", annotation.InjectionOfCABundleAnnotatoion)
+		if err := trustedcabundle.DeleteOdhTrustedCABundleConfigMap(ctx, r.Client, req.Namespace); err != nil {
 			if !apierrors.IsNotFound(err) {
-				r.Log.Error(err, "error deleting existing configmap from namespace", "name", trustedcabundle.CAConfigMapName, "namespace", req.Namespace)
+				r.Log.Error(err, "error deleting existing configmap from namespace", "name", trustedcabundle.CAConfigMapName, "namespace", userNamespace.Name)
 				return reconcile.Result{}, err
 			}
 		}
 		return reconcile.Result{}, nil
 	}
 
-	// Verify odh-trusted-ca-bundle Configmap is created for the given namespace
+	// Add odh-trusted-ca-bundle Configmap
 	if trustedcabundle.ShouldInjectTrustedBundle(userNamespace) {
 		r.Log.Info("Adding trusted CA bundle configmap to the new or existing namespace ", "namespace", userNamespace.Name,
 			"configmap", trustedcabundle.CAConfigMapName)
 		trustCAData := dsciInstance.Spec.TrustedCABundle.CustomCABundle
-		err = trustedcabundle.CreateOdhTrustedCABundleConfigMap(ctx, r.Client, req.Namespace, trustCAData)
-		if err != nil {
-			r.Log.Error(err, "error adding configmap to namespace", "name", trustedcabundle.CAConfigMapName, "namespace", req.Namespace)
+		if err := trustedcabundle.CreateOdhTrustedCABundleConfigMap(ctx, r.Client, req.Namespace, trustCAData); err != nil {
+			r.Log.Error(err, "error adding configmap to namespace", "name", trustedcabundle.CAConfigMapName, "namespace", userNamespace.Name)
 			return reconcile.Result{}, err
 		}
 	}
-	return ctrl.Result{}, err
+	return ctrl.Result{}, nil
 }
 
 func (r *CertConfigmapGeneratorReconciler) watchNamespaceResource(a client.Object) []reconcile.Request {
@@ -133,8 +124,8 @@ var NamespaceCreatedPredicate = predicate.Funcs{
 		oldNamespace, _ := e.ObjectOld.(*corev1.Namespace)
 		newNamespace, _ := e.ObjectNew.(*corev1.Namespace)
 
-		oldNsAnnValue, oldNsAnnExists := oldNamespace.GetAnnotations()[trustedcabundle.InjectionOfCABundleAnnotatoion]
-		newNsAnnValue, newNsAnnExists := newNamespace.GetAnnotations()[trustedcabundle.InjectionOfCABundleAnnotatoion]
+		oldNsAnnValue, oldNsAnnExists := oldNamespace.GetAnnotations()[annotation.InjectionOfCABundleAnnotatoion]
+		newNsAnnValue, newNsAnnExists := newNamespace.GetAnnotations()[annotation.InjectionOfCABundleAnnotatoion]
 
 		if newNsAnnExists && !oldNsAnnExists {
 			return true

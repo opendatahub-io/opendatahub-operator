@@ -3,23 +3,18 @@
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
-ifneq ($(USER),)
-IMAGE_OWNER = $(USER)
-else
-IMAGE_OWNER = opendatahub
-endif
-VERSION ?= 2.7.0
+VERSION ?= 2.12.1
 # IMAGE_TAG_BASE defines the opendatahub.io namespace and part of the image name for remote images.
 # This variable is used to construct full image tags for bundle and catalog images.
 #
 # For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
 # opendatahub.io/opendatahub-operator-bundle:$VERSION and opendatahub.io/opendatahub-operator-catalog:$VERSION.
-IMAGE_TAG_BASE = quay.io/$(IMAGE_OWNER)/opendatahub-operator
+IMAGE_TAG_BASE ?= quay.io/opendatahub/opendatahub-operator
 
 # keep the name based on IMG which already used from command line
-IMG_TAG = latest
+IMG_TAG ?= latest
 # Update IMG to a variable, to keep it consistent across versions for OpenShift CI
-IMG = $(IMAGE_TAG_BASE):$(IMG_TAG)
+IMG ?= $(IMAGE_TAG_BASE):$(IMG_TAG)
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
 BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
@@ -66,14 +61,18 @@ CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 OPERATOR_SDK ?= $(LOCALBIN)/operator-sdk
 GOLANGCI_LINT ?= $(LOCALBIN)/golangci-lint
-
+CRD_REF_DOCS ?= $(LOCALBIN)/crd-ref-docs
+YQ ?= $(LOCALBIN)/yq
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v3.8.7
 CONTROLLER_GEN_VERSION ?= v0.9.2
-OPERATOR_SDK_VERSION ?= v1.24.1
+OPERATOR_SDK_VERSION ?= v1.31.0
 GOLANGCI_LINT_VERSION ?= v1.54.0
+YQ_VERSION ?= v4.12.2
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.24.2
+ENVTEST_PACKAGE_VERSION = v0.0.0-20240320141353-395cfc7486e6
+CRD_REF_DOCS_VERSION = 0.0.11
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -88,12 +87,21 @@ SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
 # E2E tests additional flags
-E2E_TEST_FLAGS = "--skip-deletion=false" -timeout 15m # See README.md, default go test timeout 10m
+E2E_TEST_FLAGS = "--skip-deletion=false" -timeout 20m # See README.md, default go test timeout 10m
 
 # Default image-build is to not use local odh-manifests folder
 # set to "true" to use local instead
 # see target "image-build"
-IMAGE_BUILD_FLAGS = --build-arg USE_LOCAL=false
+IMAGE_BUILD_FLAGS ?= --build-arg USE_LOCAL=false
+
+# Read any custom variables overrides from a local.mk file.  This will only be read if it exists in the 
+# same directory as this Makefile.  Variables can be specified in the standard format supported by 
+# GNU Make since `include` processes any valid Makefile
+# Standard variables override would include anything you would pass at runtime that is different
+# from the defaults specified in this file
+OPERATOR_MAKE_ENV_FILE = local.mk
+-include $(OPERATOR_MAKE_ENV_FILE)
+
 
 .PHONY: default
 default: manifests lint unit-test build
@@ -139,9 +147,13 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
+GOLANGCI_TMP_FILE = .golangci.mktmp.yml
 .PHONY: fmt
-fmt: ## Run go fmt against code.
+fmt: golangci-lint yq ## Formats code and imports.
 	go fmt ./...
+	$(YQ) e '.linters = {"disable-all": true, "enable": ["gci"]}' .golangci.yml  > $(GOLANGCI_TMP_FILE)
+	$(GOLANGCI_LINT) run --config=$(GOLANGCI_TMP_FILE) --fix
+CLEANFILES += $(GOLANGCI_TMP_FILE)
 
 .PHONY: vet
 vet: ## Run go vet against code.
@@ -156,6 +168,11 @@ get-manifests: ## Fetch components manifests from remote git repo
 	./get_all_manifests.sh
 CLEANFILES += odh-manifests/*
 
+.PHONY: api-docs
+api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-ref-docs
+	$(CRD_REF_DOCS) --source-path ./ --output-path ./docs/api-overview.md --renderer markdown --config ./crd-ref-docs.config.yaml && \
+	egrep -v '\.io/[^v][^1].*)$$' ./docs/api-overview.md > temp.md && mv ./temp.md ./docs/api-overview.md
+	
 ##@ Build
 
 .PHONY: build
@@ -206,7 +223,7 @@ deploy: prepare ## Deploy controller to the K8s cluster specified in ~/.kube/con
 	$(KUSTOMIZE) build config/default | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
 
 .PHONY: undeploy
-undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
+undeploy: prepare ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 ## Location to install dependencies to
@@ -219,12 +236,17 @@ KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/k
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
 $(KUSTOMIZE): $(LOCALBIN)
-	test -s $(KUSTOMIZE) || { curl -s $(KUSTOMIZE_INSTALL_SCRIPT) | sh -s -- $(subst v,,$(KUSTOMIZE_VERSION)) $(LOCALBIN); }
+	test -s $(KUSTOMIZE) || { curl -s $(KUSTOMIZE_INSTALL_SCRIPT) | bash -s -- $(subst v,,$(KUSTOMIZE_VERSION)) $(LOCALBIN); }
 
 .PHONY: controller-gen
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.
 $(CONTROLLER_GEN): $(LOCALBIN)
 	test -s $(CONTROLLER_GEN) || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_GEN_VERSION)
+
+.PHONY: yq
+yq: $(YQ) ## Download yq locally if necessary.
+$(YQ): $(LOCALBIN)
+	test -s $(YQ) || GOBIN=$(LOCALBIN) go install github.com/mikefarah/yq/v4@$(YQ_VERSION)
 
 OPERATOR_SDK_DL_URL ?= https://github.com/operator-framework/operator-sdk/releases/download/$(OPERATOR_SDK_VERSION)
 .PHONY: operator-sdk
@@ -239,7 +261,14 @@ GOLANGCI_LINT_INSTALL_SCRIPT ?= 'https://raw.githubusercontent.com/golangci/gola
 .PHONY: golangci-lint
 golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
 $(GOLANGCI_LINT): $(LOCALBIN)
-	test -s $(LOCALBIN)/golangci-lint || { curl -sSfL $(GOLANGCI_LINT_INSTALL_SCRIPT) | bash -s $(GOLANGCI_LINT_VERSION); }
+	test -s $(GOLANGCI_LINT) || { curl -sSfL $(GOLANGCI_LINT_INSTALL_SCRIPT) | bash -s $(GOLANGCI_LINT_VERSION); }
+
+CRD_REF_DOCS_DL_URL ?= 'https://github.com/elastic/crd-ref-docs/releases/download/v$(CRD_REF_DOCS_VERSION)/crd-ref-docs'
+.PHONY: crd-ref-docs
+crd-ref-docs: $(CRD_REF_DOCS) ## Download crd-ref-docs locally if necessary.
+$(CRD_REF_DOCS): $(LOCALBIN)
+	test -s $(CRD_REF_DOCS) || curl -sSLo $(CRD_REF_DOCS) $(CRD_REF_DOCS_DL_URL) && \
+	chmod +x $(CRD_REF_DOCS) ;\
 
 BUNDLE_DIR ?= "bundle"
 .PHONY: bundle
@@ -259,7 +288,11 @@ bundle-push: ## Push the bundle image.
 
 .PHONY: deploy-bundle
 deploy-bundle: operator-sdk bundle-build bundle-push
-	$(OPERATOR_SDK) run bundle $(BUNDLE_IMG)
+	$(OPERATOR_SDK) run bundle $(BUNDLE_IMG)  -n $(OPERATOR_NAMESPACE)
+
+.PHONY: upgrade-bundle
+upgrade-bundle: operator-sdk bundle-build bundle-push ## Upgrade bundle
+	$(OPERATOR_SDK) run bundle-upgrade $(BUNDLE_IMG) -n $(OPERATOR_NAMESPACE)
 
 .PHONY: opm
 OPM = ./bin/opm
@@ -302,7 +335,7 @@ catalog-build: opm ## Build a catalog image.
 catalog-push: ## Push a catalog image.
 	$(MAKE) image-push IMG=$(CATALOG_IMG)
 
-TOOLBOX_GOLANG_VERSION := 1.19
+TOOLBOX_GOLANG_VERSION := 1.20
 TOOLBOX_OPERATOR_SDK_VERSION := 1.24.1
 
 # Generate a Toolbox container for locally testing changes easily
@@ -317,12 +350,12 @@ toolbox: ## Create a toolbox instance with the proper Golang and Operator SDK ve
 	toolbox create opendatahub-toolbox --image localhost/opendatahub-toolbox:latest
 
 # Run tests.
-TEST_SRC=./controllers/... ./tests/integration/features/...
+TEST_SRC=./controllers/... ./tests/integration/... ./pkg/...
 
 .PHONY: envtest
 envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
 $(ENVTEST): $(LOCALBIN)
-	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+	test -s $(ENVTEST) || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@$(ENVTEST_PACKAGE_VERSION)
 
 .PHONY: test
 test: unit-test e2e-test
@@ -336,6 +369,7 @@ CLEANFILES += cover.out
 e2e-test: ## Run e2e tests for the controller
 	go test ./tests/e2e/ -run ^TestOdhOperator -v --operator-namespace=${OPERATOR_NAMESPACE} ${E2E_TEST_FLAGS}
 
-clean:
+clean: $(GOLANGCI_LINT)
+	$(GOLANGCI_LINT) cache clean
 	chmod u+w -R $(LOCALBIN) # envtest makes its dir RO
 	rm -rf $(CLEANFILES)

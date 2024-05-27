@@ -3,34 +3,38 @@ package feature
 import (
 	"context"
 	"fmt"
+	"io/fs"
 
 	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
-	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	"github.com/pkg/errors"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlLog "sigs.k8s.io/controller-runtime/pkg/log"
 
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
 type Feature struct {
 	Name    string
 	Spec    *Spec
 	Enabled bool
+	Managed bool
 	Tracker *featurev1.FeatureTracker
 
 	Client client.Client
 
-	manifests []manifest
+	manifests []Manifest
 
 	cleanups       []Action
 	resources      []Action
 	preconditions  []Action
 	postconditions []Action
 	loaders        []Action
+	fsys           fs.FS
 
 	Log logr.Logger
 }
@@ -46,74 +50,77 @@ func newFeature(name string) *Feature {
 // Action is a func type which can be used for different purposes while having access to Feature struct.
 type Action func(feature *Feature) error
 
-//nolint:nonamedreturns // Reason: we use the named return to handle errors in a unified fashion through deferred function.
-func (f *Feature) Apply() (err error) {
+func (f *Feature) Apply() error {
 	if !f.Enabled {
 		return nil
 	}
 
-	if trackerErr := f.createFeatureTracker(); err != nil {
+	if trackerErr := f.createFeatureTracker(); trackerErr != nil {
 		return trackerErr
 	}
 
-	// Verify all precondition and collect errors
-	var multiErr *multierror.Error
-	phase := featurev1.FeatureCreated
-	f.updateFeatureTrackerStatus(conditionsv1.ConditionProgressing, "True", phase, fmt.Sprintf("Applying feature %s", f.Name))
-	defer func() {
-		if err != nil {
-			f.updateFeatureTrackerStatus(conditionsv1.ConditionDegraded, "True", phase, err.Error())
-		} else {
-			f.updateFeatureTrackerStatus(conditionsv1.ConditionAvailable, "True", phase, fmt.Sprintf("Feature %s applied successfully", f.Name))
-		}
-	}()
+	if _, updateErr := status.UpdateWithRetry(context.Background(), f.Client, f.Tracker, func(saved *featurev1.FeatureTracker) {
+		status.SetProgressingCondition(&saved.Status.Conditions, string(featurev1.ConditionReason.FeatureCreated), fmt.Sprintf("Applying feature [%s]", f.Name))
+		saved.Status.Phase = status.PhaseProgressing
+	}); updateErr != nil {
+		return updateErr
+	}
 
-	phase = featurev1.PreConditions
+	applyErr := f.applyFeature()
+	_, reportErr := createFeatureTrackerStatusReporter(f).ReportCondition(applyErr)
+
+	return multierror.Append(applyErr, reportErr).ErrorOrNil()
+}
+
+func (f *Feature) applyFeature() error {
+	var multiErr *multierror.Error
+
 	for _, precondition := range f.preconditions {
 		multiErr = multierror.Append(multiErr, precondition(f))
 	}
 
 	if preconditionsErr := multiErr.ErrorOrNil(); preconditionsErr != nil {
-		return preconditionsErr
+		return &withConditionReasonError{reason: featurev1.ConditionReason.PreConditions, err: preconditionsErr}
 	}
 
-	phase = featurev1.LoadTemplateData
 	for _, loader := range f.loaders {
 		multiErr = multierror.Append(multiErr, loader(f))
 	}
-
 	if dataLoadErr := multiErr.ErrorOrNil(); dataLoadErr != nil {
-		return dataLoadErr
+		return &withConditionReasonError{reason: featurev1.ConditionReason.LoadTemplateData, err: dataLoadErr}
 	}
 
-	phase = featurev1.ResourceCreation
 	for _, resource := range f.resources {
-		if err := resource(f); err != nil {
-			return errors.WithStack(err)
+		if resourceCreateErr := resource(f); resourceCreateErr != nil {
+			return &withConditionReasonError{reason: featurev1.ConditionReason.ResourceCreation, err: resourceCreateErr}
 		}
 	}
 
-	phase = featurev1.ProcessTemplates
 	for i := range f.manifests {
-		if err := f.manifests[i].process(f.Spec); err != nil {
-			return errors.WithStack(err)
+		manifest := f.manifests[i]
+		apply := f.createApplier(manifest)
+
+		objs, processErr := manifest.Process(f.Spec)
+		if processErr != nil {
+			return &withConditionReasonError{reason: featurev1.ConditionReason.ApplyManifests, err: processErr}
+		}
+
+		if f.Managed {
+			manifest.MarkAsManaged(objs)
+		}
+
+		if err := apply(objs); err != nil {
+			return &withConditionReasonError{reason: featurev1.ConditionReason.ApplyManifests, err: err}
 		}
 	}
 
-	phase = featurev1.ApplyManifests
-	if err := f.applyManifests(); err != nil {
-		return errors.WithStack(err)
-	}
-
-	phase = featurev1.PostConditions
 	for _, postcondition := range f.postconditions {
 		multiErr = multierror.Append(multiErr, postcondition(f))
 	}
-	if multiErr.ErrorOrNil() != nil {
-		return multiErr.ErrorOrNil()
+	if postConditionErr := multiErr.ErrorOrNil(); postConditionErr != nil {
+		return &withConditionReasonError{reason: featurev1.ConditionReason.PostConditions, err: postConditionErr}
 	}
 
-	phase = featurev1.FeatureCreated
 	return nil
 }
 
@@ -134,45 +141,55 @@ func (f *Feature) Cleanup() error {
 	return cleanupErrors.ErrorOrNil()
 }
 
-func (f *Feature) applyManifests() error {
-	var applyErrors *multierror.Error
-	for _, m := range f.manifests {
-		applyErrors = multierror.Append(applyErrors, f.apply(m))
+type applier func(objects []*unstructured.Unstructured) error
+
+func (f *Feature) createApplier(m Manifest) applier {
+	switch manifest := m.(type) {
+	case *templateManifest:
+		if manifest.patch {
+			return func(objects []*unstructured.Unstructured) error {
+				return patchResources(f.Client, objects)
+			}
+		}
+	case *rawManifest:
+		if manifest.patch {
+			return func(objects []*unstructured.Unstructured) error {
+				return patchResources(f.Client, objects)
+			}
+		}
 	}
 
-	return applyErrors.ErrorOrNil()
+	return func(objects []*unstructured.Unstructured) error {
+		return applyResources(f.Client, objects, OwnedBy(f))
+	}
 }
 
 func (f *Feature) addCleanup(cleanupFuncs ...Action) {
 	f.cleanups = append(f.cleanups, cleanupFuncs...)
 }
 
-type apply func(data string) error
-
-func (f *Feature) apply(m manifest) error {
-	var applier apply
-	targetPath := m.targetPath()
-
-	if m.patch {
-		applier = func(data string) error {
-			f.Log.Info("patching using manifest", "feature", f.Name, "name", m.name, "path", targetPath)
-
-			return f.patchResources(data)
-		}
-	} else {
-		applier = func(data string) error {
-			f.Log.Info("applying manifest", "feature", f.Name, "name", m.name, "path", targetPath)
-
-			return f.createResources(data)
-		}
-	}
-
-	if err := applier(m.processedContent); err != nil {
-		f.Log.Error(err, "failed to create resource", "feature", f.Name, "name", m.name, "path", targetPath)
-
+func (f *Feature) ApplyManifest(path string) error {
+	m, err := loadManifestsFrom(f.fsys, path)
+	if err != nil {
 		return err
 	}
+	for i := range m {
+		var objs []*unstructured.Unstructured
+		manifest := m[i]
+		apply := f.createApplier(manifest)
 
+		if objs, err = manifest.Process(f.Spec); err != nil {
+			return errors.WithStack(err)
+		}
+
+		if f.Managed {
+			manifest.MarkAsManaged(objs)
+		}
+
+		if err = apply(objs); err != nil {
+			return errors.WithStack(err)
+		}
+	}
 	return nil
 }
 
@@ -180,27 +197,6 @@ func (f *Feature) AsOwnerReference() metav1.OwnerReference {
 	return f.Tracker.ToOwnerReference()
 }
 
-// updateFeatureTrackerStatus updates conditions of a FeatureTracker.
-// It's deliberately logging errors instead of handing them as it is used in deferred error handling of Feature public API,
-// which is more predictable.
-func (f *Feature) updateFeatureTrackerStatus(condType conditionsv1.ConditionType, status corev1.ConditionStatus, reason featurev1.FeaturePhase, message string) {
-	tracker := f.Tracker
-
-	// Update the status
-	if tracker.Status.Conditions == nil {
-		tracker.Status.Conditions = &[]conditionsv1.Condition{}
-	}
-	conditionsv1.SetStatusCondition(tracker.Status.Conditions, conditionsv1.Condition{
-		Type:    condType,
-		Status:  status,
-		Reason:  string(reason),
-		Message: message,
-	})
-
-	err := f.Client.Status().Update(context.Background(), tracker)
-	if err != nil {
-		f.Log.Error(err, "Error updating FeatureTracker status")
-	}
-
-	f.Tracker.Status = tracker.Status
+func OwnedBy(f *Feature) cluster.MetaOptions {
+	return cluster.WithOwnerReference(f.AsOwnerReference())
 }

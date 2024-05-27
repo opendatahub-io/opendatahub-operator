@@ -19,8 +19,6 @@ package dscinitialization
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"path/filepath"
 	"reflect"
 
@@ -34,7 +32,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -48,6 +45,7 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/trustedcabundle"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
@@ -57,7 +55,7 @@ const (
 	finalizerName = "dscinitialization.opendatahub.io/finalizer"
 )
 
-// This ar is required by the .spec.TrustedCABundle field. When a user goes from Unmanaged to Managed, update all
+// This ar is required by the .spec.TrustedCABundle field on Reconcile Update Event. When a user goes from Unmanaged to Managed, update all
 // namespaces irrespective of any changes in the configmap.
 var managementStateChangeTrustedCA = false
 
@@ -90,33 +88,11 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 
 	var instance *dsciv1.DSCInitialization
-	switch {
+	switch { // only handle number as 0 or 1, others won't be existed since webhook block creation
 	case len(instances.Items) == 0:
 		return ctrl.Result{}, nil
 	case len(instances.Items) == 1:
 		instance = &instances.Items[0]
-	case len(instances.Items) > 1:
-		// find out the one by created timestamp and use it as the default one
-		earliestDSCI := &instances.Items[0]
-		for _, instance := range instances.Items {
-			currentDSCI := instance
-			if currentDSCI.CreationTimestamp.Before(&earliestDSCI.CreationTimestamp) {
-				earliestDSCI = &currentDSCI
-			}
-		}
-		message := fmt.Sprintf("only one instance of DSCInitialization object is allowed. Please delete other instances than %s", earliestDSCI.Name)
-		// update all instances Message and Status
-		for _, deletionInstance := range instances.Items {
-			deletionInstance := deletionInstance
-			if deletionInstance.Name != earliestDSCI.Name {
-				_, _ = r.updateStatus(ctx, &deletionInstance, func(saved *dsciv1.DSCInitialization) {
-					status.SetErrorCondition(&saved.Status.Conditions, status.DuplicateDSCInitialization, message)
-					saved.Status.Phase = status.PhaseError
-				})
-			}
-		}
-
-		return ctrl.Result{}, errors.New(message)
 	}
 
 	if instance.ObjectMeta.DeletionTimestamp.IsZero() {
@@ -147,7 +123,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	if instance.Status.Conditions == nil {
 		reason := status.ReconcileInit
 		message := "Initializing DSCInitialization resource"
-		instance, err = r.updateStatus(ctx, instance, func(saved *dsciv1.DSCInitialization) {
+		instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
 			status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
 			saved.Status.Phase = status.PhaseProgressing
 		})
@@ -168,15 +144,14 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return reconcile.Result{}, err
 	}
 
-	// Verify odh-trusted-ca-bundle Configmap is configured for the namespaces
-	err = trustedcabundle.ConfigureTrustedCABundle(ctx, r.Client, r.Log, instance, managementStateChangeTrustedCA)
-	if err != nil {
+	// Check ManagementState to verify if odh-trusted-ca-bundle Configmap should be configured for namespaces
+	if err := trustedcabundle.ConfigureTrustedCABundle(ctx, r.Client, r.Log, instance, managementStateChangeTrustedCA); err != nil {
 		return reconcile.Result{}, err
 	}
 	managementStateChangeTrustedCA = false
 
 	// Get platform
-	platform, err := deploy.GetPlatform(r.Client)
+	platform, err := cluster.GetPlatform(r.Client)
 	if err != nil {
 		r.Log.Error(err, "Failed to determine platform (managed vs self-managed)")
 
@@ -185,7 +160,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	switch req.Name {
 	case "prometheus": // prometheus configmap
-		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == deploy.ManagedRhods {
+		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == cluster.ManagedRhods {
 			r.Log.Info("Monitoring enabled to restart deployment", "cluster", "Managed Service Mode")
 			err := r.configureManagedMonitoring(ctx, instance, "updates")
 			if err != nil {
@@ -195,7 +170,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 		return ctrl.Result{}, nil
 	case "addon-managed-odh-parameters":
-		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == deploy.ManagedRhods {
+		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == cluster.ManagedRhods {
 			r.Log.Info("Monitoring enabled when notification updated", "cluster", "Managed Service Mode")
 			err := r.configureManagedMonitoring(ctx, instance, "updates")
 			if err != nil {
@@ -205,7 +180,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 		return ctrl.Result{}, nil
 	case "backup": // revert back to the original prometheus.yml
-		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == deploy.ManagedRhods {
+		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == cluster.ManagedRhods {
 			r.Log.Info("Monitoring enabled to restore back", "cluster", "Managed Service Mode")
 			err := r.configureManagedMonitoring(ctx, instance, "revertbackup")
 			if err != nil {
@@ -228,7 +203,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		if instance.Status.Conditions == nil {
 			reason := status.ReconcileInit
 			message := "Initializing DSCInitialization resource"
-			instance, err = r.updateStatus(ctx, instance, func(saved *dsciv1.DSCInitialization) {
+			instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
 				status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
 				saved.Status.Phase = status.PhaseProgressing
 			})
@@ -242,7 +217,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 
 		switch platform {
-		case deploy.SelfManagedRhods:
+		case cluster.SelfManagedRhods:
 			err := r.createUserGroup(ctx, instance, "rhods-admins")
 			if err != nil {
 				return reconcile.Result{}, err
@@ -254,7 +229,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 					return reconcile.Result{}, err
 				}
 			}
-		case deploy.ManagedRhods:
+		case cluster.ManagedRhods:
 			osdConfigsPath := filepath.Join(deploy.DefaultManifestPath, "osd-configs")
 			err = deploy.DeployManifestsFromPath(r.Client, instance, osdConfigsPath, r.ApplicationsNamespace, "osd", true)
 			if err != nil {
@@ -290,7 +265,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 
 		// Finish reconciling
-		_, err = r.updateStatus(ctx, instance, func(saved *dsciv1.DSCInitialization) {
+		_, err = status.UpdateWithRetry[*dsciv1.DSCInitialization](ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
 			status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, status.ReconcileCompletedMessage)
 			saved.Status.Phase = status.PhaseReady
 		})
@@ -326,24 +301,6 @@ func (r *DSCInitializationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&source.Kind{Type: &corev1.Secret{}}, handler.EnqueueRequestsFromMapFunc(r.watchMonitoringSecretResource), builder.WithPredicates(SecretContentChangedPredicate)).
 		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchMonitoringConfigMapResource), builder.WithPredicates(CMContentChangedPredicate)).
 		Complete(r)
-}
-
-func (r *DSCInitializationReconciler) updateStatus(ctx context.Context, original *dsciv1.DSCInitialization, update func(saved *dsciv1.DSCInitialization),
-) (*dsciv1.DSCInitialization, error) {
-	saved := &dsciv1.DSCInitialization{}
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		if err := r.Client.Get(ctx, client.ObjectKeyFromObject(original), saved); err != nil {
-			return err
-		}
-
-		update(saved)
-
-		// Return err itself here (not wrapped inside another error)
-		// so that RetryOnConflict can identify it correctly.
-		return r.Client.Status().Update(ctx, saved)
-	})
-
-	return saved, err
 }
 
 var SecretContentChangedPredicate = predicate.Funcs{
@@ -393,10 +350,11 @@ func (r *DSCInitializationReconciler) watchMonitoringConfigMapResource(a client.
 }
 
 func (r *DSCInitializationReconciler) watchMonitoringSecretResource(a client.Object) []reconcile.Request {
-	operatorNs, err := upgrade.GetOperatorNamespace()
+	operatorNs, err := cluster.GetOperatorNamespace()
 	if err != nil {
 		return nil
 	}
+
 	if a.GetName() == "addon-managed-odh-parameters" && a.GetNamespace() == operatorNs {
 		r.Log.Info("Found monitoring secret has updated, start reconcile")
 
@@ -411,7 +369,7 @@ func (r *DSCInitializationReconciler) watchDSCResource(_ client.Object) []reconc
 		// do not handle if cannot get list
 		return nil
 	}
-	if len(instanceList.Items) == 0 && !upgrade.HasDeleteConfigMap(r.Client) {
+	if len(instanceList.Items) == 0 && !upgrade.HasDeleteConfigMap(context.TODO(), r.Client) {
 		r.Log.Info("Found no DSC instance in cluster but not in uninstalltion process, reset monitoring stack config")
 
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "backup"}}}

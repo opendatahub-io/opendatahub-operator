@@ -1,5 +1,6 @@
 // Package dashboard provides utility functions to config Open Data Hub Dashboard: A web dashboard that displays
 // installed Open Data Hub components with easy access to component UIs and documentation
+// +groupName=datasciencecluster.opendatahub.io
 package dashboard
 
 import (
@@ -8,12 +9,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	v1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -21,23 +22,26 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/monitoring"
 )
 
 var (
-	ComponentName          = "dashboard"
-	ComponentNameSupported = "rhods-dashboard"
-	Path                   = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
-	PathSupported          = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/rhods"
-	PathISVSM              = deploy.DefaultManifestPath + "/" + ComponentName + "/apps/apps-onprem"
-	PathISVAddOn           = deploy.DefaultManifestPath + "/" + ComponentName + "/apps/apps-addon"
-	PathOVMS               = deploy.DefaultManifestPath + "/" + ComponentName + "/modelserving"
-	PathODHDashboardConfig = deploy.DefaultManifestPath + "/" + ComponentName + "/odhdashboardconfig"
-	PathConsoleLink        = deploy.DefaultManifestPath + "/" + ComponentName + "/consolelink"
-	PathCRDs               = deploy.DefaultManifestPath + "/" + ComponentName + "/crd"
-	NameConsoleLink        = "console"
-	NamespaceConsoleLink   = "openshift-console"
-	PathAnaconda           = deploy.DefaultManifestPath + "/partners/anaconda/base/"
+	ComponentName    = "dashboard"
+	Path             = deploy.DefaultManifestPath + "/" + ComponentName + "/base"         // ODH
+	PathISV          = deploy.DefaultManifestPath + "/" + ComponentName + "/apps"         // ODH APPS
+	PathModelServing = deploy.DefaultManifestPath + "/" + ComponentName + "/modelserving" // ODH modelserving
+	PathCRDs         = deploy.DefaultManifestPath + "/" + ComponentName + "/crd"          // ODH + RHOAI
+	PathConsoleLink  = deploy.DefaultManifestPath + "/" + ComponentName + "/consolelink"  // ODH consolelink
+
+	ComponentNameSupported    = "rhods-dashboard"
+	PathSupported             = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/rhoai"              // RHOAI
+	PathSupportedModelServing = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/modelserving"       // RHOAI modelserving
+	PathISVSM                 = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps/apps-onprem"   // RHOAI APPS
+	PathISVAddOn              = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps/apps-addon"    // RHOAI APPS
+	PathConsoleLinkSupported  = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/consolelink"        // RHOAI
+	PathODHDashboardConfig    = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/odhdashboardconfig" // RHOAI odhdashboardconfig
+
+	NameConsoleLink      = "console"
+	NamespaceConsoleLink = "openshift-console"
 )
 
 // Verifies that Dashboard implements ComponentInterface.
@@ -57,8 +61,8 @@ func (d *Dashboard) OverrideManifests(platform string) error {
 			return err
 		}
 		// If overlay is defined, update paths
-		if platform == string(deploy.ManagedRhods) || platform == string(deploy.SelfManagedRhods) {
-			defaultKustomizePath := "overlays/rhods"
+		if platform == string(cluster.ManagedRhods) || platform == string(cluster.SelfManagedRhods) {
+			defaultKustomizePath := "overlays/rhoai"
 			if manifestConfig.SourcePath != "" {
 				defaultKustomizePath = manifestConfig.SourcePath
 			}
@@ -82,26 +86,33 @@ func (d *Dashboard) GetComponentName() string {
 //nolint:gocyclo
 func (d *Dashboard) ReconcileComponent(ctx context.Context,
 	cli client.Client,
-	resConf *rest.Config,
+	logger logr.Logger,
 	owner metav1.Object,
 	dscispec *dsciv1.DSCInitializationSpec,
 	currentComponentExist bool,
 ) error {
+	var l logr.Logger
+	platform, err := cluster.GetPlatform(cli)
+	if err != nil {
+		return err
+	}
+	if platform == cluster.SelfManagedRhods || platform == cluster.ManagedRhods {
+		l = d.ConfigComponentLogger(logger, ComponentNameSupported, dscispec)
+	} else {
+		l = d.ConfigComponentLogger(logger, ComponentName, dscispec)
+	}
+
 	var imageParamMap = map[string]string{
 		"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
 	}
 	enabled := d.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 
-	platform, err := deploy.GetPlatform(cli)
-	if err != nil {
-		return err
-	}
-
 	// Update Default rolebinding
 	if enabled {
-		// cleanup OAuth client related secret and CR if dashboard is in 'installed falas' status
-		if err := d.cleanOauthClient(cli, dscispec, currentComponentExist); err != nil {
+		// Update Default rolebinding
+		// cleanup OAuth client related secret and CR if dashboard is in 'installed false' status
+		if err := d.cleanOauthClient(ctx, cli, dscispec, currentComponentExist, l); err != nil {
 			return err
 		}
 		if d.DevFlags != nil {
@@ -110,74 +121,69 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 				return err
 			}
 		}
-		if platform == deploy.OpenDataHub || platform == "" {
+		// 1. Deploy CRDs
+		if err := d.deployCRDsForPlatform(cli, owner, dscispec.ApplicationsNamespace, platform); err != nil {
+			return fmt.Errorf("failed to deploy Dashboard CRD: %w", err)
+		}
+
+		// 2. platform specific RBAC
+		if platform == cluster.OpenDataHub || platform == "" {
 			err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "odh-dashboard")
 			if err != nil {
 				return err
 			}
-			// Deploy CRDs
-			if err := d.deployCRDsForPlatform(cli, owner, dscispec.ApplicationsNamespace, platform); err != nil {
-				return fmt.Errorf("failed to deploy %s crds %s: %w", ComponentName, PathCRDs, err)
-			}
 		}
 
-		if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
+		if platform == cluster.SelfManagedRhods || platform == cluster.ManagedRhods {
 			err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "rhods-dashboard")
 			if err != nil {
 				return err
 			}
-			// Deploy CRDs
-			if err := d.deployCRDsForPlatform(cli, owner, dscispec.ApplicationsNamespace, platform); err != nil {
-				return fmt.Errorf("failed to deploy %s crds %s: %w", ComponentNameSupported, PathCRDs, err)
-			}
-			// Apply RHODS specific configs
-			if err := d.applyRhodsSpecificConfigs(cli, owner, dscispec.ApplicationsNamespace, platform); err != nil {
-				return err
-			}
 		}
 
-		// Update image parameters (ODH does not use this solution, only downstream)
+		// 3. Update image parameters
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (d.DevFlags == nil || len(d.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(PathSupported, d.SetImageParamsMap(imageParamMap), false); err != nil {
-				return err
+			if err := deploy.ApplyParams(PathSupported, imageParamMap, false); err != nil {
+				return fmt.Errorf("failed to update image from %s : %w", PathSupported, err)
 			}
 		}
 	}
 
-	// Deploy odh-dashboard manifests
-	if platform == deploy.OpenDataHub || platform == "" {
-		if err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
-			return err
-		}
-	} else if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
-		// Apply authentication overlay
-		if err := deploy.DeployManifestsFromPath(cli, owner, PathSupported, dscispec.ApplicationsNamespace, ComponentNameSupported, enabled); err != nil {
-			return err
-		}
-	}
-
+	// common: Deploy odh-dashboard manifests
+	// TODO: check if we can have the same component name odh-dashboard for both, or still keep rhods-dashboard for RHOAI
 	switch platform {
-	case deploy.SelfManagedRhods, deploy.ManagedRhods:
-		sectionTitle := "OpenShift Managed Services"
-		if platform == deploy.SelfManagedRhods {
-			sectionTitle = "OpenShift Self Managed Services"
+	case cluster.SelfManagedRhods, cluster.ManagedRhods:
+		// anaconda
+		if err := cluster.CreateSecret(cli, "anaconda-ce-access", dscispec.ApplicationsNamespace); err != nil {
+			return fmt.Errorf("failed to create access-secret for anaconda: %w", err)
+		}
+		// overlay which including ../../base + anaconda-ce-validator
+		if err := deploy.DeployManifestsFromPath(cli, owner, PathSupported, dscispec.ApplicationsNamespace, ComponentNameSupported, enabled); err != nil {
+			return fmt.Errorf("failed to apply manifests from %s: %w", PathSupported, err)
+		}
+		// modelserving
+		if err := deploy.DeployManifestsFromPath(cli, owner, PathSupportedModelServing, dscispec.ApplicationsNamespace, ComponentNameSupported, enabled); err != nil {
+			return fmt.Errorf("failed to set dashboard modelserving from %s: %w", PathSupportedModelServing, err)
 		}
 
-		if err := d.deployISVManifests(cli, owner, ComponentNameSupported, dscispec.ApplicationsNamespace, platform); err != nil {
+		// Apply RHOAI specific configs, e.g anaconda screct and cronjob and ISV
+		if err := d.applyRHOAISpecificConfigs(cli, owner, dscispec.ApplicationsNamespace, platform); err != nil {
 			return err
 		}
+		// consolelink
+		if err := d.deployConsoleLink(ctx, cli, owner, platform, dscispec.ApplicationsNamespace, ComponentNameSupported); err != nil {
+			return err
+		}
+		l.Info("apply manifests done")
 
-		if err := d.deployConsoleLink(cli, owner, dscispec.ApplicationsNamespace, ComponentNameSupported, sectionTitle); err != nil {
-			return err
-		}
 		// CloudService Monitoring handling
-		if platform == deploy.ManagedRhods {
+		if platform == cluster.ManagedRhods {
 			if enabled {
 				// first check if the service is up, so prometheus won't fire alerts when it is just startup
-				if err := monitoring.WaitForDeploymentAvailable(ctx, resConf, ComponentNameSupported, dscispec.ApplicationsNamespace, 20, 3); err != nil {
+				if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentNameSupported, dscispec.ApplicationsNamespace, 20, 3); err != nil {
 					return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 				}
-				fmt.Printf("deployment for %s is done, updating monitoring rules\n", ComponentNameSupported)
+				l.Info("deployment is done, updating monitoring rules")
 			}
 
 			if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentNameSupported); err != nil {
@@ -189,98 +195,109 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 				"prometheus", true); err != nil {
 				return err
 			}
+			l.Info("updating SRE monitoring done")
 		}
 		return nil
 	default:
+		// base
+		if err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+			return err
+		}
+		// ISV
+		if err = deploy.DeployManifestsFromPath(cli, owner, PathISV, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+			return err
+		}
+		// modelserving
+		if err := deploy.DeployManifestsFromPath(cli, owner, PathModelServing, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+			return fmt.Errorf("failed to set dashboard modelserving from %s: %w", PathModelServing, err)
+		}
+		// consolelink
+		if err := d.deployConsoleLink(ctx, cli, owner, platform, dscispec.ApplicationsNamespace, ComponentName); err != nil {
+			return err
+		}
+		l.Info("apply manifests done")
 		return nil
 	}
 }
 
-func (d *Dashboard) deployCRDsForPlatform(cli client.Client, owner metav1.Object, namespace string, platform deploy.Platform) error {
+func (d *Dashboard) deployCRDsForPlatform(cli client.Client, owner metav1.Object, namespace string, platform cluster.Platform) error {
 	componentName := ComponentName
-	if platform == deploy.SelfManagedRhods || platform == deploy.ManagedRhods {
+	if platform == cluster.SelfManagedRhods || platform == cluster.ManagedRhods {
 		componentName = ComponentNameSupported
 	}
-
-	enabled := d.ManagementState == operatorv1.Managed
-
-	return deploy.DeployManifestsFromPath(cli, owner, PathCRDs, namespace, componentName, enabled)
+	// we only deploy CRD, we do not remove CRD
+	return deploy.DeployManifestsFromPath(cli, owner, PathCRDs, namespace, componentName, true)
 }
 
-func (d *Dashboard) applyRhodsSpecificConfigs(cli client.Client, owner metav1.Object, namespace string, platform deploy.Platform) error {
+func (d *Dashboard) applyRHOAISpecificConfigs(cli client.Client, owner metav1.Object, namespace string, platform cluster.Platform) error {
+	enabled := d.ManagementState == operatorv1.Managed
+
+	// set proper group name
 	dashboardConfig := filepath.Join(PathODHDashboardConfig, "odhdashboardconfig.yaml")
-	adminGroups := map[deploy.Platform]string{
-		deploy.SelfManagedRhods: "rhods-admins",
-		deploy.ManagedRhods:     "dedicated-admins",
+	adminGroups := map[cluster.Platform]string{
+		cluster.SelfManagedRhods: "rhods-admins",
+		cluster.ManagedRhods:     "dedicated-admins",
 	}[platform]
 
 	if err := common.ReplaceStringsInFile(dashboardConfig, map[string]string{"<admin_groups>": adminGroups}); err != nil {
 		return err
 	}
-
-	enabled := d.ManagementState == operatorv1.Managed
 	if err := deploy.DeployManifestsFromPath(cli, owner, PathODHDashboardConfig, namespace, ComponentNameSupported, enabled); err != nil {
-		return fmt.Errorf("failed to set dashboard config from %s: %w", PathODHDashboardConfig, err)
+		return fmt.Errorf("failed to create OdhDashboardConfig from %s: %w", PathODHDashboardConfig, err)
 	}
-
-	if err := deploy.DeployManifestsFromPath(cli, owner, PathOVMS, namespace, ComponentNameSupported, enabled); err != nil {
-		return fmt.Errorf("failed to set dashboard OVMS from %s: %w", PathOVMS, err)
-	}
-
-	if err := cluster.CreateSecret(cli, "anaconda-ce-access", namespace); err != nil {
-		return fmt.Errorf("failed to create access-secret for anaconda: %w", err)
-	}
-
-	return deploy.DeployManifestsFromPath(cli, owner, PathAnaconda, namespace, ComponentNameSupported, enabled)
-}
-
-func (d *Dashboard) deployISVManifests(cli client.Client, owner metav1.Object, componentName, namespace string, platform deploy.Platform) error {
-	var path string
-	switch platform {
-	case deploy.SelfManagedRhods:
-		path = PathISVSM
-	case deploy.ManagedRhods:
+	// ISV
+	path := PathISVSM
+	if platform == cluster.ManagedRhods {
 		path = PathISVAddOn
-	default:
-		return nil
 	}
-
-	enabled := d.ManagementState == operatorv1.Managed
-	if err := deploy.DeployManifestsFromPath(cli, owner, path, namespace, componentName, enabled); err != nil {
-		return fmt.Errorf("failed to set dashboard ISV from %s: %w", path, err)
+	if err := deploy.DeployManifestsFromPath(cli, owner, path, namespace, ComponentNameSupported, enabled); err != nil {
+		return fmt.Errorf("failed to set dashboard ISV from %s : %w", Path, err)
 	}
-
 	return nil
 }
 
-func (d *Dashboard) deployConsoleLink(cli client.Client, owner metav1.Object, namespace, componentName, sectionTitle string) error {
-	pathConsoleLink := filepath.Join(PathConsoleLink, "consolelink.yaml")
+func (d *Dashboard) deployConsoleLink(ctx context.Context, cli client.Client, owner metav1.Object, platform cluster.Platform, namespace, componentName string) error {
+	var manifestsPath, sectionTitle, routeName string
+	switch platform {
+	case cluster.SelfManagedRhods:
+		sectionTitle = "OpenShift Self Managed Services"
+		manifestsPath = PathConsoleLinkSupported
+		routeName = componentName
+	case cluster.ManagedRhods:
+		sectionTitle = "OpenShift Managed Services"
+		manifestsPath = PathConsoleLinkSupported
+		routeName = componentName
+	default:
+		sectionTitle = "OpenShift Open Data Hub"
+		manifestsPath = PathConsoleLink
+		routeName = "odh-dashboard"
+	}
+
+	pathConsoleLink := filepath.Join(manifestsPath, "consolelink.yaml")
 
 	consoleRoute := &routev1.Route{}
-	if err := cli.Get(context.TODO(), client.ObjectKey{Name: NameConsoleLink, Namespace: NamespaceConsoleLink}, consoleRoute); err != nil {
-		return fmt.Errorf("error getting console route URL: %w", err)
+	if err := cli.Get(ctx, client.ObjectKey{Name: NameConsoleLink, Namespace: NamespaceConsoleLink}, consoleRoute); err != nil {
+		return fmt.Errorf("error getting console route URL %s : %w", NameConsoleLink, err)
 	}
 
 	domainIndex := strings.Index(consoleRoute.Spec.Host, ".")
 	consoleLinkDomain := consoleRoute.Spec.Host[domainIndex+1:]
-	err := common.ReplaceStringsInFile(pathConsoleLink, map[string]string{
-		"<rhods-dashboard-url>": "https://rhods-dashboard-" + namespace + "." + consoleLinkDomain,
-		"<section-title>":       sectionTitle,
-	})
-	if err != nil {
-		return fmt.Errorf("error replacing with correct dashboard url for ConsoleLink: %w", err)
+	if err := common.ReplaceStringsInFile(pathConsoleLink, map[string]string{
+		"<dashboard-url>": "https://" + routeName + "-" + namespace + "." + consoleLinkDomain,
+		"<section-title>": sectionTitle,
+	}); err != nil {
+		return fmt.Errorf("error replacing with correct dashboard URL for consolelink : %w", err)
 	}
 
 	enabled := d.ManagementState == operatorv1.Managed
-	err = deploy.DeployManifestsFromPath(cli, owner, PathConsoleLink, namespace, componentName, enabled)
-	if err != nil {
-		return fmt.Errorf("failed to set dashboard consolelink from %s: %w", PathConsoleLink, err)
+	if err := deploy.DeployManifestsFromPath(cli, owner, PathConsoleLink, namespace, componentName, enabled); err != nil {
+		return fmt.Errorf("failed to set dashboard consolelink %s : %w", pathConsoleLink, err)
 	}
 
 	return nil
 }
 
-func (d *Dashboard) cleanOauthClient(cli client.Client, dscispec *dsciv1.DSCInitializationSpec, currentComponentExist bool) error {
+func (d *Dashboard) cleanOauthClient(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec, currentComponentExist bool, l logr.Logger) error {
 	// Remove previous oauth-client secrets
 	// Check if component is going from state of `Not Installed --> Installed`
 	// Assumption: Component is currently set to enabled
@@ -289,7 +306,7 @@ func (d *Dashboard) cleanOauthClient(cli client.Client, dscispec *dsciv1.DSCInit
 		fmt.Println("Cleanup any left secret")
 		// Delete client secrets from previous installation
 		oauthClientSecret := &v1.Secret{}
-		err := cli.Get(context.TODO(), client.ObjectKey{
+		err := cli.Get(ctx, client.ObjectKey{
 			Namespace: dscispec.ApplicationsNamespace,
 			Name:      name,
 		}, oauthClientSecret)
@@ -298,9 +315,10 @@ func (d *Dashboard) cleanOauthClient(cli client.Client, dscispec *dsciv1.DSCInit
 				return fmt.Errorf("error getting secret %s: %w", name, err)
 			}
 		} else {
-			if err := cli.Delete(context.TODO(), oauthClientSecret); err != nil {
-				return fmt.Errorf("error deleting oauth client secret: %w", err)
+			if err := cli.Delete(ctx, oauthClientSecret); err != nil {
+				return fmt.Errorf("error deleting secret %s: %w", name, err)
 			}
+			l.Info("successfully deleted secret", "secret", name)
 		}
 	}
 	return nil

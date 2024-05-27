@@ -19,7 +19,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/infrastructure/v1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 )
 
 func (f *Feature) CreateSelfSignedCertificate(secretName string, certificateType infrav1.CertType, domain, namespace string) error {
