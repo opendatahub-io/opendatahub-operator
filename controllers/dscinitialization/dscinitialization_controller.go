@@ -265,9 +265,15 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 
 		// Finish reconciling
+		operatorReleaseVersion, err := cluster.SetRelease(r.Client)
+		if err != nil {
+			r.Log.Error(err, "failed to get operator release version")
+			return ctrl.Result{}, err
+		}
 		_, err = status.UpdateWithRetry[*dsciv1.DSCInitialization](ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
 			status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, status.ReconcileCompletedMessage)
 			saved.Status.Phase = status.PhaseReady
+			saved.Status.Release = *operatorReleaseVersion
 		})
 		if err != nil {
 			r.Log.Error(err, "failed to update DSCInitialization status after successfully completed reconciliation")

@@ -257,10 +257,17 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	// finalize reconciliation
+	operatorReleaseVersion, err := cluster.SetRelease(r.Client)
+	if err != nil {
+		r.Log.Error(err, "failed to get operator release version")
+		return ctrl.Result{}, err
+	}
 	instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
 		status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, "DataScienceCluster resource reconciled successfully")
 		saved.Status.Phase = status.PhaseReady
+		saved.Status.Release = *operatorReleaseVersion
 	})
+
 	if err != nil {
 		r.Log.Error(err, "failed to update DataScienceCluster conditions after successfully completed reconciliation")
 
