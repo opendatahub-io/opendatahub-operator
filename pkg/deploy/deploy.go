@@ -389,21 +389,11 @@ func OperatorExists(cli client.Client, operatorPrefix string) (bool, error) {
 }
 
 func getResource(ctx context.Context, cli client.Client, obj *unstructured.Unstructured) (*unstructured.Unstructured, error) {
-	foundResources := &unstructured.UnstructuredList{}
-	// Verify we only get resource that matches the object kind
-	listOpts := []client.ListOption{
-		client.InNamespace(obj.GetNamespace()),
-		client.MatchingFields{"kind": obj.GetKind()},
-		client.MatchingFields{"metadata.name": obj.GetName()},
-	}
-	err := cli.List(ctx, foundResources, listOpts...)
-	if client.IgnoreNotFound(err) != nil {
-		return nil, err
-	}
-	if len(foundResources.Items) == 0 {
-		return nil, nil
-	}
-	return &foundResources.Items[0], err
+	found := &unstructured.Unstructured{}
+	// Setting gvk is required to do Get request
+	found.SetGroupVersionKind(obj.GroupVersionKind())
+	err := cli.Get(ctx, types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, found)
+	return found, err
 }
 
 func handleDisabledComponent(ctx context.Context, cli client.Client, found *unstructured.Unstructured, componentName string, owner metav1.Object) error {
