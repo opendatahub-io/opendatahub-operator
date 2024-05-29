@@ -79,6 +79,12 @@ type DSCInitializationReconciler struct { //nolint:golint,revive // Readability
 func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:funlen,gocyclo,maintidx
 	r.Log.Info("Reconciling DSCInitialization.", "DSCInitialization Request.Name", req.Name)
 
+	currentOperatorReleaseVersion, err := cluster.GetRelease(r.Client)
+	if err != nil {
+		r.Log.Error(err, "failed to get operator release version")
+		return ctrl.Result{}, err
+	}
+
 	instances := &dsciv1.DSCInitializationList{}
 	if err := r.Client.List(ctx, instances); err != nil {
 		r.Log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization Request.Name", req.Name)
@@ -118,7 +124,6 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return ctrl.Result{}, nil
 	}
 
-	var err error
 	// Start reconciling
 	if instance.Status.Conditions == nil {
 		reason := status.ReconcileInit
@@ -265,15 +270,10 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 
 		// Finish reconciling
-		operatorReleaseVersion, err := cluster.SetRelease(r.Client)
-		if err != nil {
-			r.Log.Error(err, "failed to get operator release version")
-			return ctrl.Result{}, err
-		}
 		_, err = status.UpdateWithRetry[*dsciv1.DSCInitialization](ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
 			status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, status.ReconcileCompletedMessage)
 			saved.Status.Phase = status.PhaseReady
-			saved.Status.Release = *operatorReleaseVersion
+			saved.Status.Release = currentOperatorReleaseVersion
 		})
 		if err != nil {
 			r.Log.Error(err, "failed to update DSCInitialization status after successfully completed reconciliation")

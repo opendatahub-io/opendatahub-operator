@@ -122,17 +122,19 @@ func GetPlatform(cli client.Client) (Platform, error) {
 	return isSelfManaged(cli)
 }
 
+// Release includes information on operator version and platform
+// +kubebuilder:object:generate=true
 type Release struct {
 	Name    Platform                `json:"name,omitempty"`
 	Version version.OperatorVersion `json:"version,omitempty"`
 }
 
-func SetRelease(cli client.Client) (*Release, error) {
-	initRelease := &Release{}
+func GetRelease(cli client.Client) (Release, error) {
+	initRelease := Release{}
 	// Set platform
 	platform, err := GetPlatform(cli)
 	if err != nil {
-		return nil, err
+		return initRelease, err
 	}
 	initRelease.Name = platform
 
@@ -140,11 +142,11 @@ func SetRelease(cli client.Client) (*Release, error) {
 	// Get watchNamespace
 	operatorNamespace, err := GetOperatorNamespace()
 	if err != nil {
-		return nil, err
+		return initRelease, err
 	}
 	csv, err := GetClusterServiceVersion(context.TODO(), cli, operatorNamespace)
 	if err != nil {
-		return nil, err
+		return initRelease, err
 	}
 	initRelease.Version = csv.Spec.Version
 	return initRelease, nil
