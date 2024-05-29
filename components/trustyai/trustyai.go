@@ -19,8 +19,9 @@ import (
 )
 
 var (
-	ComponentName = "trustyai"
-	Path          = deploy.DefaultManifestPath + "/" + "trustyai-service-operator/base"
+	ComponentName     = "trustyai"
+	ComponentPathName = "trustyai-service-operator"
+	Path              = deploy.DefaultManifestPath + "/" + ComponentPathName + "/base"
 )
 
 // Verifies that TrustyAI implements ComponentInterface.
@@ -36,7 +37,7 @@ func (t *TrustyAI) OverrideManifests(_ string) error {
 	// If devflags are set, update default manifests path
 	if len(t.DevFlags.Manifests) != 0 {
 		manifestConfig := t.DevFlags.Manifests[0]
-		if err := deploy.DownloadManifests(ComponentName, manifestConfig); err != nil {
+		if err := deploy.DownloadManifests(ComponentPathName, manifestConfig); err != nil {
 			return err
 		}
 		// If overlay is defined, update paths
@@ -44,7 +45,7 @@ func (t *TrustyAI) OverrideManifests(_ string) error {
 		if manifestConfig.SourcePath != "" {
 			defaultKustomizePath = manifestConfig.SourcePath
 		}
-		Path = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
+		Path = filepath.Join(deploy.DefaultManifestPath, ComponentPathName, defaultKustomizePath)
 	}
 	return nil
 }
