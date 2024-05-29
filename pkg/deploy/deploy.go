@@ -34,7 +34,6 @@ import (
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
 	"golang.org/x/exp/maps"
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
@@ -212,7 +211,7 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 
 	// Return if error getting resource in cluster
 	found, err := getResource(ctx, cli, obj)
-	if err != nil {
+	if client.IgnoreNotFound(err) != nil {
 		return err
 	}
 
@@ -393,10 +392,10 @@ func getResource(ctx context.Context, cli client.Client, obj *unstructured.Unstr
 	// Setting gvk is required to do Get request
 	found.SetGroupVersionKind(obj.GroupVersionKind())
 	err := cli.Get(ctx, types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, found)
-	if apierrs.IsNotFound(err) {
-		return nil, nil
+	if err != nil {
+		return nil, err
 	}
-	return found, err
+	return found, nil
 }
 
 func handleDisabledComponent(ctx context.Context, cli client.Client, found *unstructured.Unstructured, componentName string, owner metav1.Object) error {
@@ -411,7 +410,7 @@ func handleDisabledComponent(ctx context.Context, cli client.Client, found *unst
 		return nil
 	}
 
-	return updateOwnerReferencesAndDelete(ctx, cli, found, componentName, owner)
+	return deleteResource(ctx, cli, found, componentName, owner)
 }
 
 func getComponentCounter(foundLabels map[string]string) []string {
@@ -429,17 +428,13 @@ func isSharedResource(componentCounter []string, componentName string) bool {
 	return len(componentCounter) > 1 || (len(componentCounter) == 1 && componentCounter[0] != componentName)
 }
 
-func updateOwnerReferencesAndDelete(ctx context.Context, cli client.Client, found *unstructured.Unstructured, componentName string, owner metav1.Object) error {
+func deleteResource(ctx context.Context, cli client.Client, found *unstructured.Unstructured, componentName string, owner metav1.Object) error {
 	existingOwnerReferences := found.GetOwnerReferences()
 	selector := labels.ODH.Component(componentName)
 	resourceLabels := found.GetLabels()
 
-	if resourceLabels[selector] != "true" {
-		return nil
-	}
-
-	if existingOwnerReferences == nil || isOwnedByODHCRD(existingOwnerReferences) {
-		return removeOwnerReferencesAndDelete(ctx, cli, found, owner)
+	if isOwnedByODHCRD(existingOwnerReferences) || resourceLabels[selector] == "true" {
+		return cli.Delete(ctx, found)
 	}
 	return nil
 }
@@ -451,20 +446,6 @@ func isOwnedByODHCRD(ownerReferences []metav1.OwnerReference) bool {
 		}
 	}
 	return false
-}
-
-func removeOwnerReferencesAndDelete(ctx context.Context, cli client.Client, found *unstructured.Unstructured, owner metav1.Object) error {
-	found.SetOwnerReferences([]metav1.OwnerReference{})
-	data, err := json.Marshal(found)
-	if err != nil {
-		return err
-	}
-
-	if err := cli.Patch(ctx, found, client.RawPatch(types.ApplyPatchType, data), client.ForceOwnership, client.FieldOwner(owner.GetName())); err != nil {
-		return err
-	}
-
-	return cli.Delete(ctx, found)
 }
 
 func createResource(ctx context.Context, cli client.Client, obj *unstructured.Unstructured, owner metav1.Object) error {
