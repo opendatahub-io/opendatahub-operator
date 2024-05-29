@@ -216,7 +216,7 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 	}
 
 	if !enabled {
-		return handleDisabledComponent(ctx, cli, found, componentName, owner)
+		return handleDisabledComponent(ctx, cli, found, componentName)
 	}
 
 	// Create resource if it doesn't exist
@@ -398,7 +398,7 @@ func getResource(ctx context.Context, cli client.Client, obj *unstructured.Unstr
 	return found, nil
 }
 
-func handleDisabledComponent(ctx context.Context, cli client.Client, found *unstructured.Unstructured, componentName string, owner metav1.Object) error {
+func handleDisabledComponent(ctx context.Context, cli client.Client, found *unstructured.Unstructured, componentName string) error {
 	if found == nil {
 		return nil
 	}
@@ -410,7 +410,7 @@ func handleDisabledComponent(ctx context.Context, cli client.Client, found *unst
 		return nil
 	}
 
-	return deleteResource(ctx, cli, found, componentName, owner)
+	return deleteResource(ctx, cli, found, componentName)
 }
 
 func getComponentCounter(foundLabels map[string]string) []string {
@@ -428,7 +428,7 @@ func isSharedResource(componentCounter []string, componentName string) bool {
 	return len(componentCounter) > 1 || (len(componentCounter) == 1 && componentCounter[0] != componentName)
 }
 
-func deleteResource(ctx context.Context, cli client.Client, found *unstructured.Unstructured, componentName string, owner metav1.Object) error {
+func deleteResource(ctx context.Context, cli client.Client, found *unstructured.Unstructured, componentName string) error {
 	existingOwnerReferences := found.GetOwnerReferences()
 	selector := labels.ODH.Component(componentName)
 	resourceLabels := found.GetLabels()
