@@ -31,8 +31,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
-
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
 	"golang.org/x/exp/maps"
