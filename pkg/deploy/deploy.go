@@ -31,6 +31,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
+
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
 	"golang.org/x/exp/maps"
@@ -212,7 +214,7 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 
 	// Return if error getting resource in cluster
 	found, err := getResource(ctx, cli, obj)
-	if client.IgnoreNotFound(err) != nil {
+	if err != nil {
 		return err
 	}
 
@@ -221,7 +223,7 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 	}
 
 	// Create resource if it doesn't exist
-	if apierrs.IsNotFound(err) || found == nil {
+	if found == nil {
 		return createResource(ctx, cli, obj, owner)
 	}
 
@@ -393,6 +395,9 @@ func getResource(ctx context.Context, cli client.Client, obj *unstructured.Unstr
 	// Setting gvk is required to do Get request
 	found.SetGroupVersionKind(obj.GroupVersionKind())
 	err := cli.Get(ctx, types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, found)
+	if apierrs.IsNotFound(err) {
+		return nil, nil
+	}
 	return found, err
 }
 
