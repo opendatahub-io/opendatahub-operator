@@ -2,7 +2,7 @@ apiVersion: monitoring.rhobs/v1
 kind: PrometheusRule
 metadata:
   name: trainingoperator-prometheusrules
-  namespace: [[ .MonNamespace ]]
+  namespace: [[ .Monitoring.Namespace ]]
 spec:
   groups:
   - name: KubeFlow Training Operator
