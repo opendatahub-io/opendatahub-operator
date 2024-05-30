@@ -287,6 +287,14 @@ spec:
                   type: object
                   x-kubernetes-map-type: atomic
                 type: array
+              release:
+                description: Version and release type
+                properties:
+                  name:
+                    type: string
+                  version:
+                    type: string
+                type: object
             type: object
         type: object
     served: true
