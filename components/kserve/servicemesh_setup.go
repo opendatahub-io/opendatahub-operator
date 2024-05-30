@@ -8,7 +8,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 )
@@ -32,7 +32,7 @@ func (k *Kserve) removeServiceMeshConfigurations(cli client.Client, dscispec *ds
 
 func (k *Kserve) defineServiceMeshFeatures(cli client.Client) feature.FeaturesProvider {
 	return func(handler *feature.FeaturesHandler) error {
-		authorinoInstalled, err := deploy.ClusterSubscriptionExists(cli, "authorino-operator")
+		authorinoInstalled, err := cluster.SubscriptionExists(cli, "authorino-operator")
 		if err != nil {
 			return fmt.Errorf("failed to list subscriptions %w", err)
 		}
