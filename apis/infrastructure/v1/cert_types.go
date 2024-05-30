@@ -3,9 +3,9 @@ package v1
 type CertType string
 
 const (
-	SelfSigned     CertType = "SelfSigned"
-	Provided       CertType = "Provided"
-	DefaultIngress CertType = "DefaultIngress"
+	SelfSigned              CertType = "SelfSigned"
+	Provided                CertType = "Provided"
+	OpenshiftDefaultIngress CertType = "OpenshiftDefaultIngress"
 )
 
 // CertificateSpec represents the specification of the certificate securing communications of
@@ -18,8 +18,8 @@ type CertificateSpec struct {
 	// is provided by the user. Allowed values are:
 	// * SelfSigned: A certificate is going to be generated using an own private key.
 	// * Provided: Pre-existence of the TLS Secret (see SecretName) with a valid certificate is assumed.
-	// * DefaultIngress: Default ingress certificate configured for OpenShift
-	// +kubebuilder:validation:Enum=SelfSigned;Provided;DefaultIngress
-	// +kubebuilder:default=DefaultIngress
+	// * OpenshiftDefaultIngress: Default ingress certificate configured for OpenShift
+	// +kubebuilder:validation:Enum=SelfSigned;Provided;OpenshiftDefaultIngress
+	// +kubebuilder:default=OpenshiftDefaultIngress
 	Type CertType `json:"type,omitempty"`
 }

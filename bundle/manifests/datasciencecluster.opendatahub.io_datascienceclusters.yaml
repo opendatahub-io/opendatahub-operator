@@ -254,7 +254,7 @@ spec:
                                       for the KNative network.
                                     type: string
                                   type:
-                                    default: DefaultIngress
+                                    default: OpenshiftDefaultIngress
                                     description: 'Type specifies if the TLS certificate
                                       should be generated automatically, or if the
                                       certificate is provided by the user. Allowed
@@ -262,12 +262,12 @@ spec:
                                       to be generated using an own private key. *
                                       Provided: Pre-existence of the TLS Secret (see
                                       SecretName) with a valid certificate is assumed.
-                                      * DefaultIngress: Default ingress certificate
+                                      * OpenshiftDefaultIngress: Default ingress certificate
                                       configured for OpenShift'
                                     enum:
                                     - SelfSigned
                                     - Provided
-                                    - DefaultIngress
+                                    - OpenshiftDefaultIngress
                                     type: string
                                 type: object
                               domain:
