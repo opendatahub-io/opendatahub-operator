@@ -64,9 +64,9 @@ type ManifestsConfig struct {
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=1
 	URI string `json:"uri,omitempty"`
 
-	// contextDir is the relative path to the folder containing manifests in a repository
+	// contextDir is the relative path to the folder containing manifests in a repository, default value "manifests"
 	// +optional
-	// +kubebuilder:default:=""
+	// +kubebuilder:default:="manifests"
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=2
 	ContextDir string `json:"contextDir,omitempty"`
 
