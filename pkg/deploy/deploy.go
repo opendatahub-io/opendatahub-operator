@@ -200,7 +200,6 @@ func GetResources(resMap resmap.ResMap) ([]*unstructured.Unstructured, error) {
 	return resources, nil
 }
 
-
 func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Unstructured, owner metav1.Object, applicationNamespace, componentName string, enabled bool) error {
 	// Return if resource is of Kind: Namespace and Name: odhApplicationsNamespace
 	if obj.GetKind() == "Namespace" && obj.GetName() == applicationNamespace {
