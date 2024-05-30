@@ -15,6 +15,12 @@ var (
 		Kind:    "DataScienceCluster",
 	}
 
+	Deployment = schema.GroupVersionKind{
+		Group:   "apps",
+		Version: "v1",
+		Kind:    "Deployment",
+	}
+
 	KnativeServing = schema.GroupVersionKind{
 		Group:   "operator.knative.dev",
 		Version: "v1beta1",
@@ -38,10 +44,12 @@ var (
 		Version: "v1",
 		Kind:    "OdhApplication",
 	}
+
 	OdhDocument = schema.GroupVersionKind{
 		Group:   "dashboard.opendatahub.io",
 		Version: "v1", Kind: "OdhDocument",
 	}
+
 	OdhQuickStart = schema.GroupVersionKind{
 		Group:   "console.openshift.io",
 		Version: "v1", Kind: "OdhQuickStart",
