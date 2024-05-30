@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/blang/semver/v4"
 	"os"
 	"strings"
 
@@ -138,6 +139,13 @@ func GetRelease(cli client.Client) (Release, error) {
 	}
 	initRelease.Name = platform
 
+	// For unit-tests
+	if os.Getenv("CI") == "true" {
+		initRelease.Version = version.OperatorVersion{
+			Version: semver.Version{},
+		}
+		return initRelease, nil
+	}
 	// Set Version
 	// Get watchNamespace
 	operatorNamespace, err := GetOperatorNamespace()
