@@ -7,6 +7,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/blang/semver/v4"
+	"github.com/operator-framework/api/pkg/lib/version"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -119,4 +121,41 @@ func GetPlatform(cli client.Client) (Platform, error) {
 
 	// check and return whether ODH or self-managed platform
 	return isSelfManaged(cli)
+}
+
+// Release includes information on operator version and platform
+// +kubebuilder:object:generate=true
+type Release struct {
+	Name    Platform                `json:"name,omitempty"`
+	Version version.OperatorVersion `json:"version,omitempty"`
+}
+
+func GetRelease(cli client.Client) (Release, error) {
+	initRelease := Release{}
+	// Set platform
+	platform, err := GetPlatform(cli)
+	if err != nil {
+		return initRelease, err
+	}
+	initRelease.Name = platform
+
+	// For unit-tests
+	if os.Getenv("CI") == "true" {
+		initRelease.Version = version.OperatorVersion{
+			Version: semver.Version{},
+		}
+		return initRelease, nil
+	}
+	// Set Version
+	// Get watchNamespace
+	operatorNamespace, err := GetOperatorNamespace()
+	if err != nil {
+		return initRelease, err
+	}
+	csv, err := GetClusterServiceVersion(context.TODO(), cli, operatorNamespace)
+	if err != nil {
+		return initRelease, err
+	}
+	initRelease.Version = csv.Spec.Version
+	return initRelease, nil
 }
