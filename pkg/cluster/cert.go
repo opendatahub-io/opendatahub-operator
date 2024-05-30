@@ -1,4 +1,4 @@
-package feature
+package cluster
 
 import (
 	"bytes"
@@ -16,45 +16,44 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/pkg/errors"
-	corev1 "k8s.io/api/core/v1"
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func (f *Feature) CreateSelfSignedCertificate(secretName, domain, namespace string) error {
-	meta := metav1.ObjectMeta{
-		Name:      secretName,
-		Namespace: namespace,
-		OwnerReferences: []metav1.OwnerReference{
-			f.AsOwnerReference(),
-		},
-	}
-
-	certSecret, err := GenerateSelfSignedCertificateAsSecret(domain, meta)
+func CreateSelfSignedCertificate(ctx context.Context, c client.Client, secretName, domain, namespace string, metaOptions ...MetaOptions) error {
+	certSecret, err := GenerateSelfSignedCertificateAsSecret(secretName, domain, namespace)
 	if err != nil {
 		return fmt.Errorf("failed generating self-signed certificate: %w", err)
 	}
 
-	if createErr := f.Client.Create(context.TODO(), certSecret); client.IgnoreAlreadyExists(createErr) != nil {
+	if err := ApplyMetaOptions(certSecret, metaOptions...); err != nil {
+		return err
+	}
+
+	if createErr := c.Create(ctx, certSecret); client.IgnoreAlreadyExists(createErr) != nil {
 		return fmt.Errorf("failed creating certificate secret: %w", createErr)
 	}
 
 	return nil
 }
 
-func GenerateSelfSignedCertificateAsSecret(addr string, objectMeta metav1.ObjectMeta) (*corev1.Secret, error) {
+func GenerateSelfSignedCertificateAsSecret(name, addr, namespace string) (*v1.Secret, error) {
 	cert, key, err := generateCertificate(addr)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
-	return &corev1.Secret{
-		ObjectMeta: objectMeta,
+	return &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
 		Data: map[string][]byte{
-			corev1.TLSCertKey:       cert,
-			corev1.TLSPrivateKeyKey: key,
+			v1.TLSCertKey:       cert,
+			v1.TLSPrivateKeyKey: key,
 		},
 	}, nil
 }
@@ -125,36 +124,31 @@ func generateCertificate(addr string) ([]byte, []byte, error) {
 }
 
 // GetDefaultIngressCertificate copies ingress cert secrets from openshift-ingress ns to given namespace.
-func (f *Feature) GetDefaultIngressCertificate(namespace string) error {
+func GetDefaultIngressCertificate(ctx context.Context, c client.Client, namespace string) error {
 	// Add IngressController to scheme
-	utilruntime.Must(operatorv1.Install(f.Client.Scheme()))
-	defaultIngressCtrl, err := FindAvailableIngressController(f.Client)
+	runtime.Must(operatorv1.Install(c.Scheme()))
+	defaultIngressCtrl, err := FindAvailableIngressController(ctx, c)
 	if err != nil {
 		return fmt.Errorf("failed to get ingress controller: %w", err)
 	}
 
 	defaultIngressCertName := GetDefaultIngressCertSecretName(defaultIngressCtrl)
 
-	defaultIngressSecret, err := f.getSecret("openshift-ingress", defaultIngressCertName)
+	defaultIngressSecret, err := getSecret(ctx, c, "openshift-ingress", defaultIngressCertName)
 	if err != nil {
 		return err
 	}
 
-	err = f.copySecretToNamespace(defaultIngressSecret, namespace)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return copySecretToNamespace(ctx, c, defaultIngressSecret, namespace)
 }
 
-func FindAvailableIngressController(cli client.Client) (*operatorv1.IngressController, error) {
+func FindAvailableIngressController(ctx context.Context, c client.Client) (*operatorv1.IngressController, error) {
 	defaultIngressCtrlList := &operatorv1.IngressControllerList{}
 	listOpts := []client.ListOption{
 		client.InNamespace("openshift-ingress-operator"),
 	}
 
-	err := cli.List(context.TODO(), defaultIngressCtrlList, listOpts...)
+	err := c.List(ctx, defaultIngressCtrlList, listOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -176,17 +170,17 @@ func GetDefaultIngressCertSecretName(ingressCtrl *operatorv1.IngressController) 
 	return "router-certs-" + ingressCtrl.Name
 }
 
-func (f *Feature) getSecret(namespace, name string) (*corev1.Secret, error) {
-	secret := &corev1.Secret{}
-	err := f.Client.Get(context.TODO(), client.ObjectKey{Namespace: namespace, Name: name}, secret)
+func getSecret(ctx context.Context, c client.Client, namespace, name string) (*v1.Secret, error) {
+	secret := &v1.Secret{}
+	err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, secret)
 	if err != nil {
 		return nil, err
 	}
 	return secret, nil
 }
 
-func (f *Feature) copySecretToNamespace(secret *corev1.Secret, namespace string) error {
-	newSecret := &corev1.Secret{
+func copySecretToNamespace(ctx context.Context, c client.Client, secret *v1.Secret, namespace string) error {
+	newSecret := &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secret.Name,
 			Namespace: namespace,
@@ -195,17 +189,17 @@ func (f *Feature) copySecretToNamespace(secret *corev1.Secret, namespace string)
 		Type: secret.Type,
 	}
 
-	existingSecret := &corev1.Secret{}
-	err := f.Client.Get(context.TODO(), client.ObjectKey{Name: secret.Name, Namespace: namespace}, existingSecret)
-	if apierrs.IsNotFound(err) {
-		err = f.Client.Create(context.TODO(), newSecret)
+	existingSecret := &v1.Secret{}
+	err := c.Get(ctx, client.ObjectKey{Name: secret.Name, Namespace: namespace}, existingSecret)
+	if apierrors.IsNotFound(err) {
+		err = c.Create(ctx, newSecret)
 		if err != nil {
 			return err
 		}
 	} else if err == nil {
 		// Check if secret needs to be updated
 		if isSecretOutdated(existingSecret.Data, newSecret.Data) {
-			err = f.Client.Update(context.TODO(), newSecret)
+			err = c.Update(ctx, newSecret)
 			if err != nil {
 				return err
 			}

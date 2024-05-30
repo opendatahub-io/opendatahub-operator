@@ -55,7 +55,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
@@ -537,11 +536,11 @@ func (r *DataScienceClusterReconciler) watchDefaultIngressSecret(a client.Object
 		return nil
 	}
 	// When ingress secret gets created/deleted, trigger reconcile function
-	ingressCtrl, err := feature.FindAvailableIngressController(r.Client)
+	ingressCtrl, err := cluster.FindAvailableIngressController(context.TODO(), r.Client)
 	if err != nil {
 		return nil
 	}
-	defaultIngressSecretName := feature.GetDefaultIngressCertSecretName(ingressCtrl)
+	defaultIngressSecretName := cluster.GetDefaultIngressCertSecretName(ingressCtrl)
 	if a.GetName() == defaultIngressSecretName && a.GetNamespace() == "openshift-ingress" {
 		return []reconcile.Request{{
 			NamespacedName: types.NamespacedName{Name: requestName},
