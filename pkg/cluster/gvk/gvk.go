@@ -9,6 +9,12 @@ var (
 		Kind:    "ClusterServiceVersion",
 	}
 
+	Deployment = schema.GroupVersionKind{
+		Group:   "apps",
+		Version: "v1",
+		Kind:    "Deployment",
+	}
+
 	KnativeServing = schema.GroupVersionKind{
 		Group:   "operator.knative.dev",
 		Version: "v1beta1",
