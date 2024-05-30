@@ -31,8 +31,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
-	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
 	"golang.org/x/exp/maps"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -353,38 +351,6 @@ func removeResourcesFromDeployment(u *unstructured.Unstructured) error {
 	}
 
 	return nil
-}
-
-func ClusterSubscriptionExists(cli client.Client, name string) (bool, error) {
-	subscriptionList := &ofapiv1alpha1.SubscriptionList{}
-	if err := cli.List(context.TODO(), subscriptionList); err != nil {
-		return false, err
-	}
-
-	for _, sub := range subscriptionList.Items {
-		if sub.Name == name {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-// OperatorExists checks if an Operator with 'operatorPrefix' is installed.
-// Return true if found it, false if not.
-// if we need to check exact version of the operator installed, can append vX.Y.Z later.
-func OperatorExists(cli client.Client, operatorPrefix string) (bool, error) {
-	opConditionList := &ofapiv2.OperatorConditionList{}
-	err := cli.List(context.TODO(), opConditionList)
-	if err != nil {
-		return false, err
-	}
-	for _, opCondition := range opConditionList.Items {
-		if strings.HasPrefix(opCondition.Name, operatorPrefix) {
-			return true, nil
-		}
-	}
-
-	return false, nil
 }
 
 func getResource(ctx context.Context, cli client.Client, obj *unstructured.Unstructured) (*unstructured.Unstructured, error) {
