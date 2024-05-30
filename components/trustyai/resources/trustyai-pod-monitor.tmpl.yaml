@@ -9,7 +9,7 @@ spec:
       honorLabels: true
       relabelings:
         - action: keep
-          regex: ^(kserve-controller-manager)$
+          regex: ^(trustyai)$
           sourceLabels:
             - __meta_kubernetes_pod_label_control_plane
           targetLabel: kubernetes_name
