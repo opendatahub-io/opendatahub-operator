@@ -51,7 +51,7 @@ func UpdatePromTemplate(component string, rootFS embed.FS, dscispec *dsciv1.DSCI
 	if err != nil {
 		return nil, fmt.Errorf("failed to read prometheus rule file: %w", err)
 	}
-	tmpl, err := ttemplate.New("promrules").Parse(string(promTemplate))
+	tmpl, err := ttemplate.New("promrules").Delims("[[", "]]").Parse(string(promTemplate))
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse template: %w", err)

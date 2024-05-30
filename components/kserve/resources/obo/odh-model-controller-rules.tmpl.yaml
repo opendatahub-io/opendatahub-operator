@@ -2,7 +2,7 @@ apiVersion: monitoring.rhobs/v1
 kind: PrometheusRule
 metadata:
   name: odh-model-controller-prometheusrule
-  namespace:{{ .MonNamespace }}
+  namespace:  [[ .Monitoring.Namespace ]]
 spec:
   groups:
     - name: SLOs - ODH Model Controller

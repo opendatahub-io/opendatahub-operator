@@ -2,9 +2,9 @@ apiVersion: monitoring.rhobs/v1
 kind: PrometheusRule
 metadata:
   name: trustyai-prometheusrules
-  namespace:{{ .MonNamespace }}
+  namespace: [[ .Monitoring.Namespace ]]
 spec:
-  groups:groups:
+  groups:
     - name: SLOs-probe_success_trustyai
       rules:
       - alert: TrustyAI Controller Probe Success Burn Rate

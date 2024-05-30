@@ -18,7 +18,7 @@ spec:
           storage: 5Gi
     scrapeInterval: 10s  # from prometheus.yaml CM      
   alertmanagerConfig:
-    disabled: false # we need deploy alertmanager
+    disabled: true # we need deploy alertmanager by ourselves
   resources:
     requests:
       cpu: 500m

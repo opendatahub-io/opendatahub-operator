@@ -2,7 +2,7 @@ apiVersion: monitoring.rhobs/v1
 kind: PrometheusRule
 metadata:
   name: data-science-pipelines-operator-prometheusrules
-  namespace:{{ .MonNamespace }}
+  namespace: [[ .Monitoring.Namespace ]]
 spec:
   groups:
     - name: SLOs-haproxy_backend_http_responses_dsp
