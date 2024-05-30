@@ -47,12 +47,27 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins"
 )
 
 const (
 	DefaultManifestPath = "/opt/manifests"
+)
+
+var (
+	WhitelistedFields = []plugins.RemoverPlugin{
+		{
+			Gvk:  gvk.Deployment,
+			Path: []string{"spec", "template", "spec", "containers", "*", "resources"},
+		},
+	}
+
+	Whitelisted = map[string]*[]plugins.RemoverPlugin{
+		"kserve":     &WhitelistedFields,
+		"model-mesh": &WhitelistedFields,
+	}
 )
 
 // DownloadManifests function performs following tasks:
@@ -321,44 +336,6 @@ func ApplyParams(componentPath string, imageParamsMap map[string]string, isUpdat
 	return err
 }
 
-// removeResourcesFromDeployment checks if the provided resource is a Deployment,
-// and if so, removes the resources field from each container in the Deployment. This ensures we do not overwrite the
-// resources field when Patch is applied with the returned unstructured resource.
-func removeResourcesFromDeployment(u *unstructured.Unstructured) error {
-	// Check if the resource is a Deployment. This can be expanded to other resources as well.
-	if u.GetKind() != "Deployment" {
-		return nil
-	}
-	// Navigate to the containers array in the Deployment spec
-	containers, exists, err := unstructured.NestedSlice(u.Object, "spec", "template", "spec", "containers")
-	if err != nil {
-		return fmt.Errorf("error when trying to retrieve containers from Deployment: %w", err)
-	}
-	// Return if no containers exist
-	if !exists {
-		return nil
-	}
-
-	// Iterate over the containers to remove the resources field
-	for i := range containers {
-		container, ok := containers[i].(map[string]interface{})
-		// If containers field is not in expected type, return.
-		if !ok {
-			return nil
-		}
-		// Check and delete the resources field. This can be expanded to any whitelisted field.
-		delete(container, "resources")
-		containers[i] = container
-	}
-
-	// Update the containers in the original unstructured object
-	if err := unstructured.SetNestedSlice(u.Object, containers, "spec", "template", "spec", "containers"); err != nil {
-		return fmt.Errorf("failed to update containers in Deployment: %w", err)
-	}
-
-	return nil
-}
-
 func getResource(ctx context.Context, cli client.Client, obj *resource.Resource) (*unstructured.Unstructured, error) {
 	found := &unstructured.Unstructured{}
 	// Setting gvk is required to do Get request
@@ -439,12 +416,21 @@ func createResource(ctx context.Context, cli client.Client, res *resource.Resour
 	return cli.Create(ctx, obj)
 }
 
-func skipUpdateOnWhitelistedFields(obj *unstructured.Unstructured, componentName string) error {
-	if componentName == "kserve" || componentName == "model-mesh" {
-		if err := removeResourcesFromDeployment(obj); err != nil {
+// skipUpdateOnWhitelistedFields applies RemoverPlugin to the component's resources
+// if they are declared in Whitelisted.
+// This ensures that we do not overwrite the fields when Patch is applied later to the resource.
+func skipUpdateOnWhitelistedFields(res *resource.Resource, componentName string) error {
+	whitelistedFields, exists := Whitelisted[componentName]
+	if !exists {
+		return nil
+	}
+
+	for _, rmPlugin := range *whitelistedFields {
+		if err := rmPlugin.TransformResource(res); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -474,13 +460,13 @@ func updateResource(ctx context.Context, cli client.Client, res *resource.Resour
 		return nil
 	}
 
-	obj, err := resource2Unstructured(res)
-	if err != nil {
+	// skip updating whitelisted fields
+	if err := skipUpdateOnWhitelistedFields(res, componentName); err != nil {
 		return err
 	}
 
-	// skip updating whitelisted fields
-	if err := skipUpdateOnWhitelistedFields(obj, componentName); err != nil {
+	obj, err := resource2Unstructured(res)
+	if err != nil {
 		return err
 	}
 
