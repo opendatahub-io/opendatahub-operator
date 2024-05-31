@@ -1,4 +1,4 @@
-package observibility
+package observability
 
 import (
 	"bytes"

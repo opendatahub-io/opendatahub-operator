@@ -208,8 +208,8 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
 			r.Log.Info("Monitoring enabled in initialization stage", "cluster", "Managed Service Mode")
-			if errObservibility := r.configureObservibility(instance); errObservibility != nil {
-				return reconcile.Result{}, errObservibility
+			if errObservability := r.configureObservability(instance); errObservability != nil {
+				return reconcile.Result{}, errObservability
 			}
 		}
 	default:
@@ -220,8 +220,8 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
 			r.Log.Info("Monitoring enabled, won't apply changes, but i am testing it so lets do it", "cluster", "ODH Mode")
 			// TODO: if we want to have the feature in ODH we need uncomment logic here
-			if errObservibility := r.configureObservibility(instance); errObservibility != nil {
-				return reconcile.Result{}, errObservibility
+			if errObservability := r.configureObservability(instance); errObservability != nil {
+				return reconcile.Result{}, errObservability
 			}
 		}
 	}

@@ -98,7 +98,6 @@ func (f *Feature) applyFeature() error {
 
 	for i := range f.manifests {
 		manifest := f.manifests[i]
-
 		apply := f.createApplier(manifest)
 
 		objs, processErr := manifest.Process(f.Spec)

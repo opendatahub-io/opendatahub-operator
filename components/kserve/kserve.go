@@ -19,7 +19,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	obo "github.com/opendatahub-io/opendatahub-operator/v2/pkg/observibility"
+	obo "github.com/opendatahub-io/opendatahub-operator/v2/pkg/observability"
 )
 
 var (

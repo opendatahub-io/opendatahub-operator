@@ -24,23 +24,23 @@ import (
 // +kubebuilder:rbac:groups="monitoring.rhobs",resources=podmonitor,verbs=get;create;delete;update;patch
 
 // currently the logic is only called if it is for downstream.
-func (r *DSCInitializationReconciler) configureObservibility(instance *dsciv1.DSCInitialization) error {
+func (r *DSCInitializationReconciler) configureObservability(instance *dsciv1.DSCInitialization) error {
 	switch instance.Spec.Monitoring.ManagementState {
 	case operatorv1.Managed:
 		capabilities := []*feature.HandlerWithReporter[*dsciv1.DSCInitialization]{
-			r.observibilityCapability(instance, oboCondition(status.ConfiguredReason, "CMO is configured")),
+			r.observabilityCapability(instance, oboCondition(status.ConfiguredReason, "CMO is configured")),
 		}
 		for _, capability := range capabilities {
 			capabilityErr := capability.Apply()
 			if capabilityErr != nil {
-				r.Log.Error(capabilityErr, "failed applying ClusterObservibility resources")
-				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed applying ClusterObservibility")
+				r.Log.Error(capabilityErr, "failed applying ClusterObservability resources")
+				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed applying ClusterObservability")
 				return capabilityErr
 			}
 		}
 	case operatorv1.Removed:
-		r.Log.Info("existing ClusterObservibility CR (owned by operator) will be removed")
-		if err := r.removeObservibility(instance); err != nil {
+		r.Log.Info("existing ClusterObservability CR (owned by operator) will be removed")
+		if err := r.removeObservability(instance); err != nil {
 			return err
 		}
 	}
@@ -48,17 +48,17 @@ func (r *DSCInitializationReconciler) configureObservibility(instance *dsciv1.DS
 	return nil
 }
 
-func (r *DSCInitializationReconciler) removeObservibility(instance *dsciv1.DSCInitialization) error {
+func (r *DSCInitializationReconciler) removeObservability(instance *dsciv1.DSCInitialization) error {
 	if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
 		capabilities := []*feature.HandlerWithReporter[*dsciv1.DSCInitialization]{
-			r.observibilityCapability(instance, oboCondition(status.RemovedReason, "ClusterObservibility resources removed")),
+			r.observabilityCapability(instance, oboCondition(status.RemovedReason, "ClusterObservability resources removed")),
 		}
 
 		for _, capability := range capabilities {
 			capabilityErr := capability.Delete()
 			if capabilityErr != nil {
-				r.Log.Error(capabilityErr, "failed deleting ClusterObservibility resources")
-				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed deleting ClusterObservibility resources")
+				r.Log.Error(capabilityErr, "failed deleting Clusterobservability resources")
+				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed deleting Clusterobservability resources")
 
 				return capabilityErr
 			}
@@ -68,23 +68,26 @@ func (r *DSCInitializationReconciler) removeObservibility(instance *dsciv1.DSCIn
 	return nil
 }
 
-func (r *DSCInitializationReconciler) observibilityCapability(instance *dsciv1.DSCInitialization, initialCondition *conditionsv1.Condition) *feature.HandlerWithReporter[*dsciv1.DSCInitialization] { //nolint:lll // Reason: generics are long
+func (r *DSCInitializationReconciler) observabilityCapability(instance *dsciv1.DSCInitialization, initialCondition *conditionsv1.Condition) *feature.HandlerWithReporter[*dsciv1.DSCInitialization] { //nolint:lll // Reason: generics are long
 	return feature.NewHandlerWithReporter(
-		feature.ClusterFeaturesHandler(instance, r.observibilityCapabilityFeatures(instance)),
+		feature.ClusterFeaturesHandler(instance, r.observabilityCapabilityFeatures(instance)),
 		createCapabilityReporter(r.Client, instance, initialCondition),
 	)
 }
 
-func (r *DSCInitializationReconciler) observibilityCapabilityFeatures(instance *dsciv1.DSCInitialization) feature.FeaturesProvider {
+func (r *DSCInitializationReconciler) observabilityCapabilityFeatures(instance *dsciv1.DSCInitialization) feature.FeaturesProvider {
 	return func(handler *feature.FeaturesHandler) error {
 		monitoringNamespace := instance.Spec.Monitoring.Namespace
 		alertmanageErr := feature.CreateFeature("create-alertmanager").
 			For(handler).
 			ManifestSource(Templates.Source).
 			Manifests(
-				path.Join(Templates.AlertManageDir),
+				// path.Join(Templates.AlertManageDir),
+				path.Join(Templates.AlertManageDir, "alertmanager-email.yaml"),
+				path.Join(Templates.AlertManageDir, "alertmanagerconfig.tmpl.yaml"),
+				path.Join(Templates.AlertManageDir, "alertmanager.tmpl.yaml"),
 			).
-			Managed().                           // we want to reconcie this by oepartor
+			Managed().                           // we want to reconcie this by oepartor in Managed Cluster, do we want for ODH too?
 			WithData(obo.AlertmanagerDataValue). // fill in alertmanager data
 			PreConditions(
 				feature.EnsureOperatorIsInstalled("cluster-observability-operator"),
@@ -108,6 +111,20 @@ func (r *DSCInitializationReconciler) observibilityCapabilityFeatures(instance *
 			Load()
 		if msErr != nil {
 			return msErr
+		}
+
+		commonOBOErr := feature.CreateFeature("create-obo").
+			For(handler).
+			ManifestSource(Templates.Source).
+			Manifests(
+				path.Join(Templates.CommonDir, "podmonitor"),
+				path.Join(Templates.CommonDir, "servicemonitor"),
+				path.Join(Templates.CommonDir, "promethuesrules"),
+			).
+			Load()
+
+		if commonOBOErr != nil {
+			return commonOBOErr
 		}
 
 		platform, err := cluster.GetPlatform(r.Client)
