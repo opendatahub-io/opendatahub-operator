@@ -16,10 +16,12 @@ import (
 )
 
 // WEN: below are for the new CMO
-// +kubebuilder:rbac:groups="monitoring.rhobs",resources=monitoringStack,verbs=get;create;delete;update;patch
+// +kubebuilder:rbac:groups="monitoring.rhobs",resources=monitoringstack,verbs=get;create;delete;update;patch
 // +kubebuilder:rbac:groups="monitoring.rhobs",resources=alertmanager,verbs=get;create;delete;update;patch
+// +kubebuilder:rbac:groups="monitoring.rhobs",resources=alertmanagerconfig,verbs=get;create;delete;update;patch
 // +kubebuilder:rbac:groups="monitoring.rhobs",resources=prometheusrule,verbs=get;create;delete;update;patch
 // +kubebuilder:rbac:groups="monitoring.rhobs",resources=servicemonitor,verbs=get;create;delete;update;patch
+// +kubebuilder:rbac:groups="monitoring.rhobs",resources=podmonitor,verbs=get;create;delete;update;patch
 
 // currently the logic is only called if it is for downstream.
 func (r *DSCInitializationReconciler) configureObservibility(instance *dsciv1.DSCInitialization) error {
