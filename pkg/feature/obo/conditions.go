@@ -58,7 +58,7 @@ func createViewerRoleBinding(f *feature.Feature) error {
 	return nil
 }
 
-func ConfigureFederation(sourceDir embed.FS, dsciSpec *dsciv1.DSCInitializationSpec) feature.Action {
+func ConfigureOperatorMetrics(sourceDir embed.FS, dsciSpec *dsciv1.DSCInitializationSpec) feature.Action {
 	return func(f *feature.Feature) error {
 		if err := cluster.CreateSecret(f.Client, "prometheus-secret", f.Spec.MonNamespace); err != nil {
 			return err
@@ -72,19 +72,7 @@ func ConfigureFederation(sourceDir embed.FS, dsciSpec *dsciv1.DSCInitializationS
 			f.Client,
 			f.Enabled,
 			sourceDir,
-			path.Join("resources", "observability", "federate"),
-			dsciSpec)
-	}
-}
-
-func ConfigureOperatorMetircs(sourceDir embed.FS, dsciSpec *dsciv1.DSCInitializationSpec) feature.Action {
-	return func(f *feature.Feature) error {
-		return obo.CreatePrometheusConfigs(
-			context.TODO(),
-			f.Client,
-			f.Enabled,
-			sourceDir,
-			path.Join("resources", "observability", "rhoai-metrics"),
+			path.Join("resources", "observability", "operator-metrics"),
 			dsciSpec)
 	}
 }
