@@ -11,7 +11,9 @@ import (
 	"github.com/operator-framework/api/pkg/lib/version"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -58,7 +60,9 @@ func GetClusterServiceVersion(ctx context.Context, c client.Client, watchNameSpa
 		}
 	}
 
-	return nil, nil
+	return nil, apierrs.NewNotFound(
+		schema.GroupResource{Group: gvk.ClusterServiceVersion.Group},
+		gvk.ClusterServiceVersion.Kind)
 }
 
 type Platform string
@@ -131,7 +135,12 @@ type Release struct {
 }
 
 func GetRelease(cli client.Client) (Release, error) {
-	initRelease := Release{}
+	initRelease := Release{
+		// dummy version set to name "", version 0.0.0
+		Version: version.OperatorVersion{
+			Version: semver.Version{},
+		},
+	}
 	// Set platform
 	platform, err := GetPlatform(cli)
 	if err != nil {
@@ -141,18 +150,21 @@ func GetRelease(cli client.Client) (Release, error) {
 
 	// For unit-tests
 	if os.Getenv("CI") == "true" {
-		initRelease.Version = version.OperatorVersion{
-			Version: semver.Version{},
-		}
 		return initRelease, nil
 	}
 	// Set Version
 	// Get watchNamespace
 	operatorNamespace, err := GetOperatorNamespace()
 	if err != nil {
-		return initRelease, err
+		// unit test does not have k8s file
+		fmt.Printf("Falling back to dummy version: %v\n", err)
+		return initRelease, nil
 	}
 	csv, err := GetClusterServiceVersion(context.TODO(), cli, operatorNamespace)
+	if apierrs.IsNotFound(err) {
+		// hide not found, return default
+		return initRelease, nil
+	}
 	if err != nil {
 		return initRelease, err
 	}
