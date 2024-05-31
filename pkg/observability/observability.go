@@ -76,18 +76,14 @@ func updateTemplate(fileName string, rootFS embed.FS, manifestPath string, dscis
 
 func setGVK(foundObj *unstructured.Unstructured, resourceName string) *unstructured.Unstructured {
 	switch {
-	case strings.HasSuffix(resourceName, "rules") == true:
+	case strings.HasSuffix(resourceName, "rules"):
 		foundObj.SetGroupVersionKind(gvk.PrometheusRule)
-		break
-	case strings.HasSuffix(resourceName, "service-monitor") == true:
+	case strings.HasSuffix(resourceName, "service-monitor"):
 		foundObj.SetGroupVersionKind(gvk.ServiceMonitor)
-		break
-	case strings.HasSuffix(resourceName, "pod-monitor") == true:
+	case strings.HasSuffix(resourceName, "pod-monitor"):
 		foundObj.SetGroupVersionKind(gvk.PodMonitor)
-		break
-	case strings.HasSuffix(resourceName, "scrape-config") == true:
+	case strings.HasSuffix(resourceName, "scrape-config"):
 		foundObj.SetGroupVersionKind(gvk.ScrapeConfig)
-		break
 	}
 	return foundObj
 }

@@ -978,75 +978,63 @@ rules:
 - apiGroups:
   - monitoring.rhobs
   resources:
-  - alertmanagerconfigs
+  - alertmanager
   verbs:
   - create
   - delete
   - get
-  - list
   - patch
   - update
-  - watch
 - apiGroups:
   - monitoring.rhobs
   resources:
-  - alertmanagers
+  - alertmanagerconfig
   verbs:
   - create
   - delete
   - get
-  - list
   - patch
   - update
-  - watch
 - apiGroups:
   - monitoring.rhobs
   resources:
-  - monitoringstacks
+  - monitoringStack
   verbs:
   - create
   - delete
   - get
-  - list
   - patch
   - update
-  - watch
 - apiGroups:
   - monitoring.rhobs
   resources:
-  - podmonitors
+  - podmonitor
   verbs:
   - create
   - delete
   - get
-  - list
   - patch
   - update
-  - watch
 - apiGroups:
   - monitoring.rhobs
   resources:
-  - prometheusrules
+  - prometheusrule
   verbs:
   - create
   - delete
   - get
-  - list
   - patch
   - update
-  - watch
 - apiGroups:
   - monitoring.rhobs
   resources:
-  - servicemonitors
+  - servicemonitor
   verbs:
   - create
   - delete
   - get
-  - list
   - patch
   - update
-  - watch
 - apiGroups:
   - networking.istio.io
   resources:
