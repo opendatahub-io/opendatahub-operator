@@ -1,8 +1,8 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: federate-prometheus
-  namespace: {{ .MonNamespace }}
+  name: federate-prometheus-service-monitor
+  namespace: [[ .Monitoring.Namespace ]]
   labels:
     monitoring.rhobs/stack: odh-cmo-ms
 spec:

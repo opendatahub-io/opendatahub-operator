@@ -103,6 +103,7 @@ func (r *DSCInitializationReconciler) observabilityCapabilityFeatures(instance *
 			ManifestSource(Templates.Source).
 			Manifests(
 				path.Join(Templates.MonitoringStackDir),
+				path.Join(Templates.OperatorRulesDir),
 			).
 			PostConditions(
 				obo.ConfigureOperatorMetrics(dsciEmbeddedFS, &instance.Spec),
