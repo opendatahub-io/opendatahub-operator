@@ -221,6 +221,11 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 		return createResource(ctx, cli, obj, owner)
 	}
 
+	// Exception to not update kserve with managed annotation
+	// do not reconcile kserve resource with annotation "opendatahub.io/managed: false"
+	if found.GetAnnotations()["opendatahub.io/managed"] == "false" && componentName == "kserve" {
+		return nil
+	}
 	// If resource already exists, update it.
 	return updateResource(ctx, cli, obj, found, owner, componentName)
 }
