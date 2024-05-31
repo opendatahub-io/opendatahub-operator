@@ -3,7 +3,7 @@
 # but to get PSI work with some, put it here
 # TODO: revisit if when we decomision customized prometheus instance
 ---
-apiVersion: monitoring.coreos.com/v1
+apiVersion: monitoring.rhobs/v1
 kind: PrometheusRule
 metadata:
   labels:
