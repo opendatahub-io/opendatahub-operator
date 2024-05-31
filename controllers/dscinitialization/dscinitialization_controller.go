@@ -223,10 +223,11 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			return reconcile.Result{}, err
 		}
 		// if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
-		// TODO: if we want to have the feature in ODH we need uncomment logic here
-		// if errObservability := r.configureObservability(instance); errObservability != nil {
-		// 	return reconcile.Result{}, errObservability
-		// }
+		// 	r.Log.Info("Monitoring enabled, won't apply changes, but i am testing it so lets do it", "cluster", "ODH Mode")
+		// 	// TODO: if we want to have the feature in ODH we need uncomment logic here
+		// 	if errObservibility := r.configureObservibility(instance); errObservibility != nil {
+		// 		return reconcile.Result{}, errObservibility
+		// 	}
 		// }
 	}
 
@@ -239,6 +240,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	_, err = status.UpdateWithRetry[*dsciv1.DSCInitialization](ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
 		status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, status.ReconcileCompletedMessage)
 		saved.Status.Phase = status.PhaseReady
+		saved.Status.Release = currentOperatorReleaseVersion
 	})
 
 	if err != nil {
