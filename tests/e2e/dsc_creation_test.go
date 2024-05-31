@@ -343,7 +343,7 @@ func (tc *testContext) validateDSC() error {
 		Name:            "knative-serving",
 		IngressGateway: infrav1.IngressGatewaySpec{
 			Certificate: infrav1.CertificateSpec{
-				Type: infrav1.DefaultIngress,
+				Type: infrav1.OpenshiftDefaultIngress,
 			},
 		},
 	}

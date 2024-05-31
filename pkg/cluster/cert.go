@@ -124,7 +124,7 @@ func generateCertificate(addr string) ([]byte, []byte, error) {
 }
 
 // GetDefaultIngressCertificate copies ingress cert secrets from openshift-ingress ns to given namespace.
-func GetDefaultIngressCertificate(ctx context.Context, c client.Client, namespace string) error {
+func GetDefaultIngressCertificate(ctx context.Context, c client.Client, knativeSecret, namespace string) error {
 	// Add IngressController to scheme
 	runtime.Must(operatorv1.Install(c.Scheme()))
 	defaultIngressCtrl, err := FindAvailableIngressController(ctx, c)
@@ -139,7 +139,7 @@ func GetDefaultIngressCertificate(ctx context.Context, c client.Client, namespac
 		return err
 	}
 
-	return copySecretToNamespace(ctx, c, defaultIngressSecret, namespace)
+	return copySecretToNamespace(ctx, c, defaultIngressSecret, knativeSecret, namespace)
 }
 
 func FindAvailableIngressController(ctx context.Context, c client.Client) (*operatorv1.IngressController, error) {
@@ -153,14 +153,10 @@ func FindAvailableIngressController(ctx context.Context, c client.Client) (*oper
 		return nil, err
 	}
 
-	for _, ingressCtrl := range defaultIngressCtrlList.Items {
-		for _, condition := range ingressCtrl.Status.Conditions {
-			if condition.Type == operatorv1.IngressControllerAvailableConditionType && condition.Status == operatorv1.ConditionTrue {
-				return &ingressCtrl, nil
-			}
-		}
+	if len(defaultIngressCtrlList.Items) > 0 {
+		return &defaultIngressCtrlList.Items[0], nil
 	}
-	return nil, err
+	return nil, fmt.Errorf("no ingresscontroller resource available")
 }
 
 func GetDefaultIngressCertSecretName(ingressCtrl *operatorv1.IngressController) string {
@@ -179,10 +175,10 @@ func getSecret(ctx context.Context, c client.Client, namespace, name string) (*v
 	return secret, nil
 }
 
-func copySecretToNamespace(ctx context.Context, c client.Client, secret *v1.Secret, namespace string) error {
+func copySecretToNamespace(ctx context.Context, c client.Client, secret *v1.Secret, newSecretName, namespace string) error {
 	newSecret := &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      secret.Name,
+			Name:      newSecretName,
 			Namespace: namespace,
 		},
 		Data: secret.Data,
@@ -190,7 +186,7 @@ func copySecretToNamespace(ctx context.Context, c client.Client, secret *v1.Secr
 	}
 
 	existingSecret := &v1.Secret{}
-	err := c.Get(ctx, client.ObjectKey{Name: secret.Name, Namespace: namespace}, existingSecret)
+	err := c.Get(ctx, client.ObjectKey{Name: newSecretName, Namespace: namespace}, existingSecret)
 	if apierrors.IsNotFound(err) {
 		err = c.Create(ctx, newSecret)
 		if err != nil {
