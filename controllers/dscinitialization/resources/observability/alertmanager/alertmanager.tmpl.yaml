@@ -7,7 +7,7 @@ metadata:
   namespace: {{ .MonNamespace }}
 spec:
   replicas: 1
-  version: v0.21.0
+  version: v0.27.0
   configMaps:
     - alertmanager-rhaoi  # point to email templates
   storage:
@@ -16,4 +16,4 @@ spec:
         accessModes: ["ReadWriteOnce"]
         resources:
           requests:
-            storage: 5Gi # keep the same storage as old deployment but do we really need that much????
+            storage: 5Mi # purely for alertmanager, this should be enough

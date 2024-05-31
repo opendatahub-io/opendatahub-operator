@@ -1,8 +1,3 @@
-# rhods_aggregate_availability, rhods_total_users, rhods_actvie_users should not be needed
-# they should be from traditional prometheus pod but from prometheus operator
-# but to get PSI work with some, put it here
-# TODO: revisit if when we decomision customized prometheus instance
----
 apiVersion: monitoring.rhobs/v1
 kind: PrometheusRule
 metadata:

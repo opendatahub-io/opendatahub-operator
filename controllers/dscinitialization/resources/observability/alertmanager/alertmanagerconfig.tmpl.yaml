@@ -23,7 +23,7 @@ spec:
         repeat_interval: 12h
     - match:
         severity: critical
-      receiver: {{ .PagerDutyReceiver }}  # this is new one, used to be replacded directly "aisrhods" with "receiver: PagerDuty": "receiver: alerts-sink",
+      receiver: {{ .PagerDutyReceiver }}
   receivers:
     - name: 'user-notifications'
       emailConfigs:
@@ -36,7 +36,7 @@ spec:
         smarthost: '{{ .SMTPHost }}:{{ .SMTPPort }}'
         authUsername: '{{ .SMTPUSER }}'
         authPassword:
-          name: redhat-rhods-smtp  # we use secret redhat-rhods-smtp which already in the Managed cluster
+          name: redhat-rhods-smtp
           key: password
         requireTLS: true
     - name: 'PagerDuty'

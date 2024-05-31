@@ -82,10 +82,7 @@ func (r *DSCInitializationReconciler) observabilityCapabilityFeatures(instance *
 			For(handler).
 			ManifestSource(Templates.Source).
 			Manifests(
-				// path.Join(Templates.AlertManageDir),
-				path.Join(Templates.AlertManageDir, "alertmanager-email.yaml"),
-				path.Join(Templates.AlertManageDir, "alertmanagerconfig.tmpl.yaml"),
-				path.Join(Templates.AlertManageDir, "alertmanager.tmpl.yaml"),
+				path.Join(Templates.AlertManageDir),
 			).
 			Managed().                           // we want to reconcie this by oepartor in Managed Cluster, do we want for ODH too?
 			WithData(obo.AlertmanagerDataValue). // fill in alertmanager data
@@ -113,13 +110,11 @@ func (r *DSCInitializationReconciler) observabilityCapabilityFeatures(instance *
 			return msErr
 		}
 
-		commonOBOErr := feature.CreateFeature("create-obo").
+		commonOBOErr := feature.CreateFeature("create-obo-commonconfig").
 			For(handler).
 			ManifestSource(Templates.Source).
 			Manifests(
-				path.Join(Templates.CommonDir, "podmonitor"),
-				path.Join(Templates.CommonDir, "servicemonitor"),
-				path.Join(Templates.CommonDir, "promethuesrules"),
+				path.Join(Templates.CommonDir),
 			).
 			Load()
 
