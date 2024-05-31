@@ -141,23 +141,25 @@ func removeCSV(ctx context.Context, c client.Client) error {
 	}
 
 	operatorCsv, err := cluster.GetClusterServiceVersion(ctx, c, operatorNamespace)
+	if apierrs.IsNotFound(err) {
+		fmt.Printf("No clusterserviceversion for the operator found.\n")
+		return nil
+	}
+
 	if err != nil {
 		return err
 	}
 
-	if operatorCsv != nil {
-		fmt.Printf("Deleting CSV %s\n", operatorCsv.Name)
-		err = c.Delete(ctx, operatorCsv)
-		if err != nil {
-			if apierrs.IsNotFound(err) {
-				return nil
-			}
-
-			return fmt.Errorf("error deleting clusterserviceversion: %w", err)
+	fmt.Printf("Deleting CSV %s\n", operatorCsv.Name)
+	err = c.Delete(ctx, operatorCsv)
+	if err != nil {
+		if apierrs.IsNotFound(err) {
+			return nil
 		}
-		fmt.Printf("Clusterserviceversion %s deleted as a part of uninstall.\n", operatorCsv.Name)
-		return nil
+
+		return fmt.Errorf("error deleting clusterserviceversion: %w", err)
 	}
-	fmt.Printf("No clusterserviceversion for the operator found.\n")
+	fmt.Printf("Clusterserviceversion %s deleted as a part of uninstall.\n", operatorCsv.Name)
+
 	return nil
 }
