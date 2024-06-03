@@ -172,8 +172,11 @@ CLEANFILES += odh-manifests/*
 api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-ref-docs
 	$(CRD_REF_DOCS) --source-path ./ --output-path ./docs/api-overview.md --renderer markdown --config ./crd-ref-docs.config.yaml && \
 	egrep -v '\.io/[^v][^1].*)$$' ./docs/api-overview.md > temp.md && mv ./temp.md ./docs/api-overview.md
-	
+
 ##@ Build
+.PHONY: manager # to force rebuild every time since, no make dependency tracking
+manager: ## Build manager binary in the root directory rebuilding all packages
+	go build -a -o $@
 
 .PHONY: build
 build: generate fmt vet ## Build manager binary.
