@@ -23,8 +23,9 @@ spec:
         repeat_interval: 12h
     - match:
         severity: critical
-      receiver: {{ .PagerDutyReceiver }}  # this is new one, used to be replacded directly "aisrhods" with "receiver: PagerDuty": "receiver: alerts-sink",
+        receiver: '{{ .PagerDutyReceiver }}'
   receivers:
+    - name: 'alerts-sink'
     - name: 'user-notifications'
       emailConfigs:
       - sendResolved: false
@@ -32,7 +33,8 @@ spec:
         from: 'redhat-openshift-alert@{{ .SMTPDoamin }}'
         html: '{{ template "email.rhods.html" . }}'
         headers: 
-          subject: '{{ template "email.rhods.subject" . }}'
+          - key: subject
+            value: '{{ template "email-rhoai-subject.tmpl" . }}'
         smarthost: '{{ .SMTPHost }}:{{ .SMTPPort }}'
         authUsername: '{{ .SMTPUSER }}'
         authPassword:
@@ -41,7 +43,8 @@ spec:
         requireTLS: true
     - name: 'PagerDuty'
       pagerdutyConfigs:
-      - serviceKey: {{ .PagerDutyKey }}
+      - serviceKey:
+          kye: '{{ .PagerDutyKey }}'
         sendResolved: true
     - name: 'deadman-snitch'
       webhookConfigs:
