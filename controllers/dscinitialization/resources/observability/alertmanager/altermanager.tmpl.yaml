@@ -9,7 +9,7 @@ spec:
   replicas: 1
   version: v0.21.0
   configMaps:
-    - alertmanager-rhaoi  # point to email templates
+    - alertmanager-rhoai  # point to email templates
   storage:
     volumeClaimTemplate:
       spec:
