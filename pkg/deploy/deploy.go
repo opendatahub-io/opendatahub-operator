@@ -51,7 +51,7 @@ import (
 )
 
 const (
-	DefaultManifestPath = "/opt/manifests"
+	DefaultManifestPath = "./odh-manifests"
 )
 
 // DownloadManifests function performs following tasks:

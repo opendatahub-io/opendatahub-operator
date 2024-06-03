@@ -1,0 +1,26 @@
+# not sure what this is about, purely copy-over here
+apiVersion: monitoring.rhobs/v1
+kind: PodMonitor
+metadata:
+  name: operator-pod-monitor
+  namespace: {{ .MonNamespace }}
+spec:
+  namespaceSelector:
+    matchNames:
+      - openshift-operators  # we need to change this to be a placeholder???
+  podMetricsEndpoints:
+    - port: web
+      honorLabels: true
+      scheme: http
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_labelpresent_control_plane]
+          regex: ^(true)$
+          targetLabel: kubernetes_name
+          action: keep
+        - sourceLabels: [__address__]
+          regex: (.*)
+          targetLabel: __address__
+          replacement: ${1}:8080
+  selector:
+    matchLabels:
+      name: opendatahub-operator

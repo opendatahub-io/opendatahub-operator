@@ -103,15 +103,23 @@ func (r *DSCInitializationReconciler) observabilityCapabilityFeatures(instance *
 			ManifestSource(Templates.Source).
 			Manifests(
 				path.Join(Templates.MonitoringStackDir),
-				path.Join(Templates.OperatorRulesDir),
-			).
-			PostConditions(
-				obo.ConfigureOperatorMetrics(dsciEmbeddedFS, &instance.Spec),
 			).
 			Load()
 
 		if msErr != nil {
 			return msErr
+		}
+
+		commonOBOErr := feature.CreateFeature("create-obo-commonconfig").
+			For(handler).
+			ManifestSource(Templates.Source).
+			Manifests(
+				path.Join(Templates.CommonDir),
+			).
+			Load()
+
+		if commonOBOErr != nil {
+			return commonOBOErr
 		}
 
 		platform, err := cluster.GetPlatform(r.Client)
