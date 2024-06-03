@@ -16,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	odhversion "github.com/opendatahub-io/opendatahub-operator/v2/pkg/version"
 )
 
 // +kubebuilder:rbac:groups="config.openshift.io",resources=ingresses,verbs=get
@@ -130,29 +131,26 @@ type Release struct {
 }
 
 func GetRelease(ctx context.Context, cli client.Client) (Release, error) {
-	initRelease := Release{
+	buildVer, err := semver.Parse(odhversion.Version)
+	if err != nil {
 		// dummy version set to name "", version 0.0.0
+		buildVer = semver.Version{}
+	}
+	initRelease := Release{
 		Version: version.OperatorVersion{
-			Version: semver.Version{},
+			Version: buildVer,
 		},
 	}
-	// Set platform
-	platform, err := GetPlatform(ctx, cli)
-	if err != nil {
-		return initRelease, err
-	}
+	// Set platform. error can be ignored, it's "" in that case
+	platform, _ := GetPlatform(ctx, cli)
 	initRelease.Name = platform
 
-	// For unit-tests
-	if os.Getenv("CI") == "true" {
-		return initRelease, nil
-	}
 	// Set Version
 	// Get watchNamespace
 	operatorNamespace, err := GetOperatorNamespace()
 	if err != nil {
 		// unit test does not have k8s file
-		fmt.Printf("Falling back to dummy version: %v\n", err)
+		fmt.Printf("Falling back to build version: %v\n", err)
 		return initRelease, nil
 	}
 	csv, err := GetClusterServiceVersion(ctx, cli, operatorNamespace)

@@ -174,13 +174,16 @@ api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-
 	egrep -v '\.io/[^v][^1].*)$$' ./docs/api-overview.md > temp.md && mv ./temp.md ./docs/api-overview.md
 
 ##@ Build
+GO_BUILD = go build -ldflags "-X 'github.com/opendatahub-io/opendatahub-operator/v2/pkg/version.Version=$(VERSION)'"
+
 .PHONY: manager # to force rebuild every time since, no make dependency tracking
-manager: ## Build manager binary in the root directory rebuilding all packages
-	go build -a -o $@
+manager: ## Build manager binary in the root directory rebuilding all packages and passing version
+	$(GO_BUILD) -a -o $@
+CLEANFILES += manager
 
 .PHONY: build
 build: generate fmt vet ## Build manager binary.
-	go build -o bin/manager main.go
+	$(GO_BUILD) -o bin/manager main.go
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
