@@ -4,14 +4,16 @@ metadata:
   name: alertmanager-rhoai
   namespace: {{ .MonNamespace }}
 data:
-  email-rhoai-subject.tmpl: |
-    {{"{{"}} if gt (len .Alerts.Firing) 1 {{"}}"}}
-        Red Hat OpenShift AI Notifications
-    {{"{{"}} else {{"}}"}}
-        {{"{{"}} (index .Alerts.Firing 0).Annotations.summary  {{"}}"}}
+  default.tmpl: |
+    {{"{{"}} define "email.rhods.subject" {{"}}"}}
+        {{"{{"}} if gt (len .Alerts.Firing) 1 {{"}}"}}
+            Red Hat OpenShift AI Notifications
+        {{"{{"}} else {{"}}"}}
+            {{"{{"}} (index .Alerts.Firing 0).Annotations.summary  {{"}}"}}
+        {{"{{"}} end {{"}}"}}
     {{"{{"}} end {{"}}"}}
+    {{"{{"}} define "email.rhods.html" {{"}}"}}
 
-  email-rhoai-body.tmpl: |
     <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
     <html xmlns="http://www.w3.org/1999/xhtml">
 
@@ -722,7 +724,7 @@ data:
                                 <td class="rh-body">
                                     <table class="rh-content" role="presentation" align="center" border="0" cellpadding="0"
                                         cellspacing="0" width="100%">
-                                        {{"{{"}} range .Alerts.Firing {{"}}"}}
+                                        {{"{{"}} range .Alerts.Firing {{"{{"}}
                                             {{"{{"}} if .Annotations.message {{"}}"}}
                                                 <tr>
                                                     <td class="rh-content__block">
@@ -881,18 +883,18 @@ data:
                                     <td class="rh-body">
                                         <table class="rh-content" role="presentation" align="center" border="0" cellpadding="0"
                                             cellspacing="0" width="100%">
-                                            {{ range .Alerts.Firing }}
-                                                {{ if .Annotations.message }}
+                                            {{"{{"}} range .Alerts.Firing {{"{{"}}
+                                                {{"{{"}} if .Annotations.message {{"{{"}}
                                                     <tr>
                                                         <td class="rh-content__block">
                                                             <div class="rh-alert__block">
-                                                                <h4 class="fh-inline-title"> {{ .Annotations.summary }}</h4> 
-                                                                {{ .Annotations.message }}
+                                                                <h4 class="fh-inline-title"> {{"{{"}} .Annotations.summary {{"{{"}}</h4> 
+                                                                {{"{{"}} .Annotations.message {{"{{"}}
                                                             </div>
                                                         </td>
                                                     </tr>
-                                                {{ end }}             
-                                            {{ end }}
+                                                {{"{{"}} end {{"{{"}}
+                                            {{"{{"}} end {{"{{"}}
                                             <tr><td class="rh-content__block"><div class="rh-spacer"></div></td></tr>
                                         </table>
                                     </td>
@@ -928,3 +930,4 @@ data:
             </center>
         </body>
         </html>
+    {{"{{"}} end {{"}}"}}

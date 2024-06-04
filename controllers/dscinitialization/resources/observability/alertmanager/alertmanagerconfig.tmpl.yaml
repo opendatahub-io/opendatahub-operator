@@ -30,9 +30,9 @@ spec:
       - sendResolved: false
         to: '{{ .NotificationEmail }}'
         from: 'redhat-openshift-alert@{{ .SMTPDoamin }}'
-        html: '{{ template "email-rhoai-body.tmpl" . }}'
+        html: '{{ template "email.rhods.html" . }}'
         headers: 
-          subject: '{{ template "email-rhoai-subject.tmpl" . }}'
+          subject: '{{ template "email.rhods.subject" . }}'
         smarthost: '{{ .SMTPHost }}:{{ .SMTPPort }}'
         authUsername: '{{ .SMTPUSER }}'
         authPassword:
