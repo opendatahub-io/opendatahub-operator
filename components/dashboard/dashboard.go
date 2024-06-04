@@ -126,14 +126,14 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 
 		// 2. platform specific RBAC
 		if platform == cluster.OpenDataHub || platform == "" {
-			err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "odh-dashboard")
+			err := cluster.UpdatePodSecurityRolebinding(ctx, cli, dscispec.ApplicationsNamespace, "odh-dashboard")
 			if err != nil {
 				return err
 			}
 		}
 
 		if platform == cluster.SelfManagedRhods || platform == cluster.ManagedRhods {
-			err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "rhods-dashboard")
+			err := cluster.UpdatePodSecurityRolebinding(ctx, cli, dscispec.ApplicationsNamespace, "rhods-dashboard")
 			if err != nil {
 				return err
 			}
@@ -152,7 +152,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 	switch platform {
 	case cluster.SelfManagedRhods, cluster.ManagedRhods:
 		// anaconda
-		if err := cluster.CreateSecret(cli, "anaconda-ce-access", dscispec.ApplicationsNamespace); err != nil {
+		if err := cluster.CreateSecret(ctx, cli, "anaconda-ce-access", dscispec.ApplicationsNamespace); err != nil {
 			return fmt.Errorf("failed to create access-secret for anaconda: %w", err)
 		}
 		// overlay which including ../../base + anaconda-ce-validator

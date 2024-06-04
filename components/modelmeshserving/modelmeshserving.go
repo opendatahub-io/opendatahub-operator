@@ -108,7 +108,7 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 			}
 		}
 
-		if err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace,
+		if err := cluster.UpdatePodSecurityRolebinding(ctx, cli, dscispec.ApplicationsNamespace,
 			"modelmesh",
 			"modelmesh-controller",
 			"odh-prometheus-operator",
@@ -129,7 +129,7 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 	l.WithValues("Path", Path).Info("apply manifests done for modelmesh")
 	// For odh-model-controller
 	if enabled {
-		if err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace,
+		if err := cluster.UpdatePodSecurityRolebinding(ctx, cli, dscispec.ApplicationsNamespace,
 			"odh-model-controller"); err != nil {
 			return err
 		}

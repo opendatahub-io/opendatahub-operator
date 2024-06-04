@@ -58,7 +58,7 @@ func (m *ModelRegistry) GetComponentName() string {
 	return ComponentName
 }
 
-func (m *ModelRegistry) ReconcileComponent(_ context.Context, cli client.Client, logger logr.Logger,
+func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
 	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
 	l := m.ConfigComponentLogger(logger, ComponentName, dscispec)
 	var imageParamMap = map[string]string{
@@ -90,7 +90,7 @@ func (m *ModelRegistry) ReconcileComponent(_ context.Context, cli client.Client,
 
 		// Create odh-model-registries namespace
 		// We do not delete this namespace even when ModelRegistry is Removed or when operator is uninstalled.
-		_, err := cluster.CreateNamespace(cli, "odh-model-registries")
+		_, err := cluster.CreateNamespace(ctx, cli, "odh-model-registries")
 		if err != nil {
 			return err
 		}
