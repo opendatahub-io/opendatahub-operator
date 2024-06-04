@@ -7,16 +7,14 @@ metadata:
     obo: rhoai-cmo
     monitoring.rhobs/stack: odh-cmo-ms
 data:
-  default.tmpl: |
-    {{"{{"}} define "email.rhods.subject" {{"}}"}}
-        {{"{{"}} if gt (len .Alerts.Firing) 1 {{"}}"}}
-            Red Hat OpenShift AI Notifications
-        {{"{{"}} else {{"}}"}}
-            {{"{{"}} (index .Alerts.Firing 0).Annotations.summary  {{"}}"}}
-        {{"{{"}} end {{"}}"}}
+  email-rhoai-subject.tmpl: |
+    {{"{{"}} if gt (len .Alerts.Firing) 1 {{"}}"}}
+        Red Hat OpenShift AI Notifications
+    {{"{{"}} else {{"}}"}}
+        {{"{{"}} (index .Alerts.Firing 0).Annotations.summary  {{"}}"}}
     {{"{{"}} end {{"}}"}}
-    {{"{{"}} define "email.rhods.html" {{"}}"}}
 
+  email-rhoai-body.tmpl: |
     <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
     <html xmlns="http://www.w3.org/1999/xhtml">
 
@@ -480,254 +478,100 @@ data:
                     width: 100% !important;
                     display: block !important;
                 }
+            }
 
+            @media only screen and (max-width: 480px) {
                 .rh-template-container {
-                    padding: 0 0 30px 0;
-                    width: 600px;
-                }
-
-                .rh-template-container,
-                .rh-template-container>tbody {
-                    background: #ededed;
-                }
-
-                .rh-head,
-                .rh-body,
-                .rh-footer {
-                    margin: 0;
-                    mso-line-height-rule: exactly;
-                    font-family: arial;
-                    font-size: 16px;
-                    box-sizing: border-box;
-                }
-
-                .rh-body {
-                    padding: 0 20px 20px 20px;
-                }
-
-                .rh-body,
-                .rh-masthead,
-                .rh-content,
-                .rh-data-table,
-                .rh-head {
+                    max-width: 480px !important;
+                    /*@editable*/
                     width: 100% !important;
                 }
 
-                .rh-head {
-                    padding: 0 0 20px 0;
+                .rh-data-table tbody th {
+                    width: auto !important;
                 }
 
-                .rh-footer {
-                    padding: 10px 20px 30px 20px;
+                .rh-data-table th,
+                .rh-data-table td {
+                    font-size: 14px;
                 }
 
-                .rh-masthead__content {
-                    background-color: #090a0a !important;
-                    background-color: #030303 !important;
-                    background-image: url(https://cloud.redhat.com/apps/frontend-assets/email-assets/bg_masthead-hat.png);
-                    background-size: cover;
+                .rh-data-table.rh-m-bordered th,
+                .rh-data-table.rh-m-bordered td {
+                    padding: 5px;
+                    text-align: left;
+                }
+            }
+
+            @media only screen and (max-width: 600px) {
+                body {
+                    width: 100% !important;
+                    min-width: 100% !important;
                 }
 
-                .rh-masthead__subhead {
-                    background-color: #282828 !important;
-                    padding: 20px;
-                    color: #ffffff !important;
-                    font-size: 18px;
-                    text-align: center;
+                .rh-template-container {
+                    max-width: 600px !important;
+                    /*@editable*/
+                    width: 100% !important;
                 }
 
                 .rh-masthead__block {
-                    width: 200px;
+                    width: 33%;
+                    max-width: 200px;
                 }
+            }
 
-                .rh-masthead__brand {
-                    padding: 5px 20px 5px 20px;
-                    background-color: #c0c0c0 !important;
-                    background-repeat: repeat;
+            .rh-masthead__brand-img {
+                width: 282px;
+                padding: 20px 0px;
+            }
 
-                    text-align: center;
-                }
+            .rh-spacer {
+                height: 20px;
+                width: 100%;
+            }
+        </style>
+    </head>
 
-                .rh-masthead__brand-link {
-                    display: block;
-                    text-align: center;
-                }
+    <body leftmargin="0" marginwidth="0" topmargin="0" marginheight="0" offset="0" class="rh-body">
+        <center>
+            <table align="center" border="0" cellpadding="0" cellspacing="0" height="100%" width="100%"
+                class="rh-body-table">
+                <tr>
+                    <td align="center" valign="top" class="rh-body-cell">
+                        <table border="0" cellpadding="0" cellspacing="0" class="rh-template-container">
 
-                .rh-masthead__content {
-                    background-color: #151515;
-                    background-size: cover;
-                    background-repeat: no-repeat;
-                }
-
-                .rh-masthead__content-title {
-                    padding: 20px 20px 20px 20px;
-                    margin: 0 0 10px 0;
-                    color: #ffffff;
-                    font-size: 18px;
-                    position: relative;
-                    font-weight: 400;
-                }
-
-                .rh-masthead__metric-block-count {
-                    display: block;
-                    padding-bottom: 10px;
-                    text-align: center;
-                    font-size: 28px;
-                    word-break: break-all;
-                    color: #ffffff !important;
-                    line-height: 1;
-                }
-
-                .rh-masthead__metric-block-text {
-                    display: block;
-                    padding: 0 20px 40px 20px;
-                    word-break: break-all;
-                    color: #ffffff !important;
-                    line-height: 1;
-                    font-size: 14px;
-                }
-
-                .rh-masthead__metric-block-icon {
-                    padding: 0 0 20px;
-                    display: block;
-                }
-
-                .rh-content+.rh-content {
-                    padding: 0 0 20px 0;
-                }
-
-                .rh-content a {
-                    color: #0066cc;
-                }
-
-                .rh-content {
-                    background: #efefef;
-                }
-
-                .rh-content table {
-                    background: #fff;
-                }
-
-                /* Content block */
-                .rh-content__block {
-                    max-width: 100%;
-                    padding: 20px 20px 20px 20px;
-                    overflow: hidden;
-                }
-
-                .rh-title__block {
-                    max-width: 100%;
-                    padding: 20px 20px 20px 20px;
-                    overflow: hidden;
-                }
-
-                .rh-alert__block {
-                    max-width: 100%;
-                    padding: 20px;
-                    margin: 4px;
-                    overflow: hidden;
-                    background: #ececec;
-                }
-
-                .rh-content tr+tr .rh-content__block {
-                    padding-top: 0;
-                    padding-bottom: 0;
-                }
-
-                .rh-content tr:last-child {
-                    padding-top: 0;
-                    padding-bottom: 20px;
-                }
-
-                .rh-content .rh-content__block {
-                    background-color: #fff;
-                }
-
-                .rh-content .rh-title__block {
-                    background-color: #fff;
-                }
-
-                .rh-footer__text {
-                    font-size: 14px;
-                    text-align: center;
-                }
-
-                .rh-footer__text a {
-                    color: #0066cc;
-                }
-
-                .rh-content__spacer {
-                    font-size: 0;
-                    line-height: 0;
-                    height: 20px;
-                    background-color: #ffffff;
-                }
-
-                .rh-cta-link {
-                    display: block;
-                    padding: 10px 20px;
-                    background-color: #0066cc;
-                    border-radius: 3px;
-                    text-decoration: none;
-                    font-weight: bold;
-                }
-
-                .rh-cta-link a {
-                    color: #ffffff;
-                    text-decoration: none;
-                }
-
-                .rh-data-table thead th {
-                    font-weight: 700;
-                    text-align: left;
-                }
-
-                .rh-data-table tbody th {
-                    font-weight: 500;
-                    text-align: left;
-                    width: 200px;
-                }
-
-                .rh-data-table.rh-m-bordered th {
-                    padding: 10px;
-                    text-align: left;
-                    font-size: 14px;
-                    font-weight: 500;
-                    text-transform: uppercase;
-                    background-color: #ededed;
-                }
-
-                .rh-data-table.rh-m-bordered td {
-                    padding: 10px;
-                    text-align: left;
-                }
-
-                .rh-data-table.rh-m-bordered {
-                    border-collapse: collapse;
-                }
-
-                .rh-table-header {
-                    text-align: left;
-                    padding-bottom: 0;
-                }
-
-                .rh-m-bordered th,
-                .rh-m-bordered td {
-                    border-width: 1px;
-                    border-color: #b8bbbe;
-                    border-style: solid;
-                }
-
-                .rh-m-bordered tr:nth-child(even) {
-                    background-color: #fafafa;
-                }
+                            <!-- Head -->
+                            <tr>
+                                <td class="rh-head">
+                                    <table class="rh-masthead" role="presentation" align="center" border="0" cellpadding="0"
+                                        cellspacing="0" width="100%">
+                                        <tr>
+                                            <!--Red Hat logo-->
+                                            <td align="center" class="rh-masthead__brand" bgcolor="#151515">
+                                                <a href="https://cloud.redhat.com/" target="_blank"
+                                                    class="rh-masthead__brand-link">
+                                                    <img class="rh-masthead__brand-img" src="https://raw.githubusercontent.com/red-hat-data-services/odh-dashboard/main/frontend/src/images/rhoai-logo.svg" />
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td class="rh-masthead__subhead">
+                                                <!-- <h1>{#insert content-title}{/}</h1> -->
+                                                <h1>Notifications</h1>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                            <!-- end head -->
 
                             <!-- Body section -->
                             <tr>
                                 <td class="rh-body">
                                     <table class="rh-content" role="presentation" align="center" border="0" cellpadding="0"
                                         cellspacing="0" width="100%">
-                                        {{"{{"}} range .Alerts.Firing {{"{{"}}
+                                        {{"{{"}} range .Alerts.Firing {{"}}"}}
                                             {{"{{"}} if .Annotations.message {{"}}"}}
                                                 <tr>
                                                     <td class="rh-content__block">
@@ -745,192 +589,32 @@ data:
                             </tr>
                             <!-- end body section -->
 
-                .rh-color__orange {
-                    color: #ec7a08;
-                }
+                            <!-- Footer -->
+                            <tr>
+                                <td class="rh-footer">
+                                    <table role="presentation" border="0" align="center" cellpadding="0" cellspacing="0"
+                                        width="100%">
+                                        <tr>
+                                            <td class="rh-footer__text">
+                                                This email was sent by Red Hat OpenShift Data Science
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                            <!-- end footer -->
 
-                .rh-color__green {
-                    color: #486b00;
-                }
+                            <!-- Ensure padding bottom - don't remove empty row -->
+                            <tr>
+                                <td>
+                                </td>
+                            </tr>
+                            <!-- leave - empty row -->
 
-                .rh-m-block {
-                    display: block;
-                }
-
-                .rh-url {
-                    word-break: break-word;
-                }
-
-                .rh-stack>*+* {
-                    margin-top: 10px;
-                }
-
-                .rh-inline {
-                    display: flex;
-                    align-items: center;
-                }
-
-                .rh-icon {
-                    display: inline-block;
-                    width: 16px;
-                    height: 16px;
-                    line-height: 1;
-                }
-
-                .rh-inline>*+* {
-                    display: inline-block;
-                    margin-left: 5px;
-                }
-
-                /* dark mode hacks */
-                [data-ogsc] .rh-masthead__brand,
-                [data-ogsb] .rh-masthead__brand {
-                    background-color: #151515 !important;
-                }
-
-                @media only screen and (max-width: 320px) {
-                    .rh-masthead__block {
-                        width: 100% !important;
-                        display: block !important;
-                    }
-                }
-
-                @media only screen and (max-width: 480px) {
-                    .rh-template-container {
-                        max-width: 480px !important;
-                        /*@editable*/
-                        width: 100% !important;
-                    }
-
-                    .rh-data-table tbody th {
-                        width: auto !important;
-                    }
-
-                    .rh-data-table th,
-                    .rh-data-table td {
-                        font-size: 14px;
-                    }
-
-                    .rh-data-table.rh-m-bordered th,
-                    .rh-data-table.rh-m-bordered td {
-                        padding: 5px;
-                        text-align: left;
-                    }
-                }
-
-                @media only screen and (max-width: 600px) {
-                    body {
-                        width: 100% !important;
-                        min-width: 100% !important;
-                    }
-
-                    .rh-template-container {
-                        max-width: 600px !important;
-                        /*@editable*/
-                        width: 100% !important;
-                    }
-
-                    .rh-masthead__block {
-                        width: 33%;
-                        max-width: 200px;
-                    }
-                }
-
-                .rh-masthead__brand-img {
-                    width: 282px;
-                    padding: 20px 0px;
-                }
-
-                .rh-spacer {
-                    height: 20px;
-                    width: 100%;
-                }
-            </style>
-        </head>
-
-        <body leftmargin="0" marginwidth="0" topmargin="0" marginheight="0" offset="0" class="rh-body">
-            <center>
-                <table align="center" border="0" cellpadding="0" cellspacing="0" height="100%" width="100%"
-                    class="rh-body-table">
-                    <tr>
-                        <td align="center" valign="top" class="rh-body-cell">
-                            <table border="0" cellpadding="0" cellspacing="0" class="rh-template-container">
-
-                                <!-- Head -->
-                                <tr>
-                                    <td class="rh-head">
-                                        <table class="rh-masthead" role="presentation" align="center" border="0" cellpadding="0"
-                                            cellspacing="0" width="100%">
-                                            <tr>
-                                                <!--Red Hat logo-->
-                                                <td align="center" class="rh-masthead__brand" bgcolor="#151515">
-                                                    <a href="https://cloud.redhat.com/" target="_blank"
-                                                        class="rh-masthead__brand-link">
-                                                        <img class="rh-masthead__brand-img" src="https://raw.githubusercontent.com/red-hat-data-services/odh-dashboard/main/frontend/src/images/rhoai-logo.svg" />
-                                                    </a>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td class="rh-masthead__subhead">
-                                                    <!-- <h1>{#insert content-title}{/}</h1> -->
-                                                    <h1>Notifications</h1>
-                                                </td>
-                                            </tr>
-                                        </table>
-                                    </td>
-                                </tr>
-                                <!-- end head -->
-
-                                <!-- Body section -->
-                                <tr>
-                                    <td class="rh-body">
-                                        <table class="rh-content" role="presentation" align="center" border="0" cellpadding="0"
-                                            cellspacing="0" width="100%">
-                                            {{"{{"}} range .Alerts.Firing {{"{{"}}
-                                                {{"{{"}} if .Annotations.message {{"{{"}}
-                                                    <tr>
-                                                        <td class="rh-content__block">
-                                                            <div class="rh-alert__block">
-                                                                <h4 class="fh-inline-title"> {{"{{"}} .Annotations.summary {{"{{"}}</h4> 
-                                                                {{"{{"}} .Annotations.message {{"{{"}}
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                {{"{{"}} end {{"{{"}}
-                                            {{"{{"}} end {{"{{"}}
-                                            <tr><td class="rh-content__block"><div class="rh-spacer"></div></td></tr>
-                                        </table>
-                                    </td>
-                                </tr>
-                                <!-- end body section -->
-
-                                <!-- Footer -->
-                                <tr>
-                                    <td class="rh-footer">
-                                        <table role="presentation" border="0" align="center" cellpadding="0" cellspacing="0"
-                                            width="100%">
-                                            <tr>
-                                                <td class="rh-footer__text">
-                                                    This email was sent by Red Hat OpenShift Data Science
-                                                </td>
-                                            </tr>
-                                        </table>
-                                    </td>
-                                </tr>
-                                <!-- end footer -->
-
-                                <!-- Ensure padding bottom - don't remove empty row -->
-                                <tr>
-                                    <td>
-                                    </td>
-                                </tr>
-                                <!-- leave - empty row -->
-
-                            </table>
-                        </td>
-                    </tr>
-                </table>
-            </center>
-        </body>
-        </html>
-    {{"{{"}} end {{"}}"}}
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </center>
+    </body>
+    </html>

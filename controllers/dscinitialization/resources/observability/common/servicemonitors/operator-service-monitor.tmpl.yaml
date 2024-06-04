@@ -10,7 +10,7 @@ spec:
   endpoints:
     - path: /metrics
       port: http
-      scheme: https
+      scheme: http
       authorization:
         credentials:
           key: token
