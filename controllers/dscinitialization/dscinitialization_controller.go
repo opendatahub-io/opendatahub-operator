@@ -73,6 +73,10 @@ type DSCInitializationReconciler struct { //nolint:golint,revive // Readability
 // +kubebuilder:rbac:groups="features.opendatahub.io",resources=featuretrackers/status,verbs=get;update;patch;delete
 // +kubebuilder:rbac:groups="kfdef.apps.kubeflow.org",resources=kfdefs,verbs=get;list;watch;create;update;patch;delete
 
+// This is for servicemesh
+// +kubebuilder:rbac:groups="monitoring.coreos.com",resources=servicemonitors,verbs=create;delete;update;list;patch
+// +kubebuilder:rbac:groups="monitoring.coreos.com",resources=podmonitors,verbs=create;delete;update;list;patch
+
 // WEN: below are moved from old monitoring.go not sure if we need all of these or not
 // +kubebuilder:rbac:groups="route.openshift.io",resources=routers/metrics,verbs=get
 // +kubebuilder:rbac:groups="route.openshift.io",resources=routers/federate,verbs=get
