@@ -991,7 +991,7 @@ rules:
 - apiGroups:
   - monitoring.rhobs
   resources:
-  - alertmanager
+  - alertmanagerconfigs
   verbs:
   - create
   - delete
@@ -1001,7 +1001,7 @@ rules:
 - apiGroups:
   - monitoring.rhobs
   resources:
-  - alertmanagerconfig
+  - alertmanagers
   verbs:
   - create
   - delete
@@ -1031,7 +1031,7 @@ rules:
 - apiGroups:
   - monitoring.rhobs
   resources:
-  - monitoringStack
+  - monitoringstacks
   verbs:
   - create
   - delete
@@ -1041,13 +1041,15 @@ rules:
 - apiGroups:
   - monitoring.rhobs
   resources:
-  - podmonitor
+  - podmonitors
   verbs:
   - create
   - delete
   - get
+  - list
   - patch
   - update
+  - watch
 - apiGroups:
   - monitoring.rhobs
   resources:
@@ -1092,13 +1094,15 @@ rules:
 - apiGroups:
   - monitoring.rhobs
   resources:
-  - servicemonitor
+  - servicemonitors
   verbs:
   - create
   - delete
   - get
+  - list
   - patch
   - update
+  - watch
 - apiGroups:
   - networking.istio.io
   resources:

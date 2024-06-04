@@ -93,7 +93,7 @@ func AlertmanagerDataValue(f *feature.Feature) error {
 	if err != nil {
 		return fmt.Errorf("error getting configmap %s: %w", "rhoai-alertmanager-configmap", err)
 	}
-	f.Spec.AlertmanagerData.EmailBody  = AlertManagerConfigMap.Data["email-rhoai-body.tmpl"]
+	f.Spec.AlertmanagerData.EmailBody = AlertManagerConfigMap.Data["email-rhoai-body.tmpl"]
 	f.Spec.AlertmanagerData.EmailSubject = AlertManagerConfigMap.Data["email-rhoai-subject.tmpl"]
 
 	return nil

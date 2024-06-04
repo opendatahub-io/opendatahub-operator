@@ -217,7 +217,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
 			r.Log.Info("Monitoring enabled in initialization stage", "cluster", "Managed Service Mode")
-			if errObservability := r.configureObservability(instance); errObservability != nil {
+			if errObservability := r.configureObservability(ctx, instance); errObservability != nil {
 				return reconcile.Result{}, errObservability
 			}
 		}
