@@ -152,7 +152,7 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 		}
 
 		// For odh-model-controller
-		if err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "odh-model-controller"); err != nil {
+		if err := cluster.UpdatePodSecurityRolebinding(ctx, cli, dscispec.ApplicationsNamespace, "odh-model-controller"); err != nil {
 			return err
 		}
 		// Update image parameters for odh-model-controller

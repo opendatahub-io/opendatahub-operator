@@ -1,6 +1,7 @@
 package features_test
 
 import (
+	"context"
 	"os"
 	"path"
 
@@ -29,7 +30,7 @@ var _ = Describe("Manifest sources", func() {
 		nsName := envtestutil.AppendRandomNameTo("smcp-ns")
 
 		var err error
-		namespace, err = cluster.CreateNamespace(envTestClient, nsName)
+		namespace, err = cluster.CreateNamespace(context.Background(), envTestClient, nsName)
 		Expect(err).ToNot(HaveOccurred())
 
 		dsci = fixtures.NewDSCInitialization(nsName)

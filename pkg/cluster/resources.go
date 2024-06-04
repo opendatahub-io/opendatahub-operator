@@ -18,9 +18,9 @@ import (
 
 // UpdatePodSecurityRolebinding update default rolebinding which is created in applications namespace by manifests
 // being used by different components and SRE monitoring.
-func UpdatePodSecurityRolebinding(cli client.Client, namespace string, serviceAccountsList ...string) error {
+func UpdatePodSecurityRolebinding(ctx context.Context, cli client.Client, namespace string, serviceAccountsList ...string) error {
 	foundRoleBinding := &authv1.RoleBinding{}
-	if err := cli.Get(context.TODO(), client.ObjectKey{Name: namespace, Namespace: namespace}, foundRoleBinding); err != nil {
+	if err := cli.Get(ctx, client.ObjectKey{Name: namespace, Namespace: namespace}, foundRoleBinding); err != nil {
 		return fmt.Errorf("error to get rolebinding %s from namespace %s: %w", namespace, namespace, err)
 	}
 
@@ -35,7 +35,7 @@ func UpdatePodSecurityRolebinding(cli client.Client, namespace string, serviceAc
 		}
 	}
 
-	if err := cli.Update(context.TODO(), foundRoleBinding); err != nil {
+	if err := cli.Update(ctx, foundRoleBinding); err != nil {
 		return fmt.Errorf("error update rolebinding %s with serviceaccount: %w", namespace, err)
 	}
 
@@ -55,7 +55,7 @@ func subjectExistInRoleBinding(subjectList []authv1.Subject, serviceAccountName,
 }
 
 // CreateSecret creates secrets required by dashboard component in downstream.
-func CreateSecret(cli client.Client, name, namespace string, metaOptions ...MetaOptions) error {
+func CreateSecret(ctx context.Context, cli client.Client, name, namespace string, metaOptions ...MetaOptions) error {
 	desiredSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -69,10 +69,10 @@ func CreateSecret(cli client.Client, name, namespace string, metaOptions ...Meta
 	}
 
 	foundSecret := &corev1.Secret{}
-	err := cli.Get(context.TODO(), client.ObjectKey{Name: name, Namespace: namespace}, foundSecret)
+	err := cli.Get(ctx, client.ObjectKey{Name: name, Namespace: namespace}, foundSecret)
 	if err != nil {
 		if apierrs.IsNotFound(err) {
-			err = cli.Create(context.TODO(), desiredSecret)
+			err = cli.Create(ctx, desiredSecret)
 			if err != nil && !apierrs.IsAlreadyExists(err) {
 				return err
 			}
@@ -87,13 +87,13 @@ func CreateSecret(cli client.Client, name, namespace string, metaOptions ...Meta
 // CreateOrUpdateConfigMap creates a new configmap or updates an existing one.
 // If the configmap already exists, it will be updated with the merged Data and MetaOptions, if any.
 // ConfigMap.ObjectMeta.Name and ConfigMap.ObjectMeta.Namespace are both required, it returns an error otherwise.
-func CreateOrUpdateConfigMap(c client.Client, desiredCfgMap *corev1.ConfigMap, metaOptions ...MetaOptions) error {
+func CreateOrUpdateConfigMap(ctx context.Context, c client.Client, desiredCfgMap *corev1.ConfigMap, metaOptions ...MetaOptions) error {
 	if desiredCfgMap.GetName() == "" || desiredCfgMap.GetNamespace() == "" {
 		return fmt.Errorf("configmap name and namespace must be set")
 	}
 
 	existingCfgMap := &corev1.ConfigMap{}
-	err := c.Get(context.TODO(), client.ObjectKey{
+	err := c.Get(ctx, client.ObjectKey{
 		Name:      desiredCfgMap.Name,
 		Namespace: desiredCfgMap.Namespace,
 	}, existingCfgMap)
@@ -102,7 +102,7 @@ func CreateOrUpdateConfigMap(c client.Client, desiredCfgMap *corev1.ConfigMap, m
 		if applyErr := ApplyMetaOptions(desiredCfgMap, metaOptions...); applyErr != nil {
 			return applyErr
 		}
-		return c.Create(context.TODO(), desiredCfgMap)
+		return c.Create(ctx, desiredCfgMap)
 	} else if err != nil {
 		return err
 	}
@@ -118,7 +118,7 @@ func CreateOrUpdateConfigMap(c client.Client, desiredCfgMap *corev1.ConfigMap, m
 		existingCfgMap.Data[key] = value
 	}
 
-	if updateErr := c.Update(context.TODO(), existingCfgMap); updateErr != nil {
+	if updateErr := c.Update(ctx, existingCfgMap); updateErr != nil {
 		return updateErr
 	}
 
@@ -128,7 +128,7 @@ func CreateOrUpdateConfigMap(c client.Client, desiredCfgMap *corev1.ConfigMap, m
 
 // CreateNamespace creates a namespace and apply metadata.
 // If a namespace already exists, the operation has no effect on it.
-func CreateNamespace(cli client.Client, namespace string, metaOptions ...MetaOptions) (*corev1.Namespace, error) {
+func CreateNamespace(ctx context.Context, cli client.Client, namespace string, metaOptions ...MetaOptions) (*corev1.Namespace, error) {
 	desiredNamespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: namespace,
@@ -140,11 +140,11 @@ func CreateNamespace(cli client.Client, namespace string, metaOptions ...MetaOpt
 	}
 
 	foundNamespace := &corev1.Namespace{}
-	if getErr := cli.Get(context.TODO(), client.ObjectKey{Name: namespace}, foundNamespace); client.IgnoreNotFound(getErr) != nil {
+	if getErr := cli.Get(ctx, client.ObjectKey{Name: namespace}, foundNamespace); client.IgnoreNotFound(getErr) != nil {
 		return nil, getErr
 	}
 
-	createErr := cli.Create(context.TODO(), desiredNamespace)
+	createErr := cli.Create(ctx, desiredNamespace)
 	if apierrs.IsAlreadyExists(createErr) {
 		return foundNamespace, nil
 	}
