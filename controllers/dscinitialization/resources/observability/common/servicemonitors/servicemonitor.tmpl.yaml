@@ -12,7 +12,10 @@ spec:
     matchLabels:
       app.kubernetes.io/managed-by: observability-operator
   endpoints:
-  - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+  - authorization:
+      credentials:
+        key: token
+        name: prometheus-secret
     tlsConfig:
       serverName: prometheus-k8s.openshift-monitoring.svc
       ca:

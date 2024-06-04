@@ -18,14 +18,14 @@ spec:
           storage: 5Gi
     scrapeInterval: 10s  # from prometheus.yaml CM      
   alertmanagerConfig:
-    disabled: true
+    disabled: false
   resources:
     requests:
       cpu: 500m
       memory: 3Gi
   resourceSelector: # to get servicemonitor
     matchLabels:
-      monitoring.rhobs/stack: odh-cmo-ms
+      monitoring.rhobs/stack: rhoai-cmo-ms
   namespaceSelector: # to limit only for monitoring namespace
     matchLabels:
-      kubernetes.io/metadata.name: {{ .AppNamespace }}  # dsci.Spec.ApplicationsNamespace
+      kubernetes.io/metadata.name: {{ .MonNamespace }}  # dsci.Spec.MonitoringNamespace

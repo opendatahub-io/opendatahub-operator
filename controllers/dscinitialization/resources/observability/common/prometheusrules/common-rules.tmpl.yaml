@@ -2,6 +2,7 @@ apiVersion: monitoring.rhobs/v1
 kind: PrometheusRule
 metadata:
   labels:
+    monitoring.rhobs/stack: rhoai-cmo-ms
     prometheus: k8s
     role: recording-rules
     app: rhods

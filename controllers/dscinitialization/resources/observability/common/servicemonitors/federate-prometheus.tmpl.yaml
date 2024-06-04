@@ -1,20 +1,10 @@
-apiVersion: v1
-kind: Secret
-metadata:
-  name: prometheus-secret
-  namespace: {{ .MonNamespace }}
-  annotations:
-    kubernetes.io/service-account.name: rhoai-monitoring-stack-prometheus
-type: kubernetes.io/service-account-token
----
 apiVersion: monitoring.rhobs/v1
 kind: ServiceMonitor
 metadata:
   name: federate-prometheus
   namespace: {{ .MonNamespace }}
   labels:
-    kubernetes.io/part-of: rhoai-monitoring-stack
-    monitoring.rhobs/stack: rhoai-monitoring-stack
+    monitoring.rhobs/stack: rhoai-cmo-ms
 spec:
   selector:
     matchLabels:
