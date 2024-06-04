@@ -6,7 +6,6 @@ metadata:
   labels:
     monitoring.rhobs/stack: rhoai-cmo-ms
     team: rhods # should we update to rhoai with SRE?
-    monitor-component: rhods-resources # ditto
 spec:
   selector:
     matchLabels:

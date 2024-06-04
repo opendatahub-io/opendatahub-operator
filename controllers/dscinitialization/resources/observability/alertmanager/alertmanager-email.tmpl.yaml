@@ -1,8 +1,11 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: alertmanager-rhoai
+  name: rhoai-alertmanager-configmap
   namespace: {{ .MonNamespace }}
+  labels:
+    obo: rhoai-cmo
+    monitoring.rhobs/stack: odh-cmo-ms
 data:
   default.tmpl: |
     {{"{{"}} define "email.rhods.subject" {{"}}"}}

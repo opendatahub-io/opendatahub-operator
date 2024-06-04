@@ -2,15 +2,13 @@ apiVersion: monitoring.rhobs/v1
 kind: PrometheusRule
 metadata:
   labels:
-    monitoring.rhobs/stack: rhoai-cmo-ms
-    prometheus: k8s
-    role: recording-rules
-    app: rhods
-  name: rhods-rules
+    app: rhoai
+    monitoring.rhobs/stack: odh-cmo-ms
+  name: rhoai-rules
   namespace: {{ .MonNamespace }}
 spec:
   groups:
-  - name: rhods-usage.rules
+  - name: rhoai-usage.rules
     rules:
     - record: cluster:usage:consumption:rhods:cpu:seconds:rate1h
       expr: sum(rate(container_cpu_usage_seconds_total{container="",pod=~"jupyter-nb.*",namespace="rhods-notebooks"}[1h]))

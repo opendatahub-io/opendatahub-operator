@@ -16,7 +16,7 @@ import (
 
 const (
 	interval = 2 * time.Second
-	duration = 5 * time.Minute
+	duration = 1 * time.Minute
 )
 
 type MissingOperatorError struct {
@@ -130,7 +130,7 @@ func WaitForResourceToBeCreated(namespace string, gvk schema.GroupVersionKind) A
 
 func WaitForManagedSecret(name string, namespace string) Action {
 	return func(f *Feature) error {
-		f.Log.Info("waiting for secret to become ready", "namespace", namespace, "duration (s)", duration.Seconds())
+		f.Log.Info("waiting for secret to become ready", "name", name, "namespace", namespace, "duration (s)", duration.Seconds())
 		managedSecret := &corev1.Secret{}
 		return wait.PollUntilContextTimeout(context.TODO(), interval, duration, false, func(ctx context.Context) (bool, error) {
 			err := f.Client.Get(ctx, client.ObjectKey{

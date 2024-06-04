@@ -93,7 +93,6 @@ func (r *DSCInitializationReconciler) observabilityCapabilityFeatures(instance *
 			Manifests(
 				path.Join(Templates.AlertManageDir),
 			).
-			Managed().                           // we want to reconcie this by oepartor
 			WithData(obo.AlertmanagerDataValue). // fill in alertmanager data
 			PreConditions(
 				feature.EnsureOperatorIsInstalled("cluster-observability-operator"),

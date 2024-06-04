@@ -4,9 +4,8 @@ metadata:
   name: deadmanssnitch-prometheusrules
   namespace:  {{ .MonNamespace }}
   labels:
-    monitoring.rhobs/stack: rhoai-cmo-ms
-    prometheus: k8s
-    app: rhods
+    app: rhoai
+    monitoring.rhobs/stack: odh-cmo-ms
 spec:
   groups:
     - name: DeadManSnitch

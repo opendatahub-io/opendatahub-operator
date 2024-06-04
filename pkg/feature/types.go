@@ -41,7 +41,8 @@ type AlertmanagerData struct {
 	PagerDutyReceiver string // value PagerDuty or alerts-sink
 	NotificationEmail string // notification-email
 	DeadManSnitchURL  string // snitch_url
-
+	EmailSubject	   string // email subject
+	EmailBody	   string // email body
 }
 
 func ReplaceChar(s string, oldChar, newChar string) string {
