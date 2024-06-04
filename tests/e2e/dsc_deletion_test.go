@@ -33,7 +33,7 @@ func deletionTestSuite(t *testing.T) {
 			require.NoError(t, err, "Error to delete DSC instance")
 		})
 		t.Run("Deletion: Application Resource", func(t *testing.T) {
-			err = testCtx.testAllApplicationDeletion()
+			err = testCtx.testAllApplicationDeletion(t)
 			require.NoError(t, err, "Error to delete component")
 		})
 		t.Run("Deletion: DSCI instance", func(t *testing.T) {
@@ -85,7 +85,7 @@ func (tc *testContext) testApplicationDeletion(component components.ComponentInt
 	return nil
 }
 
-func (tc *testContext) testAllApplicationDeletion() error {
+func (tc *testContext) testAllApplicationDeletion(t *testing.T) error { //nolint:thelper
 	// Deletion all listed components' deployments
 
 	components, err := tc.testDsc.GetComponents()
@@ -94,9 +94,12 @@ func (tc *testContext) testAllApplicationDeletion() error {
 	}
 
 	for _, c := range components {
-		if err = tc.testApplicationDeletion(c); err != nil {
-			return err
-		}
+		c := c
+		t.Run("Delete "+c.GetComponentName(), func(t *testing.T) {
+			t.Parallel()
+			err = tc.testApplicationDeletion(c)
+			require.NoError(t, err)
+		})
 	}
 
 	return nil

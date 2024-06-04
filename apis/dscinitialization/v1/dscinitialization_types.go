@@ -17,6 +17,7 @@ limitations under the License.
 package v1
 
 import (
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -110,6 +111,9 @@ type DSCInitializationStatus struct {
 	// +optional
 	RelatedObjects []corev1.ObjectReference `json:"relatedObjects,omitempty"`
 	ErrorMessage   string                   `json:"errorMessage,omitempty"`
+
+	// Version and release type
+	Release cluster.Release `json:"release,omitempty"`
 }
 
 //+kubebuilder:object:root=true

@@ -97,6 +97,17 @@ func (m *ModelRegistry) ReconcileComponent(_ context.Context, cli client.Client,
 	}
 	// Deploy ModelRegistry Operator
 	err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, m.GetComponentName(), enabled)
+	if err != nil {
+		return err
+	}
 	l.Info("apply manifests done")
-	return err
+
+	// Create additional model registry resources, componentEnabled=true because these extras are never deleted!
+	err = deploy.DeployManifestsFromPath(cli, owner, Path+"/extras", dscispec.ApplicationsNamespace, m.GetComponentName(), true)
+	if err != nil {
+		return err
+	}
+	l.Info("apply extra manifests done")
+
+	return nil
 }

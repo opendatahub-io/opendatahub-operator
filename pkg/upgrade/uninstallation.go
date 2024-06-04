@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
-	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -79,11 +78,11 @@ func OperatorUninstall(ctx context.Context, cli client.Client) error {
 	subsName := "opendatahub-operator"
 	if platform == cluster.SelfManagedRhods {
 		subsName = "rhods-operator"
-	} else if platform == cluster.ManagedRhods {
-		subsName = "addon-managed-odh"
 	}
-	if err := DeleteExistingSubscription(cli, operatorNs, subsName); err != nil {
-		return err
+	if platform != cluster.ManagedRhods {
+		if err := cluster.DeleteExistingSubscription(cli, operatorNs, subsName); err != nil {
+			return err
+		}
 	}
 
 	fmt.Printf("Removing the operator CSV in turn remove operator deployment\n")
@@ -142,49 +141,25 @@ func removeCSV(ctx context.Context, c client.Client) error {
 	}
 
 	operatorCsv, err := cluster.GetClusterServiceVersion(ctx, c, operatorNamespace)
+	if apierrs.IsNotFound(err) {
+		fmt.Printf("No clusterserviceversion for the operator found.\n")
+		return nil
+	}
+
 	if err != nil {
 		return err
 	}
 
-	if operatorCsv != nil {
-		fmt.Printf("Deleting CSV %s\n", operatorCsv.Name)
-		err = c.Delete(ctx, operatorCsv)
-		if err != nil {
-			if apierrs.IsNotFound(err) {
-				return nil
-			}
-
-			return fmt.Errorf("error deleting clusterserviceversion: %w", err)
-		}
-		fmt.Printf("Clusterserviceversion %s deleted as a part of uninstall.\n", operatorCsv.Name)
-		return nil
-	}
-	fmt.Printf("No clusterserviceversion for the operator found.\n")
-	return nil
-}
-
-// DeleteExistingSubscription deletes given Subscription if it exists
-// Do not error if the Subscription does not exist.
-func DeleteExistingSubscription(cli client.Client, operatorNs string, subsName string) error {
-	sub, err := getSubscription(cli, operatorNs, subsName)
+	fmt.Printf("Deleting CSV %s\n", operatorCsv.Name)
+	err = c.Delete(ctx, operatorCsv)
 	if err != nil {
-		return client.IgnoreNotFound(err)
-	}
+		if apierrs.IsNotFound(err) {
+			return nil
+		}
 
-	if err := cli.Delete(context.TODO(), sub); client.IgnoreNotFound(err) != nil {
-		return fmt.Errorf("error deleting subscription %s: %w", sub.Name, err)
+		return fmt.Errorf("error deleting clusterserviceversion: %w", err)
 	}
+	fmt.Printf("Clusterserviceversion %s deleted as a part of uninstall.\n", operatorCsv.Name)
 
 	return nil
-}
-
-// GetSubscription checks if a Subscription for the operator exists in the given namespace.
-// if exist, return object; otherwise, return error.
-func getSubscription(cli client.Client, namespace string, name string) (*ofapiv1alpha1.Subscription, error) {
-	sub := &ofapiv1alpha1.Subscription{}
-	if err := cli.Get(context.TODO(), client.ObjectKey{Namespace: namespace, Name: name}, sub); err != nil {
-		// real error or 'not found' both return here
-		return nil, err
-	}
-	return sub, nil
 }

@@ -18,6 +18,7 @@ package v1
 
 import (
 	"errors"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"reflect"
 
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
@@ -103,6 +104,9 @@ type DataScienceClusterStatus struct {
 
 	// List of components with status if installed or not
 	InstalledComponents map[string]bool `json:"installedComponents,omitempty"`
+
+	// Version and release type
+	Release cluster.Release `json:"release,omitempty"`
 }
 
 //+kubebuilder:object:root=true
