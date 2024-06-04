@@ -3,6 +3,8 @@ kind: ServiceMonitor
 metadata:
   name: kuberay-service-monitor
   namespace: [[ .Monitoring.Namespace ]]
+  labels:
+    monitoring.rhobs/stack: rhoai-cmo-ms
 spec:
   namespaceSelector:
     matchNames:

@@ -1,6 +1,7 @@
 package dscinitialization
 
 import (
+	"context"
 	"fmt"
 	"path"
 
@@ -33,11 +34,11 @@ import (
 // +kubebuilder:rbac:groups="monitoring.rhobs",resources=monitoringstacks,verbs=get;create;patch;delete;deletec
 
 // currently the logic is only called if it is for downstream.
-func (r *DSCInitializationReconciler) configureObservability(instance *dsciv1.DSCInitialization) error {
+func (r *DSCInitializationReconciler) configureObservability(ctx context.Context, instance *dsciv1.DSCInitialization) error {
 	switch instance.Spec.Monitoring.ManagementState {
 	case operatorv1.Managed:
 		capabilities := []*feature.HandlerWithReporter[*dsciv1.DSCInitialization]{
-			r.observabilityCapability(instance, oboCondition(status.ConfiguredReason, "CMO is configured")),
+			r.observabilityCapability(ctx, instance, oboCondition(status.ConfiguredReason, "CMO is configured")),
 		}
 		for _, capability := range capabilities {
 			capabilityErr := capability.Apply()
@@ -49,7 +50,7 @@ func (r *DSCInitializationReconciler) configureObservability(instance *dsciv1.DS
 		}
 	case operatorv1.Removed:
 		r.Log.Info("existing ClusterObservability CR (owned by operator) will be removed")
-		if err := r.removeObservability(instance); err != nil {
+		if err := r.removeObservability(ctx, instance); err != nil {
 			return err
 		}
 	}
@@ -57,10 +58,10 @@ func (r *DSCInitializationReconciler) configureObservability(instance *dsciv1.DS
 	return nil
 }
 
-func (r *DSCInitializationReconciler) removeObservability(instance *dsciv1.DSCInitialization) error {
+func (r *DSCInitializationReconciler) removeObservability(ctx context.Context, instance *dsciv1.DSCInitialization) error {
 	if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
 		capabilities := []*feature.HandlerWithReporter[*dsciv1.DSCInitialization]{
-			r.observabilityCapability(instance, oboCondition(status.RemovedReason, "ClusterObservability resources removed")),
+			r.observabilityCapability(ctx, instance, oboCondition(status.RemovedReason, "ClusterObservability resources removed")),
 		}
 
 		for _, capability := range capabilities {
@@ -77,14 +78,14 @@ func (r *DSCInitializationReconciler) removeObservability(instance *dsciv1.DSCIn
 	return nil
 }
 
-func (r *DSCInitializationReconciler) observabilityCapability(instance *dsciv1.DSCInitialization, initialCondition *conditionsv1.Condition) *feature.HandlerWithReporter[*dsciv1.DSCInitialization] { //nolint:lll // Reason: generics are long
+func (r *DSCInitializationReconciler) observabilityCapability(ctx context.Context, instance *dsciv1.DSCInitialization, initialCondition *conditionsv1.Condition) *feature.HandlerWithReporter[*dsciv1.DSCInitialization] { //nolint:lll // Reason: generics are long
 	return feature.NewHandlerWithReporter(
-		feature.ClusterFeaturesHandler(instance, r.observabilityCapabilityFeatures(instance)),
+		feature.ClusterFeaturesHandler(instance, r.observabilityCapabilityFeatures(ctx, instance)),
 		createCapabilityReporter(r.Client, instance, initialCondition),
 	)
 }
 
-func (r *DSCInitializationReconciler) observabilityCapabilityFeatures(instance *dsciv1.DSCInitialization) feature.FeaturesProvider {
+func (r *DSCInitializationReconciler) observabilityCapabilityFeatures(ctx context.Context, instance *dsciv1.DSCInitialization) feature.FeaturesProvider {
 	return func(handler *feature.FeaturesHandler) error {
 		monitoringNamespace := instance.Spec.Monitoring.Namespace
 		alertmanageErr := feature.CreateFeature("create-alertmanager").
@@ -137,7 +138,7 @@ func (r *DSCInitializationReconciler) observabilityCapabilityFeatures(instance *
 		}
 		if platform == cluster.ManagedRhods {
 			// TODO: not sure if keep it or convert to WithResources
-			err := cluster.UpdatePodSecurityRolebinding(r.Client, instance.Spec.Monitoring.Namespace, "redhat-ods-monitoring")
+			err := cluster.UpdatePodSecurityRolebinding(ctx, r.Client, instance.Spec.Monitoring.Namespace, "redhat-ods-monitoring")
 			if err != nil {
 				return fmt.Errorf("failed updating monitoring security rolebinding: %w", err)
 			}

@@ -3,6 +3,8 @@ kind: PrometheusRule
 metadata:
   name: modelmesh-rules
   namespace: [[ .Monitoring.Namespace ]]
+  labels:
+    monitoring.rhobs/stack: rhoai-cmo-ms
 spec:
   groups:
     - name: SLOs - Modelmesh Controller

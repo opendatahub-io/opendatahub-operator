@@ -3,6 +3,8 @@ kind: PrometheusRule
 metadata:
   name: kuberay-rules
   namespace: [[ .Monitoring.Namespace ]]
+  labels:
+    monitoring.rhobs/stack: rhoai-cmo-ms
 spec:
   groups:
   - name: Distributed Workloads Kuberay

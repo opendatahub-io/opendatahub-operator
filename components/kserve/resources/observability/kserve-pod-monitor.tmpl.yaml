@@ -3,6 +3,8 @@ kind: PodMonitor
 metadata:
   name: kserve-pod-monitor
   namespace: [[ .Monitoring.Namespace ]]
+  labels:
+    monitoring.rhobs/stack: rhoai-cmo-ms
 spec:
   podMetricsEndpoints:
     - scheme: http

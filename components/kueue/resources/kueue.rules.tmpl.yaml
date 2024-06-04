@@ -3,6 +3,8 @@ kind: PrometheusRule
 metadata:
   name: kueue-prometheusrules
   namespace: [[ .Monitoring.Namespace ]]
+  labels:
+    monitoring.rhobs/stack: rhoai-cmo-ms
 spec:
   groups:
     - name: Distributed Workloads Kueue
