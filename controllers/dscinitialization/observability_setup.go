@@ -87,12 +87,26 @@ func (r *DSCInitializationReconciler) observabilityCapability(ctx context.Contex
 
 func (r *DSCInitializationReconciler) observabilityCapabilityFeatures(ctx context.Context, instance *dsciv1.DSCInitialization) feature.FeaturesProvider {
 	return func(handler *feature.FeaturesHandler) error {
+		commonOBOErr := feature.CreateFeature("create-obo-commonconfig").
+			For(handler).
+			ManifestSource(Templates.Source).
+			Manifests(
+				path.Join(Templates.AlertManageDir, "alertmanager-email.tmpl.yaml"), // dont wanna introduce one more FT so hook it here
+				path.Join(Templates.CommonDir),
+			).
+			Load()
+
+		if commonOBOErr != nil {
+			return commonOBOErr
+		}
+
 		monitoringNamespace := instance.Spec.Monitoring.Namespace
 		alertmanageErr := feature.CreateFeature("create-alertmanager").
 			For(handler).
 			ManifestSource(Templates.Source).
 			Manifests(
-				path.Join(Templates.AlertManageDir),
+
+				path.Join(Templates.AlertManageDir, "alertmanagerconfig.tmpl.yaml"),
 			).
 			WithData(obo.AlertmanagerDataValue). // fill in alertmanager data
 			PreConditions(
@@ -101,6 +115,7 @@ func (r *DSCInitializationReconciler) observabilityCapabilityFeatures(ctx contex
 				feature.WaitForManagedSecret("redhat-rhods-deadmanssnitch", monitoringNamespace),
 				feature.WaitForManagedSecret("redhat-rhods-pagerduty", monitoringNamespace),
 				feature.WaitForManagedSecret("redhat-rhods-smtp", monitoringNamespace),
+				feature.WaitForManagedConfigmap("rhoai-alertmanager-configmap", monitoringNamespace),
 			).
 			Load()
 
@@ -118,18 +133,6 @@ func (r *DSCInitializationReconciler) observabilityCapabilityFeatures(ctx contex
 
 		if msErr != nil {
 			return msErr
-		}
-
-		commonOBOErr := feature.CreateFeature("create-obo-commonconfig").
-			For(handler).
-			ManifestSource(Templates.Source).
-			Manifests(
-				path.Join(Templates.CommonDir),
-			).
-			Load()
-
-		if commonOBOErr != nil {
-			return commonOBOErr
 		}
 
 		platform, err := cluster.GetPlatform(r.Client)

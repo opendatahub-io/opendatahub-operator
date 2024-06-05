@@ -144,3 +144,21 @@ func WaitForManagedSecret(name string, namespace string) Action {
 		})
 	}
 }
+
+// TODO: ugly code should rewrite it.
+func WaitForManagedConfigmap(name string, namespace string) Action {
+	return func(f *Feature) error {
+		f.Log.Info("waiting for configmap to become ready", "name", name, "namespace", namespace, "duration (s)", duration.Seconds())
+		managedConfigmap := &corev1.ConfigMap{}
+		return wait.PollUntilContextTimeout(context.TODO(), interval, duration, false, func(ctx context.Context) (bool, error) {
+			err := f.Client.Get(ctx, client.ObjectKey{
+				Namespace: namespace,
+				Name:      name,
+			}, managedConfigmap)
+			if err != nil {
+				return false, client.IgnoreNotFound(err)
+			}
+			return true, nil
+		})
+	}
+}

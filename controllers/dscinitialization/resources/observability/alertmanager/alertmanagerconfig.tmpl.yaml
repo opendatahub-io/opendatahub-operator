@@ -45,7 +45,7 @@ spec:
     - name: 'PagerDuty'
       pagerdutyConfigs:
       - serviceKey:
-          kye: {{ .AlertmanagerData.PagerDutyKey }}
+          key: '{{ .AlertmanagerData.PagerDutyKey }}' 
         sendResolved: true
     - name: 'deadman-snitch'
       webhookConfigs:
