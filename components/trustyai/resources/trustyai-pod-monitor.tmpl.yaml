@@ -26,4 +26,4 @@ spec:
       - [[ .ApplicationsNamespace ]]
   selector:
     matchLabels:
-      app.opendatahub.io/trustyai: true
+      app.opendatahub.io/trustyai: "true"

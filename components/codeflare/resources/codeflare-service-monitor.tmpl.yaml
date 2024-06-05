@@ -27,4 +27,4 @@ spec:
       path: /metrics
   selector:
     matchLabels:
-      app.opendatahub.io/codeflare: true
+      app.opendatahub.io/codeflare: "true"
