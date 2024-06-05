@@ -32,7 +32,7 @@ func MeshRefs(f *feature.Feature) error {
 			},
 			Data: data,
 		},
-		feature.OwnedBy(f),
+		feature.OwnedByFeatureTracker(f),
 	)
 }
 
@@ -66,6 +66,6 @@ func AuthRefs(f *feature.Feature) error {
 			},
 			Data: data,
 		},
-		feature.OwnedBy(f),
+		feature.OwnedByFeatureTracker(f),
 	)
 }

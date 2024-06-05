@@ -28,7 +28,7 @@ func EnsureAuthNamespaceExists(f *feature.Feature) error {
 		return resolveNsErr
 	}
 
-	_, err := cluster.CreateNamespace(context.TODO(), f.Client, f.Spec.Auth.Namespace, feature.OwnedBy(f), cluster.WithLabels(labels.ODH.OwnedNamespace, "true"))
+	_, err := cluster.CreateNamespace(context.TODO(), f.Client, f.Spec.Auth.Namespace, feature.OwnedByFeatureTracker(f), cluster.WithLabels(labels.ODH.OwnedNamespace, "true"))
 	return err
 }
 
