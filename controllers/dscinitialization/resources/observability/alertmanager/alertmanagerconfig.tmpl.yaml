@@ -32,10 +32,10 @@ spec:
       - sendResolved: false
         to: {{ .AlertmanagerData.NotificationEmail }}
         from: 'redhat-openshift-alert@{{ .AlertmanagerData.SMTPDoamin }}'
-        html: {{ .AlertmanagerData.EmailBody }}
+        html: '{{ .AlertmanagerData.EmailBody }}'
         headers: 
           - key: subject
-            value: {{ .AlertmanagerData.EmailSubject }}
+            value: '{{ .AlertmanagerData.EmailSubject }}'
         smarthost: '{{ .AlertmanagerData.SMTPHost }}:{{ .AlertmanagerData.SMTPPort }}'
         authUsername: {{ .AlertmanagerData.SMTPUSER }}
         authPassword:
