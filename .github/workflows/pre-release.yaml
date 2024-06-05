@@ -22,8 +22,8 @@ jobs:
       - uses: tibdex/github-app-token@v1
         id: generate-token
         with:
-          app_id: ${{ secrets.APP_ID }}
-          private_key: ${{ secrets.APP_PRIVATE_KEY }}
+          app_id: ${{ secrets.ODH_RELEASE_APP_ID }}
+          private_key: ${{ secrets.ODH_RELEASE_APP_PRIVATE_KEY }}
       - name: Validate semver
         run: ./.github/scripts/validate-semver.sh v${{ env.VERSION }}
       - uses: ./.github/actions/update-manifest-branches
@@ -61,8 +61,8 @@ jobs:
       - uses: tibdex/github-app-token@v1
         id: generate-token
         with:
-          app_id: ${{ secrets.APP_ID }}
-          private_key: ${{ secrets.APP_PRIVATE_KEY }}
+          app_id: ${{ secrets.ODH_RELEASE_APP_ID }}
+          private_key: ${{ secrets.ODH_RELEASE_APP_PRIVATE_KEY }}
       - name: Create release branch
         run: |
           git checkout -b odh-${{ env.VERSION }}
