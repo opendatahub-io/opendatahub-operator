@@ -160,7 +160,7 @@ func (f *Feature) createApplier(m Manifest) applier {
 	}
 
 	return func(objects []*unstructured.Unstructured) error {
-		return applyResources(f.Client, objects, OwnedBy(f))
+		return applyResources(f.Client, objects, OwnedByFeatureTracker(f))
 	}
 }
 
@@ -197,6 +197,6 @@ func (f *Feature) AsOwnerReference() metav1.OwnerReference {
 	return f.Tracker.ToOwnerReference()
 }
 
-func OwnedBy(f *Feature) cluster.MetaOptions {
-	return cluster.WithOwnerReference(f.AsOwnerReference())
+func OwnedByFeatureTracker(f *Feature) cluster.MetaOptions {
+	return cluster.OwnedBy(f.Tracker, f.Client.Scheme())
 }

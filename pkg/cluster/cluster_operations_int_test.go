@@ -92,6 +92,13 @@ var _ = Describe("Creating cluster resources", func() {
 			Namespace: "default",
 		}
 
+		owner := &v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "default",
+				UID:  "default",
+			},
+		}
+
 		It("should create configmap with labels and owner reference", func() {
 			// given
 			configMap := &v1.ConfigMap{
@@ -107,12 +114,7 @@ var _ = Describe("Creating cluster resources", func() {
 				envTestClient,
 				configMap,
 				cluster.WithLabels(labels.K8SCommon.PartOf, "opendatahub"),
-				cluster.WithOwnerReference(metav1.OwnerReference{
-					APIVersion: "v1",
-					Kind:       "Namespace",
-					Name:       "default",
-					UID:        "default",
-				}),
+				cluster.OwnedBy(owner, envTestClient.Scheme()),
 			)
 			Expect(err).ToNot(HaveOccurred())
 			defer objectCleaner.DeleteAll(configMap)

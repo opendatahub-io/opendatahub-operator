@@ -22,13 +22,6 @@ func ApplyMetaOptions(obj metav1.Object, opts ...MetaOptions) error {
 	return nil
 }
 
-func WithOwnerReference(ownerReferences ...metav1.OwnerReference) MetaOptions {
-	return func(obj metav1.Object) error {
-		obj.SetOwnerReferences(ownerReferences)
-		return nil
-	}
-}
-
 func OwnedBy(owner metav1.Object, scheme *runtime.Scheme) MetaOptions {
 	return func(obj metav1.Object) error {
 		return controllerutil.SetOwnerReference(owner, obj, scheme)
