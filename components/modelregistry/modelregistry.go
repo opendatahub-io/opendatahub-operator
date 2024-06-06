@@ -90,13 +90,16 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 
 		// Create odh-model-registries namespace
 		// We do not delete this namespace even when ModelRegistry is Removed or when operator is uninstalled.
-		_, err := cluster.CreateNamespace(cli, "odh-model-registries")
+		_, err := cluster.CreateNamespace(ctx, cli, "odh-model-registries")
 		if err != nil {
 			return err
 		}
 	}
 	// Deploy ModelRegistry Operator
 	err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, m.GetComponentName(), enabled)
+	if err != nil {
+		return err
+	}
 	l.Info("apply manifests done")
 
 	// Wait for deployment available
@@ -107,5 +110,12 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 		}
 	}
 
-	return err
+	// Create additional model registry resources, componentEnabled=true because these extras are never deleted!
+	err = deploy.DeployManifestsFromPath(cli, owner, Path+"/extras", dscispec.ApplicationsNamespace, m.GetComponentName(), true)
+	if err != nil {
+		return err
+	}
+	l.Info("apply extra manifests done")
+
+	return nil
 }

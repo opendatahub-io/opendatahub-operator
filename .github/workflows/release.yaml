@@ -1,0 +1,91 @@
+name: "Release ODH"
+on:
+  pull_request:
+    types:
+      - closed
+jobs:
+  gh-release:
+    if: github.event.pull_request.merged && startsWith(github.event.pull_request.title, 'ODH Release') && endsWith(github.event.pull_request.title, 'Version Update')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: tibdex/github-app-token@v1
+        id: generate-token
+        with:
+          app_id: ${{ secrets.ODH_RELEASE_APP_ID }}
+          private_key: ${{ secrets.ODH_RELEASE_APP_PRIVATE_KEY }}
+      - name: Get release data from pr
+        uses: peter-evans/find-comment@v3
+        id: fc
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body-includes: "#Release#"
+      - name: Set version/tracker-url in env
+        run: |
+          echo "VERSION=$(echo "${{ steps.fc.outputs.comment-body }}" | awk -F= '$1 ~ /version$/{print $2}')" >> $GITHUB_ENV
+          echo "TRACKER_URL=$(echo "${{ steps.fc.outputs.comment-body }}" | awk -F= '$1 ~ /tracker-url$/{print $2}')" >> $GITHUB_ENV
+      - uses: fregante/setup-git-user@v2
+      - name: Create and push version tags
+        run: |
+          git checkout odh-${{ env.VERSION }}
+          git tag -a -m v${{ env.VERSION }} v${{ env.VERSION }}
+          git push origin v${{ env.VERSION }}
+      - name: Get component release notes
+        id: release-notes
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const script = require('./.github/scripts/get-component-release-notes.js')
+            script({github, core})
+      - name: Create GH release
+        uses: softprops/action-gh-release@v2
+        with:
+          body: ${{ steps.release-notes.outputs.release-notes-body }}
+          tag_name: v${{ env.VERSION }}
+          generate_release_notes: true
+          append_body: true
+          make_latest: true
+  # To be enabled later.
+  # create-community-operators-pr:
+  #   needs: [gh-release]
+  #   name: Create community operators prod pr # https://github.com/redhat-openshift-ecosystem/community-operators-prod
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Get release data from pr
+  #       uses: peter-evans/find-comment@v3
+  #       id: fc
+  #       with:
+  #         issue-number: ${{ github.event.pull_request.number }}
+  #         body-includes: "#Release#"
+  #     - name: Set version/tracker-url in env
+  #       run: |
+  #         echo "VERSION=$(echo "${{ steps.fc.outputs.comment-body }}" | awk -F= '$1 ~ /version$/{print $2}')" >> $GITHUB_ENV
+  #     - name: Checkout opendatahub-operator
+  #       uses: actions/checkout@v4
+  #       with:
+  #         path: ./opendatahub-operator
+  #         ref: v${{ env.VERSION }}
+  #     - name: Checkout redhat-openshift-ecosystem/community-operators-prod
+  #       uses: actions/checkout@v4
+  #       with:
+  #         token: <PAT> # We need a token with repo rights
+  #         repository: redhat-openshift-ecosystem/community-operators-prod # replaced with redhat-openshift-ecosystem/community-operators-prod
+  #         path: ./community-operators-prod
+  #     - name: Copy bundle files and add annotation
+  #       run : |
+  #         cd community-operators-prod
+  #         mkdir -p community-operators-prod/operators/opendatahub-operator/${{ env.VERSION }}
+  #         cp -a ../opendatahub-operator/bundle/. operators/opendatahub-operator/${{ env.VERSION }}/
+  #         echo "
+  #           # OpenShift specific version
+  #           com.redhat.openshift.versions: v4.9" >> operators/opendatahub-operator/${{ env.VERSION }}/metadata/annotations.yaml
+  #         sed -i -e "s|image: REPLACE_IMAGE:latest.*|image: quay.io/opendatahub/opendatahub-operator:v${{ env.VERSION }}|g"  operators/opendatahub-operator/${{ env.VERSION }}/manifests/opendatahub-operator.clusterserviceversion.yaml
+  #     - name: Create community operators prod pr
+  #       uses: peter-evans/create-pull-request@v6
+  #       with:
+  #         path: ./community-operators-prod
+  #         token: <PAT> # We need a token with repo rights
+  #         push-to-fork: opendatahub-io/community-operators-prod # Here we can fork community-operators-prod into opendatahub-io and use opendatahub-io/community-operators-prod. eg:https://github.com/maistra/community-operators-prod
+  #         commit-message: ODH Release v${{ env.VERSION }}
+  #         delete-branch: true
+  #         title: operator opendatahub-operator (${{ env.VERSION }})

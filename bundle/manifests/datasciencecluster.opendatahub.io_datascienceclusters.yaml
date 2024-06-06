@@ -53,9 +53,10 @@ spec:
                             items:
                               properties:
                                 contextDir:
-                                  default: ""
+                                  default: manifests
                                   description: contextDir is the relative path to
-                                    the folder containing manifests in a repository
+                                    the folder containing manifests in a repository,
+                                    default value "manifests"
                                   type: string
                                 sourcePath:
                                   default: ""
@@ -96,9 +97,10 @@ spec:
                             items:
                               properties:
                                 contextDir:
-                                  default: ""
+                                  default: manifests
                                   description: contextDir is the relative path to
-                                    the folder containing manifests in a repository
+                                    the folder containing manifests in a repository,
+                                    default value "manifests"
                                   type: string
                                 sourcePath:
                                   default: ""
@@ -140,9 +142,10 @@ spec:
                             items:
                               properties:
                                 contextDir:
-                                  default: ""
+                                  default: manifests
                                   description: contextDir is the relative path to
-                                    the folder containing manifests in a repository
+                                    the folder containing manifests in a repository,
+                                    default value "manifests"
                                   type: string
                                 sourcePath:
                                   default: ""
@@ -198,9 +201,10 @@ spec:
                             items:
                               properties:
                                 contextDir:
-                                  default: ""
+                                  default: manifests
                                   description: contextDir is the relative path to
-                                    the folder containing manifests in a repository
+                                    the folder containing manifests in a repository,
+                                    default value "manifests"
                                   type: string
                                 sourcePath:
                                   default: ""
@@ -301,9 +305,10 @@ spec:
                             items:
                               properties:
                                 contextDir:
-                                  default: ""
+                                  default: manifests
                                   description: contextDir is the relative path to
-                                    the folder containing manifests in a repository
+                                    the folder containing manifests in a repository,
+                                    default value "manifests"
                                   type: string
                                 sourcePath:
                                   default: ""
@@ -345,9 +350,10 @@ spec:
                             items:
                               properties:
                                 contextDir:
-                                  default: ""
+                                  default: manifests
                                   description: contextDir is the relative path to
-                                    the folder containing manifests in a repository
+                                    the folder containing manifests in a repository,
+                                    default value "manifests"
                                   type: string
                                 sourcePath:
                                   default: ""
@@ -388,9 +394,10 @@ spec:
                             items:
                               properties:
                                 contextDir:
-                                  default: ""
+                                  default: manifests
                                   description: contextDir is the relative path to
-                                    the folder containing manifests in a repository
+                                    the folder containing manifests in a repository,
+                                    default value "manifests"
                                   type: string
                                 sourcePath:
                                   default: ""
@@ -431,9 +438,10 @@ spec:
                             items:
                               properties:
                                 contextDir:
-                                  default: ""
+                                  default: manifests
                                   description: contextDir is the relative path to
-                                    the folder containing manifests in a repository
+                                    the folder containing manifests in a repository,
+                                    default value "manifests"
                                   type: string
                                 sourcePath:
                                   default: ""
@@ -474,9 +482,10 @@ spec:
                             items:
                               properties:
                                 contextDir:
-                                  default: ""
+                                  default: manifests
                                   description: contextDir is the relative path to
-                                    the folder containing manifests in a repository
+                                    the folder containing manifests in a repository,
+                                    default value "manifests"
                                   type: string
                                 sourcePath:
                                   default: ""
@@ -517,9 +526,10 @@ spec:
                             items:
                               properties:
                                 contextDir:
-                                  default: ""
+                                  default: manifests
                                   description: contextDir is the relative path to
-                                    the folder containing manifests in a repository
+                                    the folder containing manifests in a repository,
+                                    default value "manifests"
                                   type: string
                                 sourcePath:
                                   default: ""
@@ -560,9 +570,10 @@ spec:
                             items:
                               properties:
                                 contextDir:
-                                  default: ""
+                                  default: manifests
                                   description: contextDir is the relative path to
-                                    the folder containing manifests in a repository
+                                    the folder containing manifests in a repository,
+                                    default value "manifests"
                                   type: string
                                 sourcePath:
                                   default: ""
@@ -703,6 +714,14 @@ spec:
                   type: object
                   x-kubernetes-map-type: atomic
                 type: array
+              release:
+                description: Version and release type
+                properties:
+                  name:
+                    type: string
+                  version:
+                    type: string
+                type: object
             type: object
         type: object
     served: true

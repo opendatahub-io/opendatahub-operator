@@ -31,10 +31,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
-	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
 	"golang.org/x/exp/maps"
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
@@ -46,7 +43,6 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
-	annotation "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins"
 )
@@ -206,127 +202,28 @@ func GetResources(resMap resmap.ResMap) ([]*unstructured.Unstructured, error) {
 }
 
 func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Unstructured, owner metav1.Object, applicationNamespace, componentName string, enabled bool) error {
-	resourceName := obj.GetName()
-	namespace := obj.GetNamespace()
-
-	found := obj.DeepCopy()
-
-	err := cli.Get(ctx, types.NamespacedName{Name: resourceName, Namespace: namespace}, found)
-
 	// Return if resource is of Kind: Namespace and Name: odhApplicationsNamespace
 	if obj.GetKind() == "Namespace" && obj.GetName() == applicationNamespace {
 		return nil
 	}
 
-	// Resource exists but component is disabled
-	if !enabled {
-		if err != nil {
-			return nil //nolint:nilerr // Return nil for any errors getting the resource, since the component itself is disabled
-		}
-
-		// Check for shared resources before deletion
-		resourceLabels := found.GetLabels()
-		var componentCounter []string
-		if resourceLabels != nil {
-			for i := range resourceLabels {
-				if strings.Contains(i, labels.ODHAppPrefix) {
-					compFound := strings.Split(i, "/")[1]
-					componentCounter = append(componentCounter, compFound)
-				}
-			}
-			// Shared resource , do not delete. Remove label from disabled component
-			if len(componentCounter) > 1 || (len(componentCounter) == 1 && componentCounter[0] != componentName) {
-				found.SetLabels(resourceLabels)
-				// return, do not delete the shared resource
-				return nil
-			}
-
-			// Do not delete CRDs, as those can be used by non-odh components
-			if found.GetKind() == "CustomResourceDefinition" {
-				return nil
-			}
-		}
-
-		existingOwnerReferences := obj.GetOwnerReferences()
-		selector := labels.ODH.Component(componentName)
-		// only removed the resource with our label applied, not the same name resource maually created by user
-		if existingOwnerReferences == nil && resourceLabels[selector] == "true" {
-			return cli.Delete(ctx, found)
-		}
-
-		found.SetOwnerReferences([]metav1.OwnerReference{})
-		data, err := json.Marshal(found)
-		if err != nil {
-			return err
-		}
-
-		err = cli.Patch(ctx, found, client.RawPatch(types.ApplyPatchType, data), client.ForceOwnership, client.FieldOwner(owner.GetName()))
-		if err != nil {
-			return err
-		}
-
-		return cli.Delete(ctx, found)
-	}
-
-	// Create the resource if it doesn't exist and component is enabled
-	if apierrs.IsNotFound(err) {
-		// Set the owner reference for garbage collection
-		// Skip set on CRD, e.g. we should not delete notebook CRD if we delete DSC instance
-		// Skip on OdhDashboardConfig CR, because we want user to be able to update it
-		if found.GetKind() != "CustomResourceDefinition" && found.GetKind() != "OdhDashboardConfig" {
-			if err = ctrl.SetControllerReference(owner, metav1.Object(obj), cli.Scheme()); err != nil {
-				return err
-			}
-		}
-
-		return cli.Create(ctx, obj)
-	}
-
-	// Exception: ODHDashboardConfig should not be updated even with upgrades
-	// TODO: Move this out when we have dashboard-controller
-	if found.GetKind() == "OdhDashboardConfig" {
-		// Do nothing, return
-		return nil
-	}
-
-	// Kserve specific workflow:
-	// TODO: Remove this when we have generalize custom config requirements across all components
-	if componentName == "kserve" {
-		// do not reconcile kserve resource with annotation "opendatahub.io/managed: false"
-		if found.GetAnnotations()[annotation.ManagedByODHOperator] == "false" {
-			return nil
-		}
-		// do not patch resources field in Kserve deployment i.e allows users to update resources field
-		if err := removeResourcesFromDeployment(obj); err != nil {
-			return err
-		}
-	}
-
-	// JIRA 6889.  odh-model-controller will be covered by either kserve or model-mesh case
-	if componentName == "model-mesh" {
-		if err := removeResourcesFromDeployment(obj); err != nil {
-			return err
-		}
-	}
-
-	// Preserve app.opendatahub.io/<component> labels of previous versions of existing objects
-	foundLabels := make(map[string]string)
-	for k, v := range found.GetLabels() {
-		if strings.Contains(k, labels.ODHAppPrefix) {
-			foundLabels[k] = v
-		}
-	}
-	newLabels := obj.GetLabels()
-	maps.Copy(foundLabels, newLabels)
-	obj.SetLabels(foundLabels)
-
-	// Perform server-side apply
-	data, err := json.Marshal(obj)
-	if err != nil {
+	// Return if error getting resource in cluster
+	found, err := getResource(ctx, cli, obj)
+	if client.IgnoreNotFound(err) != nil {
 		return err
 	}
 
-	return cli.Patch(ctx, found, client.RawPatch(types.ApplyPatchType, data), client.ForceOwnership, client.FieldOwner(owner.GetName()))
+	if !enabled {
+		return handleDisabledComponent(ctx, cli, found, componentName)
+	}
+
+	// Create resource if it doesn't exist
+	if found == nil {
+		return createResource(ctx, cli, obj, owner)
+	}
+
+	// If resource already exists, update it.
+	return updateResource(ctx, cli, obj, found, owner, componentName)
 }
 
 /*
@@ -456,36 +353,119 @@ func removeResourcesFromDeployment(u *unstructured.Unstructured) error {
 	return nil
 }
 
-func ClusterSubscriptionExists(cli client.Client, name string) (bool, error) {
-	subscriptionList := &ofapiv1alpha1.SubscriptionList{}
-	if err := cli.List(context.TODO(), subscriptionList); err != nil {
-		return false, err
+func getResource(ctx context.Context, cli client.Client, obj *unstructured.Unstructured) (*unstructured.Unstructured, error) {
+	found := &unstructured.Unstructured{}
+	// Setting gvk is required to do Get request
+	found.SetGroupVersionKind(obj.GroupVersionKind())
+	err := cli.Get(ctx, types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, found)
+	if err != nil {
+		return nil, err
 	}
-
-	for _, sub := range subscriptionList.Items {
-		if sub.Name == name {
-			return true, nil
-		}
-	}
-	return false, nil
+	return found, nil
 }
 
-// OperatorExists checks if an Operator with 'operatorPrefix' is installed.
-// Return true if found it, false if not.
-// if we need to check exact version of the operator installed, can append vX.Y.Z later.
-func OperatorExists(cli client.Client, operatorPrefix string) (bool, error) {
-	opConditionList := &ofapiv2.OperatorConditionList{}
-	err := cli.List(context.TODO(), opConditionList)
-	if err != nil {
-		return false, err
-	}
-	for _, opCondition := range opConditionList.Items {
-		if strings.HasPrefix(opCondition.Name, operatorPrefix) {
-			return true, nil
-		}
+func handleDisabledComponent(ctx context.Context, cli client.Client, found *unstructured.Unstructured, componentName string) error {
+	if found == nil {
+		return nil
 	}
 
-	return false, nil
+	resourceLabels := found.GetLabels()
+	componentCounter := getComponentCounter(resourceLabels)
+
+	if isSharedResource(componentCounter, componentName) || found.GetKind() == "CustomResourceDefinition" {
+		return nil
+	}
+
+	return deleteResource(ctx, cli, found, componentName)
+}
+
+func getComponentCounter(foundLabels map[string]string) []string {
+	var componentCounter []string
+	for label := range foundLabels {
+		if strings.Contains(label, labels.ODHAppPrefix) {
+			compFound := strings.Split(label, "/")[1]
+			componentCounter = append(componentCounter, compFound)
+		}
+	}
+	return componentCounter
+}
+
+func isSharedResource(componentCounter []string, componentName string) bool {
+	return len(componentCounter) > 1 || (len(componentCounter) == 1 && componentCounter[0] != componentName)
+}
+
+func deleteResource(ctx context.Context, cli client.Client, found *unstructured.Unstructured, componentName string) error {
+	existingOwnerReferences := found.GetOwnerReferences()
+	selector := labels.ODH.Component(componentName)
+	resourceLabels := found.GetLabels()
+
+	if isOwnedByODHCRD(existingOwnerReferences) || resourceLabels[selector] == "true" {
+		return cli.Delete(ctx, found)
+	}
+	return nil
+}
+
+func isOwnedByODHCRD(ownerReferences []metav1.OwnerReference) bool {
+	for _, owner := range ownerReferences {
+		if owner.Kind == "DataScienceCluster" || owner.Kind == "DSCInitialization" {
+			return true
+		}
+	}
+	return false
+}
+
+func createResource(ctx context.Context, cli client.Client, obj *unstructured.Unstructured, owner metav1.Object) error {
+	if obj.GetKind() != "CustomResourceDefinition" && obj.GetKind() != "OdhDashboardConfig" {
+		if err := ctrl.SetControllerReference(owner, metav1.Object(obj), cli.Scheme()); err != nil {
+			return err
+		}
+	}
+	return cli.Create(ctx, obj)
+}
+
+func skipUpdateOnWhitelistedFields(obj *unstructured.Unstructured, componentName string) error {
+	if componentName == "kserve" || componentName == "model-mesh" {
+		if err := removeResourcesFromDeployment(obj); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func updateLabels(found, obj *unstructured.Unstructured) {
+	foundLabels := make(map[string]string)
+	for k, v := range found.GetLabels() {
+		if strings.Contains(k, labels.ODHAppPrefix) {
+			foundLabels[k] = v
+		}
+	}
+	newLabels := obj.GetLabels()
+	maps.Copy(foundLabels, newLabels)
+	obj.SetLabels(foundLabels)
+}
+
+func performPatch(ctx context.Context, cli client.Client, obj, found *unstructured.Unstructured, owner metav1.Object) error {
+	data, err := json.Marshal(obj)
+	if err != nil {
+		return err
+	}
+	return cli.Patch(ctx, found, client.RawPatch(types.ApplyPatchType, data), client.ForceOwnership, client.FieldOwner(owner.GetName()))
+}
+
+func updateResource(ctx context.Context, cli client.Client, obj, found *unstructured.Unstructured, owner metav1.Object, componentName string) error {
+	// Skip ODHDashboardConfig Update
+	if found.GetKind() == "OdhDashboardConfig" {
+		return nil
+	}
+	// skip updating whitelisted fields
+	if err := skipUpdateOnWhitelistedFields(obj, componentName); err != nil {
+		return err
+	}
+
+	// Retain existing labels on update
+	updateLabels(found, obj)
+
+	return performPatch(ctx, cli, obj, found, owner)
 }
 
 // TODO : Add function to cleanup code created as part of pre install and post install task of a component

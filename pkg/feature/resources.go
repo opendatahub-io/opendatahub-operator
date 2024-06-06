@@ -1,6 +1,8 @@
 package feature
 
 import (
+	"context"
+
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
@@ -8,7 +10,7 @@ import (
 // It does not set ownership nor apply extra metadata to the existing namespace.
 func CreateNamespaceIfNotExists(namespace string) Action {
 	return func(f *Feature) error {
-		_, err := cluster.CreateNamespace(f.Client, namespace)
+		_, err := cluster.CreateNamespace(context.TODO(), f.Client, namespace)
 
 		return err
 	}

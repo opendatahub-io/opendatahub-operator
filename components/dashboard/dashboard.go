@@ -25,20 +25,18 @@ import (
 )
 
 var (
-	ComponentName    = "dashboard"
-	Path             = deploy.DefaultManifestPath + "/" + ComponentName + "/base"         // ODH
-	PathISV          = deploy.DefaultManifestPath + "/" + ComponentName + "/apps"         // ODH APPS
-	PathModelServing = deploy.DefaultManifestPath + "/" + ComponentName + "/modelserving" // ODH modelserving
-	PathCRDs         = deploy.DefaultManifestPath + "/" + ComponentName + "/crd"          // ODH + RHOAI
-	PathConsoleLink  = deploy.DefaultManifestPath + "/" + ComponentName + "/consolelink"  // ODH consolelink
+	ComponentName   = "dashboard"
+	Path            = deploy.DefaultManifestPath + "/" + ComponentName + "/base"        // ODH
+	PathISV         = deploy.DefaultManifestPath + "/" + ComponentName + "/apps"        // ODH APPS
+	PathCRDs        = deploy.DefaultManifestPath + "/" + ComponentName + "/crd"         // ODH + RHOAI
+	PathConsoleLink = deploy.DefaultManifestPath + "/" + ComponentName + "/consolelink" // ODH consolelink
 
-	ComponentNameSupported    = "rhods-dashboard"
-	PathSupported             = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/rhoai"              // RHOAI
-	PathSupportedModelServing = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/modelserving"       // RHOAI modelserving
-	PathISVSM                 = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps/apps-onprem"   // RHOAI APPS
-	PathISVAddOn              = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps/apps-addon"    // RHOAI APPS
-	PathConsoleLinkSupported  = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/consolelink"        // RHOAI
-	PathODHDashboardConfig    = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/odhdashboardconfig" // RHOAI odhdashboardconfig
+	ComponentNameSupported   = "rhods-dashboard"
+	PathSupported            = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/rhoai"              // RHOAI
+	PathISVSM                = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps/apps-onprem"   // RHOAI APPS
+	PathISVAddOn             = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/apps/apps-addon"    // RHOAI APPS
+	PathConsoleLinkSupported = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/consolelink"        // RHOAI
+	PathODHDashboardConfig   = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/odhdashboardconfig" // RHOAI odhdashboardconfig
 
 	NameConsoleLink      = "console"
 	NamespaceConsoleLink = "openshift-console"
@@ -128,14 +126,14 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 
 		// 2. platform specific RBAC
 		if platform == cluster.OpenDataHub || platform == "" {
-			err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "odh-dashboard")
+			err := cluster.UpdatePodSecurityRolebinding(ctx, cli, dscispec.ApplicationsNamespace, "odh-dashboard")
 			if err != nil {
 				return err
 			}
 		}
 
 		if platform == cluster.SelfManagedRhods || platform == cluster.ManagedRhods {
-			err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "rhods-dashboard")
+			err := cluster.UpdatePodSecurityRolebinding(ctx, cli, dscispec.ApplicationsNamespace, "rhods-dashboard")
 			if err != nil {
 				return err
 			}
@@ -154,16 +152,12 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 	switch platform {
 	case cluster.SelfManagedRhods, cluster.ManagedRhods:
 		// anaconda
-		if err := cluster.CreateSecret(cli, "anaconda-ce-access", dscispec.ApplicationsNamespace); err != nil {
+		if err := cluster.CreateSecret(ctx, cli, "anaconda-ce-access", dscispec.ApplicationsNamespace); err != nil {
 			return fmt.Errorf("failed to create access-secret for anaconda: %w", err)
 		}
 		// overlay which including ../../base + anaconda-ce-validator
 		if err := deploy.DeployManifestsFromPath(cli, owner, PathSupported, dscispec.ApplicationsNamespace, ComponentNameSupported, enabled); err != nil {
 			return fmt.Errorf("failed to apply manifests from %s: %w", PathSupported, err)
-		}
-		// modelserving
-		if err := deploy.DeployManifestsFromPath(cli, owner, PathSupportedModelServing, dscispec.ApplicationsNamespace, ComponentNameSupported, enabled); err != nil {
-			return fmt.Errorf("failed to set dashboard modelserving from %s: %w", PathSupportedModelServing, err)
 		}
 
 		// Apply RHOAI specific configs, e.g anaconda screct and cronjob and ISV
@@ -206,10 +200,6 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		// ISV
 		if err = deploy.DeployManifestsFromPath(cli, owner, PathISV, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 			return err
-		}
-		// modelserving
-		if err := deploy.DeployManifestsFromPath(cli, owner, PathModelServing, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
-			return fmt.Errorf("failed to set dashboard modelserving from %s: %w", PathModelServing, err)
 		}
 		// consolelink
 		if err := d.deployConsoleLink(ctx, cli, owner, platform, dscispec.ApplicationsNamespace, ComponentName); err != nil {

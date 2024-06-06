@@ -41,7 +41,7 @@ func (r *TrainingOperator) OverrideManifests(_ string) error {
 			return err
 		}
 		// If overlay is defined, update paths
-		defaultKustomizePath := "openshift"
+		defaultKustomizePath := "rhoai"
 		if manifestConfig.SourcePath != "" {
 			defaultKustomizePath = manifestConfig.SourcePath
 		}

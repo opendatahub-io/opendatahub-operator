@@ -34,7 +34,7 @@ var _ = Describe("Applying and updating resources", func() {
 		dummyAnnotation = "fake-anno"
 
 		var err error
-		namespace, err = cluster.CreateNamespace(envTestClient, testNamespace)
+		namespace, err = cluster.CreateNamespace(context.Background(), envTestClient, testNamespace)
 		Expect(err).ToNot(HaveOccurred())
 
 		dsci = fixtures.NewDSCInitialization(testNamespace)

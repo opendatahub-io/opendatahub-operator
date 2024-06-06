@@ -94,7 +94,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `uri` _string_ | uri is the URI point to a git repo with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch> |  |  |
-| `contextDir` _string_ | contextDir is the relative path to the folder containing manifests in a repository |  |  |
+| `contextDir` _string_ | contextDir is the relative path to the folder containing manifests in a repository, default value "manifests" | manifests |  |
 | `sourcePath` _string_ | sourcePath is the subpath within contextDir where kustomize builds start. Examples include any sub-folder or path: `base`, `overlays/dev`, `default`, `odh` etc. |  |  |
 
 
@@ -480,6 +480,7 @@ _Appears in:_
 | `relatedObjects` _[ObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.24/#objectreference-v1-core) array_ | RelatedObjects is a list of objects created and maintained by this operator.<br />Object references will be added to this list after they have been created AND found in the cluster. |  |  |
 | `errorMessage` _string_ |  |  |  |
 | `installedComponents` _object (keys:string, values:boolean)_ | List of components with status if installed or not |  |  |
+| `release` _[Release](#release)_ | Version and release type |  |  |
 
 
 #### IngressGatewaySpec
@@ -627,6 +628,7 @@ _Appears in:_
 | `conditions` _Condition array_ | Conditions describes the state of the DSCInitializationStatus resource |  |  |
 | `relatedObjects` _[ObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.24/#objectreference-v1-core) array_ | RelatedObjects is a list of objects created and maintained by this operator.<br />Object references will be added to this list after they have been created AND found in the cluster |  |  |
 | `errorMessage` _string_ |  |  |  |
+| `release` _[Release](#release)_ | Version and release type |  |  |
 
 
 #### DevFlags

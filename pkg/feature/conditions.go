@@ -11,7 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
 const (
@@ -41,7 +41,7 @@ func (e *MissingOperatorError) Error() string {
 
 func EnsureOperatorIsInstalled(operatorName string) Action {
 	return func(f *Feature) error {
-		if found, err := deploy.ClusterSubscriptionExists(f.Client, operatorName); !found || err != nil {
+		if found, err := cluster.SubscriptionExists(f.Client, operatorName); !found || err != nil {
 			return fmt.Errorf(
 				"failed to find the pre-requisite operator subscription %q, please ensure operator is installed. %w",
 				operatorName,

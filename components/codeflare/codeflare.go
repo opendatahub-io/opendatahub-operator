@@ -81,7 +81,7 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, l
 		// Both ODH and RHOAI should have the same operator name
 		dependentOperator := CodeflareOperator
 
-		if found, err := deploy.OperatorExists(cli, dependentOperator); err != nil {
+		if found, err := cluster.OperatorExists(cli, dependentOperator); err != nil {
 			return fmt.Errorf("operator exists throws error %w", err)
 		} else if found {
 			return fmt.Errorf("operator %s is found. Please uninstall the operator before enabling %s component",
