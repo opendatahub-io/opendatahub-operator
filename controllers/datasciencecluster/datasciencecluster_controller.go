@@ -47,7 +47,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -447,18 +446,18 @@ func (r *DataScienceClusterReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		Owns(&admv1.MutatingWebhookConfiguration{}).
 		Owns(&admv1.ValidatingWebhookConfiguration{}, builder.WithPredicates(modelMeshwebhookPredicates)).
 		Owns(&corev1.ServiceAccount{}, builder.WithPredicates(saPredicates)).
-		Watches(&source.Kind{Type: &dsci.DSCInitialization{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterForDSCI)).
-		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources), builder.WithPredicates(configMapPredicates)).
-		Watches(&source.Kind{Type: &apiextensionsv1.CustomResourceDefinition{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources),
+		Watches(&dsci.DSCInitialization{}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterForDSCI)).
+		Watches(&corev1.ConfigMap{}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources), builder.WithPredicates(configMapPredicates)).
+		Watches(&apiextensionsv1.CustomResourceDefinition{}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources),
 			builder.WithPredicates(argoWorkflowCRDPredicates)).
-		Watches(&source.Kind{Type: &corev1.Secret{}}, handler.EnqueueRequestsFromMapFunc(r.watchDefaultIngressSecret), builder.WithPredicates(defaultIngressCertSecretPredicates)).
+		Watches(&corev1.Secret{}, handler.EnqueueRequestsFromMapFunc(r.watchDefaultIngressSecret), builder.WithPredicates(defaultIngressCertSecretPredicates)).
 		// this predicates prevents meaningless reconciliations from being triggered
 		WithEventFilter(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{})).
 		Complete(r)
 }
 
-func (r *DataScienceClusterReconciler) watchDataScienceClusterForDSCI(a client.Object) []reconcile.Request {
-	requestName, err := r.getRequestName()
+func (r *DataScienceClusterReconciler) watchDataScienceClusterForDSCI(ctx context.Context, a client.Object) []reconcile.Request {
+	requestName, err := r.getRequestName(ctx)
 	if err != nil {
 		return nil
 	}
@@ -470,8 +469,9 @@ func (r *DataScienceClusterReconciler) watchDataScienceClusterForDSCI(a client.O
 	}
 	return nil
 }
-func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(a client.Object) []reconcile.Request {
-	requestName, err := r.getRequestName()
+
+func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(ctx context.Context, a client.Object) []reconcile.Request {
+	requestName, err := r.getRequestName(ctx)
 	if err != nil {
 		return nil
 	}
@@ -498,9 +498,9 @@ func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(a client
 	return nil
 }
 
-func (r *DataScienceClusterReconciler) getRequestName() (string, error) {
+func (r *DataScienceClusterReconciler) getRequestName(ctx context.Context) (string, error) {
 	instanceList := &dsc.DataScienceClusterList{}
-	err := r.Client.List(context.TODO(), instanceList)
+	err := r.Client.List(ctx, instanceList)
 	if err != nil {
 		return "", err
 	}
@@ -530,13 +530,13 @@ var argoWorkflowCRDPredicates = predicate.Funcs{
 	},
 }
 
-func (r *DataScienceClusterReconciler) watchDefaultIngressSecret(a client.Object) []reconcile.Request {
-	requestName, err := r.getRequestName()
+func (r *DataScienceClusterReconciler) watchDefaultIngressSecret(ctx context.Context, a client.Object) []reconcile.Request {
+	requestName, err := r.getRequestName(ctx)
 	if err != nil {
 		return nil
 	}
 	// When ingress secret gets created/deleted, trigger reconcile function
-	ingressCtrl, err := cluster.FindAvailableIngressController(context.TODO(), r.Client)
+	ingressCtrl, err := cluster.FindAvailableIngressController(ctx, r.Client)
 	if err != nil {
 		return nil
 	}

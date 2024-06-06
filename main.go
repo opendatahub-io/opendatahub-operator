@@ -38,16 +38,21 @@ import (
 	netv1 "k8s.io/api/networking/v1"
 	authv1 "k8s.io/api/rbac/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	pkglables "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
 	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
@@ -60,6 +65,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/webhook"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/trustedcabundle"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
 
@@ -119,18 +126,49 @@ func main() { //nolint:funlen
 
 	ctrl.SetLogger(logger.ConfigLoggers(logmode))
 
+	//	var namespaceSelector labels.Set{labels.ODH.OwnedNamespace: "true"}.AsSelector()
+	// CSVFields := fields.Set{"spec.displayName": string(cluster.OpenDataHub)}
+	cacheOptions := cache.Options{
+		Scheme: scheme,
+		ByObject: map[client.Object]cache.ByObject{
+			// all CRD because it is mainly for pipeline v1 and v2
+			&apiextv1.CustomResourceDefinition{}: {},
+			// For dashboard secret, we can remove it when we move to SSO
+			&corev1.Secret{}: {
+				Field: fields.Set{"metadata.name": "dashboard-oauth-config-generated"}.AsSelector(),
+			},
+			// For trustedCA bundle
+			&corev1.ConfigMap{}: {
+				Field: fields.Set{"metadata.name": trustedcabundle.CAConfigMapName}.AsSelector(),
+				Label: pkglables.Set{labels.K8SCommon.PartOf: "opendatahub-operator"}.AsSelector(),
+			},
+			// For catsrc (avoid frequently check cluster type)
+			&ofapiv1alpha1.CatalogSource{}:         {},
+			&ofapiv1alpha1.ClusterServiceVersion{}: {},
+		},
+	}
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{ // single pod does not need to have LeaderElection
-		Scheme:                 scheme,
-		MetricsBindAddress:     metricsAddr,
-		Port:                   9443,
+		Scheme:  scheme,
+		Metrics: ctrlmetrics.Options{BindAddress: metricsAddr},
+		WebhookServer: ctrlwebhook.NewServer(ctrlwebhook.Options{
+			Port: 9443,
+			// TLSOpts: , // TODO: do we need tls for webhook, it was not set in the old code
+		}),
 		HealthProbeBindAddress: probeAddr,
+		Cache:                  cacheOptions,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
 
-	(&webhook.OpenDataHubWebhook{}).SetupWithManager(mgr)
+	if err = (&webhook.OpenDataHubWebhook{
+		Client: mgr.GetClient(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "OperatorWebhook")
+		os.Exit(1)
+	}
 
 	if err = (&dscicontr.DSCInitializationReconciler{
 		Client:                mgr.GetClient(),
