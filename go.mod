@@ -9,7 +9,6 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/onsi/ginkgo/v2 v2.12.1
 	github.com/onsi/gomega v1.27.10
-	github.com/opendatahub-io/opendatahub-operator v1.7.0
 	github.com/openshift/addon-operator/apis v0.0.0-20230919043633-820afed15881
 	github.com/openshift/api v0.0.0-20230823114715-5fdd7511b790
 	github.com/openshift/custom-resource-status v1.1.2
@@ -21,34 +20,42 @@ require (
 	go.uber.org/zap v1.26.0
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
 	gopkg.in/yaml.v2 v2.4.0
-	k8s.io/api v0.28.3
-	k8s.io/apiextensions-apiserver v0.28.2
-	k8s.io/apimachinery v0.28.3
+	k8s.io/api v0.28.4
+	k8s.io/apiextensions-apiserver v0.28.3
+	k8s.io/apimachinery v0.28.4
 	k8s.io/client-go v11.0.0+incompatible
 	k8s.io/kube-aggregator v0.28.3
-	sigs.k8s.io/controller-runtime v0.16.1
+	sigs.k8s.io/controller-runtime v0.16.3
 	sigs.k8s.io/kustomize/api v0.13.4
-	sigs.k8s.io/kustomize/kyaml v0.14.2
+	sigs.k8s.io/kustomize/kyaml v0.16.0
+)
+
+require github.com/opendatahub-io/opendatahub-operator v1.11.0
+
+require (
+	github.com/go-openapi/jsonpointer v0.19.6 // indirect
+	github.com/go-openapi/jsonreference v0.20.2 // indirect
+	github.com/go-openapi/swag v0.22.3 // indirect
 )
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/emicklei/go-restful/v3 v3.10.2 // indirect
+	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/evanphx/json-patch v5.6.0+incompatible // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/go-errors/errors v1.4.2 // indirect
 	github.com/go-logr/zapr v1.3.0 // indirect
-	github.com/go-openapi/jsonpointer v0.19.6 // indirect
-	github.com/go-openapi/jsonreference v0.20.2 // indirect
-	github.com/go-openapi/swag v0.22.3 // indirect
+	// github.com/go-openapi/jsonpointer v0.19.6 // indirect
+	// github.com/go-openapi/jsonreference v0.20.2 // indirect
+	// github.com/go-openapi/swag v0.22.3 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
-	github.com/google/gnostic v0.6.9 // indirect
+	github.com/google/gnostic-models v0.6.8 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/pprof v0.0.0-20221118152302-e6195bd50e26 // indirect
@@ -96,7 +103,7 @@ require (
 	k8s.io/utils v0.0.0-20230726121419-3b25d923346b // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.3.0 // indirect
-	sigs.k8s.io/yaml v1.3.0 // indirect
+	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
 replace (
@@ -105,10 +112,10 @@ replace (
 	github.com/tektoncd/pipeline => github.com/tektoncd/pipeline v0.12.0
 	go.uber.org/multierr => go.uber.org/multierr v1.6.0
 	google.golang.org/grpc => google.golang.org/grpc v1.63.2
-	k8s.io/api => k8s.io/api v0.26.0
-	k8s.io/client-go => k8s.io/client-go v0.26.0
-	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20230113010536-ace3e4a52ca1
-	sigs.k8s.io/controller-runtime => sigs.k8s.io/controller-runtime v0.14.6
+	k8s.io/api => k8s.io/api v0.28.4
+	k8s.io/client-go => k8s.io/client-go v0.28.4
+//	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20230113010536-ace3e4a52ca1
+//	sigs.k8s.io/controller-runtime => sigs.k8s.io/controller-runtime v0.14.6
 )
 
 exclude github.com/openshift/api v3.9.0+incompatible
