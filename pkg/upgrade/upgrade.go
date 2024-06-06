@@ -293,7 +293,7 @@ func deleteOneResource(ctx context.Context, c client.Client, res ResourceSpec) e
 	err := c.List(ctx, list, client.InNamespace(res.Namespace))
 	if err != nil {
 		if errors.Is(err, &meta.NoKindMatchError{}) {
-			fmt.Printf("Could not delete %v: CRD not found\n", res.Gvk)
+			fmt.Printf("CRD not found, will not delete %v\n", res.Gvk)
 			return nil
 		}
 		return fmt.Errorf("failed to list %s: %w", res.Gvk.Kind, err)

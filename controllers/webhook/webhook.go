@@ -38,8 +38,8 @@ var log = ctrl.Log.WithName("odh-controller-webhook")
 //nolint:lll
 
 type OpenDataHubWebhook struct {
-	client  client.Client
-	decoder *admission.Decoder
+	Client  client.Client
+	Decoder *admission.Decoder
 }
 
 func (w *OpenDataHubWebhook) SetupWithManager(mgr ctrl.Manager) {
@@ -48,16 +48,6 @@ func (w *OpenDataHubWebhook) SetupWithManager(mgr ctrl.Manager) {
 		Handler: w,
 	}
 	hookServer.Register("/validate-opendatahub-io-v1", odhWebhook)
-}
-
-func (w *OpenDataHubWebhook) InjectDecoder(d *admission.Decoder) error {
-	w.decoder = d
-	return nil
-}
-
-func (w *OpenDataHubWebhook) InjectClient(c client.Client) error {
-	w.client = c
-	return nil
 }
 
 func countObjects(ctx context.Context, cli client.Client, gvk schema.GroupVersionKind) (int, error) {
@@ -99,7 +89,7 @@ func (w *OpenDataHubWebhook) checkDupCreation(ctx context.Context, req admission
 	}
 
 	// if count == 1 now creation of #2 is being handled
-	return denyCountGtZero(ctx, w.client, gvk,
+	return denyCountGtZero(ctx, w.Client, gvk,
 		fmt.Sprintf("Only one instance of %s object is allowed", req.Kind.Kind))
 }
 
@@ -109,7 +99,7 @@ func (w *OpenDataHubWebhook) checkDeletion(ctx context.Context, req admission.Re
 	}
 
 	// Restrict deletion of DSCI if DSC exists
-	return denyCountGtZero(ctx, w.client, gvk.DataScienceCluster,
+	return denyCountGtZero(ctx, w.Client, gvk.DataScienceCluster,
 		fmt.Sprintln("Cannot delete DSCI object when DSC object still exists"))
 }
 

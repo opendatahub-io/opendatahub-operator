@@ -20,4 +20,4 @@ spec:
       - name: cert
         secret:
           defaultMode: 420
-          secretName: opendatahub-operator-controller-webhook-cert
+          secretName: opendatahub-operator-webhook-service
