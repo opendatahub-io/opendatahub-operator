@@ -1,16 +1,13 @@
 <!--- Provide a general summary of your changes in the Title above -->
-<!--- Please include JIRA number in the commit message of the PR. -->
-<!--- This will link your PR to the respective JIRA automatically. -->
 
 Many thanks for submitting your Pull Request ❤️!
 
 Please make sure that your PR meets the following requirements:
 
 - [ ] You have read the [contributors guide](https://github.com/opendatahub-io/opendatahub-operator/blob/incubation/CONTRIBUTING.md)
-- [ ] Pull Request title is properly formatted: `RHOAIENG-XYZ Subject`
+- [ ] Pull Request contains description of the issue
 - [ ] Pull Request contains link to the JIRA issue
 - [ ] Pull Request contains link to any dependent or related Pull Request
-- [ ] Pull Request contains description of the issue
 
 ## Description
 <!--- Describe your changes in detail -->
@@ -30,7 +27,6 @@ Please make sure that your PR meets the following requirements:
 <!--- This PR will be merged by any repository approver when it meets all the points in the checklist -->
 <!--- Go over all the following points, and put an `x` in all the boxes that apply. -->
 
-- [ ] Acceptance criteria of the JIRA are met.
-- [ ] The commits are squashed in a cohesive manner and have meaningful messages.
+- [ ] Have a meaningful commit messages.
 - [ ] Testing instructions have been added in the PR body (for PRs involving changes that are not immediately obvious).
 - [ ] The developer has manually tested the changes and verified that the changes work
