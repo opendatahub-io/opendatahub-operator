@@ -29,7 +29,7 @@ func CreatePrometheusConfigs(ctx context.Context, cli client.Client, enabled boo
 		resourceName := strings.Split(e.Name(), ".")[0]
 		foundObj := setGVK(foundObj, resourceName)
 		err = cli.Get(ctx, client.ObjectKey{Name: resourceName, Namespace: dscispec.Monitoring.Namespace}, foundObj)
-		if !apierrs.IsNotFound(err) {
+		if err != nil && !apierrs.IsNotFound(err) {
 			return fmt.Errorf("failed fetching %v CR: %w", resourceName, err)
 		}
 		if enabled && apierrs.IsNotFound(err) {

@@ -1,7 +1,7 @@
 apiVersion: monitoring.rhobs/v1
 kind: PrometheusRule
 metadata:
-  name: kueue-prometheusrules
+  name: kueue-rules
   namespace: [[ .Monitoring.Namespace ]]
   labels:
     monitoring.rhobs/stack: rhoai-cmo-ms
