@@ -34,6 +34,7 @@ import (
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
 	"golang.org/x/exp/maps"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
@@ -208,7 +209,7 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 
 	// Return if error getting resource in cluster
 	found, err := getResource(ctx, cli, obj)
-	if client.IgnoreNotFound(err) != nil {
+	if err != nil {
 		return err
 	}
 
@@ -391,8 +392,13 @@ func getResource(ctx context.Context, cli client.Client, obj *unstructured.Unstr
 	found := &unstructured.Unstructured{}
 	// Setting gvk is required to do Get request
 	found.SetGroupVersionKind(obj.GroupVersionKind())
-	err := cli.Get(ctx, types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, found)
-	if err != nil {
+	if err := cli.Get(ctx, types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, found); err != nil {
+		if errors.Is(err, &meta.NoKindMatchError{}) {
+			return nil, nil // ignore mising CRD error
+		}
+		if client.IgnoreNotFound(err) == nil {
+			return nil, nil // not found resource
+		}
 		return nil, err
 	}
 	return found, nil
