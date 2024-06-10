@@ -140,15 +140,10 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 			l.Info("deployment is done, updating monitoring rules")
 		}
 
-		if err := obo.UpdatePrometheusConfigNew(ctx, cli, enabled && monitoringEnabled, ComponentName, rootFS, dscispec); err != nil {
+		if err := obo.UpdatePrometheusConfigNew(ctx, cli, enabled && monitoringEnabled, ComponentName, rootFS, owner, dscispec); err != nil {
 			return err
 		}
-		if err = deploy.DeployManifestsFromPath(cli, owner,
-			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
-			dscispec.Monitoring.Namespace,
-			"prometheus", true); err != nil {
-			return err
-		}
+
 		l.Info("updating SRE monitoring done")
 	}
 

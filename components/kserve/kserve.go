@@ -182,7 +182,7 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 		}
 		// kesrve rules
 
-		if err := obo.UpdatePrometheusConfigNew(ctx, cli, enabled && monitoringEnabled, ComponentName, rootFS, dscispec); err != nil {
+		if err := obo.UpdatePrometheusConfigNew(ctx, cli, enabled && monitoringEnabled, ComponentName, rootFS, owner, dscispec); err != nil {
 			return err
 		}
 		l.Info("updating SRE monitoring done")

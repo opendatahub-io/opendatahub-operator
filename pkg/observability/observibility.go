@@ -8,8 +8,10 @@ import (
 	ttemplate "text/template"
 
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/yaml"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -17,8 +19,8 @@ import (
 )
 
 // UpdatePrometheusConfigNew creates or remove a PrometheusRule CR for the component.
-func UpdatePrometheusConfigNew(ctx context.Context, cli client.Client, enable bool, component string, rootFS embed.FS, dscispec *dsciv1.DSCInitializationSpec) error {
-	// feature.CreateTemplateManifestFrom()
+func UpdatePrometheusConfigNew(ctx context.Context, cli client.Client, enable bool, component string,
+	rootFS embed.FS, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
 	var object *unstructured.Unstructured
 
 	promRule := &unstructured.Unstructured{}
@@ -33,11 +35,13 @@ func UpdatePrometheusConfigNew(ctx context.Context, cli client.Client, enable bo
 	}
 
 	if enable && apierrs.IsNotFound(err) { // we should create if not exist,but not update if exist
-		if err = cli.Create(ctx, object); err != nil {
-			return fmt.Errorf("error creating PrometheusRules on component %s: %w", component, err)
+		if err = ctrl.SetControllerReference(owner, metav1.Object(object), cli.Scheme()); err != nil {
+			if err = cli.Create(ctx, object); err != nil {
+				return fmt.Errorf("error creating PrometheusRules on component %s: %w", component, err)
+			}
 		}
 	}
-	if !enable && object != nil { // we should remove but only when it does not exist
+	if !enable && object != nil { // we should remove but only when it exist
 		if err = cli.Delete(ctx, object); err != nil {
 			return fmt.Errorf("error removing PrometheusRules on component %s: %w", component, err)
 		}
