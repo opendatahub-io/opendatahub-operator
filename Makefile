@@ -73,6 +73,7 @@ YQ_VERSION ?= v4.12.2
 ENVTEST_K8S_VERSION = 1.24.2
 ENVTEST_PACKAGE_VERSION = v0.0.0-20240320141353-395cfc7486e6
 CRD_REF_DOCS_VERSION = 0.0.11
+GOLANG_VERSION := $(shell sed -n '/^go/s/go \(.*\)/\1/p' < go.mod)
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -93,6 +94,7 @@ E2E_TEST_FLAGS = "--skip-deletion=false" -timeout 20m # See README.md, default g
 # set to "true" to use local instead
 # see target "image-build"
 IMAGE_BUILD_FLAGS ?= --build-arg USE_LOCAL=false
+IMAGE_BUILD_FLAGS_ALL := --build-arg GOLANG_VERSION=$(GOLANG_VERSION) $(IMAGE_BUILD_FLAGS)
 
 # Read any custom variables overrides from a local.mk file.  This will only be read if it exists in the 
 # same directory as this Makefile.  Variables can be specified in the standard format supported by 
@@ -172,7 +174,13 @@ CLEANFILES += odh-manifests/*
 api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-ref-docs
 	$(CRD_REF_DOCS) --source-path ./ --output-path ./docs/api-overview.md --renderer markdown --config ./crd-ref-docs.config.yaml && \
 	egrep -v '\.io/[^v][^1].*)$$' ./docs/api-overview.md > temp.md && mv ./temp.md ./docs/api-overview.md
-	
+
+.PHONY: go-version-update
+golang-version-update:
+	for f in Dockerfiles/*; do \
+		sed  -i -e 's/\(ARG GOLANG_VERSION=\).*/\1$(GOLANG_VERSION)/g' $$f ; \
+	done
+
 ##@ Build
 
 .PHONY: build
@@ -185,7 +193,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 
 .PHONY: image-build
 image-build: # unit-test ## Build image with the manager.
-	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/Dockerfile  ${IMAGE_BUILD_FLAGS} -t $(IMG) .
+	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/Dockerfile  $(IMAGE_BUILD_FLAGS_ALL) -t $(IMG) .
 
 .PHONY: image-push
 image-push: ## Push image with the manager.
@@ -335,7 +343,7 @@ catalog-build: opm ## Build a catalog image.
 catalog-push: ## Push a catalog image.
 	$(MAKE) image-push IMG=$(CATALOG_IMG)
 
-TOOLBOX_GOLANG_VERSION := 1.20
+TOOLBOX_GOLANG_VERSION := $(GOLANG_VERSION)
 TOOLBOX_OPERATOR_SDK_VERSION := 1.24.1
 
 # Generate a Toolbox container for locally testing changes easily
