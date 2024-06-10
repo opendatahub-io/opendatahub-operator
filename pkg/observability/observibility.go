@@ -27,19 +27,18 @@ func UpdatePrometheusConfigNew(ctx context.Context, cli client.Client, enable bo
 	if !apierrs.IsNotFound(err) {
 		return fmt.Errorf("failed fetching PrometheusRules CR: %w", err)
 	}
-	if enable && apierrs.IsNotFound(err) { // we should create if not exist
-		object, err := UpdatePromTemplate(component, rootFS, dscispec)
-		if err != nil {
-			return fmt.Errorf("failed inject template for PrometheusRules CR: %w", err)
-		}
-		err = cli.Create(ctx, object)
-		if err != nil {
+	object, errTemp := UpdatePromTemplate(component, rootFS, dscispec)
+	if errTemp != nil {
+		return fmt.Errorf("failed inject template for PrometheusRules CR: %w", err)
+	}
+
+	if enable && apierrs.IsNotFound(err) { // we should create if not exist,but not update if exist
+		if err = cli.Create(ctx, object); err != nil {
 			return fmt.Errorf("error creating PrometheusRules on component %s: %w", component, err)
 		}
 	}
-	if !enable && err != nil { // we should remove
-		err = cli.Delete(ctx, object)
-		if err != nil {
+	if !enable && object != nil { // we should remove but only when it does not exist
+		if err = cli.Delete(ctx, object); err != nil {
 			return fmt.Errorf("error removing PrometheusRules on component %s: %w", component, err)
 		}
 	}
