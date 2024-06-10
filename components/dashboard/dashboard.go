@@ -185,7 +185,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 				l.Info("deployment is done, creating observability configs")
 			}
 
-			if err := obo.CreatePrometheusConfigs(ctx, cli, enabled && monitoringEnabled, rootFS, "resources", dscispec); err != nil {
+			if err := obo.CreatePrometheusConfigs(ctx, cli, enabled && monitoringEnabled, rootFS, "resources", owner, dscispec); err != nil {
 				return err
 			}
 			l.Info("updating SRE monitoring done")

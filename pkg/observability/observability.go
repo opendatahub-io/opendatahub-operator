@@ -10,17 +10,25 @@ import (
 	"text/template"
 
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/yaml"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
-func CreatePrometheusConfigs(ctx context.Context, cli client.Client, enabled bool, rootFS embed.FS, manifestPath string, dscispec *dsciv1.DSCInitializationSpec) error {
+func CreatePrometheusConfigs(
+	ctx context.Context,
+	cli client.Client,
+	enabled bool,
+	rootFS embed.FS,
+	manifestPath string,
+	owner metav1.Object,
+	dscispec *dsciv1.DSCInitializationSpec) error {
 	foundObj := &unstructured.Unstructured{}
-	var object *unstructured.Unstructured
 	entries, err := rootFS.ReadDir(manifestPath)
 	if err != nil {
 		return fmt.Errorf("error reading dir %w", err)
@@ -32,19 +40,20 @@ func CreatePrometheusConfigs(ctx context.Context, cli client.Client, enabled boo
 		if err != nil && !apierrs.IsNotFound(err) {
 			return fmt.Errorf("failed fetching %v CR: %w", resourceName, err)
 		}
+		object, tempErr := updateTemplate(e.Name(), rootFS, manifestPath, dscispec)
+		if tempErr != nil {
+			return fmt.Errorf("failed inject template for PrometheusRules CR: %w", err)
+		}
 		if enabled && apierrs.IsNotFound(err) {
-			object, err := updateTemplate(e.Name(), rootFS, manifestPath, dscispec)
-			if err != nil {
-				return fmt.Errorf("failed inject template for %s: %w", resourceName, err)
+			if err = ctrl.SetControllerReference(owner, metav1.Object(object), cli.Scheme()); err != nil {
+				return fmt.Errorf("error setting owner reference for %s: %w", resourceName, err)
 			}
-			err = cli.Create(ctx, object)
-			if err != nil {
+			if err = cli.Create(ctx, object); err != nil {
 				return fmt.Errorf("error creating %s: %w", resourceName, err)
 			}
 		}
-		if !enabled && err != nil {
-			err = cli.Delete(ctx, object)
-			if err != nil {
+		if !enabled && object != nil {
+			if err = cli.Delete(ctx, object); err != nil {
 				return fmt.Errorf("error removing %s: %w", resourceName, err)
 			}
 		}

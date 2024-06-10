@@ -163,17 +163,7 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 			l.Info("deployment is done, creating observability configs")
 		}
 		// first model-mesh rules
-		if err := obo.CreatePrometheusConfigs(ctx, cli, enabled && monitoringEnabled, rootFS, "resources", dscispec); err != nil {
-			return err
-		}
-		// then odh-model-controller rules
-		// if err := m.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, DependentComponentName); err != nil {
-		// 	return err
-		// }
-		if err = deploy.DeployManifestsFromPath(cli, owner,
-			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
-			dscispec.Monitoring.Namespace,
-			"prometheus", true); err != nil {
+		if err := obo.CreatePrometheusConfigs(ctx, cli, enabled && monitoringEnabled, rootFS, "resources", owner, dscispec); err != nil {
 			return err
 		}
 		l.Info("updating SRE monitoring done")
