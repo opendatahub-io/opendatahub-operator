@@ -32,9 +32,11 @@ import (
 	"strings"
 
 	"golang.org/x/exp/maps"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -210,7 +212,7 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 
 	// Return if error getting resource in cluster
 	found, err := getResource(ctx, cli, obj)
-	if err != nil {
+	if !apierrs.IsNotFound(err) { // do not return err if it is NewNotFound
 		return err
 	}
 
@@ -360,12 +362,9 @@ func getResource(ctx context.Context, cli client.Client, obj *unstructured.Unstr
 	found.SetGroupVersionKind(obj.GroupVersionKind())
 	if err := cli.Get(ctx, types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, found); err != nil {
 		if errors.Is(err, &meta.NoKindMatchError{}) {
-			return nil, nil // ignore mising CRD error
+			return nil, apierrs.NewNotFound(schema.GroupResource{}, obj.GetName()) // return error if resource's CRD is missing
 		}
-		if client.IgnoreNotFound(err) == nil {
-			return nil, nil // not found resource
-		}
-		return nil, err
+		return nil, client.IgnoreNotFound(err)
 	}
 	return found, nil
 }
