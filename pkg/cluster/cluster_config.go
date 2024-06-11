@@ -19,6 +19,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
+var cachedPlatform *Platform
+
 // +kubebuilder:rbac:groups="config.openshift.io",resources=ingresses,verbs=get
 
 func GetDomain(c client.Client) (string, error) {
@@ -115,7 +117,7 @@ func isManagedRHODS(cli client.Client) (Platform, error) {
 	return "", nil
 }
 
-func GetPlatform(cli client.Client) (Platform, error) {
+func getPlatform(cli client.Client) (Platform, error) {
 	// First check if its addon installation to return 'ManagedRhods, nil'
 	if platform, err := isManagedRHODS(cli); err != nil {
 		return Unknown, err
@@ -125,6 +127,16 @@ func GetPlatform(cli client.Client) (Platform, error) {
 
 	// check and return whether ODH or self-managed platform
 	return isSelfManaged(cli)
+}
+
+func GetPlatform(cli client.Client) (Platform, error) {
+	if cachedPlatform != nil {
+		return *cachedPlatform, nil
+	}
+
+	platform, err := getPlatform(cli)
+	cachedPlatform = &platform
+	return platform, err
 }
 
 // Release includes information on operator version and platform
