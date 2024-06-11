@@ -18,7 +18,6 @@ package webhook
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 
@@ -43,23 +42,13 @@ type OpenDataHubWebhook struct {
 	Decoder *admission.Decoder
 }
 
-func (w *OpenDataHubWebhook) SetupWithManager(mgr ctrl.Manager) error {
-	// Initialize
-	if w.Client == nil { // replace the old InjectClient() method
-		w.Client = mgr.GetClient()
-	}
-	if w.Decoder == nil { // replace the old InjectDecoder() method
-		w.Decoder = admission.NewDecoder(mgr.GetScheme())
-	}
+func (w *OpenDataHubWebhook) SetupWithManager(mgr ctrl.Manager) {
+	// move config into caller in main.go
 	hookServer := mgr.GetWebhookServer()
-	if hookServer == nil {
-		return errors.New("failed to get webhook server from manager")
-	}
 	odhWebhook := &webhook.Admission{
 		Handler: w,
 	}
 	hookServer.Register("/validate-opendatahub-io-v1", odhWebhook)
-	return nil
 }
 
 func countObjects(ctx context.Context, cli client.Client, gvk schema.GroupVersionKind) (int, error) {

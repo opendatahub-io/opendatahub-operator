@@ -53,6 +53,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -164,12 +165,10 @@ func main() { //nolint:funlen
 		os.Exit(1)
 	}
 
-	if err = (&webhook.OpenDataHubWebhook{
-		Client: mgr.GetClient(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "OperatorWebhook")
-		os.Exit(1)
-	}
+	(&webhook.OpenDataHubWebhook{
+		Client:  mgr.GetClient(),
+		Decoder: admission.NewDecoder(mgr.GetScheme()),
+	}).SetupWithManager(mgr)
 
 	if err = (&dscicontr.DSCInitializationReconciler{
 		Client:                mgr.GetClient(),
