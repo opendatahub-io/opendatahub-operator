@@ -40,7 +40,7 @@ func (k *Kserve) defineServiceMeshFeatures(cli client.Client) feature.FeaturesPr
 		if authorinoInstalled {
 			kserveExtAuthzErr := feature.CreateFeature("kserve-external-authz").
 				For(handler).
-				ManifestSource(Resources.Source).
+				ManifestsLocation(Resources.Location).
 				Manifests(
 					path.Join(Resources.ServiceMeshDir, "activator-envoyfilter.tmpl.yaml"),
 					path.Join(Resources.ServiceMeshDir, "envoy-oauth-temp-fix.tmpl.yaml"),
@@ -59,7 +59,7 @@ func (k *Kserve) defineServiceMeshFeatures(cli client.Client) feature.FeaturesPr
 
 		temporaryFixesErr := feature.CreateFeature("kserve-temporary-fixes").
 			For(handler).
-			ManifestSource(Resources.Source).
+			ManifestsLocation(Resources.Location).
 			Manifests(
 				path.Join(Resources.ServiceMeshDir, "grpc-envoyfilter-temp-fix.tmpl.yaml"),
 			).

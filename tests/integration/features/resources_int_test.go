@@ -107,7 +107,7 @@ func createAndApplyFeature(dsci *dsciv1.DSCInitialization, managed bool, feature
 		creator := feature.CreateFeature(featureName).
 			For(handler).
 			UsingConfig(envTest.Config).
-			ManifestSource(fixtures.TestEmbeddedFiles).
+			ManifestsLocation(fixtures.TestEmbeddedFiles).
 			Manifests(path.Join(fixtures.BaseDir, yamlFile))
 		if managed {
 			creator.Managed()
