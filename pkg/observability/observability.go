@@ -52,7 +52,7 @@ func CreatePrometheusConfigs(
 				return fmt.Errorf("error creating %s: %w", resourceName, err)
 			}
 		}
-		if !enabled && object != nil {
+		if !enabled && !apierrs.IsNotFound(err) {
 			if err = cli.Delete(ctx, object); err != nil {
 				return fmt.Errorf("error removing %s: %w", resourceName, err)
 			}
