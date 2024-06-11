@@ -12,7 +12,7 @@ func (k *Kserve) configureServerlessFeatures() feature.FeaturesProvider {
 	return func(handler *feature.FeaturesHandler) error {
 		servingDeploymentErr := feature.CreateFeature("serverless-serving-deployment").
 			For(handler).
-			ManifestSource(Resources.Source).
+			ManifestsLocation(Resources.Location).
 			Manifests(
 				path.Join(Resources.InstallDir),
 			).
@@ -33,7 +33,7 @@ func (k *Kserve) configureServerlessFeatures() feature.FeaturesProvider {
 
 		servingNetIstioSecretFilteringErr := feature.CreateFeature("serverless-net-istio-secret-filtering").
 			For(handler).
-			ManifestSource(Resources.Source).
+			ManifestsLocation(Resources.Location).
 			Manifests(
 				path.Join(Resources.BaseDir, "serving-net-istio-secret-filtering.patch.tmpl.yaml"),
 			).
@@ -56,7 +56,7 @@ func (k *Kserve) configureServerlessFeatures() feature.FeaturesProvider {
 				serverless.ServingIngressDomain,
 			).
 			WithResources(serverless.ServingCertificateResource).
-			ManifestSource(Resources.Source).
+			ManifestsLocation(Resources.Location).
 			Manifests(
 				path.Join(Resources.GatewaysDir),
 			).
