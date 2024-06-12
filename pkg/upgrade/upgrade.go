@@ -102,7 +102,7 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 			},
 		},
 	}
-	err := cli.Create(ctx, releaseDataScienceCluster)
+	err := cluster.CreateWithRetry(ctx, cli, releaseDataScienceCluster, 1) // 1 min timeout
 	switch {
 	case err == nil:
 		fmt.Printf("created DataScienceCluster resource\n")
