@@ -34,28 +34,36 @@ func CreatePrometheusConfigs(
 		return fmt.Errorf("error reading dir %w", err)
 	}
 	for _, e := range entries {
+		// Should not be a bit deal to generate it for Get() real error, should not happen in normal flow
+		object, err := updateTemplate(e.Name(), rootFS, manifestPath, dscispec)
+		if err != nil {
+			return fmt.Errorf("failed inject template for PrometheusRules CR: %w", err)
+		}
+
 		resourceName := strings.Split(e.Name(), ".")[0]
 		foundObj := setGVK(foundObj, resourceName)
 		err = cli.Get(ctx, client.ObjectKey{Name: resourceName, Namespace: dscispec.Monitoring.Namespace}, foundObj)
-		if err != nil && !apierrs.IsNotFound(err) {
+
+		switch {
+		// object exists
+		case err == nil:
+			// if enabled, nothing
+			if !enabled {
+				if err = cli.Delete(ctx, object); err != nil {
+					return fmt.Errorf("error removing %s: %w", resourceName, err)
+				}
+			}
+		case apierrs.IsNotFound(err):
+			if enabled {
+				if err = ctrl.SetControllerReference(owner, metav1.Object(object), cli.Scheme()); err != nil {
+					return fmt.Errorf("error setting owner reference for %s: %w", resourceName, err)
+				}
+				if err = cli.Create(ctx, object); err != nil {
+					return fmt.Errorf("error creating %s: %w", resourceName, err)
+				}
+			}
+		default:
 			return fmt.Errorf("failed fetching %v CR: %w", resourceName, err)
-		}
-		object, tempErr := updateTemplate(e.Name(), rootFS, manifestPath, dscispec)
-		if tempErr != nil {
-			return fmt.Errorf("failed inject template for PrometheusRules CR: %w", err)
-		}
-		if enabled && apierrs.IsNotFound(err) {
-			if err = ctrl.SetControllerReference(owner, metav1.Object(object), cli.Scheme()); err != nil {
-				return fmt.Errorf("error setting owner reference for %s: %w", resourceName, err)
-			}
-			if err = cli.Create(ctx, object); err != nil {
-				return fmt.Errorf("error creating %s: %w", resourceName, err)
-			}
-		}
-		if !enabled && !apierrs.IsNotFound(err) {
-			if err = cli.Delete(ctx, object); err != nil {
-				return fmt.Errorf("error removing %s: %w", resourceName, err)
-			}
 		}
 	}
 	return nil
