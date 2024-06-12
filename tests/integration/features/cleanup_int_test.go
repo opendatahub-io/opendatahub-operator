@@ -2,6 +2,7 @@ package features_test
 
 import (
 	"context"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -58,7 +59,7 @@ var _ = Describe("feature cleanup", func() {
 			Expect(featuresHandler.Apply(ctx)).Should(Succeed())
 
 			// then
-			Eventually(createdSecretHasOwnerReferenceToOwningFeature(namespace, secretName)).
+			Eventually(createdSecretHasOwnerReferenceToOwningFeature(namespace)).
 				WithContext(ctx).
 				WithTimeout(fixtures.Timeout).
 				WithPolling(fixtures.Interval).
@@ -70,7 +71,7 @@ var _ = Describe("feature cleanup", func() {
 			Expect(featuresHandler.Delete(ctx)).To(Succeed())
 
 			// then
-			Eventually(createdSecretHasOwnerReferenceToOwningFeature(namespace, secretName)).
+			Eventually(createdSecretHasOwnerReferenceToOwningFeature(namespace)).
 				WithContext(ctx).
 				WithTimeout(fixtures.Timeout).
 				WithPolling(fixtures.Interval).
@@ -122,7 +123,7 @@ var _ = Describe("feature cleanup", func() {
 			Expect(featuresHandler.Apply(ctx)).Should(Succeed())
 
 			// then
-			Eventually(createdSecretHasOwnerReferenceToOwningFeature(namespace, secretName)).
+			Eventually(createdSecretHasOwnerReferenceToOwningFeature(namespace)).
 				WithTimeout(fixtures.Timeout).
 				WithPolling(fixtures.Interval).
 				Should(Succeed())
@@ -153,7 +154,7 @@ var _ = Describe("feature cleanup", func() {
 			Expect(featuresHandler.Apply(ctx)).Should(Succeed())
 
 			// then
-			Eventually(createdSecretHasOwnerReferenceToOwningFeature(namespace, secretName)).
+			Eventually(createdSecretHasOwnerReferenceToOwningFeature(namespace)).
 				WithTimeout(fixtures.Timeout).
 				WithPolling(fixtures.Interval).
 				Should(WithTransform(errors.IsNotFound, BeTrue()))
@@ -161,8 +162,9 @@ var _ = Describe("feature cleanup", func() {
 	})
 })
 
-func createdSecretHasOwnerReferenceToOwningFeature(namespace, secretName string) func(context.Context) error {
+func createdSecretHasOwnerReferenceToOwningFeature(namespace string) func(context.Context) error {
 	return func(ctx context.Context) error {
+		secretName := "test-secret" // Hardcoded value
 		secret, err := envTestClientset.CoreV1().
 			Secrets(namespace).
 			Get(ctx, secretName, metav1.GetOptions{})
