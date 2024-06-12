@@ -5,6 +5,7 @@ package trainingoperator
 
 import (
 	"context"
+	"embed"
 	"fmt"
 	"path/filepath"
 
@@ -17,12 +18,16 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	obo "github.com/opendatahub-io/opendatahub-operator/v2/pkg/observability"
 )
 
 var (
 	ComponentName        = "trainingoperator"
 	TrainingOperatorPath = deploy.DefaultManifestPath + "/" + ComponentName + "/rhoai"
 )
+
+//go:embed resources
+var rootFS embed.FS
 
 // Verifies that TrainingOperator implements ComponentInterface.
 var _ components.ComponentInterface = (*TrainingOperator)(nil)
@@ -98,14 +103,8 @@ func (r *TrainingOperator) ReconcileComponent(ctx context.Context, cli client.Cl
 			}
 			fmt.Printf("deployment for %s is done, updating monitoring rules\n", ComponentName)
 		}
-		l.Info("deployment is done, updating monitoring rules")
-		if err := r.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
-			return err
-		}
-		if err = deploy.DeployManifestsFromPath(cli, owner,
-			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
-			dscispec.Monitoring.Namespace,
-			"prometheus", true); err != nil {
+		l.Info("deployment is done, creating observability configs")
+		if err := obo.CreatePrometheusConfigs(ctx, cli, enabled && monitoringEnabled, rootFS, "resources", owner, dscispec); err != nil {
 			return err
 		}
 		l.Info("updating SRE monitoring done")

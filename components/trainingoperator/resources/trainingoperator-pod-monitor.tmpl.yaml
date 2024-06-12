@@ -1,0 +1,29 @@
+apiVersion: monitoring.rhobs/v1
+kind: PodMonitor
+metadata:
+  name: trainingoperator-pod-monitor
+  namespace: [[ .Monitoring.Namespace ]]
+  labels:
+    monitoring.rhobs/stack: rhoai-cmo-ms
+spec:
+  podMetricsEndpoints:
+    - scheme: http
+      honorLabels: true
+      relabelings:
+        - action: keep
+          regex: ^(kubeflow-training-operator)$
+          sourceLabels:
+            - __meta_kubernetes_pod_label_control_plane
+          targetLabel: kubernetes_name
+        - action: replace
+          regex: '(.+):(\d+)'
+          replacement: '${1}:8080'
+          sourceLabels:
+            - __address__
+          targetLabel: __address__
+  namespaceSelector:
+    matchNames:
+      - [[ .ApplicationsNamespace ]]
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: trainingoperator

@@ -1,0 +1,31 @@
+apiVersion: monitoring.rhobs/v1alpha1
+kind: MonitoringStack
+metadata:
+  labels:
+    obo: rhoai-ms
+  name: rhoai-monitoring-stack
+  namespace: {{ .MonNamespace }} # dsci.Spec.Monitoring.Namespace
+spec:
+  logLevel: info    # if needed can use debug
+  retention: 15d    # keep the same as what we have now
+  prometheusConfig:
+    replicas: 1     # we only have one prometheus deployment in old stack, but we can set to 2 if needed
+    persistentVolumeClaim:   # from old preomtheus-pvc.yaml
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 5Gi
+    scrapeInterval: 10s  # from prometheus.yaml CM      
+  alertmanagerConfig:
+    disabled: false
+  resources:
+    requests:
+      cpu: 500m
+      memory: 3Gi
+  resourceSelector: # to get servicemonitor
+    matchLabels:
+      monitoring.rhobs/stack: rhoai-cmo-ms
+  namespaceSelector: # to limit only for monitoring namespace
+    matchLabels:
+      kubernetes.io/metadata.name: {{ .MonNamespace }}  # dsci.Spec.MonitoringNamespace

@@ -1,0 +1,33 @@
+apiVersion: monitoring.rhobs/v1
+kind: ServiceMonitor
+metadata:
+  name: dspa-service-monitor
+  namespace: [[ .Monitoring.Namespace ]]
+  labels:
+    monitoring.rhobs/stack: rhoai-cmo-ms
+spec:
+  namespaceSelector:
+    matchNames:
+      - [[ .ApplicationsNamespace ]]
+  endpoints:
+    - relabelings:
+        - action: keep
+          sourceLabels:
+            - __meta_kubernetes_service_name
+          regex: ^(ds-pipeline-.*)$
+          targetLabel: kubernetes_name
+        - action: replace
+          sourceLabels:
+            - __address__
+          regex: '(.+):8888'
+          targetLabel: __address__
+        - action: keep
+          sourceLabels:
+            - __meta_kubernetes_namespace
+          target_label: namespace
+      scheme: http
+      honorLabels: true
+      path: /metrics
+  selector:
+    matchLabels:
+      app.opendatahub.io/data-science-pipelines-application: "true"

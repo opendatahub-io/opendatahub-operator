@@ -840,6 +840,7 @@ rules:
   - deletecollection
   - get
   - patch
+  - update
 - apiGroups:
   - monitoring.coreos.com
   resources:
@@ -850,6 +851,7 @@ rules:
   - deletecollection
   - get
   - patch
+  - update
 - apiGroups:
   - monitoring.coreos.com
   resources:
@@ -860,6 +862,7 @@ rules:
   - deletecollection
   - get
   - patch
+  - update
 - apiGroups:
   - monitoring.coreos.com
   resources:
@@ -870,6 +873,7 @@ rules:
   - deletecollection
   - get
   - patch
+  - update
 - apiGroups:
   - monitoring.coreos.com
   resources:
@@ -877,6 +881,7 @@ rules:
   verbs:
   - create
   - delete
+  - deletecollection
   - get
   - list
   - patch
@@ -892,6 +897,7 @@ rules:
   - deletecollection
   - get
   - patch
+  - update
 - apiGroups:
   - monitoring.coreos.com
   resources:
@@ -902,6 +908,7 @@ rules:
   - deletecollection
   - get
   - patch
+  - update
 - apiGroups:
   - monitoring.coreos.com
   resources:
@@ -912,6 +919,7 @@ rules:
   - deletecollection
   - get
   - patch
+  - update
 - apiGroups:
   - monitoring.coreos.com
   resources:
@@ -922,6 +930,7 @@ rules:
   - deletecollection
   - get
   - patch
+  - update
 - apiGroups:
   - monitoring.coreos.com
   resources:
@@ -932,6 +941,7 @@ rules:
   - deletecollection
   - get
   - patch
+  - update
 - apiGroups:
   - monitoring.coreos.com
   resources:
@@ -955,6 +965,7 @@ rules:
   - deletecollection
   - get
   - patch
+  - update
 - apiGroups:
   - monitoring.coreos.com
   resources:
@@ -965,6 +976,7 @@ rules:
   - deletecollection
   - get
   - patch
+  - update
 - apiGroups:
   - monitoring.coreos.com
   resources:
@@ -975,6 +987,122 @@ rules:
   - deletecollection
   - get
   - patch
+  - update
+- apiGroups:
+  - monitoring.rhobs
+  resources:
+  - alertmanagerconfigs
+  verbs:
+  - create
+  - delete
+  - get
+  - patch
+  - update
+- apiGroups:
+  - monitoring.rhobs
+  resources:
+  - alertmanagers
+  verbs:
+  - create
+  - delete
+  - get
+  - patch
+  - update
+- apiGroups:
+  - monitoring.rhobs
+  resources:
+  - alertmanagers/finalizers
+  verbs:
+  - create
+  - delete
+  - get
+  - patch
+  - update
+- apiGroups:
+  - monitoring.rhobs
+  resources:
+  - alertmanagers/status
+  verbs:
+  - create
+  - delete
+  - get
+  - patch
+  - update
+- apiGroups:
+  - monitoring.rhobs
+  resources:
+  - monitoringstacks
+  verbs:
+  - create
+  - delete
+  - deletec
+  - get
+  - patch
+- apiGroups:
+  - monitoring.rhobs
+  resources:
+  - podmonitors
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - monitoring.rhobs
+  resources:
+  - prometheuses
+  verbs:
+  - create
+  - deletecollection
+  - get
+  - patch
+  - update
+- apiGroups:
+  - monitoring.rhobs
+  resources:
+  - prometheuses/finalizers
+  verbs:
+  - create
+  - delete
+  - get
+  - patch
+  - update
+- apiGroups:
+  - monitoring.rhobs
+  resources:
+  - prometheuses/status
+  verbs:
+  - create
+  - delete
+  - get
+  - patch
+  - update
+- apiGroups:
+  - monitoring.rhobs
+  resources:
+  - prometheusrules
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - patch
+  - update
+- apiGroups:
+  - monitoring.rhobs
+  resources:
+  - servicemonitors
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - networking.istio.io
   resources:

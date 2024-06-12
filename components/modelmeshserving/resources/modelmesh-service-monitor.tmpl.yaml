@@ -1,0 +1,31 @@
+apiVersion: monitoring.rhobs/v1
+kind: ServiceMonitor
+metadata:
+  name: modelmesh-service-monitor
+  namespace: [[ .Monitoring.Namespace ]]
+  labels:
+    monitoring.rhobs/stack: rhoai-cmo-ms
+spec:
+  namespaceSelector:
+    matchNames:
+      - [[ .ApplicationsNamespace ]]
+  endpoints:
+    - relabelings:
+      - action: keep
+        regex: ^(modelmesh-controller)$
+        sourceLabels:
+          - __meta_kubernetes_service_name
+        targetLabel: kubernetes_name
+      - action: replace
+        regex: '(.+):(\d+)'
+        replacement: '${1}:8080'
+        sourceLabels:
+          - __address__
+        targetLabel: __address__
+      scheme: http
+      honorLabels: true
+      path: /metrics
+  selector:
+    matchLabels:
+      modelmesh-service: modelmesh-serving
+      

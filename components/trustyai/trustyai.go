@@ -4,6 +4,7 @@ package trustyai
 
 import (
 	"context"
+	"embed"
 	"fmt"
 	"path/filepath"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	obo "github.com/opendatahub-io/opendatahub-operator/v2/pkg/observability"
 )
 
 var (
@@ -23,6 +25,9 @@ var (
 	ComponentPathName = "trustyai-service-operator"
 	Path              = deploy.DefaultManifestPath + "/" + ComponentPathName + "/base"
 )
+
+//go:embed resources
+var rootFS embed.FS
 
 // Verifies that TrustyAI implements ComponentInterface.
 var _ components.ComponentInterface = (*TrustyAI)(nil)
@@ -95,15 +100,9 @@ func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client, lo
 			if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 10, 1); err != nil {
 				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 			}
-			l.Info("deployment is done, updating monitoring rules")
+			l.Info("deployment is done, creating observability configs")
 		}
-		if err := t.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
-			return err
-		}
-		if err = deploy.DeployManifestsFromPath(cli, owner,
-			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
-			dscispec.Monitoring.Namespace,
-			"prometheus", true); err != nil {
+		if err := obo.CreatePrometheusConfigs(ctx, cli, enabled && monitoringEnabled, rootFS, "resources", owner, dscispec); err != nil {
 			return err
 		}
 		l.Info("updating SRE monitoring done")

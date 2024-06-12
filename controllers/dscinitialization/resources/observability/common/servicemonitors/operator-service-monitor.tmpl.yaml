@@ -1,0 +1,28 @@
+apiVersion: monitoring.rhobs/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    control-plane: controller-manager
+    monitoring.rhobs/stack: rhoai-cmo-ms
+  name: rhods-controller-manager-metrics-monitor
+  namespace: redhat-ods-monitoring
+spec:
+  endpoints:
+    - path: /metrics
+      port: http
+      scheme: http
+      authorization:
+        credentials:
+          key: token
+          name: prometheus-secret
+      tlsConfig:
+        insecureSkipVerify: true
+      params:
+        'match[]':
+          - '{__name__= "redhat-ods-operator-controller-manager-metrics-service"}'
+  namespaceSelector:
+    matchNames:
+      - redhat-ods-operator
+  selector:
+    matchLabels:
+      name: rhods-operator

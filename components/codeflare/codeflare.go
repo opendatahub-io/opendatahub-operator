@@ -5,6 +5,7 @@ package codeflare
 
 import (
 	"context"
+	"embed"
 	"fmt"
 	"path/filepath"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	obo "github.com/opendatahub-io/opendatahub-operator/v2/pkg/observability"
 )
 
 var (
@@ -25,6 +27,9 @@ var (
 	CodeflareOperator = "codeflare-operator"
 	ParamsPath        = deploy.DefaultManifestPath + "/" + ComponentName + "/manager"
 )
+
+//go:embed resources
+var rootFS embed.FS
 
 // Verifies that CodeFlare implements ComponentInterface.
 var _ components.ComponentInterface = (*CodeFlare)(nil)
@@ -111,17 +116,9 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context, cli client.Client, l
 			if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
 				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 			}
-			l.Info("deployment is done, updating monitoring rules")
+			l.Info("deployment is done, creating observability configs")
 		}
-
-		// inject prometheus codeflare*.rules in to /opt/manifests/monitoring/prometheus/prometheus-configs.yaml
-		if err = c.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
-			return err
-		}
-		if err = deploy.DeployManifestsFromPath(cli, owner,
-			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
-			dscispec.Monitoring.Namespace,
-			"prometheus", true); err != nil {
+		if err := obo.CreatePrometheusConfigs(ctx, cli, enabled && monitoringEnabled, rootFS, "resources", owner, dscispec); err != nil {
 			return err
 		}
 		l.Info("updating SRE monitoring done")
