@@ -48,9 +48,6 @@ require (
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/go-errors/errors v1.4.2 // indirect
 	github.com/go-logr/zapr v1.3.0 // indirect
-	// github.com/go-openapi/jsonpointer v0.19.6 // indirect
-	// github.com/go-openapi/jsonreference v0.20.2 // indirect
-	// github.com/go-openapi/swag v0.22.3 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
@@ -114,8 +111,6 @@ replace (
 	google.golang.org/grpc => google.golang.org/grpc v1.63.2
 	k8s.io/api => k8s.io/api v0.28.4
 	k8s.io/client-go => k8s.io/client-go v0.28.4
-//	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20230113010536-ace3e4a52ca1
-//	sigs.k8s.io/controller-runtime => sigs.k8s.io/controller-runtime v0.14.6
 )
 
 exclude github.com/openshift/api v3.9.0+incompatible
