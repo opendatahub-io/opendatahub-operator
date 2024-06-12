@@ -127,8 +127,6 @@ func main() { //nolint:funlen
 
 	ctrl.SetLogger(logger.ConfigLoggers(logmode))
 
-	//	var namespaceSelector labels.Set{labels.ODH.OwnedNamespace: "true"}.AsSelector()
-	// CSVFields := fields.Set{"spec.displayName": string(cluster.OpenDataHub)}
 	cacheOptions := cache.Options{
 		Scheme: scheme,
 		ByObject: map[client.Object]cache.ByObject{

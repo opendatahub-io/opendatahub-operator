@@ -368,13 +368,13 @@ func (r *DSCInitializationReconciler) watchMonitoringSecretResource(_ context.Co
 	return nil
 }
 
-func (r *DSCInitializationReconciler) watchDSCResource(_ context.Context, _ client.Object) []reconcile.Request {
+func (r *DSCInitializationReconciler) watchDSCResource(ctx context.Context, _ client.Object) []reconcile.Request {
 	instanceList := &dscv1.DataScienceClusterList{}
-	if err := r.Client.List(context.TODO(), instanceList); err != nil {
+	if err := r.Client.List(ctx, instanceList); err != nil {
 		// do not handle if cannot get list
 		return nil
 	}
-	if len(instanceList.Items) == 0 && !upgrade.HasDeleteConfigMap(context.TODO(), r.Client) {
+	if len(instanceList.Items) == 0 && !upgrade.HasDeleteConfigMap(ctx, r.Client) {
 		r.Log.Info("Found no DSC instance in cluster but not in uninstalltion process, reset monitoring stack config")
 
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "backup"}}}
