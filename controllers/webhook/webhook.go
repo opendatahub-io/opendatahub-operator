@@ -41,7 +41,6 @@ type OpenDataHubWebhook struct {
 }
 
 func (w *OpenDataHubWebhook) SetupWithManager(mgr ctrl.Manager) {
-	// move config into caller in main.go
 	hookServer := mgr.GetWebhookServer()
 	odhWebhook := &webhook.Admission{
 		Handler: w,
