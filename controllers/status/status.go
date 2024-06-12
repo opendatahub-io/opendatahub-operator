@@ -82,6 +82,15 @@ const (
 )
 
 const (
+	KubeRayCRDsPresent          conditionsv1.ConditionType = "KubeRayCRDsPresent"
+	TrainingOperatorCRDsPresent conditionsv1.ConditionType = "TrainingOperatorCRDsPresent"
+)
+
+const (
+	KubeRayCRDsAvailable string = "RayClusterCRDsAvailable"
+)
+
+const (
 	ReadySuffix = "Ready"
 )
 
@@ -218,6 +227,33 @@ func SetExistingArgoCondition(conditions *[]conditionsv1.Condition, reason, mess
 	})
 
 	SetComponentCondition(conditions, datasciencepipelines.ComponentName, ReconcileFailed, message, corev1.ConditionFalse)
+}
+
+func SetExistingRayClusterCondition(conditions *[]conditionsv1.Condition, reason, message string, status corev1.ConditionStatus) {
+	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
+		Type:    KubeRayCRDsPresent,
+		Status:  status,
+		Reason:  reason,
+		Message: message,
+	})
+}
+
+func SetExistingTrainingOperatorCondition(conditions *[]conditionsv1.Condition, reason, message string, status corev1.ConditionStatus) {
+	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
+		Type:    TrainingOperatorCRDsPresent,
+		Status:  status,
+		Reason:  reason,
+		Message: message,
+	})
+}
+
+func GetCondition(conditions []conditionsv1.Condition, conditionType conditionsv1.ConditionType) *conditionsv1.Condition {
+    for _, cond := range conditions {
+        if cond.Type == conditionType {
+            return &cond
+        }
+    }
+    return nil
 }
 
 // General function to patch any type of condition.

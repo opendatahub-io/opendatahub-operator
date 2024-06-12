@@ -8,7 +8,11 @@ import (
 
 	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	corev1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -20,6 +24,7 @@ import (
 var (
 	ComponentName = "kueue"
 	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/rhoai" // same path for both odh and rhoai
+	RayClusterCRD = "rayclusters.ray.io"
 )
 
 // Verifies that Kueue implements ComponentInterface.
@@ -82,7 +87,7 @@ func (k *Kueue) ReconcileComponent(ctx context.Context, cli client.Client, logge
 	}
 	// Deploy Kueue Operator
 	if err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
-		return fmt.Errorf("failed to apply manifetss %s: %w", Path, err)
+		return fmt.Errorf("failed to apply manifests %s: %w", Path, err)
 	}
 	l.Info("apply manifests done")
 	// CloudService Monitoring handling
@@ -107,4 +112,43 @@ func (k *Kueue) ReconcileComponent(ctx context.Context, cli client.Client, logge
 	}
 
 	return nil
+}
+
+func KubeRayCRDsExist(ctx context.Context, cli client.Client) (bool, error) {
+	rayClusterCRD := &apiextensionsv1.CustomResourceDefinition{}
+	if err := cli.Get(ctx, client.ObjectKey{Name: RayClusterCRD}, rayClusterCRD); err != nil {
+		if apierrs.IsNotFound(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to get existing RayCluster CRD : %w", err)
+	}
+	return true, nil
+}
+
+// DeleteKueuePod deletes the Kueue pod based on specific labels within the provided namespace.
+func (k *Kueue) DeleteKueuePod(ctx context.Context, cli client.Client, logger logr.Logger, dscispec *dsciv1.DSCInitializationSpec) error {
+	l := k.ConfigComponentLogger(logger, ComponentName, dscispec)
+	l.Info("Restarting Kueue pod")
+	// Define the label selector for the Kueue pods
+    listOpts := []client.ListOption{
+        client.InNamespace(dscispec.ApplicationsNamespace),
+        client.MatchingLabels{
+            labels.ODH.Component(ComponentName): "true",
+            "app.kubernetes.io/name": "kueue",
+        },
+    }
+    // List all pods that match the labels in the specified namespace
+    podList := &corev1.PodList{}
+    if err := cli.List(ctx, podList, listOpts...); err != nil {
+        return fmt.Errorf("failed to list Kueue pod for deletion: %v", err)
+    }
+
+    // Delete each pod found
+    for _, pod := range podList.Items {
+        if err := cli.Delete(ctx, &pod); err != nil {
+            return fmt.Errorf("failed to delete Kueue pod %s: %v", pod.Name, err)
+        }
+    }
+	l.Info("Kueue pod restarted successfully.")
+    return nil
 }

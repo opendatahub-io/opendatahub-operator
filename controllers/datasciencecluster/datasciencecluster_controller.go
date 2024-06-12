@@ -20,6 +20,7 @@ package datasciencecluster
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -53,6 +54,7 @@ import (
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/kueue"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -218,6 +220,37 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 				return ctrl.Result{}, err
 			}
 		}
+		if instance.Status.InstalledComponents[kueue.ComponentName] {
+			crdExists, err := kueue.KubeRayCRDsExist(ctx, r.Client)
+			if err != nil {
+				message := fmt.Sprintf("failed to get existing RayCluster CRD: %v ", err.Error())
+				status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
+					status.SetExistingRayClusterCondition(&saved.Status.Conditions, strconv.FormatBool(crdExists), message, corev1.ConditionFalse)
+				})
+				return ctrl.Result{}, err
+			}
+			currentCondition := status.GetCondition(instance.Status.Conditions, status.KubeRayCRDsPresent)
+			if crdExists && (currentCondition == nil || currentCondition.Status == corev1.ConditionFalse) {
+				message := "Found available RayCluster CRD. Restarting Kueue deployment."
+				if err := instance.Spec.Components.Kueue.DeleteKueuePod(ctx, r.Client, r.Log, r.DataScienceCluster.DSCISpec); err != nil {
+					return ctrl.Result{}, fmt.Errorf("failed to restart Kueue deployment: %v", err)
+				}
+				status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
+					status.SetExistingRayClusterCondition(&saved.Status.Conditions, strconv.FormatBool(crdExists), message, corev1.ConditionTrue)
+					status.SetComponentCondition(&saved.Status.Conditions, kueue.ComponentName, status.KubeRayCRDsAvailable, message, corev1.ConditionTrue)
+					saved.Status.Phase = status.PhaseReady
+				})
+				return ctrl.Result{Requeue: true}, nil
+			}
+			if !crdExists {
+				message := "RayCluster CRD not available - can continue to operate without RayCluster CRD."
+				status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
+					status.SetExistingRayClusterCondition(&saved.Status.Conditions, status.KubeRayCRDsAvailable, message, corev1.ConditionFalse)
+					status.SetComponentCondition(&saved.Status.Conditions, kueue.ComponentName, status.KubeRayCRDsAvailable, message, corev1.ConditionFalse)
+					saved.Status.Phase = status.PhaseReady
+				})
+			}
+		}
 	}
 
 	// Start reconciling
@@ -292,7 +325,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 	installedComponentValue, isExistStatus := instance.Status.InstalledComponents[componentName]
 
 	// First set conditions to reflect a component is about to be reconciled
-	// only set to init condition e.g Unknonw for the very first time when component is not in the list
+	// only set to init condition e.g Unknown for the very first time when component is not in the list
 	if !isExistStatus {
 		message := "Component is disabled"
 		if enabled {

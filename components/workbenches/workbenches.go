@@ -137,7 +137,7 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 		}
 	}
 	if err = deploy.DeployManifestsFromPath(cli, owner, notebookControllerPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
-		return fmt.Errorf("failed to apply manifetss %s: %w", notebookControllerPath, err)
+		return fmt.Errorf("failed to apply manifests %s: %w", notebookControllerPath, err)
 	}
 	l.WithValues("Path", notebookControllerPath).Info("apply manifests done NBC")
 
