@@ -110,7 +110,7 @@ var _ = Describe("feature cleanup", func() {
 					PreConditions(
 						feature.CreateNamespaceIfNotExists(namespace),
 					).
-					EnabledWhen(doesNsExist).
+					EnabledWhen(namespaceExists).
 					WithResources(fixtures.CreateSecret(secretName, namespace)).
 					Load()
 
@@ -142,7 +142,7 @@ var _ = Describe("feature cleanup", func() {
 					PreConditions(
 						feature.CreateNamespaceIfNotExists(namespace),
 					).
-					EnabledWhen(doesNsExist).
+					EnabledWhen(namespaceExists).
 					WithResources(fixtures.CreateSecret(secretName, namespace)).
 					Load()
 
@@ -164,7 +164,7 @@ var _ = Describe("feature cleanup", func() {
 
 func createdSecretHasOwnerReferenceToOwningFeature(namespace string) func(context.Context) error {
 	return func(ctx context.Context) error {
-		secretName := "test-secret" // Hardcoded value
+		secretName := "test-secret"
 		secret, err := envTestClientset.CoreV1().
 			Secrets(namespace).
 			Get(ctx, secretName, metav1.GetOptions{})
@@ -194,7 +194,7 @@ func createdSecretHasOwnerReferenceToOwningFeature(namespace string) func(contex
 	}
 }
 
-func doesNsExist(f *feature.Feature) bool {
+func namespaceExists(f *feature.Feature) bool {
 	namespace, err := fixtures.GetNamespace(context.TODO(), f.Client, "conditional-ns")
 	if err != nil {
 		if errors.IsNotFound(err) {
