@@ -101,7 +101,7 @@ func detectManagedRHODS(cli client.Client) (Platform, error) {
 	}
 	if len(expectedCatlogSource.Items) > 0 {
 		for _, cs := range expectedCatlogSource.Items {
-			if cs.Name == string(ManagedRhods) {
+			if cs.Name == "addon-managed-odh-catalog" {
 				return ManagedRhods, nil
 			}
 		}
