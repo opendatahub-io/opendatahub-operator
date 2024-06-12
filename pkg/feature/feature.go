@@ -125,10 +125,6 @@ func (f *Feature) applyFeature(ctx context.Context) error {
 }
 
 func (f *Feature) Cleanup(ctx context.Context) error {
-	if !f.Enabled {
-		return nil
-	}
-
 	// Ensure associated FeatureTracker instance has been removed as last one
 	// in the chain of cleanups.
 	f.addCleanup(removeFeatureTracker)

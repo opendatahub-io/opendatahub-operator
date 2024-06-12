@@ -125,6 +125,17 @@ func (fb *featureBuilder) WithData(loader ...Action) *featureBuilder {
 	return fb
 }
 
+// EnabledWhen allows to define if a Feature should be loaded and applied
+// note: enabled func passed in should consistently return true while needed, else feature contents will be removed
+func (fb *featureBuilder) EnabledWhen(enabled func(f *Feature) bool) *featureBuilder {
+	fb.builders = append(fb.builders, func(f *Feature) error {
+		f.Enabled = enabled(f)
+
+		return nil
+	})
+	return fb
+}
+
 // WithResources allows to define programmatically which resources should be created when applying defined Feature.
 func (fb *featureBuilder) WithResources(resources ...Action) *featureBuilder {
 	fb.builders = append(fb.builders, func(f *Feature) error {
@@ -196,6 +207,15 @@ func (fb *featureBuilder) Load() error {
 		if err := fb.builders[i](feature); err != nil {
 			return err
 		}
+	}
+
+	// if feature is disabled, ensure we have cleaned it up
+	if !feature.Enabled {
+		err := getFeatureTrackerIfAbsent(feature)
+		if client.IgnoreNotFound(err) == nil {
+			return feature.Cleanup()
+		}
+		return err
 	}
 
 	feature.Spec.TargetNamespace = fb.targetNS
