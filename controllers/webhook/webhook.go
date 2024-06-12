@@ -28,11 +28,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
 var log = ctrl.Log.WithName("odh-controller-webhook")
 
-//+kubebuilder:webhook:path=/validate-opendatahub-io-v1,mutating=false,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io;dscinitialization.opendatahub.io,resources=datascienceclusters;dscinitializations,verbs=create;update,versions=v1,name=operator.opendatahub.io,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/validate-opendatahub-io-v1,mutating=false,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io;dscinitialization.opendatahub.io,resources=datascienceclusters;dscinitializations,verbs=create;update;delete,versions=v1,name=operator.opendatahub.io,admissionReviewVersions=v1
 //nolint:lll
 
 type OpenDataHubWebhook struct {
@@ -101,10 +103,22 @@ func (w *OpenDataHubWebhook) checkDupCreation(ctx context.Context, req admission
 		fmt.Sprintf("Only one instance of %s object is allowed", req.Kind.Kind))
 }
 
+func (w *OpenDataHubWebhook) checkDeletion(ctx context.Context, req admission.Request) admission.Response {
+	// Block deletion of DSCI if DSC exists
+	if req.Kind.Kind != "DSCInitialization" {
+		admission.Allowed("")
+	}
+
+	return denyCountGtZero(ctx, w.client, gvk.DataScienceCluster,
+		fmt.Sprintf("Cannot delete %s object before %s", req.Kind.Kind, gvk.DataScienceCluster.Kind))
+}
+
 func (w *OpenDataHubWebhook) Handle(ctx context.Context, req admission.Request) admission.Response {
 	var resp admission.Response
 
 	switch req.Operation {
+	case admissionv1.Delete:
+		resp = w.checkDeletion(ctx, req)
 	case admissionv1.Create:
 		resp = w.checkDupCreation(ctx, req)
 	default:
