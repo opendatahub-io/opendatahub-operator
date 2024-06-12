@@ -89,7 +89,7 @@ func (r *DSCInitializationReconciler) observabilityCapabilityFeatures(ctx contex
 	return func(handler *feature.FeaturesHandler) error {
 		commonOBOErr := feature.CreateFeature("create-obo-commonconfig").
 			For(handler).
-			ManifestSource(Templates.Source).
+			ManifestsLocation(Templates.Location).
 			Manifests(
 				path.Join(Templates.AlertManageDir, "alertmanager-email.tmpl.yaml"), // dont wanna introduce one more FT so hook it here
 				path.Join(Templates.CommonDir),
@@ -103,7 +103,7 @@ func (r *DSCInitializationReconciler) observabilityCapabilityFeatures(ctx contex
 		monitoringNamespace := instance.Spec.Monitoring.Namespace
 		alertmanageErr := feature.CreateFeature("create-alertmanager").
 			For(handler).
-			ManifestSource(Templates.Source).
+			ManifestsLocation(Templates.Location).
 			Manifests(
 
 				path.Join(Templates.AlertManageDir, "alertmanagerconfig.tmpl.yaml"),
@@ -125,7 +125,7 @@ func (r *DSCInitializationReconciler) observabilityCapabilityFeatures(ctx contex
 
 		msErr := feature.CreateFeature("create-monitoringstack").
 			For(handler).
-			ManifestSource(Templates.Source).
+			ManifestsLocation(Templates.Location).
 			Manifests(
 				path.Join(Templates.MonitoringStackDir),
 			).
@@ -147,7 +147,7 @@ func (r *DSCInitializationReconciler) observabilityCapabilityFeatures(ctx contex
 			}
 			segmentCreationErr := feature.CreateFeature("create-segment-io").
 				For(handler).
-				ManifestSource(Templates.Source).
+				ManifestsLocation(Templates.Location).
 				Manifests(
 					path.Join(Templates.SegmentDir),
 				).
