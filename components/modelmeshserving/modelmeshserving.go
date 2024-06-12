@@ -76,6 +76,7 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 	logger logr.Logger,
 	owner metav1.Object,
 	dscispec *dsciv1.DSCInitializationSpec,
+	platform cluster.Platform,
 	_ bool,
 ) error {
 	l := m.ConfigComponentLogger(logger, ComponentName, dscispec)
@@ -94,16 +95,12 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 
 	enabled := m.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
-	platform, err := cluster.GetPlatform(cli)
-	if err != nil {
-		return err
-	}
 
 	// Update Default rolebinding
 	if enabled {
 		if m.DevFlags != nil {
 			// Download manifests and update paths
-			if err = m.OverrideManifests(string(platform)); err != nil {
+			if err := m.OverrideManifests(string(platform)); err != nil {
 				return err
 			}
 		}
@@ -123,7 +120,7 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 		}
 	}
 
-	if err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+	if err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 		return fmt.Errorf("failed to apply manifests from %s : %w", Path, err)
 	}
 	l.WithValues("Path", Path).Info("apply manifests done for modelmesh")
@@ -165,7 +162,7 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 		if err := m.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, DependentComponentName); err != nil {
 			return err
 		}
-		if err = deploy.DeployManifestsFromPath(cli, owner,
+		if err := deploy.DeployManifestsFromPath(cli, owner,
 			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
 			dscispec.Monitoring.Namespace,
 			"prometheus", true); err != nil {

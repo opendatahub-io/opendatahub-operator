@@ -55,7 +55,7 @@ func (t *TrustyAI) GetComponentName() string {
 }
 
 func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
-	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
+	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, platform cluster.Platform, _ bool) error {
 	var imageParamMap = map[string]string{
 		"trustyaiServiceImage":  "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE",
 		"trustyaiOperatorImage": "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE",
@@ -65,15 +65,10 @@ func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client, lo
 	enabled := t.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 
-	platform, err := cluster.GetPlatform(cli)
-	if err != nil {
-		return err
-	}
-
 	if enabled {
 		if t.DevFlags != nil {
 			// Download manifests and update paths
-			if err = t.OverrideManifests(string(platform)); err != nil {
+			if err := t.OverrideManifests(string(platform)); err != nil {
 				return err
 			}
 		}
@@ -100,7 +95,7 @@ func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client, lo
 		if err := t.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
 		}
-		if err = deploy.DeployManifestsFromPath(cli, owner,
+		if err := deploy.DeployManifestsFromPath(cli, owner,
 			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
 			dscispec.Monitoring.Namespace,
 			"prometheus", true); err != nil {
