@@ -143,6 +143,35 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return reconcile.Result{Requeue: true}, nil
 	}
 
+	if instance.ObjectMeta.DeletionTimestamp.IsZero() {
+		if !controllerutil.ContainsFinalizer(instance, finalizerName) {
+			r.Log.Info("Adding finalizer for DataScienceCluster", "name", instance.Name, "finalizer", finalizerName)
+			controllerutil.AddFinalizer(instance, finalizerName)
+			if err := r.Update(ctx, instance); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+	} else {
+		r.Log.Info("Finalization DataScienceCluster start deleting instance", "name", instance.Name, "finalizer", finalizerName)
+		for _, component := range allComponents {
+			if err := component.Cleanup(r.Client, r.DataScienceCluster.DSCISpec); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+		if controllerutil.ContainsFinalizer(instance, finalizerName) {
+			controllerutil.RemoveFinalizer(instance, finalizerName)
+			if err := r.Update(ctx, instance); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+		if upgrade.HasDeleteConfigMap(ctx, r.Client) {
+			// if delete configmap exists, requeue the request to handle operator uninstall
+			return reconcile.Result{Requeue: true}, nil
+		}
+
+		return ctrl.Result{}, nil
+	}
+
 	// Verify a valid DSCInitialization instance is created
 	dsciInstances := &dsci.DSCInitializationList{}
 	err = r.Client.List(ctx, dsciInstances)
@@ -176,34 +205,6 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		dscInitializationSpec.DeepCopyInto(r.DataScienceCluster.DSCISpec)
 	}
 
-	if instance.ObjectMeta.DeletionTimestamp.IsZero() {
-		if !controllerutil.ContainsFinalizer(instance, finalizerName) {
-			r.Log.Info("Adding finalizer for DataScienceCluster", "name", instance.Name, "finalizer", finalizerName)
-			controllerutil.AddFinalizer(instance, finalizerName)
-			if err := r.Update(ctx, instance); err != nil {
-				return ctrl.Result{}, err
-			}
-		}
-	} else {
-		r.Log.Info("Finalization DataScienceCluster start deleting instance", "name", instance.Name, "finalizer", finalizerName)
-		for _, component := range allComponents {
-			if err := component.Cleanup(r.Client, r.DataScienceCluster.DSCISpec); err != nil {
-				return ctrl.Result{}, err
-			}
-		}
-		if controllerutil.ContainsFinalizer(instance, finalizerName) {
-			controllerutil.RemoveFinalizer(instance, finalizerName)
-			if err := r.Update(ctx, instance); err != nil {
-				return ctrl.Result{}, err
-			}
-		}
-		if upgrade.HasDeleteConfigMap(ctx, r.Client) {
-			// if delete configmap exists, requeue the request to handle operator uninstall
-			return reconcile.Result{Requeue: true}, nil
-		}
-
-		return ctrl.Result{}, nil
-	}
 	// Check preconditions if this is an upgrade
 	if instance.Status.Phase == status.PhaseReady {
 		// Check for existence of Argo Workflows if DSP is
