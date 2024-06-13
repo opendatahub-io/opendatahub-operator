@@ -121,6 +121,27 @@ func main() { //nolint:funlen
 
 	// root context
 	ctx := ctrl.SetupSignalHandler()
+	// Create new uncached client to run initial setup
+	setupCfg, err := config.GetConfig()
+	if err != nil {
+		setupLog.Error(err, "error getting config for setup")
+		os.Exit(1)
+	}
+	// uplift default limiataions
+	setupCfg.QPS = rest.DefaultQPS * controllerNum     // 5 * 4 controllers
+	setupCfg.Burst = rest.DefaultBurst * controllerNum // 10 * 4 controllers
+
+	setupClient, err := client.New(setupCfg, client.Options{Scheme: scheme})
+	if err != nil {
+		setupLog.Error(err, "error getting client for setup")
+		os.Exit(1)
+	}
+	// Get operator platform
+	platform, err := cluster.GetPlatform(ctx, setupClient)
+	if err != nil {
+		setupLog.Error(err, "error getting platform")
+		os.Exit(1)
+	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{ // single pod does not need to have LeaderElection
 		Scheme:                 scheme,
@@ -179,27 +200,6 @@ func main() { //nolint:funlen
 		os.Exit(1)
 	}
 
-	// Create new uncached client to run initial setup
-	setupCfg, err := config.GetConfig()
-	if err != nil {
-		setupLog.Error(err, "error getting config for setup")
-		os.Exit(1)
-	}
-	// uplift default limiataions
-	setupCfg.QPS = rest.DefaultQPS * controllerNum     // 5 * 4 controllers
-	setupCfg.Burst = rest.DefaultBurst * controllerNum // 10 * 4 controllers
-
-	setupClient, err := client.New(setupCfg, client.Options{Scheme: scheme})
-	if err != nil {
-		setupLog.Error(err, "error getting client for setup")
-		os.Exit(1)
-	}
-	// Get operator platform
-	platform, err := cluster.GetPlatform(ctx, setupClient)
-	if err != nil {
-		setupLog.Error(err, "error getting platform")
-		os.Exit(1)
-	}
 	// Check if user opted for disabling DSC configuration
 	disableDSCConfig, existDSCConfig := os.LookupEnv("DISABLE_DSC_CONFIG")
 	if existDSCConfig && disableDSCConfig != "false" {
