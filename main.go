@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"os"
 
 	addonv1alpha1 "github.com/openshift/addon-operator/apis/addons/v1alpha1"
@@ -61,6 +62,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
+	odhversion "github.com/opendatahub-io/opendatahub-operator/v2/pkg/version"
 )
 
 const controllerNum = 4 // we should keep this updated if we have new controllers to add
@@ -98,6 +100,10 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(operatorv1.Install(scheme))
 }
 
+func printRelease(r cluster.Release) {
+	fmt.Printf("%s (%s)\n", r.Name, r.Version)
+}
+
 func main() { //nolint:funlen
 	var metricsAddr string
 	var probeAddr string
@@ -105,6 +111,7 @@ func main() { //nolint:funlen
 	var dscMonitoringNamespace string
 	var operatorName string
 	var logmode string
+	var versionFlag bool
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -114,8 +121,14 @@ func main() { //nolint:funlen
 		"monitoring stack will be deployed")
 	flag.StringVar(&operatorName, "operator-name", "opendatahub", "The name of the operator")
 	flag.StringVar(&logmode, "log-mode", "", "Log mode ('', prod, devel), default to ''")
+	flag.BoolVar(&versionFlag, "version", false, "Print version")
 
 	flag.Parse()
+
+	if versionFlag {
+		fmt.Println(odhversion.Version)
+		os.Exit(0)
+	}
 
 	ctrl.SetLogger(logger.ConfigLoggers(logmode))
 
@@ -137,11 +150,15 @@ func main() { //nolint:funlen
 		os.Exit(1)
 	}
 	// Get operator platform
-	platform, err := cluster.GetPlatform(ctx, setupClient)
+	release, err := cluster.GetRelease(ctx, setupClient)
 	if err != nil {
 		setupLog.Error(err, "error getting platform")
 		os.Exit(1)
 	}
+	printRelease(release)
+
+	// linter does not detect usage in closures for some reason
+	platform := release.Name //nolint:ifshort
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{ // single pod does not need to have LeaderElection
 		Scheme:                 scheme,
