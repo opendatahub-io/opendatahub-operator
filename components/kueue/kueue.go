@@ -131,7 +131,7 @@ func CRDsExist(ctx context.Context, cli client.Client, crdNames []string) (bool,
 			if apierrs.IsNotFound(err) {
 				return false, nil
 			}
-			return false, fmt.Errorf("failed to get existing CRDs %s : %v", crdName, err)
+			return false, fmt.Errorf("failed to get existing CRDs %s : %w", crdName, err)
 		}
 	}
 	return true, nil
@@ -152,12 +152,13 @@ func (k *Kueue) DeleteKueuePod(ctx context.Context, cli client.Client, logger lo
 	// List all pods that match the labels in the specified namespace
 	podList := &corev1.PodList{}
 	if err := cli.List(ctx, podList, listOpts...); err != nil {
-		return fmt.Errorf("failed to list Kueue pod for deletion: %v", err)
+		return fmt.Errorf("failed to list Kueue pod for deletion: %w", err)
 	}
 	// Delete each pod found
-	for _, pod := range podList.Items {
-		if err := cli.Delete(ctx, &pod); err != nil {
-			return fmt.Errorf("failed to delete Kueue pod %s: %v", pod.Name, err)
+	for i := range podList.Items {
+		pod := &podList.Items[i]
+		if err := cli.Delete(ctx, pod); err != nil {
+			return fmt.Errorf("failed to delete Kueue pod %s: %w", pod.Name, err)
 		}
 	}
 	l.Info("Kueue pod restarted successfully.")

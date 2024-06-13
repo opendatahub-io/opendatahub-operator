@@ -224,59 +224,75 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 			rayCRDsExists, err := kueue.CRDsExist(ctx, r.Client, kueue.RayCRDsName())
 			if err != nil {
 				message := fmt.Sprintf("failed to get existing Ray CRDs: %v ", err.Error())
-				status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
+				_, errUpdate := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
 					status.SetExistingRayCRDsCondition(&saved.Status.Conditions, status.RayCRDsAvailable, message, corev1.ConditionFalse)
 				})
-				return ctrl.Result{}, err
+				if errUpdate != nil {
+					return ctrl.Result{}, errUpdate
+				}
 			}
 			// If Ray CRDs are available, restart the Kueue deployment and set the condition.
 			rayCurrentCondition := status.GetCondition(instance.Status.Conditions, status.RayCRDsPresent)
 			if rayCRDsExists && (rayCurrentCondition == nil || rayCurrentCondition.Status == corev1.ConditionFalse) {
 				message := "Found available Ray CRDs. Restarting Kueue deployment."
 				if err := instance.Spec.Components.Kueue.DeleteKueuePod(ctx, r.Client, r.Log, r.DataScienceCluster.DSCISpec); err != nil {
-					return ctrl.Result{}, fmt.Errorf("failed to restart Kueue deployment: %v", err)
+					return ctrl.Result{}, fmt.Errorf("failed to restart Kueue deployment: %w", err)
 				}
-				status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
+				_, errUpdate := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
 					status.SetExistingRayCRDsCondition(&saved.Status.Conditions, status.RayCRDsAvailable, message, corev1.ConditionTrue)
 					saved.Status.Phase = status.PhaseReady
 				})
+				if errUpdate != nil {
+					return ctrl.Result{}, fmt.Errorf("failed to update status after restarting deployment: %w", errUpdate)
+				}
 				return ctrl.Result{Requeue: true}, nil
 			}
 			if !rayCRDsExists {
 				message := "Ray CRDs not available - can continue to operate without Ray CRDs."
-				status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
+				_, errUpdate := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
 					status.SetExistingRayCRDsCondition(&saved.Status.Conditions, status.RayCRDsAvailable, message, corev1.ConditionFalse)
 					saved.Status.Phase = status.PhaseReady
 				})
+				if errUpdate != nil {
+					return ctrl.Result{}, fmt.Errorf("failed to update status for missing Ray CRDs: %w", errUpdate)
+				}
 			}
 			// Check for availability of all Training Operator CRDs.
 			trainingOperatorCRDsExists, err := kueue.CRDsExist(ctx, r.Client, kueue.TrainingOperatorCRDsName())
 			if err != nil {
 				message := fmt.Sprintf("failed to get existing Training Operator CRDs: %v ", err.Error())
-				status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
+				_, errUpdate := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
 					status.SetExistingTrainingOperatorCRDsCondition(&saved.Status.Conditions, status.TrainingOperatorCRDsAvailable, message, corev1.ConditionFalse)
 				})
-				return ctrl.Result{}, err
+				if errUpdate != nil {
+					return ctrl.Result{}, errUpdate
+				}
 			}
 			// If Training Operator CRDs are available, restart the Kueue deployment and set the condition.
 			trainingOperatorCurrentCondition := status.GetCondition(instance.Status.Conditions, status.TrainingOperatorCRDsPresent)
 			if trainingOperatorCRDsExists && (trainingOperatorCurrentCondition == nil || trainingOperatorCurrentCondition.Status == corev1.ConditionFalse) {
 				message := "Found available Training Operator CRDs. Restarting Kueue deployment."
 				if err := instance.Spec.Components.Kueue.DeleteKueuePod(ctx, r.Client, r.Log, r.DataScienceCluster.DSCISpec); err != nil {
-					return ctrl.Result{}, fmt.Errorf("failed to restart Kueue deployment: %v", err)
+					return ctrl.Result{}, fmt.Errorf("failed to restart Kueue deployment: %w", err)
 				}
-				status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
+				_, errUpdate := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
 					status.SetExistingTrainingOperatorCRDsCondition(&saved.Status.Conditions, status.TrainingOperatorCRDsAvailable, message, corev1.ConditionTrue)
 					saved.Status.Phase = status.PhaseReady
 				})
+				if errUpdate != nil {
+					return ctrl.Result{}, fmt.Errorf("failed to update status after restarting deployment: %w", errUpdate)
+				}
 				return ctrl.Result{Requeue: true}, nil
 			}
 			if !trainingOperatorCRDsExists {
 				message := "Training Operator CRDs not available - can continue to operate without the CRDs."
-				status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
+				_, errUpdate := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
 					status.SetExistingTrainingOperatorCRDsCondition(&saved.Status.Conditions, status.TrainingOperatorCRDsAvailable, message, corev1.ConditionFalse)
 					saved.Status.Phase = status.PhaseReady
 				})
+				if errUpdate != nil {
+					return ctrl.Result{}, fmt.Errorf("failed to update status for missing Training Operator CRDs: %w", errUpdate)
+				}
 			}
 		}
 	}
