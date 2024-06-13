@@ -12,19 +12,29 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 var (
 	ComponentName = "kueue"
 	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/rhoai" // same path for both odh and rhoai
-	RayClusterCRD = "rayclusters.ray.io"
+)
+
+var (
+	RayClusterCRD  = "rayclusters.ray.io"
+	RayJobCRD      = "rayjobs.ray.io"
+	MPIJobsCRD     = "mpijobs.kubeflow.org"
+	MXJobsCRD      = "mxjobs.kubeflow.org"
+	PaddleJobsCRD  = "paddlejobs.kubeflow.org"
+	PyTorchJobsCRD = "pytorchjobs.kubeflow.org"
+	TFJobsCRD      = "tfjobs.kubeflow.org"
+	XGBoostJobsCRD = "xgboostjobs.kubeflow.org"
 )
 
 // Verifies that Kueue implements ComponentInterface.
@@ -114,13 +124,15 @@ func (k *Kueue) ReconcileComponent(ctx context.Context, cli client.Client, logge
 	return nil
 }
 
-func KubeRayCRDsExist(ctx context.Context, cli client.Client) (bool, error) {
-	rayClusterCRD := &apiextensionsv1.CustomResourceDefinition{}
-	if err := cli.Get(ctx, client.ObjectKey{Name: RayClusterCRD}, rayClusterCRD); err != nil {
-		if apierrs.IsNotFound(err) {
-			return false, nil
+func CRDsExist(ctx context.Context, cli client.Client, crdNames []string) (bool, error) {
+	for _, crdName := range crdNames {
+		crd := &apiextensionsv1.CustomResourceDefinition{}
+		if err := cli.Get(ctx, client.ObjectKey{Name: crdName}, crd); err != nil {
+			if apierrs.IsNotFound(err) {
+				return false, nil
+			}
+			return false, fmt.Errorf("failed to get existing CRDs %s : %v", crdName, err)
 		}
-		return false, fmt.Errorf("failed to get existing RayCluster CRD : %w", err)
 	}
 	return true, nil
 }
@@ -130,25 +142,32 @@ func (k *Kueue) DeleteKueuePod(ctx context.Context, cli client.Client, logger lo
 	l := k.ConfigComponentLogger(logger, ComponentName, dscispec)
 	l.Info("Restarting Kueue pod")
 	// Define the label selector for the Kueue pods
-    listOpts := []client.ListOption{
-        client.InNamespace(dscispec.ApplicationsNamespace),
-        client.MatchingLabels{
-            labels.ODH.Component(ComponentName): "true",
-            "app.kubernetes.io/name": "kueue",
-        },
-    }
-    // List all pods that match the labels in the specified namespace
-    podList := &corev1.PodList{}
-    if err := cli.List(ctx, podList, listOpts...); err != nil {
-        return fmt.Errorf("failed to list Kueue pod for deletion: %v", err)
-    }
-
-    // Delete each pod found
-    for _, pod := range podList.Items {
-        if err := cli.Delete(ctx, &pod); err != nil {
-            return fmt.Errorf("failed to delete Kueue pod %s: %v", pod.Name, err)
-        }
-    }
+	listOpts := []client.ListOption{
+		client.InNamespace(dscispec.ApplicationsNamespace),
+		client.MatchingLabels{
+			labels.ODH.Component(ComponentName): "true",
+			"app.kubernetes.io/name":            "kueue",
+		},
+	}
+	// List all pods that match the labels in the specified namespace
+	podList := &corev1.PodList{}
+	if err := cli.List(ctx, podList, listOpts...); err != nil {
+		return fmt.Errorf("failed to list Kueue pod for deletion: %v", err)
+	}
+	// Delete each pod found
+	for _, pod := range podList.Items {
+		if err := cli.Delete(ctx, &pod); err != nil {
+			return fmt.Errorf("failed to delete Kueue pod %s: %v", pod.Name, err)
+		}
+	}
 	l.Info("Kueue pod restarted successfully.")
-    return nil
+	return nil
+}
+
+func RayCRDsName() []string {
+	return []string{RayClusterCRD, RayJobCRD}
+}
+
+func TrainingOperatorCRDsName() []string {
+	return []string{MPIJobsCRD, MXJobsCRD, PaddleJobsCRD, PyTorchJobsCRD, TFJobsCRD, XGBoostJobsCRD}
 }

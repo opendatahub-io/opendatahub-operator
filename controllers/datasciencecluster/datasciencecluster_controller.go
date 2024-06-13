@@ -20,7 +20,6 @@ package datasciencecluster
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -221,32 +220,61 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 			}
 		}
 		if instance.Status.InstalledComponents[kueue.ComponentName] {
-			crdExists, err := kueue.KubeRayCRDsExist(ctx, r.Client)
+			// Check for availability of all Ray CRDs.
+			rayCRDsExists, err := kueue.CRDsExist(ctx, r.Client, kueue.RayCRDsName())
 			if err != nil {
-				message := fmt.Sprintf("failed to get existing RayCluster CRD: %v ", err.Error())
+				message := fmt.Sprintf("failed to get existing Ray CRDs: %v ", err.Error())
 				status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
-					status.SetExistingRayClusterCondition(&saved.Status.Conditions, strconv.FormatBool(crdExists), message, corev1.ConditionFalse)
+					status.SetExistingRayCRDsCondition(&saved.Status.Conditions, status.RayCRDsAvailable, message, corev1.ConditionFalse)
 				})
 				return ctrl.Result{}, err
 			}
-			currentCondition := status.GetCondition(instance.Status.Conditions, status.KubeRayCRDsPresent)
-			if crdExists && (currentCondition == nil || currentCondition.Status == corev1.ConditionFalse) {
-				message := "Found available RayCluster CRD. Restarting Kueue deployment."
+			// If Ray CRDs are available, restart the Kueue deployment and set the condition.
+			rayCurrentCondition := status.GetCondition(instance.Status.Conditions, status.RayCRDsPresent)
+			if rayCRDsExists && (rayCurrentCondition == nil || rayCurrentCondition.Status == corev1.ConditionFalse) {
+				message := "Found available Ray CRDs. Restarting Kueue deployment."
 				if err := instance.Spec.Components.Kueue.DeleteKueuePod(ctx, r.Client, r.Log, r.DataScienceCluster.DSCISpec); err != nil {
 					return ctrl.Result{}, fmt.Errorf("failed to restart Kueue deployment: %v", err)
 				}
 				status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
-					status.SetExistingRayClusterCondition(&saved.Status.Conditions, strconv.FormatBool(crdExists), message, corev1.ConditionTrue)
-					status.SetComponentCondition(&saved.Status.Conditions, kueue.ComponentName, status.KubeRayCRDsAvailable, message, corev1.ConditionTrue)
+					status.SetExistingRayCRDsCondition(&saved.Status.Conditions, status.RayCRDsAvailable, message, corev1.ConditionTrue)
 					saved.Status.Phase = status.PhaseReady
 				})
 				return ctrl.Result{Requeue: true}, nil
 			}
-			if !crdExists {
-				message := "RayCluster CRD not available - can continue to operate without RayCluster CRD."
+			if !rayCRDsExists {
+				message := "Ray CRDs not available - can continue to operate without Ray CRDs."
 				status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
-					status.SetExistingRayClusterCondition(&saved.Status.Conditions, status.KubeRayCRDsAvailable, message, corev1.ConditionFalse)
-					status.SetComponentCondition(&saved.Status.Conditions, kueue.ComponentName, status.KubeRayCRDsAvailable, message, corev1.ConditionFalse)
+					status.SetExistingRayCRDsCondition(&saved.Status.Conditions, status.RayCRDsAvailable, message, corev1.ConditionFalse)
+					saved.Status.Phase = status.PhaseReady
+				})
+			}
+			// Check for availability of all Training Operator CRDs.
+			trainingOperatorCRDsExists, err := kueue.CRDsExist(ctx, r.Client, kueue.TrainingOperatorCRDsName())
+			if err != nil {
+				message := fmt.Sprintf("failed to get existing Training Operator CRDs: %v ", err.Error())
+				status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
+					status.SetExistingTrainingOperatorCRDsCondition(&saved.Status.Conditions, status.TrainingOperatorCRDsAvailable, message, corev1.ConditionFalse)
+				})
+				return ctrl.Result{}, err
+			}
+			// If Training Operator CRDs are available, restart the Kueue deployment and set the condition.
+			trainingOperatorCurrentCondition := status.GetCondition(instance.Status.Conditions, status.TrainingOperatorCRDsPresent)
+			if trainingOperatorCRDsExists && (trainingOperatorCurrentCondition == nil || trainingOperatorCurrentCondition.Status == corev1.ConditionFalse) {
+				message := "Found available Training Operator CRDs. Restarting Kueue deployment."
+				if err := instance.Spec.Components.Kueue.DeleteKueuePod(ctx, r.Client, r.Log, r.DataScienceCluster.DSCISpec); err != nil {
+					return ctrl.Result{}, fmt.Errorf("failed to restart Kueue deployment: %v", err)
+				}
+				status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
+					status.SetExistingTrainingOperatorCRDsCondition(&saved.Status.Conditions, status.TrainingOperatorCRDsAvailable, message, corev1.ConditionTrue)
+					saved.Status.Phase = status.PhaseReady
+				})
+				return ctrl.Result{Requeue: true}, nil
+			}
+			if !trainingOperatorCRDsExists {
+				message := "Training Operator CRDs not available - can continue to operate without the CRDs."
+				status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
+					status.SetExistingTrainingOperatorCRDsCondition(&saved.Status.Conditions, status.TrainingOperatorCRDsAvailable, message, corev1.ConditionFalse)
 					saved.Status.Phase = status.PhaseReady
 				})
 			}
