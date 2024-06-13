@@ -77,9 +77,9 @@ func NewTestContext() (*testContext, error) { //nolint:golint,revive // Only use
 	}
 
 	// setup DSCI CR since we do not create automatically by operator
-	testDSCI := setupDSCICR()
+	testDSCI := setupDSCICR("e2e-test-dsci")
 	// Setup DataScienceCluster CR
-	testDSC := setupDSCInstance()
+	testDSC := setupDSCInstance("e2e-test")
 
 	return &testContext{
 		cfg:                     config,
@@ -87,7 +87,7 @@ func NewTestContext() (*testContext, error) { //nolint:golint,revive // Only use
 		customClient:            custClient,
 		operatorNamespace:       opNamespace,
 		applicationsNamespace:   testDSCI.Spec.ApplicationsNamespace,
-		resourceCreationTimeout: time.Minute * 2,
+		resourceCreationTimeout: time.Minute * 3, // 5 pods of dashboard will take longer time than ODH
 		resourceRetryInterval:   time.Second * 10,
 		ctx:                     context.TODO(),
 		testDsc:                 testDSC,

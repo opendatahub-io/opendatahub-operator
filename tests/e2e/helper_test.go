@@ -37,9 +37,9 @@ import (
 )
 
 const (
-	servicemeshNamespace = "openshift-operators"
-	servicemeshOpName    = "servicemeshoperator"
-	serverlessOpName     = "serverless-operator"
+	depedentOperatorNamespace = "openshift-operators"
+	servicemeshOpName         = "servicemeshoperator"
+	serverlessOpName          = "serverless-operator"
 )
 
 func (tc *testContext) waitForControllerDeployment(name string, replicas int32) error {
@@ -67,16 +67,16 @@ func (tc *testContext) waitForControllerDeployment(name string, replicas int32) 
 	return err
 }
 
-func setupDSCICR() *dsci.DSCInitialization {
+func setupDSCICR(name string) *dsci.DSCInitialization {
 	dsciTest := &dsci.DSCInitialization{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "e2e-test-dsci",
+			Name: name,
 		},
 		Spec: dsci.DSCInitializationSpec{
-			ApplicationsNamespace: "opendatahub",
+			ApplicationsNamespace: "redhat-ods-applications",
 			Monitoring: dsci.Monitoring{
 				ManagementState: "Managed",
-				Namespace:       "opendatahub",
+				Namespace:       "redhat-ods-monitoring",
 			},
 			TrustedCABundle: dsci.TrustedCABundleSpec{
 				ManagementState: "Managed",
@@ -90,10 +90,10 @@ func setupDSCICR() *dsci.DSCInitialization {
 	return dsciTest
 }
 
-func setupDSCInstance() *dsc.DataScienceCluster {
+func setupDSCInstance(name string) *dsc.DataScienceCluster {
 	dscTest := &dsc.DataScienceCluster{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "e2e-test-dsc",
+			Name: name,
 		},
 		Spec: dsc.DataScienceClusterSpec{
 			Components: dsc.Components{
@@ -110,7 +110,7 @@ func setupDSCInstance() *dsc.DataScienceCluster {
 				},
 				ModelMeshServing: modelmeshserving.ModelMeshServing{
 					Component: components.Component{
-						ManagementState: operatorv1.Removed,
+						ManagementState: operatorv1.Managed,
 					},
 				},
 				DataSciencePipelines: datasciencepipelines.DataSciencePipelines{
@@ -148,7 +148,7 @@ func setupDSCInstance() *dsc.DataScienceCluster {
 				},
 				TrainingOperator: trainingoperator.TrainingOperator{
 					Component: components.Component{
-						ManagementState: operatorv1.Managed,
+						ManagementState: operatorv1.Removed,
 					},
 				},
 			},
@@ -373,7 +373,7 @@ func ensureOperator(tc *testContext, name string, ns string) error {
 	return waitCSV(tc, name, ns)
 }
 
-func ensureServicemeshOperators(t *testing.T, tc *testContext) error { //nolint: thelper
+func ensureDepedentOperators(t *testing.T, tc *testContext) error { //nolint: thelper
 	ops := []string{
 		serverlessOpName,
 		servicemeshOpName,
@@ -385,7 +385,7 @@ func ensureServicemeshOperators(t *testing.T, tc *testContext) error { //nolint:
 		op := op // to avoid loop variable in the closures
 		t.Logf("Ensuring %s is installed", op)
 		go func(op string) {
-			err := ensureOperator(tc, op, servicemeshNamespace)
+			err := ensureOperator(tc, op, depedentOperatorNamespace)
 			c <- err
 		}(op)
 	}
@@ -399,5 +399,5 @@ func ensureServicemeshOperators(t *testing.T, tc *testContext) error { //nolint:
 }
 
 func (tc *testContext) setUp(t *testing.T) error { //nolint: thelper
-	return ensureServicemeshOperators(t, tc)
+	return ensureDepedentOperators(t, tc)
 }

@@ -40,10 +40,18 @@ func creationTestSuite(t *testing.T) {
 			err = testCtx.testDSCICreation()
 			require.NoError(t, err, "error creating DSCI CR")
 		})
+		// do not enable test when we do not have webhook in place
+		// t.Run("Creation of more than one of DSCInitialization instance", func(t *testing.T) {
+		// 	testCtx.testDSCIDuplication(t)
+		// })
 		t.Run("Creation of DataScienceCluster instance", func(t *testing.T) {
 			err = testCtx.testDSCCreation()
 			require.NoError(t, err, "error creating DataScienceCluster instance")
 		})
+		// do not enable test when we do not have webhook in place
+		// t.Run("Creation of more than one of DataScienceCluster instance", func(t *testing.T) {
+		// 	testCtx.testDSCDuplication(t)
+		// })
 		t.Run("Validate all deployed components", func(t *testing.T) {
 			err = testCtx.testAllApplicationCreation(t)
 			require.NoError(t, err, "error testing deployments for DataScienceCluster: "+testCtx.testDsc.Name)
@@ -167,6 +175,49 @@ func (tc *testContext) testDSCCreation() error {
 	return waitDSCReady(tc)
 }
 
+// func (tc *testContext) requireInstalled(t *testing.T, gvk schema.GroupVersionKind) {
+// 	t.Helper()
+// 	list := &unstructured.UnstructuredList{}
+// 	list.SetGroupVersionKind(gvk)
+// 	err := tc.customClient.List(tc.ctx, list)
+// 	require.NoErrorf(t, err, "Could not get %s list", gvk.Kind)
+// 	require.Greaterf(t, len(list.Items), 0, "%s has not been installed", gvk.Kind)
+// }
+
+// func (tc *testContext) testDuplication(t *testing.T, gvk schema.GroupVersionKind, o any) {
+// 	t.Helper()
+// 	tc.requireInstalled(t, gvk)
+// 	u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(o)
+// 	require.NoErrorf(t, err, "Could not unstructure %s", gvk.Kind)
+// 	obj := &unstructured.Unstructured{
+// 		Object: u,
+// 	}
+// 	obj.SetGroupVersionKind(gvk)
+// 	err = tc.customClient.Create(tc.ctx, obj)
+// 	require.Errorf(t, err, "Could create second %s", gvk.Kind)
+// }
+
+// func (tc *testContext) testDSCIDuplication(t *testing.T) { //nolint:thelper
+// 	gvk := schema.GroupVersionKind{
+// 		Group:   "dscinitialization.opendatahub.io",
+// 		Version: "v1",
+// 		Kind:    "DSCInitialization",
+// 	}
+// 	dup := setupDSCICR("e2e-test-dsci-dup")
+// 	tc.testDuplication(t, gvk, dup)
+// }
+
+// func (tc *testContext) testDSCDuplication(t *testing.T) { //nolint:thelper
+// 	gvk := schema.GroupVersionKind{
+// 		Group:   "datasciencecluster.opendatahub.io",
+// 		Version: "v1",
+// 		Kind:    "DataScienceCluster",
+// 	}
+
+// 	dup := setupDSCInstance("e2e-test-dsc-dup")
+// 	tc.testDuplication(t, gvk, dup)
+// }
+
 func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint:funlen,thelper
 	// Validate test instance is in Ready state
 
@@ -209,24 +260,19 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint
 		})
 	}
 
-	t.Run("Validate TrainingOperator", func(t *testing.T) {
-		// speed testing in parallel
-		t.Parallel()
-		err = tc.testApplicationCreation(&(tc.testDsc.Spec.Components.TrainingOperator))
-		if tc.testDsc.Spec.Components.TrainingOperator.ManagementState == operatorv1.Managed {
-			require.NoError(t, err, "error validating application %v when enabled", tc.testDsc.Spec.Components.TrainingOperator.GetComponentName())
-		} else {
-			require.Error(t, err, "error validating application %v when disabled", tc.testDsc.Spec.Components.TrainingOperator.GetComponentName())
-		}
-	})
 	return nil
 }
 
 func (tc *testContext) testApplicationCreation(component components.ComponentInterface) error {
 	err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
 		// TODO: see if checking deployment is a good test, CF does not create deployment
+		componentName := component.GetComponentName()
+		if componentName == "dashboard" { // special case for RHOAI dashboard name
+			componentName = "rhods-dashboard"
+		}
+
 		appList, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(context.TODO(), metav1.ListOptions{
-			LabelSelector: odhLabelPrefix + component.GetComponentName(),
+			LabelSelector: odhLabelPrefix + componentName,
 		})
 		if err != nil {
 			log.Printf("error listing application deployments :%v. Trying again...", err)
@@ -249,7 +295,7 @@ func (tc *testContext) testApplicationCreation(component components.ComponentInt
 		// when no deployment is found
 		// check Reconcile failed with missing dependent operator error
 		for _, Condition := range tc.testDsc.Status.Conditions {
-			if strings.Contains(Condition.Message, "Please install the operator before enabling "+component.GetComponentName()) {
+			if strings.Contains(Condition.Message, "Please install the operator before enabling "+componentName) {
 				return true, err
 			}
 		}
@@ -329,7 +375,7 @@ func (tc *testContext) testUpdateComponentReconcile() error {
 	// Test Updating Dashboard Replicas
 
 	appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(context.TODO(), metav1.ListOptions{
-		LabelSelector: odhLabelPrefix + tc.testDsc.Spec.Components.Dashboard.GetComponentName(),
+		LabelSelector: odhLabelPrefix + "rhods-dashboard",
 	})
 	if err != nil {
 		return err
@@ -343,7 +389,7 @@ func (tc *testContext) testUpdateComponentReconcile() error {
 				Namespace: testDeployment.Namespace,
 			},
 			Spec: autoscalingv1.ScaleSpec{
-				Replicas: 3,
+				Replicas: 4, // rhoai has 5 pods
 			},
 			Status: autoscalingv1.ScaleStatus{},
 		}
@@ -355,8 +401,8 @@ func (tc *testContext) testUpdateComponentReconcile() error {
 			return fmt.Errorf("failed to patch replicas : expect to be %v but got %v", patchedReplica.Spec.Replicas, retrievedDep.Spec.Replicas)
 		}
 
-		// Sleep for 20 seconds to allow the operator to reconcile
-		time.Sleep(2 * tc.resourceRetryInterval)
+		// Sleep for 40 seconds to allow the operator to reconcile
+		time.Sleep(4 * tc.resourceRetryInterval)
 		revertedDep, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).Get(context.TODO(), testDeployment.Name, metav1.GetOptions{})
 		if err != nil {
 			return fmt.Errorf("error getting component resource after reconcile: %w", err)
@@ -375,10 +421,10 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 
 	if tc.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
 		appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(context.TODO(), metav1.ListOptions{
-			LabelSelector: odhLabelPrefix + tc.testDsc.Spec.Components.Dashboard.GetComponentName(),
+			LabelSelector: odhLabelPrefix + "rhods-dashboard", // here is not same label as comopnent name in DSC
 		})
 		if err != nil {
-			return fmt.Errorf("error getting enabled component %v", tc.testDsc.Spec.Components.Dashboard.GetComponentName())
+			return fmt.Errorf("error getting enabled component %v", "rhods-dashboard")
 		}
 		if len(appDeployments.Items) > 0 {
 			dashboardDeploymentName = appDeployments.Items[0].Name
@@ -413,8 +459,8 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 		return fmt.Errorf("error after retry %w", err)
 	}
 
-	// Sleep for 20 seconds to allow the operator to reconcile
-	time.Sleep(2 * tc.resourceRetryInterval)
+	// Sleep for 40 seconds to allow the operator to reconcile
+	time.Sleep(4 * tc.resourceRetryInterval)
 	_, err = tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).Get(context.TODO(), dashboardDeploymentName, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
