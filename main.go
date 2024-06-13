@@ -133,7 +133,7 @@ func main() { //nolint:funlen
 	cacheOptions := cache.Options{
 		Scheme: scheme,
 		ByObject: map[client.Object]cache.ByObject{
-			// all CRD because it is mainly for pipeline v1 and v2
+			// all CRD because it is mainly for pipeline v1 and v2 and dashboard
 			&apiextensionsv1.CustomResourceDefinition{}: {},
 			// For dashboard secret, we can remove it when we move to SSO
 			&corev1.Secret{}: {
@@ -144,6 +144,7 @@ func main() { //nolint:funlen
 				Field: fields.Set{"metadata.name": trustedcabundle.CAConfigMapName}.AsSelector(),
 				Label: pkglables.Set{labels.K8SCommon.PartOf: "opendatahub-operator"}.AsSelector(),
 			},
+			&corev1.Namespace{}: {},
 			// For catsrc (avoid frequently check cluster type)
 			&ofapiv1alpha1.CatalogSource{}:         {},
 			&ofapiv1alpha1.ClusterServiceVersion{}: {},

@@ -48,13 +48,13 @@ var (
 	OdhDocument = schema.GroupVersionKind{
 		Group:   "dashboard.opendatahub.io",
 		Version: "v1",
-		Kind: "OdhDocument",
+		Kind:    "OdhDocument",
 	}
 
 	OdhQuickStart = schema.GroupVersionKind{
 		Group:   "console.openshift.io",
 		Version: "v1",
-		Kind: "OdhQuickStart",
+		Kind:    "OdhQuickStart",
 	}
 
 	OdhDashboardConfig = schema.GroupVersionKind{
