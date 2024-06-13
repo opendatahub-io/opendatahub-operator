@@ -174,7 +174,10 @@ api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-
 	egrep -v '\.io/[^v][^1].*)$$' ./docs/api-overview.md > temp.md && mv ./temp.md ./docs/api-overview.md
 
 ##@ Build
-GO_BUILD = go build -ldflags "-X 'github.com/opendatahub-io/opendatahub-operator/v2/pkg/version.Version=$(VERSION)'"
+GIT_HASH = $(shell git rev-parse --short HEAD)
+VERSION_HASH = $(if $(GIT_HASH),-g$(GIT_HASH),)
+VERSION_FULL = $(VERSION)$(VERSION_HASH)
+GO_BUILD = go build -ldflags "-X 'github.com/opendatahub-io/opendatahub-operator/v2/pkg/version.Version=$(VERSION_FULL)'"
 
 .PHONY: manager # to force rebuild every time since, no make dependency tracking
 manager: ## Build manager binary in the root directory rebuilding all packages and passing version
