@@ -152,8 +152,8 @@ func main() { //nolint:funlen
 	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{ // single pod does not need to have LeaderElection
-		Scheme:  scheme,
-		Metrics: ctrlmetrics.Options{BindAddress: metricsAddr},
+		Scheme:         scheme,
+		Metrics:        ctrlmetrics.Options{BindAddress: metricsAddr},
 		LeaderElection: false,
 		WebhookServer: ctrlwebhook.NewServer(ctrlwebhook.Options{
 			Port: 9443,
