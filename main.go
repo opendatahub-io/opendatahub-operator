@@ -137,6 +137,13 @@ func main() { //nolint:funlen
 		setupLog.Error(err, "error getting client for setup")
 		os.Exit(1)
 	}
+
+	err = cluster.Init(ctx, setupClient, setupLog)
+	if err != nil {
+		setupLog.Error(err, "unable to initialize cluster config")
+		os.Exit(1)
+	}
+
 	// Get operator platform
 	platform, err := cluster.GetPlatform(ctx, setupClient)
 	if err != nil {
