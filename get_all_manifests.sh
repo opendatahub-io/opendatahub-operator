@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-GITHUB_URL="https://github.com/"
+GITHUB_URL="https://github.com"
 
 # component: notebook, dsp, kserve, dashbaord, cf/ray/kueue/trainingoperator, trustyai, modelmesh, modelregistry.
 # in the format of "repo-org:repo-name:branch-name:source-folder:target-folder".
