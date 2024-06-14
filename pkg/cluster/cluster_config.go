@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/blang/semver/v4"
+	"github.com/go-logr/logr"
 	"github.com/operator-framework/api/pkg/lib/version"
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -15,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
@@ -28,6 +30,50 @@ type Platform string
 type Release struct {
 	Name    Platform                `json:"name,omitempty"`
 	Version version.OperatorVersion `json:"version,omitempty"`
+}
+
+var clusterConfig struct {
+	Namespace string
+	Release   Release
+}
+
+// Init initializes cluster configuration variables on startup
+// init() won't work since it is needed to check the error.
+func Init(ctx context.Context, cli client.Client) error {
+	var err error
+	log := logf.FromContext(ctx)
+
+	clusterConfig.Namespace, err = getOperatorNamespace()
+	if err != nil {
+		log.Error(err, "unable to find operator namespace")
+		// not fatal, fallback to ""
+	}
+
+	clusterConfig.Release, err = getRelease(ctx, cli)
+	if err != nil {
+		return err
+	}
+
+	printClusterConfig(log)
+
+	return nil
+}
+
+func printClusterConfig(log logr.Logger) {
+	log.Info("Cluster config",
+		"Namespace", clusterConfig.Namespace,
+		"Release", clusterConfig.Release)
+}
+
+func GetOperatorNamespace() (string, error) {
+	if clusterConfig.Namespace == "" {
+		return "", errors.New("unable to find operator namespace")
+	}
+	return clusterConfig.Namespace, nil
+}
+
+func GetRelease(_ context.Context, _ client.Client) (Release, error) {
+	return clusterConfig.Release, nil
 }
 
 func GetDomain(ctx context.Context, c client.Client) (string, error) {
@@ -49,7 +95,7 @@ func GetDomain(ctx context.Context, c client.Client) (string, error) {
 	return domain, err
 }
 
-func GetOperatorNamespace() (string, error) {
+func getOperatorNamespace() (string, error) {
 	operatorNS, exist := os.LookupEnv("OPERATOR_NAMESPACE")
 	if exist && operatorNS != "" {
 		return operatorNS, nil
@@ -133,7 +179,7 @@ func getPlatform(ctx context.Context, cli client.Client) (Platform, error) {
 	return detectSelfManaged(ctx, cli)
 }
 
-func GetRelease(ctx context.Context, cli client.Client) (Release, error) {
+func getRelease(ctx context.Context, cli client.Client) (Release, error) {
 	initRelease := Release{
 		// dummy version set to name "", version 0.0.0
 		Version: version.OperatorVersion{
