@@ -87,13 +87,11 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 	logger logr.Logger,
 	owner metav1.Object,
 	dscispec *dsciv1.DSCInitializationSpec,
+	platform cluster.Platform,
 	currentComponentExist bool,
 ) error {
 	var l logr.Logger
-	platform, err := cluster.GetPlatform(cli)
-	if err != nil {
-		return err
-	}
+
 	if platform == cluster.SelfManagedRhods || platform == cluster.ManagedRhods {
 		l = d.ConfigComponentLogger(logger, ComponentNameSupported, dscispec)
 	} else {
@@ -183,7 +181,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 			if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentNameSupported); err != nil {
 				return err
 			}
-			if err = deploy.DeployManifestsFromPath(cli, owner,
+			if err := deploy.DeployManifestsFromPath(cli, owner,
 				filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
 				dscispec.Monitoring.Namespace,
 				"prometheus", true); err != nil {
@@ -194,11 +192,11 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		return nil
 	default:
 		// base
-		if err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+		if err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 			return err
 		}
 		// ISV
-		if err = deploy.DeployManifestsFromPath(cli, owner, PathISV, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+		if err := deploy.DeployManifestsFromPath(cli, owner, PathISV, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 			return err
 		}
 		// consolelink

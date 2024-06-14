@@ -97,7 +97,7 @@ func (w *Workbenches) GetComponentName() string {
 }
 
 func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
-	owner metav1.Object, dscispec *dsci.DSCInitializationSpec, _ bool) error {
+	owner metav1.Object, dscispec *dsci.DSCInitializationSpec, platform cluster.Platform, _ bool) error {
 	l := w.ConfigComponentLogger(logger, ComponentName, dscispec)
 	var imageParamMap = map[string]string{
 		"odh-notebook-controller-image":    "RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE",
@@ -108,17 +108,12 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 	// Create rhods-notebooks namespace in managed platforms
 	enabled := w.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
-	platform, err := cluster.GetPlatform(cli)
-	if err != nil {
-		return err
-	}
-
 	// Set default notebooks namespace
 	// Create rhods-notebooks namespace in managed platforms
 	if enabled {
 		if w.DevFlags != nil {
 			// Download manifests and update paths
-			if err = w.OverrideManifests(string(platform)); err != nil {
+			if err := w.OverrideManifests(string(platform)); err != nil {
 				return err
 			}
 		}
@@ -131,12 +126,12 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 			}
 		}
 		// Update Default rolebinding
-		err = cluster.UpdatePodSecurityRolebinding(ctx, cli, dscispec.ApplicationsNamespace, "notebook-controller-service-account")
+		err := cluster.UpdatePodSecurityRolebinding(ctx, cli, dscispec.ApplicationsNamespace, "notebook-controller-service-account")
 		if err != nil {
 			return err
 		}
 	}
-	if err = deploy.DeployManifestsFromPath(cli, owner, notebookControllerPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+	if err := deploy.DeployManifestsFromPath(cli, owner, notebookControllerPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 		return fmt.Errorf("failed to apply manifetss %s: %w", notebookControllerPath, err)
 	}
 	l.WithValues("Path", notebookControllerPath).Info("apply manifests done NBC")
@@ -160,7 +155,7 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 	var manifestsPath string
 	if platform == cluster.OpenDataHub || platform == "" {
 		// only for ODH after transit to kubeflow repo
-		if err = deploy.DeployManifestsFromPath(cli, owner,
+		if err := deploy.DeployManifestsFromPath(cli, owner,
 			kfnotebookControllerPath,
 			dscispec.ApplicationsNamespace,
 			ComponentName, enabled); err != nil {
@@ -170,7 +165,7 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 	} else {
 		manifestsPath = notebookImagesPathSupported
 	}
-	if err = deploy.DeployManifestsFromPath(cli, owner,
+	if err := deploy.DeployManifestsFromPath(cli, owner,
 		manifestsPath,
 		dscispec.ApplicationsNamespace,
 		ComponentName, enabled); err != nil {
@@ -190,7 +185,7 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 		if err := w.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
 		}
-		if err = deploy.DeployManifestsFromPath(cli, owner,
+		if err := deploy.DeployManifestsFromPath(cli, owner,
 			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
 			dscispec.Monitoring.Namespace,
 			"prometheus", true); err != nil {

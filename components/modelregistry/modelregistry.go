@@ -59,7 +59,7 @@ func (m *ModelRegistry) GetComponentName() string {
 }
 
 func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
-	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
+	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, platform cluster.Platform, _ bool) error {
 	l := m.ConfigComponentLogger(logger, ComponentName, dscispec)
 	var imageParamMap = map[string]string{
 		"IMAGES_MODELREGISTRY_OPERATOR": "RELATED_IMAGE_ODH_MODEL_REGISTRY_OPERATOR_IMAGE",
@@ -68,15 +68,10 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 	}
 	enabled := m.GetManagementState() == operatorv1.Managed
 
-	platform, err := cluster.GetPlatform(cli)
-	if err != nil {
-		return err
-	}
-
 	if enabled {
 		if m.DevFlags != nil {
 			// Download manifests and update paths
-			if err = m.OverrideManifests(string(platform)); err != nil {
+			if err := m.OverrideManifests(string(platform)); err != nil {
 				return err
 			}
 		}
@@ -96,15 +91,13 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 		}
 	}
 	// Deploy ModelRegistry Operator
-	err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, m.GetComponentName(), enabled)
-	if err != nil {
+	if err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, m.GetComponentName(), enabled); err != nil {
 		return err
 	}
 	l.Info("apply manifests done")
 
 	// Create additional model registry resources, componentEnabled=true because these extras are never deleted!
-	err = deploy.DeployManifestsFromPath(cli, owner, Path+"/extras", dscispec.ApplicationsNamespace, m.GetComponentName(), true)
-	if err != nil {
+	if err := deploy.DeployManifestsFromPath(cli, owner, Path+"/extras", dscispec.ApplicationsNamespace, m.GetComponentName(), true); err != nil {
 		return err
 	}
 	l.Info("apply extra manifests done")
