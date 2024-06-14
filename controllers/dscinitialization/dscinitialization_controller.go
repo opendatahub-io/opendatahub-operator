@@ -151,13 +151,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	managementStateChangeTrustedCA = false
 
 	// Get platform
-	platform, err := cluster.GetPlatform(ctx, r.Client)
-	if err != nil {
-		r.Log.Error(err, "Failed to determine platform (managed vs self-managed)")
-
-		return reconcile.Result{}, err
-	}
-
+	platform := cluster.GetPlatform()
 	switch req.Name {
 	case "prometheus": // prometheus configmap
 		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == cluster.ManagedRhods {

@@ -145,12 +145,7 @@ func main() { //nolint:funlen
 	}
 
 	// Get operator platform
-	platform, err := cluster.GetPlatform(ctx, setupClient)
-	if err != nil {
-		setupLog.Error(err, "error getting platform")
-		os.Exit(1)
-	}
-
+	platform := cluster.GetPlatform()
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{ // single pod does not need to have LeaderElection
 		Scheme:                 scheme,
 		MetricsBindAddress:     metricsAddr,

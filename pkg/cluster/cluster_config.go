@@ -76,8 +76,8 @@ func GetOperatorNamespace() (string, error) {
 	return clusterConfig.Namespace, nil
 }
 
-func GetPlatform(_ context.Context, _ client.Client) (Platform, error) {
-	return clusterConfig.Platform, nil
+func GetPlatform() Platform {
+	return clusterConfig.Platform
 }
 
 func GetRelease() Release {
@@ -191,12 +191,7 @@ func getRelease(ctx context.Context, cli client.Client) (Release, error) {
 			Version: semver.Version{},
 		},
 	}
-	// Set platform
-	platform, err := GetPlatform(ctx, cli)
-	if err != nil {
-		return initRelease, err
-	}
-	initRelease.Name = platform
+	initRelease.Name = clusterConfig.Platform
 
 	// For unit-tests
 	if os.Getenv("CI") == "true" {
