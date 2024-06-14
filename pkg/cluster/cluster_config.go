@@ -80,8 +80,8 @@ func GetPlatform(_ context.Context, _ client.Client) (Platform, error) {
 	return clusterConfig.Platform, nil
 }
 
-func GetRelease(_ context.Context, _ client.Client) (Release, error) {
-	return clusterConfig.Release, nil
+func GetRelease() Release {
+	return clusterConfig.Release
 }
 
 func GetDomain(ctx context.Context, c client.Client) (string, error) {
