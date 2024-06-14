@@ -132,6 +132,7 @@ rules:
   - tokenreviews
   verbs:
   - create
+  - get
 - apiGroups:
   - authorino.kuadrant.io
   resources:
@@ -144,6 +145,7 @@ rules:
   - subjectaccessreviews
   verbs:
   - create
+  - get
 - apiGroups:
   - authorization.openshift.io
   resources:
@@ -175,6 +177,7 @@ rules:
   verbs:
   - create
   - delete
+  - get
   - list
   - patch
   - update
@@ -185,6 +188,7 @@ rules:
   - machineautoscalers
   verbs:
   - delete
+  - get
   - list
   - patch
 - apiGroups:
@@ -193,6 +197,7 @@ rules:
   - machinesets
   verbs:
   - delete
+  - get
   - list
   - patch
 - apiGroups:
@@ -232,6 +237,7 @@ rules:
   verbs:
   - create
   - delete
+  - get
   - list
   - patch
   - watch
@@ -253,6 +259,7 @@ rules:
   verbs:
   - create
   - delete
+  - get
   - list
   - patch
   - watch
@@ -269,6 +276,7 @@ rules:
   resources:
   - clusterversions
   verbs:
+  - get
   - list
   - watch
 - apiGroups:
@@ -322,6 +330,7 @@ rules:
   resources:
   - clusterversions
   verbs:
+  - get
   - list
   - watch
 - apiGroups:
@@ -392,6 +401,7 @@ rules:
   - namespaces/finalizers
   verbs:
   - delete
+  - get
   - list
   - patch
   - update
@@ -431,6 +441,7 @@ rules:
   resources:
   - rhmis
   verbs:
+  - get
   - list
   - watch
 - apiGroups:
@@ -489,6 +500,7 @@ rules:
   verbs:
   - create
   - delete
+  - get
   - list
   - patch
   - update
@@ -573,6 +585,7 @@ rules:
   resources:
   - datasciencepipelinesapplications/finalizers
   verbs:
+  - get
   - patch
   - update
 - apiGroups:
@@ -619,6 +632,7 @@ rules:
   - events
   verbs:
   - delete
+  - get
   - list
   - patch
   - watch
@@ -695,6 +709,7 @@ rules:
   - rhmis
   verbs:
   - delete
+  - get
   - list
   - patch
   - watch
@@ -722,6 +737,7 @@ rules:
   - machineautoscalers
   verbs:
   - delete
+  - get
   - list
   - patch
 - apiGroups:
@@ -730,6 +746,7 @@ rules:
   - machinesets
   verbs:
   - delete
+  - get
   - list
   - patch
 - apiGroups:
@@ -803,6 +820,7 @@ rules:
   resources:
   - modelregistries/finalizers
   verbs:
+  - get
   - update
 - apiGroups:
   - modelregistry.opendatahub.io
@@ -993,6 +1011,7 @@ rules:
   - virtualservices/status
   verbs:
   - delete
+  - get
   - patch
   - update
 - apiGroups:
@@ -1061,6 +1080,7 @@ rules:
   - consoles
   verbs:
   - delete
+  - get
   - list
   - patch
   - watch
@@ -1225,6 +1245,7 @@ rules:
   verbs:
   - create
   - delete
+  - get
   - list
   - patch
   - update
@@ -1236,6 +1257,7 @@ rules:
   verbs:
   - create
   - delete
+  - get
   - list
   - patch
   - update
@@ -1246,6 +1268,7 @@ rules:
   - services/status
   verbs:
   - delete
+  - get
   - patch
   - update
 - apiGroups:
@@ -1255,6 +1278,7 @@ rules:
   verbs:
   - create
   - delete
+  - get
   - list
   - patch
   - update
@@ -1266,6 +1290,7 @@ rules:
   verbs:
   - create
   - delete
+  - get
   - list
   - patch
   - update
@@ -1276,6 +1301,7 @@ rules:
   - clusterservingruntimes/status
   verbs:
   - delete
+  - get
   - patch
   - update
 - apiGroups:
@@ -1285,6 +1311,7 @@ rules:
   verbs:
   - create
   - delete
+  - get
   - list
   - patch
   - update
@@ -1295,6 +1322,7 @@ rules:
   - inferencegraphs/status
   verbs:
   - delete
+  - get
   - patch
   - update
 - apiGroups:
@@ -1327,6 +1355,7 @@ rules:
   - inferenceservices/status
   verbs:
   - delete
+  - get
   - patch
   - update
 - apiGroups:
@@ -1336,6 +1365,7 @@ rules:
   verbs:
   - create
   - delete
+  - get
   - list
   - patch
   - update
@@ -1345,6 +1375,7 @@ rules:
   resources:
   - predictors/finalizers
   verbs:
+  - get
   - patch
   - update
 - apiGroups:
@@ -1353,6 +1384,7 @@ rules:
   - predictors/status
   verbs:
   - delete
+  - get
   - patch
   - update
 - apiGroups:
@@ -1378,6 +1410,7 @@ rules:
   resources:
   - servingruntimes/status
   verbs:
+  - get
   - patch
   - update
 - apiGroups:
@@ -1387,6 +1420,7 @@ rules:
   verbs:
   - create
   - delete
+  - get
   - list
   - patch
   - update
@@ -1397,6 +1431,7 @@ rules:
   - trainedmodels/status
   verbs:
   - delete
+  - get
   - patch
   - update
 - apiGroups:
@@ -1463,6 +1498,7 @@ rules:
   - users
   verbs:
   - delete
+  - get
   - list
   - patch
   - watch

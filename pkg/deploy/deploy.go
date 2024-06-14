@@ -32,8 +32,11 @@ import (
 	"strings"
 
 	"golang.org/x/exp/maps"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -207,23 +210,25 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 		return nil
 	}
 
-	// Return if error getting resource in cluster
 	found, err := getResource(ctx, cli, obj)
-	if client.IgnoreNotFound(err) != nil {
-		return err
-	}
 
-	if !enabled {
+	// err == nil means found
+	if err == nil {
+		if enabled {
+			return updateResource(ctx, cli, obj, found, owner, componentName)
+		}
 		return handleDisabledComponent(ctx, cli, found, componentName)
 	}
 
-	// Create resource if it doesn't exist
-	if found == nil {
-		return createResource(ctx, cli, obj, owner)
+	if apierrs.IsNotFound(err) {
+		// Create resource if it doesn't exist and enabled
+		if enabled {
+			return createResource(ctx, cli, obj, owner)
+		}
+		return nil
 	}
 
-	// If resource already exists, update it.
-	return updateResource(ctx, cli, obj, found, owner, componentName)
+	return err
 }
 
 /*
@@ -358,6 +363,10 @@ func getResource(ctx context.Context, cli client.Client, obj *unstructured.Unstr
 	// Setting gvk is required to do Get request
 	found.SetGroupVersionKind(obj.GroupVersionKind())
 	err := cli.Get(ctx, types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, found)
+	if errors.Is(err, &meta.NoKindMatchError{}) {
+		// convert the error to NotFound to handle both the same way in the caller
+		return nil, apierrs.NewNotFound(schema.GroupResource{Group: obj.GroupVersionKind().Group}, obj.GetName())
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -365,10 +374,6 @@ func getResource(ctx context.Context, cli client.Client, obj *unstructured.Unstr
 }
 
 func handleDisabledComponent(ctx context.Context, cli client.Client, found *unstructured.Unstructured, componentName string) error {
-	if found == nil {
-		return nil
-	}
-
 	resourceLabels := found.GetLabels()
 	componentCounter := getComponentCounter(resourceLabels)
 

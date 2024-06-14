@@ -65,13 +65,13 @@ func (u *usingFeaturesHandler) For(featuresHandler *FeaturesHandler) *featureBui
 	return fb
 }
 
-// Used to enforce that Manifests() is called after ManifestSource() in the chain.
+// Used to enforce that Manifests() is called after ManifestsLocation() in the chain.
 type featureBuilderWithManifestSource struct {
 	*featureBuilder
 }
 
-// ManifestSource sets the root file system (fsys) from which manifest paths are loaded.
-func (fb *featureBuilder) ManifestSource(fsys fs.FS) *featureBuilderWithManifestSource {
+// ManifestsLocation sets the root file system (fsys) from which manifest paths are loaded.
+func (fb *featureBuilder) ManifestsLocation(fsys fs.FS) *featureBuilderWithManifestSource {
 	fb.fsys = fsys
 	return &featureBuilderWithManifestSource{featureBuilder: fb}
 }
