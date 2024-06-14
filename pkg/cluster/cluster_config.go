@@ -21,6 +21,15 @@ import (
 
 // +kubebuilder:rbac:groups="config.openshift.io",resources=ingresses,verbs=get
 
+type Platform string
+
+// Release includes information on operator version and platform
+// +kubebuilder:object:generate=true
+type Release struct {
+	Name    Platform                `json:"name,omitempty"`
+	Version version.OperatorVersion `json:"version,omitempty"`
+}
+
 func GetDomain(ctx context.Context, c client.Client) (string, error) {
 	ingress := &unstructured.Unstructured{}
 	ingress.SetGroupVersionKind(gvk.OpenshiftIngress)
@@ -82,8 +91,6 @@ func GetClusterServiceVersion(ctx context.Context, c client.Client, namespace st
 		gvk.ClusterServiceVersion.Kind)
 }
 
-type Platform string
-
 // detectSelfManaged detects if it is Self Managed Rhods or OpenDataHub.
 func detectSelfManaged(ctx context.Context, cli client.Client) (Platform, error) {
 	variants := map[string]Platform{
@@ -124,13 +131,6 @@ func getPlatform(ctx context.Context, cli client.Client) (Platform, error) {
 
 	// check and return whether ODH or self-managed platform
 	return detectSelfManaged(ctx, cli)
-}
-
-// Release includes information on operator version and platform
-// +kubebuilder:object:generate=true
-type Release struct {
-	Name    Platform                `json:"name,omitempty"`
-	Version version.OperatorVersion `json:"version,omitempty"`
 }
 
 func GetRelease(ctx context.Context, cli client.Client) (Release, error) {
