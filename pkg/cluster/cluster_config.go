@@ -72,8 +72,8 @@ func GetOperatorNamespace() (string, error) {
 	return clusterConfig.Namespace, nil
 }
 
-func GetRelease(_ context.Context, _ client.Client) (Release, error) {
-	return clusterConfig.Release, nil
+func GetRelease() Release {
+	return clusterConfig.Release
 }
 
 func GetDomain(ctx context.Context, c client.Client) (string, error) {

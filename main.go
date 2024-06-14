@@ -153,11 +153,7 @@ func main() { //nolint:funlen,maintidx
 	}
 
 	// Get operator platform
-	release, err := cluster.GetRelease(ctx, setupClient)
-	if err != nil {
-		setupLog.Error(err, "error getting release")
-		os.Exit(1)
-	}
+	release := cluster.GetRelease()
 	platform := release.Name
 
 	secretCache := createSecretCacheConfig(platform)
