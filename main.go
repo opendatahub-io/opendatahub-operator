@@ -239,11 +239,6 @@ func main() {
 		setupLog.Error(err, "error remove deprecated resources from previous version")
 	}
 
-	// Apply update from legacy operator
-	if err = upgrade.UpdateFromLegacyVersion(setupClient, platform, dscApplicationsNamespace, dscMonitoringNamespace); err != nil {
-		setupLog.Error(err, "unable to update from legacy operator version")
-	}
-
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")
 		os.Exit(1)
