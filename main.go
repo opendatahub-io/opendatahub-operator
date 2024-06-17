@@ -230,12 +230,6 @@ func main() {
 		}
 	}
 
-	// Remove TrustyAI for RHOAI
-	// TODO: Remove below check when trustyai manifests are removed in midstream
-	if err = upgrade.RemoveDeprecatedTrustyAI(setupClient, platform); err != nil {
-		setupLog.Error(err, "unable to remove trustyai from DSC")
-	}
-
 	// Create default DSC CR for managed RHODS
 	if platform == cluster.ManagedRhods {
 		var createDefaultDSCFunc manager.RunnableFunc = func(ctx context.Context) error {

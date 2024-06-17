@@ -265,9 +265,6 @@ Package trustyai provides utility functions to config TrustyAI, a bias/fairness 
 
 
 TrustyAI struct holds the configuration for the TrustyAI component.
-## DEPRECATED ## : Installation of TrustyAI operator is deprecated in RHOAI.
-If TrustyAI operator is installed, it will be removed
-Changes in managemenstState are not supported.
 
 
 
