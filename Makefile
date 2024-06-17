@@ -336,14 +336,13 @@ catalog-push: ## Push a catalog image.
 	$(MAKE) image-push IMG=$(CATALOG_IMG)
 
 TOOLBOX_GOLANG_VERSION := 1.20
-TOOLBOX_OPERATOR_SDK_VERSION := 1.24.1
 
 # Generate a Toolbox container for locally testing changes easily
 .PHONY: toolbox
 toolbox: ## Create a toolbox instance with the proper Golang and Operator SDK versions
 	$(IMAGE_BUILDER) build \
 		--build-arg GOLANG_VERSION=$(TOOLBOX_GOLANG_VERSION) \
-		--build-arg OPERATOR_SDK_VERSION=$(TOOLBOX_OPERATOR_SDK_VERSION) \
+		--build-arg OPERATOR_SDK_VERSION=$(OPERATOR_SDK_VERSION) \
 		-f Dockerfiles/toolbox.Dockerfile -t opendatahub-toolbox .
 	$(IMAGE_BUILDER) stop opendatahub-toolbox ||:
 	toolbox rm opendatahub-toolbox ||:

@@ -90,7 +90,6 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(ocappsv1.AddToScheme(scheme))
 	utilruntime.Must(ocbuildv1.AddToScheme(scheme))
 	utilruntime.Must(ocimgv1.AddToScheme(scheme))
-	utilruntime.Must(apiextv1.AddToScheme(scheme))
 	utilruntime.Must(admv1.AddToScheme(scheme))
 	utilruntime.Must(apiregistrationv1.AddToScheme(scheme))
 	utilruntime.Must(monitoringv1.AddToScheme(scheme))
