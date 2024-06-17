@@ -117,8 +117,6 @@ func (c *Component) UpdatePrometheusConfig(_ client.Client, enable bool, compone
 			PrometheusYML          string `yaml:"prometheus.yml"`
 			OperatorRules          string `yaml:"operator-recording.rules"`
 			DeadManSnitchRules     string `yaml:"deadmanssnitch-alerting.rules"`
-			CFRRules               string `yaml:"codeflare-recording.rules"`
-			CRARules               string `yaml:"codeflare-alerting.rules"`
 			DashboardRRules        string `yaml:"rhods-dashboard-recording.rules"`
 			DashboardARules        string `yaml:"rhods-dashboard-alerting.rules"`
 			DSPRRules              string `yaml:"data-science-pipelines-operator-recording.rules"`
@@ -127,15 +125,15 @@ func (c *Component) UpdatePrometheusConfig(_ client.Client, enable bool, compone
 			MMARules               string `yaml:"model-mesh-alerting.rules"`
 			OdhModelRRules         string `yaml:"odh-model-controller-recording.rules"`
 			OdhModelARules         string `yaml:"odh-model-controller-alerting.rules"`
+			CFORRules              string `yaml:"codeflare-recording.rules"`
+			CFOARules              string `yaml:"codeflare-alerting.rules"`
 			RayARules              string `yaml:"ray-alerting.rules"`
+			KueueARules            string `yaml:"kueue-alerting.rules"`
+			TrainingOperatorARules string `yaml:"trainingoperator-alerting.rules"`
 			WorkbenchesRRules      string `yaml:"workbenches-recording.rules"`
 			WorkbenchesARules      string `yaml:"workbenches-alerting.rules"`
 			KserveRRules           string `yaml:"kserve-recording.rules"`
 			KserveARules           string `yaml:"kserve-alerting.rules"`
-			KueueRRules            string `yaml:"kueue-recording.rules"`
-			KueueARules            string `yaml:"kueue-alerting.rules"`
-			TrainingOperatorRRules string `yaml:"trainingoperator-recording.rules"`
-			TrainingOperatorARules string `yaml:"trainingoperator-alerting.rules"`
 		} `yaml:"data"`
 	}
 	var configMap ConfigMap
