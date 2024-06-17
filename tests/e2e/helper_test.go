@@ -127,7 +127,7 @@ func setupDSCInstance(name string) *dsc.DataScienceCluster {
 						ManagementState: operatorv1.Managed,
 					},
 					Serving: infrav1.ServingSpec{
-						ManagementState: operatorv1.Unmanaged,
+						ManagementState: operatorv1.Managed,
 					},
 				},
 				CodeFlare: codeflare.CodeFlare{

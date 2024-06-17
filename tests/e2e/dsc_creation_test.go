@@ -344,7 +344,7 @@ func (tc *testContext) validateDSCI() error {
 
 func (tc *testContext) validateDSC() error {
 	expServingSpec := infrav1.ServingSpec{
-		ManagementState: operatorv1.Unmanaged,
+		ManagementState: operatorv1.Managed,
 		Name:            "knative-serving",
 		IngressGateway: infrav1.IngressGatewaySpec{
 			Certificate: infrav1.CertificateSpec{
@@ -403,7 +403,7 @@ func (tc *testContext) testDefaultCertsAvailable() error {
 		defaultSecretName = cluster.DefaultCertificateSecretName
 	}
 	ctrlPlaneSecret, err := cluster.GetSecret(tc.ctx, tc.customClient, tc.testDSCI.Spec.ServiceMesh.ControlPlane.Namespace,
-		tc.testDsc.Spec.Components.Kserve.Serving.IngressGateway.Certificate.SecretName)
+		defaultSecretName)
 	if err != nil {
 		return err
 	}
