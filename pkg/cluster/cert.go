@@ -23,6 +23,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+const DefaultCertificateSecretName = "knative-serving-cert"
+
 func CreateSelfSignedCertificate(ctx context.Context, c client.Client, secretName, domain, namespace string, metaOptions ...MetaOptions) error {
 	certSecret, err := GenerateSelfSignedCertificateAsSecret(secretName, domain, namespace)
 	if err != nil {
@@ -134,7 +136,7 @@ func GetDefaultIngressCertificate(ctx context.Context, c client.Client, knativeS
 
 	defaultIngressCertName := GetDefaultIngressCertSecretName(defaultIngressCtrl)
 
-	defaultIngressSecret, err := getSecret(ctx, c, "openshift-ingress", defaultIngressCertName)
+	defaultIngressSecret, err := GetSecret(ctx, c, "openshift-ingress", defaultIngressCertName)
 	if err != nil {
 		return err
 	}
@@ -143,20 +145,13 @@ func GetDefaultIngressCertificate(ctx context.Context, c client.Client, knativeS
 }
 
 func FindAvailableIngressController(ctx context.Context, c client.Client) (*operatorv1.IngressController, error) {
-	defaultIngressCtrlList := &operatorv1.IngressControllerList{}
-	listOpts := []client.ListOption{
-		client.InNamespace("openshift-ingress-operator"),
-	}
+	defaultIngressCtrl := &operatorv1.IngressController{}
 
-	err := c.List(ctx, defaultIngressCtrlList, listOpts...)
+	err := c.Get(ctx, client.ObjectKey{Namespace: "openshift-ingress-operator", Name: "default"}, defaultIngressCtrl)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error getting ingresscontroller resource :%w", err)
 	}
-
-	if len(defaultIngressCtrlList.Items) > 0 {
-		return &defaultIngressCtrlList.Items[0], nil
-	}
-	return nil, fmt.Errorf("no ingresscontroller resource available")
+	return defaultIngressCtrl, nil
 }
 
 func GetDefaultIngressCertSecretName(ingressCtrl *operatorv1.IngressController) string {
@@ -166,7 +161,7 @@ func GetDefaultIngressCertSecretName(ingressCtrl *operatorv1.IngressController) 
 	return "router-certs-" + ingressCtrl.Name
 }
 
-func getSecret(ctx context.Context, c client.Client, namespace, name string) (*v1.Secret, error) {
+func GetSecret(ctx context.Context, c client.Client, namespace, name string) (*v1.Secret, error) {
 	secret := &v1.Secret{}
 	err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, secret)
 	if err != nil {
@@ -176,6 +171,10 @@ func getSecret(ctx context.Context, c client.Client, namespace, name string) (*v
 }
 
 func copySecretToNamespace(ctx context.Context, c client.Client, secret *v1.Secret, newSecretName, namespace string) error {
+	// Get default name if newSecretName is empty
+	if newSecretName == "" {
+		newSecretName = DefaultCertificateSecretName
+	}
 	newSecret := &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      newSecretName,

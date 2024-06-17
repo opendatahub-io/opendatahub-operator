@@ -3,6 +3,7 @@ package features_test
 import (
 	"context"
 	"fmt"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -183,7 +184,7 @@ var _ = Describe("Serverless feature", func() {
 			It("should set default value when value is empty in the DSCI", func() {
 				// Default value is blank -> testFeature.Spec.Serving.IngressGateway.Certificate.SecretName = ""
 				Expect(serverless.ServingDefaultValues(testFeature)).To(Succeed())
-				Expect(testFeature.Spec.KnativeCertificateSecret).To(Equal(serverless.DefaultCertificateSecretName))
+				Expect(testFeature.Spec.KnativeCertificateSecret).To(Equal(cluster.DefaultCertificateSecretName))
 			})
 
 			It("should use user value when set in the DSCI", func() {
@@ -261,7 +262,7 @@ var _ = Describe("Serverless feature", func() {
 
 			// then
 			Eventually(func() error {
-				secret, err := envTestClientset.CoreV1().Secrets(namespace.Name).Get(context.TODO(), serverless.DefaultCertificateSecretName, metav1.GetOptions{})
+				secret, err := envTestClientset.CoreV1().Secrets(namespace.Name).Get(context.TODO(), cluster.DefaultCertificateSecretName, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}

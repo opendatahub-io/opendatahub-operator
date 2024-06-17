@@ -25,6 +25,7 @@ import (
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
 const (
@@ -68,6 +69,10 @@ func creationTestSuite(t *testing.T) {
 		t.Run("Validate Ownerrefrences exist", func(t *testing.T) {
 			err = testCtx.testOwnerrefrences()
 			require.NoError(t, err, "error getting all DataScienceCluster's Ownerrefrences")
+		})
+		t.Run("Validate default certs available", func(t *testing.T) {
+			err = testCtx.testDefaultCertsAvailable()
+			require.NoError(t, err, "error getting default cert secrets for Kserve")
 		})
 		t.Run("Validate Controller reconcile", func(t *testing.T) {
 			// only test Dashboard component for now
@@ -375,6 +380,40 @@ func (tc *testContext) testOwnerrefrences() error {
 		}
 	}
 
+	return nil
+}
+
+func (tc *testContext) testDefaultCertsAvailable() error {
+	// Get expected cert secrets
+	defaultIngressCtrl, err := cluster.FindAvailableIngressController(tc.ctx, tc.customClient)
+	if err != nil {
+		return fmt.Errorf("failed to get ingress controller: %w", err)
+	}
+
+	defaultIngressCertName := cluster.GetDefaultIngressCertSecretName(defaultIngressCtrl)
+
+	defaultIngressSecret, err := cluster.GetSecret(tc.ctx, tc.customClient, "openshift-ingress", defaultIngressCertName)
+	if err != nil {
+		return err
+	}
+
+	// Verify secret from Control Plane namespace matches the default cert secret
+	defaultSecretName := tc.testDsc.Spec.Components.Kserve.Serving.IngressGateway.Certificate.SecretName
+	if defaultSecretName == "" {
+		defaultSecretName = cluster.DefaultCertificateSecretName
+	}
+	ctrlPlaneSecret, err := cluster.GetSecret(tc.ctx, tc.customClient, tc.testDSCI.Spec.ServiceMesh.ControlPlane.Namespace,
+		tc.testDsc.Spec.Components.Kserve.Serving.IngressGateway.Certificate.SecretName)
+	if err != nil {
+		return err
+	}
+	if string(defaultIngressSecret.Data["tls.crt"]) != string(ctrlPlaneSecret.Data["tls.crt"]) {
+		return fmt.Errorf("default cert secret not expected. Epected %v, Got %v", defaultIngressSecret.Data["tls.crt"], ctrlPlaneSecret.Data["tls.crt"])
+	}
+
+	if string(defaultIngressSecret.Data["tls.key"]) != string(ctrlPlaneSecret.Data["tls.key"]) {
+		return fmt.Errorf("default cert secret not expected. Epected %v, Got %v", defaultIngressSecret.Data["tls.crt"], ctrlPlaneSecret.Data["tls.crt"])
+	}
 	return nil
 }
 

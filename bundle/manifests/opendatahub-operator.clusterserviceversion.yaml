@@ -33,7 +33,7 @@ metadata:
                 "serving": {
                   "ingressGateway": {
                     "certificate": {
-                      "type": "DefaultIngress"
+                      "type": "OpenshiftDefaultIngress"
                     }
                   },
                   "managementState": "Managed",
