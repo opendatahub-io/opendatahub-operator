@@ -54,6 +54,7 @@ import (
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -348,6 +349,10 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 		}
 		saved.Status.InstalledComponents[componentName] = enabled
 		switch {
+		case enabled && componentName == trustyai.ComponentName:
+			saved.Status.InstalledComponents[componentName] = false
+			status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileCompleted,
+				"TrustyAI is deprecated. Setting this field to Managed will not result in the deployment of TrustyAI.", corev1.ConditionTrue)
 		case enabled:
 			status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileCompleted, "Component reconciled successfully", corev1.ConditionTrue)
 		default:

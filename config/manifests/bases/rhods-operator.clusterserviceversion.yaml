@@ -68,9 +68,6 @@ metadata:
             "trainingoperator": {
               "managementState": "Removed"
             },
-            "trustyai": {
-              "managementState": "Removed"
-            }
           }
         }
       }
@@ -154,7 +151,6 @@ spec:
   - training
   - kserve
   - distributed-workloads
-  - trustyai
   links:
   - name: Red Hat OpenShift AI
     url: https://www.redhat.com/en/technologies/cloud-computing/openshift/openshift-ai

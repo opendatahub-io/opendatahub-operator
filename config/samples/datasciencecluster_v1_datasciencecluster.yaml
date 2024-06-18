@@ -38,5 +38,3 @@ spec:
       managementState: "Managed"
     workbenches:
       managementState: "Managed"
-    trustyai:
-      managementState: "Removed"

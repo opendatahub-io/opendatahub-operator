@@ -27,6 +27,9 @@ var (
 var _ components.ComponentInterface = (*TrustyAI)(nil)
 
 // TrustyAI struct holds the configuration for the TrustyAI component.
+// ## DEPRECATED ## : Installation of TrustyAI operator is deprecated in RHOAI.
+// If TrustyAI operator is installed, it will be removed
+// Changes in managemenstState are not supported.
 // +kubebuilder:object:generate=true
 type TrustyAI struct {
 	components.Component `json:""`
@@ -67,6 +70,11 @@ func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client, lo
 	platform, err := cluster.GetPlatform(cli)
 	if err != nil {
 		return err
+	}
+
+	// Return when platform is RHOAI
+	if platform == cluster.SelfManagedRhods || platform == cluster.ManagedRhods {
+		enabled = false
 	}
 
 	if enabled {
