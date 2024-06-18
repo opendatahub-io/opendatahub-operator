@@ -3,16 +3,16 @@ package plugins
 import (
 	"sigs.k8s.io/kustomize/api/builtins" //nolint:staticcheck // Remove after package update
 	"sigs.k8s.io/kustomize/api/filters/namespace"
-	"sigs.k8s.io/kustomize/api/resmap"
 	"sigs.k8s.io/kustomize/api/types"
 	"sigs.k8s.io/kustomize/kyaml/resid"
 )
 
-func ApplyNamespacePlugin(manifestNamespace string, resMap resmap.ResMap) error {
-	nsplug := builtins.NamespaceTransformerPlugin{
+// CreateNamespaceApplierPlugin creates a plugin to ensure resources have the specified target namespace.
+func CreateNamespaceApplierPlugin(targetNamespace string) builtins.NamespaceTransformerPlugin {
+	return builtins.NamespaceTransformerPlugin{
 		ObjectMeta: types.ObjectMeta{
 			Name:      "odh-namespace-plugin",
-			Namespace: manifestNamespace,
+			Namespace: targetNamespace,
 		},
 		FieldSpecs: []types.FieldSpec{
 			{
@@ -64,6 +64,4 @@ func ApplyNamespacePlugin(manifestNamespace string, resMap resmap.ResMap) error 
 		UnsetOnly:              false,
 		SetRoleBindingSubjects: namespace.AllServiceAccountSubjects,
 	}
-
-	return nsplug.Transform(resMap)
 }
