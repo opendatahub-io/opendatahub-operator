@@ -1,6 +1,6 @@
 module github.com/opendatahub-io/opendatahub-operator/v2
 
-go 1.20
+go 1.21
 
 require (
 	github.com/blang/semver/v4 v4.0.0
