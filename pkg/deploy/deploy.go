@@ -165,14 +165,14 @@ func DeployManifestsFromPath(cli client.Client, owner metav1.Object, manifestPat
 		return err
 	}
 
-	// Apply NamespaceTransformer Plugin
-	if err := plugins.ApplyNamespacePlugin(namespace, resMap); err != nil {
-		return err
+	nsPlugin := plugins.CreateNamespaceApplierPlugin(namespace)
+	if err := nsPlugin.Transform(resMap); err != nil {
+		return fmt.Errorf("failed applying namespace plugin when preparing Kustomize resources. %w", err)
 	}
 
-	// Apply LabelTransformer Plugin
-	if err := plugins.ApplyAddLabelsPlugin(componentName, resMap); err != nil {
-		return err
+	labelsPlugin := plugins.CreateAddLabelsPlugin(componentName)
+	if err := labelsPlugin.Transform(resMap); err != nil {
+		return fmt.Errorf("failed applying labels plugin when preparing Kustomize resources. %w", err)
 	}
 
 	objs, err := GetResources(resMap)
