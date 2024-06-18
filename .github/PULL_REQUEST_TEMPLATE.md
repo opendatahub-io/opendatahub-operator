@@ -7,7 +7,6 @@ Please complete the following sections for a smooth review.
 ## Description
 <!--- Describe your changes in detail -->
 
-## JIRA issue
 <!--- Link your JIRA and related links here for reference. -->
 
 ## How Has This Been Tested?
@@ -16,7 +15,7 @@ Please complete the following sections for a smooth review.
 <!--- see how your change affects other areas of the code, etc. -->
 
 ## Screenshot or short clip
-<!--- If applicable,Attach a screenshot or a short clip demonstrating the feature. -->
+<!--- If applicable, attach a screenshot or a short clip demonstrating the feature. -->
 
 ## Merge criteria
 <!--- This PR will be merged by any repository approver when it meets all the points in the checklist -->
