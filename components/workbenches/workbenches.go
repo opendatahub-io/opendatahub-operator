@@ -40,7 +40,7 @@ type Workbenches struct {
 	components.Component `json:""`
 }
 
-func (w *Workbenches) OverrideManifests(ctx context.Context, platform string) error {
+func (w *Workbenches) OverrideManifests(ctx context.Context, platform cluster.Platform) error {
 	// Download manifests if defined by devflags
 	// Go through each manifest and set the overlays if defined
 	for _, subcomponent := range w.DevFlags.Manifests {
@@ -56,7 +56,7 @@ func (w *Workbenches) OverrideManifests(ctx context.Context, platform string) er
 				defaultKustomizePath = subcomponent.SourcePath
 				defaultKustomizePathSupported = subcomponent.SourcePath
 			}
-			if platform == string(cluster.ManagedRhods) || platform == string(cluster.SelfManagedRhods) {
+			if platform == cluster.ManagedRhods || platform == cluster.SelfManagedRhods {
 				notebookImagesPathSupported = filepath.Join(deploy.DefaultManifestPath, "jupyterhub", defaultKustomizePathSupported)
 			} else {
 				notebookImagesPath = filepath.Join(deploy.DefaultManifestPath, DependentComponentName, defaultKustomizePath)
@@ -113,7 +113,7 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 	if enabled {
 		if w.DevFlags != nil {
 			// Download manifests and update paths
-			if err := w.OverrideManifests(ctx, string(platform)); err != nil {
+			if err := w.OverrideManifests(ctx, platform); err != nil {
 				return err
 			}
 		}
