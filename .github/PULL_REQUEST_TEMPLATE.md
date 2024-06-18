@@ -24,6 +24,6 @@ Please complete the following sections for a smooth review.
 
 - [ ] You have read the [contributors guide](https://github.com/opendatahub-io/opendatahub-operator/blob/incubation/CONTRIBUTING.md).
 - [ ] Commit messages are meaningful - have a clear and concise summary and detailed explanation of what was changed and why.
-- [ ] Pull Request contains a description of the solution, a link to the JIRA issue, and to any dependent or related Pull Request
+- [ ] Pull Request contains a description of the solution, a link to the JIRA issue, and to any dependent or related Pull Request.
 - [ ] Testing instructions have been added in the PR body (for PRs involving changes that are not immediately obvious).
 - [ ] The developer has manually tested the changes and verified that the changes work
