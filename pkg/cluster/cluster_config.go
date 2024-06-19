@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/blang/semver/v4"
 	"github.com/operator-framework/api/pkg/lib/version"
@@ -67,24 +66,20 @@ func GetClusterServiceVersion(ctx context.Context, c client.Client, watchNameSpa
 
 type Platform string
 
-// isSelfManaged checks presence of ClusterServiceVersions:
-// when CSV displayname contains OpenDataHub, return 'OpenDataHub,nil' => high priority
-// when CSV displayname contains SelfManagedRhods, return 'SelfManagedRhods,nil'
-// when in dev mode and  could not find CSV (deploy by olm), return "", nil
-// otherwise return "",err.
+// isSelfManaged detects if it is Self Managed Rhods or OpenDataHub.
 func isSelfManaged(cli client.Client) (Platform, error) {
-	clusterCsvs := &ofapi.ClusterServiceVersionList{}
-	err := cli.List(context.TODO(), clusterCsvs)
-	if err != nil {
-		return "", err
-	} else { //nolint:golint,revive // Readability on else
-		for _, csv := range clusterCsvs.Items {
-			if strings.Contains(csv.Spec.DisplayName, string(OpenDataHub)) {
-				return OpenDataHub, nil
-			}
-			if strings.Contains(csv.Spec.DisplayName, string(SelfManagedRhods)) {
-				return SelfManagedRhods, nil
-			}
+	variants := map[string]Platform{
+		"opendatahub-operator": OpenDataHub,
+		"rhods-operator":       SelfManagedRhods,
+	}
+
+	for k, v := range variants {
+		exists, err := OperatorExists(cli, k)
+		if err != nil {
+			return Unknown, err
+		}
+		if exists {
+			return v, nil
 		}
 	}
 

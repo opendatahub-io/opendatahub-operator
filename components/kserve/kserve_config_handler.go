@@ -11,7 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
@@ -157,7 +157,7 @@ func (k *Kserve) removeServerlessFeatures(instance *dsciv1.DSCInitializationSpec
 func checkDependentOperators(cli client.Client) *multierror.Error {
 	var multiErr *multierror.Error
 
-	if found, err := deploy.OperatorExists(cli, ServiceMeshOperator); err != nil {
+	if found, err := cluster.OperatorExists(cli, ServiceMeshOperator); err != nil {
 		multiErr = multierror.Append(multiErr, err)
 	} else if !found {
 		err = fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
@@ -165,7 +165,7 @@ func checkDependentOperators(cli client.Client) *multierror.Error {
 		multiErr = multierror.Append(multiErr, err)
 	}
 
-	if found, err := deploy.OperatorExists(cli, ServerlessOperator); err != nil {
+	if found, err := cluster.OperatorExists(cli, ServerlessOperator); err != nil {
 		multiErr = multierror.Append(multiErr, err)
 	} else if !found {
 		err = fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",

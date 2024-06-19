@@ -39,7 +39,7 @@ func (k *Kueue) OverrideManifests(_ string) error {
 			return err
 		}
 		// If overlay is defined, update paths
-		defaultKustomizePath := "openshift"
+		defaultKustomizePath := "rhoai"
 		if manifestConfig.SourcePath != "" {
 			defaultKustomizePath = manifestConfig.SourcePath
 		}
@@ -54,7 +54,7 @@ func (k *Kueue) GetComponentName() string {
 }
 
 func (k *Kueue) ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
-	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
+	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, platform cluster.Platform, _ bool) error {
 	l := k.ConfigComponentLogger(logger, ComponentName, dscispec)
 	var imageParamMap = map[string]string{
 		"odh-kueue-controller-image": "RELATED_IMAGE_ODH_KUEUE_CONTROLLER_IMAGE", // new kueue image
@@ -62,15 +62,10 @@ func (k *Kueue) ReconcileComponent(ctx context.Context, cli client.Client, logge
 
 	enabled := k.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
-	platform, err := cluster.GetPlatform(cli)
-	if err != nil {
-		return err
-	}
-
 	if enabled {
 		if k.DevFlags != nil {
 			// Download manifests and update paths
-			if err = k.OverrideManifests(string(platform)); err != nil {
+			if err := k.OverrideManifests(string(platform)); err != nil {
 				return err
 			}
 		}
@@ -97,7 +92,7 @@ func (k *Kueue) ReconcileComponent(ctx context.Context, cli client.Client, logge
 		if err := k.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
 		}
-		if err = deploy.DeployManifestsFromPath(cli, owner,
+		if err := deploy.DeployManifestsFromPath(cli, owner,
 			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
 			dscispec.Monitoring.Namespace,
 			"prometheus", true); err != nil {

@@ -18,14 +18,14 @@ var Templates = struct {
 	AuthorinoDir string
 	// MetricsDir is the path to the Metrics Collection templates.
 	MetricsDir string
-	// Source the templates to be used
-	Source fs.FS
+	// Location specifies the file system that contains the templates to be used.
+	Location fs.FS
 	// BaseDir is the path to the base of the embedded FS
 	BaseDir string
 }{
 	ServiceMeshDir: path.Join(baseDir, "servicemesh"),
 	AuthorinoDir:   path.Join(baseDir, "authorino"),
 	MetricsDir:     path.Join(baseDir, "metrics-collection"),
-	Source:         dsciEmbeddedFS,
+	Location:       dsciEmbeddedFS,
 	BaseDir:        baseDir,
 }

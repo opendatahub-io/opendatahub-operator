@@ -1,6 +1,7 @@
 package servicemesh
 
 import (
+	"context"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -22,6 +23,7 @@ func MeshRefs(f *feature.Feature) error {
 	}
 
 	return cluster.CreateOrUpdateConfigMap(
+		context.TODO(),
 		f.Client,
 		&corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
@@ -50,6 +52,7 @@ func AuthRefs(f *feature.Feature) error {
 	}
 
 	return cluster.CreateOrUpdateConfigMap(
+		context.TODO(),
 		f.Client,
 		&corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{

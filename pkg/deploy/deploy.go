@@ -31,8 +31,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
-	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
 	"golang.org/x/exp/maps"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -164,14 +162,14 @@ func DeployManifestsFromPath(cli client.Client, owner metav1.Object, manifestPat
 		return err
 	}
 
-	// Apply NamespaceTransformer Plugin
-	if err := plugins.ApplyNamespacePlugin(namespace, resMap); err != nil {
-		return err
+	nsPlugin := plugins.CreateNamespaceApplierPlugin(namespace)
+	if err := nsPlugin.Transform(resMap); err != nil {
+		return fmt.Errorf("failed applying namespace plugin when preparing Kustomize resources. %w", err)
 	}
 
-	// Apply LabelTransformer Plugin
-	if err := plugins.ApplyAddLabelsPlugin(componentName, resMap); err != nil {
-		return err
+	labelsPlugin := plugins.CreateAddLabelsPlugin(componentName)
+	if err := labelsPlugin.Transform(resMap); err != nil {
+		return fmt.Errorf("failed applying labels plugin when preparing Kustomize resources. %w", err)
 	}
 
 	objs, err := GetResources(resMap)
@@ -358,38 +356,6 @@ func removeResourcesFromDeployment(u *unstructured.Unstructured) error {
 	}
 
 	return nil
-}
-
-func ClusterSubscriptionExists(cli client.Client, name string) (bool, error) {
-	subscriptionList := &ofapiv1alpha1.SubscriptionList{}
-	if err := cli.List(context.TODO(), subscriptionList); err != nil {
-		return false, err
-	}
-
-	for _, sub := range subscriptionList.Items {
-		if sub.Name == name {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-// OperatorExists checks if an Operator with 'operatorPrefix' is installed.
-// Return true if found it, false if not.
-// TODO: if we need to check exact version of the operator installed, can append vX.Y.Z later.
-func OperatorExists(cli client.Client, operatorPrefix string) (bool, error) {
-	opConditionList := &ofapiv2.OperatorConditionList{}
-	err := cli.List(context.TODO(), opConditionList)
-	if err != nil {
-		return false, err
-	}
-	for _, opCondition := range opConditionList.Items {
-		if strings.HasPrefix(opCondition.Name, operatorPrefix) {
-			return true, nil
-		}
-	}
-
-	return false, nil
 }
 
 func getResource(ctx context.Context, cli client.Client, obj *unstructured.Unstructured) (*unstructured.Unstructured, error) {

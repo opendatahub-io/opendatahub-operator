@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
-	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -81,7 +80,7 @@ func OperatorUninstall(ctx context.Context, cli client.Client) error {
 		subsName = "rhods-operator"
 	}
 	if platform != cluster.ManagedRhods {
-		if err := DeleteExistingSubscription(cli, operatorNs, subsName); err != nil {
+		if err := cluster.DeleteExistingSubscription(cli, operatorNs, subsName); err != nil {
 			return err
 		}
 	}
@@ -163,30 +162,4 @@ func removeCSV(ctx context.Context, c client.Client) error {
 	fmt.Printf("Clusterserviceversion %s deleted as a part of uninstall.\n", operatorCsv.Name)
 
 	return nil
-}
-
-// DeleteExistingSubscription deletes given Subscription if it exists
-// Do not error if the Subscription does not exist.
-func DeleteExistingSubscription(cli client.Client, operatorNs string, subsName string) error {
-	sub, err := getSubscription(cli, operatorNs, subsName)
-	if err != nil {
-		return client.IgnoreNotFound(err)
-	}
-
-	if err := cli.Delete(context.TODO(), sub); client.IgnoreNotFound(err) != nil {
-		return fmt.Errorf("error deleting subscription %s: %w", sub.Name, err)
-	}
-
-	return nil
-}
-
-// GetSubscription checks if a Subscription for the operator exists in the given namespace.
-// if exist, return object; otherwise, return error.
-func getSubscription(cli client.Client, namespace string, name string) (*ofapiv1alpha1.Subscription, error) {
-	sub := &ofapiv1alpha1.Subscription{}
-	if err := cli.Get(context.TODO(), client.ObjectKey{Namespace: namespace, Name: name}, sub); err != nil {
-		// real error or 'not found' both return here
-		return nil, err
-	}
-	return sub, nil
 }

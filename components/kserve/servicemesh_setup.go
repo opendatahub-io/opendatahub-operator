@@ -8,7 +8,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 )
@@ -32,7 +32,7 @@ func (k *Kserve) removeServiceMeshConfigurations(cli client.Client, dscispec *ds
 
 func (k *Kserve) defineServiceMeshFeatures(cli client.Client) feature.FeaturesProvider {
 	return func(handler *feature.FeaturesHandler) error {
-		authorinoInstalled, err := deploy.ClusterSubscriptionExists(cli, "authorino-operator")
+		authorinoInstalled, err := cluster.SubscriptionExists(cli, "authorino-operator")
 		if err != nil {
 			return fmt.Errorf("failed to list subscriptions %w", err)
 		}
@@ -40,7 +40,7 @@ func (k *Kserve) defineServiceMeshFeatures(cli client.Client) feature.FeaturesPr
 		if authorinoInstalled {
 			kserveExtAuthzErr := feature.CreateFeature("kserve-external-authz").
 				For(handler).
-				ManifestSource(Resources.Source).
+				ManifestsLocation(Resources.Location).
 				Manifests(
 					path.Join(Resources.ServiceMeshDir, "activator-envoyfilter.tmpl.yaml"),
 					path.Join(Resources.ServiceMeshDir, "envoy-oauth-temp-fix.tmpl.yaml"),
@@ -55,6 +55,19 @@ func (k *Kserve) defineServiceMeshFeatures(cli client.Client) feature.FeaturesPr
 			}
 		} else {
 			fmt.Println("WARN: Authorino operator is not installed on the cluster, skipping authorization capability")
+		}
+
+		temporaryFixesErr := feature.CreateFeature("kserve-temporary-fixes").
+			For(handler).
+			ManifestsLocation(Resources.Location).
+			Manifests(
+				path.Join(Resources.ServiceMeshDir, "grpc-envoyfilter-temp-fix.tmpl.yaml"),
+			).
+			WithData(servicemesh.ClusterDetails).
+			Load()
+
+		if temporaryFixesErr != nil {
+			return temporaryFixesErr
 		}
 
 		return nil

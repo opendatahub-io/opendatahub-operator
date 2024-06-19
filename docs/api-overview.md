@@ -93,7 +93,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `uri` _string_ | uri is the URI point to a git repo with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch> |  |  |
-| `contextDir` _string_ | contextDir is the relative path to the folder containing manifests in a repository |  |  |
+| `contextDir` _string_ | contextDir is the relative path to the folder containing manifests in a repository, default value "manifests" | manifests |  |
 | `sourcePath` _string_ | sourcePath is the subpath within contextDir where kustomize builds start. Examples include any sub-folder or path: `base`, `overlays/dev`, `default`, `odh` etc. |  |  |
 
 

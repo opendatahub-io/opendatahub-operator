@@ -10,7 +10,7 @@ import (
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 )
@@ -86,7 +86,7 @@ func (r *DSCInitializationReconciler) serviceMeshCapability(instance *dsciv1.DSC
 }
 
 func (r *DSCInitializationReconciler) authorizationCapability(instance *dsciv1.DSCInitialization, condition *conditionsv1.Condition) (*feature.HandlerWithReporter[*dsciv1.DSCInitialization], error) { //nolint:lll // Reason: generics are long
-	authorinoInstalled, err := deploy.ClusterSubscriptionExists(r.Client, "authorino-operator")
+	authorinoInstalled, err := cluster.SubscriptionExists(r.Client, "authorino-operator")
 	if err != nil {
 		return nil, fmt.Errorf("failed to list subscriptions %w", err)
 	}
@@ -118,7 +118,7 @@ func (r *DSCInitializationReconciler) serviceMeshCapabilityFeatures(instance *ds
 		serviceMeshSpec := instance.Spec.ServiceMesh
 		smcpCreationErr := feature.CreateFeature("mesh-control-plane-creation").
 			For(handler).
-			ManifestSource(Templates.Source).
+			ManifestsLocation(Templates.Location).
 			Manifests(
 				path.Join(Templates.ServiceMeshDir),
 			).
@@ -141,7 +141,7 @@ func (r *DSCInitializationReconciler) serviceMeshCapabilityFeatures(instance *ds
 				PreConditions(
 					servicemesh.EnsureServiceMeshInstalled,
 				).
-				ManifestSource(Templates.Source).
+				ManifestsLocation(Templates.Location).
 				Manifests(
 					path.Join(Templates.MetricsDir),
 				).
@@ -169,7 +169,7 @@ func (r *DSCInitializationReconciler) authorizationFeatures(instance *dsciv1.DSC
 
 		extAuthzErr := feature.CreateFeature("mesh-control-plane-external-authz").
 			For(handler).
-			ManifestSource(Templates.Source).
+			ManifestsLocation(Templates.Location).
 			Manifests(
 				path.Join(Templates.AuthorinoDir, "auth-smm.tmpl.yaml"),
 				path.Join(Templates.AuthorinoDir, "base"),

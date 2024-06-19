@@ -1,6 +1,7 @@
 package features_test
 
 import (
+	"context"
 	"os"
 	"path"
 
@@ -29,7 +30,7 @@ var _ = Describe("Manifest sources", func() {
 		nsName := envtestutil.AppendRandomNameTo("smcp-ns")
 
 		var err error
-		namespace, err = cluster.CreateNamespace(envTestClient, nsName)
+		namespace, err = cluster.CreateNamespace(context.Background(), envTestClient, nsName)
 		Expect(err).ToNot(HaveOccurred())
 
 		dsci = fixtures.NewDSCInitialization(nsName)
@@ -46,7 +47,7 @@ var _ = Describe("Manifest sources", func() {
 			createNamespaceErr := feature.CreateFeature("create-namespace").
 				For(handler).
 				UsingConfig(envTest.Config).
-				ManifestSource(fixtures.TestEmbeddedFiles).
+				ManifestsLocation(fixtures.TestEmbeddedFiles).
 				Manifests(path.Join(fixtures.BaseDir, "namespace.yaml")).
 				Load()
 
@@ -71,7 +72,7 @@ var _ = Describe("Manifest sources", func() {
 			createServiceErr := feature.CreateFeature("create-local-gw-svc").
 				For(handler).
 				UsingConfig(envTest.Config).
-				ManifestSource(fixtures.TestEmbeddedFiles).
+				ManifestsLocation(fixtures.TestEmbeddedFiles).
 				Manifests(path.Join(fixtures.BaseDir, "local-gateway-svc.tmpl.yaml")).
 				Load()
 
@@ -104,7 +105,7 @@ metadata:
 			createServiceErr := feature.CreateFeature("create-namespace").
 				For(handler).
 				UsingConfig(envTest.Config).
-				ManifestSource(os.DirFS(tempDir)).
+				ManifestsLocation(os.DirFS(tempDir)).
 				Manifests(path.Join("namespace.yaml")). // must be relative to root DirFS defined above
 				Load()
 

@@ -2,13 +2,5 @@ approvers:
   - platform
 reviewers:
   - platform
-  - serving
-  - ide
-  - dashboard
-  - datasciencepipelines
-  - modelregistry
-  - servicemesh
-  - distributedworkloads
-  - aiexplainability
 
 

@@ -55,7 +55,7 @@ func (r *Ray) GetComponentName() string {
 }
 
 func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
-	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
+	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, platform cluster.Platform, _ bool) error {
 	l := r.ConfigComponentLogger(logger, ComponentName, dscispec)
 
 	var imageParamMap = map[string]string{
@@ -65,15 +65,11 @@ func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, logger 
 
 	enabled := r.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
-	platform, err := cluster.GetPlatform(cli)
-	if err != nil {
-		return err
-	}
 
 	if enabled {
 		if r.DevFlags != nil {
 			// Download manifests and update paths
-			if err = r.OverrideManifests(string(platform)); err != nil {
+			if err := r.OverrideManifests(string(platform)); err != nil {
 				return err
 			}
 		}
@@ -100,7 +96,7 @@ func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, logger 
 		if err := r.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
 		}
-		if err = deploy.DeployManifestsFromPath(cli, owner,
+		if err := deploy.DeployManifestsFromPath(cli, owner,
 			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
 			dscispec.Monitoring.Namespace,
 			"prometheus", true); err != nil {

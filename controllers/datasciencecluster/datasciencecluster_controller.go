@@ -323,7 +323,13 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 		}
 	}
 	// Reconcile component
-	err := component.ReconcileComponent(ctx, r.Client, r.Log, instance, r.DataScienceCluster.DSCISpec, installedComponentValue)
+	// Get platform
+	platform, err := cluster.GetPlatform(r.Client)
+	if err != nil {
+		r.Log.Error(err, "Failed to determine platform")
+		return instance, err
+	}
+	err = component.ReconcileComponent(ctx, r.Client, r.Log, instance, r.DataScienceCluster.DSCISpec, platform, installedComponentValue)
 
 	if err != nil {
 		// reconciliation failed: log errors, raise event and update status accordingly

@@ -87,13 +87,11 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 	logger logr.Logger,
 	owner metav1.Object,
 	dscispec *dsciv1.DSCInitializationSpec,
+	platform cluster.Platform,
 	currentComponentExist bool,
 ) error {
 	var l logr.Logger
-	platform, err := cluster.GetPlatform(cli)
-	if err != nil {
-		return err
-	}
+
 	if platform == cluster.SelfManagedRhods || platform == cluster.ManagedRhods {
 		l = d.ConfigComponentLogger(logger, ComponentNameSupported, dscispec)
 	} else {
@@ -126,14 +124,14 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 
 		// 2. platform specific RBAC
 		if platform == cluster.OpenDataHub || platform == "" {
-			err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "odh-dashboard")
+			err := cluster.UpdatePodSecurityRolebinding(ctx, cli, dscispec.ApplicationsNamespace, "odh-dashboard")
 			if err != nil {
 				return err
 			}
 		}
 
 		if platform == cluster.SelfManagedRhods || platform == cluster.ManagedRhods {
-			err := cluster.UpdatePodSecurityRolebinding(cli, dscispec.ApplicationsNamespace, "rhods-dashboard")
+			err := cluster.UpdatePodSecurityRolebinding(ctx, cli, dscispec.ApplicationsNamespace, "rhods-dashboard")
 			if err != nil {
 				return err
 			}
@@ -152,7 +150,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 	switch platform {
 	case cluster.SelfManagedRhods, cluster.ManagedRhods:
 		// anaconda
-		if err := cluster.CreateSecret(cli, "anaconda-ce-access", dscispec.ApplicationsNamespace); err != nil {
+		if err := cluster.CreateSecret(ctx, cli, "anaconda-ce-access", dscispec.ApplicationsNamespace); err != nil {
 			return fmt.Errorf("failed to create access-secret for anaconda: %w", err)
 		}
 		// overlay which including ../../base + anaconda-ce-validator
@@ -183,7 +181,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 			if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentNameSupported); err != nil {
 				return err
 			}
-			if err = deploy.DeployManifestsFromPath(cli, owner,
+			if err := deploy.DeployManifestsFromPath(cli, owner,
 				filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
 				dscispec.Monitoring.Namespace,
 				"prometheus", true); err != nil {
@@ -194,11 +192,11 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		return nil
 	default:
 		// base
-		if err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+		if err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 			return err
 		}
 		// ISV
-		if err = deploy.DeployManifestsFromPath(cli, owner, PathISV, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+		if err := deploy.DeployManifestsFromPath(cli, owner, PathISV, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 			return err
 		}
 		// consolelink
