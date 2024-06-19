@@ -55,7 +55,8 @@ spec:
                                 contextDir:
                                   default: manifests
                                   description: contextDir is the relative path to
-                                    the folder containing manifests in a repository
+                                    the folder containing manifests in a repository,
+                                    default value "manifests"
                                   type: string
                                 sourcePath:
                                   default: ""
@@ -98,7 +99,8 @@ spec:
                                 contextDir:
                                   default: manifests
                                   description: contextDir is the relative path to
-                                    the folder containing manifests in a repository
+                                    the folder containing manifests in a repository,
+                                    default value "manifests"
                                   type: string
                                 sourcePath:
                                   default: ""
@@ -142,7 +144,8 @@ spec:
                                 contextDir:
                                   default: manifests
                                   description: contextDir is the relative path to
-                                    the folder containing manifests in a repository
+                                    the folder containing manifests in a repository,
+                                    default value "manifests"
                                   type: string
                                 sourcePath:
                                   default: ""
@@ -200,7 +203,8 @@ spec:
                                 contextDir:
                                   default: manifests
                                   description: contextDir is the relative path to
-                                    the folder containing manifests in a repository
+                                    the folder containing manifests in a repository,
+                                    default value "manifests"
                                   type: string
                                 sourcePath:
                                   default: ""
@@ -303,7 +307,8 @@ spec:
                                 contextDir:
                                   default: manifests
                                   description: contextDir is the relative path to
-                                    the folder containing manifests in a repository
+                                    the folder containing manifests in a repository,
+                                    default value "manifests"
                                   type: string
                                 sourcePath:
                                   default: ""
@@ -347,7 +352,8 @@ spec:
                                 contextDir:
                                   default: manifests
                                   description: contextDir is the relative path to
-                                    the folder containing manifests in a repository
+                                    the folder containing manifests in a repository,
+                                    default value "manifests"
                                   type: string
                                 sourcePath:
                                   default: ""
@@ -390,7 +396,8 @@ spec:
                                 contextDir:
                                   default: manifests
                                   description: contextDir is the relative path to
-                                    the folder containing manifests in a repository
+                                    the folder containing manifests in a repository,
+                                    default value "manifests"
                                   type: string
                                 sourcePath:
                                   default: ""
@@ -433,7 +440,8 @@ spec:
                                 contextDir:
                                   default: manifests
                                   description: contextDir is the relative path to
-                                    the folder containing manifests in a repository
+                                    the folder containing manifests in a repository,
+                                    default value "manifests"
                                   type: string
                                 sourcePath:
                                   default: ""
@@ -476,7 +484,8 @@ spec:
                                 contextDir:
                                   default: manifests
                                   description: contextDir is the relative path to
-                                    the folder containing manifests in a repository
+                                    the folder containing manifests in a repository,
+                                    default value "manifests"
                                   type: string
                                 sourcePath:
                                   default: ""
@@ -519,7 +528,8 @@ spec:
                                 contextDir:
                                   default: manifests
                                   description: contextDir is the relative path to
-                                    the folder containing manifests in a repository
+                                    the folder containing manifests in a repository,
+                                    default value "manifests"
                                   type: string
                                 sourcePath:
                                   default: ""

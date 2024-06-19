@@ -164,7 +164,7 @@ metadata:
     operators.operatorframework.io/internal-objects: '[dscinitialization.opendatahub.io]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/red-hat-data-services/rhods-operator
-  name: rhods-operator.v2.9.0
+  name: rhods-operator.v2.11.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -1772,4 +1772,4 @@ spec:
   minKubeVersion: 1.22.0
   provider:
     name: Red Hat
-  version: 2.9.0
+  version: 2.11.0

@@ -23,4 +23,4 @@ spec:
     * Model Serving using ModelMesh and Kserve.
     * Ability to use other runtimes for serving
     * Model Monitoring
-    * Distributed workloads (KubeRay, CodeFlare, Kueue)
+    * Distributed workloads (KubeRay, CodeFlare, Kueue, Training Operator)
