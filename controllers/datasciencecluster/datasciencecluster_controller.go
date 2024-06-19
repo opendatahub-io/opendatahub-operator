@@ -472,24 +472,15 @@ func (r *DataScienceClusterReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources), builder.WithPredicates(configMapPredicates)).
 		Watches(&source.Kind{Type: &apiextensionsv1.CustomResourceDefinition{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources),
 			builder.WithPredicates(argoWorkflowCRDPredicates)).
+		Watches(&source.Kind{Type: &corev1.Secret{}}, handler.EnqueueRequestsFromMapFunc(r.watchDefaultIngressSecret), builder.WithPredicates(defaultIngressCertSecretPredicates)).
 		// this predicates prevents meaningless reconciliations from being triggered
 		WithEventFilter(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{})).
 		Complete(r)
 }
 
 func (r *DataScienceClusterReconciler) watchDataScienceClusterForDSCI(a client.Object) []reconcile.Request {
-	instanceList := &dsc.DataScienceClusterList{}
-	err := r.Client.List(context.TODO(), instanceList)
+	requestName, err := r.getRequestName()
 	if err != nil {
-		return nil
-	}
-	var requestName string
-	switch {
-	case len(instanceList.Items) == 1:
-		requestName = instanceList.Items[0].Name
-	case len(instanceList.Items) == 0:
-		requestName = "default-dsc"
-	default:
 		return nil
 	}
 	// When DSCI CR gets created, trigger reconcile function
@@ -501,19 +492,15 @@ func (r *DataScienceClusterReconciler) watchDataScienceClusterForDSCI(a client.O
 	return nil
 }
 func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(a client.Object) []reconcile.Request {
-	instanceList := &dsc.DataScienceClusterList{}
-	err := r.Client.List(context.TODO(), instanceList)
+	requestName, err := r.getRequestName()
 	if err != nil {
 		return nil
 	}
-	var requestName string
-	switch {
-	case len(instanceList.Items) == 1:
-		requestName = instanceList.Items[0].Name
-	case len(instanceList.Items) == 0:
-		requestName = "default-dsc"
-	default:
-		return nil
+
+	if a.GetObjectKind().GroupVersionKind().Kind == "CustomResourceDefinition" || a.GetName() == "ArgoWorkflowCRD" {
+		return []reconcile.Request{{
+			NamespacedName: types.NamespacedName{Name: requestName},
+		}}
 	}
 
 	if a.GetObjectKind().GroupVersionKind().Kind == "CustomResourceDefinition" {
@@ -528,15 +515,31 @@ func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(a client
 		return nil
 	}
 	if a.GetNamespace() == operatorNs {
-		labels := a.GetLabels()
-		if val, ok := labels[upgrade.DeleteConfigMapLabel]; ok && val == "true" {
+		cmLabels := a.GetLabels()
+		if val, ok := cmLabels[upgrade.DeleteConfigMapLabel]; ok && val == "true" {
 			return []reconcile.Request{{
 				NamespacedName: types.NamespacedName{Name: requestName},
 			}}
 		}
-		return nil
 	}
 	return nil
+}
+
+func (r *DataScienceClusterReconciler) getRequestName() (string, error) {
+	instanceList := &dsc.DataScienceClusterList{}
+	err := r.Client.List(context.TODO(), instanceList)
+	if err != nil {
+		return "", err
+	}
+
+	switch {
+	case len(instanceList.Items) == 1:
+		return instanceList.Items[0].Name, nil
+	case len(instanceList.Items) == 0:
+		return "default-dsc", nil
+	default:
+		return "", fmt.Errorf("multiple DataScienceCluster instances found")
+	}
 }
 
 // argoWorkflowCRDPredicates filters the delete events to trigger reconcile when Argo Workflow CRD is deleted.
@@ -550,6 +553,37 @@ var argoWorkflowCRDPredicates = predicate.Funcs{
 			}
 		}
 		// CRD to be deleted either not with label or label value is not "true", should trigger reconcile
+		return true
+	},
+}
+
+func (r *DataScienceClusterReconciler) watchDefaultIngressSecret(a client.Object) []reconcile.Request {
+	requestName, err := r.getRequestName()
+	if err != nil {
+		return nil
+	}
+	// When ingress secret gets created/deleted, trigger reconcile function
+	ingressCtrl, err := cluster.FindAvailableIngressController(context.TODO(), r.Client)
+	if err != nil {
+		return nil
+	}
+	defaultIngressSecretName := cluster.GetDefaultIngressCertSecretName(ingressCtrl)
+	if a.GetName() == defaultIngressSecretName && a.GetNamespace() == "openshift-ingress" {
+		return []reconcile.Request{{
+			NamespacedName: types.NamespacedName{Name: requestName},
+		}}
+	}
+	return nil
+}
+
+// defaultIngressCertSecretPredicates filters delete and create events to trigger reconcile when default ingress cert secret is expired
+// or created.
+var defaultIngressCertSecretPredicates = predicate.Funcs{
+	CreateFunc: func(createEvent event.CreateEvent) bool {
+		return true
+
+	},
+	DeleteFunc: func(e event.DeleteEvent) bool {
 		return true
 	},
 }
