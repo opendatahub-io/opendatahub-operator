@@ -33,7 +33,7 @@ metadata:
                 "serving": {
                   "ingressGateway": {
                     "certificate": {
-                      "type": "SelfSigned"
+                      "type": "OpenshiftDefaultIngress"
                     }
                   },
                   "managementState": "Managed",
@@ -1263,6 +1263,16 @@ spec:
           - operator.openshift.io
           resources:
           - consoles
+          verbs:
+          - delete
+          - get
+          - list
+          - patch
+          - watch
+        - apiGroups:
+          - operator.openshift.io
+          resources:
+          - ingresscontrollers
           verbs:
           - delete
           - get
