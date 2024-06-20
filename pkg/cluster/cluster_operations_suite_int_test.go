@@ -1,7 +1,6 @@
 package cluster_test
 
 import (
-	"context"
 	"testing"
 
 	v1 "k8s.io/api/core/v1"
@@ -19,8 +18,6 @@ import (
 var (
 	envTestClient client.Client
 	envTest       *envtest.Environment
-	ctx           context.Context
-	cancel        context.CancelFunc
 )
 
 var testScheme = runtime.NewScheme()
@@ -31,8 +28,6 @@ func TestClusterOperationsIntegration(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	ctx, cancel = context.WithCancel(context.TODO())
-
 	opts := zap.Options{Development: true}
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseFlagOptions(&opts)))
 
@@ -53,6 +48,5 @@ var _ = BeforeSuite(func() {
 
 var _ = AfterSuite(func() {
 	By("Tearing down the test environment")
-	cancel()
 	Expect(envTest.Stop()).To(Succeed())
 })
