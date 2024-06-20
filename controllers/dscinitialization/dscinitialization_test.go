@@ -12,6 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -344,6 +345,14 @@ func createDSCI(enableMonitoring operatorv1.ManagementState, enableTrustedCABund
 			},
 			TrustedCABundle: dsci.TrustedCABundleSpec{
 				ManagementState: enableTrustedCABundle,
+			},
+			ServiceMesh: infrav1.ServiceMeshSpec{
+				ControlPlane: infrav1.ControlPlaneSpec{
+					MetricsCollection: "Istio",
+					Name:              "data-science-smcp",
+					Namespace:         "istio-system",
+				},
+				ManagementState: "Managed",
 			},
 		},
 	}

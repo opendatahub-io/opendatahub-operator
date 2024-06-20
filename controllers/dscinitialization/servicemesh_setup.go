@@ -51,30 +51,26 @@ func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsciv1.DSCI
 }
 
 func (r *DSCInitializationReconciler) removeServiceMesh(instance *dsciv1.DSCInitialization) error {
-	// on condition of Managed, do not handle Removed when set to Removed it trigger DSCI reconcile to clean up
-	if instance.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
-		capabilities := []*feature.HandlerWithReporter[*dsciv1.DSCInitialization]{
-			r.serviceMeshCapability(instance, serviceMeshCondition(status.RemovedReason, "Service Mesh removed")),
-		}
-
-		authzCapability, err := r.authorizationCapability(instance, authorizationCondition(status.RemovedReason, "Service Mesh Authorization removed"))
-		if err != nil {
-			return err
-		}
-
-		capabilities = append(capabilities, authzCapability)
-
-		for _, capability := range capabilities {
-			capabilityErr := capability.Delete()
-			if capabilityErr != nil {
-				r.Log.Error(capabilityErr, "failed deleting service mesh resources")
-				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed deleting service mesh resources")
-
-				return capabilityErr
-			}
-		}
+	capabilities := []*feature.HandlerWithReporter[*dsciv1.DSCInitialization]{
+		r.serviceMeshCapability(instance, serviceMeshCondition(status.RemovedReason, "Service Mesh removed")),
 	}
 
+	authzCapability, err := r.authorizationCapability(instance, authorizationCondition(status.RemovedReason, "Service Mesh Authorization removed"))
+	if err != nil {
+		return err
+	}
+
+	capabilities = append(capabilities, authzCapability)
+
+	for _, capability := range capabilities {
+		capabilityErr := capability.Delete()
+		if capabilityErr != nil {
+			r.Log.Error(capabilityErr, "failed deleting service mesh resources")
+			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed deleting service mesh resources")
+
+			return capabilityErr
+		}
+	}
 	return nil
 }
 

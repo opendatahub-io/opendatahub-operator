@@ -87,6 +87,11 @@ func setupDSCICR(name string) *dsci.DSCInitialization {
 				CustomCABundle:  "",
 			},
 			ServiceMesh: infrav1.ServiceMeshSpec{
+				ControlPlane: infrav1.ControlPlaneSpec{
+					MetricsCollection: "Istio",
+					Name:              "data-science-smcp",
+					Namespace:         "istio-system",
+				},
 				ManagementState: "Managed",
 			},
 		},
