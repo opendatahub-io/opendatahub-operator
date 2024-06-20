@@ -21,7 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	annotation "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/trustedcabundle"
 )
@@ -55,13 +55,13 @@ func (r *CertConfigmapGeneratorReconciler) Reconcile(ctx context.Context, req ct
 	}
 
 	// Get DSCI instance
-	dsciInstances := &dsciv1.DSCInitializationList{}
+	dsciInstances := &dsci.DSCInitializationList{}
 	if err := r.Client.List(ctx, dsciInstances); err != nil {
 		r.Log.Error(err, "Failed to retrieve DSCInitialization resource for CertConfigMapGenerator ", "Request.Name", req.Name)
 		return ctrl.Result{}, err
 	}
 
-	var dsciInstance *dsciv1.DSCInitialization
+	var dsciInstance *dsci.DSCInitialization
 	switch len(dsciInstances.Items) {
 	case 0:
 		return ctrl.Result{}, nil
@@ -151,6 +151,6 @@ var ConfigMapChangedPredicate = predicate.Funcs{
 	},
 }
 
-func skipApplyTrustCAConfig(dsciConfigTrustCA *dsciv1.TrustedCABundleSpec) bool {
+func skipApplyTrustCAConfig(dsciConfigTrustCA *dsci.TrustedCABundleSpec) bool {
 	return dsciConfigTrustCA == nil || dsciConfigTrustCA.ManagementState != operatorv1.Managed
 }

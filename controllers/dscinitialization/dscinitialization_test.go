@@ -11,7 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -34,7 +34,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			// when
 			desiredDsci := createDSCI(applicationName, operatorv1.Managed, operatorv1.Managed, monitoringNamespace)
 			Expect(k8sClient.Create(context.Background(), desiredDsci)).Should(Succeed())
-			foundDsci := &dsciv1.DSCInitialization{}
+			foundDsci := &dsci.DSCInitialization{}
 			Eventually(dscInitializationIsReady(applicationName, workingNamespace, foundDsci)).
 				WithTimeout(timeout).
 				WithPolling(interval).
@@ -121,7 +121,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			// when
 			desiredDsci := createDSCI(applicationName, operatorv1.Removed, operatorv1.Managed, monitoringNamespace2)
 			Expect(k8sClient.Create(context.Background(), desiredDsci)).Should(Succeed())
-			foundDsci := &dsciv1.DSCInitialization{}
+			foundDsci := &dsci.DSCInitialization{}
 			Eventually(dscInitializationIsReady(applicationName, workingNamespace, foundDsci)).
 				WithTimeout(timeout).
 				WithPolling(interval).
@@ -137,7 +137,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			// when
 			desiredDsci := createDSCI(applicationName, operatorv1.Managed, operatorv1.Managed, monitoringNamespace2)
 			Expect(k8sClient.Create(context.Background(), desiredDsci)).Should(Succeed())
-			foundDsci := &dsciv1.DSCInitialization{}
+			foundDsci := &dsci.DSCInitialization{}
 			Eventually(dscInitializationIsReady(applicationName, workingNamespace, foundDsci)).
 				WithTimeout(timeout).
 				WithPolling(interval).
@@ -201,7 +201,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			// when
 			desiredDsci := createDSCI(applicationName, operatorv1.Managed, operatorv1.Managed, monitoringNamespace)
 			Expect(k8sClient.Create(context.Background(), desiredDsci)).Should(Succeed())
-			foundDsci := &dsciv1.DSCInitialization{}
+			foundDsci := &dsci.DSCInitialization{}
 			Eventually(dscInitializationIsReady(applicationName, workingNamespace, foundDsci)).
 				WithTimeout(timeout).
 				WithPolling(interval).
@@ -242,7 +242,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			// when
 			desiredDsci := createDSCI(applicationName, operatorv1.Managed, operatorv1.Managed, monitoringNamespace)
 			Expect(k8sClient.Create(context.Background(), desiredDsci)).Should(Succeed())
-			foundDsci := &dsciv1.DSCInitialization{}
+			foundDsci := &dsci.DSCInitialization{}
 			Eventually(dscInitializationIsReady(applicationName, workingNamespace, foundDsci)).
 				WithTimeout(timeout).
 				WithPolling(interval).
@@ -279,7 +279,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			// when
 			desiredDsci := createDSCI(applicationName, operatorv1.Managed, operatorv1.Managed, monitoringNamespace)
 			Expect(k8sClient.Create(context.Background(), desiredDsci)).Should(Succeed())
-			foundDsci := &dsciv1.DSCInitialization{}
+			foundDsci := &dsci.DSCInitialization{}
 			Eventually(dscInitializationIsReady(applicationName, workingNamespace, foundDsci)).
 				WithTimeout(timeout).
 				WithPolling(interval).
@@ -300,14 +300,14 @@ var _ = Describe("DataScienceCluster initialization", func() {
 func cleanupResources() {
 	defaultNamespace := client.InNamespace(workingNamespace)
 	appNamespace := client.InNamespace(applicationNamespace)
-	Expect(k8sClient.DeleteAllOf(context.TODO(), &dsciv1.DSCInitialization{}, defaultNamespace)).To(Succeed())
+	Expect(k8sClient.DeleteAllOf(context.TODO(), &dsci.DSCInitialization{}, defaultNamespace)).To(Succeed())
 
 	Expect(k8sClient.DeleteAllOf(context.TODO(), &networkingv1.NetworkPolicy{}, appNamespace)).To(Succeed())
 	Expect(k8sClient.DeleteAllOf(context.TODO(), &corev1.ConfigMap{}, appNamespace)).To(Succeed())
 	Expect(k8sClient.DeleteAllOf(context.TODO(), &rbacv1.RoleBinding{}, appNamespace)).To(Succeed())
 	Expect(k8sClient.DeleteAllOf(context.TODO(), &rbacv1.ClusterRoleBinding{}, appNamespace)).To(Succeed())
 
-	Eventually(noInstanceExistsIn(workingNamespace, &dsciv1.DSCInitializationList{})).
+	Eventually(noInstanceExistsIn(workingNamespace, &dsci.DSCInitializationList{})).
 		WithTimeout(timeout).
 		WithPolling(interval).
 		Should(BeTrue())
@@ -349,8 +349,8 @@ func objectExists(ns string, name string, obj client.Object) func() bool { //nol
 	}
 }
 
-func createDSCI(appName string, enableMonitoring operatorv1.ManagementState, enableTrustedCABundle operatorv1.ManagementState, monitoringNS string) *dsciv1.DSCInitialization {
-	return &dsciv1.DSCInitialization{
+func createDSCI(appName string, enableMonitoring operatorv1.ManagementState, enableTrustedCABundle operatorv1.ManagementState, monitoringNS string) *dsci.DSCInitialization {
+	return &dsci.DSCInitialization{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DSCInitialization",
 			APIVersion: "v1",
@@ -359,20 +359,20 @@ func createDSCI(appName string, enableMonitoring operatorv1.ManagementState, ena
 			Name:      appName,
 			Namespace: workingNamespace,
 		},
-		Spec: dsciv1.DSCInitializationSpec{
+		Spec: dsci.DSCInitializationSpec{
 			ApplicationsNamespace: applicationNamespace,
-			Monitoring: dsciv1.Monitoring{
+			Monitoring: dsci.Monitoring{
 				Namespace:       monitoringNS,
 				ManagementState: enableMonitoring,
 			},
-			TrustedCABundle: &dsciv1.TrustedCABundleSpec{
+			TrustedCABundle: &dsci.TrustedCABundleSpec{
 				ManagementState: enableTrustedCABundle,
 			},
 		},
 	}
 }
 
-func dscInitializationIsReady(ns string, name string, dsciObj *dsciv1.DSCInitialization) func() bool { //nolint:unparam
+func dscInitializationIsReady(ns string, name string, dsciObj *dsci.DSCInitialization) func() bool { //nolint:unparam
 	return func() bool {
 		_ = k8sClient.Get(context.Background(), client.ObjectKey{Name: ns, Namespace: name}, dsciObj)
 		return dsciObj.Status.Phase == readyPhase
