@@ -55,7 +55,6 @@ linters-settings:
 linters:
   enable-all: true
   disable:
-    - containedctx # detects struct contained context.Context field
     - depguard # [replaced by gomodguard] checks if package imports are in a list of acceptable packages
     - exhaustruct # Prevents empty struct. We use a lot of these so I think it is safe to disable.c
     - forbidigo

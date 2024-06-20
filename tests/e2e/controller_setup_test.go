@@ -54,6 +54,7 @@ type testContext struct {
 	// time interval to check for resource creation
 	resourceRetryInterval time.Duration
 	// context for accessing resources
+	//nolint:containedctx //reason: legacy v1 test setup
 	ctx context.Context
 }
 
