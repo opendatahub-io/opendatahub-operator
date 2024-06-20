@@ -8,10 +8,12 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 )
 
+const DefaultCertificateSecretName = "knative-serving-cert"
+
 func ServingDefaultValues(f *feature.Feature) error {
 	certificateSecretName := strings.TrimSpace(f.Spec.Serving.IngressGateway.Certificate.SecretName)
 	if len(certificateSecretName) == 0 {
-		certificateSecretName = cluster.DefaultCertificateSecretName
+		certificateSecretName = DefaultCertificateSecretName
 	}
 
 	f.Spec.KnativeCertificateSecret = certificateSecretName

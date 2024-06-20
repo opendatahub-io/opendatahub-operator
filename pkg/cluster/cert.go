@@ -23,8 +23,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const DefaultCertificateSecretName = "knative-serving-cert"
-
 func CreateSelfSignedCertificate(ctx context.Context, c client.Client, secretName, domain, namespace string, metaOptions ...MetaOptions) error {
 	certSecret, err := GenerateSelfSignedCertificateAsSecret(secretName, domain, namespace)
 	if err != nil {
@@ -125,8 +123,8 @@ func generateCertificate(addr string) ([]byte, []byte, error) {
 	return certBuffer.Bytes(), keyBuffer.Bytes(), nil
 }
 
-// GetDefaultIngressCertificate copies ingress cert secrets from openshift-ingress ns to given namespace.
-func GetDefaultIngressCertificate(ctx context.Context, c client.Client, knativeSecret, namespace string) error {
+// PropagateDefaultIngressCertificate copies ingress cert secrets from openshift-ingress ns to given namespace.
+func PropagateDefaultIngressCertificate(ctx context.Context, c client.Client, secretName, namespace string) error {
 	// Add IngressController to scheme
 	runtime.Must(operatorv1.Install(c.Scheme()))
 	defaultIngressCtrl, err := FindAvailableIngressController(ctx, c)
@@ -141,7 +139,7 @@ func GetDefaultIngressCertificate(ctx context.Context, c client.Client, knativeS
 		return err
 	}
 
-	return copySecretToNamespace(ctx, c, defaultIngressSecret, knativeSecret, namespace)
+	return copySecretToNamespace(ctx, c, defaultIngressSecret, secretName, namespace)
 }
 
 func FindAvailableIngressController(ctx context.Context, c client.Client) (*operatorv1.IngressController, error) {
@@ -171,10 +169,6 @@ func GetSecret(ctx context.Context, c client.Client, namespace, name string) (*v
 }
 
 func copySecretToNamespace(ctx context.Context, c client.Client, secret *v1.Secret, newSecretName, namespace string) error {
-	// Get default name if newSecretName is empty
-	if newSecretName == "" {
-		newSecretName = DefaultCertificateSecretName
-	}
 	newSecret := &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      newSecretName,
