@@ -21,9 +21,6 @@ package status
 import (
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
-
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 )
 
 // These constants represent the overall Phase as used by .Status.Phase.
@@ -194,58 +191,23 @@ func SetCompleteCondition(conditions *[]conditionsv1.Condition, reason string, m
 	conditionsv1.RemoveStatusCondition(conditions, CapabilityDSPv2Argo)
 }
 
-// SetComponentCondition appends Condition Type with const ReadySuffix for given component
-// when component finished reconcile.
-func SetComponentCondition(conditions *[]conditionsv1.Condition, component string, reason string, message string, status corev1.ConditionStatus) {
-	var condtype string
-	if component == trustyai.ComponentName {
-		condtype = component + "Deprecated"
-		conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
-			Type:    conditionsv1.ConditionType(condtype),
-			Status:  corev1.ConditionTrue,
-			Reason:  reason,
-			Message: message,
-		})
-	} else {
-		condtype = component + ReadySuffix
-
-		conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
-			Type:    conditionsv1.ConditionType(condtype),
-			Status:  status,
-			Reason:  reason,
-			Message: message,
-		})
-	}
-}
-
-// RemoveComponentCondition remove Condition of giving component.
-func RemoveComponentCondition(conditions *[]conditionsv1.Condition, component string) {
-	var condType string
-	if component == trustyai.ComponentName {
-		condType = component + "Deprecated"
-	} else {
-		condType = component + ReadySuffix
-	}
-	conditionsv1.RemoveStatusCondition(conditions, conditionsv1.ConditionType(condType))
-}
-
-func SetExistingArgoCondition(conditions *[]conditionsv1.Condition, reason, message string) {
-	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
-		Type:    CapabilityDSPv2Argo,
-		Status:  corev1.ConditionFalse,
-		Reason:  reason,
-		Message: message,
-	})
-
-	SetComponentCondition(conditions, datasciencepipelines.ComponentName, ReconcileFailed, message, corev1.ConditionFalse)
-}
-
-// General function to patch any type of condition.
-func SetGeneralCondition(conditions *[]conditionsv1.Condition, conditionType string, reason string, message string, status corev1.ConditionStatus) {
+// SetCondition is a general purpose function to update any type of condition.
+func SetCondition(conditions *[]conditionsv1.Condition, conditionType string, reason string, message string, status corev1.ConditionStatus) {
 	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
 		Type:    conditionsv1.ConditionType(conditionType),
 		Status:  status,
 		Reason:  reason,
 		Message: message,
 	})
+}
+
+// SetComponentCondition appends Condition Type with const ReadySuffix for given component
+// when component finished reconcile.
+func SetComponentCondition(conditions *[]conditionsv1.Condition, component string, reason string, message string, status corev1.ConditionStatus) {
+	SetCondition(conditions, component+ReadySuffix, reason, message, status)
+}
+
+// RemoveComponentCondition remove Condition of giving component.
+func RemoveComponentCondition(conditions *[]conditionsv1.Condition, component string) {
+	conditionsv1.RemoveStatusCondition(conditions, conditionsv1.ConditionType(component+ReadySuffix))
 }

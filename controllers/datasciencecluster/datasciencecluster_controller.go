@@ -176,7 +176,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
 			status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
 			// Patch Degraded with True status
-			status.SetGeneralCondition(&saved.Status.Conditions, "Degraded", reason, message, corev1.ConditionTrue)
+			status.SetCondition(&saved.Status.Conditions, "Degraded", reason, message, corev1.ConditionTrue)
 			saved.Status.Phase = status.PhaseError
 		})
 		if err != nil {
@@ -230,7 +230,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 			if err := datasciencepipelines.UnmanagedArgoWorkFlowExists(ctx, r.Client); err != nil {
 				message := fmt.Sprintf("Failed upgrade: %v ", err.Error())
 				_, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
-					status.SetExistingArgoCondition(&saved.Status.Conditions, status.ArgoWorkflowExist, message)
+					datasciencepipelines.SetExistingArgoCondition(&saved.Status.Conditions, status.ArgoWorkflowExist, message)
 					status.SetErrorCondition(&saved.Status.Conditions, status.ArgoWorkflowExist, message)
 					saved.Status.InstalledComponents[datasciencepipelines.ComponentName] = false
 					saved.Status.Phase = status.PhaseError
@@ -337,8 +337,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 		instance, _ = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsc.DataScienceCluster) {
 			if enabled {
 				if strings.Contains(err.Error(), datasciencepipelines.ArgoWorkflowCRD+" CRD already exists") {
-					status.SetExistingArgoCondition(&saved.Status.Conditions, status.ArgoWorkflowExist, fmt.Sprintf("Component update failed: %v", err))
-					saved.Status.InstalledComponents[datasciencepipelines.ComponentName] = false
+					datasciencepipelines.SetExistingArgoCondition(&saved.Status.Conditions, status.ArgoWorkflowExist, fmt.Sprintf("Component update failed: %v", err))
 				} else {
 					status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileFailed, fmt.Sprintf("Component reconciliation failed: %v", err), corev1.ConditionFalse)
 				}
