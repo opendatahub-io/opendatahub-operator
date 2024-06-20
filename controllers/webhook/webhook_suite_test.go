@@ -64,8 +64,8 @@ const (
 var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
-var ctx context.Context
-var cancel context.CancelFunc
+var gCtx context.Context
+var gCancel context.CancelFunc
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -74,9 +74,10 @@ func TestAPIs(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
+	// can't use suite's context as the manager should survive the function
+	gCtx, gCancel = context.WithCancel(context.Background())
 
-	ctx, cancel = context.WithCancel(context.TODO())
+	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
@@ -122,11 +123,11 @@ var _ = BeforeSuite(func() {
 
 	(&webhook.OpenDataHubWebhook{}).SetupWithManager(mgr)
 
-	//+kubebuilder:scaffold:webhook
+	// +kubebuilder:scaffold:webhook
 
 	go func() {
 		defer GinkgoRecover()
-		err = mgr.Start(ctx)
+		err = mgr.Start(gCtx)
 		Expect(err).NotTo(HaveOccurred())
 	}()
 
@@ -145,25 +146,26 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	cancel()
+	gCancel()
+
 	By("tearing down the test environment")
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
 })
 
 var _ = Describe("DSC/DSCI webhook", func() {
-	It("Should not have more than one DSCI instance in the cluster", func() {
+	It("Should not have more than one DSCI instance in the cluster", func(ctx context.Context) {
 		desiredDsci := newDSCI(nameBase + "-dsci-1")
-		Expect(k8sClient.Create(context.Background(), desiredDsci)).Should(Succeed())
+		Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
 		desiredDsci2 := newDSCI(nameBase + "-dsci-2")
-		Expect(k8sClient.Create(context.Background(), desiredDsci2)).ShouldNot(Succeed())
+		Expect(k8sClient.Create(ctx, desiredDsci2)).ShouldNot(Succeed())
 	})
 
-	It("Should block creation of second DSC instance", func() {
+	It("Should block creation of second DSC instance", func(ctx context.Context) {
 		dscSpec := newDSC(nameBase+"-dsc-1", namespace)
-		Expect(k8sClient.Create(context.Background(), dscSpec)).Should(Succeed())
+		Expect(k8sClient.Create(ctx, dscSpec)).Should(Succeed())
 		dscSpec = newDSC(nameBase+"-dsc-2", namespace)
-		Expect(k8sClient.Create(context.Background(), dscSpec)).ShouldNot(Succeed())
+		Expect(k8sClient.Create(ctx, dscSpec)).ShouldNot(Succeed())
 	})
 })
 

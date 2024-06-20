@@ -29,7 +29,7 @@ const (
 	YamlSeparator = "(?m)^---[ \t]*$"
 )
 
-func applyResources(cli client.Client, objects []*unstructured.Unstructured, metaOptions ...cluster.MetaOptions) error {
+func applyResources(ctx context.Context, cli client.Client, objects []*unstructured.Unstructured, metaOptions ...cluster.MetaOptions) error {
 	for _, object := range objects {
 		for _, opt := range metaOptions {
 			if err := opt(object); err != nil {
@@ -40,14 +40,14 @@ func applyResources(cli client.Client, objects []*unstructured.Unstructured, met
 		name := object.GetName()
 		namespace := object.GetNamespace()
 
-		err := cli.Get(context.TODO(), k8stypes.NamespacedName{Name: name, Namespace: namespace}, object.DeepCopy())
+		err := cli.Get(ctx, k8stypes.NamespacedName{Name: name, Namespace: namespace}, object.DeepCopy())
 		if client.IgnoreNotFound(err) != nil {
 			return fmt.Errorf("failed to get object %s/%s: %w", namespace, name, err)
 		}
 
 		if err != nil {
 			// object does not exist and should be created
-			if createErr := cli.Create(context.TODO(), object); client.IgnoreAlreadyExists(createErr) != nil {
+			if createErr := cli.Create(ctx, object); client.IgnoreAlreadyExists(createErr) != nil {
 				return fmt.Errorf("failed to create object %s/%s: %w", namespace, name, createErr)
 			}
 		}
@@ -55,7 +55,7 @@ func applyResources(cli client.Client, objects []*unstructured.Unstructured, met
 		isManaged, isAnnotated := object.GetAnnotations()[annotations.ManagedByODHOperator]
 		if isAnnotated && isManaged == "true" {
 			// update the object since we manage it
-			if updateErr := cli.Update(context.TODO(), object); updateErr != nil {
+			if updateErr := cli.Update(ctx, object); updateErr != nil {
 				return fmt.Errorf("failed to update object %s/%s: %w", namespace, name, updateErr)
 			}
 		}
@@ -64,7 +64,7 @@ func applyResources(cli client.Client, objects []*unstructured.Unstructured, met
 	return nil
 }
 
-func patchResources(cli client.Client, patches []*unstructured.Unstructured) error {
+func patchResources(ctx context.Context, cli client.Client, patches []*unstructured.Unstructured) error {
 	for _, patch := range patches {
 		// Convert the individual resource patch to JSON
 		patchAsJSON, err := patch.MarshalJSON()
@@ -72,7 +72,7 @@ func patchResources(cli client.Client, patches []*unstructured.Unstructured) err
 			return fmt.Errorf("error converting yaml to json: %w", err)
 		}
 
-		if err = cli.Patch(context.TODO(), patch, client.RawPatch(k8stypes.MergePatchType, patchAsJSON)); err != nil {
+		if err = cli.Patch(ctx, patch, client.RawPatch(k8stypes.MergePatchType, patchAsJSON)); err != nil {
 			return fmt.Errorf("failed patching resource: %w", err)
 		}
 	}

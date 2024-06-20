@@ -1,6 +1,7 @@
 package servicemesh
 
 import (
+	"context"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -9,10 +10,10 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 )
 
-func ClusterDetails(f *feature.Feature) error {
+func ClusterDetails(ctx context.Context, f *feature.Feature) error {
 	data := f.Spec
 
-	if domain, err := cluster.GetDomain(f.Client); err == nil {
+	if domain, err := cluster.GetDomain(ctx, f.Client); err == nil {
 		data.Domain = domain
 	} else {
 		return errors.WithStack(err)

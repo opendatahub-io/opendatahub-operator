@@ -40,13 +40,13 @@ type Workbenches struct {
 	components.Component `json:""`
 }
 
-func (w *Workbenches) OverrideManifests(platform string) error {
+func (w *Workbenches) OverrideManifests(ctx context.Context, platform string) error {
 	// Download manifests if defined by devflags
 	// Go through each manifest and set the overlays if defined
 	for _, subcomponent := range w.DevFlags.Manifests {
 		if strings.Contains(subcomponent.URI, DependentComponentName) {
 			// Download subcomponent
-			if err := deploy.DownloadManifests(DependentComponentName, subcomponent); err != nil {
+			if err := deploy.DownloadManifests(ctx, DependentComponentName, subcomponent); err != nil {
 				return err
 			}
 			// If overlay is defined, update paths
@@ -65,7 +65,7 @@ func (w *Workbenches) OverrideManifests(platform string) error {
 
 		if strings.Contains(subcomponent.ContextDir, "components/odh-notebook-controller") {
 			// Download subcomponent
-			if err := deploy.DownloadManifests("odh-notebook-controller/odh-notebook-controller", subcomponent); err != nil {
+			if err := deploy.DownloadManifests(ctx, "odh-notebook-controller/odh-notebook-controller", subcomponent); err != nil {
 				return err
 			}
 			// If overlay is defined, update paths
@@ -78,7 +78,7 @@ func (w *Workbenches) OverrideManifests(platform string) error {
 
 		if strings.Contains(subcomponent.ContextDir, "components/notebook-controller") {
 			// Download subcomponent
-			if err := deploy.DownloadManifests("odh-notebook-controller/kf-notebook-controller", subcomponent); err != nil {
+			if err := deploy.DownloadManifests(ctx, "odh-notebook-controller/kf-notebook-controller", subcomponent); err != nil {
 				return err
 			}
 			// If overlay is defined, update paths
@@ -113,7 +113,7 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 	if enabled {
 		if w.DevFlags != nil {
 			// Download manifests and update paths
-			if err := w.OverrideManifests(string(platform)); err != nil {
+			if err := w.OverrideManifests(ctx, string(platform)); err != nil {
 				return err
 			}
 		}
@@ -131,7 +131,7 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 			return err
 		}
 	}
-	if err := deploy.DeployManifestsFromPath(cli, owner, notebookControllerPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+	if err := deploy.DeployManifestsFromPath(ctx, cli, owner, notebookControllerPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 		return fmt.Errorf("failed to apply manifetss %s: %w", notebookControllerPath, err)
 	}
 	l.WithValues("Path", notebookControllerPath).Info("apply manifests done NBC")
@@ -155,7 +155,7 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 	var manifestsPath string
 	if platform == cluster.OpenDataHub || platform == "" {
 		// only for ODH after transit to kubeflow repo
-		if err := deploy.DeployManifestsFromPath(cli, owner,
+		if err := deploy.DeployManifestsFromPath(ctx, cli, owner,
 			kfnotebookControllerPath,
 			dscispec.ApplicationsNamespace,
 			ComponentName, enabled); err != nil {
@@ -165,7 +165,7 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 	} else {
 		manifestsPath = notebookImagesPathSupported
 	}
-	if err := deploy.DeployManifestsFromPath(cli, owner,
+	if err := deploy.DeployManifestsFromPath(ctx, cli, owner,
 		manifestsPath,
 		dscispec.ApplicationsNamespace,
 		ComponentName, enabled); err != nil {
@@ -185,7 +185,7 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 		if err := w.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
 		}
-		if err := deploy.DeployManifestsFromPath(cli, owner,
+		if err := deploy.DeployManifestsFromPath(ctx, cli, owner,
 			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
 			dscispec.Monitoring.Namespace,
 			"prometheus", true); err != nil {

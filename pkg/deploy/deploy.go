@@ -57,10 +57,10 @@ const (
 // DownloadManifests function performs following tasks:
 // 1. It takes component URI and only downloads folder specified by component.ContextDir field
 // 2. It saves the manifests in the odh-manifests/component-name/ folder.
-func DownloadManifests(componentName string, manifestConfig components.ManifestsConfig) error {
+func DownloadManifests(ctx context.Context, componentName string, manifestConfig components.ManifestsConfig) error {
 	// Get the component repo from the given url
 	// e.g.  https://github.com/example/tarball/master
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, manifestConfig.URI, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, manifestConfig.URI, nil)
 	if err != nil {
 		return err
 	}
@@ -145,7 +145,15 @@ func DownloadManifests(componentName string, manifestConfig components.Manifests
 	return err
 }
 
-func DeployManifestsFromPath(cli client.Client, owner metav1.Object, manifestPath string, namespace string, componentName string, componentEnabled bool) error {
+func DeployManifestsFromPath(
+	ctx context.Context,
+	cli client.Client,
+	owner metav1.Object,
+	manifestPath string,
+	namespace string,
+	componentName string,
+	componentEnabled bool,
+) error {
 	// Render the Kustomize manifests
 	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
 	fs := filesys.MakeFsOnDisk()
@@ -181,7 +189,7 @@ func DeployManifestsFromPath(cli client.Client, owner metav1.Object, manifestPat
 	}
 	// Create / apply / delete resources in the cluster
 	for _, obj := range objs {
-		err = manageResource(context.TODO(), cli, obj, owner, namespace, componentName, componentEnabled)
+		err = manageResource(ctx, cli, obj, owner, namespace, componentName, componentEnabled)
 		if err != nil {
 			return err
 		}

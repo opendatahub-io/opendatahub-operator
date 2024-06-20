@@ -74,8 +74,7 @@ linters:
 
     # Need to check
     - nlreturn # [too strict and mostly code is not more readable] checks for a new line before return and branch statements to increase code clarity
-    - err113 # [too strict] checks the errors handling expressions
-    - contextcheck # Requires to pass context to all function.
+    - goerr113 # [too strict] checks the errors handling expressions
     
     # To be fixed
     - gocognit # https://github.com/opendatahub-io/opendatahub-operator/issues/709

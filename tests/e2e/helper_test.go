@@ -45,7 +45,7 @@ const (
 
 func (tc *testContext) waitForControllerDeployment(name string, replicas int32) error {
 	err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
-		controllerDeployment, err := tc.kubeClient.AppsV1().Deployments(tc.operatorNamespace).Get(tc.ctx, name, metav1.GetOptions{})
+		controllerDeployment, err := tc.kubeClient.AppsV1().Deployments(tc.operatorNamespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return false, nil
@@ -194,7 +194,7 @@ func (tc *testContext) validateCRD(crdName string) error {
 		Name: crdName,
 	}
 	err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
-		err := tc.customClient.Get(context.TODO(), obj, crd)
+		err := tc.customClient.Get(ctx, obj, crd)
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return false, nil
@@ -223,7 +223,7 @@ func (tc *testContext) wait(isReady func(ctx context.Context) (bool, error)) err
 	return wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, true, isReady)
 }
 
-func getCSV(cli client.Client, name string, namespace string) (*ofapi.ClusterServiceVersion, error) {
+func getCSV(ctx context.Context, cli client.Client, name string, namespace string) (*ofapi.ClusterServiceVersion, error) {
 	isMatched := func(csv *ofapi.ClusterServiceVersion, name string) bool {
 		return strings.Contains(csv.ObjectMeta.Name, name)
 	}
@@ -232,7 +232,7 @@ func getCSV(cli client.Client, name string, namespace string) (*ofapi.ClusterSer
 		Namespace: namespace,
 	}
 	csvList := &ofapi.ClusterServiceVersionList{}
-	err := cli.List(context.TODO(), csvList, opt)
+	err := cli.List(ctx, csvList, opt)
 	if err != nil {
 		return nil, err
 	}
@@ -283,7 +283,7 @@ func waitCSV(tc *testContext, name string, ns string) error {
 	timeout := tc.resourceCreationTimeout * 3 // just empirical value
 
 	isReady := func(ctx context.Context) (bool, error) {
-		csv, err := getCSV(tc.customClient, name, ns)
+		csv, err := getCSV(ctx, tc.customClient, name, ns)
 		if errors.IsNotFound(err) {
 			return false, nil
 		}

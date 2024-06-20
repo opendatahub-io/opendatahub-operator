@@ -2,6 +2,7 @@
 package feature
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/hashicorp/go-multierror"
@@ -13,8 +14,8 @@ import (
 )
 
 type featureHandler interface {
-	Apply() error
-	Delete() error
+	Apply(ctx context.Context) error
+	Delete(ctx context.Context) error
 }
 
 var _ featureHandler = (*FeaturesHandler)(nil)
@@ -49,17 +50,17 @@ func NewHandlerWithReporter[T client.Object](handler *FeaturesHandler, reporter 
 	}
 }
 
-func (h HandlerWithReporter[T]) Apply() error {
-	applyErr := h.handler.Apply()
-	_, reportErr := h.reporter.ReportCondition(applyErr)
+func (h HandlerWithReporter[T]) Apply(ctx context.Context) error {
+	applyErr := h.handler.Apply(ctx)
+	_, reportErr := h.reporter.ReportCondition(ctx, applyErr)
 	// We could have failed during Apply phase as well as during reporting.
 	// We should return both errors to the caller.
 	return multierror.Append(applyErr, reportErr).ErrorOrNil()
 }
 
-func (h HandlerWithReporter[T]) Delete() error {
-	deleteErr := h.handler.Delete()
-	_, reportErr := h.reporter.ReportCondition(deleteErr)
+func (h HandlerWithReporter[T]) Delete(ctx context.Context) error {
+	deleteErr := h.handler.Delete(ctx)
+	_, reportErr := h.reporter.ReportCondition(ctx, deleteErr)
 	// We could have failed during Delete phase as well as during reporting.
 	// We should return both errors to the caller.
 	return multierror.Append(deleteErr, reportErr).ErrorOrNil()
@@ -85,7 +86,7 @@ func ComponentFeaturesHandler(componentName string, spec *dsciv1.DSCInitializati
 	}
 }
 
-func (fh *FeaturesHandler) Apply() error {
+func (fh *FeaturesHandler) Apply(ctx context.Context) error {
 	for _, featuresProvider := range fh.featuresProviders {
 		if err := featuresProvider(fh); err != nil {
 			return fmt.Errorf("apply phase failed when applying features: %w", err)
@@ -94,7 +95,7 @@ func (fh *FeaturesHandler) Apply() error {
 
 	var applyErrors *multierror.Error
 	for _, f := range fh.features {
-		applyErrors = multierror.Append(applyErrors, f.Apply())
+		applyErrors = multierror.Append(applyErrors, f.Apply(ctx))
 	}
 
 	return applyErrors.ErrorOrNil()
@@ -104,7 +105,7 @@ func (fh *FeaturesHandler) Apply() error {
 // For instance, this allows for the undoing patches before its deletion.
 // This approach assumes that Features are either instantiated in the correct sequence
 // or are self-contained.
-func (fh *FeaturesHandler) Delete() error {
+func (fh *FeaturesHandler) Delete(ctx context.Context) error {
 	for _, featuresProvider := range fh.featuresProviders {
 		if err := featuresProvider(fh); err != nil {
 			return fmt.Errorf("delete phase failed when wiring Feature instances: %w", err)
@@ -113,7 +114,7 @@ func (fh *FeaturesHandler) Delete() error {
 
 	var cleanupErrors *multierror.Error
 	for i := len(fh.features) - 1; i >= 0; i-- {
-		cleanupErrors = multierror.Append(cleanupErrors, fh.features[i].Cleanup())
+		cleanupErrors = multierror.Append(cleanupErrors, fh.features[i].Cleanup(ctx))
 	}
 
 	return cleanupErrors.ErrorOrNil()

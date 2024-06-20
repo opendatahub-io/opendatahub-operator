@@ -1,6 +1,7 @@
 package kserve
 
 import (
+	"context"
 	"path"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
@@ -70,7 +71,7 @@ func (k *Kserve) configureServerlessFeatures() feature.FeaturesProvider {
 }
 
 func PopulateComponentSettings(k *Kserve) feature.Action {
-	return func(f *feature.Feature) error {
+	return func(_ context.Context, f *feature.Feature) error {
 		f.Spec.Serving = &k.Serving
 		return nil
 	}

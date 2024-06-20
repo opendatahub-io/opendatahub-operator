@@ -11,14 +11,14 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 )
 
-func RemoveExtensionProvider(f *feature.Feature) error {
+func RemoveExtensionProvider(ctx context.Context, f *feature.Feature) error {
 	ossmAuthzProvider := fmt.Sprintf("%s-auth-provider", f.Spec.AppNamespace)
 
 	mesh := f.Spec.ControlPlane
 	smcp := &unstructured.Unstructured{}
 	smcp.SetGroupVersionKind(gvk.ServiceMeshControlPlane)
 
-	if err := f.Client.Get(context.TODO(), client.ObjectKey{
+	if err := f.Client.Get(ctx, client.ObjectKey{
 		Namespace: mesh.Namespace,
 		Name:      mesh.Name,
 	}, smcp); err != nil {
@@ -51,5 +51,5 @@ func RemoveExtensionProvider(f *feature.Feature) error {
 		}
 	}
 
-	return f.Client.Update(context.TODO(), smcp)
+	return f.Client.Update(ctx, smcp)
 }

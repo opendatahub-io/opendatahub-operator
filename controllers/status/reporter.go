@@ -32,8 +32,8 @@ func NewStatusReporter[T client.Object](cli client.Client, object T, determine D
 }
 
 // ReportCondition updates the status of the object using the determineCondition function.
-func (r *Reporter[T]) ReportCondition(optionalErr error) (T, error) {
-	return UpdateWithRetry[T](context.Background(), r.client, r.object, r.determineCondition(optionalErr))
+func (r *Reporter[T]) ReportCondition(ctx context.Context, optionalErr error) (T, error) {
+	return UpdateWithRetry[T](ctx, r.client, r.object, r.determineCondition(optionalErr))
 }
 
 // SaveStatusFunc is a function that allow to define custom logic of updating status of a concrete resource object.

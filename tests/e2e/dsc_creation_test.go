@@ -106,7 +106,7 @@ func (tc *testContext) testDSCICreation() error {
 	if err != nil {
 		if k8serr.IsNotFound(err) {
 			nberr := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
-				creationErr := tc.customClient.Create(tc.ctx, tc.testDSCI)
+				creationErr := tc.customClient.Create(ctx, tc.testDSCI)
 				if creationErr != nil {
 					log.Printf("error creating DSCI resource %v: %v, trying again",
 						tc.testDSCI.Name, creationErr)
@@ -130,7 +130,7 @@ func waitDSCReady(tc *testContext) error {
 		key := types.NamespacedName{Name: tc.testDsc.Name}
 		dsc := &dscv1.DataScienceCluster{}
 
-		err := tc.customClient.Get(tc.ctx, key, dsc)
+		err := tc.customClient.Get(ctx, key, dsc)
 		if err != nil {
 			return false, err
 		}
@@ -166,7 +166,7 @@ func (tc *testContext) testDSCCreation() error {
 	if err != nil {
 		if k8serr.IsNotFound(err) {
 			nberr := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
-				creationErr := tc.customClient.Create(tc.ctx, tc.testDsc)
+				creationErr := tc.customClient.Create(ctx, tc.testDsc)
 				if creationErr != nil {
 					log.Printf("error creating DSC resource %v: %v, trying again",
 						tc.testDsc.Name, creationErr)
@@ -284,7 +284,7 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint
 func (tc *testContext) testApplicationCreation(component components.ComponentInterface) error {
 	err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
 		// TODO: see if checking deployment is a good test, CF does not create deployment
-		appList, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(context.TODO(), metav1.ListOptions{
+		appList, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(ctx, metav1.ListOptions{
 			LabelSelector: odhLabelPrefix + component.GetComponentName(),
 		})
 		if err != nil {
@@ -369,7 +369,7 @@ func (tc *testContext) validateDSC() error {
 func (tc *testContext) testOwnerrefrences() error {
 	// Test any one of the apps
 	if tc.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
-		appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(context.TODO(), metav1.ListOptions{
+		appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(tc.ctx, metav1.ListOptions{
 			LabelSelector: odhLabelPrefix + tc.testDsc.Spec.Components.Dashboard.GetComponentName(),
 		})
 		if err != nil {
@@ -422,7 +422,7 @@ func (tc *testContext) testDefaultCertsAvailable() error {
 func (tc *testContext) testUpdateComponentReconcile() error {
 	// Test Updating Dashboard Replicas
 
-	appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(context.TODO(), metav1.ListOptions{
+	appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(tc.ctx, metav1.ListOptions{
 		LabelSelector: odhLabelPrefix + tc.testDsc.Spec.Components.Dashboard.GetComponentName(),
 	})
 	if err != nil {
@@ -441,7 +441,7 @@ func (tc *testContext) testUpdateComponentReconcile() error {
 			},
 			Status: autoscalingv1.ScaleStatus{},
 		}
-		retrievedDep, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).UpdateScale(context.TODO(), testDeployment.Name, patchedReplica, metav1.UpdateOptions{})
+		retrievedDep, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).UpdateScale(tc.ctx, testDeployment.Name, patchedReplica, metav1.UpdateOptions{})
 		if err != nil {
 			return fmt.Errorf("error patching component resources : %w", err)
 		}
@@ -451,7 +451,7 @@ func (tc *testContext) testUpdateComponentReconcile() error {
 
 		// Sleep for 40 seconds to allow the operator to reconcile
 		time.Sleep(4 * tc.resourceRetryInterval)
-		revertedDep, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).Get(context.TODO(), testDeployment.Name, metav1.GetOptions{})
+		revertedDep, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).Get(tc.ctx, testDeployment.Name, metav1.GetOptions{})
 		if err != nil {
 			return fmt.Errorf("error getting component resource after reconcile: %w", err)
 		}
@@ -468,7 +468,7 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 	var dashboardDeploymentName string
 
 	if tc.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
-		appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(context.TODO(), metav1.ListOptions{
+		appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(tc.ctx, metav1.ListOptions{
 			LabelSelector: odhLabelPrefix + tc.testDsc.Spec.Components.Dashboard.GetComponentName(),
 		})
 		if err != nil {
@@ -495,7 +495,7 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 		tc.testDsc.Spec.Components.Dashboard.ManagementState = operatorv1.Removed
 
 		// Try to update
-		err = tc.customClient.Update(context.TODO(), tc.testDsc)
+		err = tc.customClient.Update(tc.ctx, tc.testDsc)
 		// Return err itself here (not wrapped inside another error)
 		// so that RetryOnConflict can identify it correctly.
 		if err != nil {
@@ -510,7 +510,7 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 
 	// Sleep for 40 seconds to allow the operator to reconcile
 	time.Sleep(4 * tc.resourceRetryInterval)
-	_, err = tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).Get(context.TODO(), dashboardDeploymentName, metav1.GetOptions{})
+	_, err = tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).Get(tc.ctx, dashboardDeploymentName, metav1.GetOptions{})
 	if err != nil {
 		if k8serr.IsNotFound(err) {
 			return nil // correct result: should not find deployment after we disable it already
