@@ -72,7 +72,7 @@ func (r *CertConfigmapGeneratorReconciler) Reconcile(ctx context.Context, req ct
 		return ctrl.Result{}, errors.New(message)
 	}
 
-	if dsciInstance.Spec.TrustedCABundle.ManagementState != operatorv1.Managed {
+	if skipApplyTrustCAConfig(dsciInstance.Spec.TrustedCABundle) {
 		return ctrl.Result{}, nil
 	}
 
@@ -149,4 +149,8 @@ var ConfigMapChangedPredicate = predicate.Funcs{
 	DeleteFunc: func(deleteEvent event.DeleteEvent) bool {
 		return true
 	},
+}
+
+func skipApplyTrustCAConfig(dsciConfigTrustCA *dsci.TrustedCABundleSpec) bool {
+	return dsciConfigTrustCA == nil || dsciConfigTrustCA.ManagementState != operatorv1.Managed
 }

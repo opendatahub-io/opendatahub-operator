@@ -45,13 +45,13 @@ type DSCInitializationSpec struct {
 	// authentication giving a Single Sign On experience.
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=3
 	// +optional
-	ServiceMesh infrav1.ServiceMeshSpec `json:"serviceMesh,omitempty"`
+	ServiceMesh *infrav1.ServiceMeshSpec `json:"serviceMesh,omitempty"`
 	// When set to `Managed`, adds odh-trusted-ca-bundle Configmap to all namespaces that includes
 	// cluster-wide Trusted CA Bundle in .data["ca-bundle.crt"].
 	// Additionally, this fields allows admins to add custom CA bundles to the configmap using the .CustomCABundle field.
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=4
 	// +optional
-	TrustedCABundle TrustedCABundleSpec `json:"trustedCABundle,omitempty"`
+	TrustedCABundle *TrustedCABundleSpec `json:"trustedCABundle,omitempty"`
 	// Internal development useful field to test customizations.
 	// This is not recommended to be used in production environment.
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=5

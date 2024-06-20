@@ -365,7 +365,7 @@ func createDSCI(appName string, enableMonitoring operatorv1.ManagementState, ena
 				Namespace:       monitoringNS,
 				ManagementState: enableMonitoring,
 			},
-			TrustedCABundle: dsci.TrustedCABundleSpec{
+			TrustedCABundle: &dsci.TrustedCABundleSpec{
 				ManagementState: enableTrustedCABundle,
 			},
 		},

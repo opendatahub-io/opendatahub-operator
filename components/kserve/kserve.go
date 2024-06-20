@@ -50,8 +50,8 @@ type Kserve struct {
 	// Mesh (Istio) is prerequisite, since it is used as networking layer.
 	Serving infrav1.ServingSpec `json:"serving,omitempty"`
 	// Configures the default deployment mode for Kserve. This can be set to 'Serverless' or 'RawDeployment'.
-	// The value specified in this field will be used to set the default deployment mode in the 'inferenceservice-config' configmap for Kserve
-	// If no default deployment mode is specified, Kserve will use Serverless mode
+	// The value specified in this field will be used to set the default deployment mode in the 'inferenceservice-config' configmap for Kserve.
+	// This field is optional. If no default deployment mode is specified, Kserve will use Serverless mode.
 	// +kubebuilder:validation:Enum=Serverless;RawDeployment
 	DefaultDeploymentMode DefaultDeploymentMode `json:"defaultDeploymentMode,omitempty"`
 }
@@ -122,12 +122,12 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 				return err
 			}
 		}
+	}
 
-		// Update image parameters only when we do not have customized manifests set
-		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (k.DevFlags == nil || len(k.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(Path, imageParamMap, false); err != nil {
-				return fmt.Errorf("failed to update image from %s : %w", Path, err)
-			}
+	// Update image parameters only when we do not have customized manifests set
+	if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (k.DevFlags == nil || len(k.DevFlags.Manifests) == 0) {
+		if err := deploy.ApplyParams(Path, imageParamMap, false); err != nil {
+			return fmt.Errorf("failed to update image from %s : %w", Path, err)
 		}
 	}
 

@@ -13,6 +13,7 @@ import (
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 )
 
@@ -102,6 +103,14 @@ func NewDSCInitialization(ns string) *dsciv1.DSCInitialization {
 		},
 		Spec: dsciv1.DSCInitializationSpec{
 			ApplicationsNamespace: ns,
+			ServiceMesh: &infrav1.ServiceMeshSpec{
+				ManagementState: "Managed",
+				ControlPlane: infrav1.ControlPlaneSpec{
+					Name:              "data-science-smcp",
+					Namespace:         "istio-system",
+					MetricsCollection: "Istio",
+				},
+			},
 		},
 	}
 }

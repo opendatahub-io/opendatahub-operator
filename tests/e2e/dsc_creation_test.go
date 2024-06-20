@@ -312,7 +312,7 @@ func (tc *testContext) testApplicationCreation(component components.ComponentInt
 
 func (tc *testContext) validateDSCI() error {
 	// expected
-	expServiceMeshSpec := infrav1.ServiceMeshSpec{
+	expServiceMeshSpec := &infrav1.ServiceMeshSpec{
 		ManagementState: operatorv1.Managed,
 		ControlPlane: infrav1.ControlPlaneSpec{
 			Name:              "data-science-smcp",

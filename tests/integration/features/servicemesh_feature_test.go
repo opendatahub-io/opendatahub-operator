@@ -175,7 +175,7 @@ var _ = Describe("Service Mesh setup", func() {
 					objectCleaner = envtestutil.CreateCleaner(envTestClient, envTest.Config, fixtures.Timeout, fixtures.Interval)
 					dsci = fixtures.NewDSCInitialization(namespace)
 
-					serviceMeshSpec = &dsci.Spec.ServiceMesh
+					serviceMeshSpec = dsci.Spec.ServiceMesh
 
 					serviceMeshSpec.ControlPlane.Name = name
 					serviceMeshSpec.ControlPlane.Namespace = namespace
