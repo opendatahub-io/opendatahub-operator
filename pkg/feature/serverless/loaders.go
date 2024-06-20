@@ -1,6 +1,7 @@
 package serverless
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -24,7 +25,7 @@ func ServingIngressDomain(f *feature.Feature) error {
 	domain := strings.TrimSpace(f.Spec.Serving.IngressGateway.Domain)
 	if len(domain) == 0 {
 		var errDomain error
-		domain, errDomain = cluster.GetDomain(f.Client)
+		domain, errDomain = cluster.GetDomain(context.TODO(), f.Client)
 		if errDomain != nil {
 			return fmt.Errorf("failed to fetch OpenShift domain to generate certificate for Serverless: %w", errDomain)
 		}

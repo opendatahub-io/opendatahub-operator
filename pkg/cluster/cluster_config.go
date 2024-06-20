@@ -20,11 +20,11 @@ import (
 
 // +kubebuilder:rbac:groups="config.openshift.io",resources=ingresses,verbs=get
 
-func GetDomain(c client.Client) (string, error) {
+func GetDomain(ctx context.Context, cli client.Client) (string, error) {
 	ingress := &unstructured.Unstructured{}
 	ingress.SetGroupVersionKind(gvk.OpenshiftIngress)
 
-	if err := c.Get(context.TODO(), client.ObjectKey{
+	if err := cli.Get(ctx, client.ObjectKey{
 		Namespace: "",
 		Name:      "cluster",
 	}, ingress); err != nil {

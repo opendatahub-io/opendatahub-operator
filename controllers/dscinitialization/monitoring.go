@@ -130,7 +130,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 	// r.Log.Info("Success: inject alertmanage-configs.yaml")
 
 	// special handling for dev-mod
-	consolelinkDomain, err := cluster.GetDomain(r.Client)
+	consolelinkDomain, err := cluster.GetDomain(ctx, r.Client)
 	if err != nil {
 		return fmt.Errorf("error getting console route URL : %w", err)
 	}
@@ -208,7 +208,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsci.DSCInitialization, 
 		return err
 	}
 	// Update prometheus-config for dashboard, dsp and workbench
-	consolelinkDomain, err := cluster.GetDomain(r.Client)
+	consolelinkDomain, err := cluster.GetDomain(ctx, r.Client)
 	if err != nil {
 		return fmt.Errorf("error getting console route URL : %w", err)
 	}

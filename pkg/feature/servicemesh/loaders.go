@@ -1,6 +1,7 @@
 package servicemesh
 
 import (
+	"context"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -12,7 +13,7 @@ import (
 func ClusterDetails(f *feature.Feature) error {
 	data := f.Spec
 
-	if domain, err := cluster.GetDomain(f.Client); err == nil {
+	if domain, err := cluster.GetDomain(context.TODO(), f.Client); err == nil {
 		data.Domain = domain
 	} else {
 		return errors.WithStack(err)
