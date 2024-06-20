@@ -184,7 +184,7 @@ func newDSCI(appName string) *dsci.DSCInitialization {
 				Namespace:       monitoringNS,
 				ManagementState: operatorv1.Managed,
 			},
-			TrustedCABundle: dsci.TrustedCABundleSpec{
+			TrustedCABundle: &dsci.TrustedCABundleSpec{
 				ManagementState: operatorv1.Managed,
 			},
 		},

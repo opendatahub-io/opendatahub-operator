@@ -127,7 +127,7 @@ func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ cluster.Platfor
 			ManagementState: operatorv1.Managed,
 			Namespace:       monNamespace,
 		},
-		ServiceMesh: infrav1.ServiceMeshSpec{
+		ServiceMesh: &infrav1.ServiceMeshSpec{
 			ManagementState: "Managed",
 			ControlPlane: infrav1.ControlPlaneSpec{
 				Name:              "data-science-smcp",
@@ -135,7 +135,7 @@ func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ cluster.Platfor
 				MetricsCollection: "Istio",
 			},
 		},
-		TrustedCABundle: dsci.TrustedCABundleSpec{
+		TrustedCABundle: &dsci.TrustedCABundleSpec{
 			ManagementState: "Managed",
 		},
 	}
