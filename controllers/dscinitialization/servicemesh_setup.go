@@ -20,7 +20,7 @@ func (r *DSCInitializationReconciler) configureServiceMesh(instance *dsciv1.DSCI
 	if instance.Spec.ServiceMesh != nil {
 		serviceMeshManagementState = instance.Spec.ServiceMesh.ManagementState
 	} else {
-		r.Log.Info("ServiceMesh is not configed in DSCI, same as default to 'Removed'")
+		r.Log.Info("ServiceMesh is not configured in DSCI, same as default to 'Removed'")
 	}
 
 	switch serviceMeshManagementState {
