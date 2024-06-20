@@ -19,6 +19,6 @@ func ServingCertificateResource(f *feature.Feature) error {
 	case infrav1.Provided:
 		return nil
 	default:
-		return cluster.GetDefaultIngressCertificate(context.TODO(), f.Client, f.Spec.KnativeCertificateSecret, f.Spec.ControlPlane.Namespace)
+		return cluster.PropagateDefaultIngressCertificate(context.TODO(), f.Client, f.Spec.KnativeCertificateSecret, f.Spec.ControlPlane.Namespace)
 	}
 }

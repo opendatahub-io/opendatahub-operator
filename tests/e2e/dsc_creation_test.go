@@ -26,6 +26,7 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/serverless"
 )
 
 const (
@@ -400,7 +401,7 @@ func (tc *testContext) testDefaultCertsAvailable() error {
 	// Verify secret from Control Plane namespace matches the default cert secret
 	defaultSecretName := tc.testDsc.Spec.Components.Kserve.Serving.IngressGateway.Certificate.SecretName
 	if defaultSecretName == "" {
-		defaultSecretName = cluster.DefaultCertificateSecretName
+		defaultSecretName = serverless.DefaultCertificateSecretName
 	}
 	ctrlPlaneSecret, err := cluster.GetSecret(tc.ctx, tc.customClient, tc.testDSCI.Spec.ServiceMesh.ControlPlane.Namespace,
 		defaultSecretName)
