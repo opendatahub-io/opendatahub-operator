@@ -228,6 +228,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		if instance.Spec.Components.DataSciencePipelines.ManagementState == operatorv1.Managed {
 			if err := datasciencepipelines.UnmanagedArgoWorkFlowExists(ctx, r.Client); err != nil {
 				message := fmt.Sprintf("Failed upgrade: %v ", err.Error())
+
 				_, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dscv1.DataScienceCluster) {
 					datasciencepipelines.SetExistingArgoCondition(&saved.Status.Conditions, status.ArgoWorkflowExist, message)
 					status.SetErrorCondition(&saved.Status.Conditions, status.ArgoWorkflowExist, message)
