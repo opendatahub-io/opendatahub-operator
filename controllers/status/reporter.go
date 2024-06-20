@@ -1,4 +1,4 @@
-//nolint:structcheck,ireturn // Reason: false positive, complains about unused fields - see Update method. ireturn to statisfy client.Object interface
+//nolint:ireturn //reason: return T which is expected to be satisfying client.Object interface
 package status
 
 import (
