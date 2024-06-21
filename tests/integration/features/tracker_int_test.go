@@ -1,7 +1,7 @@
 package features_test
 
 import (
-	"fmt"
+	"errors"
 
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -65,8 +65,8 @@ var _ = Describe("Feature tracking capability", func() {
 				verificationFeatureErr := feature.CreateFeature("precondition-fail").
 					For(handler).
 					UsingConfig(envTest.Config).
-					PreConditions(func(f *feature.Feature) error {
-						return fmt.Errorf("during test always fail")
+					PreConditions(func(_ *feature.Feature) error {
+						return errors.New("during test always fail")
 					}).
 					Load()
 
@@ -97,8 +97,8 @@ var _ = Describe("Feature tracking capability", func() {
 				verificationFeatureErr := feature.CreateFeature("post-condition-failure").
 					For(handler).
 					UsingConfig(envTest.Config).
-					PostConditions(func(f *feature.Feature) error {
-						return fmt.Errorf("during test always fail")
+					PostConditions(func(_ *feature.Feature) error {
+						return errors.New("during test always fail")
 					}).
 					Load()
 

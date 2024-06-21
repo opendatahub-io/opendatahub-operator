@@ -2,6 +2,7 @@ package features_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
@@ -267,7 +268,7 @@ var _ = Describe("Serverless feature", func() {
 				}
 
 				if secret == nil {
-					return fmt.Errorf("secret not found")
+					return errors.New("secret not found")
 				}
 
 				return nil

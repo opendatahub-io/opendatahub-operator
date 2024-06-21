@@ -143,7 +143,7 @@ func loadManifestsFrom(fsys fs.FS, path string) ([]Manifest, error) {
 	return manifests, nil
 }
 
-func CreateRawManifestFrom(fsys fs.FS, path string) *rawManifest { //nolint:golint,revive //No need to export rawManifest.
+func CreateRawManifestFrom(fsys fs.FS, path string) *rawManifest {
 	basePath := filepath.Base(path)
 
 	return &rawManifest{
@@ -154,7 +154,7 @@ func CreateRawManifestFrom(fsys fs.FS, path string) *rawManifest { //nolint:goli
 	}
 }
 
-func CreateTemplateManifestFrom(fsys fs.FS, path string) *templateManifest { //nolint:golint,revive //No need to export templateManifest.
+func CreateTemplateManifestFrom(fsys fs.FS, path string) *templateManifest {
 	basePath := filepath.Base(path)
 
 	return &templateManifest{

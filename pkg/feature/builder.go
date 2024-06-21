@@ -29,7 +29,7 @@ type featureBuilder struct {
 }
 
 // CreateFeature creates a new feature builder with the given name.
-func CreateFeature(name string) *usingFeaturesHandler { //nolint:golint,revive //No need to export featureBuilder.
+func CreateFeature(name string) *usingFeaturesHandler {
 	return &usingFeaturesHandler{
 		name: name,
 	}

@@ -3,6 +3,7 @@ package kserve
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -36,7 +37,7 @@ func (k *Kserve) setupKserveConfig(ctx context.Context, cli client.Client, dscis
 		}
 	case operatorv1.Removed:
 		if k.DefaultDeploymentMode == Serverless {
-			return fmt.Errorf("setting defaultdeployment mode as Serverless is incompatible with having Serving 'Removed'")
+			return errors.New("setting defaultdeployment mode as Serverless is incompatible with having Serving 'Removed'")
 		}
 		if k.DefaultDeploymentMode == "" {
 			fmt.Println("Serving is removed, Kserve will default to rawdeployment")
@@ -128,7 +129,7 @@ func (k *Kserve) configureServerless(instance *dsciv1.DSCInitializationSpec) err
 	case operatorv1.Managed: // standard workflow to create CR
 		switch instance.ServiceMesh.ManagementState {
 		case operatorv1.Unmanaged, operatorv1.Removed:
-			return fmt.Errorf("ServiceMesh is need to set to 'Managed' in DSCI CR, it is required by KServe serving field")
+			return errors.New("ServiceMesh is need to set to 'Managed' in DSCI CR, it is required by KServe serving field")
 		}
 
 		serverlessFeatures := feature.ComponentFeaturesHandler(k.GetComponentName(), instance, k.configureServerlessFeatures())
