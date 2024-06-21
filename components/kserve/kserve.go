@@ -113,7 +113,7 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 		}
 	} else {
 		// Configure dependencies
-		if err := k.configureServerless(cli, dscispec); err != nil {
+		if err := k.configureServerless(dscispec); err != nil {
 			return err
 		}
 		if k.DevFlags != nil {
