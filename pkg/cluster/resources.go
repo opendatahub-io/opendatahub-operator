@@ -89,6 +89,10 @@ func CreateSecret(ctx context.Context, cli client.Client, name, namespace string
 // If the configmap already exists, it will be updated with the merged Data and MetaOptions, if any.
 // ConfigMap.ObjectMeta.Name and ConfigMap.ObjectMeta.Namespace are both required, it returns an error otherwise.
 func CreateOrUpdateConfigMap(ctx context.Context, c client.Client, desiredCfgMap *corev1.ConfigMap, metaOptions ...MetaOptions) error {
+	if applyErr := ApplyMetaOptions(desiredCfgMap, metaOptions...); applyErr != nil {
+		return applyErr
+	}
+
 	if desiredCfgMap.GetName() == "" || desiredCfgMap.GetNamespace() == "" {
 		return errors.New("configmap name and namespace must be set")
 	}
@@ -100,9 +104,6 @@ func CreateOrUpdateConfigMap(ctx context.Context, c client.Client, desiredCfgMap
 	}, existingCfgMap)
 
 	if apierrs.IsNotFound(err) {
-		if applyErr := ApplyMetaOptions(desiredCfgMap, metaOptions...); applyErr != nil {
-			return applyErr
-		}
 		return c.Create(ctx, desiredCfgMap)
 	} else if err != nil {
 		return err
