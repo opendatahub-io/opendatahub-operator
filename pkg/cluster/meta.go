@@ -59,7 +59,7 @@ func WithAnnotations(annotationKeyValue ...string) MetaOptions {
 	return func(obj metav1.Object) error {
 		annotationsMap, err := extractKeyValues(annotationKeyValue)
 		if err != nil {
-			return fmt.Errorf("failed unable to set labels: %w", err)
+			return fmt.Errorf("failed to set labels: %w", err)
 		}
 
 		obj.SetAnnotations(annotationsMap)
