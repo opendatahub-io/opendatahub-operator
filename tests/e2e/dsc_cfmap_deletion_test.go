@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -63,7 +64,7 @@ func (tc *testContext) testOwnedNamespacesAllExist() error {
 		return fmt.Errorf("failed getting owned namespaces %w", err)
 	}
 	if len(namespaces.Items) == 0 {
-		return fmt.Errorf("all namespaces are gone")
+		return errors.New("all namespaces are gone")
 	}
 
 	return nil

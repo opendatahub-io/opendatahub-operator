@@ -2,6 +2,7 @@ package serverless
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -28,7 +29,7 @@ func EnsureServerlessAbsent(f *feature.Feature) error {
 	}
 
 	if len(list.Items) > 1 {
-		return fmt.Errorf("multiple KNativeServing resources found, which is an unsupported state")
+		return errors.New("multiple KNativeServing resources found, which is an unsupported state")
 	}
 
 	servingOwners := list.Items[0].GetOwnerReferences()
@@ -42,7 +43,7 @@ func EnsureServerlessAbsent(f *feature.Feature) error {
 		}
 	}
 
-	return fmt.Errorf("existing KNativeServing resource was found; integrating to an existing installation is not supported")
+	return errors.New("existing KNativeServing resource was found; integrating to an existing installation is not supported")
 }
 
 func EnsureServerlessOperatorInstalled(f *feature.Feature) error {

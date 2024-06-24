@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -87,7 +88,7 @@ func CreateSecret(ctx context.Context, cli client.Client, name, namespace string
 // ConfigMap.ObjectMeta.Name and ConfigMap.ObjectMeta.Namespace are both required, it returns an error otherwise.
 func CreateOrUpdateConfigMap(ctx context.Context, c client.Client, desiredCfgMap *corev1.ConfigMap, metaOptions ...MetaOptions) error {
 	if desiredCfgMap.GetName() == "" || desiredCfgMap.GetNamespace() == "" {
-		return fmt.Errorf("configmap name and namespace must be set")
+		return errors.New("configmap name and namespace must be set")
 	}
 
 	existingCfgMap := &corev1.ConfigMap{}

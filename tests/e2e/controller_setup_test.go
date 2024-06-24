@@ -57,7 +57,7 @@ type testContext struct {
 	ctx context.Context
 }
 
-func NewTestContext() (*testContext, error) { //nolint:golint,revive // Only used in tests
+func NewTestContext() (*testContext, error) {
 	// GetConfig(): If KUBECONFIG env variable is set, it is used to create
 	// the client, else the inClusterConfig() is used.
 	// Lastly if none of them are set, it uses  $HOME/.kube/config to create the client.

@@ -62,7 +62,7 @@ import (
 )
 
 // DataScienceClusterReconciler reconciles a DataScienceCluster object.
-type DataScienceClusterReconciler struct { //nolint:golint,revive
+type DataScienceClusterReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 	Log    logr.Logger
@@ -72,7 +72,7 @@ type DataScienceClusterReconciler struct { //nolint:golint,revive
 }
 
 // DataScienceClusterConfig passing Spec of DSCI for reconcile DataScienceCluster.
-type DataScienceClusterConfig struct { //nolint:golint,revive
+type DataScienceClusterConfig struct {
 	DSCISpec *dsci.DSCInitializationSpec
 }
 
@@ -537,7 +537,7 @@ func (r *DataScienceClusterReconciler) getRequestName() (string, error) {
 	case len(instanceList.Items) == 0:
 		return "default-dsc", nil
 	default:
-		return "", fmt.Errorf("multiple DataScienceCluster instances found")
+		return "", errors.New("multiple DataScienceCluster instances found")
 	}
 }
 
