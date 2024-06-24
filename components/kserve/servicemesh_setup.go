@@ -57,19 +57,6 @@ func (k *Kserve) defineServiceMeshFeatures(cli client.Client) feature.FeaturesPr
 			fmt.Println("WARN: Authorino operator is not installed on the cluster, skipping authorization capability")
 		}
 
-		temporaryFixesErr := feature.CreateFeature("kserve-temporary-fixes").
-			For(handler).
-			ManifestsLocation(Resources.Location).
-			Manifests(
-				path.Join(Resources.ServiceMeshDir, "grpc-envoyfilter-temp-fix.tmpl.yaml"),
-			).
-			WithData(servicemesh.ClusterDetails).
-			Load()
-
-		if temporaryFixesErr != nil {
-			return temporaryFixesErr
-		}
-
 		return nil
 	}
 }
