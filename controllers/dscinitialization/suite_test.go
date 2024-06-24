@@ -29,9 +29,9 @@ import (
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	netv1 "k8s.io/api/networking/v1"
-	authv1 "k8s.io/api/rbac/v1"
-	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	networkingv1 "k8s.io/api/networking/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -43,8 +43,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
-	datascienceclusterv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	dscinitializationv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 
@@ -101,12 +101,12 @@ var _ = BeforeSuite(func() {
 	Expect(cfg).NotTo(BeNil())
 
 	utilruntime.Must(clientgoscheme.AddToScheme(testScheme))
-	utilruntime.Must(dscinitializationv1.AddToScheme(testScheme))
-	utilruntime.Must(datascienceclusterv1.AddToScheme(testScheme))
-	utilruntime.Must(netv1.AddToScheme(testScheme))
-	utilruntime.Must(authv1.AddToScheme(testScheme))
+	utilruntime.Must(dsciv1.AddToScheme(testScheme))
+	utilruntime.Must(dscv1.AddToScheme(testScheme))
+	utilruntime.Must(networkingv1.AddToScheme(testScheme))
+	utilruntime.Must(rbacv1.AddToScheme(testScheme))
 	utilruntime.Must(corev1.AddToScheme(testScheme))
-	utilruntime.Must(apiextv1.AddToScheme(testScheme))
+	utilruntime.Must(apiextensionsv1.AddToScheme(testScheme))
 	utilruntime.Must(appsv1.AddToScheme(testScheme))
 	utilruntime.Must(ofapi.AddToScheme(testScheme))
 	utilruntime.Must(ofapiv2.AddToScheme(testScheme))

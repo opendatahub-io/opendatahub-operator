@@ -28,6 +28,21 @@ linters-settings:
   nolintlint:
     allow-no-explanation: [ funlen, lll ]
     require-specific: true
+  importas:
+    alias:
+      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1
+        alias: dsciv1
+      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1
+        alias: dscv1
+      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1
+        alias: infrav1
+      - pkg: k8s.io/apimachinery/pkg/api/errors
+        alias: k8serr
+      # Ensures that i.e. k8s.io/api/rbac/v1 is aliased as rbacv1
+      - pkg: k8s.io/api/(\w+)/(v[\w\d]+)
+        alias: $1$2
+      - pkg: github.com/openshift/api/(\w+)/(v[\w\d]+)
+        alias: $1$2
   revive:
     rules:
       - name: dot-imports

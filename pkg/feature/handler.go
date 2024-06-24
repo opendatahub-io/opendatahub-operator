@@ -7,7 +7,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	v1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 )
@@ -21,7 +21,7 @@ var _ featureHandler = (*FeaturesHandler)(nil)
 
 // FeaturesHandler coordinates feature creations and removal from within controllers.
 type FeaturesHandler struct {
-	*v1.DSCInitializationSpec
+	*dsciv1.DSCInitializationSpec
 	source            featurev1.Source
 	features          []*Feature
 	featuresProviders []FeaturesProvider
@@ -69,7 +69,7 @@ func (h HandlerWithReporter[T]) Delete() error {
 // and couple them with the given initializer.
 type FeaturesProvider func(handler *FeaturesHandler) error
 
-func ClusterFeaturesHandler(dsci *v1.DSCInitialization, def ...FeaturesProvider) *FeaturesHandler {
+func ClusterFeaturesHandler(dsci *dsciv1.DSCInitialization, def ...FeaturesProvider) *FeaturesHandler {
 	return &FeaturesHandler{
 		DSCInitializationSpec: &dsci.Spec,
 		source:                featurev1.Source{Type: featurev1.DSCIType, Name: dsci.Name},
@@ -77,7 +77,7 @@ func ClusterFeaturesHandler(dsci *v1.DSCInitialization, def ...FeaturesProvider)
 	}
 }
 
-func ComponentFeaturesHandler(componentName string, spec *v1.DSCInitializationSpec, def ...FeaturesProvider) *FeaturesHandler {
+func ComponentFeaturesHandler(componentName string, spec *dsciv1.DSCInitializationSpec, def ...FeaturesProvider) *FeaturesHandler {
 	return &FeaturesHandler{
 		DSCInitializationSpec: spec,
 		source:                featurev1.Source{Type: featurev1.ComponentType, Name: componentName},

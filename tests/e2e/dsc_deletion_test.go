@@ -13,8 +13,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 )
 
@@ -47,7 +47,7 @@ func (tc *testContext) testDeletionExistDSC() error {
 	// Delete test DataScienceCluster resource if found
 
 	dscLookupKey := types.NamespacedName{Name: tc.testDsc.Name}
-	expectedDSC := &dsc.DataScienceCluster{}
+	expectedDSC := &dscv1.DataScienceCluster{}
 
 	err := tc.customClient.Get(tc.ctx, dscLookupKey, expectedDSC)
 	if err == nil {
@@ -111,7 +111,7 @@ func (tc *testContext) testDeletionExistDSCI() error {
 	// Delete test DSCI resource if found
 
 	dsciLookupKey := types.NamespacedName{Name: tc.testDSCI.Name}
-	expectedDSCI := &dsci.DSCInitialization{}
+	expectedDSCI := &dsciv1.DSCInitialization{}
 
 	err := tc.customClient.Get(tc.ctx, dsciLookupKey, expectedDSCI)
 	if err == nil {

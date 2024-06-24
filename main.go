@@ -22,22 +22,22 @@ import (
 	"os"
 
 	addonv1alpha1 "github.com/openshift/addon-operator/apis/addons/v1alpha1"
-	ocappsv1 "github.com/openshift/api/apps/v1"
-	ocbuildv1 "github.com/openshift/api/build/v1"
-	ocimgv1 "github.com/openshift/api/image/v1"
-	ocv1 "github.com/openshift/api/oauth/v1"
+	ocappsv1 "github.com/openshift/api/apps/v1" //nolint:importas //reason: conflicts with appsv1 "k8s.io/api/apps/v1"
+	buildv1 "github.com/openshift/api/build/v1"
+	imagev1 "github.com/openshift/api/image/v1"
+	oauthv1 "github.com/openshift/api/oauth/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
-	ocuserv1 "github.com/openshift/api/user/v1"
+	userv1 "github.com/openshift/api/user/v1"
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
-	admv1 "k8s.io/api/admissionregistration/v1"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	netv1 "k8s.io/api/networking/v1"
-	authv1 "k8s.io/api/rbac/v1"
-	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	networkingv1 "k8s.io/api/networking/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -50,8 +50,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
-	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/certconfigmapgenerator"
 	datascienceclustercontrollers "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
@@ -73,26 +73,26 @@ var (
 func init() { //nolint:gochecknoinits
 	//+kubebuilder:scaffold:scheme
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-	utilruntime.Must(dsci.AddToScheme(scheme))
-	utilruntime.Must(dsc.AddToScheme(scheme))
+	utilruntime.Must(dsciv1.AddToScheme(scheme))
+	utilruntime.Must(dscv1.AddToScheme(scheme))
 	utilruntime.Must(featurev1.AddToScheme(scheme))
-	utilruntime.Must(netv1.AddToScheme(scheme))
+	utilruntime.Must(networkingv1.AddToScheme(scheme))
 	utilruntime.Must(addonv1alpha1.AddToScheme(scheme))
-	utilruntime.Must(authv1.AddToScheme(scheme))
+	utilruntime.Must(rbacv1.AddToScheme(scheme))
 	utilruntime.Must(corev1.AddToScheme(scheme))
-	utilruntime.Must(apiextv1.AddToScheme(scheme))
+	utilruntime.Must(apiextensionsv1.AddToScheme(scheme))
 	utilruntime.Must(routev1.Install(scheme))
 	utilruntime.Must(appsv1.AddToScheme(scheme))
-	utilruntime.Must(ocv1.Install(scheme))
+	utilruntime.Must(oauthv1.Install(scheme))
 	utilruntime.Must(ofapiv1alpha1.AddToScheme(scheme))
-	utilruntime.Must(ocuserv1.Install(scheme))
+	utilruntime.Must(userv1.Install(scheme))
 	utilruntime.Must(ofapiv2.AddToScheme(scheme))
 	utilruntime.Must(kfdefv1.AddToScheme(scheme))
 	utilruntime.Must(ocappsv1.Install(scheme))
-	utilruntime.Must(ocbuildv1.Install(scheme))
-	utilruntime.Must(ocimgv1.Install(scheme))
-	utilruntime.Must(apiextv1.AddToScheme(scheme))
-	utilruntime.Must(admv1.AddToScheme(scheme))
+	utilruntime.Must(buildv1.Install(scheme))
+	utilruntime.Must(imagev1.Install(scheme))
+	utilruntime.Must(apiextensionsv1.AddToScheme(scheme))
+	utilruntime.Must(admissionregistrationv1.AddToScheme(scheme))
 	utilruntime.Must(apiregistrationv1.AddToScheme(scheme))
 	utilruntime.Must(monitoringv1.AddToScheme(scheme))
 	utilruntime.Must(operatorv1.Install(scheme))
@@ -148,7 +148,7 @@ func main() { //nolint:funlen
 		Scheme: mgr.GetScheme(),
 		Log:    logger.LogWithLevel(ctrl.Log.WithName(operatorName).WithName("controllers").WithName("DataScienceCluster"), logmode),
 		DataScienceCluster: &datascienceclustercontrollers.DataScienceClusterConfig{
-			DSCISpec: &dsci.DSCInitializationSpec{
+			DSCISpec: &dsciv1.DSCInitializationSpec{
 				ApplicationsNamespace: dscApplicationsNamespace,
 			},
 		},

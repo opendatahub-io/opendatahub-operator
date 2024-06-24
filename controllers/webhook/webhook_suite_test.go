@@ -36,8 +36,8 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/dashboard"
@@ -95,10 +95,10 @@ var _ = BeforeSuite(func() {
 
 	scheme := runtime.NewScheme()
 	// DSCI
-	err = dsci.AddToScheme(scheme)
+	err = dsciv1.AddToScheme(scheme)
 	Expect(err).NotTo(HaveOccurred())
 	// DSC
-	err = dsc.AddToScheme(scheme)
+	err = dscv1.AddToScheme(scheme)
 	Expect(err).NotTo(HaveOccurred())
 	// Webhook
 	err = admissionv1beta1.AddToScheme(scheme)
@@ -167,9 +167,9 @@ var _ = Describe("DSC/DSCI webhook", func() {
 	})
 })
 
-func newDSCI(appName string) *dsci.DSCInitialization {
+func newDSCI(appName string) *dsciv1.DSCInitialization {
 	monitoringNS := "monitoring-namespace"
-	return &dsci.DSCInitialization{
+	return &dsciv1.DSCInitialization{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DSCInitialization",
 			APIVersion: "v1",
@@ -178,26 +178,26 @@ func newDSCI(appName string) *dsci.DSCInitialization {
 			Name:      appName,
 			Namespace: namespace,
 		},
-		Spec: dsci.DSCInitializationSpec{
+		Spec: dsciv1.DSCInitializationSpec{
 			ApplicationsNamespace: namespace,
-			Monitoring: dsci.Monitoring{
+			Monitoring: dsciv1.Monitoring{
 				Namespace:       monitoringNS,
 				ManagementState: operatorv1.Managed,
 			},
-			TrustedCABundle: &dsci.TrustedCABundleSpec{
+			TrustedCABundle: &dsciv1.TrustedCABundleSpec{
 				ManagementState: operatorv1.Managed,
 			},
 		},
 	}
 }
-func newDSC(name string, namespace string) *dsc.DataScienceCluster {
-	return &dsc.DataScienceCluster{
+func newDSC(name string, namespace string) *dscv1.DataScienceCluster {
+	return &dscv1.DataScienceCluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
 		},
-		Spec: dsc.DataScienceClusterSpec{
-			Components: dsc.Components{
+		Spec: dscv1.DataScienceClusterSpec{
+			Components: dscv1.Components{
 				Dashboard: dashboard.Dashboard{
 					Component: components.Component{
 						ManagementState: operatorv1.Removed,

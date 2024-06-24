@@ -20,8 +20,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
@@ -71,18 +71,18 @@ func (tc *testContext) waitForControllerDeployment(name string, replicas int32) 
 	return err
 }
 
-func setupDSCICR(name string) *dsci.DSCInitialization {
-	dsciTest := &dsci.DSCInitialization{
+func setupDSCICR(name string) *dsciv1.DSCInitialization {
+	dsciTest := &dsciv1.DSCInitialization{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
-		Spec: dsci.DSCInitializationSpec{
+		Spec: dsciv1.DSCInitializationSpec{
 			ApplicationsNamespace: "opendatahub",
-			Monitoring: dsci.Monitoring{
+			Monitoring: dsciv1.Monitoring{
 				ManagementState: "Managed",
 				Namespace:       "opendatahub",
 			},
-			TrustedCABundle: &dsci.TrustedCABundleSpec{
+			TrustedCABundle: &dsciv1.TrustedCABundleSpec{
 				ManagementState: "Managed",
 				CustomCABundle:  "",
 			},
@@ -99,13 +99,13 @@ func setupDSCICR(name string) *dsci.DSCInitialization {
 	return dsciTest
 }
 
-func setupDSCInstance(name string) *dsc.DataScienceCluster {
-	dscTest := &dsc.DataScienceCluster{
+func setupDSCInstance(name string) *dscv1.DataScienceCluster {
+	dscTest := &dscv1.DataScienceCluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
-		Spec: dsc.DataScienceClusterSpec{
-			Components: dsc.Components{
+		Spec: dscv1.DataScienceClusterSpec{
+			Components: dscv1.Components{
 				// keep dashboard as enabled, because other test is rely on this
 				Dashboard: dashboard.Dashboard{
 					Component: components.Component{

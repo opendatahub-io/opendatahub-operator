@@ -6,7 +6,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -122,7 +122,7 @@ func (c *Cleaner) DeleteAll(objects ...client.Object) {
 		Eventually(func() metav1.StatusReason {
 			key := client.ObjectKeyFromObject(obj)
 			if err := c.client.Get(context.Background(), key, obj); err != nil {
-				return apierrors.ReasonForError(err)
+				return k8serr.ReasonForError(err)
 			}
 
 			return ""
@@ -131,7 +131,7 @@ func (c *Cleaner) DeleteAll(objects ...client.Object) {
 }
 
 func ignoreMethodNotAllowed(err error) error {
-	if apierrors.ReasonForError(err) == metav1.StatusReasonMethodNotAllowed {
+	if k8serr.ReasonForError(err) == metav1.StatusReasonMethodNotAllowed {
 		return nil
 	}
 
