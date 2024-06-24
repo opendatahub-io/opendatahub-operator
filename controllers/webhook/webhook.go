@@ -36,8 +36,8 @@ var log = ctrl.Log.WithName("odh-controller-webhook")
 //nolint:lll
 
 type OpenDataHubWebhook struct {
-	client  client.Client
-	decoder *admission.Decoder
+	Client  client.Client
+	Decoder *admission.Decoder
 }
 
 func (w *OpenDataHubWebhook) SetupWithManager(mgr ctrl.Manager) {
@@ -46,16 +46,6 @@ func (w *OpenDataHubWebhook) SetupWithManager(mgr ctrl.Manager) {
 		Handler: w,
 	}
 	hookServer.Register("/validate-opendatahub-io-v1", odhWebhook)
-}
-
-func (w *OpenDataHubWebhook) InjectDecoder(d *admission.Decoder) error {
-	w.decoder = d
-	return nil
-}
-
-func (w *OpenDataHubWebhook) InjectClient(c client.Client) error {
-	w.client = c
-	return nil
 }
 
 func (w *OpenDataHubWebhook) checkDupCreation(ctx context.Context, req admission.Request) admission.Response {
@@ -79,8 +69,7 @@ func (w *OpenDataHubWebhook) checkDupCreation(ctx context.Context, req admission
 
 	list := &unstructured.UnstructuredList{}
 	list.SetGroupVersionKind(gvk)
-
-	if err := w.client.List(ctx, list); err != nil {
+	if err := w.Client.List(ctx, list); err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
