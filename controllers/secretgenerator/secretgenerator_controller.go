@@ -50,7 +50,7 @@ const (
 )
 
 // SecretGeneratorReconciler holds the controller configuration.
-type SecretGeneratorReconciler struct { //nolint:golint,revive // Readability
+type SecretGeneratorReconciler struct {
 	Client client.Client
 	Scheme *runtime.Scheme
 	Log    logr.Logger

@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"reflect"
@@ -12,7 +13,7 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -103,7 +104,7 @@ func (tc *testContext) testDSCICreation() error {
 	// create one for you
 	err = tc.customClient.Get(tc.ctx, dscLookupKey, createdDSCI)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if k8serrors.IsNotFound(err) {
 			nberr := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
 				creationErr := tc.customClient.Create(tc.ctx, tc.testDSCI)
 				if creationErr != nil {
@@ -163,7 +164,7 @@ func (tc *testContext) testDSCCreation() error {
 
 	err = tc.customClient.Get(tc.ctx, dscLookupKey, createdDSC)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if k8serrors.IsNotFound(err) {
 			nberr := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
 				creationErr := tc.customClient.Create(tc.ctx, tc.testDsc)
 				if creationErr != nil {
@@ -193,7 +194,7 @@ func (tc *testContext) requireInstalled(t *testing.T, gvk schema.GroupVersionKin
 	err := tc.customClient.List(tc.ctx, list)
 	require.NoErrorf(t, err, "Could not get %s list", gvk.Kind)
 
-	require.Greaterf(t, len(list.Items), 0, "%s has not been installed", gvk.Kind)
+	require.NotEmptyf(t, len(list.Items), "%s has not been installed", gvk.Kind)
 }
 
 func (tc *testContext) testDuplication(t *testing.T, gvk schema.GroupVersionKind, o any) {
@@ -480,7 +481,7 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 			}
 		}
 	} else {
-		return fmt.Errorf("dashboard spec should be in 'enabled: true' state in order to perform test")
+		return errors.New("dashboard spec should be in 'enabled: true' state in order to perform test")
 	}
 
 	// Disable component Dashboard
@@ -511,7 +512,7 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 	time.Sleep(4 * tc.resourceRetryInterval)
 	_, err = tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).Get(context.TODO(), dashboardDeploymentName, metav1.GetOptions{})
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if k8serrors.IsNotFound(err) {
 			return nil // correct result: should not find deployment after we disable it already
 		}
 

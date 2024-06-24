@@ -3,7 +3,7 @@ package status
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -43,7 +43,7 @@ type SaveStatusFunc[T client.Object] func(saved T)
 func UpdateWithRetry[T client.Object](ctx context.Context, cli client.Client, original T, update SaveStatusFunc[T]) (T, error) {
 	saved, ok := original.DeepCopyObject().(T)
 	if !ok {
-		return *new(T), fmt.Errorf("failed to deep copy object")
+		return *new(T), errors.New("failed to deep copy object")
 	}
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		if err := cli.Get(ctx, client.ObjectKeyFromObject(original), saved); err != nil {

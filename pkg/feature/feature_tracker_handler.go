@@ -87,7 +87,7 @@ func (f *Feature) ensureGVKSet(obj runtime.Object) error {
 		return fmt.Errorf("failed to get group, version, & kinds for object: %w", err)
 	}
 	if unversioned {
-		return fmt.Errorf("object is unversioned")
+		return errors.New("object is unversioned")
 	}
 	// Update the target object back with one of the discovered GVKs.
 	obj.GetObjectKind().SetGroupVersionKind(gvks[0])

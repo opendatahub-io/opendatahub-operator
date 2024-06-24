@@ -60,7 +60,7 @@ const (
 var managementStateChangeTrustedCA = false
 
 // DSCInitializationReconciler reconciles a DSCInitialization object.
-type DSCInitializationReconciler struct { //nolint:golint,revive // Readability
+type DSCInitializationReconciler struct {
 	client.Client
 	Scheme                *runtime.Scheme
 	Log                   logr.Logger

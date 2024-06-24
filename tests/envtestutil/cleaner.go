@@ -14,7 +14,7 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	. "github.com/onsi/gomega" //nolint:revive,golint,stylecheck // This is the standard for ginkgo and gomega.
+	. "github.com/onsi/gomega" //nolint:stylecheck // This is the standard for ginkgo and gomega.
 )
 
 // Cleaner is a struct to perform deletion of resources,

@@ -27,7 +27,7 @@ import (
 )
 
 // CertConfigmapGeneratorReconciler holds the controller configuration.
-type CertConfigmapGeneratorReconciler struct { //nolint:golint,revive // Readability
+type CertConfigmapGeneratorReconciler struct {
 	Client client.Client
 	Scheme *runtime.Scheme
 	Log    logr.Logger

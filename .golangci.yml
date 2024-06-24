@@ -1,7 +1,5 @@
 run:
   deadline: 10m
-  skip-dirs:
-    - apis
 
 linters-settings:
   gocyclo:
@@ -30,38 +28,38 @@ linters-settings:
   nolintlint:
     allow-no-explanation: [ funlen, lll ]
     require-specific: true
+  revive:
+    rules:
+      - name: dot-imports
+        arguments:
+          - allowedPackages: ["github.com/onsi/ginkgo/v2","github.com/onsi/gomega","github.com/onsi/gomega/gstruct"]
+  perfsprint:
+    sprintf1: false
+    strconcat: false
+
 linters:
   enable-all: true
   disable:
     - containedctx # detects struct contained context.Context field
-    - deadcode # deprecated
     - depguard # [replaced by gomodguard] checks if package imports are in a list of acceptable packages
-    - exhaustivestruct # Prevents empty struct. We use a lot of these so I think it is safe to disable.
     - exhaustruct # Prevents empty struct. We use a lot of these so I think it is safe to disable.c
     - forbidigo
     - gochecknoglobals # Prevents use of global vars.
     - gofumpt
-    - golint # deprecated
     - gomnd # Doesnot allow hardcoded numbers
     - gomoddirectives # Doesnot allow replace in go mod file
-    - ifshort # deprecated
-    - interfacer
-    - maligned # deprecated
+    - mnd
     - nestif
     - nilnil
-    - nosnakecase # snakecase is used in a lot of places. Need to check if that is required.
     - paralleltest # [too many false positives] detects missing usage of t.Parallel() method in your Go test
-    - scopelint # deprecated
-    - structcheck # deprecated
     - tagliatelle
-    - varcheck # deprecated
     - varnamelen # doesnot allow shorter names like c,k etc. But golang prefers short named vars.
     - wsl # [too strict and mostly code is not more readable] whitespace linter forces you to use empty lines
     - wrapcheck # check if this is required. Prevents direct return of err.
 
     # Need to check
     - nlreturn # [too strict and mostly code is not more readable] checks for a new line before return and branch statements to increase code clarity
-    - goerr113 # [too strict] checks the errors handling expressions
+    - err113 # [too strict] checks the errors handling expressions
     - contextcheck # Requires to pass context to all function.
     
     # To be fixed
@@ -71,6 +69,8 @@ linters:
     - godox    # https://github.com/opendatahub-io/opendatahub-operator/issues/699
 
 issues:
+  exclude-dirs:
+    - apis
   exclude-rules:
     - path: tests/*/(.+)_test\.go
       linters:
