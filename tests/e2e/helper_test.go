@@ -78,11 +78,7 @@ func setupDSCICR(name string) *dsciv1.DSCInitialization {
 				ManagementState: "Managed",
 				Namespace:       "redhat-ods-monitoring",
 			},
-<<<<<<< HEAD
 			TrustedCABundle: &dsciv1.TrustedCABundleSpec{
-=======
-			TrustedCABundle: &dsci.TrustedCABundleSpec{
->>>>>>> 7afb0cf9 (fix(DSCI): change serviceMesh and trustCAbundle to pointer type (#885))
 				ManagementState: "Managed",
 				CustomCABundle:  "",
 			},

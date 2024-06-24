@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"log"
 	"reflect"
 	"strings"
@@ -14,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	corev1 "k8s.io/api/core/v1"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -104,7 +107,7 @@ func (tc *testContext) testDSCICreation() error {
 	// create one for you
 	err = tc.customClient.Get(tc.ctx, dscLookupKey, createdDSCI)
 	if err != nil {
-		if k8serr.IsNotFound(err) {
+		if k8serrors.IsNotFound(err) {
 			nberr := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
 				creationErr := tc.customClient.Create(tc.ctx, tc.testDSCI)
 				if creationErr != nil {
@@ -162,7 +165,7 @@ func (tc *testContext) testDSCCreation() error {
 
 	err = tc.customClient.Get(tc.ctx, dscLookupKey, createdDSC)
 	if err != nil {
-		if k8serr.IsNotFound(err) {
+		if k8serrors.IsNotFound(err) {
 			nberr := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
 				creationErr := tc.customClient.Create(tc.ctx, tc.testDsc)
 				if creationErr != nil {
@@ -183,48 +186,38 @@ func (tc *testContext) testDSCCreation() error {
 	return waitDSCReady(tc)
 }
 
-// func (tc *testContext) requireInstalled(t *testing.T, gvk schema.GroupVersionKind) {
-// 	t.Helper()
-// 	list := &unstructured.UnstructuredList{}
-// 	list.SetGroupVersionKind(gvk)
-// 	err := tc.customClient.List(tc.ctx, list)
-// 	require.NoErrorf(t, err, "Could not get %s list", gvk.Kind)
-// 	require.Greaterf(t, len(list.Items), 0, "%s has not been installed", gvk.Kind)
-// }
+func (tc *testContext) requireInstalled(t *testing.T, gvk schema.GroupVersionKind) {
+	t.Helper()
+	list := &unstructured.UnstructuredList{}
+	list.SetGroupVersionKind(gvk)
+	err := tc.customClient.List(tc.ctx, list)
+	require.NoErrorf(t, err, "Could not get %s list", gvk.Kind)
+	require.Greaterf(t, len(list.Items), 0, "%s has not been installed", gvk.Kind)
+}
 
-// func (tc *testContext) testDuplication(t *testing.T, gvk schema.GroupVersionKind, o any) {
-// 	t.Helper()
-// 	tc.requireInstalled(t, gvk)
-// 	u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(o)
-// 	require.NoErrorf(t, err, "Could not unstructure %s", gvk.Kind)
-// 	obj := &unstructured.Unstructured{
-// 		Object: u,
-// 	}
-// 	obj.SetGroupVersionKind(gvk)
-// 	err = tc.customClient.Create(tc.ctx, obj)
-// 	require.Errorf(t, err, "Could create second %s", gvk.Kind)
-// }
+func (tc *testContext) testDuplication(t *testing.T, gvk schema.GroupVersionKind, o any) {
+	t.Helper()
+	tc.requireInstalled(t, gvk)
+	u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(o)
+	require.NoErrorf(t, err, "Could not unstructure %s", gvk.Kind)
+	obj := &unstructured.Unstructured{
+		Object: u,
+	}
+	obj.SetGroupVersionKind(gvk)
+	err = tc.customClient.Create(tc.ctx, obj)
+	require.Errorf(t, err, "Could create second %s", gvk.Kind)
+}
 
-// func (tc *testContext) testDSCIDuplication(t *testing.T) { //nolint:thelper
-// 	gvk := schema.GroupVersionKind{
-// 		Group:   "dscinitialization.opendatahub.io",
-// 		Version: "v1",
-// 		Kind:    "DSCInitialization",
-// 	}
-// 	dup := setupDSCICR("e2e-test-dsci-dup")
-// 	tc.testDuplication(t, gvk, dup)
-// }
+func (tc *testContext) testDSCDuplication(t *testing.T) { //nolint:thelper
+	gvk := schema.GroupVersionKind{
+		Group:   "datasciencecluster.opendatahub.io",
+		Version: "v1",
+		Kind:    "DataScienceCluster",
+	}
 
-// func (tc *testContext) testDSCDuplication(t *testing.T) { //nolint:thelper
-// 	gvk := schema.GroupVersionKind{
-// 		Group:   "datasciencecluster.opendatahub.io",
-// 		Version: "v1",
-// 		Kind:    "DataScienceCluster",
-// 	}
-
-// 	dup := setupDSCInstance("e2e-test-dsc-dup")
-// 	tc.testDuplication(t, gvk, dup)
-// }
+	dup := setupDSCInstance("e2e-test-dsc-dup")
+	tc.testDuplication(t, gvk, dup)
+}
 
 func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint:funlen,thelper
 	// Validate test instance is in Ready state
@@ -510,7 +503,7 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 	time.Sleep(4 * tc.resourceRetryInterval)
 	_, err = tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).Get(context.TODO(), dashboardDeploymentName, metav1.GetOptions{})
 	if err != nil {
-		if k8serr.IsNotFound(err) {
+		if k8serrors.IsNotFound(err) {
 			return nil // correct result: should not find deployment after we disable it already
 		}
 		return fmt.Errorf("error getting component resource after reconcile: %w", err)

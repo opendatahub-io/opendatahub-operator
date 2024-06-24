@@ -134,12 +134,6 @@ func (k *Kserve) configureServerless(instance *dsciv1.DSCInitializationSpec) err
 			return errors.New("ServiceMesh is need to set to 'Managed' in DSCI CR, it is required by KServe serving field")
 		}
 
-		// check on dependent operators if all installed in cluster
-		dependOpsErrors := checkDependentOperators(cli).ErrorOrNil()
-		if dependOpsErrors != nil {
-			return dependOpsErrors
-		}
-
 		serverlessFeatures := feature.ComponentFeaturesHandler(k.GetComponentName(), instance, k.configureServerlessFeatures())
 
 		if err := serverlessFeatures.Apply(); err != nil {
