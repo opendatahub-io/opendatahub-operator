@@ -44,12 +44,9 @@ func CreateSelfSignedCertificate(ctx context.Context, c client.Client, secretNam
 			return fmt.Errorf("failed getting certificate secret: %w", err)
 		}
 	} else if existingSecret.Type != certSecret.Type {
-		// Secret exists but with a different type, delete and recreate it
-		if err := c.Delete(ctx, existingSecret); err != nil {
-			return fmt.Errorf("failed deleting existing secret: %w", err)
-		}
-		if createErr := c.Create(ctx, certSecret); client.IgnoreAlreadyExists(createErr) != nil {
-			return fmt.Errorf("failed creating certificate secret: %w", createErr)
+		// Secret exists but with a different type, delete and create it again
+		if recreateSecret(ctx, c, existingSecret, certSecret) != nil {
+			return errors.New("failed to recreate secret with type corrected")
 		}
 	}
 
