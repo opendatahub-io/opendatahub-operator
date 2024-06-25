@@ -434,19 +434,38 @@ func createMonitoringProxySecret(ctx context.Context, cli client.Client, name st
 	return nil
 }
 
-func (r *DSCInitializationReconciler) configureCommonMonitoring(dsciInit *dsciv1.DSCInitialization) error {
-	// configure segment.io
-	segmentPath := filepath.Join(deploy.DefaultManifestPath, "monitoring", "segment")
-	if err := deploy.DeployManifestsFromPath(
-		r.Client,
-		dsciInit,
-		segmentPath,
-		dsciInit.Spec.ApplicationsNamespace,
-		"segment-io",
-		dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed); err != nil {
-		r.Log.Error(err, "error to deploy manifests under "+segmentPath)
+func (r *DSCInitializationReconciler) configureSegmentIO(ctx context.Context, dsciInit *dsciv1.DSCInitialization) error {
+	// create segment.io only when configmap does not exist in the cluster
+	segmentioConfigMap := &corev1.ConfigMap{}
+	if err := r.Client.Get(ctx, client.ObjectKey{
+		Namespace: dsciInit.Spec.ApplicationsNamespace,
+		Name:      "odh-segment-key-config",
+	}, segmentioConfigMap); err != nil {
+		if !k8serr.IsNotFound(err) {
+			r.Log.Error(err, "error to get configmap 'odh-segment-key-config'")
+			return err
+		} else {
+			segmentPath := filepath.Join(deploy.DefaultManifestPath, "monitoring", "segment")
+			if err := deploy.DeployManifestsFromPath(
+				r.Client,
+				dsciInit,
+				segmentPath,
+				dsciInit.Spec.ApplicationsNamespace,
+				"segment-io",
+				dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed); err != nil {
+				r.Log.Error(err, "error to deploy manifests under "+segmentPath)
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (r *DSCInitializationReconciler) configureCommonMonitoring(ctx context.Context, dsciInit *dsciv1.DSCInitialization) error {
+	if err := r.configureSegmentIO(ctx, dsciInit); err != nil {
 		return err
 	}
+
 	// configure monitoring base
 	monitoringBasePath := filepath.Join(deploy.DefaultManifestPath, "monitoring", "base")
 	err := common.ReplaceStringsInFile(filepath.Join(monitoringBasePath, "rhods-servicemonitor.yaml"),
