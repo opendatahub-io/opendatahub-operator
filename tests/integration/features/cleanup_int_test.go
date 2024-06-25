@@ -124,6 +124,7 @@ var _ = Describe("feature cleanup", func() {
 
 			// then
 			Eventually(createdSecretHasOwnerReferenceToOwningFeature(namespace)).
+				WithContext(ctx).
 				WithTimeout(fixtures.Timeout).
 				WithPolling(fixtures.Interval).
 				Should(Succeed())
@@ -155,6 +156,7 @@ var _ = Describe("feature cleanup", func() {
 
 			// then
 			Eventually(createdSecretHasOwnerReferenceToOwningFeature(namespace)).
+				WithContext(ctx).
 				WithTimeout(fixtures.Timeout).
 				WithPolling(fixtures.Interval).
 				Should(WithTransform(errors.IsNotFound, BeTrue()))
