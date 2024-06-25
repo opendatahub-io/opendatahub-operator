@@ -125,10 +125,10 @@ func (fb *featureBuilder) WithData(loader ...Action) *featureBuilder {
 	return fb
 }
 
-// EnabledWhen determines if a Feature should be loaded and applied based on specified criteria. 
+// EnabledWhen determines if a Feature should be loaded and applied based on specified criteria.
 // The criteria are supplied as a function.
 //
-// Note: The function passed should consistently return true while the feature is needed. 
+// Note: The function passed should consistently return true while the feature is needed.
 // If the function returns false at any point, the feature's contents might be removed during the reconciliation process.
 func (fb *featureBuilder) EnabledWhen(enabled func(f *Feature) bool) *featureBuilder {
 	fb.builders = append(fb.builders, func(f *Feature) error {
@@ -215,10 +215,10 @@ func (fb *featureBuilder) Load() error {
 	// If the feature is disabled, but the FeatureTracker exists in the cluster, ensure clean-up is triggered.
 	// This means that the feature was previously enabled, but now it is not anymore.
 	if !feature.Enabled {
-		if errGet := getFeatureTrackerIfAbsent(feature); client.IgnoreNotFound(err) != nil {
+		if errGet := getFeatureTrackerIfAbsent(feature); client.IgnoreNotFound(errGet) != nil {
 			return errGet
 		}
-		
+
 		return feature.Cleanup()
 	}
 
