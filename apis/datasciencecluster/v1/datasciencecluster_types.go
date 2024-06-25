@@ -18,7 +18,6 @@ package v1
 
 import (
 	"errors"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"reflect"
 
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
@@ -37,6 +36,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trainingoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
 // DataScienceClusterSpec defines the desired state of the cluster.
