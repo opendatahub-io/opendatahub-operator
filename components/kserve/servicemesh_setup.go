@@ -1,6 +1,7 @@
 package kserve
 
 import (
+	"context"
 	"fmt"
 	"path"
 
@@ -13,28 +14,28 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 )
 
-func (k *Kserve) configureServiceMesh(cli client.Client, dscispec *dsciv1.DSCInitializationSpec) error {
+func (k *Kserve) configureServiceMesh(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec) error {
 	if dscispec.ServiceMesh != nil {
 		if dscispec.ServiceMesh.ManagementState == operatorv1.Managed && k.GetManagementState() == operatorv1.Managed {
-			serviceMeshInitializer := feature.ComponentFeaturesHandler(k.GetComponentName(), dscispec, k.defineServiceMeshFeatures(cli))
-			return serviceMeshInitializer.Apply()
+			serviceMeshInitializer := feature.ComponentFeaturesHandler(k.GetComponentName(), dscispec, k.defineServiceMeshFeatures(ctx, cli))
+			return serviceMeshInitializer.Apply(ctx)
 		}
 		if dscispec.ServiceMesh.ManagementState == operatorv1.Unmanaged && k.GetManagementState() == operatorv1.Managed {
 			return nil
 		}
 	}
 
-	return k.removeServiceMeshConfigurations(cli, dscispec)
+	return k.removeServiceMeshConfigurations(ctx, cli, dscispec)
 }
 
-func (k *Kserve) removeServiceMeshConfigurations(cli client.Client, dscispec *dsciv1.DSCInitializationSpec) error {
-	serviceMeshInitializer := feature.ComponentFeaturesHandler(k.GetComponentName(), dscispec, k.defineServiceMeshFeatures(cli))
-	return serviceMeshInitializer.Delete()
+func (k *Kserve) removeServiceMeshConfigurations(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec) error {
+	serviceMeshInitializer := feature.ComponentFeaturesHandler(k.GetComponentName(), dscispec, k.defineServiceMeshFeatures(ctx, cli))
+	return serviceMeshInitializer.Delete(ctx)
 }
 
-func (k *Kserve) defineServiceMeshFeatures(cli client.Client) feature.FeaturesProvider {
+func (k *Kserve) defineServiceMeshFeatures(ctx context.Context, cli client.Client) feature.FeaturesProvider {
 	return func(handler *feature.FeaturesHandler) error {
-		authorinoInstalled, err := cluster.SubscriptionExists(cli, "authorino-operator")
+		authorinoInstalled, err := cluster.SubscriptionExists(ctx, cli, "authorino-operator")
 		if err != nil {
 			return fmt.Errorf("failed to list subscriptions %w", err)
 		}

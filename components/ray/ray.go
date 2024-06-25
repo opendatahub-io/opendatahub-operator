@@ -33,11 +33,11 @@ type Ray struct {
 	components.Component `json:""`
 }
 
-func (r *Ray) OverrideManifests(_ string) error {
+func (r *Ray) OverrideManifests(ctx context.Context, _ string) error {
 	// If devflags are set, update default manifests path
 	if len(r.DevFlags.Manifests) != 0 {
 		manifestConfig := r.DevFlags.Manifests[0]
-		if err := deploy.DownloadManifests(ComponentName, manifestConfig); err != nil {
+		if err := deploy.DownloadManifests(ctx, ComponentName, manifestConfig); err != nil {
 			return err
 		}
 		// If overlay is defined, update paths
@@ -70,7 +70,7 @@ func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, logger 
 	if enabled {
 		if r.DevFlags != nil {
 			// Download manifests and update paths
-			if err := r.OverrideManifests(string(platform)); err != nil {
+			if err := r.OverrideManifests(ctx, string(platform)); err != nil {
 				return err
 			}
 		}
@@ -81,7 +81,7 @@ func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, logger 
 		}
 	}
 	// Deploy Ray Operator
-	if err := deploy.DeployManifestsFromPath(cli, owner, RayPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+	if err := deploy.DeployManifestsFromPath(ctx, cli, owner, RayPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 		return fmt.Errorf("failed to apply manifets from %s : %w", RayPath, err)
 	}
 	l.Info("apply manifests done")
@@ -97,7 +97,7 @@ func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, logger 
 		if err := r.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
 		}
-		if err := deploy.DeployManifestsFromPath(cli, owner,
+		if err := deploy.DeployManifestsFromPath(ctx, cli, owner,
 			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
 			dscispec.Monitoring.Namespace,
 			"prometheus", true); err != nil {

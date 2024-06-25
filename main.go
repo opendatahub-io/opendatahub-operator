@@ -71,7 +71,7 @@ var (
 )
 
 func init() { //nolint:gochecknoinits
-	//+kubebuilder:scaffold:scheme
+	// +kubebuilder:scaffold:scheme
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(dsciv1.AddToScheme(scheme))
 	utilruntime.Must(dscv1.AddToScheme(scheme))
@@ -119,6 +119,9 @@ func main() { //nolint:funlen
 
 	ctrl.SetLogger(logger.ConfigLoggers(logmode))
 
+	// root context
+	ctx := ctrl.SetupSignalHandler()
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{ // single pod does not need to have LeaderElection
 		Scheme:                 scheme,
 		MetricsBindAddress:     metricsAddr,
@@ -138,7 +141,7 @@ func main() { //nolint:funlen
 		Log:                   logger.LogWithLevel(ctrl.Log.WithName(operatorName).WithName("controllers").WithName("DSCInitialization"), logmode),
 		Recorder:              mgr.GetEventRecorderFor("dscinitialization-controller"),
 		ApplicationsNamespace: dscApplicationsNamespace,
-	}).SetupWithManager(mgr); err != nil {
+	}).SetupWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DSCInitiatlization")
 		os.Exit(1)
 	}
@@ -153,7 +156,7 @@ func main() { //nolint:funlen
 			},
 		},
 		Recorder: mgr.GetEventRecorderFor("datasciencecluster-controller"),
-	}).SetupWithManager(mgr); err != nil {
+	}).SetupWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DataScienceCluster")
 		os.Exit(1)
 	}
@@ -192,7 +195,7 @@ func main() { //nolint:funlen
 		os.Exit(1)
 	}
 	// Get operator platform
-	platform, err := cluster.GetPlatform(setupClient)
+	platform, err := cluster.GetPlatform(ctx, setupClient)
 	if err != nil {
 		setupLog.Error(err, "error getting platform")
 		os.Exit(1)
@@ -219,7 +222,7 @@ func main() { //nolint:funlen
 	// Create default DSC CR for managed RHODS
 	if platform == cluster.ManagedRhods {
 		var createDefaultDSCFunc manager.RunnableFunc = func(ctx context.Context) error {
-			err := upgrade.CreateDefaultDSC(context.TODO(), setupClient)
+			err := upgrade.CreateDefaultDSC(ctx, setupClient)
 			if err != nil {
 				setupLog.Error(err, "unable to create default DSC CR by the operator")
 			}
@@ -254,7 +257,7 @@ func main() { //nolint:funlen
 	}
 
 	setupLog.Info("starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(ctx); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}

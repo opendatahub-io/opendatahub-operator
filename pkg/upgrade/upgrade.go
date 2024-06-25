@@ -267,7 +267,7 @@ func CleanupExistingResource(ctx context.Context, cli client.Client, platform cl
 	multiErr = multierror.Append(multiErr, deleteResources(ctx, cli, &odhDocJPH))
 	// only apply on RHOAI since ODH has a different way to create this CR by dashboard
 	if platform == cluster.SelfManagedRhods || platform == cluster.ManagedRhods {
-		if err := unsetOwnerReference(cli, "odh-dashboard-config", dscApplicationsNamespace); err != nil {
+		if err := unsetOwnerReference(ctx, cli, "odh-dashboard-config", dscApplicationsNamespace); err != nil {
 			return err
 		}
 	}
@@ -442,14 +442,14 @@ func removOdhApplicationsCR(ctx context.Context, cli client.Client, gvk schema.G
 	return nil
 }
 
-func unsetOwnerReference(cli client.Client, instanceName string, applicationNS string) error {
+func unsetOwnerReference(ctx context.Context, cli client.Client, instanceName string, applicationNS string) error {
 	crd := &apiextv1.CustomResourceDefinition{}
-	if err := cli.Get(context.TODO(), client.ObjectKey{Name: "odhdashboardconfigs.opendatahub.io"}, crd); err != nil {
+	if err := cli.Get(ctx, client.ObjectKey{Name: "odhdashboardconfigs.opendatahub.io"}, crd); err != nil {
 		return client.IgnoreNotFound(err)
 	}
 	odhObject := &unstructured.Unstructured{}
 	odhObject.SetGroupVersionKind(gvk.OdhDashboardConfig)
-	if err := cli.Get(context.TODO(), client.ObjectKey{
+	if err := cli.Get(ctx, client.ObjectKey{
 		Namespace: applicationNS,
 		Name:      instanceName,
 	}, odhObject); err != nil {
@@ -458,23 +458,23 @@ func unsetOwnerReference(cli client.Client, instanceName string, applicationNS s
 	if odhObject.GetOwnerReferences() != nil {
 		// set to nil as updates
 		odhObject.SetOwnerReferences(nil)
-		if err := cli.Update(context.TODO(), odhObject); err != nil {
+		if err := cli.Update(ctx, odhObject); err != nil {
 			return fmt.Errorf("error unset ownerreference for CR %s : %w", instanceName, err)
 		}
 	}
 	return nil
 }
 
-func RemoveLabel(cli client.Client, objectName string, labelKey string) error {
+func RemoveLabel(ctx context.Context, cli client.Client, objectName string, labelKey string) error {
 	foundNamespace := &corev1.Namespace{}
-	if err := cli.Get(context.TODO(), client.ObjectKey{Name: objectName}, foundNamespace); err != nil {
+	if err := cli.Get(ctx, client.ObjectKey{Name: objectName}, foundNamespace); err != nil {
 		if k8serr.IsNotFound(err) {
 			return nil
 		}
 		return fmt.Errorf("could not get %s namespace: %w", objectName, err)
 	}
 	delete(foundNamespace.Labels, labelKey)
-	if err := cli.Update(context.TODO(), foundNamespace); err != nil {
+	if err := cli.Update(ctx, foundNamespace); err != nil {
 		return fmt.Errorf("error removing %s from %s : %w", labelKey, objectName, err)
 	}
 	return nil

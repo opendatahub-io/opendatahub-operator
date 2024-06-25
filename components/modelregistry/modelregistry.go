@@ -36,11 +36,11 @@ type ModelRegistry struct {
 	components.Component `json:""`
 }
 
-func (m *ModelRegistry) OverrideManifests(_ string) error {
+func (m *ModelRegistry) OverrideManifests(ctx context.Context, _ string) error {
 	// If devflags are set, update default manifests path
 	if len(m.DevFlags.Manifests) != 0 {
 		manifestConfig := m.DevFlags.Manifests[0]
-		if err := deploy.DownloadManifests(ComponentName, manifestConfig); err != nil {
+		if err := deploy.DownloadManifests(ctx, ComponentName, manifestConfig); err != nil {
 			return err
 		}
 		// If overlay is defined, update paths
@@ -71,7 +71,7 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 	if enabled {
 		if m.DevFlags != nil {
 			// Download manifests and update paths
-			if err := m.OverrideManifests(string(platform)); err != nil {
+			if err := m.OverrideManifests(ctx, string(platform)); err != nil {
 				return err
 			}
 		}
@@ -91,13 +91,13 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 		}
 	}
 	// Deploy ModelRegistry Operator
-	if err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, m.GetComponentName(), enabled); err != nil {
+	if err := deploy.DeployManifestsFromPath(ctx, cli, owner, Path, dscispec.ApplicationsNamespace, m.GetComponentName(), enabled); err != nil {
 		return err
 	}
 	l.Info("apply manifests done")
 
 	// Create additional model registry resources, componentEnabled=true because these extras are never deleted!
-	if err := deploy.DeployManifestsFromPath(cli, owner, Path+"/extras", dscispec.ApplicationsNamespace, m.GetComponentName(), true); err != nil {
+	if err := deploy.DeployManifestsFromPath(ctx, cli, owner, Path+"/extras", dscispec.ApplicationsNamespace, m.GetComponentName(), true); err != nil {
 		return err
 	}
 	l.Info("apply extra manifests done")

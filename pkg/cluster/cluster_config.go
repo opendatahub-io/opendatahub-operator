@@ -20,11 +20,11 @@ import (
 
 // +kubebuilder:rbac:groups="config.openshift.io",resources=ingresses,verbs=get
 
-func GetDomain(c client.Client) (string, error) {
+func GetDomain(ctx context.Context, c client.Client) (string, error) {
 	ingress := &unstructured.Unstructured{}
 	ingress.SetGroupVersionKind(gvk.OpenshiftIngress)
 
-	if err := c.Get(context.TODO(), client.ObjectKey{
+	if err := c.Get(ctx, client.ObjectKey{
 		Namespace: "",
 		Name:      "cluster",
 	}, ingress); err != nil {
@@ -67,14 +67,14 @@ func GetClusterServiceVersion(ctx context.Context, c client.Client, watchNameSpa
 type Platform string
 
 // detectSelfManaged detects if it is Self Managed Rhods or OpenDataHub.
-func detectSelfManaged(cli client.Client) (Platform, error) {
+func detectSelfManaged(ctx context.Context, cli client.Client) (Platform, error) {
 	variants := map[string]Platform{
 		"opendatahub-operator": OpenDataHub,
 		"rhods-operator":       SelfManagedRhods,
 	}
 
 	for k, v := range variants {
-		exists, err := OperatorExists(cli, k)
+		exists, err := OperatorExists(ctx, cli, k)
 		if err != nil {
 			return Unknown, err
 		}
@@ -87,15 +87,15 @@ func detectSelfManaged(cli client.Client) (Platform, error) {
 }
 
 // detectManagedRHODS checks if CRD add-on exists and contains string ManagedRhods.
-func detectManagedRHODS(cli client.Client) (Platform, error) {
+func detectManagedRHODS(ctx context.Context, cli client.Client) (Platform, error) {
 	catalogSourceCRD := &apiextv1.CustomResourceDefinition{}
 
-	err := cli.Get(context.TODO(), client.ObjectKey{Name: "catalogsources.operators.coreos.com"}, catalogSourceCRD)
+	err := cli.Get(ctx, client.ObjectKey{Name: "catalogsources.operators.coreos.com"}, catalogSourceCRD)
 	if err != nil {
 		return "", client.IgnoreNotFound(err)
 	}
 	expectedCatlogSource := &ofapi.CatalogSourceList{}
-	err = cli.List(context.TODO(), expectedCatlogSource)
+	err = cli.List(ctx, expectedCatlogSource)
 	if err != nil {
 		return Unknown, err
 	}
@@ -110,16 +110,16 @@ func detectManagedRHODS(cli client.Client) (Platform, error) {
 	return "", nil
 }
 
-func GetPlatform(cli client.Client) (Platform, error) {
+func GetPlatform(ctx context.Context, cli client.Client) (Platform, error) {
 	// First check if its addon installation to return 'ManagedRhods, nil'
-	if platform, err := detectManagedRHODS(cli); err != nil {
+	if platform, err := detectManagedRHODS(ctx, cli); err != nil {
 		return Unknown, err
 	} else if platform == ManagedRhods {
 		return ManagedRhods, nil
 	}
 
 	// check and return whether ODH or self-managed platform
-	return detectSelfManaged(cli)
+	return detectSelfManaged(ctx, cli)
 }
 
 // Release includes information on operator version and platform
@@ -129,7 +129,7 @@ type Release struct {
 	Version version.OperatorVersion `json:"version,omitempty"`
 }
 
-func GetRelease(cli client.Client) (Release, error) {
+func GetRelease(ctx context.Context, cli client.Client) (Release, error) {
 	initRelease := Release{
 		// dummy version set to name "", version 0.0.0
 		Version: version.OperatorVersion{
@@ -137,7 +137,7 @@ func GetRelease(cli client.Client) (Release, error) {
 		},
 	}
 	// Set platform
-	platform, err := GetPlatform(cli)
+	platform, err := GetPlatform(ctx, cli)
 	if err != nil {
 		return initRelease, err
 	}
@@ -155,7 +155,7 @@ func GetRelease(cli client.Client) (Release, error) {
 		fmt.Printf("Falling back to dummy version: %v\n", err)
 		return initRelease, nil
 	}
-	csv, err := GetClusterServiceVersion(context.TODO(), cli, operatorNamespace)
+	csv, err := GetClusterServiceVersion(ctx, cli, operatorNamespace)
 	if k8serr.IsNotFound(err) {
 		// hide not found, return default
 		return initRelease, nil

@@ -51,11 +51,11 @@ type Dashboard struct {
 	components.Component `json:""`
 }
 
-func (d *Dashboard) OverrideManifests(platform string) error {
+func (d *Dashboard) OverrideManifests(ctx context.Context, platform string) error {
 	// If devflags are set, update default manifests path
 	if len(d.DevFlags.Manifests) != 0 {
 		manifestConfig := d.DevFlags.Manifests[0]
-		if err := deploy.DownloadManifests(ComponentName, manifestConfig); err != nil {
+		if err := deploy.DownloadManifests(ctx, ComponentName, manifestConfig); err != nil {
 			return err
 		}
 		// If overlay is defined, update paths
@@ -113,12 +113,12 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		}
 		if d.DevFlags != nil {
 			// Download manifests and update paths
-			if err := d.OverrideManifests(string(platform)); err != nil {
+			if err := d.OverrideManifests(ctx, string(platform)); err != nil {
 				return err
 			}
 		}
 		// 1. Deploy CRDs
-		if err := d.deployCRDsForPlatform(cli, owner, dscispec.ApplicationsNamespace, platform); err != nil {
+		if err := d.deployCRDsForPlatform(ctx, cli, owner, dscispec.ApplicationsNamespace, platform); err != nil {
 			return fmt.Errorf("failed to deploy Dashboard CRD: %w", err)
 		}
 
@@ -154,12 +154,12 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 			return fmt.Errorf("failed to create access-secret for anaconda: %w", err)
 		}
 		// overlay which including ../../base + anaconda-ce-validator
-		if err := deploy.DeployManifestsFromPath(cli, owner, PathSupported, dscispec.ApplicationsNamespace, ComponentNameSupported, enabled); err != nil {
+		if err := deploy.DeployManifestsFromPath(ctx, cli, owner, PathSupported, dscispec.ApplicationsNamespace, ComponentNameSupported, enabled); err != nil {
 			return fmt.Errorf("failed to apply manifests from %s: %w", PathSupported, err)
 		}
 
 		// Apply RHOAI specific configs, e.g anaconda screct and cronjob and ISV
-		if err := d.applyRHOAISpecificConfigs(cli, owner, dscispec.ApplicationsNamespace, platform); err != nil {
+		if err := d.applyRHOAISpecificConfigs(ctx, cli, owner, dscispec.ApplicationsNamespace, platform); err != nil {
 			return err
 		}
 		// consolelink
@@ -181,7 +181,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 			if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentNameSupported); err != nil {
 				return err
 			}
-			if err := deploy.DeployManifestsFromPath(cli, owner,
+			if err := deploy.DeployManifestsFromPath(ctx, cli, owner,
 				filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
 				dscispec.Monitoring.Namespace,
 				"prometheus", true); err != nil {
@@ -192,11 +192,11 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		return nil
 	default:
 		// base
-		if err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+		if err := deploy.DeployManifestsFromPath(ctx, cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 			return err
 		}
 		// ISV
-		if err := deploy.DeployManifestsFromPath(cli, owner, PathISV, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+		if err := deploy.DeployManifestsFromPath(ctx, cli, owner, PathISV, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 			return err
 		}
 		// consolelink
@@ -208,16 +208,16 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 	}
 }
 
-func (d *Dashboard) deployCRDsForPlatform(cli client.Client, owner metav1.Object, namespace string, platform cluster.Platform) error {
+func (d *Dashboard) deployCRDsForPlatform(ctx context.Context, cli client.Client, owner metav1.Object, namespace string, platform cluster.Platform) error {
 	componentName := ComponentName
 	if platform == cluster.SelfManagedRhods || platform == cluster.ManagedRhods {
 		componentName = ComponentNameSupported
 	}
 	// we only deploy CRD, we do not remove CRD
-	return deploy.DeployManifestsFromPath(cli, owner, PathCRDs, namespace, componentName, true)
+	return deploy.DeployManifestsFromPath(ctx, cli, owner, PathCRDs, namespace, componentName, true)
 }
 
-func (d *Dashboard) applyRHOAISpecificConfigs(cli client.Client, owner metav1.Object, namespace string, platform cluster.Platform) error {
+func (d *Dashboard) applyRHOAISpecificConfigs(ctx context.Context, cli client.Client, owner metav1.Object, namespace string, platform cluster.Platform) error {
 	enabled := d.ManagementState == operatorv1.Managed
 
 	// set proper group name
@@ -230,7 +230,7 @@ func (d *Dashboard) applyRHOAISpecificConfigs(cli client.Client, owner metav1.Ob
 	if err := common.ReplaceStringsInFile(dashboardConfig, map[string]string{"<admin_groups>": adminGroups}); err != nil {
 		return err
 	}
-	if err := deploy.DeployManifestsFromPath(cli, owner, PathODHDashboardConfig, namespace, ComponentNameSupported, enabled); err != nil {
+	if err := deploy.DeployManifestsFromPath(ctx, cli, owner, PathODHDashboardConfig, namespace, ComponentNameSupported, enabled); err != nil {
 		return fmt.Errorf("failed to create OdhDashboardConfig from %s: %w", PathODHDashboardConfig, err)
 	}
 	// ISV
@@ -238,7 +238,7 @@ func (d *Dashboard) applyRHOAISpecificConfigs(cli client.Client, owner metav1.Ob
 	if platform == cluster.ManagedRhods {
 		path = PathISVAddOn
 	}
-	if err := deploy.DeployManifestsFromPath(cli, owner, path, namespace, ComponentNameSupported, enabled); err != nil {
+	if err := deploy.DeployManifestsFromPath(ctx, cli, owner, path, namespace, ComponentNameSupported, enabled); err != nil {
 		return fmt.Errorf("failed to set dashboard ISV from %s : %w", Path, err)
 	}
 	return nil
@@ -278,7 +278,7 @@ func (d *Dashboard) deployConsoleLink(ctx context.Context, cli client.Client, ow
 	}
 
 	enabled := d.ManagementState == operatorv1.Managed
-	if err := deploy.DeployManifestsFromPath(cli, owner, PathConsoleLink, namespace, componentName, enabled); err != nil {
+	if err := deploy.DeployManifestsFromPath(ctx, cli, owner, PathConsoleLink, namespace, componentName, enabled); err != nil {
 		return fmt.Errorf("failed to set dashboard consolelink %s : %w", pathConsoleLink, err)
 	}
 

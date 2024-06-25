@@ -31,11 +31,11 @@ type Kueue struct {
 	components.Component `json:""`
 }
 
-func (k *Kueue) OverrideManifests(_ string) error {
+func (k *Kueue) OverrideManifests(ctx context.Context, _ string) error {
 	// If devflags are set, update default manifests path
 	if len(k.DevFlags.Manifests) != 0 {
 		manifestConfig := k.DevFlags.Manifests[0]
-		if err := deploy.DownloadManifests(ComponentName, manifestConfig); err != nil {
+		if err := deploy.DownloadManifests(ctx, ComponentName, manifestConfig); err != nil {
 			return err
 		}
 		// If overlay is defined, update paths
@@ -65,7 +65,7 @@ func (k *Kueue) ReconcileComponent(ctx context.Context, cli client.Client, logge
 	if enabled {
 		if k.DevFlags != nil {
 			// Download manifests and update paths
-			if err := k.OverrideManifests(string(platform)); err != nil {
+			if err := k.OverrideManifests(ctx, string(platform)); err != nil {
 				return err
 			}
 		}
@@ -76,7 +76,7 @@ func (k *Kueue) ReconcileComponent(ctx context.Context, cli client.Client, logge
 		}
 	}
 	// Deploy Kueue Operator
-	if err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+	if err := deploy.DeployManifestsFromPath(ctx, cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 		return fmt.Errorf("failed to apply manifetss %s: %w", Path, err)
 	}
 	l.Info("apply manifests done")
@@ -92,7 +92,7 @@ func (k *Kueue) ReconcileComponent(ctx context.Context, cli client.Client, logge
 		if err := k.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
 		}
-		if err := deploy.DeployManifestsFromPath(cli, owner,
+		if err := deploy.DeployManifestsFromPath(ctx, cli, owner,
 			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
 			dscispec.Monitoring.Namespace,
 			"prometheus", true); err != nil {

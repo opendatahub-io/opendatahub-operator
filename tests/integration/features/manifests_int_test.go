@@ -25,23 +25,23 @@ var _ = Describe("Manifest sources", func() {
 		namespace     *corev1.Namespace
 	)
 
-	BeforeEach(func() {
+	BeforeEach(func(ctx context.Context) {
 		objectCleaner = envtestutil.CreateCleaner(envTestClient, envTest.Config, fixtures.Timeout, fixtures.Interval)
 		nsName := envtestutil.AppendRandomNameTo("smcp-ns")
 
 		var err error
-		namespace, err = cluster.CreateNamespace(context.Background(), envTestClient, nsName)
+		namespace, err = cluster.CreateNamespace(ctx, envTestClient, nsName)
 		Expect(err).ToNot(HaveOccurred())
 
 		dsci = fixtures.NewDSCInitialization(nsName)
 		dsci.Spec.ServiceMesh.ControlPlane.Namespace = namespace.Name
 	})
 
-	AfterEach(func() {
-		objectCleaner.DeleteAll(namespace)
+	AfterEach(func(ctx context.Context) {
+		objectCleaner.DeleteAll(ctx, namespace)
 	})
 
-	It("should be able to process an embedded YAML file", func() {
+	It("should be able to process an embedded YAML file", func(ctx context.Context) {
 		// given
 		featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
 			createNamespaceErr := feature.CreateFeature("create-namespace").
@@ -57,16 +57,16 @@ var _ = Describe("Manifest sources", func() {
 		})
 
 		// when
-		Expect(featuresHandler.Apply()).To(Succeed())
+		Expect(featuresHandler.Apply(ctx)).To(Succeed())
 
 		// then
-		embeddedNs, err := fixtures.GetNamespace(envTestClient, "embedded-test-ns")
-		defer objectCleaner.DeleteAll(embeddedNs)
+		embeddedNs, err := fixtures.GetNamespace(ctx, envTestClient, "embedded-test-ns")
+		defer objectCleaner.DeleteAll(ctx, embeddedNs)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(embeddedNs.Name).To(Equal("embedded-test-ns"))
 	})
 
-	It("should be able to process an embedded template file", func() {
+	It("should be able to process an embedded template file", func(ctx context.Context) {
 		// given
 		featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
 			createServiceErr := feature.CreateFeature("create-local-gw-svc").
@@ -82,10 +82,10 @@ var _ = Describe("Manifest sources", func() {
 		})
 
 		// when
-		Expect(featuresHandler.Apply()).To(Succeed())
+		Expect(featuresHandler.Apply(ctx)).To(Succeed())
 
 		// then
-		service, err := fixtures.GetService(envTestClient, namespace.Name, "knative-local-gateway")
+		service, err := fixtures.GetService(ctx, envTestClient, namespace.Name, "knative-local-gateway")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(service.Name).To(Equal("knative-local-gateway"))
 	})
@@ -95,7 +95,7 @@ kind: Namespace
 metadata:
   name: real-file-test-ns`
 
-	It("should source manifests from a specified temporary directory within the file system", func() {
+	It("should source manifests from a specified temporary directory within the file system", func(ctx context.Context) {
 		// given
 		tempDir := GinkgoT().TempDir()
 
@@ -115,11 +115,11 @@ metadata:
 		})
 
 		// when
-		Expect(featuresHandler.Apply()).To(Succeed())
+		Expect(featuresHandler.Apply(ctx)).To(Succeed())
 
 		// then
-		realNs, err := fixtures.GetNamespace(envTestClient, "real-file-test-ns")
-		defer objectCleaner.DeleteAll(realNs)
+		realNs, err := fixtures.GetNamespace(ctx, envTestClient, "real-file-test-ns")
+		defer objectCleaner.DeleteAll(ctx, realNs)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(realNs.Name).To(Equal("real-file-test-ns"))
 	})
