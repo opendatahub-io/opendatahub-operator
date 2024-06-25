@@ -56,13 +56,13 @@ type Kserve struct {
 	DefaultDeploymentMode DefaultDeploymentMode `json:"defaultDeploymentMode,omitempty"`
 }
 
-func (k *Kserve) OverrideManifests(_ string) error {
+func (k *Kserve) OverrideManifests(ctx context.Context, _ string) error {
 	// Download manifests if defined by devflags
 	// Go through each manifest and set the overlays if defined
 	for _, subcomponent := range k.DevFlags.Manifests {
 		if strings.Contains(subcomponent.URI, DependentComponentName) {
 			// Download subcomponent
-			if err := deploy.DownloadManifests(DependentComponentName, subcomponent); err != nil {
+			if err := deploy.DownloadManifests(ctx, DependentComponentName, subcomponent); err != nil {
 				return err
 			}
 			// If overlay is defined, update paths
@@ -75,7 +75,7 @@ func (k *Kserve) OverrideManifests(_ string) error {
 
 		if strings.Contains(subcomponent.URI, ComponentName) {
 			// Download subcomponent
-			if err := deploy.DownloadManifests(ComponentName, subcomponent); err != nil {
+			if err := deploy.DownloadManifests(ctx, ComponentName, subcomponent); err != nil {
 				return err
 			}
 			// If overlay is defined, update paths
@@ -108,17 +108,17 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 
 	if !enabled {
-		if err := k.removeServerlessFeatures(dscispec); err != nil {
+		if err := k.removeServerlessFeatures(ctx, dscispec); err != nil {
 			return err
 		}
 	} else {
 		// Configure dependencies
-		if err := k.configureServerless(dscispec); err != nil {
+		if err := k.configureServerless(ctx, dscispec); err != nil {
 			return err
 		}
 		if k.DevFlags != nil {
 			// Download manifests and update paths
-			if err := k.OverrideManifests(string(platform)); err != nil {
+			if err := k.OverrideManifests(ctx, string(platform)); err != nil {
 				return err
 			}
 		}
@@ -131,11 +131,11 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 		}
 	}
 
-	if err := k.configureServiceMesh(cli, dscispec); err != nil {
+	if err := k.configureServiceMesh(ctx, cli, dscispec); err != nil {
 		return fmt.Errorf("failed configuring service mesh while reconciling kserve component. cause: %w", err)
 	}
 
-	if err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+	if err := deploy.DeployManifestsFromPath(ctx, cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 		return fmt.Errorf("failed to apply manifests from %s : %w", Path, err)
 	}
 
@@ -158,7 +158,7 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 		}
 	}
 
-	if err := deploy.DeployManifestsFromPath(cli, owner, DependentPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+	if err := deploy.DeployManifestsFromPath(ctx, cli, owner, DependentPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 		if !strings.Contains(err.Error(), "spec.selector") || !strings.Contains(err.Error(), "field is immutable") {
 			// explicitly ignore error if error contains keywords "spec.selector" and "field is immutable" and return all other error.
 			return err
@@ -184,10 +184,10 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 	return nil
 }
 
-func (k *Kserve) Cleanup(cli client.Client, instance *dsciv1.DSCInitializationSpec) error {
-	if removeServerlessErr := k.removeServerlessFeatures(instance); removeServerlessErr != nil {
+func (k *Kserve) Cleanup(ctx context.Context, cli client.Client, instance *dsciv1.DSCInitializationSpec) error {
+	if removeServerlessErr := k.removeServerlessFeatures(ctx, instance); removeServerlessErr != nil {
 		return removeServerlessErr
 	}
 
-	return k.removeServiceMeshConfigurations(cli, instance)
+	return k.removeServiceMeshConfigurations(ctx, cli, instance)
 }

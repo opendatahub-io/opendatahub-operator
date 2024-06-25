@@ -30,10 +30,10 @@ func (e *withConditionReasonError) Error() string {
 // createFeatureTracker instantiates FeatureTracker for a given Feature. It's a cluster-scoped resource used
 // to track creation and removal of all owned resources which belong to this Feature.
 // All resources which particular feature is composed of will have this object attached as an OwnerReference.
-func (f *Feature) createFeatureTracker() error {
-	tracker, err := f.getFeatureTracker()
+func (f *Feature) createFeatureTracker(ctx context.Context) error {
+	tracker, err := f.getFeatureTracker(ctx)
 	if k8serr.IsNotFound(err) {
-		if err := f.Client.Create(context.TODO(), tracker); err != nil {
+		if err := f.Client.Create(ctx, tracker); err != nil {
 			return err
 		}
 	} else if err != nil {
@@ -49,15 +49,15 @@ func (f *Feature) createFeatureTracker() error {
 	return nil
 }
 
-func removeFeatureTracker(f *Feature) error {
-	if err := getFeatureTrackerIfAbsent(f); err != nil {
+func removeFeatureTracker(ctx context.Context, f *Feature) error {
+	if err := getFeatureTrackerIfAbsent(ctx, f); err != nil {
 		return client.IgnoreNotFound(err)
 	}
 
-	return deleteTracker(f)
+	return deleteTracker(ctx, f)
 }
 
-func (f *Feature) getFeatureTracker() (*featurev1.FeatureTracker, error) {
+func (f *Feature) getFeatureTracker(ctx context.Context) (*featurev1.FeatureTracker, error) {
 	tracker := featurev1.NewFeatureTracker(f.Name, f.Spec.AppNamespace)
 
 	tracker.Spec = featurev1.FeatureTrackerSpec{
@@ -65,18 +65,18 @@ func (f *Feature) getFeatureTracker() (*featurev1.FeatureTracker, error) {
 		AppNamespace: f.Spec.AppNamespace,
 	}
 
-	err := f.Client.Get(context.Background(), client.ObjectKeyFromObject(tracker), tracker)
+	err := f.Client.Get(ctx, client.ObjectKeyFromObject(tracker), tracker)
 
 	return tracker, err
 }
 
-func deleteTracker(f *Feature) error {
-	return client.IgnoreNotFound(f.Client.Delete(context.Background(), f.Tracker))
+func deleteTracker(ctx context.Context, f *Feature) error {
+	return client.IgnoreNotFound(f.Client.Delete(ctx, f.Tracker))
 }
 
-func getFeatureTrackerIfAbsent(f *Feature) error {
+func getFeatureTrackerIfAbsent(ctx context.Context, f *Feature) error {
 	var err error
-	f.Tracker, err = f.getFeatureTracker()
+	f.Tracker, err = f.getFeatureTracker(ctx)
 	return err
 }
 

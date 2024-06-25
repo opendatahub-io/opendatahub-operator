@@ -8,10 +8,10 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 )
 
-func ServingCertificateResource(f *feature.Feature) error {
+func ServingCertificateResource(ctx context.Context, f *feature.Feature) error {
 	switch certType := f.Spec.Serving.IngressGateway.Certificate.Type; certType {
 	case infrav1.SelfSigned:
-		return cluster.CreateSelfSignedCertificate(context.TODO(), f.Client,
+		return cluster.CreateSelfSignedCertificate(ctx, f.Client,
 			f.Spec.KnativeCertificateSecret,
 			f.Spec.KnativeIngressDomain,
 			f.Spec.ControlPlane.Namespace,
@@ -19,6 +19,6 @@ func ServingCertificateResource(f *feature.Feature) error {
 	case infrav1.Provided:
 		return nil
 	default:
-		return cluster.PropagateDefaultIngressCertificate(context.TODO(), f.Client, f.Spec.KnativeCertificateSecret, f.Spec.ControlPlane.Namespace)
+		return cluster.PropagateDefaultIngressCertificate(ctx, f.Client, f.Spec.KnativeCertificateSecret, f.Spec.ControlPlane.Namespace)
 	}
 }

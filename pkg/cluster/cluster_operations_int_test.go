@@ -34,7 +34,7 @@ var _ = Describe("Creating cluster resources", func() {
 		It("should create namespace if it does not exist", func(ctx context.Context) {
 			// given
 			namespace := envtestutil.AppendRandomNameTo("new-ns")
-			defer objectCleaner.DeleteAll(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
+			defer objectCleaner.DeleteAll(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
 
 			// when
 			ns, err := cluster.CreateNamespace(ctx, envTestClient, namespace)
@@ -54,7 +54,7 @@ var _ = Describe("Creating cluster resources", func() {
 				},
 			}
 			Expect(envTestClient.Create(ctx, newNamespace)).To(Succeed())
-			defer objectCleaner.DeleteAll(newNamespace)
+			defer objectCleaner.DeleteAll(ctx, newNamespace)
 
 			// when
 			existingNamespace, err := cluster.CreateNamespace(ctx, envTestClient, namespace)
@@ -67,7 +67,7 @@ var _ = Describe("Creating cluster resources", func() {
 		It("should set labels", func(ctx context.Context) {
 			// given
 			namespace := envtestutil.AppendRandomNameTo("new-ns-with-labels")
-			defer objectCleaner.DeleteAll(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
+			defer objectCleaner.DeleteAll(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
 
 			// when
 			nsWithLabels, err := cluster.CreateNamespace(ctx, envTestClient, namespace, cluster.WithLabels("opendatahub.io/test-label", "true"))
@@ -80,7 +80,7 @@ var _ = Describe("Creating cluster resources", func() {
 		It("should set annotations", func(ctx context.Context) {
 			// given
 			namespace := envtestutil.AppendRandomNameTo("new-ns-with-labels")
-			defer objectCleaner.DeleteAll(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
+			defer objectCleaner.DeleteAll(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
 
 			// when
 			nsWithLabels, err := cluster.CreateNamespace(ctx, envTestClient, namespace, cluster.WithAnnotations("opendatahub.io/test-annotation", "true"))
@@ -128,7 +128,7 @@ var _ = Describe("Creating cluster resources", func() {
 				cluster.InNamespace(namespace),
 			)
 			Expect(err).ToNot(HaveOccurred())
-			defer objectCleaner.DeleteAll(configMap)
+			defer objectCleaner.DeleteAll(ctx, configMap)
 
 			// then
 			actualConfigMap := &corev1.ConfigMap{}
@@ -159,7 +159,7 @@ var _ = Describe("Creating cluster resources", func() {
 				}),
 			)
 			Expect(err).ToNot(HaveOccurred())
-			defer objectCleaner.DeleteAll(configMap)
+			defer objectCleaner.DeleteAll(ctx, configMap)
 
 			// then
 			actualConfigMap := &corev1.ConfigMap{}
@@ -202,7 +202,7 @@ var _ = Describe("Creating cluster resources", func() {
 				cluster.WithLabels("test-step", "update-existing-configmap"),
 			)
 			Expect(updateErr).ToNot(HaveOccurred())
-			defer objectCleaner.DeleteAll(updatedConfigMap)
+			defer objectCleaner.DeleteAll(ctx, updatedConfigMap)
 
 			// then
 			actualConfigMap := &corev1.ConfigMap{}

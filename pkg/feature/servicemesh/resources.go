@@ -13,7 +13,7 @@ import (
 
 // MeshRefs stores service mesh configuration in the config map, so it can
 // be easily accessed by other components which rely on this information.
-func MeshRefs(f *feature.Feature) error {
+func MeshRefs(ctx context.Context, f *feature.Feature) error {
 	meshConfig := f.Spec.ControlPlane
 	namespace := f.Spec.AppNamespace
 
@@ -23,7 +23,7 @@ func MeshRefs(f *feature.Feature) error {
 	}
 
 	return cluster.CreateOrUpdateConfigMap(
-		context.TODO(),
+		ctx,
 		f.Client,
 		&corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
@@ -38,7 +38,7 @@ func MeshRefs(f *feature.Feature) error {
 
 // AuthRefs stores authorization configuration in the config map, so it can
 // be easily accessed by other components which rely on this information.
-func AuthRefs(f *feature.Feature) error {
+func AuthRefs(ctx context.Context, f *feature.Feature) error {
 	audiences := f.Spec.Auth.Audiences
 	namespace := f.Spec.AppNamespace
 	audiencesList := ""
@@ -52,7 +52,7 @@ func AuthRefs(f *feature.Feature) error {
 	}
 
 	return cluster.CreateOrUpdateConfigMap(
-		context.TODO(),
+		ctx,
 		f.Client,
 		&corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{

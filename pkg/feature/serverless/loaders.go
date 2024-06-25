@@ -1,6 +1,7 @@
 package serverless
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -10,7 +11,7 @@ import (
 
 const DefaultCertificateSecretName = "knative-serving-cert"
 
-func ServingDefaultValues(f *feature.Feature) error {
+func ServingDefaultValues(_ context.Context, f *feature.Feature) error {
 	certificateSecretName := strings.TrimSpace(f.Spec.Serving.IngressGateway.Certificate.SecretName)
 	if len(certificateSecretName) == 0 {
 		certificateSecretName = DefaultCertificateSecretName
@@ -20,11 +21,11 @@ func ServingDefaultValues(f *feature.Feature) error {
 	return nil
 }
 
-func ServingIngressDomain(f *feature.Feature) error {
+func ServingIngressDomain(ctx context.Context, f *feature.Feature) error {
 	domain := strings.TrimSpace(f.Spec.Serving.IngressGateway.Domain)
 	if len(domain) == 0 {
 		var errDomain error
-		domain, errDomain = cluster.GetDomain(f.Client)
+		domain, errDomain = cluster.GetDomain(ctx, f.Client)
 		if errDomain != nil {
 			return fmt.Errorf("failed to fetch OpenShift domain to generate certificate for Serverless: %w", errDomain)
 		}

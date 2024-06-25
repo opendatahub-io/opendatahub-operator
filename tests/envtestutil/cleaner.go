@@ -40,10 +40,10 @@ func CreateCleaner(c client.Client, config *rest.Config, timeout, interval time.
 	}
 }
 
-func (c *Cleaner) DeleteAll(objects ...client.Object) {
+func (c *Cleaner) DeleteAll(ctx context.Context, objects ...client.Object) {
 	for _, obj := range objects {
 		obj := obj
-		Expect(client.IgnoreNotFound(c.client.Delete(context.Background(), obj))).Should(Succeed())
+		Expect(client.IgnoreNotFound(c.client.Delete(ctx, obj))).Should(Succeed())
 
 		if ns, ok := obj.(*corev1.Namespace); ok {
 			// Normally the kube-controller-manager would handle finalization
@@ -87,14 +87,14 @@ func (c *Cleaner) DeleteAll(objects ...client.Object) {
 			for _, gvk := range namespacedGVKs {
 				var u unstructured.Unstructured
 				u.SetGroupVersionKind(gvk)
-				err := c.client.DeleteAllOf(context.Background(), &u, client.InNamespace(ns.Name))
+				err := c.client.DeleteAllOf(ctx, &u, client.InNamespace(ns.Name))
 				Expect(client.IgnoreNotFound(ignoreMethodNotAllowed(err))).ShouldNot(HaveOccurred())
 			}
 
 			Eventually(func() error {
 				key := client.ObjectKeyFromObject(ns)
 
-				if err := c.client.Get(context.Background(), key, ns); err != nil {
+				if err := c.client.Get(ctx, key, ns); err != nil {
 					return client.IgnoreNotFound(err)
 				}
 				// remove `kubernetes` finalizer
@@ -109,7 +109,8 @@ func (c *Cleaner) DeleteAll(objects ...client.Object) {
 
 				// We have to use the k8s.io/client-go library here to expose
 				// ability to patch the /finalize subresource on the namespace
-				_, err = c.clientset.CoreV1().Namespaces().Finalize(context.Background(), ns, metav1.UpdateOptions{})
+				_, err = c.clientset.CoreV1().Namespaces().Finalize(ctx, ns, metav1.UpdateOptions{})
+
 				return err
 			}).
 				WithTimeout(c.timeout).
@@ -119,7 +120,7 @@ func (c *Cleaner) DeleteAll(objects ...client.Object) {
 
 		Eventually(func() metav1.StatusReason {
 			key := client.ObjectKeyFromObject(obj)
-			if err := c.client.Get(context.Background(), key, obj); err != nil {
+			if err := c.client.Get(ctx, key, obj); err != nil {
 				return k8serr.ReasonForError(err)
 			}
 			return ""

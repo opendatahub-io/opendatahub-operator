@@ -132,7 +132,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsciv1.DSCInitializati
 	// r.Log.Info("Success: inject alertmanage-configs.yaml")
 
 	// special handling for dev-mod
-	consolelinkDomain, err := cluster.GetDomain(r.Client)
+	consolelinkDomain, err := cluster.GetDomain(ctx, r.Client)
 	if err != nil {
 		return fmt.Errorf("error getting console route URL : %w", err)
 	}
@@ -183,7 +183,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsciv1.DSCInitializati
 		return err
 	}
 	// r.Log.Info("Success: update alertmanage-configs.yaml with email")
-	err = deploy.DeployManifestsFromPath(r.Client, dsciInit, alertManagerPath, dsciInit.Spec.Monitoring.Namespace, "alertmanager", true)
+	err = deploy.DeployManifestsFromPath(ctx, r.Client, dsciInit, alertManagerPath, dsciInit.Spec.Monitoring.Namespace, "alertmanager", true)
 	if err != nil {
 		r.Log.Error(err, "error to deploy manifests", "path", alertManagerPath)
 		return err
@@ -210,7 +210,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsciv1.DSCInitialization
 		return err
 	}
 	// Update prometheus-config for dashboard, dsp and workbench
-	consolelinkDomain, err := cluster.GetDomain(r.Client)
+	consolelinkDomain, err := cluster.GetDomain(ctx, r.Client)
 	if err != nil {
 		return fmt.Errorf("error getting console route URL : %w", err)
 	}
@@ -227,6 +227,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsciv1.DSCInitialization
 
 	// Deploy prometheus manifests from prometheus/apps
 	if err = deploy.DeployManifestsFromPath(
+		ctx,
 		r.Client,
 		dsciInit,
 		prometheusConfigPath,
@@ -330,7 +331,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsciv1.DSCInitialization
 		}
 	}
 
-	err = deploy.DeployManifestsFromPath(r.Client, dsciInit, prometheusManifestsPath,
+	err = deploy.DeployManifestsFromPath(ctx, r.Client, dsciInit, prometheusManifestsPath,
 		dsciInit.Spec.Monitoring.Namespace, "prometheus", true)
 	if err != nil {
 		r.Log.Error(err, "error to deploy manifests for prometheus", "path", prometheusManifestsPath)
@@ -375,7 +376,7 @@ func configureBlackboxExporter(ctx context.Context, dsciInit *dsciv1.DSCInitiali
 
 	blackBoxPath := filepath.Join(deploy.DefaultManifestPath, "monitoring", "blackbox-exporter")
 	if k8serr.IsNotFound(err) || strings.Contains(consoleRoute.Spec.Host, "redhat.com") {
-		if err := deploy.DeployManifestsFromPath(r.Client,
+		if err := deploy.DeployManifestsFromPath(ctx, r.Client,
 			dsciInit,
 			filepath.Join(blackBoxPath, "internal"),
 			dsciInit.Spec.Monitoring.Namespace,
@@ -385,7 +386,7 @@ func configureBlackboxExporter(ctx context.Context, dsciInit *dsciv1.DSCInitiali
 			return err
 		}
 	} else {
-		if err := deploy.DeployManifestsFromPath(r.Client,
+		if err := deploy.DeployManifestsFromPath(ctx, r.Client,
 			dsciInit,
 			filepath.Join(blackBoxPath, "external"),
 			dsciInit.Spec.Monitoring.Namespace,
@@ -447,6 +448,7 @@ func (r *DSCInitializationReconciler) configureSegmentIO(ctx context.Context, ds
 		} else {
 			segmentPath := filepath.Join(deploy.DefaultManifestPath, "monitoring", "segment")
 			if err := deploy.DeployManifestsFromPath(
+				ctx,
 				r.Client,
 				dsciInit,
 				segmentPath,
@@ -479,6 +481,7 @@ func (r *DSCInitializationReconciler) configureCommonMonitoring(ctx context.Cont
 	}
 	// do not set monitoring namespace here, it is hardcoded by manifests
 	if err := deploy.DeployManifestsFromPath(
+		ctx,
 		r.Client,
 		dsciInit,
 		monitoringBasePath,

@@ -48,35 +48,35 @@ func newFeature(name string) *Feature {
 }
 
 // Action is a func type which can be used for different purposes while having access to Feature struct.
-type Action func(feature *Feature) error
+type Action func(ctx context.Context, feature *Feature) error
 
-func (f *Feature) Apply() error {
+func (f *Feature) Apply(ctx context.Context) error {
 	if !f.Enabled {
 		return nil
 	}
 
-	if trackerErr := f.createFeatureTracker(); trackerErr != nil {
+	if trackerErr := f.createFeatureTracker(ctx); trackerErr != nil {
 		return trackerErr
 	}
 
-	if _, updateErr := status.UpdateWithRetry(context.Background(), f.Client, f.Tracker, func(saved *featurev1.FeatureTracker) {
+	if _, updateErr := status.UpdateWithRetry(ctx, f.Client, f.Tracker, func(saved *featurev1.FeatureTracker) {
 		status.SetProgressingCondition(&saved.Status.Conditions, string(featurev1.ConditionReason.FeatureCreated), fmt.Sprintf("Applying feature [%s]", f.Name))
 		saved.Status.Phase = status.PhaseProgressing
 	}); updateErr != nil {
 		return updateErr
 	}
 
-	applyErr := f.applyFeature()
-	_, reportErr := createFeatureTrackerStatusReporter(f).ReportCondition(applyErr)
+	applyErr := f.applyFeature(ctx)
+	_, reportErr := createFeatureTrackerStatusReporter(f).ReportCondition(ctx, applyErr)
 
 	return multierror.Append(applyErr, reportErr).ErrorOrNil()
 }
 
-func (f *Feature) applyFeature() error {
+func (f *Feature) applyFeature(ctx context.Context) error {
 	var multiErr *multierror.Error
 
 	for _, precondition := range f.preconditions {
-		multiErr = multierror.Append(multiErr, precondition(f))
+		multiErr = multierror.Append(multiErr, precondition(ctx, f))
 	}
 
 	if preconditionsErr := multiErr.ErrorOrNil(); preconditionsErr != nil {
@@ -84,14 +84,14 @@ func (f *Feature) applyFeature() error {
 	}
 
 	for _, loader := range f.loaders {
-		multiErr = multierror.Append(multiErr, loader(f))
+		multiErr = multierror.Append(multiErr, loader(ctx, f))
 	}
 	if dataLoadErr := multiErr.ErrorOrNil(); dataLoadErr != nil {
 		return &withConditionReasonError{reason: featurev1.ConditionReason.LoadTemplateData, err: dataLoadErr}
 	}
 
 	for _, resource := range f.resources {
-		if resourceCreateErr := resource(f); resourceCreateErr != nil {
+		if resourceCreateErr := resource(ctx, f); resourceCreateErr != nil {
 			return &withConditionReasonError{reason: featurev1.ConditionReason.ResourceCreation, err: resourceCreateErr}
 		}
 	}
@@ -109,13 +109,13 @@ func (f *Feature) applyFeature() error {
 			manifest.MarkAsManaged(objs)
 		}
 
-		if err := apply(objs); err != nil {
+		if err := apply(ctx, objs); err != nil {
 			return &withConditionReasonError{reason: featurev1.ConditionReason.ApplyManifests, err: err}
 		}
 	}
 
 	for _, postcondition := range f.postconditions {
-		multiErr = multierror.Append(multiErr, postcondition(f))
+		multiErr = multierror.Append(multiErr, postcondition(ctx, f))
 	}
 	if postConditionErr := multiErr.ErrorOrNil(); postConditionErr != nil {
 		return &withConditionReasonError{reason: featurev1.ConditionReason.PostConditions, err: postConditionErr}
@@ -124,7 +124,7 @@ func (f *Feature) applyFeature() error {
 	return nil
 }
 
-func (f *Feature) Cleanup() error {
+func (f *Feature) Cleanup(ctx context.Context) error {
 	if !f.Enabled {
 		return nil
 	}
@@ -135,32 +135,32 @@ func (f *Feature) Cleanup() error {
 
 	var cleanupErrors *multierror.Error
 	for _, cleanupFunc := range f.cleanups {
-		cleanupErrors = multierror.Append(cleanupErrors, cleanupFunc(f))
+		cleanupErrors = multierror.Append(cleanupErrors, cleanupFunc(ctx, f))
 	}
 
 	return cleanupErrors.ErrorOrNil()
 }
 
-type applier func(objects []*unstructured.Unstructured) error
+type applier func(ctx context.Context, objects []*unstructured.Unstructured) error
 
 func (f *Feature) createApplier(m Manifest) applier {
 	switch manifest := m.(type) {
 	case *templateManifest:
 		if manifest.patch {
-			return func(objects []*unstructured.Unstructured) error {
-				return patchResources(f.Client, objects)
+			return func(ctx context.Context, objects []*unstructured.Unstructured) error {
+				return patchResources(ctx, f.Client, objects)
 			}
 		}
 	case *rawManifest:
 		if manifest.patch {
-			return func(objects []*unstructured.Unstructured) error {
-				return patchResources(f.Client, objects)
+			return func(ctx context.Context, objects []*unstructured.Unstructured) error {
+				return patchResources(ctx, f.Client, objects)
 			}
 		}
 	}
 
-	return func(objects []*unstructured.Unstructured) error {
-		return applyResources(f.Client, objects, OwnedBy(f))
+	return func(ctx context.Context, objects []*unstructured.Unstructured) error {
+		return applyResources(ctx, f.Client, objects, OwnedBy(f))
 	}
 }
 
@@ -168,7 +168,7 @@ func (f *Feature) addCleanup(cleanupFuncs ...Action) {
 	f.cleanups = append(f.cleanups, cleanupFuncs...)
 }
 
-func (f *Feature) ApplyManifest(path string) error {
+func (f *Feature) ApplyManifest(ctx context.Context, path string) error {
 	m, err := loadManifestsFrom(f.fsys, path)
 	if err != nil {
 		return err
@@ -186,7 +186,7 @@ func (f *Feature) ApplyManifest(path string) error {
 			manifest.MarkAsManaged(objs)
 		}
 
-		if err = apply(objs); err != nil {
+		if err = apply(ctx, objs); err != nil {
 			return errors.WithStack(err)
 		}
 	}

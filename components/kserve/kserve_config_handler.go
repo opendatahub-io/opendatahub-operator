@@ -117,14 +117,14 @@ func (k *Kserve) setDefaultDeploymentMode(ctx context.Context, cli client.Client
 	return nil
 }
 
-func (k *Kserve) configureServerless(instance *dsciv1.DSCInitializationSpec) error {
+func (k *Kserve) configureServerless(ctx context.Context, instance *dsciv1.DSCInitializationSpec) error {
 	switch k.Serving.ManagementState {
 	case operatorv1.Unmanaged: // Bring your own CR
 		fmt.Println("Serverless CR is not configured by the operator, we won't do anything")
 
 	case operatorv1.Removed: // we remove serving CR
 		fmt.Println("existing Serverless CR (owned by operator) will be removed")
-		if err := k.removeServerlessFeatures(instance); err != nil {
+		if err := k.removeServerlessFeatures(ctx, instance); err != nil {
 			return err
 		}
 
@@ -136,17 +136,17 @@ func (k *Kserve) configureServerless(instance *dsciv1.DSCInitializationSpec) err
 
 		serverlessFeatures := feature.ComponentFeaturesHandler(k.GetComponentName(), instance, k.configureServerlessFeatures())
 
-		if err := serverlessFeatures.Apply(); err != nil {
+		if err := serverlessFeatures.Apply(ctx); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (k *Kserve) removeServerlessFeatures(instance *dsciv1.DSCInitializationSpec) error {
+func (k *Kserve) removeServerlessFeatures(ctx context.Context, instance *dsciv1.DSCInitializationSpec) error {
 	serverlessFeatures := feature.ComponentFeaturesHandler(k.GetComponentName(), instance, k.configureServerlessFeatures())
 
-	return serverlessFeatures.Delete()
+	return serverlessFeatures.Delete(ctx)
 }
 
 func checkDependentOperators(cli client.Client) *multierror.Error {
