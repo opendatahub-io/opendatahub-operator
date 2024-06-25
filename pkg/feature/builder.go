@@ -212,13 +212,14 @@ func (fb *featureBuilder) Load() error {
 		}
 	}
 
-	// if feature is disabled, ensure we have cleaned it up
+	// If the feature is disabled, but the FeatureTracker exists in the cluster, ensure clean-up is triggered.
+	// This means that the feature was previously enabled, but now it is not anymore.
 	if !feature.Enabled {
-		err := getFeatureTrackerIfAbsent(feature)
-		if client.IgnoreNotFound(err) == nil {
-			return feature.Cleanup()
+		if errGet := getFeatureTrackerIfAbsent(feature); client.IgnoreNotFound(err) != nil {
+			return errGet
 		}
-		return err
+		
+		return feature.Cleanup()
 	}
 
 	feature.Spec.TargetNamespace = fb.targetNS
