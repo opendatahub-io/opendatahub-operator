@@ -122,6 +122,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			foundDsci := &dsciv1.DSCInitialization{}
 			Eventually(dscInitializationIsReady(applicationName, workingNamespace, foundDsci)).
 				WithContext(ctx).
+				WithTimeout(timeout).
 				WithPolling(interval).
 				Should(BeTrue())
 			// then
