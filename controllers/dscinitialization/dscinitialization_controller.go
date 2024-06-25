@@ -229,7 +229,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			}
 			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
 				r.Log.Info("Monitoring enabled, won't apply changes", "cluster", "Self-Managed RHODS Mode")
-				err = r.configureCommonMonitoring(instance)
+				err = r.configureCommonMonitoring(ctx, instance)
 				if err != nil {
 					return reconcile.Result{}, err
 				}
@@ -249,7 +249,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 				if err != nil {
 					return reconcile.Result{}, err
 				}
-				err = r.configureCommonMonitoring(instance)
+				err = r.configureCommonMonitoring(ctx, instance)
 				if err != nil {
 					return reconcile.Result{}, err
 				}
