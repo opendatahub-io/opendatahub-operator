@@ -7,10 +7,10 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	corev1 "k8s.io/api/core/v1"
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
@@ -93,7 +93,7 @@ func OperatorUninstall(ctx context.Context, cli client.Client) error {
 }
 
 func removeDSCInitialization(ctx context.Context, cli client.Client) error {
-	instanceList := &dsci.DSCInitializationList{}
+	instanceList := &dsciv1.DSCInitializationList{}
 
 	if err := cli.List(ctx, instanceList); err != nil {
 		return err
@@ -102,7 +102,7 @@ func removeDSCInitialization(ctx context.Context, cli client.Client) error {
 	var multiErr *multierror.Error
 	for _, dsciInstance := range instanceList.Items {
 		dsciInstance := dsciInstance
-		if err := cli.Delete(ctx, &dsciInstance); !apierrs.IsNotFound(err) {
+		if err := cli.Delete(ctx, &dsciInstance); !k8serr.IsNotFound(err) {
 			multiErr = multierror.Append(multiErr, err)
 		}
 	}
@@ -141,7 +141,7 @@ func removeCSV(ctx context.Context, c client.Client) error {
 	}
 
 	operatorCsv, err := cluster.GetClusterServiceVersion(ctx, c, operatorNamespace)
-	if apierrs.IsNotFound(err) {
+	if k8serr.IsNotFound(err) {
 		fmt.Printf("No clusterserviceversion for the operator found.\n")
 		return nil
 	}
@@ -153,7 +153,7 @@ func removeCSV(ctx context.Context, c client.Client) error {
 	fmt.Printf("Deleting CSV %s\n", operatorCsv.Name)
 	err = c.Delete(ctx, operatorCsv)
 	if err != nil {
-		if apierrs.IsNotFound(err) {
+		if k8serr.IsNotFound(err) {
 			return nil
 		}
 

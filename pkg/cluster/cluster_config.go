@@ -10,7 +10,7 @@ import (
 	"github.com/operator-framework/api/pkg/lib/version"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -59,7 +59,7 @@ func GetClusterServiceVersion(ctx context.Context, c client.Client, watchNameSpa
 		}
 	}
 
-	return nil, apierrs.NewNotFound(
+	return nil, k8serr.NewNotFound(
 		schema.GroupResource{Group: gvk.ClusterServiceVersion.Group},
 		gvk.ClusterServiceVersion.Kind)
 }
@@ -156,7 +156,7 @@ func GetRelease(cli client.Client) (Release, error) {
 		return initRelease, nil
 	}
 	csv, err := GetClusterServiceVersion(context.TODO(), cli, operatorNamespace)
-	if apierrs.IsNotFound(err) {
+	if k8serr.IsNotFound(err) {
 		// hide not found, return default
 		return initRelease, nil
 	}

@@ -24,10 +24,10 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	ocv1 "github.com/openshift/api/oauth/v1"
+	oauthv1 "github.com/openshift/api/oauth/v1"
 	routev1 "github.com/openshift/api/route/v1"
-	v1 "k8s.io/api/core/v1"
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	corev1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -87,8 +87,8 @@ func (r *SecretGeneratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	secretBuilder := ctrl.NewControllerManagedBy(mgr).Named("secret-generator-controller")
-	err := secretBuilder.For(&v1.Secret{}).
-		Watches(&source.Kind{Type: &v1.Secret{}}, handler.EnqueueRequestsFromMapFunc(
+	err := secretBuilder.For(&corev1.Secret{}).
+		Watches(&source.Kind{Type: &corev1.Secret{}}, handler.EnqueueRequestsFromMapFunc(
 			func(a client.Object) []reconcile.Request {
 				namespacedName := types.NamespacedName{Name: a.GetName(), Namespace: a.GetNamespace()}
 
@@ -103,10 +103,10 @@ func (r *SecretGeneratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // based on the specified type and complexity. This will avoid possible race
 // conditions when a deployment mounts the secret before it is reconciled.
 func (r *SecretGeneratorReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
-	foundSecret := &v1.Secret{}
+	foundSecret := &corev1.Secret{}
 	err := r.Client.Get(ctx, request.NamespacedName, foundSecret)
 	if err != nil {
-		if apierrs.IsNotFound(err) {
+		if k8serr.IsNotFound(err) {
 			// If Secret is deleted, delete OAuthClient if exists
 			err = r.deleteOAuthClient(ctx, request.Name)
 		}
@@ -118,7 +118,7 @@ func (r *SecretGeneratorReconciler) Reconcile(ctx context.Context, request ctrl.
 		*metav1.NewControllerRef(foundSecret, foundSecret.GroupVersionKind()),
 	}
 	// Generate the secret if it does not previously exist
-	generatedSecret := &v1.Secret{
+	generatedSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            foundSecret.Name + "-generated",
 			Namespace:       foundSecret.Namespace,
@@ -132,7 +132,7 @@ func (r *SecretGeneratorReconciler) Reconcile(ctx context.Context, request ctrl.
 	}
 	err = r.Client.Get(ctx, generatedSecretKey, generatedSecret)
 	if err != nil {
-		if apierrs.IsNotFound(err) {
+		if k8serr.IsNotFound(err) {
 			// Generate secret random value
 			r.Log.Info("Generating a random value for a secret in a namespace",
 				"secret", generatedSecret.Name, "namespace", generatedSecret.Namespace)
@@ -206,7 +206,7 @@ func (r *SecretGeneratorReconciler) getRoute(ctx context.Context, name string, n
 
 func (r *SecretGeneratorReconciler) createOAuthClient(ctx context.Context, name string, secretName string, uri string) error {
 	// Create OAuthClient resource
-	oauthClient := &ocv1.OAuthClient{
+	oauthClient := &oauthv1.OAuthClient{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "OAuthClient",
 			APIVersion: "oauth.openshift.io/v1",
@@ -216,12 +216,12 @@ func (r *SecretGeneratorReconciler) createOAuthClient(ctx context.Context, name 
 		},
 		Secret:       secretName,
 		RedirectURIs: []string{"https://" + uri},
-		GrantMethod:  ocv1.GrantHandlerAuto,
+		GrantMethod:  oauthv1.GrantHandlerAuto,
 	}
 
 	err := r.Client.Create(ctx, oauthClient)
 	if err != nil {
-		if apierrs.IsAlreadyExists(err) {
+		if k8serr.IsAlreadyExists(err) {
 			r.Log.Info("OAuth client resource already exists, patch it", "name", oauthClient.Name)
 			data, err := json.Marshal(oauthClient)
 			if err != nil {
@@ -239,7 +239,7 @@ func (r *SecretGeneratorReconciler) createOAuthClient(ctx context.Context, name 
 }
 
 func (r *SecretGeneratorReconciler) deleteOAuthClient(ctx context.Context, secretName string) error {
-	oauthClient := &ocv1.OAuthClient{}
+	oauthClient := &oauthv1.OAuthClient{}
 
 	err := r.Client.Get(ctx, client.ObjectKey{
 		Name: secretName,

@@ -3,8 +3,8 @@ package features_test
 import (
 	"context"
 
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	corev1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -37,8 +37,8 @@ var _ = Describe("feature preconditions", func() {
 		It("should create namespace if it does not exist", func() {
 			// given
 			_, err := fixtures.GetNamespace(envTestClient, namespace)
-			Expect(errors.IsNotFound(err)).To(BeTrue())
-			defer objectCleaner.DeleteAll(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
+			Expect(k8serr.IsNotFound(err)).To(BeTrue())
+			defer objectCleaner.DeleteAll(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
 
 			// when
 			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {

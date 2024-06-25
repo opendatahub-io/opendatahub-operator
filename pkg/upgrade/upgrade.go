@@ -14,9 +14,9 @@ import (
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	authv1 "k8s.io/api/rbac/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -24,8 +24,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
-	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
@@ -56,7 +56,7 @@ type ResourceSpec struct {
 // Note: When the platform is not Managed, and a DSC instance already exists, the function doesn't re-create/update the resource.
 func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 	// Set the default DSC name depending on the platform
-	releaseDataScienceCluster := &dsc.DataScienceCluster{
+	releaseDataScienceCluster := &dscv1.DataScienceCluster{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DataScienceCluster",
 			APIVersion: "datasciencecluster.opendatahub.io/v1",
@@ -64,8 +64,8 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "default-dsc",
 		},
-		Spec: dsc.DataScienceClusterSpec{
-			Components: dsc.Components{
+		Spec: dscv1.DataScienceClusterSpec{
+			Components: dscv1.Components{
 				Dashboard: dashboard.Dashboard{
 					Component: components.Component{ManagementState: operatorv1.Managed},
 				},
@@ -106,7 +106,7 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 	switch {
 	case err == nil:
 		fmt.Printf("created DataScienceCluster resource\n")
-	case apierrs.IsAlreadyExists(err):
+	case k8serr.IsAlreadyExists(err):
 		// Do not update the DSC if it already exists
 		fmt.Printf("DataScienceCluster resource already exists. It will not be updated with default DSC.\n")
 		return nil
@@ -121,9 +121,9 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 // If there exists an instance already, it patches the DSCISpec with default values
 // Note: DSCI CR modifcations are not supported, as it is the initial prereq setting for the components.
 func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ cluster.Platform, appNamespace, monNamespace string) error {
-	defaultDsciSpec := &dsci.DSCInitializationSpec{
+	defaultDsciSpec := &dsciv1.DSCInitializationSpec{
 		ApplicationsNamespace: appNamespace,
-		Monitoring: dsci.Monitoring{
+		Monitoring: dsciv1.Monitoring{
 			ManagementState: operatorv1.Managed,
 			Namespace:       monNamespace,
 		},
@@ -135,12 +135,12 @@ func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ cluster.Platfor
 				MetricsCollection: "Istio",
 			},
 		},
-		TrustedCABundle: &dsci.TrustedCABundleSpec{
+		TrustedCABundle: &dsciv1.TrustedCABundleSpec{
 			ManagementState: "Managed",
 		},
 	}
 
-	defaultDsci := &dsci.DSCInitialization{
+	defaultDsci := &dsciv1.DSCInitialization{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DSCInitialization",
 			APIVersion: "dscinitialization.opendatahub.io/v1",
@@ -151,7 +151,7 @@ func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ cluster.Platfor
 		Spec: *defaultDsciSpec,
 	}
 
-	instances := &dsci.DSCInitializationList{}
+	instances := &dsciv1.DSCInitializationList{}
 	if err := cli.List(ctx, instances); err != nil {
 		return err
 	}
@@ -234,10 +234,10 @@ func CleanupExistingResource(ctx context.Context, cli client.Client, platform cl
 		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedSecrets, &corev1.SecretList{}))
 
 		deprecatedClusterroles := []string{"rhods-namespace-read", "rhods-prometheus-operator"}
-		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedClusterroles, &authv1.ClusterRoleList{}))
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedClusterroles, &rbacv1.ClusterRoleList{}))
 
 		deprecatedClusterrolebindings := []string{"rhods-namespace-read", "rhods-prometheus-operator"}
-		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedClusterrolebindings, &authv1.ClusterRoleBindingList{}))
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedClusterrolebindings, &rbacv1.ClusterRoleBindingList{}))
 
 		deprecatedServiceAccounts := []string{"rhods-prometheus-operator"}
 		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedServiceAccounts, &corev1.ServiceAccountList{}))
@@ -334,7 +334,7 @@ func RemoveKfDefInstances(ctx context.Context, cli client.Client) error {
 
 	err := cli.Get(ctx, client.ObjectKey{Name: "kfdefs.kfdef.apps.kubeflow.org"}, kfdefCrd)
 	if err != nil {
-		if apierrs.IsNotFound(err) {
+		if k8serr.IsNotFound(err) {
 			// If no Crd found, return, since its a new Installation
 			return nil
 		}
@@ -377,7 +377,7 @@ func deleteDeprecatedResources(ctx context.Context, cli client.Client, namespace
 				fmt.Printf("Attempting to delete %s in namespace %s\n", item.GetName(), namespace)
 				err := cli.Delete(ctx, item)
 				if err != nil {
-					if apierrs.IsNotFound(err) {
+					if k8serr.IsNotFound(err) {
 						fmt.Printf("Could not find %s in namespace %s\n", item.GetName(), namespace)
 					} else {
 						multiErr = multierror.Append(multiErr, err)
@@ -406,7 +406,7 @@ func deleteDeprecatedServiceMonitors(ctx context.Context, cli client.Client, nam
 				fmt.Printf("Attempting to delete %s in namespace %s\n", servicemonitor.Name, namespace)
 				err := cli.Delete(ctx, servicemonitor)
 				if err != nil {
-					if apierrs.IsNotFound(err) {
+					if k8serr.IsNotFound(err) {
 						fmt.Printf("Could not find %s in namespace %s\n", servicemonitor.Name, namespace)
 					} else {
 						multiErr = multierror.Append(multiErr, err)
@@ -468,7 +468,7 @@ func unsetOwnerReference(cli client.Client, instanceName string, applicationNS s
 func RemoveLabel(cli client.Client, objectName string, labelKey string) error {
 	foundNamespace := &corev1.Namespace{}
 	if err := cli.Get(context.TODO(), client.ObjectKey{Name: objectName}, foundNamespace); err != nil {
-		if apierrs.IsNotFound(err) {
+		if k8serr.IsNotFound(err) {
 			return nil
 		}
 		return fmt.Errorf("could not get %s namespace: %w", objectName, err)
@@ -483,7 +483,7 @@ func RemoveLabel(cli client.Client, objectName string, labelKey string) error {
 func deleteDeprecatedNamespace(ctx context.Context, cli client.Client, namespace string) error {
 	foundNamespace := &corev1.Namespace{}
 	if err := cli.Get(ctx, client.ObjectKey{Name: namespace}, foundNamespace); err != nil {
-		if apierrs.IsNotFound(err) {
+		if k8serr.IsNotFound(err) {
 			return nil
 		}
 		return fmt.Errorf("could not get %s namespace: %w", namespace, err)

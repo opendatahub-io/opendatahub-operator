@@ -32,7 +32,7 @@ import (
 	"strings"
 
 	"golang.org/x/exp/maps"
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -220,7 +220,7 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 		return handleDisabledComponent(ctx, cli, found, componentName)
 	}
 
-	if apierrs.IsNotFound(err) {
+	if k8serr.IsNotFound(err) {
 		// Create resource if it doesn't exist and enabled
 		if enabled {
 			return createResource(ctx, cli, obj, owner)
@@ -365,7 +365,7 @@ func getResource(ctx context.Context, cli client.Client, obj *unstructured.Unstr
 	err := cli.Get(ctx, types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, found)
 	if errors.Is(err, &meta.NoKindMatchError{}) {
 		// convert the error to NotFound to handle both the same way in the caller
-		return nil, apierrs.NewNotFound(schema.GroupResource{Group: obj.GroupVersionKind().Group}, obj.GetName())
+		return nil, k8serr.NewNotFound(schema.GroupResource{Group: obj.GroupVersionKind().Group}, obj.GetName())
 	}
 	if err != nil {
 		return nil, err

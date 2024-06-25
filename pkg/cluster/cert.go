@@ -16,8 +16,8 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/pkg/errors"
-	v1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	corev1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -40,20 +40,20 @@ func CreateSelfSignedCertificate(ctx context.Context, c client.Client, secretNam
 	return nil
 }
 
-func GenerateSelfSignedCertificateAsSecret(name, addr, namespace string) (*v1.Secret, error) {
+func GenerateSelfSignedCertificateAsSecret(name, addr, namespace string) (*corev1.Secret, error) {
 	cert, key, err := generateCertificate(addr)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
-	return &v1.Secret{
+	return &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
 		},
 		Data: map[string][]byte{
-			v1.TLSCertKey:       cert,
-			v1.TLSPrivateKeyKey: key,
+			corev1.TLSCertKey:       cert,
+			corev1.TLSPrivateKeyKey: key,
 		},
 	}, nil
 }
@@ -159,8 +159,8 @@ func GetDefaultIngressCertSecretName(ingressCtrl *operatorv1.IngressController) 
 	return "router-certs-" + ingressCtrl.Name
 }
 
-func GetSecret(ctx context.Context, c client.Client, namespace, name string) (*v1.Secret, error) {
-	secret := &v1.Secret{}
+func GetSecret(ctx context.Context, c client.Client, namespace, name string) (*corev1.Secret, error) {
+	secret := &corev1.Secret{}
 	err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, secret)
 	if err != nil {
 		return nil, err
@@ -168,8 +168,8 @@ func GetSecret(ctx context.Context, c client.Client, namespace, name string) (*v
 	return secret, nil
 }
 
-func copySecretToNamespace(ctx context.Context, c client.Client, secret *v1.Secret, newSecretName, namespace string) error {
-	newSecret := &v1.Secret{
+func copySecretToNamespace(ctx context.Context, c client.Client, secret *corev1.Secret, newSecretName, namespace string) error {
+	newSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      newSecretName,
 			Namespace: namespace,
@@ -178,9 +178,9 @@ func copySecretToNamespace(ctx context.Context, c client.Client, secret *v1.Secr
 		Type: secret.Type,
 	}
 
-	existingSecret := &v1.Secret{}
+	existingSecret := &corev1.Secret{}
 	err := c.Get(ctx, client.ObjectKey{Name: newSecretName, Namespace: namespace}, existingSecret)
-	if apierrors.IsNotFound(err) {
+	if k8serr.IsNotFound(err) {
 		err = c.Create(ctx, newSecret)
 		if err != nil {
 			return err

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -32,7 +32,7 @@ func (e *withConditionReasonError) Error() string {
 // All resources which particular feature is composed of will have this object attached as an OwnerReference.
 func (f *Feature) createFeatureTracker() error {
 	tracker, err := f.getFeatureTracker()
-	if k8serrors.IsNotFound(err) {
+	if k8serr.IsNotFound(err) {
 		if err := f.Client.Create(context.TODO(), tracker); err != nil {
 			return err
 		}
