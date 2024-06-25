@@ -125,8 +125,11 @@ func (fb *featureBuilder) WithData(loader ...Action) *featureBuilder {
 	return fb
 }
 
-// EnabledWhen allows to define if a Feature should be loaded and applied
-// note: enabled func passed in should consistently return true while needed, else feature contents will be removed
+// EnabledWhen determines if a Feature should be loaded and applied based on specified criteria. 
+// The criteria are supplied as a function.
+//
+// Note: The function passed should consistently return true while the feature is needed. 
+// If the function returns false at any point, the feature's contents might be removed during the reconciliation process.
 func (fb *featureBuilder) EnabledWhen(enabled func(f *Feature) bool) *featureBuilder {
 	fb.builders = append(fb.builders, func(f *Feature) error {
 		f.Enabled = enabled(f)
