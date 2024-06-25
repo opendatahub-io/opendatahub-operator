@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrlruntime "sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -34,21 +34,21 @@ var _ = Describe("Creating cluster resources", func() {
 		It("should create namespace if it does not exist", func() {
 			// given
 			namespace := envtestutil.AppendRandomNameTo("new-ns")
-			defer objectCleaner.DeleteAll(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
+			defer objectCleaner.DeleteAll(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
 
 			// when
 			ns, err := cluster.CreateNamespace(context.Background(), envTestClient, namespace)
 
 			// then
 			Expect(err).ToNot(HaveOccurred())
-			Expect(ns.Status.Phase).To(Equal(v1.NamespaceActive))
+			Expect(ns.Status.Phase).To(Equal(corev1.NamespaceActive))
 			Expect(ns.ObjectMeta.Generation).To(BeZero())
 		})
 
 		It("should not try to create namespace if it does already exist", func() {
 			// given
 			namespace := envtestutil.AppendRandomNameTo("existing-ns")
-			newNamespace := &v1.Namespace{
+			newNamespace := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: namespace,
 				},
@@ -67,7 +67,7 @@ var _ = Describe("Creating cluster resources", func() {
 		It("should set labels", func() {
 			// given
 			namespace := envtestutil.AppendRandomNameTo("new-ns-with-labels")
-			defer objectCleaner.DeleteAll(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
+			defer objectCleaner.DeleteAll(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
 
 			// when
 			nsWithLabels, err := cluster.CreateNamespace(context.Background(), envTestClient, namespace, cluster.WithLabels("opendatahub.io/test-label", "true"))
@@ -92,9 +92,9 @@ var _ = Describe("Creating cluster resources", func() {
 			Namespace: "default",
 		}
 
-		It("should create configmap with labels and owner reference", func() {
+		It("should create configmap with labels and owner reference", func(ctx context.Context) {
 			// given
-			configMap := &v1.ConfigMap{
+			configMap := &corev1.ConfigMap{
 				ObjectMeta: configMapMeta,
 				Data: map[string]string{
 					"test-key": "test-value",
@@ -118,8 +118,8 @@ var _ = Describe("Creating cluster resources", func() {
 			defer objectCleaner.DeleteAll(configMap)
 
 			// then
-			actualConfigMap := &v1.ConfigMap{}
-			Expect(envTestClient.Get(context.Background(), ctrlruntime.ObjectKeyFromObject(configMap), actualConfigMap)).To(Succeed())
+			actualConfigMap := &corev1.ConfigMap{}
+			Expect(envTestClient.Get(ctx, ctrlruntime.ObjectKeyFromObject(configMap), actualConfigMap)).To(Succeed())
 			Expect(actualConfigMap.Labels).To(HaveKeyWithValue(labels.K8SCommon.PartOf, "opendatahub"))
 			getOwnerRefName := func(reference metav1.OwnerReference) string {
 				return reference.Name
@@ -132,7 +132,7 @@ var _ = Describe("Creating cluster resources", func() {
 			createErr := cluster.CreateOrUpdateConfigMap(
 				context.Background(),
 				envTestClient,
-				&v1.ConfigMap{
+				&corev1.ConfigMap{
 					ObjectMeta: configMapMeta,
 					Data: map[string]string{
 						"test-key": "test-value",
@@ -143,7 +143,7 @@ var _ = Describe("Creating cluster resources", func() {
 			Expect(createErr).ToNot(HaveOccurred())
 
 			// when
-			updatedConfigMap := &v1.ConfigMap{
+			updatedConfigMap := &corev1.ConfigMap{
 				ObjectMeta: configMapMeta,
 				Data: map[string]string{
 					"test-key": "new-value",
@@ -161,8 +161,8 @@ var _ = Describe("Creating cluster resources", func() {
 			defer objectCleaner.DeleteAll(updatedConfigMap)
 
 			// then
-			actualConfigMap := &v1.ConfigMap{}
-			Expect(envTestClient.Get(context.Background(), ctrlruntime.ObjectKeyFromObject(updatedConfigMap), actualConfigMap)).To(Succeed())
+			actualConfigMap := &corev1.ConfigMap{}
+			Expect(envTestClient.Get(ctx, ctrlruntime.ObjectKeyFromObject(updatedConfigMap), actualConfigMap)).To(Succeed())
 			Expect(actualConfigMap.Data).To(HaveKeyWithValue("test-key", "new-value"))
 			Expect(actualConfigMap.Data).To(HaveKeyWithValue("new-key", "sth-new"))
 			Expect(actualConfigMap.Labels).To(HaveKeyWithValue("test-step", "update-existing-configmap"))

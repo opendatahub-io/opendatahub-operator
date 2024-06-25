@@ -12,8 +12,8 @@ import (
 	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
-	v1 "k8s.io/api/core/v1"
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	corev1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -293,13 +293,13 @@ func (d *Dashboard) cleanOauthClient(ctx context.Context, cli client.Client, dsc
 	if !currentComponentExist {
 		fmt.Println("Cleanup any left secret")
 		// Delete client secrets from previous installation
-		oauthClientSecret := &v1.Secret{}
+		oauthClientSecret := &corev1.Secret{}
 		err := cli.Get(ctx, client.ObjectKey{
 			Namespace: dscispec.ApplicationsNamespace,
 			Name:      name,
 		}, oauthClientSecret)
 		if err != nil {
-			if !apierrs.IsNotFound(err) {
+			if !k8serr.IsNotFound(err) {
 				return fmt.Errorf("error getting secret %s: %w", name, err)
 			}
 		} else {

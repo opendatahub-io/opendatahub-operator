@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -38,7 +38,7 @@ var _ = BeforeSuite(func() {
 
 	By("Bootstrapping k8s test environment")
 
-	utilruntime.Must(v1.AddToScheme(testScheme))
+	utilruntime.Must(corev1.AddToScheme(testScheme))
 
 	envTest = &envtest.Environment{}
 

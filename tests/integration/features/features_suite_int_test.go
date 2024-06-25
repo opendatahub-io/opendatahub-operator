@@ -7,7 +7,8 @@ import (
 	"testing"
 
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes"
@@ -52,8 +53,9 @@ var _ = BeforeSuite(func() {
 		return
 	}
 
-	utilruntime.Must(v1.AddToScheme(testScheme))
+	utilruntime.Must(corev1.AddToScheme(testScheme))
 	utilruntime.Must(featurev1.AddToScheme(testScheme))
+	utilruntime.Must(apiextensionsv1.AddToScheme(testScheme))
 	utilruntime.Must(ofapiv1alpha1.AddToScheme(testScheme))
 
 	envTest = &envtest.Environment{

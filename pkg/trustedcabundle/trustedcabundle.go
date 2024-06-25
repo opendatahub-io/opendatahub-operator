@@ -12,12 +12,12 @@ import (
 	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	annotation "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
@@ -77,9 +77,9 @@ func CreateOdhTrustedCABundleConfigMap(ctx context.Context, cli client.Client, n
 		Name:      CAConfigMapName,
 		Namespace: namespace,
 	}, foundConfigMap); err != nil {
-		if apierrs.IsNotFound(err) {
+		if k8serr.IsNotFound(err) {
 			err = cli.Create(ctx, desiredConfigMap)
-			if err != nil && !apierrs.IsAlreadyExists(err) {
+			if err != nil && !k8serr.IsAlreadyExists(err) {
 				return err
 			}
 			return nil
@@ -110,10 +110,10 @@ func DeleteOdhTrustedCABundleConfigMap(ctx context.Context, cli client.Client, n
 // IsTrustedCABundleUpdated check if data in CM "odh-trusted-ca-bundle" from applciation namespace matches DSCI's TrustedCABundle.CustomCABundle
 // return false when these two are matching => skip update
 // return true when not match => need upate.
-func IsTrustedCABundleUpdated(ctx context.Context, cli client.Client, dscInit *dsci.DSCInitialization) (bool, error) {
+func IsTrustedCABundleUpdated(ctx context.Context, cli client.Client, dscInit *dsciv1.DSCInitialization) (bool, error) {
 	usernamespace := &corev1.Namespace{}
 	if err := cli.Get(ctx, client.ObjectKey{Name: dscInit.Spec.ApplicationsNamespace}, usernamespace); err != nil {
-		if apierrs.IsNotFound(err) {
+		if k8serr.IsNotFound(err) {
 			// if namespace is not found, return true. This is to ensure we reconcile, and check for other namespaces.
 			return true, nil
 		}
@@ -135,7 +135,7 @@ func IsTrustedCABundleUpdated(ctx context.Context, cli client.Client, dscInit *d
 	return foundConfigMap.Data[CADataFieldName] != dscInit.Spec.TrustedCABundle.CustomCABundle, nil
 }
 
-func ConfigureTrustedCABundle(ctx context.Context, cli client.Client, log logr.Logger, dscInit *dsci.DSCInitialization, managementStateChanged bool) error {
+func ConfigureTrustedCABundle(ctx context.Context, cli client.Client, log logr.Logger, dscInit *dsciv1.DSCInitialization, managementStateChanged bool) error {
 	if dscInit.Spec.TrustedCABundle == nil {
 		log.Info("Trusted CA Bundle is not configed in DSCI, same as default to `Removed` state. Reconciling to delete all " + CAConfigMapName)
 		if err := RemoveCABundleConfigMapInAllNamespaces(ctx, cli); err != nil {
@@ -170,7 +170,7 @@ func ConfigureTrustedCABundle(ctx context.Context, cli client.Client, log logr.L
 }
 
 // when DSCI TrustedCABundle.ManagementState is set to `Managed`.
-func AddCABundleConfigMapInAllNamespaces(ctx context.Context, cli client.Client, dscInit *dsci.DSCInitialization) error {
+func AddCABundleConfigMapInAllNamespaces(ctx context.Context, cli client.Client, dscInit *dsciv1.DSCInitialization) error {
 	namespaceList := &corev1.NamespaceList{}
 	if err := cli.List(ctx, namespaceList); err != nil {
 		return err

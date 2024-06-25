@@ -13,14 +13,14 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
 
-	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -89,8 +89,8 @@ func creationTestSuite(t *testing.T) {
 
 func (tc *testContext) testDSCICreation() error {
 	dscLookupKey := types.NamespacedName{Name: tc.testDsc.Name}
-	createdDSCI := &dsci.DSCInitialization{}
-	existingDSCIList := &dsci.DSCInitializationList{}
+	createdDSCI := &dsciv1.DSCInitialization{}
+	existingDSCIList := &dsciv1.DSCInitializationList{}
 
 	err := tc.customClient.List(tc.ctx, existingDSCIList)
 	if err == nil {
@@ -103,7 +103,7 @@ func (tc *testContext) testDSCICreation() error {
 	// create one for you
 	err = tc.customClient.Get(tc.ctx, dscLookupKey, createdDSCI)
 	if err != nil {
-		if k8serrors.IsNotFound(err) {
+		if k8serr.IsNotFound(err) {
 			nberr := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
 				creationErr := tc.customClient.Create(tc.ctx, tc.testDSCI)
 				if creationErr != nil {
@@ -127,7 +127,7 @@ func (tc *testContext) testDSCICreation() error {
 func waitDSCReady(tc *testContext) error {
 	err := tc.wait(func(ctx context.Context) (bool, error) {
 		key := types.NamespacedName{Name: tc.testDsc.Name}
-		dsc := &dsc.DataScienceCluster{}
+		dsc := &dscv1.DataScienceCluster{}
 
 		err := tc.customClient.Get(tc.ctx, key, dsc)
 		if err != nil {
@@ -147,8 +147,8 @@ func waitDSCReady(tc *testContext) error {
 func (tc *testContext) testDSCCreation() error {
 	// Create DataScienceCluster resource if not already created
 	dscLookupKey := types.NamespacedName{Name: tc.testDsc.Name}
-	createdDSC := &dsc.DataScienceCluster{}
-	existingDSCList := &dsc.DataScienceClusterList{}
+	createdDSC := &dscv1.DataScienceCluster{}
+	existingDSCList := &dscv1.DataScienceClusterList{}
 
 	err := tc.customClient.List(tc.ctx, existingDSCList)
 	if err == nil {
@@ -161,7 +161,7 @@ func (tc *testContext) testDSCCreation() error {
 
 	err = tc.customClient.Get(tc.ctx, dscLookupKey, createdDSC)
 	if err != nil {
-		if k8serrors.IsNotFound(err) {
+		if k8serr.IsNotFound(err) {
 			nberr := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
 				creationErr := tc.customClient.Create(tc.ctx, tc.testDsc)
 				if creationErr != nil {
@@ -229,7 +229,7 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint
 	// Validate test instance is in Ready state
 
 	dscLookupKey := types.NamespacedName{Name: tc.testDsc.Name}
-	createdDSC := &dsc.DataScienceCluster{}
+	createdDSC := &dscv1.DataScienceCluster{}
 
 	// Wait for applications to get deployed
 	time.Sleep(1 * time.Minute)
@@ -504,7 +504,7 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 	time.Sleep(4 * tc.resourceRetryInterval)
 	_, err = tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).Get(context.TODO(), dashboardDeploymentName, metav1.GetOptions{})
 	if err != nil {
-		if k8serrors.IsNotFound(err) {
+		if k8serr.IsNotFound(err) {
 			return nil // correct result: should not find deployment after we disable it already
 		}
 		return fmt.Errorf("error getting component resource after reconcile: %w", err)

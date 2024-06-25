@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	v1 "k8s.io/api/apps/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	authv1 "k8s.io/api/rbac/v1"
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	rbacv1 "k8s.io/api/rbac/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -20,7 +20,7 @@ import (
 // UpdatePodSecurityRolebinding update default rolebinding which is created in applications namespace by manifests
 // being used by different components and SRE monitoring.
 func UpdatePodSecurityRolebinding(ctx context.Context, cli client.Client, namespace string, serviceAccountsList ...string) error {
-	foundRoleBinding := &authv1.RoleBinding{}
+	foundRoleBinding := &rbacv1.RoleBinding{}
 	if err := cli.Get(ctx, client.ObjectKey{Name: namespace, Namespace: namespace}, foundRoleBinding); err != nil {
 		return fmt.Errorf("error to get rolebinding %s from namespace %s: %w", namespace, namespace, err)
 	}
@@ -28,8 +28,8 @@ func UpdatePodSecurityRolebinding(ctx context.Context, cli client.Client, namesp
 	for _, sa := range serviceAccountsList {
 		// Append serviceAccount if not added already
 		if !subjectExistInRoleBinding(foundRoleBinding.Subjects, sa, namespace) {
-			foundRoleBinding.Subjects = append(foundRoleBinding.Subjects, authv1.Subject{
-				Kind:      authv1.ServiceAccountKind,
+			foundRoleBinding.Subjects = append(foundRoleBinding.Subjects, rbacv1.Subject{
+				Kind:      rbacv1.ServiceAccountKind,
 				Name:      sa,
 				Namespace: namespace,
 			})
@@ -45,7 +45,7 @@ func UpdatePodSecurityRolebinding(ctx context.Context, cli client.Client, namesp
 
 // Internal function used by UpdatePodSecurityRolebinding()
 // Return whether Rolebinding matching service account and namespace exists or not.
-func subjectExistInRoleBinding(subjectList []authv1.Subject, serviceAccountName, namespace string) bool {
+func subjectExistInRoleBinding(subjectList []rbacv1.Subject, serviceAccountName, namespace string) bool {
 	for _, subject := range subjectList {
 		if subject.Name == serviceAccountName && subject.Namespace == namespace {
 			return true
@@ -71,9 +71,9 @@ func CreateSecret(ctx context.Context, cli client.Client, name, namespace string
 	foundSecret := &corev1.Secret{}
 	err := cli.Get(ctx, client.ObjectKey{Name: name, Namespace: namespace}, foundSecret)
 	if err != nil {
-		if apierrs.IsNotFound(err) {
+		if k8serr.IsNotFound(err) {
 			err = cli.Create(ctx, desiredSecret)
-			if err != nil && !apierrs.IsAlreadyExists(err) {
+			if err != nil && !k8serr.IsAlreadyExists(err) {
 				return err
 			}
 		} else {
@@ -97,10 +97,7 @@ func CreateOrUpdateConfigMap(ctx context.Context, c client.Client, desiredCfgMap
 		Namespace: desiredCfgMap.Namespace,
 	}, existingCfgMap)
 
-	if apierrs.IsNotFound(err) {
-		if applyErr := ApplyMetaOptions(desiredCfgMap, metaOptions...); applyErr != nil {
-			return applyErr
-		}
+	if k8serr.IsNotFound(err) {
 		return c.Create(ctx, desiredCfgMap)
 	} else if err != nil {
 		return err
@@ -144,7 +141,7 @@ func CreateNamespace(ctx context.Context, cli client.Client, namespace string, m
 	}
 
 	createErr := cli.Create(ctx, desiredNamespace)
-	if apierrs.IsAlreadyExists(createErr) {
+	if k8serr.IsAlreadyExists(createErr) {
 		return foundNamespace, nil
 	}
 
@@ -157,7 +154,7 @@ func WaitForDeploymentAvailable(ctx context.Context, c client.Client, componentN
 	resourceTimeout := time.Duration(timeout) * time.Minute
 
 	return wait.PollUntilContextTimeout(ctx, resourceInterval, resourceTimeout, true, func(ctx context.Context) (bool, error) {
-		componentDeploymentList := &v1.DeploymentList{}
+		componentDeploymentList := &appsv1.DeploymentList{}
 		err := c.List(ctx, componentDeploymentList, client.InNamespace(namespace), client.HasLabels{labels.ODH.Component(componentName)})
 		if err != nil {
 			return false, fmt.Errorf("error fetching list of deployments: %w", err)
