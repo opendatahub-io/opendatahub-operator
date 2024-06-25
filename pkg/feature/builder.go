@@ -192,7 +192,7 @@ func (fb *featureBuilder) OnDelete(cleanups ...Action) *featureBuilder {
 
 // Load creates a new Feature instance and add it to corresponding FeaturesHandler.
 // The actual feature creation in the cluster is not performed here.
-// nolint: contextcheck
+//nolint: contextcheck
 func (fb *featureBuilder) Load() error {
 	feature := newFeature(fb.name)
 
