@@ -55,7 +55,7 @@ func (f *Feature) Apply(ctx context.Context) error {
 		return nil
 	}
 
-	if trackerErr := f.createFeatureTracker(ctx); trackerErr != nil {
+	if trackerErr := createFeatureTracker(ctx, f); trackerErr != nil {
 		return trackerErr
 	}
 
