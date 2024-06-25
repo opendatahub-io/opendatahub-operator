@@ -72,11 +72,7 @@ type DataScienceClusterReconciler struct {
 
 // DataScienceClusterConfig passing Spec of DSCI for reconcile DataScienceCluster.
 type DataScienceClusterConfig struct {
-<<<<<<< HEAD
 	DSCISpec *dsciv1.DSCInitializationSpec
-=======
-	DSCISpec *dsci.DSCInitializationSpec
->>>>>>> 9be146f7 (chore(lint): updates to latest version (#1074))
 }
 
 const (

@@ -135,11 +135,7 @@ func IsTrustedCABundleUpdated(ctx context.Context, cli client.Client, dscInit *d
 	return foundConfigMap.Data[CADataFieldName] != dscInit.Spec.TrustedCABundle.CustomCABundle, nil
 }
 
-<<<<<<< HEAD
 func ConfigureTrustedCABundle(ctx context.Context, cli client.Client, log logr.Logger, dscInit *dsciv1.DSCInitialization, managementStateChanged bool) error {
-=======
-func ConfigureTrustedCABundle(ctx context.Context, cli client.Client, log logr.Logger, dscInit *dsci.DSCInitialization, managementStateChanged bool) error {
->>>>>>> 7afb0cf9 (fix(DSCI): change serviceMesh and trustCAbundle to pointer type (#885))
 	if dscInit.Spec.TrustedCABundle == nil {
 		log.Info("Trusted CA Bundle is not configed in DSCI, same as default to `Removed` state. Reconciling to delete all " + CAConfigMapName)
 		if err := RemoveCABundleConfigMapInAllNamespaces(ctx, cli); err != nil {

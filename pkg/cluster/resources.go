@@ -9,7 +9,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -71,9 +71,9 @@ func CreateSecret(ctx context.Context, cli client.Client, name, namespace string
 	foundSecret := &corev1.Secret{}
 	err := cli.Get(ctx, client.ObjectKey{Name: name, Namespace: namespace}, foundSecret)
 	if err != nil {
-		if apierrs.IsNotFound(err) {
+		if k8serr.IsNotFound(err) {
 			err = cli.Create(ctx, desiredSecret)
-			if err != nil && !apierrs.IsAlreadyExists(err) {
+			if err != nil && !k8serr.IsAlreadyExists(err) {
 				return err
 			}
 		} else {
@@ -101,7 +101,7 @@ func CreateOrUpdateConfigMap(ctx context.Context, c client.Client, desiredCfgMap
 		Namespace: desiredCfgMap.Namespace,
 	}, existingCfgMap)
 
-	if apierrs.IsNotFound(err) {
+	if k8serr.IsNotFound(err) {
 		return c.Create(ctx, desiredCfgMap)
 	} else if err != nil {
 		return err
@@ -145,7 +145,7 @@ func CreateNamespace(ctx context.Context, cli client.Client, namespace string, m
 	}
 
 	createErr := cli.Create(ctx, desiredNamespace)
-	if apierrs.IsAlreadyExists(createErr) {
+	if k8serr.IsAlreadyExists(createErr) {
 		return foundNamespace, nil
 	}
 

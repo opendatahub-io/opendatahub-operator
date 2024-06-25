@@ -130,11 +130,7 @@ func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ cluster.Platfor
 				MetricsCollection: "Istio",
 			},
 		},
-<<<<<<< HEAD
 		TrustedCABundle: &dsciv1.TrustedCABundleSpec{
-=======
-		TrustedCABundle: &dsci.TrustedCABundleSpec{
->>>>>>> 7afb0cf9 (fix(DSCI): change serviceMesh and trustCAbundle to pointer type (#885))
 			ManagementState: "Managed",
 		},
 	}
