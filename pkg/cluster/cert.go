@@ -32,9 +32,25 @@ func CreateSelfSignedCertificate(ctx context.Context, c client.Client, secretNam
 	if err := ApplyMetaOptions(certSecret, metaOptions...); err != nil {
 		return err
 	}
-
-	if createErr := c.Create(ctx, certSecret); client.IgnoreAlreadyExists(createErr) != nil {
-		return fmt.Errorf("failed creating certificate secret: %w", createErr)
+	existingSecret := &corev1.Secret{}
+	err = c.Get(ctx, client.ObjectKey{Name: secretName, Namespace: namespace}, existingSecret)
+	if err != nil {
+		if k8serr.IsNotFound(err) {
+			// Secret does not exist, create it
+			if createErr := c.Create(ctx, certSecret); createErr != nil {
+				return fmt.Errorf("failed creating certificate secret: %w", createErr)
+			}
+		} else {
+			return fmt.Errorf("failed getting certificate secret: %w", err)
+		}
+	} else if existingSecret.Type != certSecret.Type {
+		// Secret exists but with a different type, delete and recreate it
+		if err := c.Delete(ctx, existingSecret); err != nil {
+			return fmt.Errorf("failed deleting existing secret: %w", err)
+		}
+		if createErr := c.Create(ctx, certSecret); client.IgnoreAlreadyExists(createErr) != nil {
+			return fmt.Errorf("failed creating certificate secret: %w", createErr)
+		}
 	}
 
 	return nil
@@ -55,6 +71,7 @@ func GenerateSelfSignedCertificateAsSecret(name, addr, namespace string) (*corev
 			corev1.TLSCertKey:       cert,
 			corev1.TLSPrivateKeyKey: key,
 		},
+		Type: corev1.SecretTypeTLS,
 	}, nil
 }
 
@@ -180,23 +197,38 @@ func copySecretToNamespace(ctx context.Context, c client.Client, secret *corev1.
 
 	existingSecret := &corev1.Secret{}
 	err := c.Get(ctx, client.ObjectKey{Name: newSecretName, Namespace: namespace}, existingSecret)
-	if k8serr.IsNotFound(err) {
-		err = c.Create(ctx, newSecret)
-		if err != nil {
-			return err
+	if k8serr.IsNotFound(err) { // create if not found
+		if err = c.Create(ctx, newSecret); err != nil {
+			return fmt.Errorf("failed to create new secret: %w", err)
 		}
-	} else if err == nil {
-		// Check if secret needs to be updated
-		if isSecretOutdated(existingSecret.Data, newSecret.Data) {
-			err = c.Update(ctx, newSecret)
-			if err != nil {
-				return err
-			}
-		}
-		return nil
+	} else if err != nil {
+		return fmt.Errorf("failed to get existing secret: %w", err)
 	}
 
-	return err
+	if existingSecret.Type != newSecret.Type { // recreate if found with mismatched type
+		if recreateSecret(ctx, c, existingSecret, newSecret) != nil {
+			return errors.New("failed to recreate secret with type corrected")
+		}
+	}
+
+	if isSecretOutdated(existingSecret.Data, newSecret.Data) {
+		if err = c.Update(ctx, newSecret); err != nil { // update data if found with same type but outdated content
+			return fmt.Errorf("failed to update secret: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// recreateSecret deletes the existing secret and creates a new one.
+func recreateSecret(ctx context.Context, c client.Client, existingSecret, newSecret *corev1.Secret) error {
+	if err := c.Delete(ctx, existingSecret); err != nil {
+		return fmt.Errorf("failed to delete existing secret: %w", err)
+	}
+	if err := c.Create(ctx, newSecret); err != nil {
+		return fmt.Errorf("failed to create new secret: %w", err)
+	}
+	return nil
 }
 
 // isSecretOutdated compares two secret data of type map[string][]byte and returns true if they are not equal.
