@@ -185,10 +185,10 @@ func copySecretToNamespace(ctx context.Context, c client.Client, secret *corev1.
 // recreateSecret deletes the existing secret and creates a new one.
 func recreateSecret(ctx context.Context, c client.Client, existingSecret, newSecret *corev1.Secret) error {
 	if err := c.Delete(ctx, existingSecret); err != nil {
-		return fmt.Errorf("failed to delete existing secret: %w", err)
+		return fmt.Errorf("failed to delete existing secret before recreating new one: %w", err)
 	}
 	if err := c.Create(ctx, newSecret); err != nil {
-		return fmt.Errorf("failed to create new secret: %w", err)
+		return fmt.Errorf("failed to create new secret after existing one has been deleted: %w", err)
 	}
 	return nil
 }
@@ -197,26 +197,27 @@ func recreateSecret(ctx context.Context, c client.Client, existingSecret, newSec
 func generateCertSecret(ctx context.Context, c client.Client, certSecret *corev1.Secret, secretName, namespace string) error {
 	existingSecret := &corev1.Secret{}
 	err := c.Get(ctx, client.ObjectKey{Name: secretName, Namespace: namespace}, existingSecret)
-	if err != nil {
-		if k8serr.IsNotFound(err) {
-			// Secret does not exist, create it
-			if createErr := c.Create(ctx, certSecret); createErr != nil {
-				return fmt.Errorf("failed creating certificate secret: %w", createErr)
-			}
-		} else {
-			return fmt.Errorf("failed getting certificate secret: %w", err)
-		}
-	} else if existingSecret.Type != certSecret.Type {
+	switch {
+	case err == nil:
 		// Secret exists but with a different type, delete and create it again
-		if recreateSecret(ctx, c, existingSecret, certSecret) != nil {
-			return errors.New("failed to recreate secret with type corrected")
+		if existingSecret.Type != certSecret.Type {
+			return recreateSecret(ctx, c, existingSecret, certSecret)
 		}
-	}
-	if isSecretOutdated(existingSecret.Data, certSecret.Data) {
-		if err = c.Update(ctx, certSecret); err != nil { // update data if found with same type but outdated content
-			return fmt.Errorf("failed to update secret: %w", err)
+		// update data if found with same type but outdated content
+		if isSecretOutdated(existingSecret.Data, certSecret.Data) {
+			if err = c.Update(ctx, certSecret); err != nil {
+				return fmt.Errorf("failed to update existing secret: %w", err)
+			}
 		}
+	case k8serr.IsNotFound(err):
+		// Secret does not exist, create it
+		if err := c.Create(ctx, certSecret); err != nil {
+			return fmt.Errorf("failed creating new certificate secret: %w", err)
+		}
+	default:
+		return fmt.Errorf("failed getting certificate secret: %w", err)
 	}
+
 	return nil
 }
 
