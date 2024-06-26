@@ -8,8 +8,8 @@ import (
 )
 
 // CreateNamespaceApplierPlugin creates a plugin to ensure resources have the specified target namespace.
-func CreateNamespaceApplierPlugin(targetNamespace string) builtins.NamespaceTransformerPlugin {
-	return builtins.NamespaceTransformerPlugin{
+func CreateNamespaceApplierPlugin(targetNamespace string) *builtins.NamespaceTransformerPlugin {
+	return &builtins.NamespaceTransformerPlugin{
 		ObjectMeta: types.ObjectMeta{
 			Name:      "odh-namespace-plugin",
 			Namespace: targetNamespace,
