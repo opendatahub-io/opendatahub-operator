@@ -160,6 +160,18 @@ var _ = Describe("feature cleanup", func() {
 				WithTimeout(fixtures.Timeout).
 				WithPolling(fixtures.Interval).
 				Should(WithTransform(errors.IsNotFound, BeTrue()))
+
+			Consistently(func() error {
+				_, err := fixtures.GetFeatureTracker(ctx, envTestClient, namespace, featureName)
+				if errors.IsNotFound(err) {
+					return nil
+				}
+				return err
+			}).
+				WithContext(ctx).
+				WithTimeout(fixtures.Timeout).
+				WithPolling(fixtures.Interval).
+				Should(Succeed())
 		})
 	})
 })
