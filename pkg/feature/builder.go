@@ -1,7 +1,6 @@
 package feature
 
 import (
-	"context"
 	"io/fs"
 
 	"github.com/hashicorp/go-multierror"
@@ -131,9 +130,9 @@ func (fb *featureBuilder) WithData(loader ...Action) *featureBuilder {
 //
 // Note: The function passed should consistently return true while the feature is needed.
 // If the function returns false at any point, the feature's contents might be removed during the reconciliation process.
-func (fb *featureBuilder) EnabledWhen(enabled func(f *Feature) bool) *featureBuilder {
+func (fb *featureBuilder) EnabledWhen(enabled EnabledFunc) *featureBuilder {
 	fb.builders = append(fb.builders, func(f *Feature) error {
-		f.Enabled = enabled(f)
+		f.Enabled = enabled
 
 		return nil
 	})
@@ -192,7 +191,6 @@ func (fb *featureBuilder) OnDelete(cleanups ...Action) *featureBuilder {
 
 // Load creates a new Feature instance and add it to corresponding FeaturesHandler.
 // The actual feature creation in the cluster is not performed here.
-//nolint: contextcheck
 func (fb *featureBuilder) Load() error {
 	feature := newFeature(fb.name)
 
@@ -212,16 +210,6 @@ func (fb *featureBuilder) Load() error {
 		if err := fb.builders[i](feature); err != nil {
 			return err
 		}
-	}
-
-	// If the feature is disabled, but the FeatureTracker exists in the cluster, ensure clean-up is triggered.
-	// This means that the feature was previously enabled, but now it is not anymore.
-	if !feature.Enabled {
-		if errGet := getFeatureTrackerIfAbsent(context.Background(), feature); client.IgnoreNotFound(errGet) != nil {
-			return errGet
-		}
-
-		return feature.Cleanup(context.Background())
 	}
 
 	feature.Spec.TargetNamespace = fb.targetNS

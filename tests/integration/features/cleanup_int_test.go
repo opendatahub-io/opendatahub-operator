@@ -59,7 +59,7 @@ var _ = Describe("feature cleanup", func() {
 			Expect(featuresHandler.Apply(ctx)).Should(Succeed())
 
 			// then
-			Eventually(createdSecretHasOwnerReferenceToOwningFeature(namespace)).
+			Eventually(createdSecretHasOwnerReferenceToOwningFeature(namespace, featureName)).
 				WithContext(ctx).
 				WithTimeout(fixtures.Timeout).
 				WithPolling(fixtures.Interval).
@@ -71,7 +71,7 @@ var _ = Describe("feature cleanup", func() {
 			Expect(featuresHandler.Delete(ctx)).To(Succeed())
 
 			// then
-			Eventually(createdSecretHasOwnerReferenceToOwningFeature(namespace)).
+			Consistently(createdSecretHasOwnerReferenceToOwningFeature(namespace, featureName)).
 				WithContext(ctx).
 				WithTimeout(fixtures.Timeout).
 				WithPolling(fixtures.Interval).
@@ -123,7 +123,7 @@ var _ = Describe("feature cleanup", func() {
 			Expect(featuresHandler.Apply(ctx)).Should(Succeed())
 
 			// then
-			Eventually(createdSecretHasOwnerReferenceToOwningFeature(namespace)).
+			Eventually(createdSecretHasOwnerReferenceToOwningFeature(namespace, featureName)).
 				WithContext(ctx).
 				WithTimeout(fixtures.Timeout).
 				WithPolling(fixtures.Interval).
@@ -155,7 +155,7 @@ var _ = Describe("feature cleanup", func() {
 			Expect(featuresHandler.Apply(ctx)).Should(Succeed())
 
 			// then
-			Eventually(createdSecretHasOwnerReferenceToOwningFeature(namespace)).
+			Consistently(createdSecretHasOwnerReferenceToOwningFeature(namespace, featureName)).
 				WithContext(ctx).
 				WithTimeout(fixtures.Timeout).
 				WithPolling(fixtures.Interval).
@@ -164,7 +164,7 @@ var _ = Describe("feature cleanup", func() {
 	})
 })
 
-func createdSecretHasOwnerReferenceToOwningFeature(namespace string) func(context.Context) error {
+func createdSecretHasOwnerReferenceToOwningFeature(namespace, featureName string) func(context.Context) error {
 	return func(ctx context.Context) error {
 		secretName := "test-secret"
 		secret, err := envTestClientset.CoreV1().
@@ -190,20 +190,28 @@ func createdSecretHasOwnerReferenceToOwningFeature(namespace string) func(contex
 		}
 
 		tracker := &featurev1.FeatureTracker{}
-		return envTestClient.Get(ctx, client.ObjectKey{
+		err = envTestClient.Get(ctx, client.ObjectKey{
 			Name: trackerName,
 		}, tracker)
+		if err != nil {
+			return err
+		}
+
+		expectedName := namespace + "-" + featureName
+		Expect(tracker.ObjectMeta.Name).To(Equal(expectedName))
+
+		return nil
 	}
 }
 
-func namespaceExists(f *feature.Feature) bool {
-	namespace, err := fixtures.GetNamespace(context.TODO(), f.Client, "conditional-ns")
+func namespaceExists(ctx context.Context, f *feature.Feature) (bool, error) {
+	namespace, err := fixtures.GetNamespace(ctx, f.Client, "conditional-ns")
 	if errors.IsNotFound(err) {
-		return false
+		return false, err
 	}
 	// ensuring it fails if namespace is still deleting
 	if namespace.Status.Phase == corev1.NamespaceTerminating {
-		return false
+		return false, err
 	}
-	return namespace != nil
+	return namespace != nil, nil
 }
