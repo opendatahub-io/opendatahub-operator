@@ -132,7 +132,7 @@ func (k *Kserve) configureServerless(ctx context.Context, instance *dsciv1.DSCIn
 			return errors.New("ServiceMesh is need to set to 'Managed' in DSCI CR, it is required by KServe serving field")
 		}
 
-		serverlessFeatures := feature.ComponentFeaturesHandler(k.GetComponentName(), instance, k.configureServerlessFeatures())
+		serverlessFeatures := feature.ComponentFeaturesHandler(k.GetComponentName(), instance.ApplicationsNamespace, k.configureServerlessFeatures(instance))
 
 		if err := serverlessFeatures.Apply(ctx); err != nil {
 			return err
@@ -142,7 +142,7 @@ func (k *Kserve) configureServerless(ctx context.Context, instance *dsciv1.DSCIn
 }
 
 func (k *Kserve) removeServerlessFeatures(ctx context.Context, instance *dsciv1.DSCInitializationSpec) error {
-	serverlessFeatures := feature.ComponentFeaturesHandler(k.GetComponentName(), instance, k.configureServerlessFeatures())
+	serverlessFeatures := feature.ComponentFeaturesHandler(k.GetComponentName(), instance.ApplicationsNamespace, k.configureServerlessFeatures(instance))
 
 	return serverlessFeatures.Delete(ctx)
 }
