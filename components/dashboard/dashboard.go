@@ -30,6 +30,7 @@ var (
 	PathDownstream          = deploy.DefaultManifestPath + "/" + ComponentNameUpstream + "/rhoai"
 	PathSelfDownstream      = PathDownstream + "/onprem"
 	PathManagedDownstream   = PathDownstream + "/addon"
+	OverridePath            = ""
 )
 
 // Verifies that Dashboard implements ComponentInterface.
@@ -44,33 +45,14 @@ type Dashboard struct {
 func (d *Dashboard) OverrideManifests(ctx context.Context, platform cluster.Platform) error {
 	// If devflags are set, update default manifests path
 	if len(d.DevFlags.Manifests) != 0 {
-		ComponentName := ComponentNameUpstream
 		manifestConfig := d.DevFlags.Manifests[0]
-		if err := deploy.DownloadManifests(ctx, ComponentName, manifestConfig); err != nil {
+		if err := deploy.DownloadManifests(ctx, ComponentNameUpstream, manifestConfig); err != nil {
 			return err
 		}
-		switch platform {
-		case cluster.SelfManagedRhods:
-			defaultKustomizePath := "rhoai/onprem"
-			if manifestConfig.SourcePath != "" {
-				defaultKustomizePath = manifestConfig.SourcePath
-			}
-			PathSelfDownstream = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
-		case cluster.ManagedRhods:
-			defaultKustomizePath := "rhoai/addon"
-			if manifestConfig.SourcePath != "" {
-				defaultKustomizePath = manifestConfig.SourcePath
-			}
-			PathManagedDownstream = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
-		default:
-			defaultKustomizePath := "odh"
-			if manifestConfig.SourcePath != "" {
-				defaultKustomizePath = manifestConfig.SourcePath
-			}
-			PathUpstream = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
+		if manifestConfig.SourcePath != "" {
+			OverridePath = filepath.Join(deploy.DefaultManifestPath, ComponentNameUpstream, manifestConfig.SourcePath)
 		}
 	}
-
 	return nil
 }
 
@@ -112,6 +94,9 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 			// Download manifests and update paths
 			if err := d.OverrideManifests(ctx, platform); err != nil {
 				return err
+			}
+			if OverridePath != "" {
+				entryPath = OverridePath
 			}
 		}
 
