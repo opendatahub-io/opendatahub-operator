@@ -26,6 +26,7 @@ import (
 	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
@@ -245,6 +246,7 @@ func CleanupExistingResource(ctx context.Context, cli client.Client, platform cl
 		deprecatedServicemonitors := []string{"modelmesh-federated-metrics"}
 		multiErr = multierror.Append(multiErr, deleteDeprecatedServiceMonitors(ctx, cli, dscMonitoringNamespace, deprecatedServicemonitors))
 	}
+
 	// common logic for both self-managed and managed
 	deprecatedOperatorSM := []string{"rhods-monitor-federation2"}
 	multiErr = multierror.Append(multiErr, deleteDeprecatedServiceMonitors(ctx, cli, dscMonitoringNamespace, deprecatedOperatorSM))
@@ -254,6 +256,10 @@ func CleanupExistingResource(ctx context.Context, cli client.Client, platform cl
 
 	// Handling for dashboard OdhApplication Jupyterhub CR, see jira #443
 	multiErr = multierror.Append(multiErr, removOdhApplicationsCR(ctx, cli, gvk.OdhApplication, "jupyterhub", dscApplicationsNamespace))
+
+	// cleanup for github.com/opendatahub-io/pull/888
+	deprecatedFeatureTrackers := []string{"kserve-temporary-fixes"}
+	multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscApplicationsNamespace, deprecatedFeatureTrackers, &featuresv1.FeatureTrackerList{}))
 
 	// Handling for dashboard OdhDocument Jupyterhub CR, see jira #443 comments
 	odhDocJPH := getJPHOdhDocumentResources(
