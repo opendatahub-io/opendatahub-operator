@@ -5,4 +5,4 @@ metadata:
   namespace: {{ .ControlPlane.Namespace }}
 spec:
   provider:
-    name: {{ .AppNamespace }}-auth-provider
+    name: {{ .AuthExtensionName }}

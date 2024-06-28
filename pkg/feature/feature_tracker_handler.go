@@ -44,7 +44,7 @@ func (f *Feature) createFeatureTracker(ctx context.Context) error {
 		return gvkErr
 	}
 
-	f.Tracker = tracker
+	f.tracker = tracker
 
 	return nil
 }
@@ -58,11 +58,11 @@ func removeFeatureTracker(ctx context.Context, f *Feature) error {
 }
 
 func (f *Feature) getFeatureTracker(ctx context.Context) (*featurev1.FeatureTracker, error) {
-	tracker := featurev1.NewFeatureTracker(f.Name, f.Spec.AppNamespace)
+	tracker := featurev1.NewFeatureTracker(f.Name, f.TargetNamespace)
 
 	tracker.Spec = featurev1.FeatureTrackerSpec{
-		Source:       *f.Spec.Source,
-		AppNamespace: f.Spec.AppNamespace,
+		Source:       *f.source,
+		AppNamespace: f.TargetNamespace,
 	}
 
 	err := f.Client.Get(ctx, client.ObjectKeyFromObject(tracker), tracker)
@@ -71,12 +71,12 @@ func (f *Feature) getFeatureTracker(ctx context.Context) (*featurev1.FeatureTrac
 }
 
 func deleteTracker(ctx context.Context, f *Feature) error {
-	return client.IgnoreNotFound(f.Client.Delete(ctx, f.Tracker))
+	return client.IgnoreNotFound(f.Client.Delete(ctx, f.tracker))
 }
 
 func getFeatureTrackerIfAbsent(ctx context.Context, f *Feature) error {
 	var err error
-	f.Tracker, err = f.getFeatureTracker(ctx)
+	f.tracker, err = f.getFeatureTracker(ctx)
 	return err
 }
 
@@ -96,7 +96,7 @@ func (f *Feature) ensureGVKSet(obj runtime.Object) error {
 }
 
 func createFeatureTrackerStatusReporter(f *Feature) *status.Reporter[*featurev1.FeatureTracker] {
-	return status.NewStatusReporter(f.Client, f.Tracker, func(err error) status.SaveStatusFunc[*featurev1.FeatureTracker] {
+	return status.NewStatusReporter(f.Client, f.tracker, func(err error) status.SaveStatusFunc[*featurev1.FeatureTracker] {
 		updatedCondition := func(saved *featurev1.FeatureTracker) {
 			status.SetCompleteCondition(&saved.Status.Conditions, string(featurev1.ConditionReason.FeatureCreated), fmt.Sprintf("Applied feature [%s] successfully", f.Name))
 			saved.Status.Phase = status.PhaseReady
