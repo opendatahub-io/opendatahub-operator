@@ -1699,21 +1699,26 @@ spec:
         serviceAccountName: opendatahub-operator-controller-manager
       deployments:
       - label:
-          control-plane: controller-manager
-        name: opendatahub-operator-controller-manager
+          app.kubernetes.io/name: opendatahub-operator
+          app.kubernetes.io/part-of: opendatahub
+          control-plane: opendatahub-operator
+        name: opendatahub-operator-manager
         spec:
           replicas: 1
           selector:
             matchLabels:
-              control-plane: controller-manager
+              app.kubernetes.io/name: opendatahub-operator
+              app.kubernetes.io/part-of: opendatahub
+              control-plane: opendatahub-operator
           strategy: {}
           template:
             metadata:
               annotations:
                 kubectl.kubernetes.io/default-container: manager
               labels:
-                control-plane: controller-manager
-                name: opendatahub-operator
+                app.kubernetes.io/name: opendatahub-operator
+                app.kubernetes.io/part-of: opendatahub
+                control-plane: opendatahub-operator
             spec:
               containers:
               - args:

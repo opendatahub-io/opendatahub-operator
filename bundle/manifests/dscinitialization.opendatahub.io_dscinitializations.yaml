@@ -4,6 +4,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.9.2
   creationTimestamp: null
+  labels:
+    app.kubernetes.io/name: opendatahub-operator
+    app.kubernetes.io/part-of: opendatahub
   name: dscinitializations.dscinitialization.opendatahub.io
 spec:
   group: dscinitialization.opendatahub.io
