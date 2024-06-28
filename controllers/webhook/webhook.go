@@ -48,14 +48,33 @@ func (w *OpenDataHubWebhook) SetupWithManager(mgr ctrl.Manager) {
 	hookServer.Register("/validate-opendatahub-io-v1", odhWebhook)
 }
 
-func (w *OpenDataHubWebhook) checkDupCreation(ctx context.Context, req admission.Request) admission.Response {
-	if req.Operation != admissionv1.Create {
-		return admission.Allowed(fmt.Sprintf("duplication check: skipping %v request", req.Operation))
+func countObjects(ctx context.Context, cli client.Client, gvk schema.GroupVersionKind) (int, error) {
+	list := &unstructured.UnstructuredList{}
+	list.SetGroupVersionKind(gvk)
+
+	if err := cli.List(ctx, list); err != nil {
+		return 0, err
 	}
 
+	return len(list.Items), nil
+}
+
+func denyCountGtZero(ctx context.Context, cli client.Client, gvk schema.GroupVersionKind, msg string) admission.Response {
+	count, err := countObjects(ctx, cli, gvk)
+	if err != nil {
+		return admission.Errored(http.StatusBadRequest, err)
+	}
+
+	if count > 0 {
+		return admission.Denied(msg)
+	}
+
+	return admission.Allowed("")
+}
+
+func (w *OpenDataHubWebhook) checkDupCreation(ctx context.Context, req admission.Request) admission.Response {
 	switch req.Kind.Kind {
-	case "DataScienceCluster":
-	case "DSCInitialization":
+	case "DataScienceCluster", "DSCInitialization":
 	default:
 		log.Info("Got wrong kind", "kind", req.Kind.Kind)
 		return admission.Errored(http.StatusBadRequest, nil)
@@ -67,35 +86,26 @@ func (w *OpenDataHubWebhook) checkDupCreation(ctx context.Context, req admission
 		Kind:    req.Kind.Kind,
 	}
 
-	list := &unstructured.UnstructuredList{}
-	list.SetGroupVersionKind(gvk)
-
-	if err := w.Client.List(ctx, list); err != nil {
-		return admission.Errored(http.StatusBadRequest, err)
-	}
-
-	// if len == 1 now creation of #2 is being handled
-	if len(list.Items) > 0 {
-		return admission.Denied(fmt.Sprintf("Only one instance of %s object is allowed", req.Kind.Kind))
-	}
-
-	return admission.Allowed(fmt.Sprintf("%s duplication check passed", req.Kind.Kind))
+	// if count == 1 now creation of #2 is being handled
+	return denyCountGtZero(ctx, w.Client, gvk,
+		fmt.Sprintf("Only one instance of %s object is allowed", req.Kind.Kind))
 }
 
 func (w *OpenDataHubWebhook) Handle(ctx context.Context, req admission.Request) admission.Response {
 	var resp admission.Response
 
-	// Handle only Create and Update
-	if req.Operation == admissionv1.Delete || req.Operation == admissionv1.Connect {
-		msg := fmt.Sprintf("RHOAI skipping %v request", req.Operation)
+	switch req.Operation {
+	case admissionv1.Create:
+		resp = w.checkDupCreation(ctx, req)
+	default:
+		msg := fmt.Sprintf("No logic check by webhook is applied on %v request", req.Operation)
 		log.Info(msg)
-		return admission.Allowed(msg)
+		resp = admission.Allowed("")
 	}
 
-	resp = w.checkDupCreation(ctx, req)
 	if !resp.Allowed {
 		return resp
 	}
 
-	return admission.Allowed(fmt.Sprintf("%s allowed", req.Kind.Kind))
+	return admission.Allowed(fmt.Sprintf("Operation %s on %s allowed", req.Operation, req.Kind.Kind))
 }
