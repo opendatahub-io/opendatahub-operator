@@ -2,6 +2,8 @@
 ARG GOLANG_VERSION=1.21
 ARG USE_LOCAL=false
 ARG OVERWRITE_MANIFESTS=""
+ARG TARGETOS
+ARG TARGETARCH
 
 ################################################################################
 FROM registry.access.redhat.com/ubi8/go-toolset:$GOLANG_VERSION as builder_local_false
@@ -39,7 +41,7 @@ COPY main.go main.go
 COPY pkg/ pkg/
 
 # Build
-RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -a -o manager main.go
+RUN CGO_ENABLED=1 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o manager main.go
 
 ################################################################################
 FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
