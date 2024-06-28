@@ -43,15 +43,31 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/kustomize/api/krusty"
 	"sigs.k8s.io/kustomize/api/resmap"
+	"sigs.k8s.io/kustomize/api/resource"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins"
 )
 
 const (
 	DefaultManifestPath = "/opt/manifests"
+)
+
+var (
+	WhitelistedFields = []plugins.RemoverPlugin{
+		{
+			Gvk:  gvk.Deployment,
+			Path: []string{"spec", "template", "spec", "containers", "*", "resources"},
+		},
+	}
+
+	Whitelisted = map[string]*[]plugins.RemoverPlugin{
+		"kserve":     &WhitelistedFields,
+		"model-mesh": &WhitelistedFields,
+	}
 )
 
 // DownloadManifests function performs following tasks:
@@ -183,13 +199,9 @@ func DeployManifestsFromPath(
 		return fmt.Errorf("failed applying labels plugin when preparing Kustomize resources. %w", err)
 	}
 
-	objs, err := GetResources(resMap)
-	if err != nil {
-		return err
-	}
 	// Create / apply / delete resources in the cluster
-	for _, obj := range objs {
-		err = manageResource(ctx, cli, obj, owner, namespace, componentName, componentEnabled)
+	for _, res := range resMap.Resources() {
+		err = manageResource(ctx, cli, res, owner, namespace, componentName, componentEnabled)
 		if err != nil {
 			return err
 		}
@@ -198,21 +210,17 @@ func DeployManifestsFromPath(
 	return nil
 }
 
-func GetResources(resMap resmap.ResMap) ([]*unstructured.Unstructured, error) {
-	resources := make([]*unstructured.Unstructured, 0, resMap.Size())
-	for _, res := range resMap.Resources() {
-		u := &unstructured.Unstructured{}
-		err := yaml.Unmarshal([]byte(res.MustYaml()), u)
-		if err != nil {
-			return nil, err
-		}
-		resources = append(resources, u)
+func resource2Unstructured(res *resource.Resource) (*unstructured.Unstructured, error) {
+	u := &unstructured.Unstructured{}
+
+	if err := yaml.Unmarshal([]byte(res.MustYaml()), u); err != nil {
+		return nil, err
 	}
 
-	return resources, nil
+	return u, nil
 }
 
-func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Unstructured, owner metav1.Object, applicationNamespace, componentName string, enabled bool) error {
+func manageResource(ctx context.Context, cli client.Client, obj *resource.Resource, owner metav1.Object, applicationNamespace, componentName string, enabled bool) error {
 	// Return if resource is of Kind: Namespace and Name: odhApplicationsNamespace
 	if obj.GetKind() == "Namespace" && obj.GetName() == applicationNamespace {
 		return nil
@@ -328,52 +336,20 @@ func ApplyParams(componentPath string, imageParamsMap map[string]string, isUpdat
 	return err
 }
 
-// removeResourcesFromDeployment checks if the provided resource is a Deployment,
-// and if so, removes the resources field from each container in the Deployment. This ensures we do not overwrite the
-// resources field when Patch is applied with the returned unstructured resource.
-func removeResourcesFromDeployment(u *unstructured.Unstructured) error {
-	// Check if the resource is a Deployment. This can be expanded to other resources as well.
-	if u.GetKind() != "Deployment" {
-		return nil
-	}
-	// Navigate to the containers array in the Deployment spec
-	containers, exists, err := unstructured.NestedSlice(u.Object, "spec", "template", "spec", "containers")
-	if err != nil {
-		return fmt.Errorf("error when trying to retrieve containers from Deployment: %w", err)
-	}
-	// Return if no containers exist
-	if !exists {
-		return nil
-	}
-
-	// Iterate over the containers to remove the resources field
-	for i := range containers {
-		container, ok := containers[i].(map[string]interface{})
-		// If containers field is not in expected type, return.
-		if !ok {
-			return nil
-		}
-		// Check and delete the resources field. This can be expanded to any whitelisted field.
-		delete(container, "resources")
-		containers[i] = container
-	}
-
-	// Update the containers in the original unstructured object
-	if err := unstructured.SetNestedSlice(u.Object, containers, "spec", "template", "spec", "containers"); err != nil {
-		return fmt.Errorf("failed to update containers in Deployment: %w", err)
-	}
-
-	return nil
-}
-
-func getResource(ctx context.Context, cli client.Client, obj *unstructured.Unstructured) (*unstructured.Unstructured, error) {
+func getResource(ctx context.Context, cli client.Client, obj *resource.Resource) (*unstructured.Unstructured, error) {
 	found := &unstructured.Unstructured{}
 	// Setting gvk is required to do Get request
-	found.SetGroupVersionKind(obj.GroupVersionKind())
+	residGvk := obj.GetGvk()
+	gvk := schema.GroupVersionKind{
+		Group:   residGvk.Group,
+		Version: residGvk.Version,
+		Kind:    residGvk.Kind,
+	}
+	found.SetGroupVersionKind(gvk)
 	err := cli.Get(ctx, types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, found)
 	if errors.Is(err, &meta.NoKindMatchError{}) {
 		// convert the error to NotFound to handle both the same way in the caller
-		return nil, k8serr.NewNotFound(schema.GroupResource{Group: obj.GroupVersionKind().Group}, obj.GetName())
+		return nil, k8serr.NewNotFound(schema.GroupResource{Group: gvk.Group}, obj.GetName())
 	}
 	if err != nil {
 		return nil, err
@@ -427,7 +403,11 @@ func isOwnedByODHCRD(ownerReferences []metav1.OwnerReference) bool {
 	return false
 }
 
-func createResource(ctx context.Context, cli client.Client, obj *unstructured.Unstructured, owner metav1.Object) error {
+func createResource(ctx context.Context, cli client.Client, res *resource.Resource, owner metav1.Object) error {
+	obj, err := resource2Unstructured(res)
+	if err != nil {
+		return err
+	}
 	if obj.GetKind() != "CustomResourceDefinition" && obj.GetKind() != "OdhDashboardConfig" {
 		if err := ctrl.SetControllerReference(owner, metav1.Object(obj), cli.Scheme()); err != nil {
 			return err
@@ -436,12 +416,21 @@ func createResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 	return cli.Create(ctx, obj)
 }
 
-func skipUpdateOnWhitelistedFields(obj *unstructured.Unstructured, componentName string) error {
-	if componentName == "kserve" || componentName == "model-mesh" {
-		if err := removeResourcesFromDeployment(obj); err != nil {
+// skipUpdateOnWhitelistedFields applies RemoverPlugin to the component's resources
+// if they are declared in Whitelisted.
+// This ensures that we do not overwrite the fields when Patch is applied later to the resource.
+func skipUpdateOnWhitelistedFields(res *resource.Resource, componentName string) error {
+	whitelistedFields, exists := Whitelisted[componentName]
+	if !exists {
+		return nil
+	}
+
+	for _, rmPlugin := range *whitelistedFields {
+		if err := rmPlugin.TransformResource(res); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -465,13 +454,19 @@ func performPatch(ctx context.Context, cli client.Client, obj, found *unstructur
 	return cli.Patch(ctx, found, client.RawPatch(types.ApplyPatchType, data), client.ForceOwnership, client.FieldOwner(owner.GetName()))
 }
 
-func updateResource(ctx context.Context, cli client.Client, obj, found *unstructured.Unstructured, owner metav1.Object, componentName string) error {
+func updateResource(ctx context.Context, cli client.Client, res *resource.Resource, found *unstructured.Unstructured, owner metav1.Object, componentName string) error {
 	// Skip ODHDashboardConfig Update
 	if found.GetKind() == "OdhDashboardConfig" {
 		return nil
 	}
+
 	// skip updating whitelisted fields
-	if err := skipUpdateOnWhitelistedFields(obj, componentName); err != nil {
+	if err := skipUpdateOnWhitelistedFields(res, componentName); err != nil {
+		return err
+	}
+
+	obj, err := resource2Unstructured(res)
+	if err != nil {
 		return err
 	}
 
