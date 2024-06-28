@@ -96,6 +96,14 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 	}
 	l.Info("apply manifests done")
 
+	// Wait for deployment available
+	if enabled {
+		// first check if the service is up
+		if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 10, 2); err != nil {
+			return fmt.Errorf("deployments for %s are not ready to server: %w", ComponentName, err)
+		}
+	}
+
 	// Create additional model registry resources, componentEnabled=true because these extras are never deleted!
 	if err := deploy.DeployManifestsFromPath(ctx, cli, owner, Path+"/extras", dscispec.ApplicationsNamespace, m.GetComponentName(), true); err != nil {
 		return err
