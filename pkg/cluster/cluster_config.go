@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/blang/semver/v4"
+	"github.com/go-logr/logr"
 	"github.com/operator-framework/api/pkg/lib/version"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -19,6 +20,69 @@ import (
 )
 
 // +kubebuilder:rbac:groups="config.openshift.io",resources=ingresses,verbs=get
+
+type Platform string
+
+// Release includes information on operator version and platform
+// +kubebuilder:object:generate=true
+type Release struct {
+	Name    Platform                `json:"name,omitempty"`
+	Version version.OperatorVersion `json:"version,omitempty"`
+}
+
+var clusterConfig struct {
+	Namespace string
+	Platform  Platform
+	Release   Release
+}
+
+// Init initializes cluster configuration variables on startup
+// init() won't work since it is needed to check the error.
+func Init(ctx context.Context, cli client.Client, log logr.Logger) error {
+	var err error
+
+	clusterConfig.Namespace, err = getOperatorNamespace()
+	if err != nil {
+		log.Error(err, "unable to find operator namespace")
+		// not fatal, fallback to ""
+	}
+
+	clusterConfig.Platform, err = getPlatform(ctx, cli)
+	if err != nil {
+		return err
+	}
+
+	clusterConfig.Release, err = getRelease(ctx, cli)
+	if err != nil {
+		return err
+	}
+
+	printClusterConfig(log)
+
+	return nil
+}
+
+func printClusterConfig(log logr.Logger) {
+	log.Info("Cluster config",
+		"Namespace", clusterConfig.Namespace,
+		"Platform", clusterConfig.Platform,
+		"Release", clusterConfig.Release)
+}
+
+func GetOperatorNamespace() (string, error) {
+	if clusterConfig.Namespace == "" {
+		return "", fmt.Errorf("unable to find operator namespace")
+	}
+	return clusterConfig.Namespace, nil
+}
+
+func GetPlatform() Platform {
+	return clusterConfig.Platform
+}
+
+func GetRelease() Release {
+	return clusterConfig.Release
+}
 
 func GetDomain(ctx context.Context, c client.Client) (string, error) {
 	ingress := &unstructured.Unstructured{}
@@ -39,7 +103,7 @@ func GetDomain(ctx context.Context, c client.Client) (string, error) {
 	return domain, err
 }
 
-func GetOperatorNamespace() (string, error) {
+func getOperatorNamespace() (string, error) {
 	data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
 	return string(data), err
 }
@@ -63,8 +127,6 @@ func GetClusterServiceVersion(ctx context.Context, c client.Client, watchNameSpa
 		schema.GroupResource{Group: gvk.ClusterServiceVersion.Group},
 		gvk.ClusterServiceVersion.Kind)
 }
-
-type Platform string
 
 // detectSelfManaged detects if it is Self Managed Rhods or OpenDataHub.
 func detectSelfManaged(ctx context.Context, cli client.Client) (Platform, error) {
@@ -110,7 +172,7 @@ func detectManagedRHODS(ctx context.Context, cli client.Client) (Platform, error
 	return "", nil
 }
 
-func GetPlatform(ctx context.Context, cli client.Client) (Platform, error) {
+func getPlatform(ctx context.Context, cli client.Client) (Platform, error) {
 	// First check if its addon installation to return 'ManagedRhods, nil'
 	if platform, err := detectManagedRHODS(ctx, cli); err != nil {
 		return Unknown, err
@@ -122,26 +184,14 @@ func GetPlatform(ctx context.Context, cli client.Client) (Platform, error) {
 	return detectSelfManaged(ctx, cli)
 }
 
-// Release includes information on operator version and platform
-// +kubebuilder:object:generate=true
-type Release struct {
-	Name    Platform                `json:"name,omitempty"`
-	Version version.OperatorVersion `json:"version,omitempty"`
-}
-
-func GetRelease(ctx context.Context, cli client.Client) (Release, error) {
+func getRelease(ctx context.Context, cli client.Client) (Release, error) {
 	initRelease := Release{
 		// dummy version set to name "", version 0.0.0
 		Version: version.OperatorVersion{
 			Version: semver.Version{},
 		},
 	}
-	// Set platform
-	platform, err := GetPlatform(ctx, cli)
-	if err != nil {
-		return initRelease, err
-	}
-	initRelease.Name = platform
+	initRelease.Name = clusterConfig.Platform
 
 	// For unit-tests
 	if os.Getenv("CI") == "true" {
