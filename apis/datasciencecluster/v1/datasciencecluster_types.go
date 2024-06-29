@@ -113,6 +113,8 @@ type DataScienceClusterStatus struct {
 //+kubebuilder:subresource:status
 //+kubebuilder:resource:scope=Cluster,shortName=dsc
 //+kubebuilder:storageversion
+//+kubebuilder:printcolumn:name="Status",type=string,JSONPath=.status.phase,description="Status"
+//+kubebuilder:printcolumn:name="Age",type=date,JSONPath=.metadata.creationTimestamp,description="The age of the resource"
 
 // DataScienceCluster is the Schema for the datascienceclusters API.
 type DataScienceCluster struct {
