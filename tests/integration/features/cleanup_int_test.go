@@ -219,11 +219,11 @@ func createdSecretHasOwnerReferenceToOwningFeature(namespace, featureName string
 func namespaceExists(ctx context.Context, f *feature.Feature) (bool, error) {
 	namespace, err := fixtures.GetNamespace(ctx, f.Client, "conditional-ns")
 	if errors.IsNotFound(err) {
-		return false, err
+		return false, nil
 	}
 	// ensuring it fails if namespace is still deleting
 	if namespace.Status.Phase == corev1.NamespaceTerminating {
-		return false, err
+		return false, nil
 	}
-	return namespace != nil, nil
+	return true, nil
 }
