@@ -87,7 +87,6 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(addonv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(rbacv1.AddToScheme(scheme))
 	utilruntime.Must(corev1.AddToScheme(scheme))
-	utilruntime.Must(apiextensionsv1.AddToScheme(scheme))
 	utilruntime.Must(routev1.Install(scheme))
 	utilruntime.Must(appsv1.AddToScheme(scheme))
 	utilruntime.Must(oauthv1.Install(scheme))
@@ -128,14 +127,13 @@ func main() { //nolint:funlen
 	// root context
 	ctx := ctrl.SetupSignalHandler()
 
-	//	var namespaceSelector labels.Set{labels.ODH.OwnedNamespace: "true"}.AsSelector()
-	// CSVFields := fields.Set{"spec.displayName": string(cluster.OpenDataHub)}
 	cacheOptions := cache.Options{
 		Scheme: scheme,
 		ByObject: map[client.Object]cache.ByObject{
-			// all CRD because it is mainly for pipeline v1 and v2 and dashboard
+			// all CRD: mainly for pipeline v1 teckon and v2 argo and dashboard's own CRD
 			&apiextensionsv1.CustomResourceDefinition{}: {},
-			// For dashboard secret, we can remove it when we move to SSO
+			// For dashboard secret
+			// TODO: remove it when we move to SSO
 			&corev1.Secret{}: {
 				Field: fields.Set{"metadata.name": "dashboard-oauth-config-generated"}.AsSelector(),
 			},
@@ -144,9 +142,11 @@ func main() { //nolint:funlen
 				Field: fields.Set{"metadata.name": trustedcabundle.CAConfigMapName}.AsSelector(),
 				Label: pkglables.Set{labels.K8SCommon.PartOf: "opendatahub-operator"}.AsSelector(),
 			},
+			// TODO: we can limit scope of namespace if we find a way to only get list of DSproject
 			&corev1.Namespace{}: {},
 			// For catsrc (avoid frequently check cluster type)
-			&ofapiv1alpha1.CatalogSource{}:         {},
+			&ofapiv1alpha1.CatalogSource{}: {},
+			// For get release version
 			&ofapiv1alpha1.ClusterServiceVersion{}: {},
 		},
 	}

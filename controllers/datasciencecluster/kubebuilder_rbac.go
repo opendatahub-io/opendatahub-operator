@@ -97,7 +97,7 @@ package datasciencecluster
 
 // +kubebuilder:rbac:groups="apiregistration.k8s.io",resources=apiservices,verbs=create;delete;list;watch;update;patch;get
 
-// +kubebuilder:rbac:groups="operator.openshift.io",resources=consoles,verbs=list;watch;patch;delete
+// +kubebuilder:rbac:groups="operator.openshift.io",resources=consoles,verbs=get;list;watch;patch;delete
 // +kubebuilder:rbac:groups="operator.openshift.io",resources=ingresscontrollers,verbs=get;list;watch;patch;delete
 
 // +kubebuilder:rbac:groups="oauth.openshift.io",resources=oauthclients,verbs=create;delete;list;watch;update;patch;get
