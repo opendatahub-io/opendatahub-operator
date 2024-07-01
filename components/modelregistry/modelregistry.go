@@ -19,8 +19,11 @@ import (
 )
 
 var (
-	ComponentName = "model-registry-operator"
-	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/odh"
+	ComponentName  = "model-registry-operator"
+	Path           = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/odh"
+	ODHnamespace   = "odh-model-registries"
+	RHOAInamespace = "redhat-ods-model-registries"
+
 	// we should not apply this label to the namespace, as it triggered namspace deletion during operator uninstall
 	// modelRegistryLabels = cluster.WithLabels(
 	// 	labels.ODH.OwnedNamespace, "true",
@@ -58,14 +61,26 @@ func (m *ModelRegistry) GetComponentName() string {
 	return ComponentName
 }
 
-func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
-	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, platform cluster.Platform, _ bool) error {
+func (m *ModelRegistry) ReconcileComponent(ctx context.Context,
+	cli client.Client,
+	logger logr.Logger,
+	owner metav1.Object,
+	dscispec *dsciv1.DSCInitializationSpec,
+	platform cluster.Platform,
+	_ bool,
+) error {
 	l := m.ConfigComponentLogger(logger, ComponentName, dscispec)
 	var imageParamMap = map[string]string{
 		"IMAGES_MODELREGISTRY_OPERATOR": "RELATED_IMAGE_ODH_MODEL_REGISTRY_OPERATOR_IMAGE",
 		"IMAGES_GRPC_SERVICE":           "RELATED_IMAGE_ODH_MLMD_GRPC_SERVER_IMAGE",
 		"IMAGES_REST_SERVICE":           "RELATED_IMAGE_ODH_MODEL_REGISTRY_IMAGE",
 	}
+	mrNamespace := map[cluster.Platform]string{
+		cluster.SelfManagedRhods: RHOAInamespace,
+		cluster.ManagedRhods:     RHOAInamespace,
+		cluster.OpenDataHub:      ODHnamespace,
+		cluster.Unknown:          ODHnamespace,
+	}[platform]
 	enabled := m.GetManagementState() == operatorv1.Managed
 
 	if enabled {
@@ -83,9 +98,9 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 			}
 		}
 
-		// Create odh-model-registries namespace
+		// Create model registries namespace
 		// We do not delete this namespace even when ModelRegistry is Removed or when operator is uninstalled.
-		_, err := cluster.CreateNamespace(ctx, cli, "odh-model-registries")
+		_, err := cluster.CreateNamespace(ctx, cli, mrNamespace)
 		if err != nil {
 			return err
 		}
