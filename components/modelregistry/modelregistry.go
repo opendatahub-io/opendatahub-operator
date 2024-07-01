@@ -29,8 +29,11 @@ import (
 const DefaultModelRegistryCert = "default-modelregistry-cert"
 
 var (
-	ComponentName = "model-registry-operator"
-	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/odh"
+	ComponentName  = "model-registry-operator"
+	Path           = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/odh"
+	ODHNamespace   = "odh-model-registries"
+	RHOAINamespace = "rhoai-model-registries"
+
 	// we should not apply this label to the namespace, as it triggered namspace deletion during operator uninstall
 	// modelRegistryLabels = cluster.WithLabels(
 	//      labels.ODH.OwnedNamespace, "true",
@@ -69,14 +72,26 @@ func (m *ModelRegistry) GetComponentName() string {
 	return ComponentName
 }
 
-func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
-	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, platform cluster.Platform, _ bool) error {
+func (m *ModelRegistry) ReconcileComponent(ctx context.Context,
+	cli client.Client,
+	logger logr.Logger,
+	owner metav1.Object,
+	dscispec *dsciv1.DSCInitializationSpec,
+	platform cluster.Platform,
+	_ bool,
+) error {
 	l := m.ConfigComponentLogger(logger, ComponentName, dscispec)
 	var imageParamMap = map[string]string{
 		"IMAGES_MODELREGISTRY_OPERATOR": "RELATED_IMAGE_ODH_MODEL_REGISTRY_OPERATOR_IMAGE",
 		"IMAGES_GRPC_SERVICE":           "RELATED_IMAGE_ODH_MLMD_GRPC_SERVER_IMAGE",
 		"IMAGES_REST_SERVICE":           "RELATED_IMAGE_ODH_MODEL_REGISTRY_IMAGE",
 	}
+	mrNamespace := map[cluster.Platform]string{
+		cluster.SelfManagedRhods: RHOAINamespace,
+		cluster.ManagedRhods:     RHOAINamespace,
+		cluster.OpenDataHub:      ODHNamespace,
+		cluster.Unknown:          ODHNamespace,
+	}[platform]
 	enabled := m.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 
@@ -101,6 +116,7 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (m.DevFlags == nil || len(m.DevFlags.Manifests) == 0) {
 			extraParamsMap := map[string]string{
 				"DEFAULT_CERT": DefaultModelRegistryCert,
+				"MR_NAMESPACE": mrNamespace,
 			}
 			if err := deploy.ApplyParams(Path, imageParamMap, extraParamsMap); err != nil {
 				return fmt.Errorf("failed to update image from %s : %w", Path, err)
@@ -109,20 +125,19 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 
 		// Create model registries namespace
 		// We do not delete this namespace even when ModelRegistry is Removed or when operator is uninstalled.
-		ns, err := cluster.CreateNamespace(ctx, cli, ModelRegistriesNamespace)
+		ns, err := cluster.CreateNamespace(ctx, cli, mrNamespace)
 		if err != nil {
 			return err
 		}
-		l.Info("created model registry namespace", "namespace", ModelRegistriesNamespace)
+		l.Info("created model registry namespace", "namespace", mrNamespace)
 		// create servicemeshmember here, for now until post MVP solution
 		err = enrollToServiceMesh(ctx, cli, dscispec, ns)
 		if err != nil {
 			return err
 		}
-		l.Info("created model registry servicemesh member", "namespace", ModelRegistriesNamespace)
+		l.Info("created model registry servicemesh member", "namespace", mrNamespace)
 	} else {
-		err := m.removeDependencies(ctx, cli, dscispec)
-		if err != nil {
+		if err := m.removeDependencies(ctx, cli, dscispec); err != nil {
 			return err
 		}
 	}
