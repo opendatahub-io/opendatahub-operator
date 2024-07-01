@@ -80,6 +80,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		cluster.SelfManagedRhods: PathDownstream + "/onprem",
 		cluster.ManagedRhods:     PathDownstream + "/addon",
 		cluster.OpenDataHub:      PathUpstream,
+		cluster.Unknown:          PathUpstream,
 	}[platform]
 
 	enabled := d.GetManagementState() == operatorv1.Managed
@@ -105,9 +106,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 			if err := cluster.UpdatePodSecurityRolebinding(ctx, cli, dscispec.ApplicationsNamespace, "odh-dashboard"); err != nil {
 				return err
 			}
-		}
-
-		if platform == cluster.SelfManagedRhods || platform == cluster.ManagedRhods {
+		} else {
 			if err := cluster.UpdatePodSecurityRolebinding(ctx, cli, dscispec.ApplicationsNamespace, "rhods-dashboard"); err != nil {
 				return err
 			}
@@ -184,12 +183,14 @@ func updateKustomizeVariable(ctx context.Context, cli client.Client, platform cl
 		cluster.SelfManagedRhods: "rhods-admins",
 		cluster.ManagedRhods:     "dedicated-admins",
 		cluster.OpenDataHub:      "odh-admins",
+		cluster.Unknown:          "odh-admins",
 	}[platform]
 
 	sectionTitle := map[cluster.Platform]string{
 		cluster.SelfManagedRhods: "OpenShift Self Managed Services",
 		cluster.ManagedRhods:     "OpenShift Managed Services",
 		cluster.OpenDataHub:      "OpenShift Open Data Hub",
+		cluster.Unknown:          "OpenShift Open Data Hub",
 	}[platform]
 
 	consoleLinkDomain, err := cluster.GetDomain(ctx, cli)
@@ -200,6 +201,7 @@ func updateKustomizeVariable(ctx context.Context, cli client.Client, platform cl
 		cluster.SelfManagedRhods: "https://rhods-dashboard-" + dscispec.ApplicationsNamespace + "." + consoleLinkDomain,
 		cluster.ManagedRhods:     "https://rhods-dashboard-" + dscispec.ApplicationsNamespace + "." + consoleLinkDomain,
 		cluster.OpenDataHub:      "https://odh-dashboard-" + dscispec.ApplicationsNamespace + "." + consoleLinkDomain,
+		cluster.Unknown:          "https://odh-dashboard-" + dscispec.ApplicationsNamespace + "." + consoleLinkDomain,
 	}[platform]
 
 	return map[string]string{
