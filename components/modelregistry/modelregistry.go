@@ -36,7 +36,7 @@ type ModelRegistry struct {
 	components.Component `json:""`
 }
 
-func (m *ModelRegistry) OverrideManifests(ctx context.Context, _ string) error {
+func (m *ModelRegistry) OverrideManifests(ctx context.Context, _ cluster.Platform) error {
 	// If devflags are set, update default manifests path
 	if len(m.DevFlags.Manifests) != 0 {
 		manifestConfig := m.DevFlags.Manifests[0]
@@ -71,7 +71,7 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 	if enabled {
 		if m.DevFlags != nil {
 			// Download manifests and update paths
-			if err := m.OverrideManifests(ctx, string(platform)); err != nil {
+			if err := m.OverrideManifests(ctx, platform); err != nil {
 				return err
 			}
 		}

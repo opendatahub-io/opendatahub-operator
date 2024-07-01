@@ -35,7 +35,7 @@ can be found [here](https://github.com/opendatahub-io/opendatahub-operator/tree/
       Cleanup(cli client.Client, DSCISpec *dsciv1.DSCInitializationSpec) error
       GetComponentName() string
       GetManagementState() operatorv1.ManagementState
-      OverrideManifests(platform string) error
+      OverrideManifests(platform cluster.Platform) error
       UpdatePrometheusConfig(cli client.Client, enable bool, component string) error
       ConfigComponentLogger(logger logr.Logger, component string, dscispec *dsciv1.DSCInitializationSpec) logr.Logger
     }

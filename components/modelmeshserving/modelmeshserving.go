@@ -35,7 +35,7 @@ type ModelMeshServing struct {
 	components.Component `json:""`
 }
 
-func (m *ModelMeshServing) OverrideManifests(ctx context.Context, _ string) error {
+func (m *ModelMeshServing) OverrideManifests(ctx context.Context, _ cluster.Platform) error {
 	// Go through each manifest and set the overlays if defined
 	for _, subcomponent := range m.DevFlags.Manifests {
 		if strings.Contains(subcomponent.URI, DependentComponentName) {
@@ -100,7 +100,7 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 	if enabled {
 		if m.DevFlags != nil {
 			// Download manifests and update paths
-			if err := m.OverrideManifests(ctx, string(platform)); err != nil {
+			if err := m.OverrideManifests(ctx, platform); err != nil {
 				return err
 			}
 		}

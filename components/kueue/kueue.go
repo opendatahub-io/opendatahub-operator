@@ -31,7 +31,7 @@ type Kueue struct {
 	components.Component `json:""`
 }
 
-func (k *Kueue) OverrideManifests(ctx context.Context, _ string) error {
+func (k *Kueue) OverrideManifests(ctx context.Context, _ cluster.Platform) error {
 	// If devflags are set, update default manifests path
 	if len(k.DevFlags.Manifests) != 0 {
 		manifestConfig := k.DevFlags.Manifests[0]
@@ -65,7 +65,7 @@ func (k *Kueue) ReconcileComponent(ctx context.Context, cli client.Client, logge
 	if enabled {
 		if k.DevFlags != nil {
 			// Download manifests and update paths
-			if err := k.OverrideManifests(ctx, string(platform)); err != nil {
+			if err := k.OverrideManifests(ctx, platform); err != nil {
 				return err
 			}
 		}
