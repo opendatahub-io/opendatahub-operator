@@ -43,6 +43,15 @@ linters-settings:
         alias: $1$2
       - pkg: github.com/openshift/api/(\w+)/(v[\w\d]+)
         alias: $1$2
+  ireturn:
+    allow:
+      # defaults https://golangci-lint.run/usage/linters/#ireturn
+      - anon
+      - error
+      - empty
+      - stdlib
+      # also allow generics
+      - generic
   revive:
     rules:
       - name: dot-imports
