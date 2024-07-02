@@ -56,7 +56,7 @@ type Kserve struct {
 	DefaultDeploymentMode DefaultDeploymentMode `json:"defaultDeploymentMode,omitempty"`
 }
 
-func (k *Kserve) OverrideManifests(ctx context.Context, _ string) error {
+func (k *Kserve) OverrideManifests(ctx context.Context, _ cluster.Platform) error {
 	// Download manifests if defined by devflags
 	// Go through each manifest and set the overlays if defined
 	for _, subcomponent := range k.DevFlags.Manifests {
@@ -119,7 +119,7 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 		}
 		if k.DevFlags != nil {
 			// Download manifests and update paths
-			if err := k.OverrideManifests(ctx, string(platform)); err != nil {
+			if err := k.OverrideManifests(ctx, platform); err != nil {
 				return err
 			}
 		}
