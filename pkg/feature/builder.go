@@ -125,6 +125,20 @@ func (fb *featureBuilder) WithData(loader ...Action) *featureBuilder {
 	return fb
 }
 
+// EnabledWhen determines if a Feature should be loaded and applied based on specified criteria.
+// The criteria are supplied as a function.
+//
+// Note: The function passed should consistently return true while the feature is needed.
+// If the function returns false at any point, the feature's contents might be removed during the reconciliation process.
+func (fb *featureBuilder) EnabledWhen(enabled EnabledFunc) *featureBuilder {
+	fb.builders = append(fb.builders, func(f *Feature) error {
+		f.Enabled = enabled
+
+		return nil
+	})
+	return fb
+}
+
 // WithResources allows to define programmatically which resources should be created when applying defined Feature.
 func (fb *featureBuilder) WithResources(resources ...Action) *featureBuilder {
 	fb.builders = append(fb.builders, func(f *Feature) error {
