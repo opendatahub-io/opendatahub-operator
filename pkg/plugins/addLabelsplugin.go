@@ -1,7 +1,7 @@
 package plugins
 
 import (
-	"sigs.k8s.io/kustomize/api/builtins" //nolint:staticcheck //Remove after package update
+	"sigs.k8s.io/kustomize/api/builtins" //nolint:staticcheck // Remove after package update
 	"sigs.k8s.io/kustomize/api/types"
 	"sigs.k8s.io/kustomize/kyaml/resid"
 

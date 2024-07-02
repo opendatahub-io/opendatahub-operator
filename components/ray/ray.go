@@ -33,7 +33,7 @@ type Ray struct {
 	components.Component `json:""`
 }
 
-func (r *Ray) OverrideManifests(ctx context.Context, _ string) error {
+func (r *Ray) OverrideManifests(ctx context.Context, _ cluster.Platform) error {
 	// If devflags are set, update default manifests path
 	if len(r.DevFlags.Manifests) != 0 {
 		manifestConfig := r.DevFlags.Manifests[0]
@@ -69,7 +69,7 @@ func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, logger 
 	if enabled {
 		if r.DevFlags != nil {
 			// Download manifests and update paths
-			if err := r.OverrideManifests(ctx, string(platform)); err != nil {
+			if err := r.OverrideManifests(ctx, platform); err != nil {
 				return err
 			}
 		}
