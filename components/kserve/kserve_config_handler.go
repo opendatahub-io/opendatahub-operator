@@ -58,7 +58,7 @@ func (k *Kserve) setDefaultDeploymentMode(ctx context.Context, cli client.Client
 		Name:      KserveConfigMapName,
 	}, inferenceServiceConfigMap)
 	if err != nil {
-		return fmt.Errorf("error getting configmap 'inferenceservice-config'. %w", err)
+		return fmt.Errorf("error getting configmap %v: %w", KserveConfigMapName, err)
 	}
 
 	// set data.deploy.defaultDeploymentMode to the model specified in the Kserve spec

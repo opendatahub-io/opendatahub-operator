@@ -9,7 +9,7 @@ webhooks:
   - v1
   clientConfig:
     service:
-      name: controller-manager-service-cert
+      name: webhook-service
       namespace: system
       path: /validate-opendatahub-io-v1
   failurePolicy: Fail

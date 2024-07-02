@@ -39,7 +39,6 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/fields"
-	pkglables "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -65,8 +64,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/webhook"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/trustedcabundle"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
 
@@ -128,26 +125,30 @@ func main() { //nolint:funlen
 	ctx := ctrl.SetupSignalHandler()
 
 	cacheOptions := cache.Options{
+		// opendatahub.io/generated-namespace: 'true'
 		Scheme: scheme,
 		ByObject: map[client.Object]cache.ByObject{
 			// all CRD: mainly for pipeline v1 teckon and v2 argo and dashboard's own CRD
 			&apiextensionsv1.CustomResourceDefinition{}: {},
-			// For dashboard secret
-			// TODO: remove it when we move to SSO
-			&corev1.Secret{}: {
-				Field: fields.Set{"metadata.name": "dashboard-oauth-config-generated"}.AsSelector(),
-			},
-			// For trustedCA bundle
-			&corev1.ConfigMap{}: {
-				Field: fields.Set{"metadata.name": trustedcabundle.CAConfigMapName}.AsSelector(),
-				Label: pkglables.Set{labels.K8SCommon.PartOf: "opendatahub-operator"}.AsSelector(),
-			},
+			// need all scretes include dashboard-oauth-client
+			&corev1.Secret{}: {},
+			// it is hard to find a label can be used for both trustCAbundle configmap and inferenceservice-config
+			&corev1.ConfigMap{}: {},
 			// TODO: we can limit scope of namespace if we find a way to only get list of DSproject
+			// also need for monitoring, trustcabundle
 			&corev1.Namespace{}: {},
 			// For catsrc (avoid frequently check cluster type)
 			&ofapiv1alpha1.CatalogSource{}: {},
-			// For get release version
+			// For GetReleaseVersion and uninstall
 			&ofapiv1alpha1.ClusterServiceVersion{}: {},
+			// For domain to get OpenshiftIngress and default cert
+			&operatorv1.IngressController{}: {
+				Field: fields.Set{"metadata.name": "default"}.AsSelector(),
+			},
+			// for prometheus deployment
+			&appsv1.Deployment{}: {
+				Field: fields.Set{"metadata.name": "prometheus"}.AsSelector(),
+			},
 		},
 	}
 

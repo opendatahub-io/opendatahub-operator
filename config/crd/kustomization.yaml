@@ -7,7 +7,7 @@ resources:
 - bases/features.opendatahub.io_featuretrackers.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 
-patches:
+# patches:
 # [WEBHOOK] To enable webhook, uncomment all the sections with [WEBHOOK] prefix.
 # patches here are for enabling the conversion webhook for each CRD
 #- patches/webhook_in_dscinitiatlizations.yaml
@@ -23,5 +23,5 @@ patches:
 #+kubebuilder:scaffold:crdkustomizecainjectionpatch
 
 # the following config is for teaching kustomize how to do kustomization for CRDs.
-# configurations:
-# - kustomizeconfig.yaml
+configurations:
+- kustomizeconfig.yaml

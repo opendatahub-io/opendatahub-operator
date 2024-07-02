@@ -5,9 +5,9 @@ metadata:
     app.kubernetes.io/created-by: opendatahub-operator
     app.kubernetes.io/part-of: opendatahub-operator
     app.kubernetes.io/managed-by: kustomize
-  name: controller-manager-service-cert
+  name: webhook-service
   annotations:
-    service.beta.openshift.io/serving-cert-secret-name: opendatahub-operator-controller-manager-service-cert
+    service.beta.openshift.io/serving-cert-secret-name: opendatahub-operator-webhook-cert
 spec:
   ports:
     - port: 443
