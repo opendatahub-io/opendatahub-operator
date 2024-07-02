@@ -35,7 +35,7 @@ type CodeFlare struct {
 	components.Component `json:""`
 }
 
-func (c *CodeFlare) OverrideManifests(ctx context.Context, _ string) error {
+func (c *CodeFlare) OverrideManifests(ctx context.Context, _ cluster.Platform) error {
 	// If devflags are set, update default manifests path
 	if len(c.DevFlags.Manifests) != 0 {
 		manifestConfig := c.DevFlags.Manifests[0]
@@ -76,7 +76,7 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context,
 	if enabled {
 		if c.DevFlags != nil {
 			// Download manifests and update paths
-			if err := c.OverrideManifests(ctx, string(platform)); err != nil {
+			if err := c.OverrideManifests(ctx, platform); err != nil {
 				return err
 			}
 		}

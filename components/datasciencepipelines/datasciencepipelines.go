@@ -41,7 +41,7 @@ type DataSciencePipelines struct {
 	components.Component `json:""`
 }
 
-func (d *DataSciencePipelines) OverrideManifests(ctx context.Context, _ string) error {
+func (d *DataSciencePipelines) OverrideManifests(ctx context.Context, _ cluster.Platform) error {
 	// If devflags are set, update default manifests path
 	if len(d.DevFlags.Manifests) != 0 {
 		manifestConfig := d.DevFlags.Manifests[0]
@@ -97,7 +97,7 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 	if enabled {
 		if d.DevFlags != nil {
 			// Download manifests and update paths
-			if err := d.OverrideManifests(ctx, string(platform)); err != nil {
+			if err := d.OverrideManifests(ctx, platform); err != nil {
 				return err
 			}
 		}

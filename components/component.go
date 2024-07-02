@@ -84,7 +84,7 @@ type ComponentInterface interface {
 	Cleanup(ctx context.Context, cli client.Client, DSCISpec *dsciv1.DSCInitializationSpec) error
 	GetComponentName() string
 	GetManagementState() operatorv1.ManagementState
-	OverrideManifests(ctx context.Context, platform string) error
+	OverrideManifests(ctx context.Context, platform cluster.Platform) error
 	UpdatePrometheusConfig(cli client.Client, enable bool, component string) error
 	ConfigComponentLogger(logger logr.Logger, component string, dscispec *dsciv1.DSCInitializationSpec) logr.Logger
 }

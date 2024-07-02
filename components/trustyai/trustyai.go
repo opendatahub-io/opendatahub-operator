@@ -33,7 +33,7 @@ type TrustyAI struct {
 	components.Component `json:""`
 }
 
-func (t *TrustyAI) OverrideManifests(ctx context.Context, _ string) error {
+func (t *TrustyAI) OverrideManifests(ctx context.Context, _ cluster.Platform) error {
 	// If devflags are set, update default manifests path
 	if len(t.DevFlags.Manifests) != 0 {
 		manifestConfig := t.DevFlags.Manifests[0]
@@ -68,7 +68,7 @@ func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client, lo
 	if enabled {
 		if t.DevFlags != nil {
 			// Download manifests and update paths
-			if err := t.OverrideManifests(ctx, string(platform)); err != nil {
+			if err := t.OverrideManifests(ctx, platform); err != nil {
 				return err
 			}
 		}
