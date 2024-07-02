@@ -21,7 +21,7 @@ import (
 type Feature struct {
 	Name    string
 	Spec    *Spec
-	Enabled bool
+	Enabled EnabledFunc
 	Managed bool
 	Tracker *featurev1.FeatureTracker
 
@@ -41,18 +41,33 @@ type Feature struct {
 
 func newFeature(name string) *Feature {
 	return &Feature{
-		Name:    name,
-		Enabled: true,
-		Log:     ctrlLog.Log.WithName("features").WithValues("feature", name),
+		Name: name,
+		Enabled: func(_ context.Context, feature *Feature) (bool, error) {
+			return true, nil
+		},
+		Log: ctrlLog.Log.WithName("features").WithValues("feature", name),
 	}
 }
 
 // Action is a func type which can be used for different purposes while having access to Feature struct.
 type Action func(ctx context.Context, feature *Feature) error
 
+// EnabledFunc is a func type used to determine if a feature should be enabled.
+type EnabledFunc func(ctx context.Context, feature *Feature) (bool, error)
+
 func (f *Feature) Apply(ctx context.Context) error {
-	if !f.Enabled {
-		return nil
+	// If the feature is disabled, but the FeatureTracker exists in the cluster, ensure clean-up is triggered.
+	// This means that the feature was previously enabled, but now it is not anymore.
+	if enabled, err := f.Enabled(ctx, f); !enabled || err != nil {
+		if err != nil {
+			return err
+		}
+		errGet := getFeatureTrackerIfAbsent(ctx, f)
+		if errGet == nil {
+			return f.Cleanup(ctx)
+		}
+
+		return client.IgnoreNotFound(errGet)
 	}
 
 	if trackerErr := f.createFeatureTracker(ctx); trackerErr != nil {
@@ -125,10 +140,6 @@ func (f *Feature) applyFeature(ctx context.Context) error {
 }
 
 func (f *Feature) Cleanup(ctx context.Context) error {
-	if !f.Enabled {
-		return nil
-	}
-
 	// Ensure associated FeatureTracker instance has been removed as last one
 	// in the chain of cleanups.
 	f.addCleanup(removeFeatureTracker)
