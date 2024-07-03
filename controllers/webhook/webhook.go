@@ -103,14 +103,14 @@ func (w *OpenDataHubWebhook) checkDupCreation(ctx context.Context, req admission
 		fmt.Sprintf("Only one instance of %s object is allowed", req.Kind.Kind))
 }
 
-func (w *OpenDataHubWebhook) checkDSCIDeletion(ctx context.Context, req admission.Request) admission.Response {
-	// Restrict deletion of DSCI if DSC exists
+func (w *OpenDataHubWebhook) checkDeletion(ctx context.Context, req admission.Request) admission.Response {
 	if req.Kind.Kind != "DSCInitialization" {
-		admission.Allowed("")
+		return admission.Allowed("")
 	}
 
+	// Restrict deletion of DSCI if DSC exists
 	return denyCountGtZero(ctx, w.client, gvk.DataScienceCluster,
-		fmt.Sprintf("Cannot delete %s object before %s", req.Kind.Kind, gvk.DataScienceCluster.Kind))
+		fmt.Sprintln("Cannot delete DSCI object when DSC object still exists"))
 }
 
 func (w *OpenDataHubWebhook) Handle(ctx context.Context, req admission.Request) admission.Response {
@@ -120,7 +120,7 @@ func (w *OpenDataHubWebhook) Handle(ctx context.Context, req admission.Request) 
 	case admissionv1.Create:
 		resp = w.checkDupCreation(ctx, req)
 	case admissionv1.Delete:
-		resp = w.checkDSCIDeletion(ctx, req)
+		resp = w.checkDeletion(ctx, req)
 	default:
 		msg := fmt.Sprintf("No logic check by webhook is applied on %v request", req.Operation)
 		log.Info(msg)
