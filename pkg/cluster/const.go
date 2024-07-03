@@ -2,9 +2,9 @@ package cluster
 
 const (
 	// ManagedRhods defines expected addon catalogsource.
-	ManagedRhods Platform = "Managed Red Hat OpenShift AI"
+	ManagedRhods Platform = "OpenShift AI Cloud Service"
 	// SelfManagedRhods defines display name in csv.
-	SelfManagedRhods Platform = "Self Managed Red Hat OpenShift AI"
+	SelfManagedRhods Platform = "OpenShift AI Self-Managed"
 	// OpenDataHub defines display name in csv.
 	OpenDataHub Platform = "Open Data Hub Operator"
 	// Unknown indicates that operator is not deployed using OLM.
