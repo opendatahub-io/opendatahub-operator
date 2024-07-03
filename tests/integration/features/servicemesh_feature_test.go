@@ -15,6 +15,7 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/provider"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/integration/features/fixtures"
@@ -50,14 +51,13 @@ var _ = Describe("Service Mesh setup", func() {
 
 				It("should fail using precondition check", func(ctx context.Context) {
 					// given
-					featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-						verificationFeatureErr := feature.CreateFeature("no-service-mesh-operator-check").
-							For(handler).
+					featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+						errFeatureAdd := registry.Add(feature.Define("no-service-mesh-operator-check").
 							UsingConfig(envTest.Config).
-							PreConditions(servicemesh.EnsureServiceMeshOperatorInstalled).
-							Load()
+							PreConditions(servicemesh.EnsureServiceMeshOperatorInstalled),
+						)
 
-						Expect(verificationFeatureErr).ToNot(HaveOccurred())
+						Expect(errFeatureAdd).ToNot(HaveOccurred())
 
 						return nil
 					})
@@ -85,14 +85,15 @@ var _ = Describe("Service Mesh setup", func() {
 
 				It("should succeed using precondition check", func(ctx context.Context) {
 					// when
-					featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-						verificationFeatureErr := feature.CreateFeature("service-mesh-operator-check").
-							For(handler).
-							UsingConfig(envTest.Config).
-							PreConditions(servicemesh.EnsureServiceMeshOperatorInstalled).
-							Load()
+					featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+						errFeatureAdd := registry.Add(
+							feature.Define("service-mesh-operator-check").
+								UsingConfig(envTest.Config).
+								WithData(feature.Entry("ControlPlane", provider.ValueOf(dsci.Spec.ServiceMesh.ControlPlane).Get)).
+								PreConditions(servicemesh.EnsureServiceMeshOperatorInstalled),
+						)
 
-						Expect(verificationFeatureErr).ToNot(HaveOccurred())
+						Expect(errFeatureAdd).ToNot(HaveOccurred())
 
 						return nil
 					})
@@ -117,14 +118,14 @@ var _ = Describe("Service Mesh setup", func() {
 					dsci.Spec.ServiceMesh.ControlPlane.Name = "test-name"
 
 					// when
-					featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-						verificationFeatureErr := feature.CreateFeature("service-mesh-control-plane-check").
-							For(handler).
+					featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+						errFeatureAdd := registry.Add(feature.Define("service-mesh-control-plane-check").
 							UsingConfig(envTest.Config).
-							PreConditions(servicemesh.EnsureServiceMeshInstalled).
-							Load()
+							WithData(feature.Entry("ControlPlane", provider.ValueOf(dsci.Spec.ServiceMesh.ControlPlane).Get)).
+							PreConditions(servicemesh.EnsureServiceMeshInstalled),
+						)
 
-						Expect(verificationFeatureErr).ToNot(HaveOccurred())
+						Expect(errFeatureAdd).ToNot(HaveOccurred())
 
 						return nil
 					})
@@ -136,16 +137,17 @@ var _ = Describe("Service Mesh setup", func() {
 				It("should fail to find Service Mesh Control Plane if not present", func(ctx context.Context) {
 					// given
 					dsci.Spec.ServiceMesh.ControlPlane.Name = "test-name"
+					dsci.Spec.ServiceMesh.ControlPlane.Namespace = "test-namespace"
 
 					// when
-					featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-						verificationFeatureErr := feature.CreateFeature("no-service-mesh-control-plane-check").
-							For(handler).
+					featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+						errFeatureAdd := registry.Add(feature.Define("no-service-mesh-control-plane-check").
+							WithData(feature.Entry("ControlPlane", provider.ValueOf(dsci.Spec.ServiceMesh.ControlPlane).Get)).
 							UsingConfig(envTest.Config).
-							PreConditions(servicemesh.EnsureServiceMeshInstalled).
-							Load()
+							PreConditions(servicemesh.EnsureServiceMeshInstalled),
+						)
 
-						Expect(verificationFeatureErr).ToNot(HaveOccurred())
+						Expect(errFeatureAdd).ToNot(HaveOccurred())
 
 						return nil
 					})
@@ -195,16 +197,20 @@ var _ = Describe("Service Mesh setup", func() {
 
 					createServiceMeshControlPlane(ctx, name, namespace)
 
-					handler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-						return feature.CreateFeature("control-plane-with-external-authz-provider").
-							For(handler).
+					handler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+						return registry.Add(feature.Define("control-plane-with-external-authz-provider").
+							UsingConfig(envTest.Config).
 							ManifestsLocation(fixtures.TestEmbeddedFiles).
 							Manifests(path.Join("templates", "mesh-authz-ext-provider.patch.tmpl.yaml")).
+							WithData(
+								servicemesh.FeatureData.Authorization.All(&dsci.Spec)...,
+							).
+							WithData(
+								servicemesh.FeatureData.ControlPlane.Define(&dsci.Spec).AsAction(),
+							).
 							OnDelete(
 								servicemesh.RemoveExtensionProvider,
-							).
-							UsingConfig(envTest.Config).
-							Load()
+							))
 					})
 
 					// when
@@ -233,7 +239,7 @@ var _ = Describe("Service Mesh setup", func() {
 					// then
 					By("verifying that extension provider has been removed and namespace is gone too", func() {
 						Expect(handler.Delete(ctx)).To(Succeed())
-						Eventually(func() []interface{} {
+						Eventually(func(ctx context.Context) []any {
 
 							serviceMeshControlPlane, err := getServiceMeshControlPlane(ctx, namespace, name)
 							Expect(err).ToNot(HaveOccurred())
@@ -247,7 +253,11 @@ var _ = Describe("Service Mesh setup", func() {
 
 							return extensionProviders
 
-						}).WithTimeout(fixtures.Timeout).WithPolling(fixtures.Interval).Should(BeEmpty())
+						}).
+							WithTimeout(fixtures.Timeout).
+							WithPolling(fixtures.Interval).
+							WithContext(ctx).
+							Should(BeEmpty())
 					})
 
 				})
@@ -273,7 +283,7 @@ func installServiceMeshCRD(ctx context.Context) *apiextensionsv1.CustomResourceD
 func createServiceMeshControlPlane(ctx context.Context, name string, namespace string) {
 	serviceMeshControlPlane := &unstructured.Unstructured{
 		Object: map[string]interface{}{
-			"apiVersion": "maistra.io/v2",
+			"apiVersion": "maistra.io/featurev1",
 			"kind":       "ServiceMeshControlPlane",
 			"metadata": map[string]interface{}{
 				"name":      name,

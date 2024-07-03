@@ -12,15 +12,22 @@ import (
 )
 
 func RemoveExtensionProvider(ctx context.Context, f *feature.Feature) error {
-	ossmAuthzProvider := fmt.Sprintf("%s-auth-provider", f.Spec.AppNamespace)
+	extensionName, errExtName := FeatureData.Authorization.ExtensionProviderName.Extract(f)
+	if errExtName != nil {
+		return fmt.Errorf("failed to get extension name struct: %w", errExtName)
+	}
 
-	mesh := f.Spec.ControlPlane
+	controlPlane, err := FeatureData.ControlPlane.Extract(f)
+	if err != nil {
+		return fmt.Errorf("failed to get control plane struct: %w", err)
+	}
+
 	smcp := &unstructured.Unstructured{}
 	smcp.SetGroupVersionKind(gvk.ServiceMeshControlPlane)
 
 	if err := f.Client.Get(ctx, client.ObjectKey{
-		Namespace: mesh.Namespace,
-		Name:      mesh.Name,
+		Namespace: controlPlane.Namespace,
+		Name:      controlPlane.Name,
 	}, smcp); err != nil {
 		return client.IgnoreNotFound(err)
 	}
@@ -30,18 +37,22 @@ func RemoveExtensionProvider(ctx context.Context, f *feature.Feature) error {
 		return err
 	}
 	if !found {
-		f.Log.Info("no extension providers found", "feature", f.Name, "control-plane", mesh.Name, "namespace", mesh.Namespace)
+		f.Log.Info("no extension providers found", "feature", f.Name, "control-plane", controlPlane.Name, "namespace", controlPlane.Namespace)
 		return nil
 	}
 
 	for i, v := range extensionProviders {
 		extensionProvider, ok := v.(map[string]interface{})
 		if !ok {
-			f.Log.Info("WARN: Unexpected type for extensionProvider will not be removed")
+			f.Log.Info("WARN: Unexpected type for extensionProvider, it will not be removed")
 			continue
 		}
-
-		if extensionProvider["name"] == ossmAuthzProvider {
+		currentExtensionName, isString := extensionProvider["name"].(string)
+		if !isString {
+			f.Log.Info("WARN: Unexpected type for currentExtensionName, it will not be removed")
+			continue
+		}
+		if currentExtensionName == extensionName {
 			extensionProviders = append(extensionProviders[:i], extensionProviders[i+1:]...)
 			err = unstructured.SetNestedSlice(smcp.Object, extensionProviders, "spec", "techPreview", "meshConfig", "extensionProviders")
 			if err != nil {

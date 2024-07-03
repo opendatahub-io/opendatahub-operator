@@ -10,6 +10,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/provider"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/integration/features/fixtures"
@@ -52,15 +53,15 @@ var _ = Describe("Applying and updating resources", func() {
 	When("a feature is managed", func() {
 		It("should reconcile the resource to its managed state", func(ctx context.Context) {
 			// given managed feature
-			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-				return feature.CreateFeature("create-local-gw-svc").
-					For(handler).
-					UsingConfig(envTest.Config).
-					Managed().
-					ManifestsLocation(fixtures.TestEmbeddedFiles).
-					Manifests(path.Join(fixtures.BaseDir, "local-gateway-svc.tmpl.yaml")).
-					Load()
-
+			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+				return registry.Add(
+					feature.Define("create-local-gw-svc").
+						UsingConfig(envTest.Config).
+						ManifestsLocation(fixtures.TestEmbeddedFiles).
+						Manifests(path.Join(fixtures.BaseDir, "local-gateway-svc.tmpl.yaml")).
+						Managed().
+						WithData(feature.Entry("ControlPlane", provider.ValueOf(dsci.Spec.ServiceMesh.ControlPlane).Get)),
+				)
 			})
 			Expect(featuresHandler.Apply(ctx)).To(Succeed())
 
@@ -87,15 +88,15 @@ var _ = Describe("Applying and updating resources", func() {
 
 		It("should not reconcile explicitly opt-ed out resource", func(ctx context.Context) {
 			// given managed feature
-			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-				return feature.CreateFeature("create-unmanaged-svc").
-					For(handler).
-					UsingConfig(envTest.Config).
-					Managed().
-					ManifestsLocation(fixtures.TestEmbeddedFiles).
-					Manifests(path.Join(fixtures.BaseDir, "unmanaged-svc.tmpl.yaml")).
-					Load()
-
+			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+				return registry.Add(
+					feature.Define("create-unmanaged-svc").
+						UsingConfig(envTest.Config).
+						ManifestsLocation(fixtures.TestEmbeddedFiles).
+						Manifests(path.Join(fixtures.BaseDir, "unmanaged-svc.tmpl.yaml")).
+						Managed().
+						WithData(feature.Entry("ControlPlane", provider.ValueOf(dsci.Spec.ServiceMesh.ControlPlane).Get)),
+				)
 			})
 			Expect(featuresHandler.Apply(ctx)).To(Succeed())
 
@@ -121,13 +122,14 @@ var _ = Describe("Applying and updating resources", func() {
 
 		It("should not reconcile the resource", func(ctx context.Context) {
 			// given unmanaged feature
-			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-				return feature.CreateFeature("create-local-gw-svc").
-					For(handler).
-					UsingConfig(envTest.Config).
-					ManifestsLocation(fixtures.TestEmbeddedFiles).
-					Manifests(path.Join(fixtures.BaseDir, "local-gateway-svc.tmpl.yaml")).
-					Load()
+			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+				return registry.Add(
+					feature.Define("create-local-gw-svc").
+						UsingConfig(envTest.Config).
+						ManifestsLocation(fixtures.TestEmbeddedFiles).
+						Manifests(path.Join(fixtures.BaseDir, "local-gateway-svc.tmpl.yaml")).
+						WithData(feature.Entry("ControlPlane", provider.ValueOf(dsci.Spec.ServiceMesh.ControlPlane).Get)),
+				)
 			})
 			Expect(featuresHandler.Apply(ctx)).To(Succeed())
 
@@ -152,13 +154,14 @@ var _ = Describe("Applying and updating resources", func() {
 	When("a feature is unmanaged but the object is marked as managed", func() {
 		It("should reconcile this resource", func(ctx context.Context) {
 			// given unmanaged feature but object marked with managed annotation
-			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-				return feature.CreateFeature("create-managed-svc").
-					For(handler).
-					UsingConfig(envTest.Config).
-					ManifestsLocation(fixtures.TestEmbeddedFiles).
-					Manifests(path.Join(fixtures.BaseDir, "managed-svc.tmpl.yaml")).
-					Load()
+			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+				return registry.Add(
+					feature.Define("create-managed-svc").
+						UsingConfig(envTest.Config).
+						ManifestsLocation(fixtures.TestEmbeddedFiles).
+						Manifests(path.Join(fixtures.BaseDir, "managed-svc.tmpl.yaml")).
+						WithData(feature.Entry("ControlPlane", provider.ValueOf(dsci.Spec.ServiceMesh.ControlPlane).Get)),
+				)
 			})
 			Expect(featuresHandler.Apply(ctx)).To(Succeed())
 
