@@ -62,12 +62,8 @@ func (f *Feature) Apply(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		errGet := getFeatureTrackerIfAbsent(ctx, f)
-		if errGet == nil {
-			return f.Cleanup(ctx)
-		}
 
-		return client.IgnoreNotFound(errGet)
+		return f.Cleanup(ctx)
 	}
 
 	if trackerErr := createFeatureTracker(ctx, f); trackerErr != nil {
