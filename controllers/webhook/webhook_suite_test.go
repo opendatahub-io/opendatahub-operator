@@ -171,7 +171,7 @@ var _ = Describe("DSC/DSCI webhook", func() {
 	})
 
 	It("Should block deletion of DSCI instance when DSC instance exist", func(ctx context.Context) {
-		dscInstance := newDSC(nameBase+"-dsc-1", namespace)
+		dscInstance := newDSC(nameBase+"-dsc-1", "webhook-test-namespace")
 		Expect(k8sClient.Create(ctx, dscInstance)).Should(Succeed())
 		dsciInstance := newDSCI(nameBase + "-dsci-1")
 		Expect(k8sClient.Create(ctx, dsciInstance)).Should(Succeed())
@@ -181,7 +181,7 @@ var _ = Describe("DSC/DSCI webhook", func() {
 	})
 
 	It("Should allow deletion of DSCI instance when DSC instance does not exist", func(ctx context.Context) {
-		dscInstance := newDSC(nameBase+"-dsc-1", namespace)
+		dscInstance := newDSC(nameBase+"-dsc-1", "webhook-test-namespace")
 		Expect(k8sClient.Create(ctx, dscInstance)).Should(Succeed())
 		dsciInstance := newDSCI(nameBase + "-dsci-1")
 		Expect(k8sClient.Create(ctx, dsciInstance)).Should(Succeed())
