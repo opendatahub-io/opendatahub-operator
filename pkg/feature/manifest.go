@@ -106,8 +106,11 @@ func markAsManaged(objs []*unstructured.Unstructured) {
 			objAnnotations = make(map[string]string)
 		}
 
-		objAnnotations[annotations.ManagedByODHOperator] = "true"
-		obj.SetAnnotations(objAnnotations)
+		// If resource already has an annotation, leave it as defined
+		if _, exists := objAnnotations[annotations.ManagedByODHOperator]; !exists {
+			objAnnotations[annotations.ManagedByODHOperator] = "true"
+			obj.SetAnnotations(objAnnotations)
+		}
 	}
 }
 
@@ -149,7 +152,7 @@ func CreateRawManifestFrom(fsys fs.FS, path string) *rawManifest {
 	return &rawManifest{
 		name:  basePath,
 		path:  path,
-		patch: strings.Contains(basePath, ".patch"),
+		patch: strings.Contains(basePath, ".patch."),
 		fsys:  fsys,
 	}
 }
@@ -170,7 +173,7 @@ func isTemplateManifest(path string) bool {
 }
 
 func convertToUnstructuredSlice(resources string) ([]*unstructured.Unstructured, error) {
-	splitter := regexp.MustCompile(YamlSeparator)
+	splitter := regexp.MustCompile(yamlResourceSeparator)
 	objectStrings := splitter.Split(resources, -1)
 	objs := make([]*unstructured.Unstructured, 0, len(objectStrings))
 	for _, str := range objectStrings {
