@@ -1,6 +1,8 @@
 apiVersion: v1
 kind: Service
 metadata:
+  annotations:
+    test-annotation: "original-value"
   labels:
     experimental.istio.io/disable-gateway-port-translation: "true"
   name: knative-local-gateway
