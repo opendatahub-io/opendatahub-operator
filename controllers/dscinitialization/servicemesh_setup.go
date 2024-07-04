@@ -177,7 +177,7 @@ func (r *DSCInitializationReconciler) authorizationFeatures(instance *dsciv1.DSC
 	return func(handler *feature.FeaturesHandler) error {
 		serviceMeshSpec := instance.Spec.ServiceMesh
 
-		extAuthzErr := feature.CreateFeature("mesh-control-plane-external-authz").
+		errExtAuthz := feature.CreateFeature("mesh-control-plane-external-authz").
 			For(handler).
 			ManifestsLocation(Templates.Location).
 			Manifests(
@@ -193,24 +193,37 @@ func (r *DSCInitializationReconciler) authorizationFeatures(instance *dsciv1.DSC
 			).
 			PostConditions(
 				feature.WaitForPodsToBeReady(serviceMeshSpec.ControlPlane.Namespace),
-				func(ctx context.Context, f *feature.Feature) error {
-					return feature.WaitForPodsToBeReady(handler.DSCInitializationSpec.ServiceMesh.Auth.Namespace)(ctx, f)
-				},
-				func(ctx context.Context, f *feature.Feature) error {
-					// We do not have the control over deployment resource creation.
-					// It is created by Authorino operator using Authorino CR
-					//
-					// To make it part of Service Mesh we have to patch it with injection
-					// enabled instead, otherwise it will not have proxy pod injected.
-					return f.ApplyManifest(ctx, path.Join(Templates.AuthorinoDir, "deployment.injection.patch.tmpl.yaml"))
-				},
 			).
 			OnDelete(
 				servicemesh.RemoveExtensionProvider,
 			).
 			Load()
-		if extAuthzErr != nil {
-			return extAuthzErr
+		if errExtAuthz != nil {
+			return errExtAuthz
+		}
+
+		// We do not have the control over deployment resource creation.
+		// It is created by Authorino operator using Authorino CR and labels are not propagated from Authorino CR to spec.template
+		// See https://issues.redhat.com/browse/RHOAIENG-5494
+		//
+		// To make it part of Service Mesh we have to patch it with injection
+		// enabled instead, otherwise it will not have proxy pod injected.
+		errAuthorinoInjectionPatch := feature.CreateFeature("enable-proxy-injection-in-authorino-deployment").
+			For(handler).
+			ManifestsLocation(Templates.Location).
+			Manifests(
+				path.Join(Templates.AuthorinoDir, "deployment.injection.patch.tmpl.yaml"),
+			).
+			PreConditions(
+				servicemesh.EnsureAuthNamespaceExists,
+				func(ctx context.Context, f *feature.Feature) error {
+					return feature.WaitForPodsToBeReady(handler.DSCInitializationSpec.ServiceMesh.Auth.Namespace)(ctx, f)
+				},
+			).
+			Load()
+
+		if errAuthorinoInjectionPatch != nil {
+			return errAuthorinoInjectionPatch
 		}
 
 		return nil

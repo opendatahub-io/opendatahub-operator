@@ -7,7 +7,6 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
-	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -173,31 +172,6 @@ func (f *Feature) createApplier(m Manifest) applier {
 
 func (f *Feature) addCleanup(cleanupFuncs ...Action) {
 	f.cleanups = append(f.cleanups, cleanupFuncs...)
-}
-
-func (f *Feature) ApplyManifest(ctx context.Context, path string) error {
-	m, err := loadManifestsFrom(f.fsys, path)
-	if err != nil {
-		return err
-	}
-	for i := range m {
-		var objs []*unstructured.Unstructured
-		manifest := m[i]
-		apply := f.createApplier(manifest)
-
-		if objs, err = manifest.Process(f.Spec); err != nil {
-			return errors.WithStack(err)
-		}
-
-		if f.Managed {
-			manifest.MarkAsManaged(objs)
-		}
-
-		if err = apply(ctx, objs); err != nil {
-			return errors.WithStack(err)
-		}
-	}
-	return nil
 }
 
 func (f *Feature) AsOwnerReference() metav1.OwnerReference {
