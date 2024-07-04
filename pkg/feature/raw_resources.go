@@ -17,6 +17,7 @@ import (
 	"context"
 	"fmt"
 
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -26,55 +27,80 @@ import (
 )
 
 const (
-	YamlSeparator = "(?m)^---[ \t]*$"
+	yamlResourceSeparator = "(?m)^---[ \t]*$"
 )
 
 func applyResources(ctx context.Context, cli client.Client, objects []*unstructured.Unstructured, metaOptions ...cluster.MetaOptions) error {
-	for _, object := range objects {
+	for _, source := range objects {
+		target := source.DeepCopy()
+
+		name := source.GetName()
+		namespace := source.GetNamespace()
+
+		errGet := cli.Get(ctx, k8stypes.NamespacedName{Name: name, Namespace: namespace}, target)
+		if client.IgnoreNotFound(errGet) != nil {
+			return fmt.Errorf("failed to get resource %s/%s: %w", namespace, name, errGet)
+		}
+
 		for _, opt := range metaOptions {
-			if err := opt(object); err != nil {
+			if err := opt(target); err != nil {
 				return err
 			}
 		}
 
-		name := object.GetName()
-		namespace := object.GetNamespace()
-
-		err := cli.Get(ctx, k8stypes.NamespacedName{Name: name, Namespace: namespace}, object.DeepCopy())
-		if client.IgnoreNotFound(err) != nil {
-			return fmt.Errorf("failed to get object %s/%s: %w", namespace, name, err)
-		}
-
-		if err != nil {
-			// object does not exist and should be created
-			if createErr := cli.Create(ctx, object); client.IgnoreAlreadyExists(createErr) != nil {
-				return fmt.Errorf("failed to create object %s/%s: %w", namespace, name, createErr)
+		if k8serr.IsNotFound(errGet) {
+			if errCreate := cli.Create(ctx, target); client.IgnoreAlreadyExists(errCreate) != nil {
+				return fmt.Errorf("failed to create source %s/%s: %w", namespace, name, errCreate)
 			}
+
+			return nil
 		}
-		// object exists, check if it is managed
-		isManaged, isAnnotated := object.GetAnnotations()[annotations.ManagedByODHOperator]
+
+		isManaged, isAnnotated := target.GetAnnotations()[annotations.ManagedByODHOperator]
 		if isAnnotated && isManaged == "true" {
-			// update the object since we manage it
-			if updateErr := cli.Update(ctx, object); updateErr != nil {
-				return fmt.Errorf("failed to update object %s/%s: %w", namespace, name, updateErr)
+			// reconcile the target since we manage it
+			if errUpdate := patchUsingApplyStrategy(ctx, cli, source, target); errUpdate != nil {
+				return fmt.Errorf("failed to update source %s/%s: %w", namespace, name, errUpdate)
 			}
 		}
-		// object exists and is not manged, skip reconcile allowing users to tweak it
+		// source exists and is not manged, skip reconcile allowing users to tweak it
 	}
+
 	return nil
 }
 
 func patchResources(ctx context.Context, cli client.Client, patches []*unstructured.Unstructured) error {
 	for _, patch := range patches {
-		// Convert the individual resource patch to JSON
-		patchAsJSON, err := patch.MarshalJSON()
-		if err != nil {
-			return fmt.Errorf("error converting yaml to json: %w", err)
+		if errPatch := patchUsingMergeStrategy(ctx, cli, patch); errPatch != nil {
+			return errPatch
 		}
+	}
 
-		if err = cli.Patch(ctx, patch, client.RawPatch(k8stypes.MergePatchType, patchAsJSON)); err != nil {
-			return fmt.Errorf("failed patching resource: %w", err)
-		}
+	return nil
+}
+
+// patchUsingApplyStrategy applies a server-side apply patch to a Kubernetes resource.
+// It treats the provided source as the desired state of the resource and attempts to
+// reconcile the target resource to match this state. The function takes ownership of the
+// fields specified in the target and will ensure they match desired state.
+func patchUsingApplyStrategy(ctx context.Context, cli client.Client, source, target *unstructured.Unstructured) error {
+	data, errJSON := source.MarshalJSON()
+	if errJSON != nil {
+		return fmt.Errorf("error converting yaml to json: %w", errJSON)
+	}
+	return cli.Patch(ctx, target, client.RawPatch(k8stypes.ApplyPatchType, data), client.ForceOwnership, client.FieldOwner("rhods-operator"))
+}
+
+// patchUsingMergeStrategy merges the specified fields into the existing resources.
+// Fields included in the patch will overwrite existing fields, while fields not included will remain unchanged.
+func patchUsingMergeStrategy(ctx context.Context, cli client.Client, patch *unstructured.Unstructured) error {
+	data, errJSON := patch.MarshalJSON()
+	if errJSON != nil {
+		return fmt.Errorf("error converting yaml to json: %w", errJSON)
+	}
+
+	if errPatch := cli.Patch(ctx, patch, client.RawPatch(k8stypes.MergePatchType, data)); errPatch != nil {
+		return fmt.Errorf("failed patching resource: %w", errPatch)
 	}
 
 	return nil
