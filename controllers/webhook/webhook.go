@@ -104,7 +104,7 @@ func (w *OpenDataHubWebhook) checkDupCreation(ctx context.Context, req admission
 }
 
 func (w *OpenDataHubWebhook) checkDeletion(ctx context.Context, req admission.Request) admission.Response {
-	if req.Kind.Kind != "DSCInitialization" {
+	if req.Kind.Kind == "DataScienceCluster" {
 		return admission.Allowed("")
 	}
 
