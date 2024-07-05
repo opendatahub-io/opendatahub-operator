@@ -8,8 +8,7 @@ import (
 
 	"github.com/blang/semver/v4"
 	"github.com/operator-framework/api/pkg/lib/version"
-	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
-	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -45,10 +44,10 @@ func GetOperatorNamespace() (string, error) {
 }
 
 // GetClusterServiceVersion retries the clusterserviceversions available in the operator namespace.
-func GetClusterServiceVersion(ctx context.Context, c client.Client, watchNameSpace string) (*ofapi.ClusterServiceVersion, error) {
-	clusterServiceVersionList := &ofapi.ClusterServiceVersionList{}
+func GetClusterServiceVersion(ctx context.Context, c client.Client, watchNameSpace string) (*ofapiv1alpha1.ClusterServiceVersion, error) {
+	clusterServiceVersionList := &ofapiv1alpha1.ClusterServiceVersionList{}
 	if err := c.List(ctx, clusterServiceVersionList, client.InNamespace(watchNameSpace)); err != nil {
-		return nil, fmt.Errorf("failed listign cluster service versions: %w", err)
+		return nil, fmt.Errorf("failed listing cluster service versions: %w", err)
 	}
 
 	for _, csv := range clusterServiceVersionList.Items {
@@ -86,28 +85,14 @@ func detectSelfManaged(ctx context.Context, cli client.Client) (Platform, error)
 	return Unknown, nil
 }
 
-// detectManagedRHODS checks if CRD add-on exists and contains string ManagedRhods.
+// detectManagedRHODS checks if catsrc CR add-on exists ManagedRhods.
 func detectManagedRHODS(ctx context.Context, cli client.Client) (Platform, error) {
-	catalogSourceCRD := &apiextv1.CustomResourceDefinition{}
-
-	err := cli.Get(ctx, client.ObjectKey{Name: "catalogsources.operators.coreos.com"}, catalogSourceCRD)
+	catalogSource := &ofapiv1alpha1.CatalogSource{}
+	err := cli.Get(ctx, client.ObjectKey{Name: "addon-managed-odh-catalog", Namespace: "openshift-marketplace"}, catalogSource)
 	if err != nil {
-		return "", client.IgnoreNotFound(err)
+		return Unknown, client.IgnoreNotFound(err)
 	}
-	expectedCatlogSource := &ofapi.CatalogSourceList{}
-	err = cli.List(ctx, expectedCatlogSource)
-	if err != nil {
-		return Unknown, err
-	}
-	if len(expectedCatlogSource.Items) > 0 {
-		for _, cs := range expectedCatlogSource.Items {
-			if cs.Name == "addon-managed-odh-catalog" {
-				return ManagedRhods, nil
-			}
-		}
-	}
-
-	return "", nil
+	return ManagedRhods, nil
 }
 
 func GetPlatform(ctx context.Context, cli client.Client) (Platform, error) {
