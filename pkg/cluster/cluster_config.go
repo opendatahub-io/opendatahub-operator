@@ -90,7 +90,7 @@ func detectManagedRHODS(ctx context.Context, cli client.Client) (Platform, error
 	catalogSource := &ofapiv1alpha1.CatalogSource{}
 	err := cli.Get(ctx, client.ObjectKey{Name: "addon-managed-odh-catalog", Namespace: "openshift-marketplace"}, catalogSource)
 	if err != nil {
-		return "", client.IgnoreNotFound(err)
+		return Unknown, client.IgnoreNotFound(err)
 	}
 	return ManagedRhods, nil
 }
