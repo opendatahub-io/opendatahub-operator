@@ -13,7 +13,6 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
-	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -411,8 +410,8 @@ func (tc *testContext) testDefaultCertsAvailable() error {
 		return err
 	}
 
-	if ctrlPlaneSecret.Type != corev1.SecretTypeTLS {
-		return fmt.Errorf("wrong type of cert secret is created for %v. Expected %v, Got %v", defaultSecretName, corev1.SecretTypeTLS, ctrlPlaneSecret.Type)
+	if ctrlPlaneSecret.Type != defaultIngressSecret.Type {
+		return fmt.Errorf("wrong type of cert secret is created for %v. Expected %v, Got %v", defaultSecretName, defaultIngressSecret.Type, ctrlPlaneSecret.Type)
 	}
 
 	if string(defaultIngressSecret.Data["tls.crt"]) != string(ctrlPlaneSecret.Data["tls.crt"]) {
