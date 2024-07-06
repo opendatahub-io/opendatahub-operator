@@ -53,8 +53,18 @@ func IsNotReservedNamespace(ns *corev1.Namespace) bool {
 // GetClusterServiceVersion retries the clusterserviceversions available in the operator namespace.
 func GetClusterServiceVersion(ctx context.Context, c client.Client, watchNameSpace string) (*ofapiv1alpha1.ClusterServiceVersion, error) {
 	clusterServiceVersionList := &ofapiv1alpha1.ClusterServiceVersionList{}
-	if err := c.List(ctx, clusterServiceVersionList, client.InNamespace(watchNameSpace)); err != nil {
-		return nil, fmt.Errorf("failed listing cluster service versions: %w", err)
+	listOptions := &client.ListOptions{
+		Limit:     100,
+		Namespace: watchNameSpace,
+	}
+	for { // for the case we have very big size of CSV even just in one namespace
+		if err := c.List(ctx, clusterServiceVersionList, listOptions); err != nil {
+			return nil, fmt.Errorf("failed listing cluster service versions: %w", err)
+		}
+		if clusterServiceVersionList.GetContinue() == "" {
+			break
+		}
+		listOptions.Continue = clusterServiceVersionList.GetContinue()
 	}
 
 	for _, csv := range clusterServiceVersionList.Items {

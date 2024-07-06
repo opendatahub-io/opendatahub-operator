@@ -170,11 +170,10 @@ func ConfigureTrustedCABundle(ctx context.Context, cli client.Client, log logr.L
 
 // when DSCI TrustedCABundle.ManagementState is set to `Managed`.
 func AddCABundleConfigMapInAllNamespaces(ctx context.Context, cli client.Client, dscInit *dsciv1.DSCInitialization) error {
-	namespaceList := &corev1.NamespaceList{}
-	if err := cli.List(ctx, namespaceList); err != nil {
+	namespaceList, err := cluster.ListNamespace(ctx, cli)
+	if err != nil {
 		return err
 	}
-
 	for i := range namespaceList.Items {
 		ns := &namespaceList.Items[i]
 		// check namespace status if not Active, then skip
@@ -200,13 +199,12 @@ func AddCABundleConfigMapInAllNamespaces(ctx context.Context, cli client.Client,
 
 // when DSCI TrustedCABundle.ManagementState is set to `Removed`.
 func RemoveCABundleConfigMapInAllNamespaces(ctx context.Context, cli client.Client) error {
-	var multiErr *multierror.Error
-
-	namespaceList := &corev1.NamespaceList{}
-	if err := cli.List(ctx, namespaceList); err != nil {
-		return multierror.Append(multiErr, err)
+	namespaceList, err := cluster.ListNamespace(ctx, cli)
+	if err != nil {
+		return err
 	}
 
+	var multiErr *multierror.Error
 	for i := range namespaceList.Items {
 		ns := &namespaceList.Items[i]
 		// check namespace status if not Active, then skip
