@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -18,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	annotation "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
@@ -27,16 +27,15 @@ const (
 	CADataFieldName = "odh-ca-bundle.crt"
 )
 
-func ShouldInjectTrustedBundle(ns client.Object) bool {
-	if !strings.HasPrefix(ns.GetName(), "openshift-") && !strings.HasPrefix(ns.GetName(), "kube-") &&
-		ns.GetName() != "default" && ns.GetName() != "openshift" && !HasCABundleAnnotationDisabled(ns) {
-		return true
-	}
-	return false
+func ShouldInjectTrustedBundle(ns *corev1.Namespace) bool {
+	isActive := ns.Status.Phase == corev1.NamespaceActive
+
+	return isActive && cluster.IsNotReservedNamespace(ns) && !HasCABundleAnnotationDisabled(ns)
 }
 
-// return true if namespace has annotation "security.opendatahub.io/inject-trusted-ca-bundle: false"
-// return false if annotation is "true" or not set.
+// HasCABundleAnnotationDisabled checks if a namespace has the annotation "security.opendatahub.io/inject-trusted-ca-bundle" set to "false".
+//
+// It returns false if the annotation is set to "true", not set, or cannot be parsed as a boolean.
 func HasCABundleAnnotationDisabled(ns client.Object) bool {
 	if value, found := ns.GetAnnotations()[annotation.InjectionOfCABundleAnnotatoion]; found {
 		shouldInject, err := strconv.ParseBool(value)
@@ -45,7 +44,7 @@ func HasCABundleAnnotationDisabled(ns client.Object) bool {
 	return false
 }
 
-// createOdhTrustedCABundleConfigMap creates a configMap 'odh-trusted-ca-bundle' in given namespace with labels and data
+// CreateOdhTrustedCABundleConfigMap creates a configMap 'odh-trusted-ca-bundle' in given namespace with labels and data
 // or update existing odh-trusted-ca-bundle configmap if already exists with new content of .data.odh-ca-bundle.crt
 // this is certificates for the cluster trusted CA Cert Bundle.
 func CreateOdhTrustedCABundleConfigMap(ctx context.Context, cli client.Client, namespace string, customCAData string) error {
@@ -111,8 +110,8 @@ func DeleteOdhTrustedCABundleConfigMap(ctx context.Context, cli client.Client, n
 // return false when these two are matching => skip update
 // return true when not match => need upate.
 func IsTrustedCABundleUpdated(ctx context.Context, cli client.Client, dscInit *dsciv1.DSCInitialization) (bool, error) {
-	usernamespace := &corev1.Namespace{}
-	if err := cli.Get(ctx, client.ObjectKey{Name: dscInit.Spec.ApplicationsNamespace}, usernamespace); err != nil {
+	userNamespace := &corev1.Namespace{}
+	if err := cli.Get(ctx, client.ObjectKey{Name: dscInit.Spec.ApplicationsNamespace}, userNamespace); err != nil {
 		if k8serr.IsNotFound(err) {
 			// if namespace is not found, return true. This is to ensure we reconcile, and check for other namespaces.
 			return true, nil
@@ -120,7 +119,7 @@ func IsTrustedCABundleUpdated(ctx context.Context, cli client.Client, dscInit *d
 		return false, err
 	}
 
-	if !ShouldInjectTrustedBundle(usernamespace) {
+	if !ShouldInjectTrustedBundle(userNamespace) {
 		return false, nil
 	}
 
