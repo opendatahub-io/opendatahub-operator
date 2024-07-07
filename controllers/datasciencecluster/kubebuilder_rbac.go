@@ -147,10 +147,6 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="machine.openshift.io",resources=machinesets,verbs=list;patch;delete;get
 // +kubebuilder:rbac:groups="machine.openshift.io",resources=machineautoscalers,verbs=list;patch;delete;get
 
-/* TODO: cleanup once kfdef is not needed*/
-// +kubebuilder:rbac:groups="kubeflow.org",resources=*,verbs=*
-// +kubebuilder:rbac:groups="kfdef.apps.kubeflow.org",resources=kfdefs,verbs=get;list;watch;patch;delete;update
-
 // +kubebuilder:rbac:groups="integreatly.org",resources=rhmis,verbs=list;watch;patch;delete;get
 
 // +kubebuilder:rbac:groups="image.openshift.io",resources=imagestreams,verbs=patch;create;update;delete;get
