@@ -56,14 +56,11 @@ func applyResources(ctx context.Context, cli client.Client, objects []*unstructu
 			return nil
 		}
 
-		isManaged, isAnnotated := target.GetAnnotations()[annotations.ManagedByODHOperator]
-		if isAnnotated && isManaged == "true" {
-			// reconcile the target since we manage it
+		if shouldReconcile(source) {
 			if errUpdate := patchUsingApplyStrategy(ctx, cli, source, target); errUpdate != nil {
-				return fmt.Errorf("failed to update source %s/%s: %w", namespace, name, errUpdate)
+				return fmt.Errorf("failed to reconcile resource %s/%s: %w", namespace, name, errUpdate)
 			}
 		}
-		// source exists and is not manged, skip reconcile allowing users to tweak it
 	}
 
 	return nil
@@ -104,4 +101,51 @@ func patchUsingMergeStrategy(ctx context.Context, cli client.Client, patch *unst
 	}
 
 	return nil
+}
+
+// At this point we only look at what is defined for the resource in the desired state (source),
+// so the one provided by the operator (e.g. embedded manifest files).
+//
+// Although the actual instance on the cluster (the target) might be in a different state,
+// we intentionally do not address this scenario due to the lack of clear requirements
+// on the extent to which users can modify it. Additionally, addressing this would
+// necessitate extra reporting (e.g., via status.conditions on a FeatureTracker)
+// to highlight discrepancies between the actual and desired state when users opt out
+// of operator management/reconciliation.
+func shouldReconcile(source *unstructured.Unstructured) bool {
+	if isManaged(source) {
+		return true
+	}
+
+	if isUnmanaged(source) {
+		return false
+	}
+
+	// In all the other cases preserve original behaviour
+	return false
+}
+
+func markAsManaged(objs []*unstructured.Unstructured) {
+	for _, obj := range objs {
+		objAnnotations := obj.GetAnnotations()
+		if objAnnotations == nil {
+			objAnnotations = make(map[string]string)
+		}
+
+		// If resource already has management mode defined, it should take precedence
+		if _, exists := objAnnotations[annotations.ManagedByODHOperator]; !exists {
+			objAnnotations[annotations.ManagedByODHOperator] = "true"
+			obj.SetAnnotations(objAnnotations)
+		}
+	}
+}
+
+func isUnmanaged(obj *unstructured.Unstructured) bool {
+	managed, isDefined := obj.GetAnnotations()[annotations.ManagedByODHOperator]
+	return isDefined && managed == "false"
+}
+
+func isManaged(obj *unstructured.Unstructured) bool {
+	managed, isDefined := obj.GetAnnotations()[annotations.ManagedByODHOperator]
+	return isDefined && managed == "true"
 }
