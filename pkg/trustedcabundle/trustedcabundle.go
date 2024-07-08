@@ -137,7 +137,7 @@ func IsTrustedCABundleUpdated(ctx context.Context, cli client.Client, dscInit *d
 func ConfigureTrustedCABundle(ctx context.Context, cli client.Client, log logr.Logger, dscInit *dsciv1.DSCInitialization, managementStateChanged bool) error {
 	if dscInit.Spec.TrustedCABundle == nil {
 		log.Info("Trusted CA Bundle is not configed in DSCI, same as default to `Removed` state. Reconciling to delete all " + CAConfigMapName)
-		if err := RemoveCABundleConfigMapInAllNamespaces(ctx, cli); err != nil {
+		if err := RemoveCABundleCMInAllNamespaces(ctx, cli); err != nil {
 			return fmt.Errorf("error deleting configmap %s from all namespaces %w", CAConfigMapName, err)
 		}
 		return nil
@@ -152,13 +152,13 @@ func ConfigureTrustedCABundle(ctx context.Context, cli client.Client, log logr.L
 		}
 
 		if istrustedCABundleUpdated || managementStateChanged {
-			if err := AddCABundleConfigMapInAllNamespaces(ctx, cli, dscInit); err != nil {
+			if err := AddCABundleCMInAllNamespaces(ctx, cli, dscInit); err != nil {
 				return fmt.Errorf("failed adding configmap %s to all namespaces: %w", CAConfigMapName, err)
 			}
 		}
 	case operatorv1.Removed:
 		log.Info("Trusted CA Bundle injection is set to `Removed` state. Reconciling to delete all " + CAConfigMapName)
-		if err := RemoveCABundleConfigMapInAllNamespaces(ctx, cli); err != nil {
+		if err := RemoveCABundleCMInAllNamespaces(ctx, cli); err != nil {
 			return fmt.Errorf("error deleting configmap %s from all namespaces %w", CAConfigMapName, err)
 		}
 	case operatorv1.Unmanaged:
@@ -168,52 +168,41 @@ func ConfigureTrustedCABundle(ctx context.Context, cli client.Client, log logr.L
 	return nil
 }
 
-// when DSCI TrustedCABundle.ManagementState is set to `Managed`.
-func AddCABundleConfigMapInAllNamespaces(ctx context.Context, cli client.Client, dscInit *dsciv1.DSCInitialization) error {
-	namespaceList, err := cluster.ListNamespace(ctx, cli)
-	if err != nil {
-		return err
-	}
-	for i := range namespaceList.Items {
-		ns := &namespaceList.Items[i]
-		// check namespace status if not Active, then skip
-		if ns.Status.Phase != corev1.NamespaceActive {
-			continue
-		}
-
+// when DSCI TrustedCABundle.ManagementState is set to `Managed`, add new configmap into all active namespaces.
+func AddCABundleCMInAllNamespaces(ctx context.Context, cli client.Client, dscInit *dsciv1.DSCInitialization) error {
+	var multiErr *multierror.Error
+	err := cluster.ProcessAllNamespace(ctx, cli, func(ns *corev1.Namespace) error {
 		if ShouldInjectTrustedBundle(ns) {
-			if err := wait.PollUntilContextTimeout(ctx, time.Second*1, time.Second*10, false, func(ctx context.Context) (bool, error) {
+			if pollErr := wait.PollUntilContextTimeout(ctx, time.Second*1, time.Second*10, false, func(ctx context.Context) (bool, error) {
 				if cmErr := CreateOdhTrustedCABundleConfigMap(ctx, cli, ns.Name, dscInit.Spec.TrustedCABundle.CustomCABundle); cmErr != nil {
 					// Logging the error for debugging
 					fmt.Printf("error creating cert configmap in namespace %v: %v", ns.Name, cmErr)
 					return false, nil
 				}
 				return true, nil
-			}); err != nil {
-				return err
+			}); pollErr != nil {
+				multiErr = multierror.Append(multiErr, pollErr)
 			}
 		}
-	}
-	return nil
-}
-
-// when DSCI TrustedCABundle.ManagementState is set to `Removed`.
-func RemoveCABundleConfigMapInAllNamespaces(ctx context.Context, cli client.Client) error {
-	namespaceList, err := cluster.ListNamespace(ctx, cli)
+		return nil
+	})
 	if err != nil {
 		return err
 	}
+	return multiErr.ErrorOrNil()
+}
 
+// when DSCI TrustedCABundle.ManagementState is set to `Removed`, delete configmap from all active namespaces.
+func RemoveCABundleCMInAllNamespaces(ctx context.Context, cli client.Client) error {
 	var multiErr *multierror.Error
-	for i := range namespaceList.Items {
-		ns := &namespaceList.Items[i]
-		// check namespace status if not Active, then skip
-		if ns.Status.Phase != corev1.NamespaceActive {
-			continue
-		}
+	err := cluster.ProcessAllNamespace(ctx, cli, func(ns *corev1.Namespace) error {
 		if err := DeleteOdhTrustedCABundleConfigMap(ctx, cli, ns.Name); err != nil {
 			multiErr = multierror.Append(multiErr, err)
 		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 	return multiErr.ErrorOrNil()
 }

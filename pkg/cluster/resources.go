@@ -154,23 +154,33 @@ func CreateNamespace(ctx context.Context, cli client.Client, namespace string, m
 	return desiredNamespace, client.IgnoreAlreadyExists(createErr)
 }
 
-// ListNamespace lists all namespaces in the cluster with 500 as chunk size.
-func ListNamespace(ctx context.Context, cli client.Client) (*corev1.NamespaceList, error) {
+// ProcessAllNamespace execute func() on all active namespaces in the cluster with 500 as chunksize.
+func ProcessAllNamespace(ctx context.Context, cli client.Client, processFunc func(*corev1.Namespace) error) error {
 	namespaceList := &corev1.NamespaceList{}
 	listOptions := &client.ListOptions{
 		Limit: 500,
 	}
 
-	for { // for the case we have thusands of NS in the cluster
+	for { // for the case we have thousands of NS in the cluster
 		if err := cli.List(ctx, namespaceList, listOptions); err != nil {
-			return nil, err
+			return err
 		}
-		if namespaceList.GetContinue() == "" { // when token is not empty, stop pagination
+		for i := range namespaceList.Items {
+			ns := &namespaceList.Items[i]
+			// check namespace status if not Active, then skip
+			if ns.Status.Phase != corev1.NamespaceActive {
+				continue
+			}
+			if err := processFunc(ns); err != nil {
+				return err
+			}
+		}
+		if namespaceList.GetContinue() == "" { // when token is empty, stop pagination
 			break
 		}
 		listOptions.Continue = namespaceList.GetContinue() // update token
 	}
-	return namespaceList, nil
+	return nil
 }
 
 // WaitForDeploymentAvailable to check if component deployment from 'namespace' is ready within 'timeout' before apply prometheus rules for the component.
