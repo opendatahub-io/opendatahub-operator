@@ -61,18 +61,17 @@ func GetClusterServiceVersion(ctx context.Context, c client.Client, watchNameSpa
 		if err := c.List(ctx, clusterServiceVersionList, listOptions); err != nil {
 			return nil, fmt.Errorf("failed listing cluster service versions: %w", err)
 		}
+		for _, csv := range clusterServiceVersionList.Items {
+			for _, operatorCR := range csv.Spec.CustomResourceDefinitions.Owned {
+				if operatorCR.Kind == "DataScienceCluster" {
+					return &csv, nil
+				}
+			}
+		}
 		if clusterServiceVersionList.GetContinue() == "" {
 			break
 		}
 		listOptions.Continue = clusterServiceVersionList.GetContinue()
-	}
-
-	for _, csv := range clusterServiceVersionList.Items {
-		for _, operatorCR := range csv.Spec.CustomResourceDefinitions.Owned {
-			if operatorCR.Kind == "DataScienceCluster" {
-				return &csv, nil
-			}
-		}
 	}
 
 	return nil, k8serr.NewNotFound(
