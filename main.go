@@ -100,7 +100,7 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(operatorv1.Install(scheme))
 }
 
-func main() { //nolint:funlen
+func main() { //nolint:funlen,maintidx
 	var metricsAddr string
 	var probeAddr string
 	var dscApplicationsNamespace string
@@ -130,24 +130,39 @@ func main() { //nolint:funlen
 		ByObject: map[client.Object]cache.ByObject{
 			// all CRD: mainly for pipeline v1 teckon and v2 argo and dashboard's own CRD
 			&apiextensionsv1.CustomResourceDefinition{}: {},
-			// need all scretes include dashboard-oauth-client
-			&corev1.Secret{}: {},
+			// Cannot find a label on various screts, so we need to watch all secrets
+			// this include, monitoring, dashboard, trustcabundle default cert etc for these NS
+			&corev1.Secret{}: {
+				Namespaces: map[string]cache.Config{
+					"redhat-ods-monitoring":   {},
+					"redhat-ods-applications": {},
+					"opendatahub":             {},
+					"istio-system":            {},
+					"openshift-ingress": 	   {},
+				},
+			},
 			// it is hard to find a label can be used for both trustCAbundle configmap and inferenceservice-config
 			&corev1.ConfigMap{}: {},
 			// TODO: we can limit scope of namespace if we find a way to only get list of DSproject
 			// also need for monitoring, trustcabundle
 			&corev1.Namespace{}: {},
 			// For catsrc (avoid frequently check cluster type)
-			&ofapiv1alpha1.CatalogSource{}: {},
-			// For GetReleaseVersion and uninstall
-			&ofapiv1alpha1.ClusterServiceVersion{}: {},
+			&ofapiv1alpha1.CatalogSource{}: {
+				Field: fields.Set{"metadata.name": "addon-managed-odh-catalog"}.AsSelector(),
+			},
 			// For domain to get OpenshiftIngress and default cert
 			&operatorv1.IngressController{}: {
 				Field: fields.Set{"metadata.name": "default"}.AsSelector(),
 			},
-			// for prometheus deployment
+			// for prometheus and black-box deployment and ones we owns
 			&appsv1.Deployment{}: {
-				Field: fields.Set{"metadata.name": "prometheus"}.AsSelector(),
+				Namespaces: map[string]cache.Config{
+					"redhat-ods-monitoring":   {},
+					"redhat-ods-applications": {},
+					"odh-model-registries":    {},
+					"rhods-notebooks":         {},
+					"opendatahub":             {},
+				},
 			},
 		},
 	}
