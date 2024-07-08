@@ -34,7 +34,7 @@ var _ = Describe("Applying and updating resources", func() {
 	BeforeEach(func(ctx context.Context) {
 		objectCleaner = envtestutil.CreateCleaner(envTestClient, envTest.Config, fixtures.Timeout, fixtures.Interval)
 
-		testNamespace = "test-namespace"
+		testNamespace = envtestutil.AppendRandomNameTo("test-namespace")
 
 		var err error
 		namespace, err = cluster.CreateNamespace(ctx, envTestClient, testNamespace)
@@ -92,7 +92,7 @@ var _ = Describe("Applying and updating resources", func() {
 					UsingConfig(envTest.Config).
 					Managed().
 					ManifestsLocation(fixtures.TestEmbeddedFiles).
-					Manifests(path.Join(fixtures.BaseDir, "unmanaged-svc.yaml")).
+					Manifests(path.Join(fixtures.BaseDir, "unmanaged-svc.tmpl.yaml")).
 					Load()
 
 			})
@@ -156,7 +156,7 @@ var _ = Describe("Applying and updating resources", func() {
 					For(handler).
 					UsingConfig(envTest.Config).
 					ManifestsLocation(fixtures.TestEmbeddedFiles).
-					Manifests(path.Join(fixtures.BaseDir, "managed-svc.yaml")).
+					Manifests(path.Join(fixtures.BaseDir, "managed-svc.tmpl.yaml")).
 					Load()
 			})
 			Expect(featuresHandler.Apply(ctx)).To(Succeed())
