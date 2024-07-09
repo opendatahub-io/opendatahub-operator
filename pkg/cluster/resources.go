@@ -175,10 +175,9 @@ func ProcessAllNamespace(ctx context.Context, cli client.Client, processFunc fun
 				return err
 			}
 		}
-		if namespaceList.GetContinue() == "" { // when token is empty, stop pagination
+		if listOptions.Continue = namespaceList.GetContinue(); namespaceList.GetContinue() == "" {
 			break
 		}
-		listOptions.Continue = namespaceList.GetContinue() // update token
 	}
 	return nil
 }
