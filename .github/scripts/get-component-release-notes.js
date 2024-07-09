@@ -22,9 +22,9 @@ module.exports = ({ github, core }) => {
                 let components = issueCommentBody.split("\n")
                 const releaseIdx = components.indexOf("#Release#")
                 components = components.splice(releaseIdx + 1, components.length)
-                const regex = /[A-Za-z-_0-9]+\|(https:\/\/github\.com\/.*tree.*){1}\|(https:\/\/github\.com\/.*releases.*){1}/;
+                const regex = /\s*[A-Za-z-_0-9]+\s*\|\s*(https:\/\/github\.com\/.*tree.*){1}\s*\|\s*(https:\/\/github\.com\/.*releases.*){1}\s*/;
                 components.forEach(component => {
-                    if (regex.test(component.trim())) {
+                    if (regex.test(component)) {
                         const [componentName, branchUrl, tagUrl] = component.split("|")
                         outputStr += `- **${componentName.trim().charAt(0).toUpperCase() + componentName.trim().slice(1)}**: ${tagUrl.trim()}\n`
                     }
