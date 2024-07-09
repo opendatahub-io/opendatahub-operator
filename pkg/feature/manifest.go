@@ -77,7 +77,6 @@ func (t *templateManifest) Process(data any) ([]*unstructured.Unstructured, erro
 
 	tmpl, err := template.New(t.name).
 		Option("missingkey=error").
-		Funcs(template.FuncMap{"ReplaceChar": ReplaceChar}).
 		Parse(string(content))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse template: %w", err)
