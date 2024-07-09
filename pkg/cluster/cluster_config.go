@@ -68,10 +68,9 @@ func GetClusterServiceVersion(ctx context.Context, c client.Client, watchNameSpa
 				}
 			}
 		}
-		if clusterServiceVersionList.GetContinue() == "" {
-			break
-		}
-		listOptions.Continue = clusterServiceVersionList.GetContinue()
+	if listOptions.Continue = clusterServiceVersionList.GetContinue(); listOptions.Continue == "" {
+		break
+	}
 	}
 
 	return nil, k8serr.NewNotFound(
