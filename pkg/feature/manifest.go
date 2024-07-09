@@ -33,19 +33,24 @@ type rawManifest struct {
 var _ Manifest = (*rawManifest)(nil)
 
 func (b *rawManifest) Process(_ any) ([]*unstructured.Unstructured, error) {
-	manifestFile, err := b.fsys.Open(b.path)
-	if err != nil {
-		return nil, err
+	manifestFile, openErr := b.fsys.Open(b.path)
+	if openErr != nil {
+		return nil, fmt.Errorf("failed opening file %s: %w", b.path, openErr)
 	}
 	defer manifestFile.Close()
 
-	content, err := io.ReadAll(manifestFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
+	content, readErr := io.ReadAll(manifestFile)
+	if readErr != nil {
+		return nil, fmt.Errorf("failed to read file %s: %w", b.path, readErr)
 	}
 	resources := string(content)
 
-	return convertToUnstructuredSlice(resources)
+	unstructuredObjs, convertErr := convertToUnstructuredSlice(resources)
+	if convertErr != nil {
+		return nil, fmt.Errorf("failed to convert resources defined in %s to unstructured objects: %w", b.path, convertErr)
+	}
+
+	return unstructuredObjs, nil
 }
 
 func (b *rawManifest) MarkAsManaged(objects []*unstructured.Unstructured) {
@@ -64,33 +69,38 @@ type templateManifest struct {
 }
 
 func (t *templateManifest) Process(data any) ([]*unstructured.Unstructured, error) {
-	manifestFile, err := t.fsys.Open(t.path)
-	if err != nil {
-		return nil, err
+	manifestFile, openErr := t.fsys.Open(t.path)
+	if openErr != nil {
+		return nil, fmt.Errorf("failed opening file %s: %w", t.path, openErr)
 	}
 	defer manifestFile.Close()
 
-	content, err := io.ReadAll(manifestFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create file: %w", err)
+	content, readErr := io.ReadAll(manifestFile)
+	if readErr != nil {
+		return nil, fmt.Errorf("failed to read file %s: %w", t.path, readErr)
 	}
 
-	tmpl, err := template.New(t.name).
+	tmpl, parseErr := template.New(t.name).
 		Option("missingkey=error").
 		Funcs(template.FuncMap{"ReplaceChar": ReplaceChar}).
 		Parse(string(content))
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse template: %w", err)
+	if parseErr != nil {
+		return nil, fmt.Errorf("failed to parse template %s: %w", t.path, parseErr)
 	}
 
 	var buffer bytes.Buffer
-	if err := tmpl.Execute(&buffer, data); err != nil {
-		return nil, fmt.Errorf("failed to execute template: %w", err)
+	if executeTmplErr := tmpl.Execute(&buffer, data); executeTmplErr != nil {
+		return nil, fmt.Errorf("failed to execute template %s: %w", t.path, executeTmplErr)
 	}
 
 	resources := buffer.String()
 
-	return convertToUnstructuredSlice(resources)
+	unstructuredObjs, convertErr := convertToUnstructuredSlice(resources)
+	if convertErr != nil {
+		return nil, fmt.Errorf("failed to convert resources defined in %s to unstructured objects: %w", t.path, convertErr)
+	}
+
+	return unstructuredObjs, nil
 }
 
 func (t *templateManifest) MarkAsManaged(objects []*unstructured.Unstructured) {
