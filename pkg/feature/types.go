@@ -1,8 +1,6 @@
 package feature
 
 import (
-	"strings"
-
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 )
@@ -27,8 +25,4 @@ type OAuth struct {
 	Port,
 	ClientSecret,
 	Hmac string
-}
-
-func ReplaceChar(s string, oldChar, newChar string) string {
-	return strings.ReplaceAll(s, oldChar, newChar)
 }
