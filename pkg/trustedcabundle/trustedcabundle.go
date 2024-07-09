@@ -28,9 +28,7 @@ const (
 )
 
 func ShouldInjectTrustedBundle(ns *corev1.Namespace) bool {
-	isActive := ns.Status.Phase == corev1.NamespaceActive
-
-	return isActive && cluster.IsNotReservedNamespace(ns) && !HasCABundleAnnotationDisabled(ns)
+	return cluster.IsNotReservedNamespace(ns) && !HasCABundleAnnotationDisabled(ns)
 }
 
 // HasCABundleAnnotationDisabled checks if a namespace has the annotation "security.opendatahub.io/inject-trusted-ca-bundle" set to "false".
