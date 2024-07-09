@@ -28,7 +28,8 @@ const (
 )
 
 func ShouldInjectTrustedBundle(ns *corev1.Namespace) bool {
-	return cluster.IsNotReservedNamespace(ns) && !HasCABundleAnnotationDisabled(ns)
+	isActive := ns.Status.Phase == corev1.NamespaceActive
+	return isActive && cluster.IsNotReservedNamespace(ns) && !HasCABundleAnnotationDisabled(ns)
 }
 
 // HasCABundleAnnotationDisabled checks if a namespace has the annotation "security.opendatahub.io/inject-trusted-ca-bundle" set to "false".
@@ -136,7 +137,7 @@ func ConfigureTrustedCABundle(ctx context.Context, cli client.Client, log logr.L
 	if dscInit.Spec.TrustedCABundle == nil {
 		log.Info("Trusted CA Bundle is not configed in DSCI, same as default to `Removed` state. Reconciling to delete all " + CAConfigMapName)
 		if err := RemoveCABundleCMInAllNamespaces(ctx, cli); err != nil {
-			return fmt.Errorf("error deleting configmap %s from all namespaces %w", CAConfigMapName, err)
+			return fmt.Errorf("error deleting configmap %s from all valid namespaces %w", CAConfigMapName, err)
 		}
 		return nil
 	}
@@ -169,23 +170,22 @@ func ConfigureTrustedCABundle(ctx context.Context, cli client.Client, log logr.L
 // when DSCI TrustedCABundle.ManagementState is set to `Managed`, add new configmap into all active namespaces.
 func AddCABundleCMInAllNamespaces(ctx context.Context, cli client.Client, dscInit *dsciv1.DSCInitialization) error {
 	var multiErr *multierror.Error
-	err := cluster.ProcessAllNamespace(ctx, cli, func(ns *corev1.Namespace) error {
-		if ShouldInjectTrustedBundle(ns) {
-			if pollErr := wait.PollUntilContextTimeout(ctx, time.Second*1, time.Second*10, false, func(ctx context.Context) (bool, error) {
+	processErr := cluster.ProcessAllNamespace(ctx, cli, func(ns *corev1.Namespace) error {
+		if ShouldInjectTrustedBundle(ns) { // only work on namespace that meet requirements and status
+			pollErr := wait.PollUntilContextTimeout(ctx, time.Second*1, time.Second*10, false, func(ctx context.Context) (bool, error) {
 				if cmErr := CreateOdhTrustedCABundleConfigMap(ctx, cli, ns.Name, dscInit.Spec.TrustedCABundle.CustomCABundle); cmErr != nil {
 					// Logging the error for debugging
-					fmt.Printf("error creating cert configmap in namespace %v: %v", ns.Name, cmErr)
+					fmt.Printf("error creating cert configmap in namespace %v: %v\n", ns.Name, cmErr)
 					return false, nil
 				}
 				return true, nil
-			}); pollErr != nil {
-				multiErr = multierror.Append(multiErr, pollErr)
-			}
+			})
+			multiErr = multierror.Append(multiErr, pollErr)
 		}
-		return nil
+		return nil // Always return nil to continue processing
 	})
-	if err != nil {
-		return err
+	if processErr != nil {
+		return processErr
 	}
 	return multiErr.ErrorOrNil()
 }
@@ -193,14 +193,15 @@ func AddCABundleCMInAllNamespaces(ctx context.Context, cli client.Client, dscIni
 // when DSCI TrustedCABundle.ManagementState is set to `Removed`, delete configmap from all active namespaces.
 func RemoveCABundleCMInAllNamespaces(ctx context.Context, cli client.Client) error {
 	var multiErr *multierror.Error
-	err := cluster.ProcessAllNamespace(ctx, cli, func(ns *corev1.Namespace) error {
-		if err := DeleteOdhTrustedCABundleConfigMap(ctx, cli, ns.Name); err != nil {
-			multiErr = multierror.Append(multiErr, err)
+	processErr := cluster.ProcessAllNamespace(ctx, cli, func(ns *corev1.Namespace) error {
+		if !ShouldInjectTrustedBundle(ns) { // skip deletion if namespace does not match critieria
+			return nil
 		}
-		return nil
+		multiErr = multierror.Append(multiErr, DeleteOdhTrustedCABundleConfigMap(ctx, cli, ns.Name))
+		return nil // Always return nil to continue processing
 	})
-	if err != nil {
-		return err
+	if processErr != nil {
+		return processErr
 	}
 	return multiErr.ErrorOrNil()
 }

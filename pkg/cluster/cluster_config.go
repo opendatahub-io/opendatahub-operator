@@ -50,15 +50,15 @@ func IsNotReservedNamespace(ns *corev1.Namespace) bool {
 		ns.GetName() != "default" && ns.GetName() != "openshift"
 }
 
-// GetClusterServiceVersion retries the clusterserviceversions available in the operator namespace.
-func GetClusterServiceVersion(ctx context.Context, c client.Client, watchNameSpace string) (*ofapiv1alpha1.ClusterServiceVersion, error) {
+// GetClusterServiceVersion retries CSV only from the defined namespace with 100 as chucksize.
+func GetClusterServiceVersion(ctx context.Context, c client.Client, listedNameSpace string) (*ofapiv1alpha1.ClusterServiceVersion, error) {
 	clusterServiceVersionList := &ofapiv1alpha1.ClusterServiceVersionList{}
-	listOptions := &client.ListOptions{
+	paginateListOption := &client.ListOptions{
 		Limit:     100,
-		Namespace: watchNameSpace,
+		Namespace: listedNameSpace,
 	}
 	for { // for the case we have very big size of CSV even just in one namespace
-		if err := c.List(ctx, clusterServiceVersionList, listOptions); err != nil {
+		if err := c.List(ctx, clusterServiceVersionList, paginateListOption); err != nil {
 			return nil, fmt.Errorf("failed listing cluster service versions: %w", err)
 		}
 		for _, csv := range clusterServiceVersionList.Items {
@@ -68,9 +68,9 @@ func GetClusterServiceVersion(ctx context.Context, c client.Client, watchNameSpa
 				}
 			}
 		}
-	if listOptions.Continue = clusterServiceVersionList.GetContinue(); listOptions.Continue == "" {
-		break
-	}
+		if paginateListOption.Continue = clusterServiceVersionList.GetContinue(); paginateListOption.Continue == "" {
+			break
+		}
 	}
 
 	return nil, k8serr.NewNotFound(

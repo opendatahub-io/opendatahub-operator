@@ -156,17 +156,17 @@ func CreateNamespace(ctx context.Context, cli client.Client, namespace string, m
 
 // ProcessAllNamespace execute func() on all active namespaces in the cluster with 500 as chunksize.
 func ProcessAllNamespace(ctx context.Context, cli client.Client, processFunc func(*corev1.Namespace) error) error {
-	namespaceList := &corev1.NamespaceList{}
-	listOptions := &client.ListOptions{
+	namespaces := &corev1.NamespaceList{}
+	paginateListOption := &client.ListOptions{
 		Limit: 500,
 	}
 
 	for { // for the case we have thousands of NS in the cluster
-		if err := cli.List(ctx, namespaceList, listOptions); err != nil {
+		if err := cli.List(ctx, namespaces, paginateListOption); err != nil {
 			return err
 		}
-		for i := range namespaceList.Items {
-			ns := &namespaceList.Items[i]
+		for i := range namespaces.Items {
+			ns := &namespaces.Items[i]
 			// check namespace status if not Active, then skip
 			if ns.Status.Phase != corev1.NamespaceActive {
 				continue
@@ -175,7 +175,7 @@ func ProcessAllNamespace(ctx context.Context, cli client.Client, processFunc fun
 				return err
 			}
 		}
-		if listOptions.Continue = namespaceList.GetContinue(); namespaceList.GetContinue() == "" {
+		if paginateListOption.Continue = namespaces.GetContinue(); namespaces.GetContinue() == "" {
 			break
 		}
 	}
