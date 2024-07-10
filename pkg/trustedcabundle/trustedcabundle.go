@@ -151,7 +151,7 @@ func ConfigureTrustedCABundle(ctx context.Context, cli client.Client, log logr.L
 		}
 
 		if istrustedCABundleUpdated || managementStateChanged {
-			if err := AddCABundleCMInAllNamespaces(ctx, cli, dscInit); err != nil {
+			if err := AddCABundleCMInAllNamespaces(ctx, cli, log, dscInit); err != nil {
 				return fmt.Errorf("failed adding configmap %s to all namespaces: %w", CAConfigMapName, err)
 			}
 		}
@@ -168,14 +168,14 @@ func ConfigureTrustedCABundle(ctx context.Context, cli client.Client, log logr.L
 }
 
 // when DSCI TrustedCABundle.ManagementState is set to `Managed`, add new configmap into all active namespaces.
-func AddCABundleCMInAllNamespaces(ctx context.Context, cli client.Client, dscInit *dsciv1.DSCInitialization) error {
+func AddCABundleCMInAllNamespaces(ctx context.Context, cli client.Client, log logr.Logger, dscInit *dsciv1.DSCInitialization) error {
 	var multiErr *multierror.Error
 	processErr := cluster.ProcessAllNamespace(ctx, cli, func(ns *corev1.Namespace) error {
-		if ShouldInjectTrustedBundle(ns) { // only work on namespace that meet requirements and status
+		if ShouldInjectTrustedBundle(ns) { // only work on namespace that meet requirements and status active
 			pollErr := wait.PollUntilContextTimeout(ctx, time.Second*1, time.Second*10, false, func(ctx context.Context) (bool, error) {
 				if cmErr := CreateOdhTrustedCABundleConfigMap(ctx, cli, ns.Name, dscInit.Spec.TrustedCABundle.CustomCABundle); cmErr != nil {
 					// Logging the error for debugging
-					fmt.Printf("error creating cert configmap in namespace %v: %v\n", ns.Name, cmErr)
+					log.Info("error creating cert configmap in namespace", "namespace", ns.Name, "error", cmErr)
 					return false, nil
 				}
 				return true, nil

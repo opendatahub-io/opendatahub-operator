@@ -167,10 +167,6 @@ func ProcessAllNamespace(ctx context.Context, cli client.Client, processFunc fun
 		}
 		for i := range namespaces.Items {
 			ns := &namespaces.Items[i]
-			// check namespace status if not Active, then skip
-			if ns.Status.Phase != corev1.NamespaceActive {
-				continue
-			}
 			if err := processFunc(ns); err != nil {
 				return err
 			}
