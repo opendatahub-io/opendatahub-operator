@@ -43,6 +43,7 @@ func (k *Kserve) defineServiceMeshFeatures(ctx context.Context, cli client.Clien
 		if authorinoInstalled {
 			kserveExtAuthzErr := feature.CreateFeature("kserve-external-authz").
 				For(handler).
+				Managed().
 				ManifestsLocation(Resources.Location).
 				Manifests(
 					path.Join(Resources.ServiceMeshDir, "activator-envoyfilter.tmpl.yaml"),
@@ -58,6 +59,20 @@ func (k *Kserve) defineServiceMeshFeatures(ctx context.Context, cli client.Clien
 			}
 		} else {
 			fmt.Println("WARN: Authorino operator is not installed on the cluster, skipping authorization capability")
+		}
+
+		temporaryFixesErr := feature.CreateFeature("kserve-temporary-fixes").
+			For(handler).
+			Managed().
+			ManifestsLocation(Resources.Location).
+			Manifests(
+				path.Join(Resources.ServiceMeshDir, "grpc-envoyfilter-temp-fix.tmpl.yaml"),
+			).
+			WithData(servicemesh.ClusterDetails).
+			Load()
+
+		if temporaryFixesErr != nil {
+			return temporaryFixesErr
 		}
 
 		return nil

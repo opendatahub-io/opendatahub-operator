@@ -105,8 +105,15 @@ func (fb *featureBuilder) TargetNamespace(targetNs string) *featureBuilder {
 	return fb
 }
 
-// Managed marks the feature as managed by the operator.  This effectively marks all resources which are part of this feature
-// as those that should be updated on operator reconcile.
+// Managed marks the feature as managed by the operator.
+//
+// This effectively makes all resources which are part of this feature as reconciled to the desired state
+// defined by provided manifests.
+//
+// NOTE: Although the actual instance of the resource in the cluster might have this configuration altered,
+// we intentionally do not read the management configuration from there due to the lack of clear requirements.
+// This means that management state is defined by the Feature resources provided by the operator
+// and not by the actual state of the resource.
 func (fb *featureBuilder) Managed() *featureBuilder {
 	fb.managed = true
 
