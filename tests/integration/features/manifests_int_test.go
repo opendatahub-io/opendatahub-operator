@@ -10,6 +10,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/provider"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/integration/features/fixtures"
 
@@ -43,15 +44,14 @@ var _ = Describe("Manifest sources", func() {
 
 	It("should be able to process an embedded YAML file", func(ctx context.Context) {
 		// given
-		featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-			createNamespaceErr := feature.CreateFeature("create-namespace").
-				For(handler).
+		featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+			errNsCreate := registry.Add(feature.Define("create-namespace").
 				UsingConfig(envTest.Config).
 				ManifestsLocation(fixtures.TestEmbeddedFiles).
-				Manifests(path.Join(fixtures.BaseDir, "namespace.yaml")).
-				Load()
+				Manifests(path.Join(fixtures.BaseDir, "namespace.yaml")),
+			)
 
-			Expect(createNamespaceErr).ToNot(HaveOccurred())
+			Expect(errNsCreate).ToNot(HaveOccurred())
 
 			return nil
 		})
@@ -68,15 +68,15 @@ var _ = Describe("Manifest sources", func() {
 
 	It("should be able to process an embedded template file", func(ctx context.Context) {
 		// given
-		featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-			createServiceErr := feature.CreateFeature("create-local-gw-svc").
-				For(handler).
+		featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+			errSvcCreate := registry.Add(feature.Define("create-local-gw-svc").
 				UsingConfig(envTest.Config).
 				ManifestsLocation(fixtures.TestEmbeddedFiles).
 				Manifests(path.Join(fixtures.BaseDir, "local-gateway-svc.tmpl.yaml")).
-				Load()
+				WithData(feature.Entry("ControlPlane", provider.ValueOf(dsci.Spec.ServiceMesh.ControlPlane).Get)),
+			)
 
-			Expect(createServiceErr).ToNot(HaveOccurred())
+			Expect(errSvcCreate).ToNot(HaveOccurred())
 
 			return nil
 		})
@@ -101,15 +101,14 @@ metadata:
 
 		Expect(fixtures.CreateFile(tempDir, "namespace.yaml", nsYAML)).To(Succeed())
 
-		featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-			createServiceErr := feature.CreateFeature("create-namespace").
-				For(handler).
+		featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+			errSvcCreate := registry.Add(feature.Define("create-namespace").
 				UsingConfig(envTest.Config).
 				ManifestsLocation(os.DirFS(tempDir)).
-				Manifests(path.Join("namespace.yaml")). // must be relative to root DirFS defined above
-				Load()
+				Manifests(path.Join("namespace.yaml")), // must be relative to root DirFS defined above
+			)
 
-			Expect(createServiceErr).ToNot(HaveOccurred())
+			Expect(errSvcCreate).ToNot(HaveOccurred())
 
 			return nil
 		})

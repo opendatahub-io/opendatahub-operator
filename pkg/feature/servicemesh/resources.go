@@ -2,6 +2,7 @@ package servicemesh
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -14,8 +15,11 @@ import (
 // MeshRefs stores service mesh configuration in the config map, so it can
 // be easily accessed by other components which rely on this information.
 func MeshRefs(ctx context.Context, f *feature.Feature) error {
-	meshConfig := f.Spec.ControlPlane
-	namespace := f.Spec.AppNamespace
+	meshConfig, err := FeatureData.ControlPlane.Extract(f)
+	if err != nil {
+		return fmt.Errorf("failed to get control plane struct: %w", err)
+	}
+	namespace := f.TargetNamespace
 
 	data := map[string]string{
 		"CONTROL_PLANE_NAME": meshConfig.Name,
@@ -39,15 +43,32 @@ func MeshRefs(ctx context.Context, f *feature.Feature) error {
 // AuthRefs stores authorization configuration in the config map, so it can
 // be easily accessed by other components which rely on this information.
 func AuthRefs(ctx context.Context, f *feature.Feature) error {
-	audiences := f.Spec.Auth.Audiences
-	namespace := f.Spec.AppNamespace
+
+	targetNamespace := f.TargetNamespace
+	auth, err := FeatureData.Authorization.Spec.Extract(f)
+	if err != nil {
+		return fmt.Errorf("could not get auth from feature: %w", err)
+	}
+
+	authNamespace, errAuthNs := FeatureData.Authorization.Namespace.Extract(f)
+	if errAuthNs != nil {
+		return fmt.Errorf("could not get auth provider namespace from feature: %w", err)
+	}
+
+	authProviderName, errAuthProvider := FeatureData.Authorization.Provider.Extract(f)
+	if errAuthProvider != nil {
+		return fmt.Errorf("could not get auth provider name from feature: %w", err)
+	}
+
+	audiences := auth.Audiences
 	audiencesList := ""
 	if audiences != nil && len(*audiences) > 0 {
 		audiencesList = strings.Join(*audiences, ",")
 	}
 	data := map[string]string{
 		"AUTH_AUDIENCE":   audiencesList,
-		"AUTH_PROVIDER":   namespace + "-auth-provider",
+		"AUTH_PROVIDER":   authProviderName,
+		"AUTH_NAMESPACE":  authNamespace,
 		"AUTHORINO_LABEL": "security.opendatahub.io/authorization-group=default",
 	}
 
@@ -57,7 +78,7 @@ func AuthRefs(ctx context.Context, f *feature.Feature) error {
 		&corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "auth-refs",
-				Namespace: namespace,
+				Namespace: targetNamespace,
 			},
 			Data: data,
 		},

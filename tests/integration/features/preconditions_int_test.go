@@ -41,14 +41,13 @@ var _ = Describe("feature preconditions", func() {
 			defer objectCleaner.DeleteAll(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
 
 			// when
-			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-				testFeatureErr := feature.CreateFeature("create-new-ns").
-					For(handler).
-					PreConditions(feature.CreateNamespaceIfNotExists(namespace)).
+			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+				errFeatureAdd := registry.Add(feature.Define("create-new-ns").
 					UsingConfig(envTest.Config).
-					Load()
+					PreConditions(feature.CreateNamespaceIfNotExists(namespace)),
+				)
 
-				Expect(testFeatureErr).ToNot(HaveOccurred())
+				Expect(errFeatureAdd).ToNot(HaveOccurred())
 
 				return nil
 			})
@@ -78,14 +77,13 @@ var _ = Describe("feature preconditions", func() {
 			defer objectCleaner.DeleteAll(ctx, ns)
 
 			// when
-			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-				testFeatureErr := feature.CreateFeature("create-new-ns").
-					For(handler).
-					PreConditions(feature.CreateNamespaceIfNotExists(namespace)).
+			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+				errFeatureAdd := registry.Add(feature.Define("create-new-ns").
 					UsingConfig(envTest.Config).
-					Load()
+					PreConditions(feature.CreateNamespaceIfNotExists(namespace)),
+				)
 
-				Expect(testFeatureErr).ToNot(HaveOccurred())
+				Expect(errFeatureAdd).ToNot(HaveOccurred())
 
 				return nil
 			})
