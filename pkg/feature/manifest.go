@@ -12,8 +12,6 @@ import (
 
 	"github.com/ghodss/yaml"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
 type Manifest interface {
@@ -105,21 +103,6 @@ func (t *templateManifest) Process(data any) ([]*unstructured.Unstructured, erro
 func (t *templateManifest) MarkAsManaged(objects []*unstructured.Unstructured) {
 	if !t.patch {
 		markAsManaged(objects)
-	}
-}
-
-func markAsManaged(objs []*unstructured.Unstructured) {
-	for _, obj := range objs {
-		objAnnotations := obj.GetAnnotations()
-		if objAnnotations == nil {
-			objAnnotations = make(map[string]string)
-		}
-
-		// If resource already has an annotation, leave it as defined
-		if _, exists := objAnnotations[annotations.ManagedByODHOperator]; !exists {
-			objAnnotations[annotations.ManagedByODHOperator] = "true"
-			obj.SetAnnotations(objAnnotations)
-		}
 	}
 }
 

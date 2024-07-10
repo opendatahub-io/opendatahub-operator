@@ -46,6 +46,7 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins"
 )
@@ -225,7 +226,7 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 		if enabled {
 			// Exception to not update kserve with managed annotation
 			// do not reconcile kserve resource with annotation "opendatahub.io/managed: false"
-			if found.GetAnnotations()["opendatahub.io/managed"] == "false" && componentName == "kserve" {
+			if found.GetAnnotations()[annotations.ManagedByODHOperator] == "false" && componentName == "kserve" {
 				return nil
 			}
 			return updateResource(ctx, cli, obj, found, owner, componentName)

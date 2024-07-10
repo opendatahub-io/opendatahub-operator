@@ -2,6 +2,7 @@ package features_test
 
 import (
 	"context"
+	"fmt"
 	"path"
 
 	corev1 "k8s.io/api/core/v1"
@@ -26,9 +27,9 @@ var _ = Describe("Applying and updating resources", func() {
 	)
 
 	const (
-		testAnnotationKey = "test-annotation"
-		newValue          = "new-value"
-		originalValue     = "original-value"
+		testKey           = "test"
+		testNewValue      = "new-value"
+		testOriginalValue = "original-value"
 	)
 
 	BeforeEach(func(ctx context.Context) {
@@ -71,7 +72,7 @@ var _ = Describe("Applying and updating resources", func() {
 			)
 
 			// when
-			service.Annotations[testAnnotationKey] = newValue
+			service.Annotations[testKey] = testNewValue
 			Expect(envTestClient.Update(ctx, service)).To(Succeed())
 
 			// then
@@ -80,7 +81,7 @@ var _ = Describe("Applying and updating resources", func() {
 			updatedService, err := fixtures.GetService(ctx, envTestClient, testNamespace, "knative-local-gateway")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(updatedService.Annotations).To(
-				HaveKeyWithValue(testAnnotationKey, originalValue),
+				HaveKeyWithValue(testKey, testOriginalValue),
 			)
 		})
 
@@ -101,7 +102,7 @@ var _ = Describe("Applying and updating resources", func() {
 			// when
 			service, err := fixtures.GetService(ctx, envTestClient, testNamespace, "unmanaged-svc")
 			Expect(err).ToNot(HaveOccurred())
-			service.Annotations[testAnnotationKey] = newValue
+			service.Annotations[testKey] = testNewValue
 			Expect(envTestClient.Update(ctx, service)).To(Succeed())
 
 			// then
@@ -110,7 +111,7 @@ var _ = Describe("Applying and updating resources", func() {
 			updatedService, err := fixtures.GetService(ctx, envTestClient, testNamespace, "unmanaged-svc")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(updatedService.Annotations).To(
-				HaveKeyWithValue(testAnnotationKey, newValue),
+				HaveKeyWithValue(testKey, testNewValue),
 			)
 		})
 
@@ -133,7 +134,7 @@ var _ = Describe("Applying and updating resources", func() {
 			// when
 			service, err := fixtures.GetService(ctx, envTestClient, testNamespace, "knative-local-gateway")
 			Expect(err).ToNot(HaveOccurred())
-			service.Annotations[testAnnotationKey] = newValue
+			service.Annotations[testKey] = testNewValue
 			Expect(envTestClient.Update(ctx, service)).To(Succeed())
 
 			// then
@@ -142,7 +143,7 @@ var _ = Describe("Applying and updating resources", func() {
 			updatedService, err := fixtures.GetService(ctx, envTestClient, testNamespace, "knative-local-gateway")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(updatedService.Annotations).To(
-				HaveKeyWithValue(testAnnotationKey, newValue),
+				HaveKeyWithValue(testKey, testNewValue),
 			)
 
 		})
@@ -164,7 +165,10 @@ var _ = Describe("Applying and updating resources", func() {
 			// when
 			service, err := fixtures.GetService(ctx, envTestClient, testNamespace, "managed-svc")
 			Expect(err).ToNot(HaveOccurred())
-			service.Annotations[testAnnotationKey] = newValue
+			service.Annotations[testKey] = testNewValue
+			service.Spec.ClusterIP = ""
+			service.Spec.Type = corev1.ServiceTypeExternalName
+			service.Spec.ExternalName = "test-external-name"
 			Expect(envTestClient.Update(ctx, service)).To(Succeed())
 
 			// then
@@ -173,8 +177,10 @@ var _ = Describe("Applying and updating resources", func() {
 			updatedService, err := fixtures.GetService(ctx, envTestClient, testNamespace, "managed-svc")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(updatedService.Annotations).To(
-				HaveKeyWithValue(testAnnotationKey, originalValue),
+				HaveKeyWithValue(testKey, testOriginalValue),
 			)
+			Expect(updatedService.Spec.Type).To(Equal(corev1.ServiceTypeClusterIP))
+			fmt.Println(updatedService.Spec.ExternalName)
 		})
 	})
 
