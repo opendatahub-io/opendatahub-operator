@@ -3,7 +3,6 @@ package feature_test
 import (
 	"io/fs"
 	"path/filepath"
-	"testing"
 
 	"github.com/spf13/afero"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -57,7 +56,7 @@ data:
 			// given
 			manifest := feature.CreateRawManifestFrom(inMemFS, path)
 
-			data := feature.Spec{
+			data := struct{ TargetNamespace string }{
 				TargetNamespace: "not-used",
 			}
 
@@ -80,7 +79,7 @@ metadata:
   name: my-configmap
   namespace: {{.TargetNamespace}}
 data:
-  key: Data
+  key: FeatureContext
 `
 
 		BeforeEach(func() {
@@ -107,7 +106,7 @@ data:
 
 		It("should substitute target namespace in the templated manifest", func() {
 			// given
-			data := feature.Spec{
+			data := struct{ TargetNamespace string }{
 				TargetNamespace: "template-ns",
 			}
 			manifest := feature.CreateTemplateManifestFrom(inMemFS, path)
@@ -128,20 +127,15 @@ data:
 
 })
 
-func processManifests(data feature.Spec, m []feature.Manifest) []*unstructured.Unstructured {
+func processManifests(data any, m []feature.Manifest) []*unstructured.Unstructured {
 	var objs []*unstructured.Unstructured
 	var err error
 	for i := range m {
-		objs, err = m[i].Process(&data)
+		objs, err = m[i].Process(data)
 		if err != nil {
 			break
 		}
 	}
 	Expect(err).NotTo(HaveOccurred())
 	return objs
-}
-
-func TestManifests(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Manifest Process Suite")
 }

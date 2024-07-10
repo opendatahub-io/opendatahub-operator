@@ -33,13 +33,13 @@ var _ = Describe("Feature tracking capability", func() {
 	Context("Reporting progress when applying Feature", func() {
 
 		It("should indicate successful installation in FeatureTracker through Status conditions", func(ctx context.Context) {
-			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-				verificationFeatureErr := feature.CreateFeature("always-working-feature").
-					For(handler).
-					UsingConfig(envTest.Config).
-					Load()
+			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+				errFeatureAdd := registry.Add(
+					feature.Define("always-working-feature").
+						UsingConfig(envTest.Config),
+				)
 
-				Expect(verificationFeatureErr).ToNot(HaveOccurred())
+				Expect(errFeatureAdd).ToNot(HaveOccurred())
 
 				return nil
 			})
@@ -62,16 +62,15 @@ var _ = Describe("Feature tracking capability", func() {
 
 		It("should indicate when failure occurs in preconditions through Status conditions", func(ctx context.Context) {
 			// given
-			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-				verificationFeatureErr := feature.CreateFeature("precondition-fail").
-					For(handler).
+			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+				errFeatureAdd := registry.Add(feature.Define("precondition-fail").
 					UsingConfig(envTest.Config).
 					PreConditions(func(_ context.Context, _ *feature.Feature) error {
 						return errors.New("during test always fail")
-					}).
-					Load()
+					}),
+				)
 
-				Expect(verificationFeatureErr).ToNot(HaveOccurred())
+				Expect(errFeatureAdd).ToNot(HaveOccurred())
 
 				return nil
 			})
@@ -94,16 +93,15 @@ var _ = Describe("Feature tracking capability", func() {
 
 		It("should indicate when failure occurs in post-conditions through Status conditions", func(ctx context.Context) {
 			// given
-			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-				verificationFeatureErr := feature.CreateFeature("post-condition-failure").
-					For(handler).
+			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+				errFeatureAdd := registry.Add(feature.Define("post-condition-failure").
 					UsingConfig(envTest.Config).
 					PostConditions(func(_ context.Context, _ *feature.Feature) error {
 						return errors.New("during test always fail")
-					}).
-					Load()
+					}),
+				)
 
-				Expect(verificationFeatureErr).ToNot(HaveOccurred())
+				Expect(errFeatureAdd).ToNot(HaveOccurred())
 
 				return nil
 			})
@@ -129,13 +127,12 @@ var _ = Describe("Feature tracking capability", func() {
 
 		It("should correctly indicate source in the feature tracker", func(ctx context.Context) {
 			// given
-			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-				emptyFeatureErr := feature.CreateFeature("always-working-feature").
-					For(handler).
-					UsingConfig(envTest.Config).
-					Load()
+			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+				errFeatureAdd := registry.Add(feature.Define("always-working-feature").
+					UsingConfig(envTest.Config),
+				)
 
-				Expect(emptyFeatureErr).ToNot(HaveOccurred())
+				Expect(errFeatureAdd).ToNot(HaveOccurred())
 
 				return nil
 			})
@@ -156,13 +153,12 @@ var _ = Describe("Feature tracking capability", func() {
 
 		It("should correctly indicate app namespace in the feature tracker", func(ctx context.Context) {
 			// given
-			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-				emptyFeatureErr := feature.CreateFeature("empty-feature").
-					For(handler).
-					UsingConfig(envTest.Config).
-					Load()
+			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+				errFeatureAdd := registry.Add(feature.Define("empty-feature").
+					UsingConfig(envTest.Config),
+				)
 
-				Expect(emptyFeatureErr).ToNot(HaveOccurred())
+				Expect(errFeatureAdd).ToNot(HaveOccurred())
 
 				return nil
 			})

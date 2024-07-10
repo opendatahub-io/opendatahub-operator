@@ -124,108 +124,100 @@ func (r *DSCInitializationReconciler) authorizationCapability(ctx context.Contex
 }
 
 func (r *DSCInitializationReconciler) serviceMeshCapabilityFeatures(instance *dsciv1.DSCInitialization) feature.FeaturesProvider {
-	return func(handler *feature.FeaturesHandler) (err error) { //nolint:lll,nonamedreturns // Reason: we use the named return to handle errors in a unified fashion through deferred function.
+	return func(registry feature.FeaturesRegistry) error {
 		serviceMeshSpec := instance.Spec.ServiceMesh
-		smcpCreationErr := feature.CreateFeature("mesh-control-plane-creation").
-			For(handler).
+
+		smcp := feature.Define("mesh-control-plane-creation").
 			ManifestsLocation(Templates.Location).
 			Manifests(
 				path.Join(Templates.ServiceMeshDir),
 			).
+			WithData(servicemesh.FeatureData.ControlPlane.Define(&instance.Spec).AsAction()).
 			PreConditions(
 				servicemesh.EnsureServiceMeshOperatorInstalled,
 				feature.CreateNamespaceIfNotExists(serviceMeshSpec.ControlPlane.Namespace),
 			).
 			PostConditions(
 				feature.WaitForPodsToBeReady(serviceMeshSpec.ControlPlane.Namespace),
-			).
-			Load()
-
-		if smcpCreationErr != nil {
-			return smcpCreationErr
-		}
+			)
 
 		if serviceMeshSpec.ControlPlane.MetricsCollection == "Istio" {
-			metricsCollectionErr := feature.CreateFeature("mesh-metrics-collection").
-				For(handler).
-				PreConditions(
-					servicemesh.EnsureServiceMeshInstalled,
-				).
+			metricsCollectionErr := registry.Add(feature.Define("mesh-metrics-collection").
 				ManifestsLocation(Templates.Location).
 				Manifests(
 					path.Join(Templates.MetricsDir),
 				).
-				Load()
+				WithData(
+					servicemesh.FeatureData.ControlPlane.Define(&instance.Spec).AsAction(),
+				).
+				PreConditions(
+					servicemesh.EnsureServiceMeshInstalled,
+				))
+
 			if metricsCollectionErr != nil {
 				return metricsCollectionErr
 			}
 		}
 
-		cfgMapErr := feature.CreateFeature("mesh-shared-configmap").
-			For(handler).
+		cfgMap := feature.Define("mesh-shared-configmap").
 			WithResources(servicemesh.MeshRefs, servicemesh.AuthRefs).
-			Load()
-		if cfgMapErr != nil {
-			return cfgMapErr
-		}
+			WithData(
+				servicemesh.FeatureData.ControlPlane.Define(&instance.Spec).AsAction(),
+			).
+			WithData(
+				servicemesh.FeatureData.Authorization.All(&instance.Spec)...,
+			)
 
-		return nil
+		return registry.Add(smcp, cfgMap)
 	}
 }
 
 func (r *DSCInitializationReconciler) authorizationFeatures(instance *dsciv1.DSCInitialization) feature.FeaturesProvider {
-	return func(handler *feature.FeaturesHandler) error {
+	return func(registry feature.FeaturesRegistry) error {
 		serviceMeshSpec := instance.Spec.ServiceMesh
 
-		errExtAuthz := feature.CreateFeature("mesh-control-plane-external-authz").
-			For(handler).
-			ManifestsLocation(Templates.Location).
-			Manifests(
-				path.Join(Templates.AuthorinoDir, "auth-smm.tmpl.yaml"),
-				path.Join(Templates.AuthorinoDir, "base"),
-				path.Join(Templates.AuthorinoDir, "mesh-authz-ext-provider.patch.tmpl.yaml"),
-			).
-			WithData(servicemesh.ClusterDetails).
-			PreConditions(
-				feature.EnsureOperatorIsInstalled("authorino-operator"),
-				servicemesh.EnsureServiceMeshInstalled,
-				servicemesh.EnsureAuthNamespaceExists,
-			).
-			PostConditions(
-				feature.WaitForPodsToBeReady(serviceMeshSpec.ControlPlane.Namespace),
-			).
-			OnDelete(
-				servicemesh.RemoveExtensionProvider,
-			).
-			Load()
-		if errExtAuthz != nil {
-			return errExtAuthz
-		}
+		return registry.Add(
+			feature.Define("mesh-control-plane-external-authz").
+				ManifestsLocation(Templates.Location).
+				Manifests(
+					path.Join(Templates.AuthorinoDir, "auth-smm.tmpl.yaml"),
+					path.Join(Templates.AuthorinoDir, "base"),
+					path.Join(Templates.AuthorinoDir, "mesh-authz-ext-provider.patch.tmpl.yaml"),
+				).
+				WithData(
+					servicemesh.FeatureData.ControlPlane.Define(&instance.Spec).AsAction(),
+				).
+				WithData(
+					servicemesh.FeatureData.Authorization.All(&instance.Spec)...,
+				).
+				PreConditions(
+					feature.EnsureOperatorIsInstalled("authorino-operator"),
+					servicemesh.EnsureServiceMeshInstalled,
+					servicemesh.EnsureAuthNamespaceExists,
+				).
+				OnDelete(
+					servicemesh.RemoveExtensionProvider,
+				),
 
-		// We do not have the control over deployment resource creation.
-		// It is created by Authorino operator using Authorino CR and labels are not propagated from Authorino CR to spec.template
-		// See https://issues.redhat.com/browse/RHOAIENG-5494
-		//
-		// To make it part of Service Mesh we have to patch it with injection
-		// enabled instead, otherwise it will not have proxy pod injected.
-		errAuthorinoInjectionPatch := feature.CreateFeature("enable-proxy-injection-in-authorino-deployment").
-			For(handler).
-			ManifestsLocation(Templates.Location).
-			Manifests(
-				path.Join(Templates.AuthorinoDir, "deployment.injection.patch.tmpl.yaml"),
-			).
-			PreConditions(
-				servicemesh.EnsureAuthNamespaceExists,
-				func(ctx context.Context, f *feature.Feature) error {
-					return feature.WaitForPodsToBeReady(handler.DSCInitializationSpec.ServiceMesh.Auth.Namespace)(ctx, f)
-				},
-			).
-			Load()
-
-		if errAuthorinoInjectionPatch != nil {
-			return errAuthorinoInjectionPatch
-		}
-
-		return nil
+			// We do not have the control over deployment resource creation.
+			// It is created by Authorino operator using Authorino CR and labels are not propagated from Authorino CR to spec.template
+			// See https://issues.redhat.com/browse/RHOAIENG-5494
+			//
+			// To make it part of Service Mesh we have to patch it with injection
+			// enabled instead, otherwise it will not have proxy pod injected.
+			feature.Define("enable-proxy-injection-in-authorino-deployment").
+				ManifestsLocation(Templates.Location).
+				Manifests(
+					path.Join(Templates.AuthorinoDir, "deployment.injection.patch.tmpl.yaml"),
+				).
+				WithData(servicemesh.FeatureData.ControlPlane.Define(&instance.Spec).AsAction()).
+				WithData(servicemesh.FeatureData.Authorization.All(&instance.Spec)...).
+				PreConditions(
+					servicemesh.EnsureAuthNamespaceExists,
+					func(ctx context.Context, f *feature.Feature) error {
+						return feature.WaitForPodsToBeReady(serviceMeshSpec.Auth.Namespace)(ctx, f)
+					},
+				),
+		)
 	}
 }

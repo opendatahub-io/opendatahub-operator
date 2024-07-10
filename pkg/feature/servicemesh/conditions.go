@@ -24,11 +24,12 @@ const (
 
 // EnsureAuthNamespaceExists creates a namespace for the Authorization provider and set ownership so it will be garbage collected when the operator is uninstalled.
 func EnsureAuthNamespaceExists(ctx context.Context, f *feature.Feature) error {
-	if resolveNsErr := ResolveAuthNamespace(f); resolveNsErr != nil {
-		return resolveNsErr
+	authNs, err := FeatureData.Authorization.Namespace.Extract(f)
+	if err != nil {
+		return fmt.Errorf("could not get auth from feature: %w", err)
 	}
 
-	_, err := cluster.CreateNamespace(ctx, f.Client, f.Spec.Auth.Namespace, feature.OwnedBy(f), cluster.WithLabels(labels.ODH.OwnedNamespace, "true"))
+	_, err = cluster.CreateNamespace(ctx, f.Client, authNs, feature.OwnedBy(f), cluster.WithLabels(labels.ODH.OwnedNamespace, "true"))
 	return err
 }
 
@@ -45,11 +46,13 @@ func EnsureServiceMeshInstalled(ctx context.Context, f *feature.Feature) error {
 		return err
 	}
 
-	smcp := f.Spec.ControlPlane.Name
-	smcpNs := f.Spec.ControlPlane.Namespace
-
 	if err := WaitForControlPlaneToBeReady(ctx, f); err != nil {
-		f.Log.Error(err, "failed waiting for control plane being ready", "control-plane", smcp, "namespace", smcpNs)
+		controlPlane, errGet := FeatureData.ControlPlane.Extract(f)
+		if errGet != nil {
+			return fmt.Errorf("failed to get control plane struct: %w", err)
+		}
+
+		f.Log.Error(err, "failed waiting for control plane being ready", "control-plane", controlPlane.Name, "namespace", controlPlane.Namespace)
 
 		return multierror.Append(err, errors.New("service mesh control plane is not ready")).ErrorOrNil()
 	}
@@ -58,8 +61,13 @@ func EnsureServiceMeshInstalled(ctx context.Context, f *feature.Feature) error {
 }
 
 func WaitForControlPlaneToBeReady(ctx context.Context, f *feature.Feature) error {
-	smcp := f.Spec.ControlPlane.Name
-	smcpNs := f.Spec.ControlPlane.Namespace
+	controlPlane, err := FeatureData.ControlPlane.Extract(f)
+	if err != nil {
+		return err
+	}
+
+	smcp := controlPlane.Name
+	smcpNs := controlPlane.Namespace
 
 	f.Log.Info("waiting for control plane components to be ready", "control-plane", smcp, "namespace", smcpNs, "duration (s)", duration.Seconds())
 

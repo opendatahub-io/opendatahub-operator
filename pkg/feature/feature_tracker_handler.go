@@ -36,28 +36,28 @@ func createFeatureTracker(ctx context.Context, f *Feature) error {
 	}
 
 	if k8serr.IsNotFound(errGet) {
-		tracker = featurev1.NewFeatureTracker(f.Name, f.Spec.AppNamespace)
+		tracker = featurev1.NewFeatureTracker(f.Name, f.TargetNamespace)
 		tracker.Spec = featurev1.FeatureTrackerSpec{
-			Source:       *f.Spec.Source,
-			AppNamespace: f.Spec.AppNamespace,
+			Source:       *f.source,
+			AppNamespace: f.TargetNamespace,
 		}
 		if errCreate := f.Client.Create(ctx, tracker); errCreate != nil {
 			return errCreate
 		}
 	}
 
-	if gvkErr := ensureGVKSet(tracker, f.Client.Scheme()); gvkErr != nil {
-		return gvkErr
+	if errGVK := ensureGVKSet(tracker, f.Client.Scheme()); errGVK != nil {
+		return errGVK
 	}
 
-	f.Tracker = tracker
+	f.tracker = tracker
 
 	return nil
 }
 
 // removeFeatureTracker removes the FeatureTracker associated with the provided Feature instance if one exists in the cluster.
 func removeFeatureTracker(ctx context.Context, f *Feature) error {
-	associatedTracker := f.Tracker
+	associatedTracker := f.tracker
 	if associatedTracker == nil {
 		// Check if it is persisted in the cluster, but Feature do not have it attached
 		if tracker, errGet := getFeatureTracker(ctx, f); client.IgnoreNotFound(errGet) != nil {
@@ -75,7 +75,7 @@ func removeFeatureTracker(ctx context.Context, f *Feature) error {
 }
 
 func getFeatureTracker(ctx context.Context, f *Feature) (*featurev1.FeatureTracker, error) {
-	tracker := featurev1.NewFeatureTracker(f.Name, f.Spec.AppNamespace)
+	tracker := featurev1.NewFeatureTracker(f.Name, f.TargetNamespace)
 
 	if errGet := f.Client.Get(ctx, client.ObjectKeyFromObject(tracker), tracker); errGet != nil {
 		return nil, errGet
@@ -100,7 +100,7 @@ func ensureGVKSet(obj runtime.Object, scheme *runtime.Scheme) error {
 }
 
 func createFeatureTrackerStatusReporter(f *Feature) *status.Reporter[*featurev1.FeatureTracker] {
-	return status.NewStatusReporter(f.Client, f.Tracker, func(err error) status.SaveStatusFunc[*featurev1.FeatureTracker] {
+	return status.NewStatusReporter(f.Client, f.tracker, func(err error) status.SaveStatusFunc[*featurev1.FeatureTracker] {
 		updatedCondition := func(saved *featurev1.FeatureTracker) {
 			status.SetCompleteCondition(&saved.Status.Conditions, string(featurev1.ConditionReason.FeatureCreated), fmt.Sprintf("Applied feature [%s] successfully", f.Name))
 			saved.Status.Phase = status.PhaseReady

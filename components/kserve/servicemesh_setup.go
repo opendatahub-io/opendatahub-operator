@@ -17,7 +17,7 @@ import (
 func (k *Kserve) configureServiceMesh(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec) error {
 	if dscispec.ServiceMesh != nil {
 		if dscispec.ServiceMesh.ManagementState == operatorv1.Managed && k.GetManagementState() == operatorv1.Managed {
-			serviceMeshInitializer := feature.ComponentFeaturesHandler(k.GetComponentName(), dscispec, k.defineServiceMeshFeatures(ctx, cli))
+			serviceMeshInitializer := feature.ComponentFeaturesHandler(k.GetComponentName(), dscispec.ApplicationsNamespace, k.defineServiceMeshFeatures(ctx, cli, dscispec))
 			return serviceMeshInitializer.Apply(ctx)
 		}
 		if dscispec.ServiceMesh.ManagementState == operatorv1.Unmanaged && k.GetManagementState() == operatorv1.Managed {
@@ -29,21 +29,19 @@ func (k *Kserve) configureServiceMesh(ctx context.Context, cli client.Client, ds
 }
 
 func (k *Kserve) removeServiceMeshConfigurations(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec) error {
-	serviceMeshInitializer := feature.ComponentFeaturesHandler(k.GetComponentName(), dscispec, k.defineServiceMeshFeatures(ctx, cli))
+	serviceMeshInitializer := feature.ComponentFeaturesHandler(k.GetComponentName(), dscispec.ApplicationsNamespace, k.defineServiceMeshFeatures(ctx, cli, dscispec))
 	return serviceMeshInitializer.Delete(ctx)
 }
 
-func (k *Kserve) defineServiceMeshFeatures(ctx context.Context, cli client.Client) feature.FeaturesProvider {
-	return func(handler *feature.FeaturesHandler) error {
+func (k *Kserve) defineServiceMeshFeatures(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec) feature.FeaturesProvider {
+	return func(registry feature.FeaturesRegistry) error {
 		authorinoInstalled, err := cluster.SubscriptionExists(ctx, cli, "authorino-operator")
 		if err != nil {
 			return fmt.Errorf("failed to list subscriptions %w", err)
 		}
 
 		if authorinoInstalled {
-			kserveExtAuthzErr := feature.CreateFeature("kserve-external-authz").
-				For(handler).
-				Managed().
+			kserveExtAuthzErr := registry.Add(feature.Define("kserve-external-authz").
 				ManifestsLocation(Resources.Location).
 				Manifests(
 					path.Join(Resources.ServiceMeshDir, "activator-envoyfilter.tmpl.yaml"),
@@ -51,8 +49,15 @@ func (k *Kserve) defineServiceMeshFeatures(ctx context.Context, cli client.Clien
 					path.Join(Resources.ServiceMeshDir, "kserve-predictor-authorizationpolicy.tmpl.yaml"),
 					path.Join(Resources.ServiceMeshDir, "z-migrations"),
 				).
-				WithData(servicemesh.ClusterDetails).
-				Load()
+				Managed().
+				WithData(
+					feature.Entry("Domain", cluster.GetDomain),
+					servicemesh.FeatureData.ControlPlane.Define(dscispec).AsAction(),
+				).
+				WithData(
+					servicemesh.FeatureData.Authorization.All(dscispec)...,
+				),
+			)
 
 			if kserveExtAuthzErr != nil {
 				return kserveExtAuthzErr
@@ -61,20 +66,13 @@ func (k *Kserve) defineServiceMeshFeatures(ctx context.Context, cli client.Clien
 			fmt.Println("WARN: Authorino operator is not installed on the cluster, skipping authorization capability")
 		}
 
-		temporaryFixesErr := feature.CreateFeature("kserve-temporary-fixes").
-			For(handler).
-			Managed().
+		return registry.Add(feature.Define("kserve-temporary-fixes").
 			ManifestsLocation(Resources.Location).
 			Manifests(
 				path.Join(Resources.ServiceMeshDir, "grpc-envoyfilter-temp-fix.tmpl.yaml"),
 			).
-			WithData(servicemesh.ClusterDetails).
-			Load()
-
-		if temporaryFixesErr != nil {
-			return temporaryFixesErr
-		}
-
-		return nil
+			Managed().
+			WithData(servicemesh.FeatureData.ControlPlane.Define(dscispec).AsAction()),
+		)
 	}
 }

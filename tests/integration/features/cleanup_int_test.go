@@ -29,34 +29,35 @@ var _ = Describe("feature cleanup", func() {
 		)
 
 		var (
-			dsci            *dsciv1.DSCInitialization
-			namespace       string
-			featuresHandler *feature.FeaturesHandler
+			dsci        *dsciv1.DSCInitialization
+			namespace   string
+			testFeature *feature.Feature
 		)
 
 		BeforeAll(func() {
 			namespace = envtestutil.AppendRandomNameTo("test-secret-ownership")
 			dsci = fixtures.NewDSCInitialization(namespace)
-			featuresHandler = feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-				secretCreationErr := feature.CreateFeature(featureName).
-					For(handler).
-					UsingConfig(envTest.Config).
-					PreConditions(
-						feature.CreateNamespaceIfNotExists(namespace),
-					).
-					WithResources(fixtures.CreateSecret(secretName, namespace)).
-					Load()
+			var errSecretCreation error
+			testFeature, errSecretCreation = feature.Define(featureName).
+				TargetNamespace(dsci.Spec.ApplicationsNamespace).
+				Source(featurev1.Source{
+					Type: featurev1.DSCIType,
+					Name: dsci.Name,
+				}).
+				UsingConfig(envTest.Config).
+				PreConditions(
+					feature.CreateNamespaceIfNotExists(namespace),
+				).
+				WithResources(fixtures.CreateSecret(secretName, namespace)).
+				Create()
 
-				Expect(secretCreationErr).ToNot(HaveOccurred())
-
-				return nil
-			})
+			Expect(errSecretCreation).ToNot(HaveOccurred())
 
 		})
 
 		It("should successfully create resource and associated feature tracker", func(ctx context.Context) {
 			// when
-			Expect(featuresHandler.Apply(ctx)).Should(Succeed())
+			Expect(testFeature.Apply(ctx)).Should(Succeed())
 
 			// then
 			Eventually(createdSecretHasOwnerReferenceToOwningFeature(namespace, featureName)).
@@ -68,7 +69,7 @@ var _ = Describe("feature cleanup", func() {
 
 		It("should remove feature tracker on clean-up", func(ctx context.Context) {
 			// when
-			Expect(featuresHandler.Delete(ctx)).To(Succeed())
+			Expect(testFeature.Cleanup(ctx)).To(Succeed())
 
 			// then
 			Consistently(createdSecretHasOwnerReferenceToOwningFeature(namespace, featureName)).
@@ -103,20 +104,15 @@ var _ = Describe("feature cleanup", func() {
 			err := fixtures.CreateOrUpdateNamespace(ctx, envTestClient, fixtures.NewNamespace("conditional-ns"))
 			Expect(err).To(Not(HaveOccurred()))
 
-			featuresHandler = feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-				conditionalCreationErr := feature.CreateFeature(featureName).
-					For(handler).
+			featuresHandler = feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+				return registry.Add(feature.Define(featureName).
 					UsingConfig(envTest.Config).
+					EnabledWhen(namespaceExists).
 					PreConditions(
 						feature.CreateNamespaceIfNotExists(namespace),
 					).
-					EnabledWhen(namespaceExists).
-					WithResources(fixtures.CreateSecret(secretName, namespace)).
-					Load()
-
-				Expect(conditionalCreationErr).ToNot(HaveOccurred())
-
-				return nil
+					WithResources(fixtures.CreateSecret(secretName, namespace)),
+				)
 			})
 
 			// when
@@ -136,20 +132,15 @@ var _ = Describe("feature cleanup", func() {
 			Expect(err).To(Not(HaveOccurred()))
 
 			// Mimic reconcile by re-loading the feature handler
-			featuresHandler = feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-				conditionalCreationErr := feature.CreateFeature(featureName).
-					For(handler).
+			featuresHandler = feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+				return registry.Add(feature.Define(featureName).
 					UsingConfig(envTest.Config).
+					EnabledWhen(namespaceExists).
 					PreConditions(
 						feature.CreateNamespaceIfNotExists(namespace),
 					).
-					EnabledWhen(namespaceExists).
-					WithResources(fixtures.CreateSecret(secretName, namespace)).
-					Load()
-
-				Expect(conditionalCreationErr).ToNot(HaveOccurred())
-
-				return nil
+					WithResources(fixtures.CreateSecret(secretName, namespace)),
+				)
 			})
 
 			Expect(featuresHandler.Apply(ctx)).Should(Succeed())
