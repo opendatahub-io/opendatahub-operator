@@ -5,7 +5,7 @@ metadata:
   namespace: {{ .TargetNamespace }}
   annotations:
     opendatahub.io/managed: "false"
-    test-annotation: "original-value"
+    test: "original-value"
 spec:
   ports:
     - name: http2
