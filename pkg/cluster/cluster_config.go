@@ -51,11 +51,11 @@ func IsNotReservedNamespace(ns *corev1.Namespace) bool {
 }
 
 // GetClusterServiceVersion retries CSV only from the defined namespace with 100 as chucksize.
-func GetClusterServiceVersion(ctx context.Context, c client.Client, listedNameSpace string) (*ofapiv1alpha1.ClusterServiceVersion, error) {
+func GetClusterServiceVersion(ctx context.Context, c client.Client, namespace string) (*ofapiv1alpha1.ClusterServiceVersion, error) {
 	clusterServiceVersionList := &ofapiv1alpha1.ClusterServiceVersionList{}
 	paginateListOption := &client.ListOptions{
 		Limit:     100,
-		Namespace: listedNameSpace,
+		Namespace: namespace,
 	}
 	for { // for the case we have very big size of CSV even just in one namespace
 		if err := c.List(ctx, clusterServiceVersionList, paginateListOption); err != nil {

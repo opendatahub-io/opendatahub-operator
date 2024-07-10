@@ -161,7 +161,7 @@ func ProcessAllNamespace(ctx context.Context, cli client.Client, processFunc fun
 		Limit: 500,
 	}
 
-	for { // for the case we have thousands of NS in the cluster
+	for { // loop over all paged results
 		if err := cli.List(ctx, namespaces, paginateListOption); err != nil {
 			return err
 		}
