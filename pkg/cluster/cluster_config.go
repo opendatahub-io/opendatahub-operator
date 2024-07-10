@@ -59,7 +59,7 @@ func GetClusterServiceVersion(ctx context.Context, c client.Client, listedNameSp
 	}
 	for { // for the case we have very big size of CSV even just in one namespace
 		if err := c.List(ctx, clusterServiceVersionList, paginateListOption); err != nil {
-			return nil, fmt.Errorf("failed listing cluster service versions: %w", err)
+			return nil, fmt.Errorf("failed listing cluster service versions for %s: %w", namespace, err)
 		}
 		for _, csv := range clusterServiceVersionList.Items {
 			for _, operatorCR := range csv.Spec.CustomResourceDefinitions.Owned {
