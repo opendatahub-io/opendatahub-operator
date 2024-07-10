@@ -22,7 +22,7 @@ module.exports = ({ github, core }) => {
                 let components = issueCommentBody.split("\n")
                 const releaseIdx = components.indexOf("#Release#")
                 components = components.splice(releaseIdx + 1, components.length)
-                const regex = /[A-Za-z-_0-9]+\|(https:\/\/github\.com\/.*tree.*){1}\|(https:\/\/github\.com\/.*releases.*){1}/;
+                const regex = /\s*[A-Za-z-_0-9]+\s*\|\s*(https:\/\/github\.com\/.*tree.*){1}\s*\|\s*(https:\/\/github\.com\/.*releases.*){1}\s*/;
                 components.forEach(component => {
                     if (regex.test(component)) {
                         const [componentName, branchUrl] = component.split("|")
@@ -33,7 +33,7 @@ module.exports = ({ github, core }) => {
                             core.exportVariable("component_spec_odh-notebook-controller".toLowerCase(), branchName);
                             core.exportVariable("component_spec_kf-notebook-controller".toLowerCase(), branchName);
                         } else {
-                            core.exportVariable("component_spec_" + componentName.toLowerCase(), branchName);
+                            core.exportVariable("component_spec_" + componentName.trim().toLowerCase(), branchName);
                         }
                     }
                 })
