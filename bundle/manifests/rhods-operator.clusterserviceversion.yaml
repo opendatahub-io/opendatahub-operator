@@ -962,24 +962,6 @@ spec:
           - patch
           - watch
         - apiGroups:
-          - kfdef.apps.kubeflow.org
-          resources:
-          - kfdefs
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - kubeflow.org
-          resources:
-          - '*'
-          verbs:
-          - '*'
-        - apiGroups:
           - machine.openshift.io
           resources:
           - machineautoscalers
@@ -1791,3 +1773,4 @@ spec:
   provider:
     name: Red Hat
   version: 2.12.0
+

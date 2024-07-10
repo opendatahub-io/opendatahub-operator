@@ -42,7 +42,6 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
@@ -115,7 +114,6 @@ var _ = BeforeSuite(func() {
 	utilruntime.Must(ofapiv2.AddToScheme(testScheme))
 	utilruntime.Must(routev1.Install(testScheme))
 	utilruntime.Must(userv1.Install(testScheme))
-	utilruntime.Must(kfdefv1.AddToScheme(testScheme))
 	utilruntime.Must(monitoringv1.AddToScheme(testScheme))
 	// +kubebuilder:scaffold:scheme
 
