@@ -117,7 +117,7 @@ func (k *Kserve) setDefaultDeploymentMode(ctx context.Context, cli client.Client
 	return nil
 }
 
-func (k *Kserve) configureServerless(ctx context.Context, instance *dsciv1.DSCInitializationSpec) error {
+func (k *Kserve) configureServerless(ctx context.Context, cli client.Client, instance *dsciv1.DSCInitializationSpec) error {
 	switch k.Serving.ManagementState {
 	case operatorv1.Unmanaged: // Bring your own CR
 		fmt.Println("Serverless CR is not configured by the operator, we won't do anything")
@@ -132,6 +132,12 @@ func (k *Kserve) configureServerless(ctx context.Context, instance *dsciv1.DSCIn
 		switch instance.ServiceMesh.ManagementState {
 		case operatorv1.Unmanaged, operatorv1.Removed:
 			return errors.New("ServiceMesh is need to set to 'Managed' in DSCI CR, it is required by KServe serving field")
+		}
+
+		// check on dependent operators if all installed in cluster
+		dependOpsErrors := checkDependentOperators(ctx, cli).ErrorOrNil()
+		if dependOpsErrors != nil {
+			return dependOpsErrors
 		}
 
 		serverlessFeatures := feature.ComponentFeaturesHandler(k.GetComponentName(), instance, k.configureServerlessFeatures())
@@ -149,10 +155,10 @@ func (k *Kserve) removeServerlessFeatures(ctx context.Context, instance *dsciv1.
 	return serverlessFeatures.Delete(ctx)
 }
 
-func checkDependentOperators(cli client.Client) *multierror.Error {
+func checkDependentOperators(ctx context.Context, cli client.Client) *multierror.Error {
 	var multiErr *multierror.Error
 
-	if found, err := cluster.OperatorExists(cli, ServiceMeshOperator); err != nil {
+	if found, err := cluster.OperatorExists(ctx, cli, ServiceMeshOperator); err != nil {
 		multiErr = multierror.Append(multiErr, err)
 	} else if !found {
 		err = fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
@@ -160,7 +166,7 @@ func checkDependentOperators(cli client.Client) *multierror.Error {
 		multiErr = multierror.Append(multiErr, err)
 	}
 
-	if found, err := cluster.OperatorExists(cli, ServerlessOperator); err != nil {
+	if found, err := cluster.OperatorExists(ctx, cli, ServerlessOperator); err != nil {
 		multiErr = multierror.Append(multiErr, err)
 	} else if !found {
 		err = fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
