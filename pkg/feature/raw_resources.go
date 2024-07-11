@@ -13,10 +13,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
-const (
-	yamlResourceSeparator = "(?m)^---[ \t]*$"
-)
-
 func applyResources(ctx context.Context, cli client.Client, objects []*unstructured.Unstructured, metaOptions ...cluster.MetaOptions) error {
 	for _, source := range objects {
 		target := source.DeepCopy()

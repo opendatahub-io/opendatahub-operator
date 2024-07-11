@@ -7,11 +7,11 @@ import (
 	"io"
 	"io/fs"
 	"path/filepath"
-	"regexp"
 	"strings"
 
-	"github.com/ghodss/yaml"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/conversion"
 )
 
 type Manifest interface {
@@ -43,7 +43,7 @@ func (b *rawManifest) Process(_ any) ([]*unstructured.Unstructured, error) {
 	}
 	resources := string(content)
 
-	unstructuredObjs, convertErr := convertToUnstructuredSlice(resources)
+	unstructuredObjs, convertErr := conversion.StrToUnstructured(resources)
 	if convertErr != nil {
 		return nil, fmt.Errorf("failed to convert resources defined in %s to unstructured objects: %w", b.path, convertErr)
 	}
@@ -92,7 +92,7 @@ func (t *templateManifest) Process(data any) ([]*unstructured.Unstructured, erro
 
 	resources := buffer.String()
 
-	unstructuredObjs, convertErr := convertToUnstructuredSlice(resources)
+	unstructuredObjs, convertErr := conversion.StrToUnstructured(resources)
 	if convertErr != nil {
 		return nil, fmt.Errorf("failed to convert resources defined in %s to unstructured objects: %w", t.path, convertErr)
 	}
@@ -162,22 +162,4 @@ func CreateTemplateManifestFrom(fsys fs.FS, path string) *templateManifest {
 
 func isTemplateManifest(path string) bool {
 	return strings.Contains(filepath.Base(path), ".tmpl.")
-}
-
-func convertToUnstructuredSlice(resources string) ([]*unstructured.Unstructured, error) {
-	splitter := regexp.MustCompile(yamlResourceSeparator)
-	objectStrings := splitter.Split(resources, -1)
-	objs := make([]*unstructured.Unstructured, 0, len(objectStrings))
-	for _, str := range objectStrings {
-		if strings.TrimSpace(str) == "" {
-			continue
-		}
-		u := &unstructured.Unstructured{}
-		if err := yaml.Unmarshal([]byte(str), u); err != nil {
-			return nil, err
-		}
-
-		objs = append(objs, u)
-	}
-	return objs, nil
 }
