@@ -15,6 +15,8 @@ linters-settings:
       - dot
     skip-generated: false
     custom-order: true
+  goconst:
+    ignore-strings: "true|false"
   errcheck:
     check-type-assertions: true
   exhaustive:
