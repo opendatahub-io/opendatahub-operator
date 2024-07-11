@@ -81,25 +81,69 @@ func (d *Dashboard) GetComponentName() string {
 	return ComponentName
 }
 
-func (d *Dashboard) ReconcileComponent(ctx context.Context, cli client.Client,
-	logger logr.Logger, owner metav1.Object,
-	dscispec *dsciv1.DSCInitializationSpec, currentComponentExist bool) error {
-	var l = d.ConfigComponentLogger(logger, ComponentName, dscispec)
+//nolint:gocyclo
+func (d *Dashboard) ReconcileComponent(ctx context.Context,
+	cli client.Client,
+	logger logr.Logger,
+	owner metav1.Object,
+	dscispec *dsciv1.DSCInitializationSpec,
+	currentComponentExist bool,
+) error {
+	var l logr.Logger
 	platform, err := cluster.GetPlatform(cli)
 	if err != nil {
 		return err
 	}
-
 	if platform == cluster.SelfManagedRhods || platform == cluster.ManagedRhods {
 		l = d.ConfigComponentLogger(logger, ComponentNameSupported, dscispec)
+	} else {
+		l = d.ConfigComponentLogger(logger, ComponentName, dscispec)
 	}
 
+	var imageParamMap = map[string]string{
+		"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
+	}
 	enabled := d.GetManagementState() == operatorv1.Managed
+	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 
 	// Update Default rolebinding
 	if enabled {
-		if err := d.updateDefaultRolebinding(ctx, cli, dscispec, currentComponentExist, l, platform, owner); err != nil {
+		// Update Default rolebinding
+		// cleanup OAuth client related secret and CR if dashboard is in 'installed false' status
+		if err := d.cleanOauthClient(ctx, cli, dscispec, currentComponentExist, l); err != nil {
 			return err
+		}
+		if d.DevFlags != nil {
+			// Download manifests and update paths
+			if err := d.OverrideManifests(string(platform)); err != nil {
+				return err
+			}
+		}
+		// 1. Deploy CRDs
+		if err := d.deployCRDsForPlatform(cli, owner, dscispec.ApplicationsNamespace, platform); err != nil {
+			return fmt.Errorf("failed to deploy Dashboard CRD: %w", err)
+		}
+
+		// 2. platform specific RBAC
+		if platform == cluster.OpenDataHub || platform == "" {
+			err := cluster.UpdatePodSecurityRolebinding(ctx, cli, dscispec.ApplicationsNamespace, "odh-dashboard")
+			if err != nil {
+				return err
+			}
+		}
+
+		if platform == cluster.SelfManagedRhods || platform == cluster.ManagedRhods {
+			err := cluster.UpdatePodSecurityRolebinding(ctx, cli, dscispec.ApplicationsNamespace, "rhods-dashboard")
+			if err != nil {
+				return err
+			}
+		}
+
+		// 3. Update image parameters
+		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (d.DevFlags == nil || len(d.DevFlags.Manifests) == 0) {
+			if err := deploy.ApplyParams(PathSupported, imageParamMap, false); err != nil {
+				return fmt.Errorf("failed to update image from %s : %w", PathSupported, err)
+			}
 		}
 	}
 
@@ -107,131 +151,63 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context, cli client.Client,
 	// TODO: check if we can have the same component name odh-dashboard for both, or still keep rhods-dashboard for RHOAI
 	switch platform {
 	case cluster.SelfManagedRhods, cluster.ManagedRhods:
-		return d.deployManifestForSlefManagedAndManagedRhodsPlatform(ctx, cli, dscispec, platform, owner, l, enabled)
+		// anaconda
+		if err := cluster.CreateSecret(ctx, cli, "anaconda-ce-access", dscispec.ApplicationsNamespace); err != nil {
+			return fmt.Errorf("failed to create access-secret for anaconda: %w", err)
+		}
+		// overlay which including ../../base + anaconda-ce-validator
+		if err := deploy.DeployManifestsFromPath(cli, owner, PathSupported, dscispec.ApplicationsNamespace, ComponentNameSupported, enabled); err != nil {
+			return fmt.Errorf("failed to apply manifests from %s: %w", PathSupported, err)
+		}
+
+		// Apply RHOAI specific configs, e.g anaconda screct and cronjob and ISV
+		if err := d.applyRHOAISpecificConfigs(cli, owner, dscispec.ApplicationsNamespace, platform); err != nil {
+			return err
+		}
+		// consolelink
+		if err := d.deployConsoleLink(ctx, cli, owner, platform, dscispec.ApplicationsNamespace, ComponentNameSupported); err != nil {
+			return err
+		}
+		l.Info("apply manifests done")
+
+		// CloudService Monitoring handling
+		if platform == cluster.ManagedRhods {
+			if enabled {
+				// first check if the service is up, so prometheus won't fire alerts when it is just startup
+				if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentNameSupported, dscispec.ApplicationsNamespace, 20, 3); err != nil {
+					return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
+				}
+				l.Info("deployment is done, updating monitoring rules")
+			}
+
+			if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentNameSupported); err != nil {
+				return err
+			}
+			if err = deploy.DeployManifestsFromPath(cli, owner,
+				filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
+				dscispec.Monitoring.Namespace,
+				"prometheus", true); err != nil {
+				return err
+			}
+			l.Info("updating SRE monitoring done")
+		}
+		return nil
 	default:
-		return d.deployManifest(ctx, cli, dscispec, platform, owner, l, enabled)
-	}
-}
-
-func (d *Dashboard) deployManifest(ctx context.Context, cli client.Client,
-	dscispec *dsciv1.DSCInitializationSpec, platform cluster.Platform, owner metav1.Object, l logr.Logger, enabled bool) error {
-	// base
-	if err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
-		return err
-	}
-	// ISV
-	if err := deploy.DeployManifestsFromPath(cli, owner, PathISV, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
-		return err
-	}
-	// consolelink
-	if err := d.deployConsoleLink(ctx, cli, owner, platform, dscispec.ApplicationsNamespace, ComponentName); err != nil {
-		return err
-	}
-	l.Info("apply manifests done")
-	return nil
-}
-
-func (d *Dashboard) deployManifestForSlefManagedAndManagedRhodsPlatform(ctx context.Context, cli client.Client,
-	dscispec *dsciv1.DSCInitializationSpec, platform cluster.Platform, owner metav1.Object, l logr.Logger, enabled bool) error {
-	// anaconda
-	if err := cluster.CreateSecret(ctx, cli, "anaconda-ce-access", dscispec.ApplicationsNamespace); err != nil {
-		return fmt.Errorf("failed to create access-secret for anaconda: %w", err)
-	}
-	// overlay which including ../../base + anaconda-ce-validator
-	if err := deploy.DeployManifestsFromPath(cli, owner, PathSupported, dscispec.ApplicationsNamespace, ComponentNameSupported, enabled); err != nil {
-		return fmt.Errorf("failed to apply manifests from %s: %w", PathSupported, err)
-	}
-
-	// Apply RHOAI specific configs, e.g anaconda screct and cronjob and ISV
-	if err := d.applyRHOAISpecificConfigs(cli, owner, dscispec.ApplicationsNamespace, platform); err != nil {
-		return err
-	}
-	// consolelink
-	if err := d.deployConsoleLink(ctx, cli, owner, platform, dscispec.ApplicationsNamespace, ComponentNameSupported); err != nil {
-		return err
-	}
-	l.Info("apply manifests done")
-
-	// CloudService Monitoring handling
-	if platform == cluster.ManagedRhods {
-		if err := d.deployMonitoringConfig(ctx, cli, dscispec, owner, l, enabled); err != nil {
+		// base
+		if err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 			return err
 		}
-	}
-	return nil
-}
-
-func (d *Dashboard) deployMonitoringConfig(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec, owner metav1.Object, l logr.Logger, enabled bool) error {
-	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
-	if enabled {
-		// first check if the service is up, so prometheus won't fire alerts when it is just startup
-		if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentNameSupported, dscispec.ApplicationsNamespace, 20, 3); err != nil {
-			return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
-		}
-		l.Info("deployment is done, updating monitoring rules")
-	}
-
-	if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentNameSupported); err != nil {
-		return err
-	}
-	if err := deploy.DeployManifestsFromPath(cli, owner,
-		filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
-		dscispec.Monitoring.Namespace,
-		"prometheus", true); err != nil {
-		return err
-	}
-	l.Info("updating SRE monitoring done")
-
-	return nil
-}
-
-func (d *Dashboard) updateDefaultRolebinding(ctx context.Context, cli client.Client,
-	dscispec *dsciv1.DSCInitializationSpec,
-	currentComponentExist bool, l logr.Logger, platform cluster.Platform,
-	owner metav1.Object) error {
-	var imageParamMap = map[string]string{
-		"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
-	}
-	// Update Default rolebinding
-	// cleanup OAuth client related secret and CR if dashboard is in 'installed false' status
-	if err := d.cleanOauthClient(ctx, cli, dscispec, currentComponentExist, l); err != nil {
-		return err
-	}
-	if d.DevFlags != nil {
-		// Download manifests and update paths
-		if err := d.OverrideManifests(string(platform)); err != nil {
+		// ISV
+		if err = deploy.DeployManifestsFromPath(cli, owner, PathISV, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 			return err
 		}
-	}
-
-	// 1. Deploy CRDs
-	if err := d.deployCRDsForPlatform(cli, owner, dscispec.ApplicationsNamespace, platform); err != nil {
-		return fmt.Errorf("failed to deploy Dashboard CRD: %w", err)
-	}
-
-	// 2. platform specific RBAC
-	if platform == cluster.OpenDataHub || platform == "" {
-		err := cluster.UpdatePodSecurityRolebinding(ctx, cli, dscispec.ApplicationsNamespace, "odh-dashboard")
-		if err != nil {
+		// consolelink
+		if err := d.deployConsoleLink(ctx, cli, owner, platform, dscispec.ApplicationsNamespace, ComponentName); err != nil {
 			return err
 		}
+		l.Info("apply manifests done")
+		return nil
 	}
-
-	if platform == cluster.SelfManagedRhods || platform == cluster.ManagedRhods {
-		err := cluster.UpdatePodSecurityRolebinding(ctx, cli, dscispec.ApplicationsNamespace, "rhods-dashboard")
-		if err != nil {
-			return err
-		}
-	}
-
-	// 3. Update image parameters
-	if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (d.DevFlags == nil || len(d.DevFlags.Manifests) == 0) {
-		if err := deploy.ApplyParams(PathSupported, imageParamMap, false); err != nil {
-			return fmt.Errorf("failed to update image from %s : %w", PathSupported, err)
-		}
-	}
-
-	return nil
 }
 
 func (d *Dashboard) deployCRDsForPlatform(cli client.Client, owner metav1.Object, namespace string, platform cluster.Platform) error {
