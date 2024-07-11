@@ -35,12 +35,12 @@ type ModelMeshServing struct {
 	components.Component `json:""`
 }
 
-func (m *ModelMeshServing) OverrideManifests(_ string) error {
+func (m *ModelMeshServing) OverrideManifests(ctx context.Context, _ cluster.Platform) error {
 	// Go through each manifest and set the overlays if defined
 	for _, subcomponent := range m.DevFlags.Manifests {
 		if strings.Contains(subcomponent.URI, DependentComponentName) {
 			// Download subcomponent
-			if err := deploy.DownloadManifests(DependentComponentName, subcomponent); err != nil {
+			if err := deploy.DownloadManifests(ctx, DependentComponentName, subcomponent); err != nil {
 				return err
 			}
 			// If overlay is defined, update paths
@@ -53,7 +53,7 @@ func (m *ModelMeshServing) OverrideManifests(_ string) error {
 
 		if strings.Contains(subcomponent.URI, ComponentName) {
 			// Download subcomponent
-			if err := deploy.DownloadManifests(ComponentName, subcomponent); err != nil {
+			if err := deploy.DownloadManifests(ctx, ComponentName, subcomponent); err != nil {
 				return err
 			}
 			// If overlay is defined, update paths
@@ -76,6 +76,7 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 	logger logr.Logger,
 	owner metav1.Object,
 	dscispec *dsciv1.DSCInitializationSpec,
+	platform cluster.Platform,
 	_ bool,
 ) error {
 	l := m.ConfigComponentLogger(logger, ComponentName, dscispec)
@@ -94,16 +95,12 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 
 	enabled := m.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
-	platform, err := cluster.GetPlatform(cli)
-	if err != nil {
-		return err
-	}
 
 	// Update Default rolebinding
 	if enabled {
 		if m.DevFlags != nil {
 			// Download manifests and update paths
-			if err = m.OverrideManifests(string(platform)); err != nil {
+			if err := m.OverrideManifests(ctx, platform); err != nil {
 				return err
 			}
 		}
@@ -123,7 +120,7 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 		}
 	}
 
-	if err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+	if err := deploy.DeployManifestsFromPath(ctx, cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 		return fmt.Errorf("failed to apply manifests from %s : %w", Path, err)
 	}
 	l.WithValues("Path", Path).Info("apply manifests done for modelmesh")
@@ -140,7 +137,7 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 			}
 		}
 	}
-	if err := deploy.DeployManifestsFromPath(cli, owner, DependentPath, dscispec.ApplicationsNamespace, m.GetComponentName(), enabled); err != nil {
+	if err := deploy.DeployManifestsFromPath(ctx, cli, owner, DependentPath, dscispec.ApplicationsNamespace, m.GetComponentName(), enabled); err != nil {
 		// explicitly ignore error if error contains keywords "spec.selector" and "field is immutable" and return all other error.
 		if !strings.Contains(err.Error(), "spec.selector") || !strings.Contains(err.Error(), "field is immutable") {
 			return err
@@ -170,7 +167,7 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 		if err := m.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, DependentComponentName); err != nil {
 			return err
 		}
-		if err = deploy.DeployManifestsFromPath(cli, owner,
+		if err := deploy.DeployManifestsFromPath(ctx, cli, owner,
 			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
 			dscispec.Monitoring.Namespace,
 			"prometheus", true); err != nil {

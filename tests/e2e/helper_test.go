@@ -20,8 +20,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
@@ -45,7 +45,7 @@ const (
 
 func (tc *testContext) waitForControllerDeployment(name string, replicas int32) error {
 	err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
-		controllerDeployment, err := tc.kubeClient.AppsV1().Deployments(tc.operatorNamespace).Get(tc.ctx, name, metav1.GetOptions{})
+		controllerDeployment, err := tc.kubeClient.AppsV1().Deployments(tc.operatorNamespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return false, nil
@@ -71,22 +71,27 @@ func (tc *testContext) waitForControllerDeployment(name string, replicas int32) 
 	return err
 }
 
-func setupDSCICR(name string) *dsci.DSCInitialization {
-	dsciTest := &dsci.DSCInitialization{
+func setupDSCICR(name string) *dsciv1.DSCInitialization {
+	dsciTest := &dsciv1.DSCInitialization{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
-		Spec: dsci.DSCInitializationSpec{
+		Spec: dsciv1.DSCInitializationSpec{
 			ApplicationsNamespace: "opendatahub",
-			Monitoring: dsci.Monitoring{
+			Monitoring: dsciv1.Monitoring{
 				ManagementState: "Managed",
 				Namespace:       "opendatahub",
 			},
-			TrustedCABundle: dsci.TrustedCABundleSpec{
+			TrustedCABundle: &dsciv1.TrustedCABundleSpec{
 				ManagementState: "Managed",
 				CustomCABundle:  "",
 			},
-			ServiceMesh: infrav1.ServiceMeshSpec{
+			ServiceMesh: &infrav1.ServiceMeshSpec{
+				ControlPlane: infrav1.ControlPlaneSpec{
+					MetricsCollection: "Istio",
+					Name:              "data-science-smcp",
+					Namespace:         "istio-system",
+				},
 				ManagementState: "Managed",
 			},
 		},
@@ -94,13 +99,13 @@ func setupDSCICR(name string) *dsci.DSCInitialization {
 	return dsciTest
 }
 
-func setupDSCInstance(name string) *dsc.DataScienceCluster {
-	dscTest := &dsc.DataScienceCluster{
+func setupDSCInstance(name string) *dscv1.DataScienceCluster {
+	dscTest := &dscv1.DataScienceCluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
-		Spec: dsc.DataScienceClusterSpec{
-			Components: dsc.Components{
+		Spec: dscv1.DataScienceClusterSpec{
+			Components: dscv1.Components{
 				// keep dashboard as enabled, because other test is rely on this
 				Dashboard: dashboard.Dashboard{
 					Component: components.Component{
@@ -127,7 +132,7 @@ func setupDSCInstance(name string) *dsc.DataScienceCluster {
 						ManagementState: operatorv1.Managed,
 					},
 					Serving: infrav1.ServingSpec{
-						ManagementState: operatorv1.Unmanaged,
+						ManagementState: operatorv1.Managed,
 					},
 				},
 				CodeFlare: codeflare.CodeFlare{
@@ -189,7 +194,7 @@ func (tc *testContext) validateCRD(crdName string) error {
 		Name: crdName,
 	}
 	err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
-		err := tc.customClient.Get(context.TODO(), obj, crd)
+		err := tc.customClient.Get(ctx, obj, crd)
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return false, nil
@@ -218,7 +223,7 @@ func (tc *testContext) wait(isReady func(ctx context.Context) (bool, error)) err
 	return wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, true, isReady)
 }
 
-func getCSV(cli client.Client, name string, namespace string) (*ofapi.ClusterServiceVersion, error) {
+func getCSV(ctx context.Context, cli client.Client, name string, namespace string) (*ofapi.ClusterServiceVersion, error) {
 	isMatched := func(csv *ofapi.ClusterServiceVersion, name string) bool {
 		return strings.Contains(csv.ObjectMeta.Name, name)
 	}
@@ -227,7 +232,7 @@ func getCSV(cli client.Client, name string, namespace string) (*ofapi.ClusterSer
 		Namespace: namespace,
 	}
 	csvList := &ofapi.ClusterServiceVersionList{}
-	err := cli.List(context.TODO(), csvList, opt)
+	err := cli.List(ctx, csvList, opt)
 	if err != nil {
 		return nil, err
 	}
@@ -278,7 +283,7 @@ func waitCSV(tc *testContext, name string, ns string) error {
 	timeout := tc.resourceCreationTimeout * 3 // just empirical value
 
 	isReady := func(ctx context.Context) (bool, error) {
-		csv, err := getCSV(tc.customClient, name, ns)
+		csv, err := getCSV(ctx, tc.customClient, name, ns)
 		if errors.IsNotFound(err) {
 			return false, nil
 		}

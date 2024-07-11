@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
@@ -21,8 +22,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlruntime "sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 )
 
@@ -47,16 +48,17 @@ type testContext struct {
 	// time required to create a resource
 	resourceCreationTimeout time.Duration
 	// test DataScienceCluster instance
-	testDsc *dsc.DataScienceCluster
+	testDsc *dscv1.DataScienceCluster
 	// test DSCI CR because we do not create it in ODH by default
-	testDSCI *dsci.DSCInitialization
+	testDSCI *dsciv1.DSCInitialization
 	// time interval to check for resource creation
 	resourceRetryInterval time.Duration
 	// context for accessing resources
+	//nolint:containedctx //reason: legacy v1 test setup
 	ctx context.Context
 }
 
-func NewTestContext() (*testContext, error) { //nolint:golint,revive // Only used in tests
+func NewTestContext() (*testContext, error) {
 	// GetConfig(): If KUBECONFIG env variable is set, it is used to create
 	// the client, else the inClusterConfig() is used.
 	// Lastly if none of them are set, it uses  $HOME/.kube/config to create the client.
@@ -101,11 +103,12 @@ func TestOdhOperator(t *testing.T) {
 	utilruntime.Must(routev1.AddToScheme(scheme))
 	utilruntime.Must(apiextv1.AddToScheme(scheme))
 	utilruntime.Must(autoscalingv1.AddToScheme(scheme))
-	utilruntime.Must(dsci.AddToScheme(scheme))
-	utilruntime.Must(dsc.AddToScheme(scheme))
+	utilruntime.Must(dsciv1.AddToScheme(scheme))
+	utilruntime.Must(dscv1.AddToScheme(scheme))
 	utilruntime.Must(featurev1.AddToScheme(scheme))
 	utilruntime.Must(monitoringv1.AddToScheme(scheme))
 	utilruntime.Must(ofapi.AddToScheme(scheme))
+	utilruntime.Must(operatorv1.AddToScheme(scheme))
 
 	// individual test suites after the operator is running
 	if !t.Run("validate operator pod is running", testODHOperatorValidation) {

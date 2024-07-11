@@ -1,6 +1,8 @@
 package feature
 
 import (
+	"context"
+	"fmt"
 	"io/fs"
 
 	"github.com/hashicorp/go-multierror"
@@ -11,73 +13,75 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
-	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 )
 
 type partialBuilder func(f *Feature) error
 
 type featureBuilder struct {
-	name            string
-	config          *rest.Config
-	builders        []partialBuilder
-	featuresHandler *FeaturesHandler
-	fsys            fs.FS
-	targetNS        string
-	managed         bool
+	featureName string
+	source      featurev1.Source
+	targetNs    string
+	config      *rest.Config
+	managed     bool
+	fsys        fs.FS
+	builders    []partialBuilder
 }
 
-// CreateFeature creates a new feature builder with the given name.
-func CreateFeature(name string) *usingFeaturesHandler { //nolint:golint,revive //No need to export featureBuilder.
-	return &usingFeaturesHandler{
-		name: name,
+// Define creates a new feature builder with the given name.
+func Define(featureName string) *featureBuilder {
+	fb := &featureBuilder{
+		featureName: featureName,
+		source: featurev1.Source{
+			Type: featurev1.UnknownType,
+			Name: featureName,
+		},
 	}
-}
 
-type usingFeaturesHandler struct {
-	name string
-}
-
-// For sets the associated FeaturesHandler for the feature which will serve as entry point managing all the related features.
-func (u *usingFeaturesHandler) For(featuresHandler *FeaturesHandler) *featureBuilder {
-	createSpec := func(f *Feature) error {
-		f.Spec = &Spec{
-			ServiceMeshSpec:  &featuresHandler.DSCInitializationSpec.ServiceMesh,
-			Serving:          &infrav1.ServingSpec{},
-			Source:           &featuresHandler.source,
-			AppNamespace:     featuresHandler.DSCInitializationSpec.ApplicationsNamespace,
-			AuthProviderName: "authorino",
+	initializeContext := func(f *Feature) error {
+		if len(fb.targetNs) == 0 {
+			return fmt.Errorf("target namespace for '%s' feature is not defined", fb.featureName)
 		}
 
-		return nil
+		f.TargetNamespace = fb.targetNs
+
+		return f.Set("TargetNamespace", fb.targetNs)
 	}
 
-	fb := &featureBuilder{
-		name:            u.name,
-		featuresHandler: featuresHandler,
-		targetNS:        featuresHandler.DSCInitializationSpec.ApplicationsNamespace,
-	}
+	// Ensures creation of shared data is always invoked first
+	fb.builders = append([]partialBuilder{initializeContext}, fb.builders...)
 
-	// Ensures creation of .Spec object is always invoked first
-	fb.builders = append([]partialBuilder{createSpec}, fb.builders...)
+	return fb
+}
+
+// TargetNamespace sets the namespace in which the feature should be applied.
+func (fb *featureBuilder) TargetNamespace(targetNs string) *featureBuilder {
+	fb.targetNs = targetNs
+
+	return fb
+}
+
+func (fb *featureBuilder) Source(source featurev1.Source) *featureBuilder {
+	fb.source = source
 
 	return fb
 }
 
 // Used to enforce that Manifests() is called after ManifestsLocation() in the chain.
-type featureBuilderWithManifestSource struct {
+type requiresManifestSourceBuilder struct {
 	*featureBuilder
 }
 
 // ManifestsLocation sets the root file system (fsys) from which manifest paths are loaded.
-func (fb *featureBuilder) ManifestsLocation(fsys fs.FS) *featureBuilderWithManifestSource {
+func (fb *featureBuilder) ManifestsLocation(fsys fs.FS) *requiresManifestSourceBuilder {
 	fb.fsys = fsys
-	return &featureBuilderWithManifestSource{featureBuilder: fb}
+	return &requiresManifestSourceBuilder{featureBuilder: fb}
 }
 
 // Manifests loads manifests from the provided paths.
-func (fb *featureBuilderWithManifestSource) Manifests(paths ...string) *featureBuilderWithManifestSource {
+func (fb *requiresManifestSourceBuilder) Manifests(paths ...string) *featureBuilder {
 	fb.builders = append(fb.builders, func(f *Feature) error {
 		var err error
 		var manifests []Manifest
@@ -94,34 +98,48 @@ func (fb *featureBuilderWithManifestSource) Manifests(paths ...string) *featureB
 		return nil
 	})
 
-	return fb
+	return fb.featureBuilder
 }
 
-// TargetNamespace sets the namespace in which the feature should be applied.
-// If not set, the feature will be applied in the application namespace (where this operator lives).
-func (fb *featureBuilder) TargetNamespace(targetNs string) *featureBuilder {
-	fb.targetNS = targetNs
-
-	return fb
-}
-
-// Managed marks the feature as managed by the operator.  This effectively marks all resources which are part of this feature
-// as those that should be updated on operator reconcile.
+// Managed marks the feature as managed by the operator.
+//
+// This effectively makes all resources which are part of this feature as reconciled to the desired state
+// defined by provided manifests.
+//
+// NOTE: Although the actual instance of the resource in the cluster might have this configuration altered,
+// we intentionally do not read the management configuration from there due to the lack of clear requirements.
+// This means that management state is defined by the Feature resources provided by the operator
+// and not by the actual state of the resource.
 func (fb *featureBuilder) Managed() *featureBuilder {
 	fb.managed = true
 
 	return fb
 }
 
-// WithData adds data loaders to the feature. This way you can define what data should be loaded before the feature is applied.
+// WithData adds data providers to the feature (implemented as Actions).
+// This way you can define what data should be loaded before the feature is applied.
 // This can be later used in templates and when creating resources programmatically.
-func (fb *featureBuilder) WithData(loader ...Action) *featureBuilder {
+func (fb *featureBuilder) WithData(dataProviders ...Action) *featureBuilder {
 	fb.builders = append(fb.builders, func(f *Feature) error {
-		f.loaders = append(f.loaders, loader...)
+		f.dataProviders = append(f.dataProviders, dataProviders...)
 
 		return nil
 	})
 
+	return fb
+}
+
+// EnabledWhen determines if a Feature should be loaded and applied based on specified criteria.
+// The criteria are supplied as a function.
+//
+// Note: The function passed should consistently return true while the feature is needed.
+// If the function returns false at any point, the feature's contents might be removed during the reconciliation process.
+func (fb *featureBuilder) EnabledWhen(enabled EnabledFunc) *featureBuilder {
+	fb.builders = append(fb.builders, func(f *Feature) error {
+		f.Enabled = enabled
+
+		return nil
+	})
 	return fb
 }
 
@@ -175,36 +193,39 @@ func (fb *featureBuilder) OnDelete(cleanups ...Action) *featureBuilder {
 	return fb
 }
 
-// Load creates a new Feature instance and add it to corresponding FeaturesHandler.
+// Create creates a new Feature instance and add it to corresponding FeaturesHandler.
 // The actual feature creation in the cluster is not performed here.
-func (fb *featureBuilder) Load() error {
-	feature := newFeature(fb.name)
+func (fb *featureBuilder) Create() (*Feature, error) {
+	f := &Feature{
+		Name:    fb.featureName,
+		Managed: fb.managed,
+		Enabled: func(_ context.Context, feature *Feature) (bool, error) {
+			return true, nil
+		},
+		Log:    log.Log.WithName("features").WithValues("feature", fb.featureName),
+		fsys:   fb.fsys,
+		source: &fb.source,
+	}
 
 	// UsingConfig builder wasn't called while constructing this feature.
 	// Get default settings and create needed clients.
 	if fb.config == nil {
 		if err := fb.withDefaultClient(); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	if err := createClient(fb.config)(feature); err != nil {
-		return err
+	if err := createClient(fb.config)(f); err != nil {
+		return nil, err
 	}
 
 	for i := range fb.builders {
-		if err := fb.builders[i](feature); err != nil {
-			return err
+		if err := fb.builders[i](f); err != nil {
+			return nil, err
 		}
 	}
 
-	feature.Spec.TargetNamespace = fb.targetNS
-	feature.fsys = fb.fsys
-	feature.Managed = fb.managed
-
-	fb.featuresHandler.features = append(fb.featuresHandler.features, feature)
-
-	return nil
+	return f, nil
 }
 
 // UsingConfig allows to pass a custom rest.Config to the feature. Useful for testing.

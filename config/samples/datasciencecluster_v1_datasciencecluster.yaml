@@ -21,7 +21,7 @@ spec:
       serving: {
         ingressGateway: {
           certificate: {
-            type: SelfSigned
+            type: OpenshiftDefaultIngress
           }
         },
         name: "knative-serving",

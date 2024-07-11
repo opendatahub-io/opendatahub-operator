@@ -187,8 +187,8 @@ spec:
                           This can be set to 'Serverless' or 'RawDeployment'. The
                           value specified in this field will be used to set the default
                           deployment mode in the 'inferenceservice-config' configmap
-                          for Kserve If no default deployment mode is specified, Kserve
-                          will use Serverless mode
+                          for Kserve. This field is optional. If no default deployment
+                          mode is specified, Kserve will use Serverless mode.
                         enum:
                         - Serverless
                         - RawDeployment
@@ -255,17 +255,20 @@ spec:
                                       for the KNative network.
                                     type: string
                                   type:
-                                    default: SelfSigned
+                                    default: OpenshiftDefaultIngress
                                     description: 'Type specifies if the TLS certificate
                                       should be generated automatically, or if the
                                       certificate is provided by the user. Allowed
                                       values are: * SelfSigned: A certificate is going
                                       to be generated using an own private key. *
                                       Provided: Pre-existence of the TLS Secret (see
-                                      SecretName) with a valid certificate is assumed.'
+                                      SecretName) with a valid certificate is assumed.
+                                      * OpenshiftDefaultIngress: Default ingress certificate
+                                      configured for OpenShift'
                                     enum:
                                     - SelfSigned
                                     - Provided
+                                    - OpenshiftDefaultIngress
                                     type: string
                                 type: object
                               domain:

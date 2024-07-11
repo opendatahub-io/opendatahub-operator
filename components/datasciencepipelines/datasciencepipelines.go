@@ -10,13 +10,16 @@ import (
 
 	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
+	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -38,11 +41,11 @@ type DataSciencePipelines struct {
 	components.Component `json:""`
 }
 
-func (d *DataSciencePipelines) OverrideManifests(_ string) error {
+func (d *DataSciencePipelines) OverrideManifests(ctx context.Context, _ cluster.Platform) error {
 	// If devflags are set, update default manifests path
 	if len(d.DevFlags.Manifests) != 0 {
 		manifestConfig := d.DevFlags.Manifests[0]
-		if err := deploy.DownloadManifests(ComponentName, manifestConfig); err != nil {
+		if err := deploy.DownloadManifests(ctx, ComponentName, manifestConfig); err != nil {
 			return err
 		}
 		// If overlay is defined, update paths
@@ -65,6 +68,7 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 	logger logr.Logger,
 	owner metav1.Object,
 	dscispec *dsciv1.DSCInitializationSpec,
+	platform cluster.Platform,
 	_ bool,
 ) error {
 	l := d.ConfigComponentLogger(logger, ComponentName, dscispec)
@@ -90,14 +94,10 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 	enabled := d.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 
-	platform, err := cluster.GetPlatform(cli)
-	if err != nil {
-		return err
-	}
 	if enabled {
 		if d.DevFlags != nil {
 			// Download manifests and update paths
-			if err = d.OverrideManifests(string(platform)); err != nil {
+			if err := d.OverrideManifests(ctx, platform); err != nil {
 				return err
 			}
 		}
@@ -119,7 +119,7 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 	if platform == cluster.OpenDataHub || platform == "" {
 		manifestsPath = filepath.Join(OverlayPath, "odh")
 	}
-	if err = deploy.DeployManifestsFromPath(cli, owner, manifestsPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+	if err := deploy.DeployManifestsFromPath(ctx, cli, owner, manifestsPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 		return err
 	}
 	l.Info("apply manifests done")
@@ -142,7 +142,7 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 		if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
 		}
-		if err = deploy.DeployManifestsFromPath(cli, owner,
+		if err := deploy.DeployManifestsFromPath(ctx, cli, owner,
 			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
 			dscispec.Monitoring.Namespace,
 			"prometheus", true); err != nil {
@@ -158,7 +158,7 @@ func UnmanagedArgoWorkFlowExists(ctx context.Context,
 	cli client.Client) error {
 	workflowCRD := &apiextensionsv1.CustomResourceDefinition{}
 	if err := cli.Get(ctx, client.ObjectKey{Name: ArgoWorkflowCRD}, workflowCRD); err != nil {
-		if apierrs.IsNotFound(err) {
+		if k8serr.IsNotFound(err) {
 			return nil
 		}
 		return fmt.Errorf("failed to get existing Workflow CRD : %w", err)
@@ -170,4 +170,9 @@ func UnmanagedArgoWorkFlowExists(ctx context.Context,
 	}
 	return fmt.Errorf("%s CRD already exists but not deployed by this operator. "+
 		"Remove existing Argo workflows or set `spec.components.datasciencepipelines.managementState` to Removed to proceed ", ArgoWorkflowCRD)
+}
+
+func SetExistingArgoCondition(conditions *[]conditionsv1.Condition, reason, message string) {
+	status.SetCondition(conditions, string(status.CapabilityDSPv2Argo), reason, message, corev1.ConditionFalse)
+	status.SetComponentCondition(conditions, ComponentName, status.ReconcileFailed, message, corev1.ConditionFalse)
 }

@@ -32,7 +32,7 @@ import (
 	"strings"
 
 	"golang.org/x/exp/maps"
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -46,6 +46,7 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins"
 )
@@ -57,10 +58,10 @@ const (
 // DownloadManifests function performs following tasks:
 // 1. It takes component URI and only downloads folder specified by component.ContextDir field
 // 2. It saves the manifests in the odh-manifests/component-name/ folder.
-func DownloadManifests(componentName string, manifestConfig components.ManifestsConfig) error {
+func DownloadManifests(ctx context.Context, componentName string, manifestConfig components.ManifestsConfig) error {
 	// Get the component repo from the given url
 	// e.g.  https://github.com/example/tarball/master
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, manifestConfig.URI, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, manifestConfig.URI, nil)
 	if err != nil {
 		return err
 	}
@@ -145,7 +146,15 @@ func DownloadManifests(componentName string, manifestConfig components.Manifests
 	return err
 }
 
-func DeployManifestsFromPath(cli client.Client, owner metav1.Object, manifestPath string, namespace string, componentName string, componentEnabled bool) error { //nolint:golint,revive,lll
+func DeployManifestsFromPath(
+	ctx context.Context,
+	cli client.Client,
+	owner metav1.Object,
+	manifestPath string,
+	namespace string,
+	componentName string,
+	componentEnabled bool,
+) error {
 	// Render the Kustomize manifests
 	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
 	fs := filesys.MakeFsOnDisk()
@@ -165,14 +174,14 @@ func DeployManifestsFromPath(cli client.Client, owner metav1.Object, manifestPat
 		return err
 	}
 
-	// Apply NamespaceTransformer Plugin
-	if err := plugins.ApplyNamespacePlugin(namespace, resMap); err != nil {
-		return err
+	nsPlugin := plugins.CreateNamespaceApplierPlugin(namespace)
+	if err := nsPlugin.Transform(resMap); err != nil {
+		return fmt.Errorf("failed applying namespace plugin when preparing Kustomize resources. %w", err)
 	}
 
-	// Apply LabelTransformer Plugin
-	if err := plugins.ApplyAddLabelsPlugin(componentName, resMap); err != nil {
-		return err
+	labelsPlugin := plugins.CreateAddLabelsPlugin(componentName)
+	if err := labelsPlugin.Transform(resMap); err != nil {
+		return fmt.Errorf("failed applying labels plugin when preparing Kustomize resources. %w", err)
 	}
 
 	objs, err := GetResources(resMap)
@@ -181,7 +190,7 @@ func DeployManifestsFromPath(cli client.Client, owner metav1.Object, manifestPat
 	}
 	// Create / apply / delete resources in the cluster
 	for _, obj := range objs {
-		err = manageResource(context.TODO(), cli, obj, owner, namespace, componentName, componentEnabled)
+		err = manageResource(ctx, cli, obj, owner, namespace, componentName, componentEnabled)
 		if err != nil {
 			return err
 		}
@@ -215,12 +224,17 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 	// err == nil means found
 	if err == nil {
 		if enabled {
+			// Exception to not update kserve with managed annotation
+			// do not reconcile kserve resource with annotation "opendatahub.io/managed: false"
+			if found.GetAnnotations()[annotations.ManagedByODHOperator] == "false" && componentName == "kserve" {
+				return nil
+			}
 			return updateResource(ctx, cli, obj, found, owner, componentName)
 		}
 		return handleDisabledComponent(ctx, cli, found, componentName)
 	}
 
-	if apierrs.IsNotFound(err) {
+	if k8serr.IsNotFound(err) {
 		// Create resource if it doesn't exist and enabled
 		if enabled {
 			return createResource(ctx, cli, obj, owner)
@@ -232,92 +246,102 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 }
 
 /*
-User env variable passed from CSV (if it is set) to overwrite values from manifests' params.env file
+overwrite values in components' manifests params.env file
 This is useful for air gapped cluster
 priority of image values (from high to low):
 - image values set in manifests params.env if manifestsURI is set
-- RELATED_IMAGE_* values from CSV
+- RELATED_IMAGE_* values from CSV (if it is set)
 - image values set in manifests params.env if manifestsURI is not set.
-parameter isUpdateNamespace is used to set if should update namespace  with dsci applicationnamespace.
+parameter isUpdateNamespace is used to set if should update namespace  with DSCI CR's applicationnamespace.
+extraParamsMaps is used to set extra parameters which are not carried from ENV variable. this can be passed per component.
 */
-func ApplyParams(componentPath string, imageParamsMap map[string]string, isUpdateNamespace bool) error {
-	envFilePath := filepath.Join(componentPath, "params.env")
+func ApplyParams(componentPath string, imageParamsMap map[string]string, isUpdateNamespace bool, extraParamsMaps ...map[string]string) error {
+	paramsFile := filepath.Join(componentPath, "params.env")
 	// Require params.env at the root folder
-	file, err := os.Open(envFilePath)
+	paramsEnv, err := os.Open(paramsFile)
 	if err != nil {
 		if os.IsNotExist(err) {
 			// params.env doesn't exist, do not apply any changes
 			return nil
 		}
-
 		return err
 	}
-	backupPath := envFilePath + ".bak"
-	defer file.Close()
 
-	envMap := make(map[string]string)
-	scanner := bufio.NewScanner(file)
+	defer paramsEnv.Close()
+
+	paramsEnvMap := make(map[string]string)
+	scanner := bufio.NewScanner(paramsEnv)
 	for scanner.Scan() {
 		line := scanner.Text()
 		parts := strings.SplitN(line, "=", 2)
 		if len(parts) == 2 {
-			envMap[parts[0]] = parts[1]
+			paramsEnvMap[parts[0]] = parts[1]
 		}
 	}
-
 	if err := scanner.Err(); err != nil {
 		return err
 	}
 
-	// Update images with env variables
+	// 1. Update images with env variables
 	// e.g "odh-kuberay-operator-controller-image": "RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE",
-	for i := range envMap {
+	for i := range paramsEnvMap {
 		relatedImageValue := os.Getenv(imageParamsMap[i])
 		if relatedImageValue != "" {
-			envMap[i] = relatedImageValue
+			paramsEnvMap[i] = relatedImageValue
 		}
 	}
 
-	// Update namespace variable with applicationNamepsace
+	// 2. Update namespace variable with applicationNamepsace
 	if isUpdateNamespace {
-		envMap["namespace"] = imageParamsMap["namespace"]
+		paramsEnvMap["namespace"] = imageParamsMap["namespace"]
+	}
+
+	// 3. Update other fileds with extraParamsMap which are not carried from component
+	for _, extraParamsMap := range extraParamsMaps {
+		for eKey, eValue := range extraParamsMap {
+			paramsEnvMap[eKey] = eValue
+		}
 	}
 
 	// Move the existing file to a backup file and create empty file
-	if err := os.Rename(envFilePath, backupPath); err != nil {
+	paramsBackupFile := paramsFile + ".bak"
+	if err := os.Rename(paramsFile, paramsBackupFile); err != nil {
 		return err
 	}
 
-	file, err = os.Create(envFilePath)
+	file, err := os.Create(paramsFile)
 	if err != nil {
 		// If create fails, try to restore the backup file
-		_ = os.Rename(backupPath, envFilePath)
-
+		_ = os.Rename(paramsBackupFile, paramsFile)
 		return err
 	}
 	defer file.Close()
 
-	// Now, write the map back to the file
+	// Now, write the new map back to params.env
 	writer := bufio.NewWriter(file)
-	for key, value := range envMap {
+	for key, value := range paramsEnvMap {
 		if _, fErr := fmt.Fprintf(writer, "%s=%s\n", key, value); fErr != nil {
 			return fErr
 		}
 	}
 	if err := writer.Flush(); err != nil {
-		if removeErr := os.Remove(envFilePath); removeErr != nil {
-			return removeErr
+		if removeErr := os.Remove(paramsFile); removeErr != nil {
+			fmt.Printf("Failed to remove file: %v", removeErr)
 		}
-		if renameErr := os.Rename(backupPath, envFilePath); renameErr != nil {
-			return renameErr
+		if renameErr := os.Rename(paramsBackupFile, paramsFile); renameErr != nil {
+			fmt.Printf("Failed to restore file from backup: %v", renameErr)
 		}
+		fmt.Printf("Failed to write to file: %v", err)
 		return err
 	}
 
-	// cleanup backup file
-	err = os.Remove(backupPath)
+	// cleanup backup file params.env.bak
+	if err := os.Remove(paramsBackupFile); err != nil {
+		fmt.Printf("Failed to remove backup file: %v", err)
+		return err
+	}
 
-	return err
+	return nil
 }
 
 // removeResourcesFromDeployment checks if the provided resource is a Deployment,
@@ -365,7 +389,7 @@ func getResource(ctx context.Context, cli client.Client, obj *unstructured.Unstr
 	err := cli.Get(ctx, types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, found)
 	if errors.Is(err, &meta.NoKindMatchError{}) {
 		// convert the error to NotFound to handle both the same way in the caller
-		return nil, apierrs.NewNotFound(schema.GroupResource{Group: obj.GroupVersionKind().Group}, obj.GetName())
+		return nil, k8serr.NewNotFound(schema.GroupResource{Group: obj.GroupVersionKind().Group}, obj.GetName())
 	}
 	if err != nil {
 		return nil, err

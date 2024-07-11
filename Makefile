@@ -3,7 +3,7 @@
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
-VERSION ?= 2.13.0
+VERSION ?= 2.14.0
 # IMAGE_TAG_BASE defines the opendatahub.io namespace and part of the image name for remote images.
 # This variable is used to construct full image tags for bundle and catalog images.
 #
@@ -67,7 +67,7 @@ YQ ?= $(LOCALBIN)/yq
 KUSTOMIZE_VERSION ?= v3.8.7
 CONTROLLER_GEN_VERSION ?= v0.9.2
 OPERATOR_SDK_VERSION ?= v1.31.0
-GOLANGCI_LINT_VERSION ?= v1.54.0
+GOLANGCI_LINT_VERSION ?= v1.59.1
 YQ_VERSION ?= v4.12.2
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.24.2
@@ -335,15 +335,14 @@ catalog-build: opm ## Build a catalog image.
 catalog-push: ## Push a catalog image.
 	$(MAKE) image-push IMG=$(CATALOG_IMG)
 
-TOOLBOX_GOLANG_VERSION := 1.20
-TOOLBOX_OPERATOR_SDK_VERSION := 1.24.1
+TOOLBOX_GOLANG_VERSION := 1.21
 
 # Generate a Toolbox container for locally testing changes easily
 .PHONY: toolbox
 toolbox: ## Create a toolbox instance with the proper Golang and Operator SDK versions
 	$(IMAGE_BUILDER) build \
 		--build-arg GOLANG_VERSION=$(TOOLBOX_GOLANG_VERSION) \
-		--build-arg OPERATOR_SDK_VERSION=$(TOOLBOX_OPERATOR_SDK_VERSION) \
+		--build-arg OPERATOR_SDK_VERSION=$(OPERATOR_SDK_VERSION) \
 		-f Dockerfiles/toolbox.Dockerfile -t opendatahub-toolbox .
 	$(IMAGE_BUILDER) stop opendatahub-toolbox ||:
 	toolbox rm opendatahub-toolbox ||:

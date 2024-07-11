@@ -1,9 +1,8 @@
-//nolint:structcheck,ireturn // Reason: false positive, complains about unused fields - see Update method. ireturn to statisfy client.Object interface
 package status
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -32,8 +31,8 @@ func NewStatusReporter[T client.Object](cli client.Client, object T, determine D
 }
 
 // ReportCondition updates the status of the object using the determineCondition function.
-func (r *Reporter[T]) ReportCondition(optionalErr error) (T, error) {
-	return UpdateWithRetry[T](context.Background(), r.client, r.object, r.determineCondition(optionalErr))
+func (r *Reporter[T]) ReportCondition(ctx context.Context, optionalErr error) (T, error) {
+	return UpdateWithRetry[T](ctx, r.client, r.object, r.determineCondition(optionalErr))
 }
 
 // SaveStatusFunc is a function that allow to define custom logic of updating status of a concrete resource object.
@@ -43,7 +42,7 @@ type SaveStatusFunc[T client.Object] func(saved T)
 func UpdateWithRetry[T client.Object](ctx context.Context, cli client.Client, original T, update SaveStatusFunc[T]) (T, error) {
 	saved, ok := original.DeepCopyObject().(T)
 	if !ok {
-		return *new(T), fmt.Errorf("failed to deep copy object")
+		return *new(T), errors.New("failed to deep copy object")
 	}
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		if err := cli.Get(ctx, client.ObjectKeyFromObject(original), saved); err != nil {

@@ -7,10 +7,10 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	corev1 "k8s.io/api/core/v1"
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
@@ -21,15 +21,11 @@ const (
 	DeleteConfigMapLabel = "api.openshift.com/addon-managed-odh-delete"
 )
 
-// OperatorUninstall deletes all the externally generated resources. This includes monitoring resources and applications
-// installed by KfDef.
+// OperatorUninstall deletes all the externally generated resources.
+// This includes DSCI, namespace created by operator (but not workbench or MR's), subscription and CSV.
 func OperatorUninstall(ctx context.Context, cli client.Client) error {
-	platform, err := cluster.GetPlatform(cli)
+	platform, err := cluster.GetPlatform(ctx, cli)
 	if err != nil {
-		return err
-	}
-
-	if err := RemoveKfDefInstances(ctx, cli); err != nil {
 		return err
 	}
 
@@ -80,7 +76,7 @@ func OperatorUninstall(ctx context.Context, cli client.Client) error {
 		subsName = "rhods-operator"
 	}
 	if platform != cluster.ManagedRhods {
-		if err := cluster.DeleteExistingSubscription(cli, operatorNs, subsName); err != nil {
+		if err := cluster.DeleteExistingSubscription(ctx, cli, operatorNs, subsName); err != nil {
 			return err
 		}
 	}
@@ -93,7 +89,7 @@ func OperatorUninstall(ctx context.Context, cli client.Client) error {
 }
 
 func removeDSCInitialization(ctx context.Context, cli client.Client) error {
-	instanceList := &dsci.DSCInitializationList{}
+	instanceList := &dsciv1.DSCInitializationList{}
 
 	if err := cli.List(ctx, instanceList); err != nil {
 		return err
@@ -102,7 +98,7 @@ func removeDSCInitialization(ctx context.Context, cli client.Client) error {
 	var multiErr *multierror.Error
 	for _, dsciInstance := range instanceList.Items {
 		dsciInstance := dsciInstance
-		if err := cli.Delete(ctx, &dsciInstance); !apierrs.IsNotFound(err) {
+		if err := cli.Delete(ctx, &dsciInstance); !k8serr.IsNotFound(err) {
 			multiErr = multierror.Append(multiErr, err)
 		}
 	}
@@ -141,7 +137,7 @@ func removeCSV(ctx context.Context, c client.Client) error {
 	}
 
 	operatorCsv, err := cluster.GetClusterServiceVersion(ctx, c, operatorNamespace)
-	if apierrs.IsNotFound(err) {
+	if k8serr.IsNotFound(err) {
 		fmt.Printf("No clusterserviceversion for the operator found.\n")
 		return nil
 	}
@@ -153,7 +149,7 @@ func removeCSV(ctx context.Context, c client.Client) error {
 	fmt.Printf("Deleting CSV %s\n", operatorCsv.Name)
 	err = c.Delete(ctx, operatorCsv)
 	if err != nil {
-		if apierrs.IsNotFound(err) {
+		if k8serr.IsNotFound(err) {
 			return nil
 		}
 

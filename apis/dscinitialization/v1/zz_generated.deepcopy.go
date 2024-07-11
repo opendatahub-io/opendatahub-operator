@@ -22,6 +22,7 @@ limitations under the License.
 package v1
 
 import (
+	infrastructurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -90,8 +91,16 @@ func (in *DSCInitializationList) DeepCopyObject() runtime.Object {
 func (in *DSCInitializationSpec) DeepCopyInto(out *DSCInitializationSpec) {
 	*out = *in
 	out.Monitoring = in.Monitoring
-	in.ServiceMesh.DeepCopyInto(&out.ServiceMesh)
-	out.TrustedCABundle = in.TrustedCABundle
+	if in.ServiceMesh != nil {
+		in, out := &in.ServiceMesh, &out.ServiceMesh
+		*out = new(infrastructurev1.ServiceMeshSpec)
+		(*in).DeepCopyInto(*out)
+	}
+	if in.TrustedCABundle != nil {
+		in, out := &in.TrustedCABundle, &out.TrustedCABundle
+		*out = new(TrustedCABundleSpec)
+		**out = **in
+	}
 	if in.DevFlags != nil {
 		in, out := &in.DevFlags, &out.DevFlags
 		*out = new(DevFlags)

@@ -77,7 +77,7 @@ and installed from source manually, see the Developer guide for further instruct
 
 #### Pre-requisites
 
-- Go version **go1.20**
+- Go version **go1.21**
 - operator-sdk version can be updated to **v1.31.1**
 
 #### Download manifests
@@ -319,7 +319,7 @@ spec:
       serving:
         ingressGateway:
           certificate:
-            type: SelfSigned
+            type: OpenshiftDefaultIngress
         managementState: Managed
         name: knative-serving
     kueue:

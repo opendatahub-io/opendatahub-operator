@@ -2,6 +2,7 @@ package servicemesh
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -13,9 +14,12 @@ import (
 
 // MeshRefs stores service mesh configuration in the config map, so it can
 // be easily accessed by other components which rely on this information.
-func MeshRefs(f *feature.Feature) error {
-	meshConfig := f.Spec.ControlPlane
-	namespace := f.Spec.AppNamespace
+func MeshRefs(ctx context.Context, f *feature.Feature) error {
+	meshConfig, err := FeatureData.ControlPlane.Extract(f)
+	if err != nil {
+		return fmt.Errorf("failed to get control plane struct: %w", err)
+	}
+	namespace := f.TargetNamespace
 
 	data := map[string]string{
 		"CONTROL_PLANE_NAME": meshConfig.Name,
@@ -23,7 +27,7 @@ func MeshRefs(f *feature.Feature) error {
 	}
 
 	return cluster.CreateOrUpdateConfigMap(
-		context.TODO(),
+		ctx,
 		f.Client,
 		&corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
@@ -38,31 +42,42 @@ func MeshRefs(f *feature.Feature) error {
 
 // AuthRefs stores authorization configuration in the config map, so it can
 // be easily accessed by other components which rely on this information.
-func AuthRefs(f *feature.Feature) error {
-	audiences := f.Spec.Auth.Audiences
-	appNamespace := f.Spec.AppNamespace
-	authNamespace := f.Spec.Auth.Namespace
-	if len(authNamespace) == 0 {
-		authNamespace = appNamespace + "-auth-provider"
+func AuthRefs(ctx context.Context, f *feature.Feature) error {
+	targetNamespace := f.TargetNamespace
+	auth, err := FeatureData.Authorization.Spec.Extract(f)
+	if err != nil {
+		return fmt.Errorf("could not get auth from feature: %w", err)
 	}
+
+	authNamespace, errAuthNs := FeatureData.Authorization.Namespace.Extract(f)
+	if errAuthNs != nil {
+		return fmt.Errorf("could not get auth provider namespace from feature: %w", err)
+	}
+
+	authProviderName, errAuthProvider := FeatureData.Authorization.Provider.Extract(f)
+	if errAuthProvider != nil {
+		return fmt.Errorf("could not get auth provider name from feature: %w", err)
+	}
+
+	audiences := auth.Audiences
 	audiencesList := ""
 	if audiences != nil && len(*audiences) > 0 {
 		audiencesList = strings.Join(*audiences, ",")
 	}
 	data := map[string]string{
 		"AUTH_AUDIENCE":   audiencesList,
-		"AUTH_PROVIDER":   appNamespace + "-auth-provider",
+		"AUTH_PROVIDER":   authProviderName,
 		"AUTH_NAMESPACE":  authNamespace,
 		"AUTHORINO_LABEL": "security.opendatahub.io/authorization-group=default",
 	}
 
 	return cluster.CreateOrUpdateConfigMap(
-		context.TODO(),
+		ctx,
 		f.Client,
 		&corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "auth-refs",
-				Namespace: appNamespace,
+				Namespace: targetNamespace,
 			},
 			Data: data,
 		},

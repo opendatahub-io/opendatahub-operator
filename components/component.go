@@ -15,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	ctrlogger "github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 )
 
@@ -43,7 +44,7 @@ func (c *Component) GetManagementState() operatorv1.ManagementState {
 	return c.ManagementState
 }
 
-func (c *Component) Cleanup(_ client.Client, _ *dsciv1.DSCInitializationSpec) error {
+func (c *Component) Cleanup(_ context.Context, _ client.Client, _ *dsciv1.DSCInitializationSpec) error {
 	// noop
 	return nil
 }
@@ -79,11 +80,11 @@ type ManifestsConfig struct {
 
 type ComponentInterface interface {
 	ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
-		owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec, currentComponentStatus bool) error
-	Cleanup(cli client.Client, DSCISpec *dsciv1.DSCInitializationSpec) error
+		owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec, platform cluster.Platform, currentComponentStatus bool) error
+	Cleanup(ctx context.Context, cli client.Client, DSCISpec *dsciv1.DSCInitializationSpec) error
 	GetComponentName() string
 	GetManagementState() operatorv1.ManagementState
-	OverrideManifests(platform string) error
+	OverrideManifests(ctx context.Context, platform cluster.Platform) error
 	UpdatePrometheusConfig(cli client.Client, enable bool, component string) error
 	ConfigComponentLogger(logger logr.Logger, component string, dscispec *dsciv1.DSCInitializationSpec) logr.Logger
 }

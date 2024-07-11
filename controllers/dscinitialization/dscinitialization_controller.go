@@ -27,8 +27,8 @@ import (
 	routev1 "github.com/openshift/api/route/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	netv1 "k8s.io/api/networking/v1"
-	authv1 "k8s.io/api/rbac/v1"
+	networkingv1 "k8s.io/api/networking/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -60,7 +60,7 @@ const (
 var managementStateChangeTrustedCA = false
 
 // DSCInitializationReconciler reconciles a DSCInitialization object.
-type DSCInitializationReconciler struct { //nolint:golint,revive // Readability
+type DSCInitializationReconciler struct {
 	client.Client
 	Scheme                *runtime.Scheme
 	Log                   logr.Logger
@@ -73,13 +73,12 @@ type DSCInitializationReconciler struct { //nolint:golint,revive // Readability
 // +kubebuilder:rbac:groups="dscinitialization.opendatahub.io",resources=dscinitializations,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="features.opendatahub.io",resources=featuretrackers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="features.opendatahub.io",resources=featuretrackers/status,verbs=get;update;patch;delete
-// +kubebuilder:rbac:groups="kfdef.apps.kubeflow.org",resources=kfdefs,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile contains controller logic specific to DSCInitialization instance updates.
 func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:funlen,gocyclo,maintidx
 	r.Log.Info("Reconciling DSCInitialization.", "DSCInitialization Request.Name", req.Name)
 
-	currentOperatorReleaseVersion, err := cluster.GetRelease(r.Client)
+	currentOperatorReleaseVersion, err := cluster.GetRelease(ctx, r.Client)
 	if err != nil {
 		r.Log.Error(err, "failed to get operator release version")
 		return ctrl.Result{}, err
@@ -111,7 +110,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 	} else {
 		r.Log.Info("Finalization DSCInitialization start deleting instance", "name", instance.Name, "finalizer", finalizerName)
-		if err := r.removeServiceMesh(instance); err != nil {
+		if err := r.removeServiceMesh(ctx, instance); err != nil {
 			return reconcile.Result{}, err
 		}
 		if controllerutil.ContainsFinalizer(instance, finalizerName) {
@@ -156,7 +155,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	managementStateChangeTrustedCA = false
 
 	// Get platform
-	platform, err := cluster.GetPlatform(r.Client)
+	platform, err := cluster.GetPlatform(ctx, r.Client)
 	if err != nil {
 		r.Log.Error(err, "Failed to determine platform (managed vs self-managed)")
 
@@ -229,14 +228,14 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			}
 			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
 				r.Log.Info("Monitoring enabled, won't apply changes", "cluster", "Self-Managed RHODS Mode")
-				err = r.configureCommonMonitoring(instance)
+				err = r.configureCommonMonitoring(ctx, instance)
 				if err != nil {
 					return reconcile.Result{}, err
 				}
 			}
 		case cluster.ManagedRhods:
 			osdConfigsPath := filepath.Join(deploy.DefaultManifestPath, "osd-configs")
-			err = deploy.DeployManifestsFromPath(r.Client, instance, osdConfigsPath, r.ApplicationsNamespace, "osd", true)
+			err = deploy.DeployManifestsFromPath(ctx, r.Client, instance, osdConfigsPath, r.ApplicationsNamespace, "osd", true)
 			if err != nil {
 				r.Log.Error(err, "Failed to apply osd specific configs from manifests", "Manifests path", osdConfigsPath)
 				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to apply "+osdConfigsPath)
@@ -249,7 +248,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 				if err != nil {
 					return reconcile.Result{}, err
 				}
-				err = r.configureCommonMonitoring(instance)
+				err = r.configureCommonMonitoring(ctx, instance)
 				if err != nil {
 					return reconcile.Result{}, err
 				}
@@ -265,7 +264,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 
 		// Apply Service Mesh configurations
-		if errServiceMesh := r.configureServiceMesh(instance); errServiceMesh != nil {
+		if errServiceMesh := r.configureServiceMesh(ctx, instance); errServiceMesh != nil {
 			return reconcile.Result{}, errServiceMesh
 		}
 
@@ -285,7 +284,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *DSCInitializationReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		// add predicates prevents meaningless reconciliations from being triggered
 		// not use WithEventFilter() because it conflict with secret and configmap predicate
@@ -294,16 +293,16 @@ func (r *DSCInitializationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.Namespace{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&corev1.Secret{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&corev1.ConfigMap{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
-		Owns(&netv1.NetworkPolicy{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
-		Owns(&authv1.Role{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
-		Owns(&authv1.RoleBinding{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
-		Owns(&authv1.ClusterRole{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
-		Owns(&authv1.ClusterRoleBinding{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&networkingv1.NetworkPolicy{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&rbacv1.Role{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&rbacv1.RoleBinding{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&rbacv1.ClusterRole{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&rbacv1.ClusterRoleBinding{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&appsv1.Deployment{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&corev1.ServiceAccount{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&corev1.Service{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&routev1.Route{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
-		Watches(&source.Kind{Type: &dscv1.DataScienceCluster{}}, handler.EnqueueRequestsFromMapFunc(r.watchDSCResource), builder.WithPredicates(DSCDeletionPredicate)).
+		Watches(&source.Kind{Type: &dscv1.DataScienceCluster{}}, handler.EnqueueRequestsFromMapFunc(r.watchDSCResource(ctx)), builder.WithPredicates(DSCDeletionPredicate)).
 		Watches(&source.Kind{Type: &corev1.Secret{}}, handler.EnqueueRequestsFromMapFunc(r.watchMonitoringSecretResource), builder.WithPredicates(SecretContentChangedPredicate)).
 		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchMonitoringConfigMapResource), builder.WithPredicates(CMContentChangedPredicate)).
 		Complete(r)
@@ -369,16 +368,18 @@ func (r *DSCInitializationReconciler) watchMonitoringSecretResource(a client.Obj
 	return nil
 }
 
-func (r *DSCInitializationReconciler) watchDSCResource(_ client.Object) []reconcile.Request {
-	instanceList := &dscv1.DataScienceClusterList{}
-	if err := r.Client.List(context.TODO(), instanceList); err != nil {
-		// do not handle if cannot get list
+func (r *DSCInitializationReconciler) watchDSCResource(ctx context.Context) func(client.Object) []reconcile.Request {
+	return func(_ client.Object) []reconcile.Request {
+		instanceList := &dscv1.DataScienceClusterList{}
+		if err := r.Client.List(ctx, instanceList); err != nil {
+			// do not handle if cannot get list
+			return nil
+		}
+		if len(instanceList.Items) == 0 && !upgrade.HasDeleteConfigMap(ctx, r.Client) {
+			r.Log.Info("Found no DSC instance in cluster but not in uninstalltion process, reset monitoring stack config")
+
+			return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "backup"}}}
+		}
 		return nil
 	}
-	if len(instanceList.Items) == 0 && !upgrade.HasDeleteConfigMap(context.TODO(), r.Client) {
-		r.Log.Info("Found no DSC instance in cluster but not in uninstalltion process, reset monitoring stack config")
-
-		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "backup"}}}
-	}
-	return nil
 }

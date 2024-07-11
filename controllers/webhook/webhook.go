@@ -28,11 +28,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
 var log = ctrl.Log.WithName("odh-controller-webhook")
 
-//+kubebuilder:webhook:path=/validate-opendatahub-io-v1,mutating=false,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io;dscinitialization.opendatahub.io,resources=datascienceclusters;dscinitializations,verbs=create;update,versions=v1,name=operator.opendatahub.io,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/validate-opendatahub-io-v1,mutating=false,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io;dscinitialization.opendatahub.io,resources=datascienceclusters;dscinitializations,verbs=create;update;delete,versions=v1,name=operator.opendatahub.io,admissionReviewVersions=v1
 //nolint:lll
 
 type OpenDataHubWebhook struct {
@@ -58,14 +60,33 @@ func (w *OpenDataHubWebhook) InjectClient(c client.Client) error {
 	return nil
 }
 
-func (w *OpenDataHubWebhook) checkDupCreation(ctx context.Context, req admission.Request) admission.Response {
-	if req.Operation != admissionv1.Create {
-		return admission.Allowed(fmt.Sprintf("duplication check: skipping %v request", req.Operation))
+func countObjects(ctx context.Context, cli client.Client, gvk schema.GroupVersionKind) (int, error) {
+	list := &unstructured.UnstructuredList{}
+	list.SetGroupVersionKind(gvk)
+
+	if err := cli.List(ctx, list); err != nil {
+		return 0, err
 	}
 
+	return len(list.Items), nil
+}
+
+func denyCountGtZero(ctx context.Context, cli client.Client, gvk schema.GroupVersionKind, msg string) admission.Response {
+	count, err := countObjects(ctx, cli, gvk)
+	if err != nil {
+		return admission.Errored(http.StatusBadRequest, err)
+	}
+
+	if count > 0 {
+		return admission.Denied(msg)
+	}
+
+	return admission.Allowed("")
+}
+
+func (w *OpenDataHubWebhook) checkDupCreation(ctx context.Context, req admission.Request) admission.Response {
 	switch req.Kind.Kind {
-	case "DataScienceCluster":
-	case "DSCInitialization":
+	case "DataScienceCluster", "DSCInitialization":
 	default:
 		log.Info("Got wrong kind", "kind", req.Kind.Kind)
 		return admission.Errored(http.StatusBadRequest, nil)
@@ -77,35 +98,38 @@ func (w *OpenDataHubWebhook) checkDupCreation(ctx context.Context, req admission
 		Kind:    req.Kind.Kind,
 	}
 
-	list := &unstructured.UnstructuredList{}
-	list.SetGroupVersionKind(gvk)
+	// if count == 1 now creation of #2 is being handled
+	return denyCountGtZero(ctx, w.client, gvk,
+		fmt.Sprintf("Only one instance of %s object is allowed", req.Kind.Kind))
+}
 
-	if err := w.client.List(ctx, list); err != nil {
-		return admission.Errored(http.StatusBadRequest, err)
+func (w *OpenDataHubWebhook) checkDeletion(ctx context.Context, req admission.Request) admission.Response {
+	if req.Kind.Kind == "DataScienceCluster" {
+		return admission.Allowed("")
 	}
 
-	// if len == 1 now creation of #2 is being handled
-	if len(list.Items) > 0 {
-		return admission.Denied(fmt.Sprintf("Only one instance of %s object is allowed", req.Kind.Kind))
-	}
-
-	return admission.Allowed(fmt.Sprintf("%s duplication check passed", req.Kind.Kind))
+	// Restrict deletion of DSCI if DSC exists
+	return denyCountGtZero(ctx, w.client, gvk.DataScienceCluster,
+		fmt.Sprintln("Cannot delete DSCI object when DSC object still exists"))
 }
 
 func (w *OpenDataHubWebhook) Handle(ctx context.Context, req admission.Request) admission.Response {
 	var resp admission.Response
 
-	// Handle only Create and Update
-	if req.Operation == admissionv1.Delete || req.Operation == admissionv1.Connect {
-		msg := fmt.Sprintf("ODH skipping %v request", req.Operation)
+	switch req.Operation {
+	case admissionv1.Create:
+		resp = w.checkDupCreation(ctx, req)
+	case admissionv1.Delete:
+		resp = w.checkDeletion(ctx, req)
+	default:
+		msg := fmt.Sprintf("No logic check by webhook is applied on %v request", req.Operation)
 		log.Info(msg)
-		return admission.Allowed(msg)
+		resp = admission.Allowed("")
 	}
 
-	resp = w.checkDupCreation(ctx, req)
 	if !resp.Allowed {
 		return resp
 	}
 
-	return admission.Allowed(fmt.Sprintf("%s allowed", req.Kind.Kind))
+	return admission.Allowed(fmt.Sprintf("Operation %s on %s allowed", req.Operation, req.Kind.Kind))
 }
