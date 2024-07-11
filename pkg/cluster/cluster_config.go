@@ -50,7 +50,7 @@ func IsNotReservedNamespace(ns *corev1.Namespace) bool {
 		ns.GetName() != "default" && ns.GetName() != "openshift"
 }
 
-// GetClusterServiceVersion retries CSV only from the defined namespace with 100 as chucksize.
+// GetClusterServiceVersion retries CSV only from the defined namespace.
 func GetClusterServiceVersion(ctx context.Context, c client.Client, namespace string) (*ofapiv1alpha1.ClusterServiceVersion, error) {
 	clusterServiceVersionList := &ofapiv1alpha1.ClusterServiceVersionList{}
 	paginateListOption := &client.ListOptions{

@@ -167,10 +167,10 @@ func ConfigureTrustedCABundle(ctx context.Context, cli client.Client, log logr.L
 	return nil
 }
 
-// when DSCI TrustedCABundle.ManagementState is set to `Managed`, add new configmap into all active namespaces.
+// AddCABundleCMInAllNamespaces create or update trustCABundle configmap in namespaces.
 func AddCABundleCMInAllNamespaces(ctx context.Context, cli client.Client, log logr.Logger, dscInit *dsciv1.DSCInitialization) error {
 	var multiErr *multierror.Error
-	processErr := cluster.ProcessAllNamespace(ctx, cli, func(ns *corev1.Namespace) error {
+	processErr := cluster.ExecuteOnAllNamespaces(ctx, cli, func(ns *corev1.Namespace) error {
 		if ShouldInjectTrustedBundle(ns) { // only work on namespace that meet requirements and status active
 			pollErr := wait.PollUntilContextTimeout(ctx, time.Second*1, time.Second*10, false, func(ctx context.Context) (bool, error) {
 				if cmErr := CreateOdhTrustedCABundleConfigMap(ctx, cli, ns.Name, dscInit.Spec.TrustedCABundle.CustomCABundle); cmErr != nil {
@@ -190,15 +190,15 @@ func AddCABundleCMInAllNamespaces(ctx context.Context, cli client.Client, log lo
 	return multiErr.ErrorOrNil()
 }
 
-// when DSCI TrustedCABundle.ManagementState is set to `Removed`, delete configmap from all active namespaces.
+// RemoveCABundleCMInAllNamespaces delete trustCABundle configmap from namespaces.
 func RemoveCABundleCMInAllNamespaces(ctx context.Context, cli client.Client) error {
 	var multiErr *multierror.Error
-	processErr := cluster.ProcessAllNamespace(ctx, cli, func(ns *corev1.Namespace) error {
+	processErr := cluster.ExecuteOnAllNamespaces(ctx, cli, func(ns *corev1.Namespace) error {
 		if !ShouldInjectTrustedBundle(ns) { // skip deletion if namespace does not match critieria
 			return nil
 		}
 		multiErr = multierror.Append(multiErr, DeleteOdhTrustedCABundleConfigMap(ctx, cli, ns.Name))
 		return nil // Always return nil to continue processing
 	})
-	return multiErr.Append(multiErr, processErr).ErrorOrNil()
+	return multierror.Append(multiErr, processErr).ErrorOrNil()
 }

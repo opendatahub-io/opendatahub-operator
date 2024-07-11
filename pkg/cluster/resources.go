@@ -154,8 +154,8 @@ func CreateNamespace(ctx context.Context, cli client.Client, namespace string, m
 	return desiredNamespace, client.IgnoreAlreadyExists(createErr)
 }
 
-// ProcessAllNamespace execute func() on all active namespaces in the cluster with 500 as chunksize.
-func ProcessAllNamespace(ctx context.Context, cli client.Client, processFunc func(*corev1.Namespace) error) error {
+// ExecuteOnAllNamespaces execute func() on all active namespaces in the cluster by chunksize.
+func ExecuteOnAllNamespaces(ctx context.Context, cli client.Client, processFunc func(*corev1.Namespace) error) error {
 	namespaces := &corev1.NamespaceList{}
 	paginateListOption := &client.ListOptions{
 		Limit: 500,
