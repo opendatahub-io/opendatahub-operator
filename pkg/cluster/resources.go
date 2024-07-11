@@ -154,7 +154,7 @@ func CreateNamespace(ctx context.Context, cli client.Client, namespace string, m
 	return desiredNamespace, client.IgnoreAlreadyExists(createErr)
 }
 
-// ExecuteOnAllNamespaces execute func() on all active namespaces in the cluster by chunksize.
+// ExecuteOnAllNamespaces executes the passed function for all namespaces in the cluster retrieved in batches.
 func ExecuteOnAllNamespaces(ctx context.Context, cli client.Client, processFunc func(*corev1.Namespace) error) error {
 	namespaces := &corev1.NamespaceList{}
 	paginateListOption := &client.ListOptions{
