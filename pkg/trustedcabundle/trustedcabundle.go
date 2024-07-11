@@ -200,8 +200,5 @@ func RemoveCABundleCMInAllNamespaces(ctx context.Context, cli client.Client) err
 		multiErr = multierror.Append(multiErr, DeleteOdhTrustedCABundleConfigMap(ctx, cli, ns.Name))
 		return nil // Always return nil to continue processing
 	})
-	if processErr != nil {
-		return processErr
-	}
-	return multiErr.ErrorOrNil()
+	return multiErr.Append(multiErr, processErr).ErrorOrNil()
 }
