@@ -17,3 +17,8 @@ type Applier interface {
 type Creator interface {
 	Create() ([]Applier, error)
 }
+
+// Enricher is an interface that allows to add additional configuration to the resource.
+type Enricher interface {
+	Enrich(c Creator)
+}

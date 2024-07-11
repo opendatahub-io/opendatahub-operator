@@ -7,10 +7,13 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/kustomize/api/resmap"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/kustomize"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins"
 )
 
 type featuresHandler interface {
@@ -40,10 +43,16 @@ var _ FeaturesRegistry = (*FeaturesHandler)(nil)
 func (fh *FeaturesHandler) Add(builders ...*featureBuilder) error {
 	var multiErr *multierror.Error
 
+	globalPlugins := []resmap.Transformer{plugins.CreateNamespaceApplierPlugin(fh.targetNamespace)}
+	if fh.source.Type == featurev1.ComponentType {
+		globalPlugins = append(globalPlugins, plugins.CreateAddLabelsPlugin(fh.source.Name))
+	}
+
 	for i := range builders {
 		fb := builders[i]
 		feature, err := fb.TargetNamespace(fh.targetNamespace).
 			Source(fh.source).
+			EnrichResources(&kustomize.PluginsEnricher{Plugins: globalPlugins}).
 			Create()
 		multiErr = multierror.Append(multiErr, err)
 		fh.features = append(fh.features, feature)

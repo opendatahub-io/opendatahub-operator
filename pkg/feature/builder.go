@@ -28,7 +28,8 @@ type featureBuilder struct {
 
 	config *rest.Config
 
-	builders []partialBuilder
+	builders  []partialBuilder
+	enrichers []resource.Enricher
 }
 
 // Define creates a new feature builder with the given name.
@@ -80,6 +81,10 @@ func (fb *featureBuilder) TargetNamespace(targetNs string) *featureBuilder {
 func (fb *featureBuilder) Manifests(creators ...resource.Creator) *featureBuilder {
 	for _, creator := range creators {
 		fb.builders = append(fb.builders, func(f *Feature) error {
+			for _, enricher := range fb.enrichers {
+				enricher.Enrich(creator)
+			}
+
 			appliers, errCreate := creator.Create()
 			if errCreate != nil {
 				return errCreate
@@ -90,6 +95,16 @@ func (fb *featureBuilder) Manifests(creators ...resource.Creator) *featureBuilde
 			return nil
 		})
 	}
+
+	return fb
+}
+
+// EnrichResources allow to add enrichers which can enhance resource builders with additional setup, such
+// as defaulting certain properties or adding shared fixtures which very builder needs. Though these can be set using
+// each builder specifically, providing an enricher ensures it will be uniformly applied to each relevant builder and reduce
+// code duplication.
+func (fb *featureBuilder) EnrichResources(enrichers ...resource.Enricher) *featureBuilder {
+	fb.enrichers = append(fb.enrichers, enrichers...)
 
 	return fb
 }

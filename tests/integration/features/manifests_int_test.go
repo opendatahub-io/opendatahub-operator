@@ -6,12 +6,15 @@ import (
 	"path"
 
 	corev1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/kustomize/api/resmap"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/manifest"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/provider"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/integration/features/fixtures"
 
@@ -134,4 +137,87 @@ metadata:
 		Expect(err).ToNot(HaveOccurred())
 		Expect(realNs.Name).To(Equal("real-file-test-ns"))
 	})
+
+	It("should process kustomization manifests and apply namespace using plugin defined through builder", func(ctx context.Context) {
+		// given
+		targetNamespace := dsci.Spec.ApplicationsNamespace
+
+		cfgMapFeature, errFeatureCreate := feature.Define("create-cfg-map").
+			UsingConfig(envTest.Config).
+			TargetNamespace(targetNamespace).
+			Manifests(
+				kustomize.Location(kustomizeTestFixture()).
+					WithPlugins(plugins.CreateNamespaceApplierPlugin(targetNamespace)),
+			).
+			Create()
+
+		Expect(errFeatureCreate).ToNot(HaveOccurred())
+
+		// when
+		Expect(cfgMapFeature.Apply(ctx)).To(Succeed())
+
+		// then
+		cfgMap, err := fixtures.GetConfigMap(envTestClient, targetNamespace, "my-configmap")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cfgMap.Name).To(Equal("my-configmap"))
+		Expect(cfgMap.Data["key"]).To(Equal("value"))
+	})
+
+	It("should process kustomization manifests with namespace plugin defined through enricher", func(ctx context.Context) {
+		// given
+		targetNamespace := dsci.Spec.ApplicationsNamespace
+
+		createCfgMapFeature, errCreateFeature := feature.Define("create-cfg-map").
+			UsingConfig(envTest.Config).
+			TargetNamespace(targetNamespace).
+			EnrichResources(&kustomize.PluginsEnricher{Plugins: []resmap.Transformer{plugins.CreateNamespaceApplierPlugin(targetNamespace)}}).
+			Manifests(
+				kustomize.Location(kustomizeTestFixture()),
+			).
+			Create()
+
+		Expect(errCreateFeature).ToNot(HaveOccurred())
+
+		// when
+		Expect(createCfgMapFeature.Apply(ctx)).To(Succeed())
+
+		// then
+		cfgMap, err := fixtures.GetConfigMap(envTestClient, targetNamespace, "my-configmap")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cfgMap.Name).To(Equal("my-configmap"))
+		Expect(cfgMap.Data["key"]).To(Equal("value"))
+	})
+
+	When("using feature handler", func() {
+
+		It("should set target namespace and kustomize shared plugins automatically", func(ctx context.Context) {
+			// given
+			targetNamespace := dsci.Spec.ApplicationsNamespace
+
+			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+				return registry.Add(feature.Define("create-cfg-map").
+					UsingConfig(envTest.Config).
+					Manifests(
+						kustomize.Location(kustomizeTestFixture()),
+					),
+				)
+			})
+
+			// when
+			Expect(featuresHandler.Apply(ctx)).To(Succeed())
+
+			// then
+			cfgMap, err := fixtures.GetConfigMap(envTestClient, targetNamespace, "my-configmap")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cfgMap.Name).To(Equal("my-configmap"))
+			Expect(cfgMap.Data["key"]).To(Equal("value"))
+		})
+
+	})
 })
+
+func kustomizeTestFixture() string {
+	rootDir, errRootDir := envtestutil.FindProjectRoot()
+	Expect(errRootDir).ToNot(HaveOccurred())
+	return path.Join(rootDir, "tests", "integration", "features", "fixtures", "kustomize-manifests")
+}
