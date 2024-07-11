@@ -173,11 +173,11 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 		if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
 			return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 		}
+		l.Info("deployment is done, updating monitoing rules")
 	}
 
 	// CloudService Monitoring handling
 	if platform == cluster.ManagedRhods {
-		l.Info("deployment is done, updating monitoing rules")
 		// kesrve rules
 		if err := k.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err

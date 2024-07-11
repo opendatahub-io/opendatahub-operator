@@ -114,16 +114,13 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context,
 		if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
 			return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 		}
+		l.Info("deployment is done, updating monitoring rules")
 	}
 
 	// CloudServiceMonitoring handling
 	if platform == cluster.ManagedRhods {
-		if enabled {
-			l.Info("deployment is done, updating monitoring rules")
-		}
-
 		// inject prometheus codeflare*.rules in to /opt/manifests/monitoring/prometheus/prometheus-configs.yaml
-		if err = c.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
+		if err := c.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
 		}
 		if err := deploy.DeployManifestsFromPath(ctx, cli, owner,

@@ -152,13 +152,11 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 		if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
 			return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 		}
+		l.Info("deployment is done, updating monitoring rules")
 	}
 
 	// CloudService Monitoring handling
 	if platform == cluster.ManagedRhods {
-		if enabled {
-			l.Info("deployment is done, updating monitoring rules")
-		}
 		// first model-mesh rules
 		if err := m.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
