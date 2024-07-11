@@ -38,7 +38,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/yaml"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/kustomize/api/krusty"
@@ -46,6 +45,7 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/conversion"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins"
@@ -184,7 +184,7 @@ func DeployManifestsFromPath(
 		return fmt.Errorf("failed applying labels plugin when preparing Kustomize resources. %w", err)
 	}
 
-	objs, err := GetResources(resMap)
+	objs, err := conversion.ResMapToUnstructured(resMap)
 	if err != nil {
 		return err
 	}
@@ -197,20 +197,6 @@ func DeployManifestsFromPath(
 	}
 
 	return nil
-}
-
-func GetResources(resMap resmap.ResMap) ([]*unstructured.Unstructured, error) {
-	resources := make([]*unstructured.Unstructured, 0, resMap.Size())
-	for _, res := range resMap.Resources() {
-		u := &unstructured.Unstructured{}
-		err := yaml.Unmarshal([]byte(res.MustYaml()), u)
-		if err != nil {
-			return nil, err
-		}
-		resources = append(resources, u)
-	}
-
-	return resources, nil
 }
 
 func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Unstructured, owner metav1.Object, applicationNamespace, componentName string, enabled bool) error {
