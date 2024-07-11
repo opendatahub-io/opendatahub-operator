@@ -187,7 +187,7 @@ func AddCABundleCMInAllNamespaces(ctx context.Context, cli client.Client, log lo
 	if processErr != nil {
 		return processErr
 	}
-	return multiErr.ErrorOrNil()
+	return multierror.Append(multiErr, processErr).ErrorOrNil()
 }
 
 // RemoveCABundleCMInAllNamespaces delete trustCABundle configmap from namespaces.
