@@ -198,7 +198,7 @@ var _ = Describe("Service Mesh setup", func() {
 					handler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
 						return feature.CreateFeature("control-plane-with-external-authz-provider").
 							For(handler).
-							ManifestSource(fixtures.TestEmbeddedFiles).
+							ManifestsLocation(fixtures.TestEmbeddedFiles).
 							Manifests(path.Join("templates", "mesh-authz-ext-provider.patch.tmpl.yaml")).
 							OnDelete(
 								servicemesh.RemoveExtensionProvider,

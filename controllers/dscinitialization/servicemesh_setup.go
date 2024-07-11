@@ -118,7 +118,7 @@ func (r *DSCInitializationReconciler) serviceMeshCapabilityFeatures(instance *ds
 		serviceMeshSpec := instance.Spec.ServiceMesh
 		smcpCreationErr := feature.CreateFeature("mesh-control-plane-creation").
 			For(handler).
-			ManifestSource(Templates.Source).
+			ManifestsLocation(Templates.Location).
 			Manifests(
 				path.Join(Templates.ServiceMeshDir),
 			).
@@ -141,7 +141,7 @@ func (r *DSCInitializationReconciler) serviceMeshCapabilityFeatures(instance *ds
 				PreConditions(
 					servicemesh.EnsureServiceMeshInstalled,
 				).
-				ManifestSource(Templates.Source).
+				ManifestsLocation(Templates.Location).
 				Manifests(
 					path.Join(Templates.MetricsDir),
 				).
@@ -169,7 +169,7 @@ func (r *DSCInitializationReconciler) authorizationFeatures(instance *dsciv1.DSC
 
 		extAuthzErr := feature.CreateFeature("mesh-control-plane-external-authz").
 			For(handler).
-			ManifestSource(Templates.Source).
+			ManifestsLocation(Templates.Location).
 			Manifests(
 				path.Join(Templates.AuthorinoDir, "auth-smm.tmpl.yaml"),
 				path.Join(Templates.AuthorinoDir, "base"),
