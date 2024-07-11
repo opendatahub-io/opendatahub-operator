@@ -13,7 +13,6 @@
 ## Overview
 
 ```mermaid
-%%{init: {'noteBkgColor': '#ffcc00', 'noteTextColor': '#000000', 'noteBorderColor': '#000000'}}%%
 ---
 title: Feature Domain Model
 ---
