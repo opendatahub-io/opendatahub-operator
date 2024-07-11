@@ -5,6 +5,7 @@ import (
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/manifest"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/serverless"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 )
@@ -12,9 +13,11 @@ import (
 func (k *Kserve) configureServerlessFeatures(dsciSpec *dsciv1.DSCInitializationSpec) feature.FeaturesProvider {
 	return func(registry feature.FeaturesRegistry) error {
 		servingDeployment := feature.Define("serverless-serving-deployment").
-			ManifestsLocation(Resources.Location).
 			Manifests(
-				path.Join(Resources.InstallDir),
+				manifest.Location(Resources.Location).
+					Include(
+						path.Join(Resources.InstallDir),
+					),
 			).
 			WithData(
 				serverless.FeatureData.IngressDomain.Define(&k.Serving).AsAction(),
@@ -32,9 +35,11 @@ func (k *Kserve) configureServerlessFeatures(dsciSpec *dsciv1.DSCInitializationS
 			)
 
 		istioSecretFiltering := feature.Define("serverless-net-istio-secret-filtering").
-			ManifestsLocation(Resources.Location).
 			Manifests(
-				path.Join(Resources.BaseDir, "serving-net-istio-secret-filtering.patch.tmpl.yaml"),
+				manifest.Location(Resources.Location).
+					Include(
+						path.Join(Resources.BaseDir, "serving-net-istio-secret-filtering.patch.tmpl.yaml"),
+					),
 			).
 			WithData(serverless.FeatureData.Serving.Define(&k.Serving).AsAction()).
 			PreConditions(serverless.EnsureServerlessServingDeployed).
@@ -43,9 +48,11 @@ func (k *Kserve) configureServerlessFeatures(dsciSpec *dsciv1.DSCInitializationS
 			)
 
 		servingGateway := feature.Define("serverless-serving-gateways").
-			ManifestsLocation(Resources.Location).
 			Manifests(
-				path.Join(Resources.GatewaysDir),
+				manifest.Location(Resources.Location).
+					Include(
+						path.Join(Resources.GatewaysDir),
+					),
 			).
 			WithData(
 				serverless.FeatureData.IngressDomain.Define(&k.Serving).AsAction(),
