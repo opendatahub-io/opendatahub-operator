@@ -206,7 +206,7 @@ func CreateWithRetry(ctx context.Context, cli client.Client, obj client.Object, 
 	return wait.PollUntilContextTimeout(ctx, interval, timeout, true, func(ctx context.Context) (bool, error) {
 		err := cli.Create(ctx, obj)
 		if err != nil {
-			return false, nil //nolint:nilerr
+			return false, err
 		}
 		return true, nil
 	})
