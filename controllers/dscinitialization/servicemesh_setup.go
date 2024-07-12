@@ -131,10 +131,10 @@ func (r *DSCInitializationReconciler) serviceMeshCapabilityFeatures(instance *ds
 		meshMetricsCollection := func(_ context.Context, _ *feature.Feature) (bool, error) {
 			return controlPlaneSpec.MetricsCollection == "Istio", nil
 		}
-    
+
 		return registry.Add(
 			feature.Define("mesh-control-plane-creation").
-        Manifests(
+				Manifests(
 					manifest.Location(Templates.Location).
 						Include(
 							path.Join(Templates.ServiceMeshDir),
