@@ -1,4 +1,4 @@
-package feature
+package resource
 
 import (
 	"context"
@@ -13,8 +13,14 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
-func applyResources(ctx context.Context, cli client.Client, objects []*unstructured.Unstructured, metaOptions ...cluster.MetaOptions) error {
+func Apply(ctx context.Context, cli client.Client, objects []*unstructured.Unstructured, metaOptions ...cluster.MetaOptions) error {
 	for _, source := range objects {
+		for _, opt := range metaOptions {
+			if err := opt(source); err != nil {
+				return err
+			}
+		}
+
 		target := source.DeepCopy()
 
 		name := source.GetName()
@@ -23,12 +29,6 @@ func applyResources(ctx context.Context, cli client.Client, objects []*unstructu
 		errGet := cli.Get(ctx, k8stypes.NamespacedName{Name: name, Namespace: namespace}, target)
 		if client.IgnoreNotFound(errGet) != nil {
 			return fmt.Errorf("failed to get resource %s/%s: %w", namespace, name, errGet)
-		}
-
-		for _, opt := range metaOptions {
-			if err := opt(target); err != nil {
-				return err
-			}
 		}
 
 		if k8serr.IsNotFound(errGet) {
@@ -49,7 +49,7 @@ func applyResources(ctx context.Context, cli client.Client, objects []*unstructu
 	return nil
 }
 
-func patchResources(ctx context.Context, cli client.Client, patches []*unstructured.Unstructured) error {
+func Patch(ctx context.Context, cli client.Client, patches []*unstructured.Unstructured) error {
 	for _, patch := range patches {
 		if errPatch := patchUsingMergeStrategy(ctx, cli, patch); errPatch != nil {
 			return errPatch
@@ -106,21 +106,6 @@ func shouldReconcile(source *unstructured.Unstructured) bool {
 
 	// In all the other cases preserve original behaviour
 	return false
-}
-
-func markAsManaged(objs []*unstructured.Unstructured) {
-	for _, obj := range objs {
-		objAnnotations := obj.GetAnnotations()
-		if objAnnotations == nil {
-			objAnnotations = make(map[string]string)
-		}
-
-		// If resource already has management mode defined, it should take precedence
-		if _, exists := objAnnotations[annotations.ManagedByODHOperator]; !exists {
-			objAnnotations[annotations.ManagedByODHOperator] = "true"
-			obj.SetAnnotations(objAnnotations)
-		}
-	}
 }
 
 func isUnmanaged(obj *unstructured.Unstructured) bool {

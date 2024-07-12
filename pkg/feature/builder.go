@@ -3,7 +3,6 @@ package feature
 import (
 	"context"
 	"fmt"
-	"io/fs"
 
 	"github.com/hashicorp/go-multierror"
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -16,18 +15,20 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/resource"
 )
 
 type partialBuilder func(f *Feature) error
 
 type featureBuilder struct {
 	featureName string
+	managed     bool
 	source      featurev1.Source
 	targetNs    string
-	config      *rest.Config
-	managed     bool
-	fsys        fs.FS
-	builders    []partialBuilder
+
+	config *rest.Config
+
+	builders []partialBuilder
 }
 
 // Define creates a new feature builder with the given name.
@@ -46,19 +47,15 @@ func Define(featureName string) *featureBuilder {
 		}
 
 		f.TargetNamespace = fb.targetNs
+		if setTargetNSErr := f.Set("TargetNamespace", fb.targetNs); setTargetNSErr != nil {
+			return fmt.Errorf("failed to set target namespace for '%s' feature: %w", fb.featureName, setTargetNSErr)
+		}
 
-		return f.Set("TargetNamespace", fb.targetNs)
+		return nil
 	}
 
 	// Ensures creation of shared data is always invoked first
 	fb.builders = append([]partialBuilder{initializeContext}, fb.builders...)
-
-	return fb
-}
-
-// TargetNamespace sets the namespace in which the feature should be applied.
-func (fb *featureBuilder) TargetNamespace(targetNs string) *featureBuilder {
-	fb.targetNs = targetNs
 
 	return fb
 }
@@ -69,38 +66,34 @@ func (fb *featureBuilder) Source(source featurev1.Source) *featureBuilder {
 	return fb
 }
 
-// Used to enforce that Manifests() is called after ManifestsLocation() in the chain.
-type requiresManifestSourceBuilder struct {
-	*featureBuilder
+// TargetNamespace sets the namespace in which the feature should be applied.
+// If not set, the feature will be applied in the application namespace.
+func (fb *featureBuilder) TargetNamespace(targetNs string) *featureBuilder {
+	fb.targetNs = targetNs
+
+	return fb
 }
 
-// ManifestsLocation sets the root file system (fsys) from which manifest paths are loaded.
-func (fb *featureBuilder) ManifestsLocation(fsys fs.FS) *requiresManifestSourceBuilder {
-	fb.fsys = fsys
-	return &requiresManifestSourceBuilder{featureBuilder: fb}
-}
-
-// Manifests loads manifests from the provided paths.
-func (fb *requiresManifestSourceBuilder) Manifests(paths ...string) *featureBuilder {
-	fb.builders = append(fb.builders, func(f *Feature) error {
-		var err error
-		var manifests []Manifest
-
-		for _, path := range paths {
-			manifests, err = loadManifestsFrom(fb.fsys, path)
-			if err != nil {
-				return errors.WithStack(err)
+// Manifests allow to compose manifests using different implementation of builders such as those defined in manifest and kustomize packages.
+func (fb *featureBuilder) Manifests(creators ...resource.Creator) *featureBuilder {
+	for _, creator := range creators {
+		fb.builders = append(fb.builders, func(f *Feature) error {
+			appliers, errCreate := creator.Create()
+			if errCreate != nil {
+				return errCreate
 			}
 
-			f.manifests = append(f.manifests, manifests...)
-		}
+			f.appliers = append(f.appliers, appliers...)
 
-		return nil
-	})
+			return nil
+		})
+	}
 
-	return fb.featureBuilder
+	return fb
 }
 
+// Managed marks the feature as managed by the operator.  This effectively marks all resources which are part of this feature
+// as those that should be updated on operator reconcile.
 // Managed marks the feature as managed by the operator.
 //
 // This effectively makes all resources which are part of this feature as reconciled to the desired state
@@ -146,7 +139,7 @@ func (fb *featureBuilder) EnabledWhen(enabled EnabledFunc) *featureBuilder {
 // WithResources allows to define programmatically which resources should be created when applying defined Feature.
 func (fb *featureBuilder) WithResources(resources ...Action) *featureBuilder {
 	fb.builders = append(fb.builders, func(f *Feature) error {
-		f.resources = resources
+		f.clusterOperations = resources
 
 		return nil
 	})
@@ -196,15 +189,16 @@ func (fb *featureBuilder) OnDelete(cleanups ...Action) *featureBuilder {
 // Create creates a new Feature instance and add it to corresponding FeaturesHandler.
 // The actual feature creation in the cluster is not performed here.
 func (fb *featureBuilder) Create() (*Feature, error) {
+	alwaysEnabled := func(_ context.Context, _ *Feature) (bool, error) {
+		return true, nil
+	}
+
 	f := &Feature{
 		Name:    fb.featureName,
 		Managed: fb.managed,
-		Enabled: func(_ context.Context, feature *Feature) (bool, error) {
-			return true, nil
-		},
-		Log:    log.Log.WithName("features").WithValues("feature", fb.featureName),
-		fsys:   fb.fsys,
-		source: &fb.source,
+		Enabled: alwaysEnabled,
+		Log:     log.Log.WithName("features").WithValues("feature", fb.featureName),
+		source:  &fb.source,
 	}
 
 	// UsingConfig builder wasn't called while constructing this feature.

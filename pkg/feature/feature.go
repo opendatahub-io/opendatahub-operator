@@ -3,17 +3,17 @@ package feature
 import (
 	"context"
 	"fmt"
-	"io/fs"
 
 	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/resource"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
 // Feature is a high-level abstraction that represents a collection of resources and actions
@@ -47,16 +47,15 @@ type Feature struct {
 	tracker *featurev1.FeatureTracker
 	source  *featurev1.Source
 
-	data      map[string]any
-	manifests []Manifest
+	data map[string]any
 
-	cleanups       []Action
-	resources      []Action
-	preconditions  []Action
-	postconditions []Action
-	dataProviders  []Action
+	appliers []resource.Applier
 
-	fsys fs.FS
+	cleanups          []Action
+	clusterOperations []Action
+	preconditions     []Action
+	postconditions    []Action
+	dataProviders     []Action
 }
 
 // Action is a func type which can be used for different purposes during Feature's lifecycle
@@ -113,27 +112,16 @@ func (f *Feature) applyFeature(ctx context.Context) error {
 		return &withConditionReasonError{reason: featurev1.ConditionReason.PreConditions, err: preconditionsErr}
 	}
 
-	for _, resource := range f.resources {
-		if resourceCreateErr := resource(ctx, f); resourceCreateErr != nil {
-			return &withConditionReasonError{reason: featurev1.ConditionReason.ResourceCreation, err: resourceCreateErr}
+	for _, clusterOperation := range f.clusterOperations {
+		if errClusterOperation := clusterOperation(ctx, f); errClusterOperation != nil {
+			return &withConditionReasonError{reason: featurev1.ConditionReason.ResourceCreation, err: errClusterOperation}
 		}
 	}
 
-	for i := range f.manifests {
-		manifest := f.manifests[i]
-		apply := f.createApplier(manifest)
-
-		objs, processErr := manifest.Process(f.data)
-		if processErr != nil {
+	for i := range f.appliers {
+		r := f.appliers[i]
+		if processErr := r.Apply(ctx, f.Client, f.data, DefaultMetaOptions(f)...); processErr != nil {
 			return &withConditionReasonError{reason: featurev1.ConditionReason.ApplyManifests, err: processErr}
-		}
-
-		if f.Managed {
-			manifest.MarkAsManaged(objs)
-		}
-
-		if err := apply(ctx, objs); err != nil {
-			return &withConditionReasonError{reason: featurev1.ConditionReason.ApplyManifests, err: err}
 		}
 	}
 
@@ -173,29 +161,6 @@ func (f *Feature) addCleanup(cleanupFuncs ...Action) {
 	f.cleanups = append(f.cleanups, cleanupFuncs...)
 }
 
-type applier func(ctx context.Context, objects []*unstructured.Unstructured) error
-
-func (f *Feature) createApplier(m Manifest) applier {
-	switch manifest := m.(type) {
-	case *templateManifest:
-		if manifest.patch {
-			return func(ctx context.Context, objects []*unstructured.Unstructured) error {
-				return patchResources(ctx, f.Client, objects)
-			}
-		}
-	case *rawManifest:
-		if manifest.patch {
-			return func(ctx context.Context, objects []*unstructured.Unstructured) error {
-				return patchResources(ctx, f.Client, objects)
-			}
-		}
-	}
-
-	return func(ctx context.Context, objects []*unstructured.Unstructured) error {
-		return applyResources(ctx, f.Client, objects, OwnedBy(f))
-	}
-}
-
 // AsOwnerReference returns an OwnerReference for the FeatureTracker resource.
 func (f *Feature) AsOwnerReference() metav1.OwnerReference {
 	return f.tracker.ToOwnerReference()
@@ -204,4 +169,25 @@ func (f *Feature) AsOwnerReference() metav1.OwnerReference {
 // OwnedBy returns a cluster.MetaOptions that sets the owner reference to the FeatureTracker resource.
 func OwnedBy(f *Feature) cluster.MetaOptions {
 	return cluster.WithOwnerReference(f.AsOwnerReference())
+}
+
+func DefaultMetaOptions(f *Feature) []cluster.MetaOptions {
+	resourceMeta := []cluster.MetaOptions{OwnedBy(f)}
+	if f.Managed {
+		resourceMeta = append(resourceMeta, func(obj metav1.Object) error {
+			objAnnotations := obj.GetAnnotations()
+			if objAnnotations == nil {
+				objAnnotations = make(map[string]string)
+			}
+
+			// If resource already has an annotation, it takes precedence
+			if _, exists := objAnnotations[annotations.ManagedByODHOperator]; !exists {
+				objAnnotations[annotations.ManagedByODHOperator] = "true"
+				obj.SetAnnotations(objAnnotations)
+			}
+
+			return nil
+		})
+	}
+	return resourceMeta
 }
