@@ -29,7 +29,6 @@ const (
 
 func ShouldInjectTrustedBundle(ns *corev1.Namespace) bool {
 	isActive := ns.Status.Phase == corev1.NamespaceActive
-
 	return isActive && cluster.IsNotReservedNamespace(ns) && !HasCABundleAnnotationDisabled(ns)
 }
 
@@ -137,8 +136,8 @@ func IsTrustedCABundleUpdated(ctx context.Context, cli client.Client, dscInit *d
 func ConfigureTrustedCABundle(ctx context.Context, cli client.Client, log logr.Logger, dscInit *dsciv1.DSCInitialization, managementStateChanged bool) error {
 	if dscInit.Spec.TrustedCABundle == nil {
 		log.Info("Trusted CA Bundle is not configed in DSCI, same as default to `Removed` state. Reconciling to delete all " + CAConfigMapName)
-		if err := RemoveCABundleConfigMapInAllNamespaces(ctx, cli); err != nil {
-			return fmt.Errorf("error deleting configmap %s from all namespaces %w", CAConfigMapName, err)
+		if err := RemoveCABundleCMInAllNamespaces(ctx, cli); err != nil {
+			return fmt.Errorf("error deleting configmap %s from all valid namespaces %w", CAConfigMapName, err)
 		}
 		return nil
 	}
@@ -152,13 +151,13 @@ func ConfigureTrustedCABundle(ctx context.Context, cli client.Client, log logr.L
 		}
 
 		if istrustedCABundleUpdated || managementStateChanged {
-			if err := AddCABundleConfigMapInAllNamespaces(ctx, cli, dscInit); err != nil {
+			if err := AddCABundleCMInAllNamespaces(ctx, cli, log, dscInit); err != nil {
 				return fmt.Errorf("failed adding configmap %s to all namespaces: %w", CAConfigMapName, err)
 			}
 		}
 	case operatorv1.Removed:
 		log.Info("Trusted CA Bundle injection is set to `Removed` state. Reconciling to delete all " + CAConfigMapName)
-		if err := RemoveCABundleConfigMapInAllNamespaces(ctx, cli); err != nil {
+		if err := RemoveCABundleCMInAllNamespaces(ctx, cli); err != nil {
 			return fmt.Errorf("error deleting configmap %s from all namespaces %w", CAConfigMapName, err)
 		}
 	case operatorv1.Unmanaged:
@@ -168,54 +167,38 @@ func ConfigureTrustedCABundle(ctx context.Context, cli client.Client, log logr.L
 	return nil
 }
 
-// when DSCI TrustedCABundle.ManagementState is set to `Managed`.
-func AddCABundleConfigMapInAllNamespaces(ctx context.Context, cli client.Client, dscInit *dsciv1.DSCInitialization) error {
-	namespaceList := &corev1.NamespaceList{}
-	if err := cli.List(ctx, namespaceList); err != nil {
-		return err
-	}
-
-	for i := range namespaceList.Items {
-		ns := &namespaceList.Items[i]
-		// check namespace status if not Active, then skip
-		if ns.Status.Phase != corev1.NamespaceActive {
-			continue
-		}
-
-		if ShouldInjectTrustedBundle(ns) {
-			if err := wait.PollUntilContextTimeout(ctx, time.Second*1, time.Second*10, false, func(ctx context.Context) (bool, error) {
+// AddCABundleCMInAllNamespaces create or update trustCABundle configmap in namespaces.
+func AddCABundleCMInAllNamespaces(ctx context.Context, cli client.Client, log logr.Logger, dscInit *dsciv1.DSCInitialization) error {
+	var multiErr *multierror.Error
+	processErr := cluster.ExecuteOnAllNamespaces(ctx, cli, func(ns *corev1.Namespace) error {
+		if ShouldInjectTrustedBundle(ns) { // only work on namespace that meet requirements and status active
+			pollErr := wait.PollUntilContextTimeout(ctx, time.Second*1, time.Second*10, false, func(ctx context.Context) (bool, error) {
 				if cmErr := CreateOdhTrustedCABundleConfigMap(ctx, cli, ns.Name, dscInit.Spec.TrustedCABundle.CustomCABundle); cmErr != nil {
 					// Logging the error for debugging
-					fmt.Printf("error creating cert configmap in namespace %v: %v", ns.Name, cmErr)
+					log.Info("error creating cert configmap in namespace", "namespace", ns.Name, "error", cmErr)
 					return false, nil
 				}
 				return true, nil
-			}); err != nil {
-				return err
-			}
+			})
+			multiErr = multierror.Append(multiErr, pollErr)
 		}
+		return nil // Always return nil to continue processing
+	})
+	if processErr != nil {
+		return processErr
 	}
-	return nil
+	return multierror.Append(multiErr, processErr).ErrorOrNil()
 }
 
-// when DSCI TrustedCABundle.ManagementState is set to `Removed`.
-func RemoveCABundleConfigMapInAllNamespaces(ctx context.Context, cli client.Client) error {
+// RemoveCABundleCMInAllNamespaces delete trustCABundle configmap from namespaces.
+func RemoveCABundleCMInAllNamespaces(ctx context.Context, cli client.Client) error {
 	var multiErr *multierror.Error
-
-	namespaceList := &corev1.NamespaceList{}
-	if err := cli.List(ctx, namespaceList); err != nil {
-		return multierror.Append(multiErr, err)
-	}
-
-	for i := range namespaceList.Items {
-		ns := &namespaceList.Items[i]
-		// check namespace status if not Active, then skip
-		if ns.Status.Phase != corev1.NamespaceActive {
-			continue
+	processErr := cluster.ExecuteOnAllNamespaces(ctx, cli, func(ns *corev1.Namespace) error {
+		if !ShouldInjectTrustedBundle(ns) { // skip deletion if namespace does not match critieria
+			return nil
 		}
-		if err := DeleteOdhTrustedCABundleConfigMap(ctx, cli, ns.Name); err != nil {
-			multiErr = multierror.Append(multiErr, err)
-		}
-	}
-	return multiErr.ErrorOrNil()
+		multiErr = multierror.Append(multiErr, DeleteOdhTrustedCABundleConfigMap(ctx, cli, ns.Name))
+		return nil // Always return nil to continue processing
+	})
+	return multierror.Append(multiErr, processErr).ErrorOrNil()
 }
