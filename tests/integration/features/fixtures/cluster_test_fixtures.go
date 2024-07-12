@@ -52,6 +52,15 @@ func NewNamespace(name string) *corev1.Namespace {
 	}
 }
 
+func GetConfigMap(client client.Client, namespace, name string) (*corev1.ConfigMap, error) {
+	cfgMap := &corev1.ConfigMap{}
+	err := client.Get(context.Background(), types.NamespacedName{
+		Name: name, Namespace: namespace,
+	}, cfgMap)
+
+	return cfgMap, err
+}
+
 func GetNamespace(ctx context.Context, client client.Client, namespace string) (*corev1.Namespace, error) {
 	ns := NewNamespace(namespace)
 	err := client.Get(ctx, types.NamespacedName{Name: namespace}, ns)

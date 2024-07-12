@@ -11,6 +11,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/manifest"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 )
 
@@ -42,12 +43,14 @@ func (k *Kserve) defineServiceMeshFeatures(ctx context.Context, cli client.Clien
 
 		if authorinoInstalled {
 			kserveExtAuthzErr := registry.Add(feature.Define("kserve-external-authz").
-				ManifestsLocation(Resources.Location).
 				Manifests(
-					path.Join(Resources.ServiceMeshDir, "activator-envoyfilter.tmpl.yaml"),
-					path.Join(Resources.ServiceMeshDir, "envoy-oauth-temp-fix.tmpl.yaml"),
-					path.Join(Resources.ServiceMeshDir, "kserve-predictor-authorizationpolicy.tmpl.yaml"),
-					path.Join(Resources.ServiceMeshDir, "z-migrations"),
+					manifest.Location(Resources.Location).
+						Include(
+							path.Join(Resources.ServiceMeshDir, "activator-envoyfilter.tmpl.yaml"),
+							path.Join(Resources.ServiceMeshDir, "envoy-oauth-temp-fix.tmpl.yaml"),
+							path.Join(Resources.ServiceMeshDir, "kserve-predictor-authorizationpolicy.tmpl.yaml"),
+							path.Join(Resources.ServiceMeshDir, "z-migrations"),
+						),
 				).
 				Managed().
 				WithData(

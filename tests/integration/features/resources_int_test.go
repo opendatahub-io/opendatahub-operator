@@ -10,6 +10,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/manifest"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/provider"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
@@ -51,15 +52,18 @@ var _ = Describe("Applying and updating resources", func() {
 	})
 
 	When("a feature is managed", func() {
+
 		It("should reconcile the resource to its managed state", func(ctx context.Context) {
 			// given managed feature
 			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
 				return registry.Add(
 					feature.Define("create-local-gw-svc").
 						UsingConfig(envTest.Config).
-						ManifestsLocation(fixtures.TestEmbeddedFiles).
-						Manifests(path.Join(fixtures.BaseDir, "local-gateway-svc.tmpl.yaml")).
 						Managed().
+						Manifests(
+							manifest.Location(fixtures.TestEmbeddedFiles).
+								Include(path.Join(fixtures.BaseDir, "local-gateway-svc.tmpl.yaml")),
+						).
 						WithData(feature.Entry("ControlPlane", provider.ValueOf(dsci.Spec.ServiceMesh.ControlPlane).Get)),
 				)
 			})
@@ -92,9 +96,11 @@ var _ = Describe("Applying and updating resources", func() {
 				return registry.Add(
 					feature.Define("create-unmanaged-svc").
 						UsingConfig(envTest.Config).
-						ManifestsLocation(fixtures.TestEmbeddedFiles).
-						Manifests(path.Join(fixtures.BaseDir, "unmanaged-svc.tmpl.yaml")).
 						Managed().
+						Manifests(
+							manifest.Location(fixtures.TestEmbeddedFiles).
+								Include(path.Join(fixtures.BaseDir, "unmanaged-svc.tmpl.yaml")),
+						).
 						WithData(feature.Entry("ControlPlane", provider.ValueOf(dsci.Spec.ServiceMesh.ControlPlane).Get)),
 				)
 			})
@@ -109,6 +115,7 @@ var _ = Describe("Applying and updating resources", func() {
 			// then
 			// expect that modification is reconciled away
 			Expect(featuresHandler.Apply(ctx)).To(Succeed())
+
 			updatedService, err := fixtures.GetService(ctx, envTestClient, testNamespace, "unmanaged-svc")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(updatedService.Annotations).To(
@@ -126,8 +133,10 @@ var _ = Describe("Applying and updating resources", func() {
 				return registry.Add(
 					feature.Define("create-local-gw-svc").
 						UsingConfig(envTest.Config).
-						ManifestsLocation(fixtures.TestEmbeddedFiles).
-						Manifests(path.Join(fixtures.BaseDir, "local-gateway-svc.tmpl.yaml")).
+						Manifests(
+							manifest.Location(fixtures.TestEmbeddedFiles).
+								Include(path.Join(fixtures.BaseDir, "local-gateway-svc.tmpl.yaml")),
+						).
 						WithData(feature.Entry("ControlPlane", provider.ValueOf(dsci.Spec.ServiceMesh.ControlPlane).Get)),
 				)
 			})
@@ -158,8 +167,10 @@ var _ = Describe("Applying and updating resources", func() {
 				return registry.Add(
 					feature.Define("create-managed-svc").
 						UsingConfig(envTest.Config).
-						ManifestsLocation(fixtures.TestEmbeddedFiles).
-						Manifests(path.Join(fixtures.BaseDir, "managed-svc.tmpl.yaml")).
+						Manifests(
+							manifest.Location(fixtures.TestEmbeddedFiles).
+								Include(path.Join(fixtures.BaseDir, "managed-svc.tmpl.yaml")),
+						).
 						WithData(feature.Entry("ControlPlane", provider.ValueOf(dsci.Spec.ServiceMesh.ControlPlane).Get)),
 				)
 			})
