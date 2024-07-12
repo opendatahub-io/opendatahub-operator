@@ -67,7 +67,7 @@ func (fb *featureBuilder) Source(source featurev1.Source) *featureBuilder {
 }
 
 // TargetNamespace sets the namespace in which the feature should be applied.
-// If not set, the feature will be applied in the application namespace (where this operator lives).
+// If not set, the feature will be applied in the application namespace.
 func (fb *featureBuilder) TargetNamespace(targetNs string) *featureBuilder {
 	fb.targetNs = targetNs
 
