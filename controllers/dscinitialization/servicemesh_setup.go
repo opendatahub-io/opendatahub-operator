@@ -126,26 +126,30 @@ func (r *DSCInitializationReconciler) authorizationCapability(ctx context.Contex
 
 func (r *DSCInitializationReconciler) serviceMeshCapabilityFeatures(instance *dsciv1.DSCInitialization) feature.FeaturesProvider {
 	return func(registry feature.FeaturesRegistry) error {
-		serviceMeshSpec := instance.Spec.ServiceMesh
+		controlPlaneSpec := instance.Spec.ServiceMesh.ControlPlane
 
-		smcp := feature.Define("mesh-control-plane-creation").
-			Manifests(
-				manifest.Location(Templates.Location).
-					Include(
-						path.Join(Templates.ServiceMeshDir),
-					),
-			).
-			WithData(servicemesh.FeatureData.ControlPlane.Define(&instance.Spec).AsAction()).
-			PreConditions(
-				servicemesh.EnsureServiceMeshOperatorInstalled,
-				feature.CreateNamespaceIfNotExists(serviceMeshSpec.ControlPlane.Namespace),
-			).
-			PostConditions(
-				feature.WaitForPodsToBeReady(serviceMeshSpec.ControlPlane.Namespace),
-			)
-
-		if serviceMeshSpec.ControlPlane.MetricsCollection == "Istio" {
-			metricsCollectionErr := registry.Add(feature.Define("mesh-metrics-collection").
+		meshMetricsCollection := func(_ context.Context, _ *feature.Feature) (bool, error) {
+			return controlPlaneSpec.MetricsCollection == "Istio", nil
+		}
+    
+		return registry.Add(
+			feature.Define("mesh-control-plane-creation").
+        Manifests(
+					manifest.Location(Templates.Location).
+						Include(
+							path.Join(Templates.ServiceMeshDir),
+						),
+				).
+				WithData(servicemesh.FeatureData.ControlPlane.Define(&instance.Spec).AsAction()).
+				PreConditions(
+					servicemesh.EnsureServiceMeshOperatorInstalled,
+					feature.CreateNamespaceIfNotExists(controlPlaneSpec.Namespace),
+				).
+				PostConditions(
+					feature.WaitForPodsToBeReady(controlPlaneSpec.Namespace),
+				),
+			feature.Define("mesh-metrics-collection").
+				EnabledWhen(meshMetricsCollection).
 				Manifests(
 					manifest.Location(Templates.Location).
 						Include(
@@ -157,23 +161,16 @@ func (r *DSCInitializationReconciler) serviceMeshCapabilityFeatures(instance *ds
 				).
 				PreConditions(
 					servicemesh.EnsureServiceMeshInstalled,
-				))
-
-			if metricsCollectionErr != nil {
-				return metricsCollectionErr
-			}
-		}
-
-		cfgMap := feature.Define("mesh-shared-configmap").
-			WithResources(servicemesh.MeshRefs, servicemesh.AuthRefs).
-			WithData(
-				servicemesh.FeatureData.ControlPlane.Define(&instance.Spec).AsAction(),
-			).
-			WithData(
-				servicemesh.FeatureData.Authorization.All(&instance.Spec)...,
-			)
-
-		return registry.Add(smcp, cfgMap)
+				),
+			feature.Define("mesh-shared-configmap").
+				WithResources(servicemesh.MeshRefs, servicemesh.AuthRefs).
+				WithData(
+					servicemesh.FeatureData.ControlPlane.Define(&instance.Spec).AsAction(),
+				).
+				WithData(
+					servicemesh.FeatureData.Authorization.All(&instance.Spec)...,
+				),
+		)
 	}
 }
 

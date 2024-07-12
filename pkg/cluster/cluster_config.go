@@ -50,18 +50,26 @@ func IsNotReservedNamespace(ns *corev1.Namespace) bool {
 		ns.GetName() != "default" && ns.GetName() != "openshift"
 }
 
-// GetClusterServiceVersion retries the clusterserviceversions available in the operator namespace.
-func GetClusterServiceVersion(ctx context.Context, c client.Client, watchNameSpace string) (*ofapiv1alpha1.ClusterServiceVersion, error) {
+// GetClusterServiceVersion retries CSV only from the defined namespace.
+func GetClusterServiceVersion(ctx context.Context, c client.Client, namespace string) (*ofapiv1alpha1.ClusterServiceVersion, error) {
 	clusterServiceVersionList := &ofapiv1alpha1.ClusterServiceVersionList{}
-	if err := c.List(ctx, clusterServiceVersionList, client.InNamespace(watchNameSpace)); err != nil {
-		return nil, fmt.Errorf("failed listing cluster service versions: %w", err)
+	paginateListOption := &client.ListOptions{
+		Limit:     100,
+		Namespace: namespace,
 	}
-
-	for _, csv := range clusterServiceVersionList.Items {
-		for _, operatorCR := range csv.Spec.CustomResourceDefinitions.Owned {
-			if operatorCR.Kind == "DataScienceCluster" {
-				return &csv, nil
+	for { // for the case we have very big size of CSV even just in one namespace
+		if err := c.List(ctx, clusterServiceVersionList, paginateListOption); err != nil {
+			return nil, fmt.Errorf("failed listing cluster service versions for %s: %w", namespace, err)
+		}
+		for _, csv := range clusterServiceVersionList.Items {
+			for _, operatorCR := range csv.Spec.CustomResourceDefinitions.Owned {
+				if operatorCR.Kind == "DataScienceCluster" {
+					return &csv, nil
+				}
 			}
+		}
+		if paginateListOption.Continue = clusterServiceVersionList.GetContinue(); paginateListOption.Continue == "" {
+			break
 		}
 	}
 

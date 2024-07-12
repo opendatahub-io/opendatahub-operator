@@ -154,6 +154,30 @@ func CreateNamespace(ctx context.Context, cli client.Client, namespace string, m
 	return desiredNamespace, client.IgnoreAlreadyExists(createErr)
 }
 
+// ExecuteOnAllNamespaces executes the passed function for all namespaces in the cluster retrieved in batches.
+func ExecuteOnAllNamespaces(ctx context.Context, cli client.Client, processFunc func(*corev1.Namespace) error) error {
+	namespaces := &corev1.NamespaceList{}
+	paginateListOption := &client.ListOptions{
+		Limit: 500,
+	}
+
+	for { // loop over all paged results
+		if err := cli.List(ctx, namespaces, paginateListOption); err != nil {
+			return err
+		}
+		for i := range namespaces.Items {
+			ns := &namespaces.Items[i]
+			if err := processFunc(ns); err != nil {
+				return err
+			}
+		}
+		if paginateListOption.Continue = namespaces.GetContinue(); namespaces.GetContinue() == "" {
+			break
+		}
+	}
+	return nil
+}
+
 // WaitForDeploymentAvailable to check if component deployment from 'namespace' is ready within 'timeout' before apply prometheus rules for the component.
 func WaitForDeploymentAvailable(ctx context.Context, c client.Client, componentName string, namespace string, interval int, timeout int) error {
 	resourceInterval := time.Duration(interval) * time.Second
@@ -184,7 +208,7 @@ func CreateWithRetry(ctx context.Context, cli client.Client, obj client.Object, 
 	return wait.PollUntilContextTimeout(ctx, interval, timeout, true, func(ctx context.Context) (bool, error) {
 		err := cli.Create(ctx, obj)
 		if err != nil {
-			return false, nil //nolint:nilerr
+			return false, err
 		}
 		return true, nil
 	})
