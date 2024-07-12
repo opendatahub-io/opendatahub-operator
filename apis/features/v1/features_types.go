@@ -60,7 +60,6 @@ var ConditionReason = struct {
 const (
 	ComponentType          OwnerType = "Component"
 	DSCIType               OwnerType = "DSCI"
-	PlatformCapabilityType OwnerType = "Platform"
 	UnknownType            OwnerType = "Unknown"
 )
 
