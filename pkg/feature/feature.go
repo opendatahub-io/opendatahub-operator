@@ -168,10 +168,7 @@ func (f *Feature) AsOwnerReference() metav1.OwnerReference {
 
 // OwnedBy returns a cluster.MetaOptions that sets the owner reference to the FeatureTracker resource.
 func OwnedBy(f *Feature) cluster.MetaOptions {
-	return func(obj metav1.Object) error {
-		obj.SetOwnerReferences([]metav1.OwnerReference{f.AsOwnerReference()})
-		return nil
-	}
+	return cluster.WithOwnerReference(f.AsOwnerReference())
 }
 
 func DefaultMetaOptions(f *Feature) []cluster.MetaOptions {

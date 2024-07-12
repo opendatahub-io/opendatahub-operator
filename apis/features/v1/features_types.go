@@ -58,9 +58,9 @@ var ConditionReason = struct {
 }
 
 const (
-	ComponentType          OwnerType = "Component"
-	DSCIType               OwnerType = "DSCI"
-	UnknownType            OwnerType = "Unknown"
+	ComponentType OwnerType = "Component"
+	DSCIType      OwnerType = "DSCI"
+	UnknownType   OwnerType = "Unknown"
 )
 
 func (s *FeatureTracker) ToOwnerReference() metav1.OwnerReference {
