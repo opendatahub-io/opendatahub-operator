@@ -163,13 +163,13 @@ func DeployManifestsFromPath(
 	var resMap resmap.ResMap
 	_, err := os.Stat(filepath.Join(manifestPath, "kustomization.yaml"))
 	if err != nil {
-		if os.IsNotExist(err) {
-			resMap, err = k.Run(fs, filepath.Join(manifestPath, "default"))
+		if !os.IsNotExist(err) {
+			return err
 		}
-	} else {
-		resMap, err = k.Run(fs, manifestPath)
+		manifestPath = filepath.Join(manifestPath, "default")
 	}
 
+	resMap, err = k.Run(fs, manifestPath)
 	if err != nil {
 		return err
 	}
@@ -200,35 +200,37 @@ func DeployManifestsFromPath(
 }
 
 func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Unstructured, owner metav1.Object, applicationNamespace, componentName string, enabled bool) error {
-	// Return if resource is of Kind: Namespace and Name: odhApplicationsNamespace
+	// Skip if resource is of Kind: Namespace and Name: applicationNamespace
 	if obj.GetKind() == "Namespace" && obj.GetName() == applicationNamespace {
 		return nil
 	}
 
 	found, err := getResource(ctx, cli, obj)
 
-	// err == nil means found
-	if err == nil {
-		if enabled {
-			// Exception to not update kserve with managed annotation
-			// do not reconcile kserve resource with annotation "opendatahub.io/managed: false"
-			if found.GetAnnotations()[annotations.ManagedByODHOperator] == "false" && componentName == "kserve" {
-				return nil
-			}
-			return updateResource(ctx, cli, obj, found, owner, componentName)
+	if err != nil {
+		if !k8serr.IsNotFound(err) {
+			return err
 		}
-		return handleDisabledComponent(ctx, cli, found, componentName)
-	}
-
-	if k8serr.IsNotFound(err) {
-		// Create resource if it doesn't exist and enabled
+		// Create resource if it doesn't exist and component enabled
 		if enabled {
 			return createResource(ctx, cli, obj, owner)
 		}
+		// Skip if resource doesn't exist and component is disabled
 		return nil
 	}
 
-	return err
+	// when resource is found
+	if enabled {
+		// Exception to not update kserve with managed annotation
+		// do not reconcile kserve resource with annotation "opendatahub.io/managed: false"
+		// TODO: remove this exception when we define managed annotation across odh
+		if found.GetAnnotations()[annotations.ManagedByODHOperator] == "false" && componentName == "kserve" {
+			return nil
+		}
+		return updateResource(ctx, cli, obj, found, owner, componentName)
+	}
+	// Delete resource if it exists and component is disabled
+	return handleDisabledComponent(ctx, cli, found, componentName)
 }
 
 /*
@@ -333,6 +335,7 @@ func ApplyParams(componentPath string, imageParamsMap map[string]string, isUpdat
 // removeResourcesFromDeployment checks if the provided resource is a Deployment,
 // and if so, removes the resources field from each container in the Deployment. This ensures we do not overwrite the
 // resources field when Patch is applied with the returned unstructured resource.
+// TODO: remove this function once RHOAIENG-7929 is finished.
 func removeResourcesFromDeployment(u *unstructured.Unstructured) error {
 	// Check if the resource is a Deployment. This can be expanded to other resources as well.
 	if u.GetKind() != "Deployment" {
@@ -438,6 +441,7 @@ func createResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 	return cli.Create(ctx, obj)
 }
 
+// TODO: remove this once RHOAIENG-7929 is finished.
 func skipUpdateOnWhitelistedFields(obj *unstructured.Unstructured, componentName string) error {
 	if componentName == "kserve" || componentName == "model-mesh" {
 		if err := removeResourcesFromDeployment(obj); err != nil {
@@ -472,7 +476,7 @@ func updateResource(ctx context.Context, cli client.Client, obj, found *unstruct
 	if found.GetKind() == "OdhDashboardConfig" {
 		return nil
 	}
-	// skip updating whitelisted fields
+	// skip updating whitelisted fields from component
 	if err := skipUpdateOnWhitelistedFields(obj, componentName); err != nil {
 		return err
 	}
