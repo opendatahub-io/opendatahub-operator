@@ -16,8 +16,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	controllerutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -55,7 +55,7 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 		if k8serr.IsNotFound(err) {
 			r.Log.Info("Creating namespace", "name", name)
 			// Set Controller reference
-			// err = ctrl.SetControllerReference(dscInit, desiredNamespace, r.Scheme)
+			// err = controllerutil.SetControllerReference(dscInit, desiredNamespace, r.Scheme)
 			// if err != nil {
 			//	 r.Log.Error(err, "Unable to add OwnerReference to the Namespace")
 			//	 return err
@@ -131,61 +131,26 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 		return err
 	}
 
-	// Create default Rolebinding for the namespace
-	err = r.createDefaultRoleBinding(ctx, name, dscInit)
-	if err != nil {
-		r.Log.Error(err, "error creating rolebinding", "name", name)
-		return err
-	}
-	return nil
-}
-
-func (r *DSCInitializationReconciler) createDefaultRoleBinding(ctx context.Context, name string, dscInit *dsciv1.DSCInitialization) error {
-	// Expected namespace for the given name
-	desiredRoleBinding := &rbacv1.RoleBinding{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "RoleBinding",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: name,
-		},
-		Subjects: []rbacv1.Subject{
+	// Create/update Rolebinding connects "default" SA and anyuid ClusterRole in namespace
+	// ensure it has dsci CR as controller reference
+	if _, err = cluster.CreateOrUpdateClusterRoleBinding(
+		ctx, r.Client, name,
+		[]rbacv1.Subject{
 			{
 				Kind:      "ServiceAccount",
 				Namespace: name,
 				Name:      "default",
 			},
 		},
-		RoleRef: rbacv1.RoleRef{
+		rbacv1.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
 			Kind:     "ClusterRole",
 			Name:     "system:openshift:scc:anyuid",
 		},
-	}
-
-	// Create RoleBinding if doesn't exists
-	foundRoleBinding := &rbacv1.RoleBinding{}
-	err := r.Client.Get(ctx, client.ObjectKey{
-		Name:      name,
-		Namespace: name,
-	}, foundRoleBinding)
-	if err != nil {
-		if k8serr.IsNotFound(err) {
-			// Set Controller reference
-			err = ctrl.SetControllerReference(dscInit, desiredRoleBinding, r.Scheme)
-			if err != nil {
-				r.Log.Error(err, "Unable to add OwnerReference to the rolebinding")
-				return err
-			}
-			err = r.Client.Create(ctx, desiredRoleBinding)
-			if err != nil && !k8serr.IsAlreadyExists(err) {
-				return err
-			}
-		} else {
-			return err
-		}
+		cluster.ControlledBy(dscInit, r.Scheme),
+	); err != nil {
+		r.Log.Error(err, "error creating rolebinding", "name", name)
+		return err
 	}
 	return nil
 }
@@ -294,7 +259,7 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.
 		if err != nil {
 			if k8serr.IsNotFound(err) {
 				// Set Controller reference
-				err = ctrl.SetControllerReference(dscInit, desiredNetworkPolicy, r.Scheme)
+				err = controllerutil.SetControllerReference(dscInit, desiredNetworkPolicy, r.Scheme)
 				if err != nil {
 					r.Log.Error(err, "Unable to add OwnerReference to the Network policy")
 					return err
@@ -398,7 +363,7 @@ func (r *DSCInitializationReconciler) createOdhCommonConfigMap(ctx context.Conte
 	if err != nil {
 		if k8serr.IsNotFound(err) {
 			// Set Controller reference
-			err = ctrl.SetControllerReference(dscInit, foundConfigMap, r.Scheme)
+			err = controllerutil.SetControllerReference(dscInit, foundConfigMap, r.Scheme)
 			if err != nil {
 				r.Log.Error(err, "Unable to add OwnerReference to the odh-common-config ConfigMap")
 				return err
