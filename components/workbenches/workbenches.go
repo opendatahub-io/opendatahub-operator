@@ -126,7 +126,7 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 			}
 		}
 		// Update Default rolebinding
-		err := cluster.UpdatePodSecurityRolebinding(ctx, cli, dscispec.ApplicationsNamespace, "notebook-controller-service-account")
+		err := cluster.UpdatePodSecurityClusterRolebinding(ctx, cli, dscispec.ApplicationsNamespace, "notebook-controller-service-account")
 		if err != nil {
 			return err
 		}

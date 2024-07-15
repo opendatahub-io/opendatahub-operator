@@ -103,11 +103,11 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 
 		// 2. platform specific RBAC
 		if platform == cluster.OpenDataHub || platform == "" {
-			if err := cluster.UpdatePodSecurityRolebinding(ctx, cli, dscispec.ApplicationsNamespace, "odh-dashboard"); err != nil {
+			if err := cluster.UpdatePodSecurityClusterRolebinding(ctx, cli, dscispec.ApplicationsNamespace, "odh-dashboard"); err != nil {
 				return err
 			}
 		} else {
-			if err := cluster.UpdatePodSecurityRolebinding(ctx, cli, dscispec.ApplicationsNamespace, "rhods-dashboard"); err != nil {
+			if err := cluster.UpdatePodSecurityClusterRolebinding(ctx, cli, dscispec.ApplicationsNamespace, "rhods-dashboard"); err != nil {
 				return err
 			}
 		}

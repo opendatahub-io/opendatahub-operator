@@ -69,10 +69,10 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			Expect(foundNetworkPolicy.Spec.PolicyTypes[0]).To(Equal(networkingv1.PolicyTypeIngress))
 		})
 
-		It("Should create default rolebinding", func(ctx context.Context) {
+		It("Should create default clusterrolebinding", func(ctx context.Context) {
 			// then
-			foundRoleBinding := &rbacv1.RoleBinding{}
-			Eventually(objectExists(applicationNamespace, applicationNamespace, foundRoleBinding)).
+			foundClusterRoleBinding := &rbacv1.ClusterRoleBinding{}
+			Eventually(objectExists(applicationNamespace, applicationNamespace, foundClusterRoleBinding)).
 				WithContext(ctx).
 				WithTimeout(timeout).
 				WithPolling(interval).
@@ -89,10 +89,9 @@ var _ = Describe("DataScienceCluster initialization", func() {
 				Kind:     "ClusterRole",
 				Name:     "system:openshift:scc:anyuid",
 			}
-			Expect(foundRoleBinding.Name).To(Equal(applicationNamespace))
-			Expect(foundRoleBinding.Namespace).To(Equal(applicationNamespace))
-			Expect(foundRoleBinding.Subjects).To(Equal(expectedSubjects))
-			Expect(foundRoleBinding.RoleRef).To(Equal(expectedRoleRef))
+			Expect(foundClusterRoleBinding.Name).To(Equal(applicationNamespace))
+			Expect(foundClusterRoleBinding.Subjects).To(Equal(expectedSubjects))
+			Expect(foundClusterRoleBinding.RoleRef).To(Equal(expectedRoleRef))
 		})
 
 		It("Should create default configmap", func(ctx context.Context) {

@@ -17,18 +17,18 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
-// UpdatePodSecurityRolebinding update default rolebinding which is created in applications namespace by manifests
+// UpdatePodSecurityClusterRolebinding update default clusterrolebinding which is created in applications namespace by manifests
 // being used by different components and SRE monitoring.
-func UpdatePodSecurityRolebinding(ctx context.Context, cli client.Client, namespace string, serviceAccountsList ...string) error {
-	foundRoleBinding := &rbacv1.RoleBinding{}
-	if err := cli.Get(ctx, client.ObjectKey{Name: namespace, Namespace: namespace}, foundRoleBinding); err != nil {
-		return fmt.Errorf("error to get rolebinding %s from namespace %s: %w", namespace, namespace, err)
+func UpdatePodSecurityClusterRolebinding(ctx context.Context, cli client.Client, namespace string, serviceAccountsList ...string) error {
+	foundClusterRoleBinding := &rbacv1.ClusterRoleBinding{}
+	if err := cli.Get(ctx, client.ObjectKey{Name: namespace, Namespace: namespace}, foundClusterRoleBinding); err != nil {
+		return fmt.Errorf("error to get clusterrolebinding %s from namespace %s: %w", namespace, namespace, err)
 	}
 
 	for _, sa := range serviceAccountsList {
 		// Append serviceAccount if not added already
-		if !subjectExistInRoleBinding(foundRoleBinding.Subjects, sa, namespace) {
-			foundRoleBinding.Subjects = append(foundRoleBinding.Subjects, rbacv1.Subject{
+		if !subjectExistInRoleBinding(foundClusterRoleBinding.Subjects, sa, namespace) {
+			foundClusterRoleBinding.Subjects = append(foundClusterRoleBinding.Subjects, rbacv1.Subject{
 				Kind:      rbacv1.ServiceAccountKind,
 				Name:      sa,
 				Namespace: namespace,
@@ -36,7 +36,7 @@ func UpdatePodSecurityRolebinding(ctx context.Context, cli client.Client, namesp
 		}
 	}
 
-	if err := cli.Update(ctx, foundRoleBinding); err != nil {
+	if err := cli.Update(ctx, foundClusterRoleBinding); err != nil {
 		return fmt.Errorf("error update rolebinding %s with serviceaccount: %w", namespace, err)
 	}
 

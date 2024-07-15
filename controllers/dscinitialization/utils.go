@@ -131,7 +131,7 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 		return err
 	}
 
-	// Create/update Rolebinding connects "default" SA and anyuid ClusterRole in namespace
+	// Create/update ClusterRolebinding connects "default" SA and anyuid ClusterRole in namespace
 	// ensure it has dsci CR as controller reference
 	if _, err = cluster.CreateOrUpdateClusterRoleBinding(
 		ctx, r.Client, name,
