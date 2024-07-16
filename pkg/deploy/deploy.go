@@ -195,13 +195,13 @@ func DeployManifestsFromPath(
 	return nil
 }
 
-func manageResource(ctx context.Context, cli client.Client, obj *resource.Resource, owner metav1.Object, applicationNamespace, componentName string, enabled bool) error {
+func manageResource(ctx context.Context, cli client.Client, res *resource.Resource, owner metav1.Object, applicationNamespace, componentName string, enabled bool) error {
 	// Return if resource is of Kind: Namespace and Name: odhApplicationsNamespace
-	if obj.GetKind() == "Namespace" && obj.GetName() == applicationNamespace {
+	if res.GetKind() == "Namespace" && res.GetName() == applicationNamespace {
 		return nil
 	}
 
-	found, err := getResource(ctx, cli, obj)
+	found, err := getResource(ctx, cli, res)
 
 	if err != nil {
 		if !k8serr.IsNotFound(err) {
@@ -209,7 +209,7 @@ func manageResource(ctx context.Context, cli client.Client, obj *resource.Resour
 		}
 		// Create resource if it doesn't exist and component enabled
 		if enabled {
-			return createResource(ctx, cli, obj, owner)
+			return createResource(ctx, cli, res, owner)
 		}
 		// Skip if resource doesn't exist and component is disabled
 		return nil
@@ -223,7 +223,7 @@ func manageResource(ctx context.Context, cli client.Client, obj *resource.Resour
 		if found.GetAnnotations()[annotations.ManagedByODHOperator] == "false" && componentName == "kserve" {
 			return nil
 		}
-		return updateResource(ctx, cli, obj, found, owner, componentName)
+		return updateResource(ctx, cli, res, found, owner, componentName)
 	}
 	// Delete resource if it exists and component is disabled
 	return handleDisabledComponent(ctx, cli, found, componentName)
