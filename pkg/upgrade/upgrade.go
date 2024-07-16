@@ -161,8 +161,8 @@ func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ cluster.Platfor
 		return nil
 	case len(instances.Items) == 0:
 		fmt.Println("create default DSCI CR.")
-		err := cli.Create(ctx, defaultDsci)
-		if err != nil {
+		err := cluster.CreateWithRetry(ctx, cli, defaultDsci, 1) // 1 min timeout
+		if err != nil && !k8serr.IsAlreadyExists(err) {
 			return err
 		}
 	}
