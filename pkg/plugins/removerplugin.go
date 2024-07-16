@@ -8,6 +8,39 @@ import (
 	"sigs.k8s.io/kustomize/api/resource"
 	"sigs.k8s.io/kustomize/kyaml/kio"
 	kyaml "sigs.k8s.io/kustomize/kyaml/yaml"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+)
+
+var (
+	WhitelistedFields = []RemoverPlugin{
+		// for resources, i.e cpu and memory
+		{
+			Gvk:  gvk.Deployment,
+			Path: []string{"spec", "template", "spec", "containers", "*", "resources"},
+		},
+		// for replicas
+		{
+			Gvk:  gvk.Deployment,
+			Path: []string{"spec", "replicas"},
+		},
+	}
+
+	// List of components should be whitelisted as not reconcile on WhitelistedFields.
+	WhitelistedComponent = map[string]*[]RemoverPlugin{
+		"codeflare":                       &WhitelistedFields,
+		"dashboard":                       &WhitelistedFields, // dashboard is a upstream component name
+		"rhods-dashboard":                 &WhitelistedFields, // rhods-dashboard is a downstream component name
+		"data-science-pipelines-operator": &WhitelistedFields,
+		"kserve":                          &WhitelistedFields,
+		"kueue":                           &WhitelistedFields,
+		"model-mesh":                      &WhitelistedFields,
+		"model-registry-operator":         &WhitelistedFields,
+		"ray":                             &WhitelistedFields,
+		"trainingoperator":                &WhitelistedFields,
+		"trustyai":                        &WhitelistedFields,
+		"workbenches":                     &WhitelistedFields,
+	}
 )
 
 // Removes the field from the resources of ResMap if they match GVK.
@@ -17,6 +50,27 @@ type RemoverPlugin struct {
 }
 
 var _ resmap.Transformer = &RemoverPlugin{}
+
+// Transform removes the field from ResMap if they match filter.
+func (p *RemoverPlugin) Transform(m resmap.ResMap) error {
+	filter := RemoverFilter{
+		Gvk:  p.Gvk,
+		Path: p.Path,
+	}
+	return m.ApplyFilter(filter)
+}
+
+// TransformResource works only on one resource, not on the whole ResMap.
+func (p *RemoverPlugin) TransformResource(r *resource.Resource) error {
+	filter := RemoverFilter{
+		Gvk:  p.Gvk,
+		Path: p.Path,
+	}
+
+	nodes := []*kyaml.RNode{&r.RNode}
+	_, err := filter.Filter(nodes)
+	return err
+}
 
 type RemoverFilter struct {
 	Gvk  schema.GroupVersionKind
@@ -62,24 +116,4 @@ func (f RemoverFilter) run(node *kyaml.RNode) (*kyaml.RNode, error) {
 		func(node *kyaml.RNode) error {
 			return node.PipeE(kyaml.FieldClearer{Name: name})
 		})
-}
-
-func (p *RemoverPlugin) Transform(m resmap.ResMap) error {
-	filter := RemoverFilter{
-		Gvk:  p.Gvk,
-		Path: p.Path,
-	}
-	return m.ApplyFilter(filter)
-}
-
-// TransformResource is an additional method to work not on the whole ResMap but one resource.
-func (p *RemoverPlugin) TransformResource(r *resource.Resource) error {
-	filter := RemoverFilter{
-		Gvk:  p.Gvk,
-		Path: p.Path,
-	}
-
-	nodes := []*kyaml.RNode{&r.RNode}
-	_, err := filter.Filter(nodes)
-	return err
 }

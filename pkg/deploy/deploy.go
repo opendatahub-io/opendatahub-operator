@@ -45,7 +45,6 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/conversion"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -54,20 +53,6 @@ import (
 
 const (
 	DefaultManifestPath = "/opt/manifests"
-)
-
-var (
-	WhitelistedFields = []plugins.RemoverPlugin{
-		{
-			Gvk:  gvk.Deployment,
-			Path: []string{"spec", "template", "spec", "containers", "*", "resources"},
-		},
-	}
-
-	Whitelisted = map[string]*[]plugins.RemoverPlugin{
-		"kserve":     &WhitelistedFields,
-		"model-mesh": &WhitelistedFields,
-	}
 )
 
 // DownloadManifests function performs following tasks:
@@ -246,14 +231,15 @@ func manageResource(ctx context.Context, cli client.Client, obj *resource.Resour
 
 func getResource(ctx context.Context, cli client.Client, obj *resource.Resource) (*unstructured.Unstructured, error) {
 	found := &unstructured.Unstructured{}
-	// Setting gvk is required to do Get request
 	residGvk := obj.GetGvk()
 	gvk := schema.GroupVersionKind{
 		Group:   residGvk.Group,
 		Version: residGvk.Version,
 		Kind:    residGvk.Kind,
 	}
+	// Setting gvk is required to do Get request
 	found.SetGroupVersionKind(gvk)
+
 	err := cli.Get(ctx, types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, found)
 	if errors.Is(err, &meta.NoKindMatchError{}) {
 		// convert the error to NotFound to handle both the same way in the caller
@@ -288,7 +274,7 @@ func deleteResource(ctx context.Context, cli client.Client, found *unstructured.
 }
 
 func createResource(ctx context.Context, cli client.Client, res *resource.Resource, owner metav1.Object) error {
-	obj, err := conversion.Resource2Unstructured(res)
+	obj, err := conversion.ResourceToUnstructured(res)
 	if err != nil {
 		return err
 	}
@@ -300,11 +286,33 @@ func createResource(ctx context.Context, cli client.Client, res *resource.Resour
 	return cli.Create(ctx, obj)
 }
 
+func updateResource(ctx context.Context, cli client.Client, res *resource.Resource, found *unstructured.Unstructured, owner metav1.Object, componentName string) error {
+	// Skip ODHDashboardConfig Update
+	if found.GetKind() == "OdhDashboardConfig" {
+		return nil
+	}
+
+	// skip updating whitelisted fields
+	if err := skipUpdateOnWhitelistedFields(res, componentName); err != nil {
+		return err
+	}
+
+	obj, err := conversion.ResourceToUnstructured(res)
+	if err != nil {
+		return err
+	}
+
+	// Retain existing labels on update
+	updateLabels(found, obj)
+
+	return performPatch(ctx, cli, obj, found, owner)
+}
+
 // skipUpdateOnWhitelistedFields applies RemoverPlugin to the component's resources
-// if they are declared in Whitelisted.
+// if they are declared in WhitelistedComponent.
 // This ensures that we do not overwrite the fields when Patch is applied later to the resource.
 func skipUpdateOnWhitelistedFields(res *resource.Resource, componentName string) error {
-	whitelistedFields, exists := Whitelisted[componentName]
+	whitelistedFields, exists := plugins.WhitelistedComponent[componentName]
 	if !exists {
 		return nil
 	}
@@ -336,28 +344,6 @@ func performPatch(ctx context.Context, cli client.Client, obj, found *unstructur
 		return err
 	}
 	return cli.Patch(ctx, found, client.RawPatch(types.ApplyPatchType, data), client.ForceOwnership, client.FieldOwner(owner.GetName()))
-}
-
-func updateResource(ctx context.Context, cli client.Client, res *resource.Resource, found *unstructured.Unstructured, owner metav1.Object, componentName string) error {
-	// Skip ODHDashboardConfig Update
-	if found.GetKind() == "OdhDashboardConfig" {
-		return nil
-	}
-
-	// skip updating whitelisted fields
-	if err := skipUpdateOnWhitelistedFields(res, componentName); err != nil {
-		return err
-	}
-
-	obj, err := conversion.Resource2Unstructured(res)
-	if err != nil {
-		return err
-	}
-
-	// Retain existing labels on update
-	updateLabels(found, obj)
-
-	return performPatch(ctx, cli, obj, found, owner)
 }
 
 // TODO : Add function to cleanup code created as part of pre install and post install task of a component
