@@ -4,12 +4,16 @@ on:
     inputs:
       version:
         type: string
-        description: The version to update.
+        description: The version to update(https://semver.org/).
         required: true
       tracker-url:
         type: string
-        description: The URL to tracker issue.
+        description: The URL to tracker issue(https://github.com/opendatahub-io/opendatahub-community/issues).
         required: true
+permissions:
+  checks: read
+  pull-requests: write
+  contents: write
 env:
   VERSION: ${{ inputs.version }}
   TRACKER_URL: ${{ inputs.tracker-url }}
@@ -19,11 +23,6 @@ jobs:
     name: Create dry-run pr and update tags
     steps:
       - uses: actions/checkout@v4
-      - uses: tibdex/github-app-token@v1
-        id: generate-token
-        with:
-          app_id: ${{ secrets.ODH_RELEASE_APP_ID }}
-          private_key: ${{ secrets.ODH_RELEASE_APP_PRIVATE_KEY }}
       - name: Validate semver
         run: ./.github/scripts/validate-semver.sh v${{ env.VERSION }}
       - uses: ./.github/actions/update-manifest-branches
@@ -31,19 +30,19 @@ jobs:
         uses: peter-evans/create-pull-request@v6
         id: cpr-dry-run
         with:
-          token: ${{ steps.generate-token.outputs.token }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "Test ${{ env.VERSION }} Release"
           branch: odh-release/e2e-dry-run
           delete-branch: true
           title: "[DO NOT MERGE] Test ${{ env.VERSION }} Release"
       - name: Wait for checks to pass
         env:
-          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./.github/scripts/wait-for-checks.sh ${{ steps.cpr-dry-run.outputs.pull-request-number }}
       - name: Close PR
         uses: peter-evans/close-pull@v3
         with:
-          token: ${{ steps.generate-token.outputs.token }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           pull-request-number: ${{ steps.cpr-dry-run.outputs.pull-request-number }}
           comment: Auto-closing pull request after success checks
           delete-branch: true
@@ -58,37 +57,31 @@ jobs:
     name: Create version update pr
     steps:
       - uses: actions/checkout@v4
-      - uses: tibdex/github-app-token@v1
-        id: generate-token
+      - name: Create version update pr in incubation
+        uses: ./.github/actions/update-release-version
         with:
-          app_id: ${{ secrets.ODH_RELEASE_APP_ID }}
-          private_key: ${{ secrets.ODH_RELEASE_APP_PRIVATE_KEY }}
+          version: ${{ inputs.version }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "Update version to ${{ env.VERSION }}"
+          title: "Update version to ${{ env.VERSION }}"
+          branch-name: "odh-release/version-update"
       - name: Create release branch
         run: |
           git checkout -b odh-${{ env.VERSION }}
           git push -f origin odh-${{ env.VERSION }}
       - uses: ./.github/actions/update-manifest-branches
-      - name: Update versions in relevant files
-        run: ./.github/scripts/update-versions.sh ${{ env.VERSION }}
-      - name: Run make manifests & bundle
-        run: make manifests bundle
-      - name: Clean up
-        run: |
-          sed -i -e "s|image: quay.io/opendatahub/opendatahub-operator:latest.*|image: REPLACE_IMAGE:latest|g" bundle/manifests/opendatahub-operator.clusterserviceversion.yaml
-          rm ./config/manager/kustomization.yaml
-      - name: Create release pr
-        uses: peter-evans/create-pull-request@v6
+      - name: Create release pr in release branch
+        uses: ./.github/actions/update-release-version
         id: cpr-release-pr
         with:
-          token: ${{ steps.generate-token.outputs.token }}
+          version: ${{ inputs.version }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "ODH Release ${{ env.VERSION }}"
-          branch: odh-release/version-update
-          delete-branch: true
           title: "ODH Release ${{ env.VERSION }}: Version Update"
-          reviewers: "VaishnaviHire,zdtsw"
+          branch-name: "odh-release/release-branch-update"
       - name: Wait for checks to pass
         env:
-          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./.github/scripts/wait-for-checks.sh ${{ steps.cpr-release-pr.outputs.pull-request-number }}
       - name: Comment version and tracker url in the pr
         uses: thollander/actions-comment-pull-request@v2
