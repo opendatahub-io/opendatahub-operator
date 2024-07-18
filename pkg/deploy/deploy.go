@@ -19,7 +19,6 @@ package deploy
 
 import (
 	"archive/tar"
-	"bufio"
 	"compress/gzip"
 	"context"
 	"encoding/json"
@@ -163,13 +162,13 @@ func DeployManifestsFromPath(
 	var resMap resmap.ResMap
 	_, err := os.Stat(filepath.Join(manifestPath, "kustomization.yaml"))
 	if err != nil {
-		if os.IsNotExist(err) {
-			resMap, err = k.Run(fs, filepath.Join(manifestPath, "default"))
+		if !os.IsNotExist(err) {
+			return err
 		}
-	} else {
-		resMap, err = k.Run(fs, manifestPath)
+		manifestPath = filepath.Join(manifestPath, "default")
 	}
 
+	resMap, err = k.Run(fs, manifestPath)
 	if err != nil {
 		return err
 	}
@@ -200,139 +199,43 @@ func DeployManifestsFromPath(
 }
 
 func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Unstructured, owner metav1.Object, applicationNamespace, componentName string, enabled bool) error {
-	// Return if resource is of Kind: Namespace and Name: odhApplicationsNamespace
+	// Skip if resource is of Kind: Namespace and Name: applicationNamespace
 	if obj.GetKind() == "Namespace" && obj.GetName() == applicationNamespace {
 		return nil
 	}
 
 	found, err := getResource(ctx, cli, obj)
 
-	// err == nil means found
-	if err == nil {
-		if enabled {
-			// Exception to not update kserve with managed annotation
-			// do not reconcile kserve resource with annotation "opendatahub.io/managed: false"
-			if found.GetAnnotations()[annotations.ManagedByODHOperator] == "false" && componentName == "kserve" {
-				return nil
-			}
-			return updateResource(ctx, cli, obj, found, owner, componentName)
+	if err != nil {
+		if !k8serr.IsNotFound(err) {
+			return err
 		}
-		return handleDisabledComponent(ctx, cli, found, componentName)
-	}
-
-	if k8serr.IsNotFound(err) {
-		// Create resource if it doesn't exist and enabled
+		// Create resource if it doesn't exist and component enabled
 		if enabled {
 			return createResource(ctx, cli, obj, owner)
 		}
+		// Skip if resource doesn't exist and component is disabled
 		return nil
 	}
 
-	return err
-}
-
-/*
-overwrite values in components' manifests params.env file
-This is useful for air gapped cluster
-priority of image values (from high to low):
-- image values set in manifests params.env if manifestsURI is set
-- RELATED_IMAGE_* values from CSV (if it is set)
-- image values set in manifests params.env if manifestsURI is not set.
-parameter isUpdateNamespace is used to set if should update namespace  with DSCI CR's applicationnamespace.
-extraParamsMaps is used to set extra parameters which are not carried from ENV variable. this can be passed per component.
-*/
-func ApplyParams(componentPath string, imageParamsMap map[string]string, isUpdateNamespace bool, extraParamsMaps ...map[string]string) error {
-	paramsFile := filepath.Join(componentPath, "params.env")
-	// Require params.env at the root folder
-	paramsEnv, err := os.Open(paramsFile)
-	if err != nil {
-		if os.IsNotExist(err) {
-			// params.env doesn't exist, do not apply any changes
+	// when resource is found
+	if enabled {
+		// Exception to not update kserve with managed annotation
+		// do not reconcile kserve resource with annotation "opendatahub.io/managed: false"
+		// TODO: remove this exception when we define managed annotation across odh
+		if found.GetAnnotations()[annotations.ManagedByODHOperator] == "false" && componentName == "kserve" {
 			return nil
 		}
-		return err
+		return updateResource(ctx, cli, obj, found, owner, componentName)
 	}
-
-	defer paramsEnv.Close()
-
-	paramsEnvMap := make(map[string]string)
-	scanner := bufio.NewScanner(paramsEnv)
-	for scanner.Scan() {
-		line := scanner.Text()
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) == 2 {
-			paramsEnvMap[parts[0]] = parts[1]
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return err
-	}
-
-	// 1. Update images with env variables
-	// e.g "odh-kuberay-operator-controller-image": "RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE",
-	for i := range paramsEnvMap {
-		relatedImageValue := os.Getenv(imageParamsMap[i])
-		if relatedImageValue != "" {
-			paramsEnvMap[i] = relatedImageValue
-		}
-	}
-
-	// 2. Update namespace variable with applicationNamepsace
-	if isUpdateNamespace {
-		paramsEnvMap["namespace"] = imageParamsMap["namespace"]
-	}
-
-	// 3. Update other fileds with extraParamsMap which are not carried from component
-	for _, extraParamsMap := range extraParamsMaps {
-		for eKey, eValue := range extraParamsMap {
-			paramsEnvMap[eKey] = eValue
-		}
-	}
-
-	// Move the existing file to a backup file and create empty file
-	paramsBackupFile := paramsFile + ".bak"
-	if err := os.Rename(paramsFile, paramsBackupFile); err != nil {
-		return err
-	}
-
-	file, err := os.Create(paramsFile)
-	if err != nil {
-		// If create fails, try to restore the backup file
-		_ = os.Rename(paramsBackupFile, paramsFile)
-		return err
-	}
-	defer file.Close()
-
-	// Now, write the new map back to params.env
-	writer := bufio.NewWriter(file)
-	for key, value := range paramsEnvMap {
-		if _, fErr := fmt.Fprintf(writer, "%s=%s\n", key, value); fErr != nil {
-			return fErr
-		}
-	}
-	if err := writer.Flush(); err != nil {
-		if removeErr := os.Remove(paramsFile); removeErr != nil {
-			fmt.Printf("Failed to remove file: %v", removeErr)
-		}
-		if renameErr := os.Rename(paramsBackupFile, paramsFile); renameErr != nil {
-			fmt.Printf("Failed to restore file from backup: %v", renameErr)
-		}
-		fmt.Printf("Failed to write to file: %v", err)
-		return err
-	}
-
-	// cleanup backup file params.env.bak
-	if err := os.Remove(paramsBackupFile); err != nil {
-		fmt.Printf("Failed to remove backup file: %v", err)
-		return err
-	}
-
-	return nil
+	// Delete resource if it exists and component is disabled
+	return handleDisabledComponent(ctx, cli, found, componentName)
 }
 
 // removeResourcesFromDeployment checks if the provided resource is a Deployment,
 // and if so, removes the resources field from each container in the Deployment. This ensures we do not overwrite the
 // resources field when Patch is applied with the returned unstructured resource.
+// TODO: remove this function once RHOAIENG-7929 is finished.
 func removeResourcesFromDeployment(u *unstructured.Unstructured) error {
 	// Check if the resource is a Deployment. This can be expanded to other resources as well.
 	if u.GetKind() != "Deployment" {
@@ -394,21 +297,6 @@ func handleDisabledComponent(ctx context.Context, cli client.Client, found *unst
 	return deleteResource(ctx, cli, found, componentName)
 }
 
-func getComponentCounter(foundLabels map[string]string) []string {
-	var componentCounter []string
-	for label := range foundLabels {
-		if strings.Contains(label, labels.ODHAppPrefix) {
-			compFound := strings.Split(label, "/")[1]
-			componentCounter = append(componentCounter, compFound)
-		}
-	}
-	return componentCounter
-}
-
-func isSharedResource(componentCounter []string, componentName string) bool {
-	return len(componentCounter) > 1 || (len(componentCounter) == 1 && componentCounter[0] != componentName)
-}
-
 func deleteResource(ctx context.Context, cli client.Client, found *unstructured.Unstructured, componentName string) error {
 	existingOwnerReferences := found.GetOwnerReferences()
 	selector := labels.ODH.Component(componentName)
@@ -420,15 +308,6 @@ func deleteResource(ctx context.Context, cli client.Client, found *unstructured.
 	return nil
 }
 
-func isOwnedByODHCRD(ownerReferences []metav1.OwnerReference) bool {
-	for _, owner := range ownerReferences {
-		if owner.Kind == "DataScienceCluster" || owner.Kind == "DSCInitialization" {
-			return true
-		}
-	}
-	return false
-}
-
 func createResource(ctx context.Context, cli client.Client, obj *unstructured.Unstructured, owner metav1.Object) error {
 	if obj.GetKind() != "CustomResourceDefinition" && obj.GetKind() != "OdhDashboardConfig" {
 		if err := ctrl.SetControllerReference(owner, metav1.Object(obj), cli.Scheme()); err != nil {
@@ -438,6 +317,7 @@ func createResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 	return cli.Create(ctx, obj)
 }
 
+// TODO: cleanup some logic once RHOAIENG-7929 is finished.
 func skipUpdateOnWhitelistedFields(obj *unstructured.Unstructured, componentName string) error {
 	if componentName == "kserve" || componentName == "model-mesh" {
 		if err := removeResourcesFromDeployment(obj); err != nil {
@@ -472,7 +352,7 @@ func updateResource(ctx context.Context, cli client.Client, obj, found *unstruct
 	if found.GetKind() == "OdhDashboardConfig" {
 		return nil
 	}
-	// skip updating whitelisted fields
+	// skip updating whitelisted fields from component
 	if err := skipUpdateOnWhitelistedFields(obj, componentName); err != nil {
 		return err
 	}
