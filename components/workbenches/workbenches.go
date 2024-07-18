@@ -177,7 +177,7 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 	if enabled {
 		// first check if the service is up, so prometheus wont fire alerts when it is just startup
 		// only 1 replica set timeout to 1min
-		if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 10, 1); err != nil {
+		if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 10, 2); err != nil {
 			return fmt.Errorf("deployments for %s are not ready to server: %w", ComponentName, err)
 		}
 		l.Info("deployment is done, updating monitoring rules")

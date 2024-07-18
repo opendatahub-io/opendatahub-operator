@@ -86,7 +86,7 @@ func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client, lo
 
 	// Wait for deployment available
 	if enabled {
-		if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 10, 1); err != nil {
+		if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 10, 2); err != nil {
 			return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 		}
 		l.Info("deployment is done, updating monitoring rules")

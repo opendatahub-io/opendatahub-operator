@@ -128,7 +128,7 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 	if enabled {
 		// first check if the service is up, so prometheus won't fire alerts when it is just startup
 		// only 1 replica should be very quick
-		if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 20, 1); err != nil {
+		if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
 			return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 		}
 	}
