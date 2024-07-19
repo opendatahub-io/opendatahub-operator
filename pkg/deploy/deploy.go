@@ -223,7 +223,7 @@ func manageResource(ctx context.Context, cli client.Client, res *resource.Resour
 		if found.GetAnnotations()[annotations.ManagedByODHOperator] == "false" && componentName == "kserve" {
 			return nil
 		}
-		return updateResource(ctx, cli, res, found, owner, componentName)
+		return updateResource(ctx, cli, res, found, owner)
 	}
 	// Delete resource if it exists and component is disabled
 	return handleDisabledComponent(ctx, cli, found, componentName)
@@ -286,14 +286,14 @@ func createResource(ctx context.Context, cli client.Client, res *resource.Resour
 	return cli.Create(ctx, obj)
 }
 
-func updateResource(ctx context.Context, cli client.Client, res *resource.Resource, found *unstructured.Unstructured, owner metav1.Object, componentName string) error {
+func updateResource(ctx context.Context, cli client.Client, res *resource.Resource, found *unstructured.Unstructured, owner metav1.Object) error {
 	// Skip ODHDashboardConfig Update
 	if found.GetKind() == "OdhDashboardConfig" {
 		return nil
 	}
 
 	// skip updating whitelisted fields
-	if err := skipUpdateOnWhitelistedFields(res, componentName); err != nil {
+	if err := skipUpdateOnWhitelistedFields(res); err != nil {
 		return err
 	}
 
@@ -309,15 +309,9 @@ func updateResource(ctx context.Context, cli client.Client, res *resource.Resour
 }
 
 // skipUpdateOnWhitelistedFields applies RemoverPlugin to the component's resources
-// if they are declared in WhitelistedComponent.
 // This ensures that we do not overwrite the fields when Patch is applied later to the resource.
-func skipUpdateOnWhitelistedFields(res *resource.Resource, componentName string) error {
-	whitelistedFields, exists := plugins.WhitelistedComponent[componentName]
-	if !exists {
-		return nil
-	}
-
-	for _, rmPlugin := range *whitelistedFields {
+func skipUpdateOnWhitelistedFields(res *resource.Resource) error {
+	for _, rmPlugin := range plugins.WhitelistedFields {
 		if err := rmPlugin.TransformResource(res); err != nil {
 			return err
 		}

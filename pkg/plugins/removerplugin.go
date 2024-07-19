@@ -25,23 +25,6 @@ var (
 			Path: []string{"spec", "replicas"},
 		},
 	}
-
-	// List of components should be whitelisted as not reconcile on WhitelistedFields.
-	// if any compoonent not in the list but is called by skipUpdateOnWhitelistedFields() it will not be whitelisted.
-	WhitelistedComponent = map[string]*[]RemoverPlugin{
-		"codeflare":                       &WhitelistedFields,
-		"dashboard":                       &WhitelistedFields, // dashboard is the upstream component name
-		"rhods-dashboard":                 &WhitelistedFields, // rhods-dashboard is the downstream component name
-		"data-science-pipelines-operator": &WhitelistedFields,
-		"kserve":                          &WhitelistedFields,
-		"kueue":                           &WhitelistedFields,
-		"model-mesh":                      &WhitelistedFields,
-		"model-registry-operator":         &WhitelistedFields,
-		"ray":                             &WhitelistedFields,
-		"trainingoperator":                &WhitelistedFields,
-		"trustyai":                        &WhitelistedFields,
-		"workbenches":                     &WhitelistedFields,
-	}
 )
 
 // Removes the field from the resources of ResMap if they match GVK.
