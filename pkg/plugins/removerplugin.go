@@ -27,10 +27,11 @@ var (
 	}
 
 	// List of components should be whitelisted as not reconcile on WhitelistedFields.
+	// if any compoonent not in the list but is called by skipUpdateOnWhitelistedFields() it will not be whitelisted.
 	WhitelistedComponent = map[string]*[]RemoverPlugin{
 		"codeflare":                       &WhitelistedFields,
-		"dashboard":                       &WhitelistedFields, // dashboard is a upstream component name
-		"rhods-dashboard":                 &WhitelistedFields, // rhods-dashboard is a downstream component name
+		"dashboard":                       &WhitelistedFields, // dashboard is the upstream component name
+		"rhods-dashboard":                 &WhitelistedFields, // rhods-dashboard is the downstream component name
 		"data-science-pipelines-operator": &WhitelistedFields,
 		"kserve":                          &WhitelistedFields,
 		"kueue":                           &WhitelistedFields,

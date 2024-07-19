@@ -196,7 +196,7 @@ func DeployManifestsFromPath(
 }
 
 func manageResource(ctx context.Context, cli client.Client, res *resource.Resource, owner metav1.Object, applicationNamespace, componentName string, enabled bool) error {
-	// Return if resource is of Kind: Namespace and Name: odhApplicationsNamespace
+	// Return if resource is of Kind: Namespace and Name: applicationsNamespace
 	if res.GetKind() == "Namespace" && res.GetName() == applicationNamespace {
 		return nil
 	}
