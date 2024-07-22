@@ -292,9 +292,12 @@ func updateResource(ctx context.Context, cli client.Client, res *resource.Resour
 		return nil
 	}
 
-	// skip updating whitelisted fields
-	if err := skipUpdateOnWhitelistedFields(res); err != nil {
-		return err
+	// only reconcile whiltelistedFields if the existing resource has annoation set to "true"
+	// all other cases, whiltelistedfields will be skipped by ODH operator
+	if managed, exists := found.GetAnnotations()[annotations.ManagedByODHOperator]; !exists || managed != "true" {
+		if err := skipUpdateOnWhitelistedFields(res); err != nil {
+			return err
+		}
 	}
 
 	obj, err := conversion.ResourceToUnstructured(res)
