@@ -41,6 +41,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/kustomize/api/krusty"
 	"sigs.k8s.io/kustomize/api/resmap"
+	"sigs.k8s.io/kustomize/api/resource"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
@@ -183,13 +184,9 @@ func DeployManifestsFromPath(
 		return fmt.Errorf("failed applying labels plugin when preparing Kustomize resources. %w", err)
 	}
 
-	objs, err := conversion.ResMapToUnstructured(resMap)
-	if err != nil {
-		return err
-	}
 	// Create / apply / delete resources in the cluster
-	for _, obj := range objs {
-		err = manageResource(ctx, cli, obj, owner, namespace, componentName, componentEnabled)
+	for _, res := range resMap.Resources() {
+		err = manageResource(ctx, cli, res, owner, namespace, componentName, componentEnabled)
 		if err != nil {
 			return err
 		}
@@ -198,13 +195,13 @@ func DeployManifestsFromPath(
 	return nil
 }
 
-func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Unstructured, owner metav1.Object, applicationNamespace, componentName string, enabled bool) error {
-	// Skip if resource is of Kind: Namespace and Name: applicationNamespace
-	if obj.GetKind() == "Namespace" && obj.GetName() == applicationNamespace {
+func manageResource(ctx context.Context, cli client.Client, res *resource.Resource, owner metav1.Object, applicationNamespace, componentName string, enabled bool) error {
+	// Return if resource is of Kind: Namespace and Name: applicationsNamespace
+	if res.GetKind() == "Namespace" && res.GetName() == applicationNamespace {
 		return nil
 	}
 
-	found, err := getResource(ctx, cli, obj)
+	found, err := getResource(ctx, cli, res)
 
 	if err != nil {
 		if !k8serr.IsNotFound(err) {
@@ -212,7 +209,7 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 		}
 		// Create resource if it doesn't exist and component enabled
 		if enabled {
-			return createResource(ctx, cli, obj, owner)
+			return createResource(ctx, cli, res, owner)
 		}
 		// Skip if resource doesn't exist and component is disabled
 		return nil
@@ -226,59 +223,27 @@ func manageResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 		if found.GetAnnotations()[annotations.ManagedByODHOperator] == "false" && componentName == "kserve" {
 			return nil
 		}
-		return updateResource(ctx, cli, obj, found, owner, componentName)
+		return updateResource(ctx, cli, res, found, owner)
 	}
 	// Delete resource if it exists and component is disabled
 	return handleDisabledComponent(ctx, cli, found, componentName)
 }
 
-// removeResourcesFromDeployment checks if the provided resource is a Deployment,
-// and if so, removes the resources field from each container in the Deployment. This ensures we do not overwrite the
-// resources field when Patch is applied with the returned unstructured resource.
-// TODO: remove this function once RHOAIENG-7929 is finished.
-func removeResourcesFromDeployment(u *unstructured.Unstructured) error {
-	// Check if the resource is a Deployment. This can be expanded to other resources as well.
-	if u.GetKind() != "Deployment" {
-		return nil
-	}
-	// Navigate to the containers array in the Deployment spec
-	containers, exists, err := unstructured.NestedSlice(u.Object, "spec", "template", "spec", "containers")
-	if err != nil {
-		return fmt.Errorf("error when trying to retrieve containers from Deployment: %w", err)
-	}
-	// Return if no containers exist
-	if !exists {
-		return nil
-	}
-
-	// Iterate over the containers to remove the resources field
-	for i := range containers {
-		container, ok := containers[i].(map[string]interface{})
-		// If containers field is not in expected type, return.
-		if !ok {
-			return nil
-		}
-		// Check and delete the resources field. This can be expanded to any whitelisted field.
-		delete(container, "resources")
-		containers[i] = container
-	}
-
-	// Update the containers in the original unstructured object
-	if err := unstructured.SetNestedSlice(u.Object, containers, "spec", "template", "spec", "containers"); err != nil {
-		return fmt.Errorf("failed to update containers in Deployment: %w", err)
-	}
-
-	return nil
-}
-
-func getResource(ctx context.Context, cli client.Client, obj *unstructured.Unstructured) (*unstructured.Unstructured, error) {
+func getResource(ctx context.Context, cli client.Client, obj *resource.Resource) (*unstructured.Unstructured, error) {
 	found := &unstructured.Unstructured{}
+	residGvk := obj.GetGvk()
+	gvk := schema.GroupVersionKind{
+		Group:   residGvk.Group,
+		Version: residGvk.Version,
+		Kind:    residGvk.Kind,
+	}
 	// Setting gvk is required to do Get request
-	found.SetGroupVersionKind(obj.GroupVersionKind())
+	found.SetGroupVersionKind(gvk)
+
 	err := cli.Get(ctx, types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, found)
 	if errors.Is(err, &meta.NoKindMatchError{}) {
 		// convert the error to NotFound to handle both the same way in the caller
-		return nil, k8serr.NewNotFound(schema.GroupResource{Group: obj.GroupVersionKind().Group}, obj.GetName())
+		return nil, k8serr.NewNotFound(schema.GroupResource{Group: gvk.Group}, obj.GetName())
 	}
 	if err != nil {
 		return nil, err
@@ -308,7 +273,11 @@ func deleteResource(ctx context.Context, cli client.Client, found *unstructured.
 	return nil
 }
 
-func createResource(ctx context.Context, cli client.Client, obj *unstructured.Unstructured, owner metav1.Object) error {
+func createResource(ctx context.Context, cli client.Client, res *resource.Resource, owner metav1.Object) error {
+	obj, err := conversion.ResourceToUnstructured(res)
+	if err != nil {
+		return err
+	}
 	if obj.GetKind() != "CustomResourceDefinition" && obj.GetKind() != "OdhDashboardConfig" {
 		if err := ctrl.SetControllerReference(owner, metav1.Object(obj), cli.Scheme()); err != nil {
 			return err
@@ -317,13 +286,40 @@ func createResource(ctx context.Context, cli client.Client, obj *unstructured.Un
 	return cli.Create(ctx, obj)
 }
 
-// TODO: cleanup some logic once RHOAIENG-7929 is finished.
-func skipUpdateOnWhitelistedFields(obj *unstructured.Unstructured, componentName string) error {
-	if componentName == "kserve" || componentName == "model-mesh" {
-		if err := removeResourcesFromDeployment(obj); err != nil {
+func updateResource(ctx context.Context, cli client.Client, res *resource.Resource, found *unstructured.Unstructured, owner metav1.Object) error {
+	// Skip ODHDashboardConfig Update
+	if found.GetKind() == "OdhDashboardConfig" {
+		return nil
+	}
+
+	// only reconcile whiltelistedFields if the existing resource has annoation set to "true"
+	// all other cases, whiltelistedfields will be skipped by ODH operator
+	if managed, exists := found.GetAnnotations()[annotations.ManagedByODHOperator]; !exists || managed != "true" {
+		if err := skipUpdateOnWhitelistedFields(res); err != nil {
 			return err
 		}
 	}
+
+	obj, err := conversion.ResourceToUnstructured(res)
+	if err != nil {
+		return err
+	}
+
+	// Retain existing labels on update
+	updateLabels(found, obj)
+
+	return performPatch(ctx, cli, obj, found, owner)
+}
+
+// skipUpdateOnWhitelistedFields applies RemoverPlugin to the component's resources
+// This ensures that we do not overwrite the fields when Patch is applied later to the resource.
+func skipUpdateOnWhitelistedFields(res *resource.Resource) error {
+	for _, rmPlugin := range plugins.WhitelistedFields {
+		if err := rmPlugin.TransformResource(res); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -345,22 +341,6 @@ func performPatch(ctx context.Context, cli client.Client, obj, found *unstructur
 		return err
 	}
 	return cli.Patch(ctx, found, client.RawPatch(types.ApplyPatchType, data), client.ForceOwnership, client.FieldOwner(owner.GetName()))
-}
-
-func updateResource(ctx context.Context, cli client.Client, obj, found *unstructured.Unstructured, owner metav1.Object, componentName string) error {
-	// Skip ODHDashboardConfig Update
-	if found.GetKind() == "OdhDashboardConfig" {
-		return nil
-	}
-	// skip updating whitelisted fields from component
-	if err := skipUpdateOnWhitelistedFields(obj, componentName); err != nil {
-		return err
-	}
-
-	// Retain existing labels on update
-	updateLabels(found, obj)
-
-	return performPatch(ctx, cli, obj, found, owner)
 }
 
 // TODO : Add function to cleanup code created as part of pre install and post install task of a component

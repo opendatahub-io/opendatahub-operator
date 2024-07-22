@@ -435,7 +435,7 @@ func (tc *testContext) testUpdateComponentReconcile() error {
 	}
 	if len(appDeployments.Items) != 0 {
 		testDeployment := appDeployments.Items[0]
-		expectedReplica := testDeployment.Spec.Replicas
+		expectedReplica := 3
 		patchedReplica := &autoscalingv1.Scale{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      testDeployment.Name,
@@ -446,22 +446,23 @@ func (tc *testContext) testUpdateComponentReconcile() error {
 			},
 			Status: autoscalingv1.ScaleStatus{},
 		}
-		retrievedDep, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).UpdateScale(tc.ctx, testDeployment.Name, patchedReplica, metav1.UpdateOptions{})
+		updatedDep, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).UpdateScale(tc.ctx, testDeployment.Name, patchedReplica, metav1.UpdateOptions{})
 		if err != nil {
 			return fmt.Errorf("error patching component resources : %w", err)
 		}
-		if retrievedDep.Spec.Replicas != patchedReplica.Spec.Replicas {
-			return fmt.Errorf("failed to patch replicas : expect to be %v but got %v", patchedReplica.Spec.Replicas, retrievedDep.Spec.Replicas)
+		if updatedDep.Spec.Replicas != patchedReplica.Spec.Replicas {
+			return fmt.Errorf("failed to patch replicas : expect to be %v but got %v", patchedReplica.Spec.Replicas, updatedDep.Spec.Replicas)
 		}
 
 		// Sleep for 40 seconds to allow the operator to reconcile
+		// we expect it should not revert back to original value because of whitelist
 		time.Sleep(4 * tc.resourceRetryInterval)
-		revertedDep, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).Get(tc.ctx, testDeployment.Name, metav1.GetOptions{})
+		reconciledDep, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).Get(tc.ctx, testDeployment.Name, metav1.GetOptions{})
 		if err != nil {
 			return fmt.Errorf("error getting component resource after reconcile: %w", err)
 		}
-		if *revertedDep.Spec.Replicas != *expectedReplica {
-			return fmt.Errorf("failed to revert back replicas : expect to be %v but got %v", *expectedReplica, *revertedDep.Spec.Replicas)
+		if *reconciledDep.Spec.Replicas != int32(expectedReplica) {
+			return fmt.Errorf("failed to revert back replicas : expect to be %v but got %v", expectedReplica, *reconciledDep.Spec.Replicas)
 		}
 	}
 
