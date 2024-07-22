@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"sigs.k8s.io/kustomize/api/resmap"
+	"sigs.k8s.io/kustomize/api/resource"
 	"sigs.k8s.io/yaml"
 )
 
@@ -33,20 +33,13 @@ func StrToUnstructured(resources string) ([]*unstructured.Unstructured, error) {
 	return objs, nil
 }
 
-// ResMapToUnstructured converts a ResMap to a slice of Unstructured objects.
-func ResMapToUnstructured(resMap resmap.ResMap) ([]*unstructured.Unstructured, error) {
-	resources := make([]*unstructured.Unstructured, 0, resMap.Size())
-	for _, res := range resMap.Resources() {
-		u := &unstructured.Unstructured{}
-		asYAML, errToYAML := res.AsYAML()
-		if errToYAML != nil {
-			return nil, errToYAML
-		}
-		if errUnmarshal := yaml.Unmarshal(asYAML, u); errUnmarshal != nil {
-			return nil, errUnmarshal
-		}
-		resources = append(resources, u)
+// ResourceToUnstructured converts a resource.Resource to an Unstructured object.
+func ResourceToUnstructured(res *resource.Resource) (*unstructured.Unstructured, error) {
+	u := &unstructured.Unstructured{}
+
+	if err := yaml.Unmarshal([]byte(res.MustYaml()), u); err != nil {
+		return nil, err
 	}
 
-	return resources, nil
+	return u, nil
 }
