@@ -121,10 +121,12 @@ func (w *OpenDataHubWebhook) Handle(ctx context.Context, req admission.Request) 
 		resp = w.checkDupCreation(ctx, req)
 	case admissionv1.Delete:
 		resp = w.checkDeletion(ctx, req)
+	case admissionv1.Update:
+		return admission.Allowed("")
 	default:
-		msg := fmt.Sprintf("No logic check by webhook is applied on %v request", req.Operation)
+		msg := fmt.Sprintf("No logic check by webhook is applied on %v request: allowed", req.Operation)
 		log.Info(msg)
-		resp = admission.Allowed("")
+		return admission.Allowed("")
 	}
 
 	if !resp.Allowed {
