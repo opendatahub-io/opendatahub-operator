@@ -221,7 +221,7 @@ func (r *DSCInitializationReconciler) authorizationFeatures(instance *dsciv1.DSC
 					func(ctx context.Context, f *feature.Feature) error {
 						namespace, err := servicemesh.FeatureData.Authorization.Namespace.Extract(f)
 						if err != nil {
-							return err
+							return fmt.Errorf("failed trying to resolve authorization provider namespace for feature '%s': %w", f.Name, err)
 						}
 
 						return feature.WaitForPodsToBeReady(namespace)(ctx, f)
