@@ -6,7 +6,7 @@ const (
 	// SelfManagedRhods defines display name in csv.
 	SelfManagedRhods Platform = "OpenShift AI Self-Managed"
 	// OpenDataHub defines display name in csv.
-	OpenDataHub Platform = "Open Data Hub Operator"
+	OpenDataHub Platform = "Open Data Hub"
 	// Unknown indicates that operator is not deployed using OLM.
 	Unknown Platform = ""
 )
