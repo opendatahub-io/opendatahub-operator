@@ -219,7 +219,12 @@ func (r *DSCInitializationReconciler) authorizationFeatures(instance *dsciv1.DSC
 				).
 				PreConditions(
 					func(ctx context.Context, f *feature.Feature) error {
-						return feature.WaitForPodsToBeReady(serviceMeshSpec.Auth.Namespace)(ctx, f)
+						namespace, err := servicemesh.FeatureData.Authorization.Namespace.Extract(f)
+						if err != nil {
+							return fmt.Errorf("failed trying to resolve authorization provider namespace for feature '%s': %w", f.Name, err)
+						}
+
+						return feature.WaitForPodsToBeReady(namespace)(ctx, f)
 					},
 				).
 				WithData(servicemesh.FeatureData.ControlPlane.Define(&instance.Spec).AsAction()).
