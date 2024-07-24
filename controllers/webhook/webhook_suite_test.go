@@ -47,7 +47,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
-	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/webhook"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -120,8 +119,6 @@ var _ = BeforeSuite(func() {
 		MetricsBindAddress: "0",
 	})
 	Expect(err).NotTo(HaveOccurred())
-
-	(&webhook.OpenDataHubWebhook{}).SetupWithManager(mgr)
 
 	// +kubebuilder:scaffold:webhook
 

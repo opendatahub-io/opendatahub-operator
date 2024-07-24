@@ -151,7 +151,7 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 			}
 		}
 	}
-	if err := deploy.DeployManifestsFromPath(cli, owner,
+	if err := deploy.DeployManifestsFromPath(ctx, cli, owner,
 		kfnotebookControllerPath,
 		dscispec.ApplicationsNamespace,
 		ComponentName, enabled); err != nil {
