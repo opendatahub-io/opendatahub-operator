@@ -219,7 +219,8 @@ func getDashboardWatsonResources(ns string) []ResourceSpec {
 func CleanupExistingResource(ctx context.Context, cli client.Client, platform cluster.Platform, dscApplicationsNamespace, dscMonitoringNamespace string) error {
 	var multiErr *multierror.Error
 	// Special Handling of cleanup of deprecated model monitoring stack
-	if platform == cluster.ManagedRhods {
+	// Check if the platform is RHOAI (SelfManagedRhods or ManagedRhods)
+	if platform == cluster.SelfManagedRhods || platform == cluster.ManagedRhods {
 		deprecatedDeployments := []string{"rhods-prometheus-operator"}
 		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedDeployments, &appsv1.DeploymentList{}))
 
@@ -238,7 +239,7 @@ func CleanupExistingResource(ctx context.Context, cli client.Client, platform cl
 		deprecatedClusterroles := []string{"rhods-namespace-read", "rhods-prometheus-operator"}
 		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedClusterroles, &rbacv1.ClusterRoleList{}))
 
-		deprecatedClusterrolebindings := []string{"rhods-namespace-read", "rhods-prometheus-operator"}
+		deprecatedClusterrolebindings := []string{"rhods-namespace-read", "rhods-prometheus-operator", "odh-model-controller-rolebinding-redhat-ods-applications"}
 		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedClusterrolebindings, &rbacv1.ClusterRoleBindingList{}))
 
 		deprecatedServiceAccounts := []string{"rhods-prometheus-operator"}
@@ -246,6 +247,10 @@ func CleanupExistingResource(ctx context.Context, cli client.Client, platform cl
 
 		deprecatedServicemonitors := []string{"modelmesh-federated-metrics"}
 		multiErr = multierror.Append(multiErr, deleteDeprecatedServiceMonitors(ctx, cli, dscMonitoringNamespace, deprecatedServicemonitors))
+	} else {
+		// ODH specific cleanup
+		deprecatedClusterrolebindings := []string{"odh-model-controller-rolebinding-opendatahub"}
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedClusterrolebindings, &rbacv1.ClusterRoleBindingList{}))
 	}
 	// common logic for both self-managed and managed
 	deprecatedOperatorSM := []string{"rhods-monitor-federation2"}
