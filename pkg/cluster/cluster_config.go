@@ -41,6 +41,10 @@ func GetDomain(ctx context.Context, c client.Client) (string, error) {
 }
 
 func GetOperatorNamespace() (string, error) {
+	operatorNS, exist := os.LookupEnv("OPERATOR_NAMESPACE")
+	if exist && operatorNS != "" {
+		return operatorNS, nil
+	}
 	data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
 	return string(data), err
 }

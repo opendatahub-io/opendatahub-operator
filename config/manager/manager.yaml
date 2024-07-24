@@ -36,6 +36,11 @@ spec:
       containers:
       - command:
         - /manager
+        env:
+          - name: OPERATOR_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
         args:
         - --leader-elect
         - --operator-name=opendatahub
