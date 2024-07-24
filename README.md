@@ -311,8 +311,6 @@ spec:
       managementState: Managed
     modelmeshserving:
       managementState: Managed
-    modelregistry:
-      managementState: Managed
     ray:
       managementState: Managed
     trainingoperator:
