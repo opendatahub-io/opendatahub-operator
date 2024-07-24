@@ -85,6 +85,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 
 	enabled := d.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
+	imageParamMap := make(map[string]string)
 
 	if enabled {
 		// 1. cleanup OAuth client related secret and CR if dashboard is in 'installed false' status
@@ -99,6 +100,8 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 			if OverridePath != "" {
 				entryPath = OverridePath
 			}
+		} else { // Update image parameters if devFlags is not provided
+			imageParamMap["odh-dashboard-image"] = "RELATED_IMAGE_ODH_DASHBOARD_IMAGE"
 		}
 
 		// 2. platform specific RBAC
@@ -112,22 +115,15 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 			}
 		}
 
-		// 3. Update image parameters
-		var imageParamMap = map[string]string{
-			"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
-		}
-
-		// 4. Append or Update variable for component to consume
+		// 3. Append or Update variable for component to consume
 		extraParamsMap, err := updateKustomizeVariable(ctx, cli, platform, dscispec)
 		if err != nil {
 			return errors.New("failed to set variable for extraParamsMap")
 		}
 
-		// 5. update params.env
-		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (d.DevFlags == nil || len(d.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(entryPath, imageParamMap, false, extraParamsMap); err != nil {
-				return fmt.Errorf("failed to update params.env  from %s : %w", entryPath, err)
-			}
+		// 4. update params.env regardless devFlags is provided of not
+		if err := deploy.ApplyParams(entryPath, imageParamMap, false, extraParamsMap); err != nil {
+			return fmt.Errorf("failed to update params.env  from %s : %w", entryPath, err)
 		}
 	}
 
