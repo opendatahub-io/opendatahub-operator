@@ -40,6 +40,10 @@ spec:
         env:
           - name: DISABLE_DSC_CONFIG
             value: 'true'
+          - name: OPERATOR_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
         args:
         - --operator-name=opendatahub
         image: controller:latest
