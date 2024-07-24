@@ -28,9 +28,6 @@ var (
 var _ components.ComponentInterface = (*TrustyAI)(nil)
 
 // TrustyAI struct holds the configuration for the TrustyAI component.
-// ## DEPRECATED ## : Installation of TrustyAI operator is deprecated in RHOAI.
-// If TrustyAI operator is installed, it will be removed
-// Changes in managemenstState are not supported.
 // +kubebuilder:object:generate=true
 type TrustyAI struct {
 	components.Component `json:""`
