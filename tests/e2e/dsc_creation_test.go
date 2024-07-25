@@ -4,14 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"log"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
@@ -185,14 +186,14 @@ func (tc *testContext) testDSCCreation() error {
 	return waitDSCReady(tc)
 }
 
-func (tc *testContext) requireInstalled(t *testing.T, gvk schema.GroupVersionKind) {
-	t.Helper()
-	list := &unstructured.UnstructuredList{}
-	list.SetGroupVersionKind(gvk)
-	err := tc.customClient.List(tc.ctx, list)
-	require.NoErrorf(t, err, "Could not get %s list", gvk.Kind)
-	require.Greaterf(t, len(list.Items), 0, "%s has not been installed", gvk.Kind)
-}
+//func (tc *testContext) requireInstalled(t *testing.T, gvk schema.GroupVersionKind) {
+//	t.Helper()
+//	list := &unstructured.UnstructuredList{}
+//	list.SetGroupVersionKind(gvk)
+//	err := tc.customClient.List(tc.ctx, list)
+//	require.NotEmptyf(t, err, "Could not get %s list", gvk.Kind)
+//	require.Greaterf(t, len(list.Items), 0, "%s has not been installed", gvk.Kind)
+//}
 
 func (tc *testContext) testDuplication(t *testing.T, gvk schema.GroupVersionKind, o any) {
 	t.Helper()
@@ -207,16 +208,16 @@ func (tc *testContext) testDuplication(t *testing.T, gvk schema.GroupVersionKind
 	require.Errorf(t, err, "Could create second %s", gvk.Kind)
 }
 
-func (tc *testContext) testDSCDuplication(t *testing.T) { //nolint:thelper
-	gvk := schema.GroupVersionKind{
-		Group:   "datasciencecluster.opendatahub.io",
-		Version: "v1",
-		Kind:    "DataScienceCluster",
-	}
-
-	dup := setupDSCInstance("e2e-test-dsc-dup")
-	tc.testDuplication(t, gvk, dup)
-}
+//func (tc *testContext) testDSCDuplication(t *testing.T) { //nolint:thelper
+//	gvk := schema.GroupVersionKind{
+//		Group:   "datasciencecluster.opendatahub.io",
+//		Version: "v1",
+//		Kind:    "DataScienceCluster",
+//	}
+//
+//	dup := setupDSCInstance("e2e-test-dsc-dup")
+//	tc.testDuplication(t, gvk, dup)
+//}
 
 func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint:funlen,thelper
 	// Validate test instance is in Ready state
@@ -271,7 +272,7 @@ func (tc *testContext) testApplicationCreation(component components.ComponentInt
 			componentName = "rhods-dashboard"
 		}
 
-		appList, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(context.TODO(), metav1.ListOptions{
+		appList, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(ctx, metav1.ListOptions{
 			LabelSelector: odhLabelPrefix + componentName,
 		})
 		if err != nil {

@@ -43,7 +43,6 @@ func MeshRefs(ctx context.Context, f *feature.Feature) error {
 // AuthRefs stores authorization configuration in the config map, so it can
 // be easily accessed by other components which rely on this information.
 func AuthRefs(ctx context.Context, f *feature.Feature) error {
-
 	targetNamespace := f.TargetNamespace
 	auth, err := FeatureData.Authorization.Spec.Extract(f)
 	if err != nil {
