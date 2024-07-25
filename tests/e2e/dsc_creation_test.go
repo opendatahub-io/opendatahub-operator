@@ -10,10 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
@@ -195,18 +191,18 @@ func (tc *testContext) testDSCCreation() error {
 //	require.Greaterf(t, len(list.Items), 0, "%s has not been installed", gvk.Kind)
 //}
 
-func (tc *testContext) testDuplication(t *testing.T, gvk schema.GroupVersionKind, o any) {
-	t.Helper()
-	tc.requireInstalled(t, gvk)
-	u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(o)
-	require.NoErrorf(t, err, "Could not unstructure %s", gvk.Kind)
-	obj := &unstructured.Unstructured{
-		Object: u,
-	}
-	obj.SetGroupVersionKind(gvk)
-	err = tc.customClient.Create(tc.ctx, obj)
-	require.Errorf(t, err, "Could create second %s", gvk.Kind)
-}
+//func (tc *testContext) testDuplication(t *testing.T, gvk schema.GroupVersionKind, o any) {
+//	t.Helper()
+//	tc.requireInstalled(t, gvk)
+//	u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(o)
+//	require.NoErrorf(t, err, "Could not unstructure %s", gvk.Kind)
+//	obj := &unstructured.Unstructured{
+//		Object: u,
+//	}
+//	obj.SetGroupVersionKind(gvk)
+//	err = tc.customClient.Create(tc.ctx, obj)
+//	require.Errorf(t, err, "Could create second %s", gvk.Kind)
+//}
 
 //func (tc *testContext) testDSCDuplication(t *testing.T) { //nolint:thelper
 //	gvk := schema.GroupVersionKind{
