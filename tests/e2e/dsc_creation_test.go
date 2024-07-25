@@ -204,6 +204,16 @@ func (tc *testContext) testDSCCreation() error {
 //	require.Errorf(t, err, "Could create second %s", gvk.Kind)
 //}
 
+// func (tc *testContext) testDSCIDuplication(t *testing.T) { //nolint:thelper
+// 	gvk := schema.GroupVersionKind{
+// 		Group:   "dscinitialization.opendatahub.io",
+// 		Version: "v1",
+// 		Kind:    "DSCInitialization",
+// 	}
+// 	dup := setupDSCICR("e2e-test-dsci-dup")
+// 	tc.testDuplication(t, gvk, dup)
+// }
+
 // func (tc *testContext) testDSCDuplication(t *testing.T) { //nolint:thelper
 //	gvk := schema.GroupVersionKind{
 //		Group:   "datasciencecluster.opendatahub.io",
