@@ -425,7 +425,7 @@ func (tc *testContext) testUpdateComponentReconcile() error {
 				Namespace: testDeployment.Namespace,
 			},
 			Spec: autoscalingv1.ScaleSpec{
-				Replicas: 4, // rhoai has 5 pods
+				Replicas: 3, // rhoai has 5 pods
 			},
 			Status: autoscalingv1.ScaleStatus{},
 		}
