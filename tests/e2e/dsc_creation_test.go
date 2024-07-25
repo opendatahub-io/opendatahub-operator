@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -267,7 +266,6 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint
 func (tc *testContext) testApplicationCreation(component components.ComponentInterface) error {
 	err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
 		// TODO: see if checking deployment is a good test, CF does not create deployment
-<<<<<<< HEAD
 		componentName := component.GetComponentName()
 		if componentName == "dashboard" { // special case for RHOAI dashboard name
 			componentName = "rhods-dashboard"
@@ -275,10 +273,6 @@ func (tc *testContext) testApplicationCreation(component components.ComponentInt
 
 		appList, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(context.TODO(), metav1.ListOptions{
 			LabelSelector: odhLabelPrefix + componentName,
-=======
-		appList, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(ctx, metav1.ListOptions{
-			LabelSelector: odhLabelPrefix + component.GetComponentName(),
->>>>>>> 47ea7d1e (chore(lint): enable contextcheck and containedctx (#1070))
 		})
 		if err != nil {
 			log.Printf("error listing application deployments :%v. Trying again...", err)
@@ -419,13 +413,8 @@ func (tc *testContext) testDefaultCertsAvailable() error {
 func (tc *testContext) testUpdateComponentReconcile() error {
 	// Test Updating Dashboard Replicas
 
-<<<<<<< HEAD
 	appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(context.TODO(), metav1.ListOptions{
 		LabelSelector: odhLabelPrefix + "rhods-dashboard",
-=======
-	appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(tc.ctx, metav1.ListOptions{
-		LabelSelector: odhLabelPrefix + tc.testDsc.Spec.Components.Dashboard.GetComponentName(),
->>>>>>> 47ea7d1e (chore(lint): enable contextcheck and containedctx (#1070))
 	})
 	if err != nil {
 		return err
@@ -471,13 +460,8 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 	var dashboardDeploymentName string
 
 	if tc.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
-<<<<<<< HEAD
 		appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(context.TODO(), metav1.ListOptions{
 			LabelSelector: odhLabelPrefix + "rhods-dashboard", // here is not same label as comopnent name in DSC
-=======
-		appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(tc.ctx, metav1.ListOptions{
-			LabelSelector: odhLabelPrefix + tc.testDsc.Spec.Components.Dashboard.GetComponentName(),
->>>>>>> 47ea7d1e (chore(lint): enable contextcheck and containedctx (#1070))
 		})
 		if err != nil {
 			return fmt.Errorf("error getting enabled component %v", "rhods-dashboard")
