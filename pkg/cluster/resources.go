@@ -87,6 +87,10 @@ func CreateSecret(ctx context.Context, cli client.Client, name, namespace string
 // If the configmap already exists, it will be updated with the merged Data and MetaOptions, if any.
 // ConfigMap.ObjectMeta.Name and ConfigMap.ObjectMeta.Namespace are both required, it returns an error otherwise.
 func CreateOrUpdateConfigMap(ctx context.Context, c client.Client, desiredCfgMap *corev1.ConfigMap, metaOptions ...MetaOptions) error {
+	if applyErr := ApplyMetaOptions(desiredCfgMap, metaOptions...); applyErr != nil {
+		return applyErr
+	}
+
 	if desiredCfgMap.GetName() == "" || desiredCfgMap.GetNamespace() == "" {
 		return errors.New("configmap name and namespace must be set")
 	}
@@ -146,6 +150,30 @@ func CreateNamespace(ctx context.Context, cli client.Client, namespace string, m
 	}
 
 	return desiredNamespace, client.IgnoreAlreadyExists(createErr)
+}
+
+// ExecuteOnAllNamespaces executes the passed function for all namespaces in the cluster retrieved in batches.
+func ExecuteOnAllNamespaces(ctx context.Context, cli client.Client, processFunc func(*corev1.Namespace) error) error {
+	namespaces := &corev1.NamespaceList{}
+	paginateListOption := &client.ListOptions{
+		Limit: 500,
+	}
+
+	for { // loop over all paged results
+		if err := cli.List(ctx, namespaces, paginateListOption); err != nil {
+			return err
+		}
+		for i := range namespaces.Items {
+			ns := &namespaces.Items[i]
+			if err := processFunc(ns); err != nil {
+				return err
+			}
+		}
+		if paginateListOption.Continue = namespaces.GetContinue(); namespaces.GetContinue() == "" {
+			break
+		}
+	}
+	return nil
 }
 
 // WaitForDeploymentAvailable to check if component deployment from 'namespace' is ready within 'timeout' before apply prometheus rules for the component.

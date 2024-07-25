@@ -85,7 +85,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	r.Log.Info("Reconciling DataScienceCluster resources", "Request.Name", req.Name)
 
 	// Get information on version
-	currentOperatorReleaseVersion, err := cluster.GetRelease(r.Client)
+	currentOperatorReleaseVersion, err := cluster.GetRelease(ctx, r.Client)
 	if err != nil {
 		r.Log.Error(err, "failed to get operator release version")
 		return ctrl.Result{}, err
@@ -120,12 +120,12 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	// If DSC CR exist and deletion CM exist
 	// delete DSC CR and let reconcile requeue
-	// sometimes with finalzier DSC CR wont get deleted, force to remove finalizer here
+	// sometimes with finalizer DSC CR won't get deleted, force to remove finalizer here
 	if upgrade.HasDeleteConfigMap(ctx, r.Client) {
 		if controllerutil.ContainsFinalizer(instance, finalizerName) {
 			if controllerutil.RemoveFinalizer(instance, finalizerName) {
 				if err := r.Update(ctx, instance); err != nil {
-					r.Log.Info("Error to remove DSC finalzier", "error", err)
+					r.Log.Info("Error to remove DSC finalizer", "error", err)
 					return ctrl.Result{}, err
 				}
 				r.Log.Info("Removed finalizer for DataScienceCluster", "name", instance.Name, "finalizer", finalizerName)
@@ -137,7 +137,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 			}
 		}
 		for _, component := range allComponents {
-			if err := component.Cleanup(r.Client, r.DataScienceCluster.DSCISpec); err != nil {
+			if err := component.Cleanup(ctx, r.Client, r.DataScienceCluster.DSCISpec); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
@@ -206,7 +206,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	} else {
 		r.Log.Info("Finalization DataScienceCluster start deleting instance", "name", instance.Name, "finalizer", finalizerName)
 		for _, component := range allComponents {
-			if err := component.Cleanup(r.Client, r.DataScienceCluster.DSCISpec); err != nil {
+			if err := component.Cleanup(ctx, r.Client, r.DataScienceCluster.DSCISpec); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
@@ -228,6 +228,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		if instance.Spec.Components.DataSciencePipelines.ManagementState == operatorv1.Managed {
 			if err := datasciencepipelines.UnmanagedArgoWorkFlowExists(ctx, r.Client); err != nil {
 				message := fmt.Sprintf("Failed upgrade: %v ", err.Error())
+
 				_, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dscv1.DataScienceCluster) {
 					datasciencepipelines.SetExistingArgoCondition(&saved.Status.Conditions, status.ArgoWorkflowExist, message)
 					status.SetErrorCondition(&saved.Status.Conditions, status.ArgoWorkflowExist, message)
@@ -323,7 +324,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 	}
 	// Reconcile component
 	// Get platform
-	platform, err := cluster.GetPlatform(r.Client)
+	platform, err := cluster.GetPlatform(ctx, r.Client)
 	if err != nil {
 		r.Log.Error(err, "Failed to determine platform")
 		return instance, err
@@ -447,7 +448,7 @@ var modelMeshGeneralPredicates = predicate.Funcs{
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *DataScienceClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *DataScienceClusterReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&dscv1.DataScienceCluster{}).
 		Owns(&corev1.Namespace{}).
@@ -469,66 +470,70 @@ func (r *DataScienceClusterReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		Owns(&admissionregistrationv1.MutatingWebhookConfiguration{}).
 		Owns(&admissionregistrationv1.ValidatingWebhookConfiguration{}, builder.WithPredicates(modelMeshwebhookPredicates)).
 		Owns(&corev1.ServiceAccount{}, builder.WithPredicates(saPredicates)).
-		Watches(&source.Kind{Type: &dsciv1.DSCInitialization{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterForDSCI)).
-		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources), builder.WithPredicates(configMapPredicates)).
-		Watches(&source.Kind{Type: &apiextensionsv1.CustomResourceDefinition{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources),
+		Watches(&source.Kind{Type: &dsciv1.DSCInitialization{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterForDSCI(ctx))).
+		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources(ctx)), builder.WithPredicates(configMapPredicates)).
+		Watches(&source.Kind{Type: &apiextensionsv1.CustomResourceDefinition{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources(ctx)),
 			builder.WithPredicates(argoWorkflowCRDPredicates)).
-		Watches(&source.Kind{Type: &corev1.Secret{}}, handler.EnqueueRequestsFromMapFunc(r.watchDefaultIngressSecret), builder.WithPredicates(defaultIngressCertSecretPredicates)).
+		Watches(&source.Kind{Type: &corev1.Secret{}}, handler.EnqueueRequestsFromMapFunc(r.watchDefaultIngressSecret(ctx)), builder.WithPredicates(defaultIngressCertSecretPredicates)).
 		// this predicates prevents meaningless reconciliations from being triggered
 		WithEventFilter(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{})).
 		Complete(r)
 }
 
-func (r *DataScienceClusterReconciler) watchDataScienceClusterForDSCI(a client.Object) []reconcile.Request {
-	requestName, err := r.getRequestName()
-	if err != nil {
-		return nil
-	}
-	// When DSCI CR gets created, trigger reconcile function
-	if a.GetObjectKind().GroupVersionKind().Kind == "DSCInitialization" || a.GetName() == "default-dsci" {
-		return []reconcile.Request{{
-			NamespacedName: types.NamespacedName{Name: requestName},
-		}}
-	}
-	return nil
-}
-func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(a client.Object) []reconcile.Request {
-	requestName, err := r.getRequestName()
-	if err != nil {
-		return nil
-	}
-
-	if a.GetObjectKind().GroupVersionKind().Kind == "CustomResourceDefinition" || a.GetName() == "ArgoWorkflowCRD" {
-		return []reconcile.Request{{
-			NamespacedName: types.NamespacedName{Name: requestName},
-		}}
-	}
-
-	if a.GetObjectKind().GroupVersionKind().Kind == "CustomResourceDefinition" {
-		return []reconcile.Request{{
-			NamespacedName: types.NamespacedName{Name: requestName},
-		}}
-	}
-
-	// Trigger reconcile function when uninstall configmap is created
-	operatorNs, err := cluster.GetOperatorNamespace()
-	if err != nil {
-		return nil
-	}
-	if a.GetNamespace() == operatorNs {
-		cmLabels := a.GetLabels()
-		if val, ok := cmLabels[upgrade.DeleteConfigMapLabel]; ok && val == "true" {
+func (r *DataScienceClusterReconciler) watchDataScienceClusterForDSCI(ctx context.Context) func(a client.Object) []reconcile.Request {
+	return func(a client.Object) []reconcile.Request {
+		requestName, err := r.getRequestName(ctx)
+		if err != nil {
+			return nil
+		}
+		// When DSCI CR gets created, trigger reconcile function
+		if a.GetObjectKind().GroupVersionKind().Kind == "DSCInitialization" || a.GetName() == "default-dsci" {
 			return []reconcile.Request{{
 				NamespacedName: types.NamespacedName{Name: requestName},
 			}}
 		}
+		return nil
 	}
-	return nil
+}
+func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(ctx context.Context) func(a client.Object) []reconcile.Request {
+	return func(a client.Object) []reconcile.Request {
+		requestName, err := r.getRequestName(ctx)
+		if err != nil {
+			return nil
+		}
+
+		if a.GetObjectKind().GroupVersionKind().Kind == "CustomResourceDefinition" || a.GetName() == "ArgoWorkflowCRD" {
+			return []reconcile.Request{{
+				NamespacedName: types.NamespacedName{Name: requestName},
+			}}
+		}
+
+		if a.GetObjectKind().GroupVersionKind().Kind == "CustomResourceDefinition" {
+			return []reconcile.Request{{
+				NamespacedName: types.NamespacedName{Name: requestName},
+			}}
+		}
+
+		// Trigger reconcile function when uninstall configmap is created
+		operatorNs, err := cluster.GetOperatorNamespace()
+		if err != nil {
+			return nil
+		}
+		if a.GetNamespace() == operatorNs {
+			cmLabels := a.GetLabels()
+			if val, ok := cmLabels[upgrade.DeleteConfigMapLabel]; ok && val == "true" {
+				return []reconcile.Request{{
+					NamespacedName: types.NamespacedName{Name: requestName},
+				}}
+			}
+		}
+		return nil
+	}
 }
 
-func (r *DataScienceClusterReconciler) getRequestName() (string, error) {
+func (r *DataScienceClusterReconciler) getRequestName(ctx context.Context) (string, error) {
 	instanceList := &dscv1.DataScienceClusterList{}
-	err := r.Client.List(context.TODO(), instanceList)
+	err := r.Client.List(ctx, instanceList)
 	if err != nil {
 		return "", err
 	}
@@ -558,23 +563,25 @@ var argoWorkflowCRDPredicates = predicate.Funcs{
 	},
 }
 
-func (r *DataScienceClusterReconciler) watchDefaultIngressSecret(a client.Object) []reconcile.Request {
-	requestName, err := r.getRequestName()
-	if err != nil {
+func (r *DataScienceClusterReconciler) watchDefaultIngressSecret(ctx context.Context) func(client.Object) []reconcile.Request {
+	return func(a client.Object) []reconcile.Request {
+		requestName, err := r.getRequestName(ctx)
+		if err != nil {
+			return nil
+		}
+		// When ingress secret gets created/deleted, trigger reconcile function
+		ingressCtrl, err := cluster.FindAvailableIngressController(ctx, r.Client)
+		if err != nil {
+			return nil
+		}
+		defaultIngressSecretName := cluster.GetDefaultIngressCertSecretName(ingressCtrl)
+		if a.GetName() == defaultIngressSecretName && a.GetNamespace() == "openshift-ingress" {
+			return []reconcile.Request{{
+				NamespacedName: types.NamespacedName{Name: requestName},
+			}}
+		}
 		return nil
 	}
-	// When ingress secret gets created/deleted, trigger reconcile function
-	ingressCtrl, err := cluster.FindAvailableIngressController(context.TODO(), r.Client)
-	if err != nil {
-		return nil
-	}
-	defaultIngressSecretName := cluster.GetDefaultIngressCertSecretName(ingressCtrl)
-	if a.GetName() == defaultIngressSecretName && a.GetNamespace() == "openshift-ingress" {
-		return []reconcile.Request{{
-			NamespacedName: types.NamespacedName{Name: requestName},
-		}}
-	}
-	return nil
 }
 
 // defaultIngressCertSecretPredicates filters delete and create events to trigger reconcile when default ingress cert secret is expired

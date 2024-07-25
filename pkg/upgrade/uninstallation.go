@@ -21,15 +21,11 @@ const (
 	DeleteConfigMapLabel = "api.openshift.com/addon-managed-odh-delete"
 )
 
-// OperatorUninstall deletes all the externally generated resources. This includes monitoring resources and applications
-// installed by KfDef.
+// OperatorUninstall deletes all the externally generated resources.
+// This includes DSCI, namespace created by operator (but not workbench or MR's), subscription and CSV.
 func OperatorUninstall(ctx context.Context, cli client.Client) error {
-	platform, err := cluster.GetPlatform(cli)
+	platform, err := cluster.GetPlatform(ctx, cli)
 	if err != nil {
-		return err
-	}
-
-	if err := RemoveKfDefInstances(ctx, cli); err != nil {
 		return err
 	}
 
@@ -80,7 +76,7 @@ func OperatorUninstall(ctx context.Context, cli client.Client) error {
 		subsName = "rhods-operator"
 	}
 	if platform != cluster.ManagedRhods {
-		if err := cluster.DeleteExistingSubscription(cli, operatorNs, subsName); err != nil {
+		if err := cluster.DeleteExistingSubscription(ctx, cli, operatorNs, subsName); err != nil {
 			return err
 		}
 	}

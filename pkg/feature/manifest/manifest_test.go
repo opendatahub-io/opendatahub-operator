@@ -1,29 +1,17 @@
-package feature_test
+package manifest_test
 
 import (
 	"io/fs"
 	"path/filepath"
-	"testing"
 
 	"github.com/spf13/afero"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/manifest"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
-
-var _ fs.FS = (*AferoFsAdapter)(nil)
-
-type AferoFsAdapter struct {
-	Afs afero.Fs
-}
-
-// Open adapts the Open method to comply with fs.FS interface.
-func (a AferoFsAdapter) Open(name string) (fs.File, error) {
-	return a.Afs.Open(name)
-}
 
 var _ = Describe("Manifest Processing", func() {
 	var (
@@ -32,9 +20,7 @@ var _ = Describe("Manifest Processing", func() {
 	)
 
 	BeforeEach(func() {
-		fSys := afero.NewMemMapFs()
-		inMemFS = AferoFsAdapter{Afs: fSys}
-
+		inMemFS = AferoFsAdapter{afero.NewMemMapFs()}
 	})
 
 	Describe("Raw Manifest Processing", func() {
@@ -49,22 +35,19 @@ data:
  key: value
 `
 			path = "path/to/test.yaml"
-			err := afero.WriteFile(inMemFS.Afs, path, []byte(resourceYaml), 0644)
+			err := afero.WriteFile(inMemFS.Fs, path, []byte(resourceYaml), 0644)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		It("should process the raw manifest with no substitutions", func() {
+		It("should Process the raw manifest with no substitutions", func() {
 			// given
-			manifest := feature.CreateRawManifestFrom(inMemFS, path)
-
-			data := feature.Spec{
+			data := struct{ TargetNamespace string }{
 				TargetNamespace: "not-used",
 			}
 
 			// when
 			// Simulate adding to and processing from a slice of Manifest interfaces
-			manifests := []feature.Manifest{manifest}
-			objs := processManifests(data, manifests)
+			objs := process(data, manifest.Create(inMemFS, path))
 
 			Expect(objs).To(HaveLen(1))
 			Expect(objs[0].GetKind()).To(Equal("ConfigMap"))
@@ -80,23 +63,22 @@ metadata:
   name: my-configmap
   namespace: {{.TargetNamespace}}
 data:
-  key: Data
+  key: FeatureContext
 `
-
 		BeforeEach(func() {
-			path = "path/to/template.yaml"
-			err := afero.WriteFile(inMemFS.Afs, path, []byte(resourceYaml), 0644)
+			path = "path/to/template.tmpl.yaml"
+			err := afero.WriteFile(inMemFS.Fs, path, []byte(resourceYaml), 0644)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
 		It("should fail when template refers to non existing key", func() {
 			// given
 			pathToBrokenTpl := filepath.Join("broken", path)
-			Expect(afero.WriteFile(inMemFS.Afs, pathToBrokenTpl, []byte(resourceYaml+"\n {{ .NotExistingKey }}"), 0644)).To(Succeed())
+			Expect(afero.WriteFile(inMemFS.Fs, pathToBrokenTpl, []byte(resourceYaml+"\n {{ .NotExistingKey }}"), 0644)).To(Succeed())
 			data := map[string]string{
 				"TargetNamespace": "template-ns",
 			}
-			manifest := feature.CreateTemplateManifestFrom(inMemFS, pathToBrokenTpl)
+			manifest := manifest.Create(inMemFS, pathToBrokenTpl)
 
 			// when
 			_, err := manifest.Process(data)
@@ -107,15 +89,13 @@ data:
 
 		It("should substitute target namespace in the templated manifest", func() {
 			// given
-			data := feature.Spec{
+			data := struct{ TargetNamespace string }{
 				TargetNamespace: "template-ns",
 			}
-			manifest := feature.CreateTemplateManifestFrom(inMemFS, path)
 
 			// when
 			// Simulate adding to and processing from a slice of Manifest interfaces
-			manifests := []feature.Manifest{manifest}
-			objs := processManifests(data, manifests)
+			objs := process(data, manifest.Create(inMemFS, path))
 
 			// then
 			Expect(objs).To(HaveLen(1))
@@ -128,11 +108,11 @@ data:
 
 })
 
-func processManifests(data feature.Spec, m []feature.Manifest) []*unstructured.Unstructured {
+func process(data any, m ...*manifest.Manifest) []*unstructured.Unstructured {
 	var objs []*unstructured.Unstructured
 	var err error
 	for i := range m {
-		objs, err = m[i].Process(&data)
+		objs, err = m[i].Process(data)
 		if err != nil {
 			break
 		}
@@ -141,7 +121,13 @@ func processManifests(data feature.Spec, m []feature.Manifest) []*unstructured.U
 	return objs
 }
 
-func TestManifests(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Manifest Process Suite")
+var _ fs.FS = (*AferoFsAdapter)(nil)
+
+type AferoFsAdapter struct {
+	afero.Fs
+}
+
+// Open adapts the Open method to comply with fs.FS interface.
+func (a AferoFsAdapter) Open(name string) (fs.File, error) {
+	return a.Fs.Open(name)
 }

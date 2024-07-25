@@ -15,6 +15,8 @@ linters-settings:
       - dot
     skip-generated: false
     custom-order: true
+  goconst:
+    ignore-strings: "true|false"
   errcheck:
     check-type-assertions: true
   exhaustive:
@@ -43,6 +45,15 @@ linters-settings:
         alias: $1$2
       - pkg: github.com/openshift/api/(\w+)/(v[\w\d]+)
         alias: $1$2
+  ireturn:
+    allow:
+      # defaults https://golangci-lint.run/usage/linters/#ireturn
+      - anon
+      - error
+      - empty
+      - stdlib
+      # also allow generics
+      - generic
   revive:
     rules:
       - name: dot-imports
@@ -55,7 +66,6 @@ linters-settings:
 linters:
   enable-all: true
   disable:
-    - containedctx # detects struct contained context.Context field
     - depguard # [replaced by gomodguard] checks if package imports are in a list of acceptable packages
     - exhaustruct # Prevents empty struct. We use a lot of these so I think it is safe to disable.c
     - forbidigo
@@ -75,7 +85,6 @@ linters:
     # Need to check
     - nlreturn # [too strict and mostly code is not more readable] checks for a new line before return and branch statements to increase code clarity
     - err113 # [too strict] checks the errors handling expressions
-    - contextcheck # Requires to pass context to all function.
     
     # To be fixed
     - gocognit # https://github.com/opendatahub-io/opendatahub-operator/issues/709

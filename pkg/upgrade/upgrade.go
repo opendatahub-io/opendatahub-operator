@@ -23,9 +23,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
@@ -161,8 +161,8 @@ func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ cluster.Platfor
 		return nil
 	case len(instances.Items) == 0:
 		fmt.Println("create default DSCI CR.")
-		err := cli.Create(ctx, defaultDsci)
-		if err != nil {
+		err := cluster.CreateWithRetry(ctx, cli, defaultDsci, 1) // 1 min timeout
+		if err != nil && !k8serr.IsAlreadyExists(err) {
 			return err
 		}
 	}
@@ -250,6 +250,10 @@ func CleanupExistingResource(ctx context.Context, cli client.Client, platform cl
 	// Handling for dashboard OdhApplication Jupyterhub CR, see jira #443
 	multiErr = multierror.Append(multiErr, removOdhApplicationsCR(ctx, cli, gvk.OdhApplication, "jupyterhub", dscApplicationsNamespace))
 
+	// cleanup for github.com/opendatahub-io/pull/888
+	deprecatedFeatureTrackers := []string{dscApplicationsNamespace + "-kserve-temporary-fixes"}
+	multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscApplicationsNamespace, deprecatedFeatureTrackers, &featuresv1.FeatureTrackerList{}))
+
 	// Handling for dashboard OdhDocument Jupyterhub CR, see jira #443 comments
 	odhDocJPH := getJPHOdhDocumentResources(
 		dscApplicationsNamespace,
@@ -260,6 +264,13 @@ func CleanupExistingResource(ctx context.Context, cli client.Client, platform cl
 			"jupyterhub-use-s3-bucket-data",
 		})
 	multiErr = multierror.Append(multiErr, deleteResources(ctx, cli, &odhDocJPH))
+
+	// only apply on RHOAI since ODH has a different way to create this CR by dashboard
+	if platform == cluster.SelfManagedRhods || platform == cluster.ManagedRhods {
+		if err := unsetOwnerReference(ctx, cli, "odh-dashboard-config", dscApplicationsNamespace); err != nil {
+			return err
+		}
+	}
 
 	// to take a reference
 	toDelete := getDashboardWatsonResources(dscApplicationsNamespace)
@@ -314,41 +325,6 @@ func deleteOneResource(ctx context.Context, c client.Client, res ResourceSpec) e
 		}
 	}
 
-	return nil
-}
-
-func RemoveKfDefInstances(ctx context.Context, cli client.Client) error {
-	// Check if kfdef are deployed
-	kfdefCrd := &apiextv1.CustomResourceDefinition{}
-
-	err := cli.Get(ctx, client.ObjectKey{Name: "kfdefs.kfdef.apps.kubeflow.org"}, kfdefCrd)
-	if err != nil {
-		if k8serr.IsNotFound(err) {
-			// If no Crd found, return, since its a new Installation
-			return nil
-		}
-		return fmt.Errorf("error retrieving kfdef CRD : %w", err)
-	}
-	expectedKfDefList := &kfdefv1.KfDefList{}
-	err = cli.List(ctx, expectedKfDefList)
-	if err != nil {
-		return fmt.Errorf("error getting list of kfdefs: %w", err)
-	}
-	// Delete kfdefs
-	for _, kfdef := range expectedKfDefList.Items {
-		kfdef := kfdef
-		// Remove finalizer
-		updatedKfDef := &kfdef
-		updatedKfDef.Finalizers = []string{}
-		err = cli.Update(ctx, updatedKfDef)
-		if err != nil {
-			return fmt.Errorf("error removing finalizers from kfdef %v : %w", kfdef.Name, err)
-		}
-		err = cli.Delete(ctx, updatedKfDef)
-		if err != nil {
-			return fmt.Errorf("error deleting kfdef %v : %w", kfdef.Name, err)
-		}
-	}
 	return nil
 }
 
@@ -431,16 +407,39 @@ func removOdhApplicationsCR(ctx context.Context, cli client.Client, gvk schema.G
 	return nil
 }
 
-func RemoveLabel(cli client.Client, objectName string, labelKey string) error {
+func unsetOwnerReference(ctx context.Context, cli client.Client, instanceName string, applicationNS string) error {
+	crd := &apiextv1.CustomResourceDefinition{}
+	if err := cli.Get(ctx, client.ObjectKey{Name: "odhdashboardconfigs.opendatahub.io"}, crd); err != nil {
+		return client.IgnoreNotFound(err)
+	}
+	odhObject := &unstructured.Unstructured{}
+	odhObject.SetGroupVersionKind(gvk.OdhDashboardConfig)
+	if err := cli.Get(ctx, client.ObjectKey{
+		Namespace: applicationNS,
+		Name:      instanceName,
+	}, odhObject); err != nil {
+		return client.IgnoreNotFound(err)
+	}
+	if odhObject.GetOwnerReferences() != nil {
+		// set to nil as updates
+		odhObject.SetOwnerReferences(nil)
+		if err := cli.Update(ctx, odhObject); err != nil {
+			return fmt.Errorf("error unset ownerreference for CR %s : %w", instanceName, err)
+		}
+	}
+	return nil
+}
+
+func RemoveLabel(ctx context.Context, cli client.Client, objectName string, labelKey string) error {
 	foundNamespace := &corev1.Namespace{}
-	if err := cli.Get(context.TODO(), client.ObjectKey{Name: objectName}, foundNamespace); err != nil {
+	if err := cli.Get(ctx, client.ObjectKey{Name: objectName}, foundNamespace); err != nil {
 		if k8serr.IsNotFound(err) {
 			return nil
 		}
 		return fmt.Errorf("could not get %s namespace: %w", objectName, err)
 	}
 	delete(foundNamespace.Labels, labelKey)
-	if err := cli.Update(context.TODO(), foundNamespace); err != nil {
+	if err := cli.Update(ctx, foundNamespace); err != nil {
 		return fmt.Errorf("error removing %s from %s : %w", labelKey, objectName, err)
 	}
 	return nil

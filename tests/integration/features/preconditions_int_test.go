@@ -34,31 +34,30 @@ var _ = Describe("feature preconditions", func() {
 			dsci = fixtures.NewDSCInitialization(namespace)
 		})
 
-		It("should create namespace if it does not exist", func() {
+		It("should create namespace if it does not exist", func(ctx context.Context) {
 			// given
-			_, err := fixtures.GetNamespace(envTestClient, namespace)
+			_, err := fixtures.GetNamespace(ctx, envTestClient, namespace)
 			Expect(k8serr.IsNotFound(err)).To(BeTrue())
-			defer objectCleaner.DeleteAll(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
+			defer objectCleaner.DeleteAll(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
 
 			// when
-			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-				testFeatureErr := feature.CreateFeature("create-new-ns").
-					For(handler).
-					PreConditions(feature.CreateNamespaceIfNotExists(namespace)).
+			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+				errFeatureAdd := registry.Add(feature.Define("create-new-ns").
 					UsingConfig(envTest.Config).
-					Load()
+					PreConditions(feature.CreateNamespaceIfNotExists(namespace)),
+				)
 
-				Expect(testFeatureErr).ToNot(HaveOccurred())
+				Expect(errFeatureAdd).ToNot(HaveOccurred())
 
 				return nil
 			})
 
 			// then
-			Expect(featuresHandler.Apply()).To(Succeed())
+			Expect(featuresHandler.Apply(ctx)).To(Succeed())
 
 			// and
 			Eventually(func() error {
-				_, err := fixtures.GetNamespace(envTestClient, namespace)
+				_, err := fixtures.GetNamespace(ctx, envTestClient, namespace)
 				return err
 			}).
 				WithTimeout(fixtures.Timeout).
@@ -66,32 +65,31 @@ var _ = Describe("feature preconditions", func() {
 				Should(Succeed())
 		})
 
-		It("should not try to create namespace if it does already exist", func() {
+		It("should not try to create namespace if it does already exist", func(ctx context.Context) {
 			// given
 			ns := fixtures.NewNamespace(namespace)
-			Expect(envTestClient.Create(context.Background(), ns)).To(Succeed())
+			Expect(envTestClient.Create(ctx, ns)).To(Succeed())
 			Eventually(func() error {
-				_, err := fixtures.GetNamespace(envTestClient, namespace)
+				_, err := fixtures.GetNamespace(ctx, envTestClient, namespace)
 				return err
 			}).WithTimeout(fixtures.Timeout).WithPolling(fixtures.Interval).Should(Succeed()) // wait for ns to actually get created
 
-			defer objectCleaner.DeleteAll(ns)
+			defer objectCleaner.DeleteAll(ctx, ns)
 
 			// when
-			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-				testFeatureErr := feature.CreateFeature("create-new-ns").
-					For(handler).
-					PreConditions(feature.CreateNamespaceIfNotExists(namespace)).
+			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+				errFeatureAdd := registry.Add(feature.Define("create-new-ns").
 					UsingConfig(envTest.Config).
-					Load()
+					PreConditions(feature.CreateNamespaceIfNotExists(namespace)),
+				)
 
-				Expect(testFeatureErr).ToNot(HaveOccurred())
+				Expect(errFeatureAdd).ToNot(HaveOccurred())
 
 				return nil
 			})
 
 			// then
-			Expect(featuresHandler.Apply()).To(Succeed())
+			Expect(featuresHandler.Apply(ctx)).To(Succeed())
 
 		})
 

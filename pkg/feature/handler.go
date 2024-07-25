@@ -2,6 +2,7 @@
 package feature
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/hashicorp/go-multierror"
@@ -12,19 +13,103 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 )
 
-type featureHandler interface {
-	Apply() error
-	Delete() error
+type featuresHandler interface {
+	Apply(ctx context.Context) error
+	Delete(ctx context.Context) error
 }
 
-var _ featureHandler = (*FeaturesHandler)(nil)
+type FeaturesRegistry interface {
+	Add(builders ...*featureBuilder) error
+}
 
-// FeaturesHandler coordinates feature creations and removal from within controllers.
+var _ featuresHandler = (*FeaturesHandler)(nil)
+
+// FeaturesHandler provides a structured way to manage and coordinate the creation, application,
+// and deletion of features needed in particular Data Science Cluster configuration.
 type FeaturesHandler struct {
-	*dsciv1.DSCInitializationSpec
+	targetNamespace   string
 	source            featurev1.Source
 	features          []*Feature
 	featuresProviders []FeaturesProvider
+}
+
+var _ FeaturesRegistry = (*FeaturesHandler)(nil)
+
+// Add loads features defined by passed builders and adds to internal list which is then used to Apply on the cluster.
+// It also makes sure that both TargetNamespace and Source are added to the feature before it's `Create()`ed.
+func (fh *FeaturesHandler) Add(builders ...*featureBuilder) error {
+	var multiErr *multierror.Error
+
+	for i := range builders {
+		fb := builders[i]
+		feature, err := fb.TargetNamespace(fh.targetNamespace).
+			Source(fh.source).
+			Create()
+		multiErr = multierror.Append(multiErr, err)
+		fh.features = append(fh.features, feature)
+	}
+
+	return multiErr.ErrorOrNil()
+}
+
+func (fh *FeaturesHandler) Apply(ctx context.Context) error {
+	fh.features = make([]*Feature, 0)
+
+	for _, featuresProvider := range fh.featuresProviders {
+		if err := featuresProvider(fh); err != nil {
+			return fmt.Errorf("failed adding features to the handler. cause: %w", err)
+		}
+	}
+
+	var multiErr *multierror.Error
+	for _, f := range fh.features {
+		if applyErr := f.Apply(ctx); applyErr != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("failed applying FeatureHandler features. cause: %w", applyErr))
+		}
+	}
+
+	return multiErr.ErrorOrNil()
+}
+
+// Delete executes registered clean-up tasks for handled Features in the opposite order they were initiated.
+// This approach assumes that Features are either instantiated in the correct sequence or are self-contained.
+func (fh *FeaturesHandler) Delete(ctx context.Context) error {
+	fh.features = make([]*Feature, 0)
+
+	for _, featuresProvider := range fh.featuresProviders {
+		if err := featuresProvider(fh); err != nil {
+			return fmt.Errorf("delete phase failed when wiring Feature instances in FeatureHandler.Delete. cause: %w", err)
+		}
+	}
+
+	var multiErr *multierror.Error
+	for i := len(fh.features) - 1; i >= 0; i-- {
+		if cleanupErr := fh.features[i].Cleanup(ctx); cleanupErr != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("failed executing cleanup in FeatureHandler. cause: %w", cleanupErr))
+		}
+	}
+
+	return multiErr.ErrorOrNil()
+}
+
+// FeaturesProvider is a function which allow to define list of features
+// and add them to the handler's registry.
+type FeaturesProvider func(registry FeaturesRegistry) error
+
+func ClusterFeaturesHandler(dsci *dsciv1.DSCInitialization, def ...FeaturesProvider) *FeaturesHandler {
+	return &FeaturesHandler{
+		targetNamespace:   dsci.Spec.ApplicationsNamespace,
+		source:            featurev1.Source{Type: featurev1.DSCIType, Name: dsci.Name},
+		featuresProviders: def,
+	}
+}
+
+func ComponentFeaturesHandler(componentName, targetNamespace string, def ...FeaturesProvider) *FeaturesHandler {
+	return &FeaturesHandler{
+		targetNamespace:   targetNamespace,
+		source:            featurev1.Source{Type: featurev1.ComponentType, Name: componentName},
+		featuresProviders: def,
+	}
 }
 
 // EmptyFeaturesHandler is noop handler so that we can avoid nil checks in the code and safely call Apply/Delete methods.
@@ -33,14 +118,14 @@ var EmptyFeaturesHandler = &FeaturesHandler{
 	featuresProviders: []FeaturesProvider{},
 }
 
-var _ featureHandler = (*HandlerWithReporter[client.Object])(nil)
-
 // HandlerWithReporter is a wrapper around FeaturesHandler and status.Reporter
 // It is intended apply features related to a given resource capabilities and report its status using custom reporter.
 type HandlerWithReporter[T client.Object] struct {
 	handler  *FeaturesHandler
 	reporter *status.Reporter[T]
 }
+
+var _ featuresHandler = (*HandlerWithReporter[client.Object])(nil)
 
 func NewHandlerWithReporter[T client.Object](handler *FeaturesHandler, reporter *status.Reporter[T]) *HandlerWithReporter[T] {
 	return &HandlerWithReporter[T]{
@@ -49,72 +134,18 @@ func NewHandlerWithReporter[T client.Object](handler *FeaturesHandler, reporter 
 	}
 }
 
-func (h HandlerWithReporter[T]) Apply() error {
-	applyErr := h.handler.Apply()
-	_, reportErr := h.reporter.ReportCondition(applyErr)
+func (h HandlerWithReporter[T]) Apply(ctx context.Context) error {
+	applyErr := h.handler.Apply(ctx)
+	_, reportErr := h.reporter.ReportCondition(ctx, applyErr)
 	// We could have failed during Apply phase as well as during reporting.
 	// We should return both errors to the caller.
 	return multierror.Append(applyErr, reportErr).ErrorOrNil()
 }
 
-func (h HandlerWithReporter[T]) Delete() error {
-	deleteErr := h.handler.Delete()
-	_, reportErr := h.reporter.ReportCondition(deleteErr)
+func (h HandlerWithReporter[T]) Delete(ctx context.Context) error {
+	deleteErr := h.handler.Delete(ctx)
+	_, reportErr := h.reporter.ReportCondition(ctx, deleteErr)
 	// We could have failed during Delete phase as well as during reporting.
 	// We should return both errors to the caller.
 	return multierror.Append(deleteErr, reportErr).ErrorOrNil()
-}
-
-// FeaturesProvider is a function which allow to define list of features
-// and couple them with the given initializer.
-type FeaturesProvider func(handler *FeaturesHandler) error
-
-func ClusterFeaturesHandler(dsci *dsciv1.DSCInitialization, def ...FeaturesProvider) *FeaturesHandler {
-	return &FeaturesHandler{
-		DSCInitializationSpec: &dsci.Spec,
-		source:                featurev1.Source{Type: featurev1.DSCIType, Name: dsci.Name},
-		featuresProviders:     def,
-	}
-}
-
-func ComponentFeaturesHandler(componentName string, spec *dsciv1.DSCInitializationSpec, def ...FeaturesProvider) *FeaturesHandler {
-	return &FeaturesHandler{
-		DSCInitializationSpec: spec,
-		source:                featurev1.Source{Type: featurev1.ComponentType, Name: componentName},
-		featuresProviders:     def,
-	}
-}
-
-func (fh *FeaturesHandler) Apply() error {
-	for _, featuresProvider := range fh.featuresProviders {
-		if err := featuresProvider(fh); err != nil {
-			return fmt.Errorf("apply phase failed when applying features: %w", err)
-		}
-	}
-
-	var applyErrors *multierror.Error
-	for _, f := range fh.features {
-		applyErrors = multierror.Append(applyErrors, f.Apply())
-	}
-
-	return applyErrors.ErrorOrNil()
-}
-
-// Delete executes registered clean-up tasks in the opposite order they were initiated (following a stack structure).
-// For instance, this allows for the undoing patches before its deletion.
-// This approach assumes that Features are either instantiated in the correct sequence
-// or are self-contained.
-func (fh *FeaturesHandler) Delete() error {
-	for _, featuresProvider := range fh.featuresProviders {
-		if err := featuresProvider(fh); err != nil {
-			return fmt.Errorf("delete phase failed when wiring Feature instances: %w", err)
-		}
-	}
-
-	var cleanupErrors *multierror.Error
-	for i := len(fh.features) - 1; i >= 0; i-- {
-		cleanupErrors = multierror.Append(cleanupErrors, fh.features[i].Cleanup())
-	}
-
-	return cleanupErrors.ErrorOrNil()
 }

@@ -5,11 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/blang/semver/v4"
 	"github.com/operator-framework/api/pkg/lib/version"
-	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
-	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -20,11 +21,11 @@ import (
 
 // +kubebuilder:rbac:groups="config.openshift.io",resources=ingresses,verbs=get
 
-func GetDomain(c client.Client) (string, error) {
+func GetDomain(ctx context.Context, c client.Client) (string, error) {
 	ingress := &unstructured.Unstructured{}
 	ingress.SetGroupVersionKind(gvk.OpenshiftIngress)
 
-	if err := c.Get(context.TODO(), client.ObjectKey{
+	if err := c.Get(ctx, client.ObjectKey{
 		Namespace: "",
 		Name:      "cluster",
 	}, ingress); err != nil {
@@ -40,22 +41,39 @@ func GetDomain(c client.Client) (string, error) {
 }
 
 func GetOperatorNamespace() (string, error) {
+	operatorNS, exist := os.LookupEnv("OPERATOR_NAMESPACE")
+	if exist && operatorNS != "" {
+		return operatorNS, nil
+	}
 	data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
 	return string(data), err
 }
 
-// GetClusterServiceVersion retries the clusterserviceversions available in the operator namespace.
-func GetClusterServiceVersion(ctx context.Context, c client.Client, watchNameSpace string) (*ofapi.ClusterServiceVersion, error) {
-	clusterServiceVersionList := &ofapi.ClusterServiceVersionList{}
-	if err := c.List(ctx, clusterServiceVersionList, client.InNamespace(watchNameSpace)); err != nil {
-		return nil, fmt.Errorf("failed listign cluster service versions: %w", err)
-	}
+func IsNotReservedNamespace(ns *corev1.Namespace) bool {
+	return !strings.HasPrefix(ns.GetName(), "openshift-") && !strings.HasPrefix(ns.GetName(), "kube-") &&
+		ns.GetName() != "default" && ns.GetName() != "openshift"
+}
 
-	for _, csv := range clusterServiceVersionList.Items {
-		for _, operatorCR := range csv.Spec.CustomResourceDefinitions.Owned {
-			if operatorCR.Kind == "DataScienceCluster" {
-				return &csv, nil
+// GetClusterServiceVersion retries CSV only from the defined namespace.
+func GetClusterServiceVersion(ctx context.Context, c client.Client, namespace string) (*ofapiv1alpha1.ClusterServiceVersion, error) {
+	clusterServiceVersionList := &ofapiv1alpha1.ClusterServiceVersionList{}
+	paginateListOption := &client.ListOptions{
+		Limit:     100,
+		Namespace: namespace,
+	}
+	for { // for the case we have very big size of CSV even just in one namespace
+		if err := c.List(ctx, clusterServiceVersionList, paginateListOption); err != nil {
+			return nil, fmt.Errorf("failed listing cluster service versions for %s: %w", namespace, err)
+		}
+		for _, csv := range clusterServiceVersionList.Items {
+			for _, operatorCR := range csv.Spec.CustomResourceDefinitions.Owned {
+				if operatorCR.Kind == "DataScienceCluster" {
+					return &csv, nil
+				}
 			}
+		}
+		if paginateListOption.Continue = clusterServiceVersionList.GetContinue(); paginateListOption.Continue == "" {
+			break
 		}
 	}
 
@@ -67,14 +85,14 @@ func GetClusterServiceVersion(ctx context.Context, c client.Client, watchNameSpa
 type Platform string
 
 // detectSelfManaged detects if it is Self Managed Rhods or OpenDataHub.
-func detectSelfManaged(cli client.Client) (Platform, error) {
+func detectSelfManaged(ctx context.Context, cli client.Client) (Platform, error) {
 	variants := map[string]Platform{
 		"opendatahub-operator": OpenDataHub,
 		"rhods-operator":       SelfManagedRhods,
 	}
 
 	for k, v := range variants {
-		exists, err := OperatorExists(cli, k)
+		exists, err := OperatorExists(ctx, cli, k)
 		if err != nil {
 			return Unknown, err
 		}
@@ -86,40 +104,26 @@ func detectSelfManaged(cli client.Client) (Platform, error) {
 	return Unknown, nil
 }
 
-// detectManagedRHODS checks if CRD add-on exists and contains string ManagedRhods.
-func detectManagedRHODS(cli client.Client) (Platform, error) {
-	catalogSourceCRD := &apiextv1.CustomResourceDefinition{}
-
-	err := cli.Get(context.TODO(), client.ObjectKey{Name: "catalogsources.operators.coreos.com"}, catalogSourceCRD)
+// detectManagedRHODS checks if catsrc CR add-on exists ManagedRhods.
+func detectManagedRHODS(ctx context.Context, cli client.Client) (Platform, error) {
+	catalogSource := &ofapiv1alpha1.CatalogSource{}
+	err := cli.Get(ctx, client.ObjectKey{Name: "addon-managed-odh-catalog", Namespace: "openshift-marketplace"}, catalogSource)
 	if err != nil {
-		return "", client.IgnoreNotFound(err)
+		return Unknown, client.IgnoreNotFound(err)
 	}
-	expectedCatlogSource := &ofapi.CatalogSourceList{}
-	err = cli.List(context.TODO(), expectedCatlogSource)
-	if err != nil {
-		return Unknown, err
-	}
-	if len(expectedCatlogSource.Items) > 0 {
-		for _, cs := range expectedCatlogSource.Items {
-			if cs.Name == "addon-managed-odh-catalog" {
-				return ManagedRhods, nil
-			}
-		}
-	}
-
-	return "", nil
+	return ManagedRhods, nil
 }
 
-func GetPlatform(cli client.Client) (Platform, error) {
+func GetPlatform(ctx context.Context, cli client.Client) (Platform, error) {
 	// First check if its addon installation to return 'ManagedRhods, nil'
-	if platform, err := detectManagedRHODS(cli); err != nil {
+	if platform, err := detectManagedRHODS(ctx, cli); err != nil {
 		return Unknown, err
 	} else if platform == ManagedRhods {
 		return ManagedRhods, nil
 	}
 
 	// check and return whether ODH or self-managed platform
-	return detectSelfManaged(cli)
+	return detectSelfManaged(ctx, cli)
 }
 
 // Release includes information on operator version and platform
@@ -129,7 +133,7 @@ type Release struct {
 	Version version.OperatorVersion `json:"version,omitempty"`
 }
 
-func GetRelease(cli client.Client) (Release, error) {
+func GetRelease(ctx context.Context, cli client.Client) (Release, error) {
 	initRelease := Release{
 		// dummy version set to name "", version 0.0.0
 		Version: version.OperatorVersion{
@@ -137,7 +141,7 @@ func GetRelease(cli client.Client) (Release, error) {
 		},
 	}
 	// Set platform
-	platform, err := GetPlatform(cli)
+	platform, err := GetPlatform(ctx, cli)
 	if err != nil {
 		return initRelease, err
 	}
@@ -155,7 +159,7 @@ func GetRelease(cli client.Client) (Release, error) {
 		fmt.Printf("Falling back to dummy version: %v\n", err)
 		return initRelease, nil
 	}
-	csv, err := GetClusterServiceVersion(context.TODO(), cli, operatorNamespace)
+	csv, err := GetClusterServiceVersion(ctx, cli, operatorNamespace)
 	if k8serr.IsNotFound(err) {
 		// hide not found, return default
 		return initRelease, nil

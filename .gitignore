@@ -55,6 +55,8 @@ odh-manifests/
 
 cover.out
 
+config/manager/kustomization.yaml
+
 # Ignore any local.mk files that would be consumed by the Makefile
 local.mk
 

@@ -2,7 +2,7 @@ apiVersion: maistra.io/v1
 kind: ServiceMeshMember
 metadata:
   name: default
-  namespace: {{ .Auth.Namespace }}
+  namespace: {{ .AuthNamespace }}
 spec:
   controlPlaneRef:
     namespace: {{ .ControlPlane.Namespace }}

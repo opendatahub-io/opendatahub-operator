@@ -3,20 +3,27 @@ package kserve
 import (
 	"path"
 
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/manifest"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/serverless"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 )
 
-func (k *Kserve) configureServerlessFeatures() feature.FeaturesProvider {
-	return func(handler *feature.FeaturesHandler) error {
-		servingDeploymentErr := feature.CreateFeature("serverless-serving-deployment").
-			For(handler).
-			ManifestsLocation(Resources.Location).
+func (k *Kserve) configureServerlessFeatures(dsciSpec *dsciv1.DSCInitializationSpec) feature.FeaturesProvider {
+	return func(registry feature.FeaturesRegistry) error {
+		servingDeployment := feature.Define("serverless-serving-deployment").
 			Manifests(
-				path.Join(Resources.InstallDir),
+				manifest.Location(Resources.Location).
+					Include(
+						path.Join(Resources.InstallDir),
+					),
 			).
-			WithData(PopulateComponentSettings(k)).
+			WithData(
+				serverless.FeatureData.IngressDomain.Define(&k.Serving).AsAction(),
+				serverless.FeatureData.Serving.Define(&k.Serving).AsAction(),
+				servicemesh.FeatureData.ControlPlane.Define(dsciSpec).AsAction(),
+			).
 			PreConditions(
 				serverless.EnsureServerlessOperatorInstalled,
 				serverless.EnsureServerlessAbsent,
@@ -25,53 +32,41 @@ func (k *Kserve) configureServerlessFeatures() feature.FeaturesProvider {
 			).
 			PostConditions(
 				feature.WaitForPodsToBeReady(serverless.KnativeServingNamespace),
-			).
-			Load()
-		if servingDeploymentErr != nil {
-			return servingDeploymentErr
-		}
+			)
 
-		servingNetIstioSecretFilteringErr := feature.CreateFeature("serverless-net-istio-secret-filtering").
-			For(handler).
-			ManifestsLocation(Resources.Location).
+		istioSecretFiltering := feature.Define("serverless-net-istio-secret-filtering").
 			Manifests(
-				path.Join(Resources.BaseDir, "serving-net-istio-secret-filtering.patch.tmpl.yaml"),
+				manifest.Location(Resources.Location).
+					Include(
+						path.Join(Resources.BaseDir, "serving-net-istio-secret-filtering.patch.tmpl.yaml"),
+					),
 			).
-			WithData(PopulateComponentSettings(k)).
+			WithData(serverless.FeatureData.Serving.Define(&k.Serving).AsAction()).
 			PreConditions(serverless.EnsureServerlessServingDeployed).
 			PostConditions(
 				feature.WaitForPodsToBeReady(serverless.KnativeServingNamespace),
-			).
-			Load()
-		if servingNetIstioSecretFilteringErr != nil {
-			return servingNetIstioSecretFilteringErr
-		}
+			)
 
-		serverlessGwErr := feature.CreateFeature("serverless-serving-gateways").
-			For(handler).
-			PreConditions(serverless.EnsureServerlessServingDeployed).
+		servingGateway := feature.Define("serverless-serving-gateways").
+			Manifests(
+				manifest.Location(Resources.Location).
+					Include(
+						path.Join(Resources.GatewaysDir),
+					),
+			).
 			WithData(
-				PopulateComponentSettings(k),
-				serverless.ServingDefaultValues,
-				serverless.ServingIngressDomain,
+				serverless.FeatureData.IngressDomain.Define(&k.Serving).AsAction(),
+				serverless.FeatureData.CertificateName.Define(&k.Serving).AsAction(),
+				serverless.FeatureData.Serving.Define(&k.Serving).AsAction(),
+				servicemesh.FeatureData.ControlPlane.Define(dsciSpec).AsAction(),
 			).
 			WithResources(serverless.ServingCertificateResource).
-			ManifestsLocation(Resources.Location).
-			Manifests(
-				path.Join(Resources.GatewaysDir),
-			).
-			Load()
-		if serverlessGwErr != nil {
-			return serverlessGwErr
-		}
+			PreConditions(serverless.EnsureServerlessServingDeployed)
 
-		return nil
-	}
-}
-
-func PopulateComponentSettings(k *Kserve) feature.Action {
-	return func(f *feature.Feature) error {
-		f.Spec.Serving = &k.Serving
-		return nil
+		return registry.Add(
+			servingDeployment,
+			istioSecretFiltering,
+			servingGateway,
+		)
 	}
 }

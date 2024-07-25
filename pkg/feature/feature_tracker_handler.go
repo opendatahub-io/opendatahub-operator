@@ -27,62 +27,66 @@ func (e *withConditionReasonError) Error() string {
 	return e.err.Error()
 }
 
-// createFeatureTracker instantiates FeatureTracker for a given Feature. It's a cluster-scoped resource used
-// to track creation and removal of all owned resources which belong to this Feature.
-// All resources which particular feature is composed of will have this object attached as an OwnerReference.
-func (f *Feature) createFeatureTracker() error {
-	tracker, err := f.getFeatureTracker()
-	if k8serr.IsNotFound(err) {
-		if err := f.Client.Create(context.TODO(), tracker); err != nil {
-			return err
+// createFeatureTracker creates a FeatureTracker, persists it in the cluster,
+// and attaches it to the provided Feature instance.
+func createFeatureTracker(ctx context.Context, f *Feature) error {
+	tracker, errGet := getFeatureTracker(ctx, f)
+	if client.IgnoreNotFound(errGet) != nil {
+		return errGet
+	}
+
+	if k8serr.IsNotFound(errGet) {
+		tracker = featurev1.NewFeatureTracker(f.Name, f.TargetNamespace)
+		tracker.Spec = featurev1.FeatureTrackerSpec{
+			Source:       *f.source,
+			AppNamespace: f.TargetNamespace,
 		}
-	} else if err != nil {
-		return err
+		if errCreate := f.Client.Create(ctx, tracker); errCreate != nil {
+			return errCreate
+		}
 	}
 
-	if gvkErr := f.ensureGVKSet(tracker); gvkErr != nil {
-		return gvkErr
+	if errGVK := ensureGVKSet(tracker, f.Client.Scheme()); errGVK != nil {
+		return errGVK
 	}
 
-	f.Tracker = tracker
+	f.tracker = tracker
 
 	return nil
 }
 
-func removeFeatureTracker(f *Feature) error {
-	if err := getFeatureTrackerIfAbsent(f); err != nil {
-		return client.IgnoreNotFound(err)
+// removeFeatureTracker removes the FeatureTracker associated with the provided Feature instance if one exists in the cluster.
+func removeFeatureTracker(ctx context.Context, f *Feature) error {
+	associatedTracker := f.tracker
+	if associatedTracker == nil {
+		// Check if it is persisted in the cluster, but Feature do not have it attached
+		if tracker, errGet := getFeatureTracker(ctx, f); client.IgnoreNotFound(errGet) != nil {
+			return errGet
+		} else {
+			associatedTracker = tracker
+		}
 	}
 
-	return deleteTracker(f)
-}
-
-func (f *Feature) getFeatureTracker() (*featurev1.FeatureTracker, error) {
-	tracker := featurev1.NewFeatureTracker(f.Name, f.Spec.AppNamespace)
-
-	tracker.Spec = featurev1.FeatureTrackerSpec{
-		Source:       *f.Spec.Source,
-		AppNamespace: f.Spec.AppNamespace,
+	if associatedTracker != nil {
+		return client.IgnoreNotFound(f.Client.Delete(ctx, associatedTracker))
 	}
 
-	err := f.Client.Get(context.Background(), client.ObjectKeyFromObject(tracker), tracker)
-
-	return tracker, err
+	return nil
 }
 
-func deleteTracker(f *Feature) error {
-	return client.IgnoreNotFound(f.Client.Delete(context.Background(), f.Tracker))
+func getFeatureTracker(ctx context.Context, f *Feature) (*featurev1.FeatureTracker, error) {
+	tracker := featurev1.NewFeatureTracker(f.Name, f.TargetNamespace)
+
+	if errGet := f.Client.Get(ctx, client.ObjectKeyFromObject(tracker), tracker); errGet != nil {
+		return nil, errGet
+	}
+
+	return tracker, nil
 }
 
-func getFeatureTrackerIfAbsent(f *Feature) error {
-	var err error
-	f.Tracker, err = f.getFeatureTracker()
-	return err
-}
-
-func (f *Feature) ensureGVKSet(obj runtime.Object) error {
+func ensureGVKSet(obj runtime.Object, scheme *runtime.Scheme) error {
 	// See https://github.com/kubernetes/client-go/issues/308
-	gvks, unversioned, err := f.Client.Scheme().ObjectKinds(obj)
+	gvks, unversioned, err := scheme.ObjectKinds(obj)
 	if err != nil {
 		return fmt.Errorf("failed to get group, version, & kinds for object: %w", err)
 	}
@@ -96,7 +100,7 @@ func (f *Feature) ensureGVKSet(obj runtime.Object) error {
 }
 
 func createFeatureTrackerStatusReporter(f *Feature) *status.Reporter[*featurev1.FeatureTracker] {
-	return status.NewStatusReporter(f.Client, f.Tracker, func(err error) status.SaveStatusFunc[*featurev1.FeatureTracker] {
+	return status.NewStatusReporter(f.Client, f.tracker, func(err error) status.SaveStatusFunc[*featurev1.FeatureTracker] {
 		updatedCondition := func(saved *featurev1.FeatureTracker) {
 			status.SetCompleteCondition(&saved.Status.Conditions, string(featurev1.ConditionReason.FeatureCreated), fmt.Sprintf("Applied feature [%s] successfully", f.Name))
 			saved.Status.Phase = status.PhaseReady

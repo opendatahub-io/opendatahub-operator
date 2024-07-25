@@ -16,11 +16,11 @@ const (
 	KnativeServingNamespace = "knative-serving"
 )
 
-func EnsureServerlessAbsent(f *feature.Feature) error {
+func EnsureServerlessAbsent(ctx context.Context, f *feature.Feature) error {
 	list := &unstructured.UnstructuredList{}
 	list.SetGroupVersionKind(gvk.KnativeServing)
 
-	if err := f.Client.List(context.TODO(), list, client.InNamespace("")); err != nil {
+	if err := f.Client.List(ctx, list, client.InNamespace("")); err != nil {
 		return fmt.Errorf("failed to list KnativeServings: %w", err)
 	}
 
@@ -46,8 +46,8 @@ func EnsureServerlessAbsent(f *feature.Feature) error {
 	return errors.New("existing KNativeServing resource was found; integrating to an existing installation is not supported")
 }
 
-func EnsureServerlessOperatorInstalled(f *feature.Feature) error {
-	if err := feature.EnsureOperatorIsInstalled("serverless-operator")(f); err != nil {
+func EnsureServerlessOperatorInstalled(ctx context.Context, f *feature.Feature) error {
+	if err := feature.EnsureOperatorIsInstalled("serverless-operator")(ctx, f); err != nil {
 		return fmt.Errorf("failed to find the pre-requisite KNative Serving Operator subscription, please ensure Serverless Operator is installed. %w", err)
 	}
 

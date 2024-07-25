@@ -13,7 +13,6 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
-	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -106,7 +105,7 @@ func (tc *testContext) testDSCICreation() error {
 	if err != nil {
 		if k8serr.IsNotFound(err) {
 			nberr := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
-				creationErr := tc.customClient.Create(tc.ctx, tc.testDSCI)
+				creationErr := tc.customClient.Create(ctx, tc.testDSCI)
 				if creationErr != nil {
 					log.Printf("error creating DSCI resource %v: %v, trying again",
 						tc.testDSCI.Name, creationErr)
@@ -130,7 +129,7 @@ func waitDSCReady(tc *testContext) error {
 		key := types.NamespacedName{Name: tc.testDsc.Name}
 		dsc := &dscv1.DataScienceCluster{}
 
-		err := tc.customClient.Get(tc.ctx, key, dsc)
+		err := tc.customClient.Get(ctx, key, dsc)
 		if err != nil {
 			return false, err
 		}
@@ -164,7 +163,7 @@ func (tc *testContext) testDSCCreation() error {
 	if err != nil {
 		if k8serr.IsNotFound(err) {
 			nberr := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
-				creationErr := tc.customClient.Create(tc.ctx, tc.testDsc)
+				creationErr := tc.customClient.Create(ctx, tc.testDsc)
 				if creationErr != nil {
 					log.Printf("error creating DSC resource %v: %v, trying again",
 						tc.testDsc.Name, creationErr)
@@ -184,26 +183,26 @@ func (tc *testContext) testDSCCreation() error {
 }
 
 // func (tc *testContext) requireInstalled(t *testing.T, gvk schema.GroupVersionKind) {
-// 	t.Helper()
-// 	list := &unstructured.UnstructuredList{}
-// 	list.SetGroupVersionKind(gvk)
-// 	err := tc.customClient.List(tc.ctx, list)
-// 	require.NoErrorf(t, err, "Could not get %s list", gvk.Kind)
-// 	require.Greaterf(t, len(list.Items), 0, "%s has not been installed", gvk.Kind)
-// }
+//	t.Helper()
+//	list := &unstructured.UnstructuredList{}
+//	list.SetGroupVersionKind(gvk)
+//	err := tc.customClient.List(tc.ctx, list)
+//	require.NotEmptyf(t, err, "Could not get %s list", gvk.Kind)
+//	require.Greaterf(t, len(list.Items), 0, "%s has not been installed", gvk.Kind)
+//}
 
 // func (tc *testContext) testDuplication(t *testing.T, gvk schema.GroupVersionKind, o any) {
-// 	t.Helper()
-// 	tc.requireInstalled(t, gvk)
-// 	u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(o)
-// 	require.NoErrorf(t, err, "Could not unstructure %s", gvk.Kind)
-// 	obj := &unstructured.Unstructured{
-// 		Object: u,
-// 	}
-// 	obj.SetGroupVersionKind(gvk)
-// 	err = tc.customClient.Create(tc.ctx, obj)
-// 	require.Errorf(t, err, "Could create second %s", gvk.Kind)
-// }
+//	t.Helper()
+//	tc.requireInstalled(t, gvk)
+//	u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(o)
+//	require.NoErrorf(t, err, "Could not unstructure %s", gvk.Kind)
+//	obj := &unstructured.Unstructured{
+//		Object: u,
+//	}
+//	obj.SetGroupVersionKind(gvk)
+//	err = tc.customClient.Create(tc.ctx, obj)
+//	require.Errorf(t, err, "Could create second %s", gvk.Kind)
+//}
 
 // func (tc *testContext) testDSCIDuplication(t *testing.T) { //nolint:thelper
 // 	gvk := schema.GroupVersionKind{
@@ -216,15 +215,15 @@ func (tc *testContext) testDSCCreation() error {
 // }
 
 // func (tc *testContext) testDSCDuplication(t *testing.T) { //nolint:thelper
-// 	gvk := schema.GroupVersionKind{
-// 		Group:   "datasciencecluster.opendatahub.io",
-// 		Version: "v1",
-// 		Kind:    "DataScienceCluster",
-// 	}
-
-// 	dup := setupDSCInstance("e2e-test-dsc-dup")
-// 	tc.testDuplication(t, gvk, dup)
-// }
+//	gvk := schema.GroupVersionKind{
+//		Group:   "datasciencecluster.opendatahub.io",
+//		Version: "v1",
+//		Kind:    "DataScienceCluster",
+//	}
+//
+//	dup := setupDSCInstance("e2e-test-dsc-dup")
+//	tc.testDuplication(t, gvk, dup)
+//}
 
 func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint:funlen,thelper
 	// Validate test instance is in Ready state
@@ -279,7 +278,7 @@ func (tc *testContext) testApplicationCreation(component components.ComponentInt
 			componentName = "rhods-dashboard"
 		}
 
-		appList, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(context.TODO(), metav1.ListOptions{
+		appList, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(ctx, metav1.ListOptions{
 			LabelSelector: odhLabelPrefix + componentName,
 		})
 		if err != nil {
@@ -364,7 +363,7 @@ func (tc *testContext) validateDSC() error {
 func (tc *testContext) testOwnerrefrences() error {
 	// Test any one of the apps
 	if tc.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
-		appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(context.TODO(), metav1.ListOptions{
+		appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(tc.ctx, metav1.ListOptions{
 			LabelSelector: odhLabelPrefix + tc.testDsc.Spec.Components.Dashboard.GetComponentName(),
 		})
 		if err != nil {
@@ -404,8 +403,8 @@ func (tc *testContext) testDefaultCertsAvailable() error {
 		return err
 	}
 
-	if ctrlPlaneSecret.Type != corev1.SecretTypeTLS {
-		return fmt.Errorf("wrong type of cert secret is created for %v. Expected %v, Got %v", defaultSecretName, corev1.SecretTypeTLS, ctrlPlaneSecret.Type)
+	if ctrlPlaneSecret.Type != defaultIngressSecret.Type {
+		return fmt.Errorf("wrong type of cert secret is created for %v. Expected %v, Got %v", defaultSecretName, defaultIngressSecret.Type, ctrlPlaneSecret.Type)
 	}
 
 	if string(defaultIngressSecret.Data["tls.crt"]) != string(ctrlPlaneSecret.Data["tls.crt"]) {
@@ -429,33 +428,34 @@ func (tc *testContext) testUpdateComponentReconcile() error {
 	}
 	if len(appDeployments.Items) != 0 {
 		testDeployment := appDeployments.Items[0]
-		expectedReplica := testDeployment.Spec.Replicas
+		expectedReplica := 3
 		patchedReplica := &autoscalingv1.Scale{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      testDeployment.Name,
 				Namespace: testDeployment.Namespace,
 			},
 			Spec: autoscalingv1.ScaleSpec{
-				Replicas: 4, // rhoai has 5 pods
+				Replicas: 3, // rhoai has 5 pods
 			},
 			Status: autoscalingv1.ScaleStatus{},
 		}
-		retrievedDep, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).UpdateScale(context.TODO(), testDeployment.Name, patchedReplica, metav1.UpdateOptions{})
+		updatedDep, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).UpdateScale(tc.ctx, testDeployment.Name, patchedReplica, metav1.UpdateOptions{})
 		if err != nil {
 			return fmt.Errorf("error patching component resources : %w", err)
 		}
-		if retrievedDep.Spec.Replicas != patchedReplica.Spec.Replicas {
-			return fmt.Errorf("failed to patch replicas : expect to be %v but got %v", patchedReplica.Spec.Replicas, retrievedDep.Spec.Replicas)
+		if updatedDep.Spec.Replicas != patchedReplica.Spec.Replicas {
+			return fmt.Errorf("failed to patch replicas : expect to be %v but got %v", patchedReplica.Spec.Replicas, updatedDep.Spec.Replicas)
 		}
 
 		// Sleep for 40 seconds to allow the operator to reconcile
+		// we expect it should not revert back to original value because of whitelist
 		time.Sleep(4 * tc.resourceRetryInterval)
-		revertedDep, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).Get(context.TODO(), testDeployment.Name, metav1.GetOptions{})
+		reconciledDep, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).Get(tc.ctx, testDeployment.Name, metav1.GetOptions{})
 		if err != nil {
 			return fmt.Errorf("error getting component resource after reconcile: %w", err)
 		}
-		if *revertedDep.Spec.Replicas != *expectedReplica {
-			return fmt.Errorf("failed to revert back replicas : expect to be %v but got %v", *expectedReplica, *revertedDep.Spec.Replicas)
+		if *reconciledDep.Spec.Replicas != int32(expectedReplica) {
+			return fmt.Errorf("failed to revert back replicas : expect to be %v but got %v", expectedReplica, *reconciledDep.Spec.Replicas)
 		}
 	}
 
@@ -494,7 +494,7 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 		tc.testDsc.Spec.Components.Dashboard.ManagementState = operatorv1.Removed
 
 		// Try to update
-		err = tc.customClient.Update(context.TODO(), tc.testDsc)
+		err = tc.customClient.Update(tc.ctx, tc.testDsc)
 		// Return err itself here (not wrapped inside another error)
 		// so that RetryOnConflict can identify it correctly.
 		if err != nil {
@@ -508,7 +508,7 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 
 	// Sleep for 40 seconds to allow the operator to reconcile
 	time.Sleep(4 * tc.resourceRetryInterval)
-	_, err = tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).Get(context.TODO(), dashboardDeploymentName, metav1.GetOptions{})
+	_, err = tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).Get(tc.ctx, dashboardDeploymentName, metav1.GetOptions{})
 	if err != nil {
 		if k8serr.IsNotFound(err) {
 			return nil // correct result: should not find deployment after we disable it already

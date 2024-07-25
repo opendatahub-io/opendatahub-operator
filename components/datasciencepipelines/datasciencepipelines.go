@@ -41,11 +41,11 @@ type DataSciencePipelines struct {
 	components.Component `json:""`
 }
 
-func (d *DataSciencePipelines) OverrideManifests(_ string) error {
+func (d *DataSciencePipelines) OverrideManifests(ctx context.Context, _ cluster.Platform) error {
 	// If devflags are set, update default manifests path
 	if len(d.DevFlags.Manifests) != 0 {
 		manifestConfig := d.DevFlags.Manifests[0]
-		if err := deploy.DownloadManifests(ComponentName, manifestConfig); err != nil {
+		if err := deploy.DownloadManifests(ctx, ComponentName, manifestConfig); err != nil {
 			return err
 		}
 		// If overlay is defined, update paths
@@ -97,7 +97,7 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 	if enabled {
 		if d.DevFlags != nil {
 			// Download manifests and update paths
-			if err := d.OverrideManifests(string(platform)); err != nil {
+			if err := d.OverrideManifests(ctx, platform); err != nil {
 				return err
 			}
 		}
@@ -119,7 +119,7 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 	if platform == cluster.OpenDataHub || platform == "" {
 		manifestsPath = filepath.Join(OverlayPath, "odh")
 	}
-	if err := deploy.DeployManifestsFromPath(cli, owner, manifestsPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+	if err := deploy.DeployManifestsFromPath(ctx, cli, owner, manifestsPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 		return err
 	}
 	l.Info("apply manifests done")
@@ -138,7 +138,7 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 		if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
 		}
-		if err := deploy.DeployManifestsFromPath(cli, owner,
+		if err := deploy.DeployManifestsFromPath(ctx, cli, owner,
 			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
 			dscispec.Monitoring.Namespace,
 			"prometheus", true); err != nil {

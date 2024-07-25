@@ -42,11 +42,11 @@ type Dashboard struct {
 	components.Component `json:""`
 }
 
-func (d *Dashboard) OverrideManifests(_ string) error {
+func (d *Dashboard) OverrideManifests(ctx context.Context, platform cluster.Platform) error {
 	// If devflags are set, update default manifests path
 	if len(d.DevFlags.Manifests) != 0 {
 		manifestConfig := d.DevFlags.Manifests[0]
-		if err := deploy.DownloadManifests(ComponentNameUpstream, manifestConfig); err != nil {
+		if err := deploy.DownloadManifests(ctx, ComponentNameUpstream, manifestConfig); err != nil {
 			return err
 		}
 		if manifestConfig.SourcePath != "" {
@@ -93,7 +93,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		}
 		if d.DevFlags != nil {
 			// Download manifests and update paths
-			if err := d.OverrideManifests(string(platform)); err != nil {
+			if err := d.OverrideManifests(ctx, platform); err != nil {
 				return err
 			}
 			if OverridePath != "" {
@@ -118,7 +118,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		}
 
 		// 4. Append or Update variable for component to consume
-		extraParamsMap, err := updateKustomizeVariable(cli, platform, dscispec)
+		extraParamsMap, err := updateKustomizeVariable(ctx, cli, platform, dscispec)
 		if err != nil {
 			return errors.New("failed to set variable for extraParamsMap")
 		}
@@ -140,7 +140,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 			return fmt.Errorf("failed to create access-secret for anaconda: %w", err)
 		}
 		// Deploy RHOAI manifests
-		if err := deploy.DeployManifestsFromPath(cli, owner, entryPath, dscispec.ApplicationsNamespace, ComponentNameDownstream, enabled); err != nil {
+		if err := deploy.DeployManifestsFromPath(ctx, cli, owner, entryPath, dscispec.ApplicationsNamespace, ComponentNameDownstream, enabled); err != nil {
 			return fmt.Errorf("failed to apply manifests from %s: %w", PathDownstream, err)
 		}
 		l.Info("apply manifests done")
@@ -158,7 +158,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 			if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentNameDownstream); err != nil {
 				return err
 			}
-			if err := deploy.DeployManifestsFromPath(cli, owner,
+			if err := deploy.DeployManifestsFromPath(ctx, cli, owner,
 				filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
 				dscispec.Monitoring.Namespace,
 				"prometheus", true); err != nil {
@@ -170,7 +170,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 
 	default:
 		// Deploy ODH manifests
-		if err := deploy.DeployManifestsFromPath(cli, owner, entryPath, dscispec.ApplicationsNamespace, ComponentNameUpstream, enabled); err != nil {
+		if err := deploy.DeployManifestsFromPath(ctx, cli, owner, entryPath, dscispec.ApplicationsNamespace, ComponentNameUpstream, enabled); err != nil {
 			return err
 		}
 		l.Info("apply manifests done")
@@ -178,7 +178,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 	}
 }
 
-func updateKustomizeVariable(cli client.Client, platform cluster.Platform, dscispec *dsciv1.DSCInitializationSpec) (map[string]string, error) {
+func updateKustomizeVariable(ctx context.Context, cli client.Client, platform cluster.Platform, dscispec *dsciv1.DSCInitializationSpec) (map[string]string, error) {
 	adminGroups := map[cluster.Platform]string{
 		cluster.SelfManagedRhods: "rhods-admins",
 		cluster.ManagedRhods:     "dedicated-admins",
@@ -193,7 +193,7 @@ func updateKustomizeVariable(cli client.Client, platform cluster.Platform, dscis
 		cluster.Unknown:          "OpenShift Open Data Hub",
 	}[platform]
 
-	consoleLinkDomain, err := cluster.GetDomain(cli)
+	consoleLinkDomain, err := cluster.GetDomain(ctx, cli)
 	if err != nil {
 		return nil, fmt.Errorf("error getting console route URL %s : %w", consoleLinkDomain, err)
 	}

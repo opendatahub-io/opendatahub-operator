@@ -1,7 +1,6 @@
 package e2e_test
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -71,7 +70,7 @@ func (tc *testContext) testOwnedNamespacesAllExist() error {
 }
 
 func removeDeletionConfigMap(tc *testContext) {
-	_ = tc.kubeClient.CoreV1().ConfigMaps(tc.operatorNamespace).Delete(context.TODO(), "delete-self-managed", metav1.DeleteOptions{})
+	_ = tc.kubeClient.CoreV1().ConfigMaps(tc.operatorNamespace).Delete(tc.ctx, "delete-self-managed", metav1.DeleteOptions{})
 }
 
 func createDeletionConfigMap(tc *testContext, enableDeletion string) error {
@@ -86,14 +85,14 @@ func createDeletionConfigMap(tc *testContext, enableDeletion string) error {
 	}
 
 	configMaps := tc.kubeClient.CoreV1().ConfigMaps(configMap.Namespace)
-	if _, err := configMaps.Get(context.TODO(), configMap.Name, metav1.GetOptions{}); err != nil {
+	if _, err := configMaps.Get(tc.ctx, configMap.Name, metav1.GetOptions{}); err != nil {
 		switch {
 		case k8serr.IsNotFound(err):
-			if _, err = configMaps.Create(context.TODO(), configMap, metav1.CreateOptions{}); err != nil {
+			if _, err = configMaps.Create(tc.ctx, configMap, metav1.CreateOptions{}); err != nil {
 				return err
 			}
 		case k8serr.IsAlreadyExists(err):
-			if _, err = configMaps.Update(context.TODO(), configMap, metav1.UpdateOptions{}); err != nil {
+			if _, err = configMaps.Update(tc.ctx, configMap, metav1.UpdateOptions{}); err != nil {
 				return err
 			}
 		default:

@@ -117,14 +117,14 @@ func (k *Kserve) setDefaultDeploymentMode(ctx context.Context, cli client.Client
 	return nil
 }
 
-func (k *Kserve) configureServerless(cli client.Client, instance *dsciv1.DSCInitializationSpec) error {
+func (k *Kserve) configureServerless(ctx context.Context, cli client.Client, instance *dsciv1.DSCInitializationSpec) error {
 	switch k.Serving.ManagementState {
 	case operatorv1.Unmanaged: // Bring your own CR
 		fmt.Println("Serverless CR is not configured by the operator, we won't do anything")
 
 	case operatorv1.Removed: // we remove serving CR
 		fmt.Println("existing Serverless CR (owned by operator) will be removed")
-		if err := k.removeServerlessFeatures(instance); err != nil {
+		if err := k.removeServerlessFeatures(ctx, instance); err != nil {
 			return err
 		}
 
@@ -135,30 +135,30 @@ func (k *Kserve) configureServerless(cli client.Client, instance *dsciv1.DSCInit
 		}
 
 		// check on dependent operators if all installed in cluster
-		dependOpsErrors := checkDependentOperators(cli).ErrorOrNil()
+		dependOpsErrors := checkDependentOperators(ctx, cli).ErrorOrNil()
 		if dependOpsErrors != nil {
 			return dependOpsErrors
 		}
 
-		serverlessFeatures := feature.ComponentFeaturesHandler(k.GetComponentName(), instance, k.configureServerlessFeatures())
+		serverlessFeatures := feature.ComponentFeaturesHandler(k.GetComponentName(), instance.ApplicationsNamespace, k.configureServerlessFeatures(instance))
 
-		if err := serverlessFeatures.Apply(); err != nil {
+		if err := serverlessFeatures.Apply(ctx); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (k *Kserve) removeServerlessFeatures(instance *dsciv1.DSCInitializationSpec) error {
-	serverlessFeatures := feature.ComponentFeaturesHandler(k.GetComponentName(), instance, k.configureServerlessFeatures())
+func (k *Kserve) removeServerlessFeatures(ctx context.Context, instance *dsciv1.DSCInitializationSpec) error {
+	serverlessFeatures := feature.ComponentFeaturesHandler(k.GetComponentName(), instance.ApplicationsNamespace, k.configureServerlessFeatures(instance))
 
-	return serverlessFeatures.Delete()
+	return serverlessFeatures.Delete(ctx)
 }
 
-func checkDependentOperators(cli client.Client) *multierror.Error {
+func checkDependentOperators(ctx context.Context, cli client.Client) *multierror.Error {
 	var multiErr *multierror.Error
 
-	if found, err := cluster.OperatorExists(cli, ServiceMeshOperator); err != nil {
+	if found, err := cluster.OperatorExists(ctx, cli, ServiceMeshOperator); err != nil {
 		multiErr = multierror.Append(multiErr, err)
 	} else if !found {
 		err = fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
@@ -166,7 +166,7 @@ func checkDependentOperators(cli client.Client) *multierror.Error {
 		multiErr = multierror.Append(multiErr, err)
 	}
 
-	if found, err := cluster.OperatorExists(cli, ServerlessOperator); err != nil {
+	if found, err := cluster.OperatorExists(ctx, cli, ServerlessOperator); err != nil {
 		multiErr = multierror.Append(multiErr, err)
 	} else if !found {
 		err = fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",

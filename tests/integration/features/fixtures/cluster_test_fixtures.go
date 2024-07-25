@@ -17,28 +17,28 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 )
 
-func CreateSubscription(client client.Client, namespace, subscriptionYaml string) error {
+func CreateSubscription(ctx context.Context, client client.Client, namespace, subscriptionYaml string) error {
 	subscription := &ofapiv1alpha1.Subscription{}
 	if err := yaml.Unmarshal([]byte(subscriptionYaml), subscription); err != nil {
 		return err
 	}
 
 	ns := NewNamespace(namespace)
-	if err := CreateOrUpdateNamespace(client, ns); err != nil {
+	if err := CreateOrUpdateNamespace(ctx, client, ns); err != nil {
 		return err
 	}
-	return createOrUpdateSubscription(client, subscription)
+	return createOrUpdateSubscription(ctx, client, subscription)
 }
 
-func CreateOrUpdateNamespace(client client.Client, ns *corev1.Namespace) error {
-	_, err := controllerutil.CreateOrUpdate(context.Background(), client, ns, func() error {
+func CreateOrUpdateNamespace(ctx context.Context, client client.Client, ns *corev1.Namespace) error {
+	_, err := controllerutil.CreateOrUpdate(ctx, client, ns, func() error {
 		return nil
 	})
 	return err
 }
 
-func createOrUpdateSubscription(client client.Client, subscription *ofapiv1alpha1.Subscription) error {
-	_, err := controllerutil.CreateOrUpdate(context.Background(), client, subscription, func() error {
+func createOrUpdateSubscription(ctx context.Context, client client.Client, subscription *ofapiv1alpha1.Subscription) error {
+	_, err := controllerutil.CreateOrUpdate(ctx, client, subscription, func() error {
 		return nil
 	})
 	return err
@@ -52,24 +52,33 @@ func NewNamespace(name string) *corev1.Namespace {
 	}
 }
 
-func GetNamespace(client client.Client, namespace string) (*corev1.Namespace, error) {
+func GetConfigMap(client client.Client, namespace, name string) (*corev1.ConfigMap, error) {
+	cfgMap := &corev1.ConfigMap{}
+	err := client.Get(context.Background(), types.NamespacedName{
+		Name: name, Namespace: namespace,
+	}, cfgMap)
+
+	return cfgMap, err
+}
+
+func GetNamespace(ctx context.Context, client client.Client, namespace string) (*corev1.Namespace, error) {
 	ns := NewNamespace(namespace)
-	err := client.Get(context.Background(), types.NamespacedName{Name: namespace}, ns)
+	err := client.Get(ctx, types.NamespacedName{Name: namespace}, ns)
 
 	return ns, err
 }
 
-func GetService(client client.Client, namespace, name string) (*corev1.Service, error) {
+func GetService(ctx context.Context, client client.Client, namespace, name string) (*corev1.Service, error) {
 	svc := &corev1.Service{}
-	err := client.Get(context.Background(), types.NamespacedName{
+	err := client.Get(ctx, types.NamespacedName{
 		Name: name, Namespace: namespace,
 	}, svc)
 
 	return svc, err
 }
 
-func CreateSecret(name, namespace string) func(f *feature.Feature) error {
-	return func(f *feature.Feature) error {
+func CreateSecret(name, namespace string) func(ctx context.Context, f *feature.Feature) error {
+	return func(ctx context.Context, f *feature.Feature) error {
 		secret := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name,
@@ -83,13 +92,13 @@ func CreateSecret(name, namespace string) func(f *feature.Feature) error {
 			},
 		}
 
-		return f.Client.Create(context.TODO(), secret)
+		return f.Client.Create(ctx, secret)
 	}
 }
 
-func GetFeatureTracker(cli client.Client, appNamespace, featureName string) (*featurev1.FeatureTracker, error) {
+func GetFeatureTracker(ctx context.Context, cli client.Client, appNamespace, featureName string) (*featurev1.FeatureTracker, error) {
 	tracker := featurev1.NewFeatureTracker(featureName, appNamespace)
-	err := cli.Get(context.Background(), client.ObjectKey{
+	err := cli.Get(ctx, client.ObjectKey{
 		Name: tracker.Name,
 	}, tracker)
 
