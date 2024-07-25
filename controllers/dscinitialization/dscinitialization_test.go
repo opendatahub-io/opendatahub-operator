@@ -3,7 +3,6 @@ package dscinitialization_test
 import (
 	"context"
 
-
 	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"

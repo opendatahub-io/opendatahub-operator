@@ -182,7 +182,7 @@ func (tc *testContext) testDSCCreation() error {
 	return waitDSCReady(tc)
 }
 
-//func (tc *testContext) requireInstalled(t *testing.T, gvk schema.GroupVersionKind) {
+// func (tc *testContext) requireInstalled(t *testing.T, gvk schema.GroupVersionKind) {
 //	t.Helper()
 //	list := &unstructured.UnstructuredList{}
 //	list.SetGroupVersionKind(gvk)
@@ -191,7 +191,7 @@ func (tc *testContext) testDSCCreation() error {
 //	require.Greaterf(t, len(list.Items), 0, "%s has not been installed", gvk.Kind)
 //}
 
-//func (tc *testContext) testDuplication(t *testing.T, gvk schema.GroupVersionKind, o any) {
+// func (tc *testContext) testDuplication(t *testing.T, gvk schema.GroupVersionKind, o any) {
 //	t.Helper()
 //	tc.requireInstalled(t, gvk)
 //	u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(o)
@@ -204,7 +204,7 @@ func (tc *testContext) testDSCCreation() error {
 //	require.Errorf(t, err, "Could create second %s", gvk.Kind)
 //}
 
-//func (tc *testContext) testDSCDuplication(t *testing.T) { //nolint:thelper
+// func (tc *testContext) testDSCDuplication(t *testing.T) { //nolint:thelper
 //	gvk := schema.GroupVersionKind{
 //		Group:   "datasciencecluster.opendatahub.io",
 //		Version: "v1",
