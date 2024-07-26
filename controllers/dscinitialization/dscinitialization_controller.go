@@ -34,6 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -136,11 +137,23 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		if err := r.removeServiceMesh(ctx, instance); err != nil {
 			return reconcile.Result{}, err
 		}
-		if controllerutil.ContainsFinalizer(instance, finalizerName) {
-			controllerutil.RemoveFinalizer(instance, finalizerName)
-			if err := r.Update(ctx, instance); err != nil {
-				return ctrl.Result{}, err
+
+		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			newInstance := &dsciv1.DSCInitialization{}
+			if err := r.Client.Get(ctx, client.ObjectKeyFromObject(instance), newInstance); err != nil {
+				return err
 			}
+			if controllerutil.ContainsFinalizer(newInstance, finalizerName) {
+				controllerutil.RemoveFinalizer(newInstance, finalizerName)
+				if err := r.Update(ctx, newInstance); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			r.Log.Error(err, "Failed to remove finalizer when deleting DSCInitialization instance")
+			return ctrl.Result{}, err
 		}
 
 		return ctrl.Result{}, nil
