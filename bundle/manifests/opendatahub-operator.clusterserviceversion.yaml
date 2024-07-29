@@ -1789,7 +1789,7 @@ spec:
   - email: opendatahub@redhat.com
     name: Open Data Hub Maintainers
   maturity: stable
-  minKubeVersion: 1.22.0
+  minKubeVersion: 1.25.0
   provider:
     name: ODH
   selector:
