@@ -21,6 +21,7 @@ BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
 
 IMAGE_BUILDER ?= podman
 OPERATOR_NAMESPACE ?= redhat-ods-operator
+DEFAULT_MANIFESTS_PATH ?= opt/manifests
 
 MANIFEST_REPO ?= red-hat-data-services
 MANIFEST_RELEASE ?= master
@@ -171,7 +172,7 @@ lint: golangci-lint ## Run golangci-lint against code.
 .PHONY: get-manifests
 get-manifests: ## Fetch components manifests from remote git repo
 	./get_all_manifests.sh
-CLEANFILES += odh-manifests/*
+CLEANFILES += opt/manifests/*
 
 .PHONY: api-docs
 api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-ref-docs
@@ -186,7 +187,7 @@ build: generate fmt vet ## Build manager binary.
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
-	go run ./main.go
+	OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) DEFAULT_MANIFESTS_PATH=${DEFAULT_MANIFESTS_PATH} go run ./main.go
 
 .PHONY: image-build
 image-build: # unit-test ## Build image with the manager.

@@ -51,8 +51,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins"
 )
 
-const (
-	DefaultManifestPath = "/opt/manifests"
+var (
+	DefaultManifestPath = os.Getenv("DEFAULT_MANIFESTS_PATH")
 )
 
 // DownloadManifests function performs following tasks:
