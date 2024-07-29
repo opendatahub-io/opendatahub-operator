@@ -65,7 +65,7 @@ for key in "${!COMPONENT_MANIFESTS[@]}"; do
     mkdir -p ${repo_dir}
     git clone -q --depth 1 --branch ${repo_branch} ${repo_url} ${repo_dir}
 
-    mkdir -p ./odh-manifests/${target_path}
-    cp -rf ${repo_dir}/${source_path}/* ./odh-manifests/${target_path}
+    mkdir -p ./opt/manifests/${target_path}
+    cp -rf ${repo_dir}/${source_path}/* ./opt/manifests/${target_path}
 
 done

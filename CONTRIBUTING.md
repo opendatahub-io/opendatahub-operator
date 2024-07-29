@@ -55,5 +55,6 @@ IMG_TAG=my-dev-tag
 OPERATOR_NAMESPACE=my-dev-odh-operator-system
 IMAGE_BUILD_FLAGS=--build-arg USE_LOCAL=true
 E2E_TEST_FLAGS="--skip-deletion=true" -timeout 15m
+DEFAULT_MANIFESTS_PATH=./opt/manifests
 ```
 
