@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/go-multierror"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -27,8 +28,10 @@ var _ featuresHandler = (*FeaturesHandler)(nil)
 // FeaturesHandler provides a structured way to manage and coordinate the creation, application,
 // and deletion of features needed in particular Data Science Cluster configuration.
 type FeaturesHandler struct {
-	targetNamespace   string
+	cli               client.Client
 	source            featurev1.Source
+	owner             metav1.Object
+	targetNamespace   string
 	features          []*Feature
 	featuresProviders []FeaturesProvider
 }
@@ -42,7 +45,9 @@ func (fh *FeaturesHandler) Add(builders ...*featureBuilder) error {
 
 	for i := range builders {
 		fb := builders[i]
-		feature, err := fb.TargetNamespace(fh.targetNamespace).
+		feature, err := fb.UsingClient(fh.cli).
+			TargetNamespace(fh.targetNamespace).
+			OwnedBy(fh.owner).
 			Source(fh.source).
 			Create()
 		multiErr = multierror.Append(multiErr, err)
@@ -96,16 +101,20 @@ func (fh *FeaturesHandler) Delete(ctx context.Context) error {
 // and add them to the handler's registry.
 type FeaturesProvider func(registry FeaturesRegistry) error
 
-func ClusterFeaturesHandler(dsci *dsciv1.DSCInitialization, def ...FeaturesProvider) *FeaturesHandler {
+func ClusterFeaturesHandler(cli client.Client, dsci *dsciv1.DSCInitialization, def ...FeaturesProvider) *FeaturesHandler {
 	return &FeaturesHandler{
+		cli:               cli,
 		targetNamespace:   dsci.Spec.ApplicationsNamespace,
+		owner:             dsci,
 		source:            featurev1.Source{Type: featurev1.DSCIType, Name: dsci.Name},
 		featuresProviders: def,
 	}
 }
 
-func ComponentFeaturesHandler(componentName, targetNamespace string, def ...FeaturesProvider) *FeaturesHandler {
+func ComponentFeaturesHandler(cli client.Client, owner metav1.Object, componentName, targetNamespace string, def ...FeaturesProvider) *FeaturesHandler {
 	return &FeaturesHandler{
+		cli:               cli,
+		owner:             owner,
 		targetNamespace:   targetNamespace,
 		source:            featurev1.Source{Type: featurev1.ComponentType, Name: componentName},
 		featuresProviders: def,

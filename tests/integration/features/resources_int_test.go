@@ -42,7 +42,7 @@ var _ = Describe("Applying and updating resources", func() {
 		namespace, err = cluster.CreateNamespace(ctx, envTestClient, testNamespace)
 		Expect(err).ToNot(HaveOccurred())
 
-		dsci = fixtures.NewDSCInitialization(testNamespace)
+		dsci = fixtures.NewDSCInitialization(ctx, envTestClient, testNamespace)
 		dsci.Spec.ServiceMesh.ControlPlane.Namespace = namespace.Name
 	})
 
@@ -54,10 +54,9 @@ var _ = Describe("Applying and updating resources", func() {
 
 		It("should reconcile the resource to its managed state", func(ctx context.Context) {
 			// given managed feature
-			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+			featuresHandler := feature.ClusterFeaturesHandler(envTestClient, dsci, func(registry feature.FeaturesRegistry) error {
 				return registry.Add(
 					feature.Define("create-local-gw-svc").
-						UsingConfig(envTest.Config).
 						Managed().
 						Manifests(
 							manifest.Location(fixtures.TestEmbeddedFiles).
@@ -91,10 +90,9 @@ var _ = Describe("Applying and updating resources", func() {
 
 		It("should not reconcile explicitly opt-ed out resource", func(ctx context.Context) {
 			// given managed feature
-			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+			featuresHandler := feature.ClusterFeaturesHandler(envTestClient, dsci, func(registry feature.FeaturesRegistry) error {
 				return registry.Add(
 					feature.Define("create-unmanaged-svc").
-						UsingConfig(envTest.Config).
 						Managed().
 						Manifests(
 							manifest.Location(fixtures.TestEmbeddedFiles).
@@ -128,10 +126,9 @@ var _ = Describe("Applying and updating resources", func() {
 
 		It("should not reconcile the resource", func(ctx context.Context) {
 			// given unmanaged feature
-			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+			featuresHandler := feature.ClusterFeaturesHandler(envTestClient, dsci, func(registry feature.FeaturesRegistry) error {
 				return registry.Add(
 					feature.Define("create-local-gw-svc").
-						UsingConfig(envTest.Config).
 						Manifests(
 							manifest.Location(fixtures.TestEmbeddedFiles).
 								Include(path.Join(fixtures.BaseDir, "local-gateway-svc.tmpl.yaml")),
@@ -162,10 +159,9 @@ var _ = Describe("Applying and updating resources", func() {
 	When("a feature is unmanaged but the object is marked as managed", func() {
 		It("should reconcile this resource", func(ctx context.Context) {
 			// given unmanaged feature but object marked with managed annotation
-			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+			featuresHandler := feature.ClusterFeaturesHandler(envTestClient, dsci, func(registry feature.FeaturesRegistry) error {
 				return registry.Add(
 					feature.Define("create-managed-svc").
-						UsingConfig(envTest.Config).
 						Manifests(
 							manifest.Location(fixtures.TestEmbeddedFiles).
 								Include(path.Join(fixtures.BaseDir, "managed-svc.tmpl.yaml")),

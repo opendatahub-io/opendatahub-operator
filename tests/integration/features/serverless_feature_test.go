@@ -34,13 +34,13 @@ var _ = Describe("Serverless feature", func() {
 		kserveComponent *kserve.Kserve
 	)
 
-	BeforeEach(func() {
+	BeforeEach(func(ctx context.Context) {
 		// TODO rework
 		c, err := client.New(envTest.Config, client.Options{})
 		Expect(err).ToNot(HaveOccurred())
 		objectCleaner = envtestutil.CreateCleaner(c, envTest.Config, fixtures.Timeout, fixtures.Interval)
 
-		dsci = fixtures.NewDSCInitialization("default")
+		dsci = fixtures.NewDSCInitialization(ctx, envTestClient, "default")
 		kserveComponent = &kserve.Kserve{}
 	})
 
@@ -50,17 +50,18 @@ var _ = Describe("Serverless feature", func() {
 
 			It("should fail on precondition check", func(ctx context.Context) {
 				// given
-				featuresHandler := feature.ComponentFeaturesHandler(kserveComponent.GetComponentName(), dsci.Spec.ApplicationsNamespace, func(registry feature.FeaturesRegistry) error {
+				featuresProvider := func(registry feature.FeaturesRegistry) error {
 					errFeatureAdd := registry.Add(
 						feature.Define("no-serverless-operator-check").
-							UsingConfig(envTest.Config).
 							PreConditions(serverless.EnsureServerlessOperatorInstalled),
 					)
 
 					Expect(errFeatureAdd).ToNot(HaveOccurred())
 
 					return nil
-				})
+				}
+
+				featuresHandler := feature.ComponentFeaturesHandler(envTestClient, dsci, kserveComponent.GetComponentName(), dsci.Spec.ApplicationsNamespace, featuresProvider)
 
 				// when
 				applyErr := featuresHandler.Apply(ctx)
@@ -97,17 +98,18 @@ var _ = Describe("Serverless feature", func() {
 
 			It("should succeed checking operator installation using precondition", func(ctx context.Context) {
 				// when
-				featuresHandler := feature.ComponentFeaturesHandler(kserveComponent.GetComponentName(), dsci.Spec.ApplicationsNamespace, func(registry feature.FeaturesRegistry) error {
+				featuresProvider := func(registry feature.FeaturesRegistry) error {
 					errFeatureAdd := registry.Add(
 						feature.Define("serverless-operator-check").
-							UsingConfig(envTest.Config).
 							PreConditions(serverless.EnsureServerlessOperatorInstalled),
 					)
 
 					Expect(errFeatureAdd).ToNot(HaveOccurred())
 
 					return nil
-				})
+				}
+
+				featuresHandler := feature.ComponentFeaturesHandler(envTestClient, dsci, kserveComponent.GetComponentName(), dsci.Spec.ApplicationsNamespace, featuresProvider)
 
 				// then
 				Expect(featuresHandler.Apply(ctx)).To(Succeed())
@@ -115,17 +117,18 @@ var _ = Describe("Serverless feature", func() {
 
 			It("should succeed if serving is not installed for KNative serving precondition", func(ctx context.Context) {
 				// when
-				featuresHandler := feature.ComponentFeaturesHandler(kserveComponent.GetComponentName(), dsci.Spec.ApplicationsNamespace, func(registry feature.FeaturesRegistry) error {
+				featuresProvider := func(registry feature.FeaturesRegistry) error {
 					errFeatureAdd := registry.Add(
 						feature.Define("no-serving-installed-yet").
-							UsingConfig(envTest.Config).
 							PreConditions(serverless.EnsureServerlessAbsent),
 					)
 
 					Expect(errFeatureAdd).ToNot(HaveOccurred())
 
 					return nil
-				})
+				}
+
+				featuresHandler := feature.ComponentFeaturesHandler(envTestClient, dsci, kserveComponent.GetComponentName(), dsci.Spec.ApplicationsNamespace, featuresProvider)
 
 				// then
 				Expect(featuresHandler.Apply(ctx)).To(Succeed())
@@ -144,17 +147,18 @@ var _ = Describe("Serverless feature", func() {
 				Expect(envTestClient.Create(ctx, knativeServing)).To(Succeed())
 
 				// when
-				featuresHandler := feature.ComponentFeaturesHandler(kserveComponent.GetComponentName(), dsci.Spec.ApplicationsNamespace, func(registry feature.FeaturesRegistry) error {
+				featuresProvider := func(registry feature.FeaturesRegistry) error {
 					errFeatureAdd := registry.Add(
 						feature.Define("serving-already-installed").
-							UsingConfig(envTest.Config).
 							PreConditions(serverless.EnsureServerlessAbsent),
 					)
 
 					Expect(errFeatureAdd).ToNot(HaveOccurred())
 
 					return nil
-				})
+				}
+
+				featuresHandler := feature.ComponentFeaturesHandler(envTestClient, dsci, kserveComponent.GetComponentName(), dsci.Spec.ApplicationsNamespace, featuresProvider)
 
 				// then
 				Expect(featuresHandler.Apply(ctx)).ToNot(Succeed())
@@ -279,10 +283,9 @@ var _ = Describe("Serverless feature", func() {
 			kserveComponent.Serving.IngressGateway.Certificate.Type = infrav1.SelfSigned
 			kserveComponent.Serving.IngressGateway.Domain = fixtures.TestDomainFooCom
 
-			featuresHandler := feature.ComponentFeaturesHandler(kserveComponent.GetComponentName(), dsci.Spec.ApplicationsNamespace, func(registry feature.FeaturesRegistry) error {
+			featuresProvider := func(registry feature.FeaturesRegistry) error {
 				errFeatureAdd := registry.Add(
 					feature.Define("tls-secret-creation").
-						UsingConfig(envTest.Config).
 						WithData(
 							servicemesh.FeatureData.ControlPlane.Define(&dsci.Spec).AsAction(),
 							serverless.FeatureData.Serving.Define(&kserveComponent.Serving).AsAction(),
@@ -295,7 +298,9 @@ var _ = Describe("Serverless feature", func() {
 				Expect(errFeatureAdd).ToNot(HaveOccurred())
 
 				return nil
-			})
+			}
+
+			featuresHandler := feature.ComponentFeaturesHandler(envTestClient, dsci, kserveComponent.GetComponentName(), dsci.Spec.ApplicationsNamespace, featuresProvider)
 
 			// when
 			Expect(featuresHandler.Apply(ctx)).To(Succeed())
@@ -319,10 +324,10 @@ var _ = Describe("Serverless feature", func() {
 			// given
 			kserveComponent.Serving.IngressGateway.Certificate.Type = infrav1.Provided
 			kserveComponent.Serving.IngressGateway.Domain = fixtures.TestDomainFooCom
-			featuresHandler := feature.ComponentFeaturesHandler(kserveComponent.GetComponentName(), dsci.Spec.ApplicationsNamespace, func(registry feature.FeaturesRegistry) error {
+
+			featuresProvider := func(registry feature.FeaturesRegistry) error {
 				errFeatureAdd := registry.Add(
 					feature.Define("tls-secret-creation").
-						UsingConfig(envTest.Config).
 						WithData(
 							servicemesh.FeatureData.ControlPlane.Define(&dsci.Spec).AsAction(),
 							serverless.FeatureData.Serving.Define(&kserveComponent.Serving).AsAction(),
@@ -335,7 +340,9 @@ var _ = Describe("Serverless feature", func() {
 				Expect(errFeatureAdd).ToNot(HaveOccurred())
 
 				return nil
-			})
+			}
+
+			featuresHandler := feature.ComponentFeaturesHandler(envTestClient, dsci, kserveComponent.GetComponentName(), dsci.Spec.ApplicationsNamespace, featuresProvider)
 
 			// when
 			Expect(featuresHandler.Apply(ctx)).To(Succeed())

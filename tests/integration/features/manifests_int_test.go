@@ -35,7 +35,7 @@ var _ = Describe("Applying resources", func() {
 		namespace, err = cluster.CreateNamespace(ctx, envTestClient, nsName)
 		Expect(err).ToNot(HaveOccurred())
 
-		dsci = fixtures.NewDSCInitialization(nsName)
+		dsci = fixtures.NewDSCInitialization(ctx, envTestClient, nsName)
 		dsci.Spec.ServiceMesh.ControlPlane.Namespace = namespace.Name
 	})
 
@@ -45,9 +45,8 @@ var _ = Describe("Applying resources", func() {
 
 	It("should be able to process an embedded YAML file", func(ctx context.Context) {
 		// given
-		featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+		featuresHandler := feature.ClusterFeaturesHandler(envTestClient, dsci, func(registry feature.FeaturesRegistry) error {
 			errNsCreate := registry.Add(feature.Define("create-namespaces").
-				UsingConfig(envTest.Config).
 				Manifests(
 					manifest.Location(fixtures.TestEmbeddedFiles).
 						Include(path.Join(fixtures.BaseDir, "namespaces.yaml")),
@@ -76,9 +75,8 @@ var _ = Describe("Applying resources", func() {
 
 	It("should be able to process an embedded template file", func(ctx context.Context) {
 		// given
-		featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+		featuresHandler := feature.ClusterFeaturesHandler(envTestClient, dsci, func(registry feature.FeaturesRegistry) error {
 			errSvcCreate := registry.Add(feature.Define("create-local-gw-svc").
-				UsingConfig(envTest.Config).
 				Manifests(
 					manifest.Location(fixtures.TestEmbeddedFiles).
 						Include(path.Join(fixtures.BaseDir, "local-gateway-svc.tmpl.yaml")),
@@ -111,9 +109,8 @@ metadata:
 
 		Expect(fixtures.CreateFile(tempDir, "namespace.yaml", nsYAML)).To(Succeed())
 
-		featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+		featuresHandler := feature.ClusterFeaturesHandler(envTestClient, dsci, func(registry feature.FeaturesRegistry) error {
 			errSvcCreate := registry.Add(feature.Define("create-namespace").
-				UsingConfig(envTest.Config).
 				Manifests(
 					manifest.Location(os.DirFS(tempDir)).
 						Include(path.Join("namespace.yaml")), // must be relative to root DirFS defined above

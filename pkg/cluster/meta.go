@@ -29,6 +29,8 @@ func WithOwnerReference(ownerReferences ...metav1.OwnerReference) MetaOptions {
 	}
 }
 
+// OwnedBy sets the owner reference for the object being created. It requires scheme to be passed
+// as TypeMeta might not be set for the owning object, see: https://github.com/kubernetes-sigs/controller-runtime/issues/1517
 func OwnedBy(owner metav1.Object, scheme *runtime.Scheme) MetaOptions {
 	return func(obj metav1.Object) error {
 		return controllerutil.SetOwnerReference(owner, obj, scheme)
