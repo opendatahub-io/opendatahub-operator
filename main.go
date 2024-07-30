@@ -138,7 +138,7 @@ func main() { //nolint:funlen,maintidx
 					"redhat-ods-applications": {},
 					"opendatahub":             {},
 					"istio-system":            {},
-					"openshift-ingress": 	   {},
+					"openshift-ingress":       {},
 				},
 			},
 			// it is hard to find a label can be used for both trustCAbundle configmap and inferenceservice-config
