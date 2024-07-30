@@ -173,4 +173,54 @@ var _ = Describe("Feature tracking capability", func() {
 		})
 
 	})
+
+	Context("adding ownerReferences to feature tracker", func() {
+		It("should indicate owner in the feature tracker when owner in feature", func(ctx context.Context) {
+			// given
+
+			// DSCI created in cluster
+			dsci, dsciErr := fixtures.CreateOrUpdateDSCI(ctx, envTestClient, dsci)
+			Expect(dsciErr).ToNot(HaveOccurred())
+
+			feature, featErr := feature.Define("empty-feat-with-owner").
+				UsingConfig(envTest.Config).
+				Source(featurev1.Source{
+					Type: featurev1.DSCIType,
+					Name: dsci.Name,
+				}).
+				TargetNamespace(appNamespace).
+				OwnedBy(dsci).
+				Create()
+
+			// when
+			Expect(featErr).ToNot(HaveOccurred())
+			Expect(feature.Apply(ctx)).To(Succeed())
+
+			// then
+			tracker, err := fixtures.GetFeatureTracker(ctx, envTestClient, appNamespace, "empty-feat-with-owner")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(tracker.OwnerReferences).ToNot(BeEmpty())
+		})
+
+		It("should not indicate owner in the feature tracker when owner not in feature", func(ctx context.Context) {
+			// given
+			feature, featErr := feature.Define("empty-feat-no-owner").
+				UsingConfig(envTest.Config).
+				Source(featurev1.Source{
+					Type: featurev1.DSCIType,
+					Name: dsci.Name,
+				}).
+				TargetNamespace(appNamespace).
+				Create()
+
+			// when
+			Expect(featErr).ToNot(HaveOccurred())
+			Expect(feature.Apply(ctx)).To(Succeed())
+
+			// then
+			tracker, err := fixtures.GetFeatureTracker(ctx, envTestClient, appNamespace, "empty-feat-no-owner")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(tracker.OwnerReferences).To(BeEmpty())
+		})
+	})
 })

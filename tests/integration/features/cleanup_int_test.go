@@ -21,8 +21,7 @@ import (
 
 var _ = Describe("feature cleanup", func() {
 
-	Context("using FeatureTracker and ownership as cleanup strategy", Ordered, func() {
-
+	Context("using FeatureTracker and ownership as cleanup strategy", func() {
 		const (
 			featureName = "create-secret"
 			secretName  = "test-secret"
@@ -34,7 +33,7 @@ var _ = Describe("feature cleanup", func() {
 			testFeature *feature.Feature
 		)
 
-		BeforeAll(func() {
+		BeforeEach(func() {
 			namespace = envtestutil.AppendRandomNameTo("test-secret-ownership")
 			dsci = fixtures.NewDSCInitialization(namespace)
 			var errSecretCreation error

@@ -14,6 +14,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 )
 
@@ -42,6 +43,17 @@ func createOrUpdateSubscription(ctx context.Context, client client.Client, subsc
 		return nil
 	})
 	return err
+}
+
+func CreateOrUpdateDSCI(ctx context.Context,
+	client client.Client,
+	dsci *dsciv1.DSCInitialization) (*dsciv1.DSCInitialization, error) {
+	_, err := controllerutil.CreateOrUpdate(ctx, client, dsci, func() error {
+		return nil
+	})
+	dsci.APIVersion = dsciv1.GroupVersion.String()
+	dsci.Kind = gvk.DSCInitialization.Kind
+	return dsci, err
 }
 
 func NewNamespace(name string) *corev1.Namespace {

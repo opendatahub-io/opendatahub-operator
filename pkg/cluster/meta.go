@@ -35,6 +35,23 @@ func OwnedBy(owner metav1.Object, scheme *runtime.Scheme) MetaOptions {
 	}
 }
 
+func ToOwnerReference(obj metav1.Object) ([]metav1.OwnerReference, error) {
+	runtimeOwner, ok := obj.(runtime.Object)
+	if !ok {
+		return nil, fmt.Errorf("%T is not a runtime.Object", obj)
+	}
+
+	gvk := runtimeOwner.GetObjectKind().GroupVersionKind()
+
+	ownerRef := metav1.OwnerReference{
+		APIVersion: gvk.GroupVersion().String(),
+		Kind:       gvk.Kind,
+		Name:       obj.GetName(),
+		UID:        obj.GetUID(),
+	}
+	return []metav1.OwnerReference{ownerRef}, nil
+}
+
 func WithLabels(labels ...string) MetaOptions {
 	return func(obj metav1.Object) error {
 		labelsMap, err := extractKeyValues(labels)
