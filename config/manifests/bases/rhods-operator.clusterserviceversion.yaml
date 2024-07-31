@@ -158,7 +158,7 @@ spec:
   links:
   - name: Red Hat OpenShift AI
     url: https://www.redhat.com/en/technologies/cloud-computing/openshift/openshift-ai
-  minKubeVersion: 1.22.0
+  minKubeVersion: 1.25.0
   provider:
     name: Red Hat
   version: 2.0.0
