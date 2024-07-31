@@ -448,7 +448,7 @@ func (tc *testContext) testUpdateComponentReconcile() error {
 		}
 
 		// Sleep for 40 seconds to allow the operator to reconcile
-		// we expect it should not revert back to original value because of whitelist
+		// we expect it should not revert back to original value because of AllowList
 		time.Sleep(4 * tc.resourceRetryInterval)
 		reconciledDep, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).Get(tc.ctx, testDeployment.Name, metav1.GetOptions{})
 		if err != nil {
