@@ -295,7 +295,7 @@ func updateResource(ctx context.Context, cli client.Client, res *resource.Resour
 	// only reconcile whiltelistedFields if the existing resource has annoation set to "true"
 	// all other cases, whiltelistedfields will be skipped by ODH operator
 	if managed, exists := found.GetAnnotations()[annotations.ManagedByODHOperator]; !exists || managed != "true" {
-		if err := skipUpdateOnWhitelistedFields(res); err != nil {
+		if err := skipUpdateOnAllowlistedFields(res); err != nil {
 			return err
 		}
 	}
@@ -311,10 +311,10 @@ func updateResource(ctx context.Context, cli client.Client, res *resource.Resour
 	return performPatch(ctx, cli, obj, found, owner)
 }
 
-// skipUpdateOnWhitelistedFields applies RemoverPlugin to the component's resources
+// skipUpdateOnAllowlistedFields applies RemoverPlugin to the component's resources
 // This ensures that we do not overwrite the fields when Patch is applied later to the resource.
-func skipUpdateOnWhitelistedFields(res *resource.Resource) error {
-	for _, rmPlugin := range plugins.WhitelistedFields {
+func skipUpdateOnAllowlistedFields(res *resource.Resource) error {
+	for _, rmPlugin := range plugins.AllowListedFields {
 		if err := rmPlugin.TransformResource(res); err != nil {
 			return err
 		}
