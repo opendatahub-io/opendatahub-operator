@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	WhitelistedFields = []RemoverPlugin{
+	AllowListedFields = []RemoverPlugin{
 		// for resources, i.e cpu and memory
 		{
 			Gvk:  gvk.Deployment,
