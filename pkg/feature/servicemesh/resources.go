@@ -31,7 +31,7 @@ func MeshRefs(ctx context.Context, f *feature.Feature) error {
 		f.Client,
 		&corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "service-mesh-refs",
+				Name:      ConfigMapMeshRef,
 				Namespace: namespace,
 			},
 			Data: data,
@@ -76,7 +76,7 @@ func AuthRefs(ctx context.Context, f *feature.Feature) error {
 		f.Client,
 		&corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "auth-refs",
+				Name:      ConfigMapAuthRef,
 				Namespace: targetNamespace,
 			},
 			Data: data,
