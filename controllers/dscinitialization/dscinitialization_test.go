@@ -59,7 +59,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 		It("Should create default monitoring namespace", func(ctx context.Context) {
 			// then
 			foundMonitoringNamespace := &corev1.Namespace{}
-			Eventually(namespaceExists(applicationNamespace, foundMonitoringNamespace), timeout, interval).
+			Eventually(namespaceExists(monitoringNamespace, foundMonitoringNamespace), timeout, interval).
 				WithContext(ctx).
 				Should(BeTrue())
 			Expect(foundMonitoringNamespace.Name).Should(Equal(monitoringNamespace))
