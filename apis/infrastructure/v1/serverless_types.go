@@ -17,5 +17,5 @@ type ServingSpec struct {
 	Name string `json:"name,omitempty"`
 	// IngressGateway allows to customize some parameters for the Istio Ingress Gateway
 	// that is bound to KNative-Serving.
-	IngressGateway IngressGatewaySpec `json:"ingressGateway,omitempty"`
+	IngressGateway GatewaySpec `json:"ingressGateway,omitempty"`
 }

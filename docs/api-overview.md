@@ -373,7 +373,7 @@ an Istio Gateway.
 
 
 _Appears in:_
-- [IngressGatewaySpec](#ingressgatewayspec)
+- [GatewaySpec](#gatewayspec)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -483,11 +483,11 @@ _Appears in:_
 | `release` _[Release](#release)_ | Version and release type |  |  |
 
 
-#### IngressGatewaySpec
+#### GatewaySpec
 
 
 
-IngressGatewaySpec represents the configuration of the Ingress Gateways.
+GatewaySpec represents the configuration of the Ingress Gateways.
 
 
 
@@ -496,8 +496,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `domain` _string_ | Domain specifies the DNS name for intercepting ingress requests coming from<br />outside the cluster. Most likely, you will want to use a wildcard name,<br />like *.example.com. If not set, the domain of the OpenShift Ingress is used.<br />If you choose to generate a certificate, this is the domain used for the certificate request. |  |  |
-| `certificate` _[CertificateSpec](#certificatespec)_ | Certificate specifies configuration of the TLS certificate securing communications of<br />the for Ingress Gateway. |  |  |
+| `domain` _string_ | Domain specifies the host name for intercepting incoming requests.<br />Most likely, you will want to use a wildcard name, like *.example.com.<br />If not set, the domain of the OpenShift Ingress is used.<br />If you choose to generate a certificate, this is the domain used for the certificate request. |  |  |
+| `certificate` _[CertificateSpec](#certificatespec)_ | Certificate specifies configuration of the TLS certificate securing communication<br />for the gateway. |  |  |
 
 
 #### ServiceMeshSpec
@@ -534,7 +534,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](#managementstate)_ |  | Managed | Enum: [Managed Unmanaged Removed] <br /> |
 | `name` _string_ | Name specifies the name of the KNativeServing resource that is going to be<br />created to instruct the KNative Operator to deploy KNative serving components.<br />This resource is created in the "knative-serving" namespace. | knative-serving |  |
-| `ingressGateway` _[IngressGatewaySpec](#ingressgatewayspec)_ | IngressGateway allows to customize some parameters for the Istio Ingress Gateway<br />that is bound to KNative-Serving. |  |  |
+| `ingressGateway` _[GatewaySpec](#gatewayspec)_ | IngressGateway allows to customize some parameters for the Istio Ingress Gateway<br />that is bound to KNative-Serving. |  |  |
 
 
 
