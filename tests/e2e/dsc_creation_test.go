@@ -342,7 +342,7 @@ func (tc *testContext) validateDSC() error {
 	expServingSpec := infrav1.ServingSpec{
 		ManagementState: operatorv1.Managed,
 		Name:            "knative-serving",
-		IngressGateway: infrav1.IngressGatewaySpec{
+		IngressGateway: infrav1.GatewaySpec{
 			Certificate: infrav1.CertificateSpec{
 				Type: infrav1.OpenshiftDefaultIngress,
 			},

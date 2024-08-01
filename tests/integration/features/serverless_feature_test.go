@@ -181,7 +181,7 @@ var _ = Describe("Serverless feature", func() {
 			It("should set default value when value is empty in the DSCI", func(ctx context.Context) {
 				// given
 				serving := infrav1.ServingSpec{
-					IngressGateway: infrav1.IngressGatewaySpec{
+					IngressGateway: infrav1.GatewaySpec{
 						Certificate: infrav1.CertificateSpec{
 							SecretName: "",
 						},
@@ -199,7 +199,7 @@ var _ = Describe("Serverless feature", func() {
 			It("should use user value when set in the DSCI", func(ctx context.Context) {
 				// given
 				serving := infrav1.ServingSpec{
-					IngressGateway: infrav1.IngressGatewaySpec{
+					IngressGateway: infrav1.GatewaySpec{
 						Certificate: infrav1.CertificateSpec{
 							SecretName: "top-secret-service",
 						},
@@ -224,7 +224,7 @@ var _ = Describe("Serverless feature", func() {
 				Expect(envTestClient.Create(ctx, osIngressResource)).To(Succeed())
 
 				serving := infrav1.ServingSpec{
-					IngressGateway: infrav1.IngressGatewaySpec{
+					IngressGateway: infrav1.GatewaySpec{
 						Domain: "",
 					},
 				}
@@ -240,7 +240,7 @@ var _ = Describe("Serverless feature", func() {
 			It("should use user value when set in the DSCI", func(ctx context.Context) {
 				// given
 				serving := infrav1.ServingSpec{
-					IngressGateway: infrav1.IngressGatewaySpec{
+					IngressGateway: infrav1.GatewaySpec{
 						Domain: fixtures.TestDomainFooCom,
 					},
 				}

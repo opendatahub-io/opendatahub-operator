@@ -30,15 +30,15 @@ type ControlPlaneSpec struct {
 	MetricsCollection string `json:"metricsCollection,omitempty"`
 }
 
-// IngressGatewaySpec represents the configuration of the Ingress Gateways.
-type IngressGatewaySpec struct {
-	// Domain specifies the DNS name for intercepting ingress requests coming from
-	// outside the cluster. Most likely, you will want to use a wildcard name,
-	// like *.example.com. If not set, the domain of the OpenShift Ingress is used.
+// GatewaySpec represents the configuration of the Ingress Gateways.
+type GatewaySpec struct {
+	// Domain specifies the host name for intercepting incoming requests.
+	// Most likely, you will want to use a wildcard name, like *.example.com.
+	// If not set, the domain of the OpenShift Ingress is used.
 	// If you choose to generate a certificate, this is the domain used for the certificate request.
 	Domain string `json:"domain,omitempty"`
-	// Certificate specifies configuration of the TLS certificate securing communications of
-	// the for Ingress Gateway.
+	// Certificate specifies configuration of the TLS certificate securing communication
+	// for the gateway.
 	Certificate CertificateSpec `json:"certificate,omitempty"`
 }
 
