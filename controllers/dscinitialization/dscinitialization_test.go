@@ -56,10 +56,12 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			Expect(foundApplicationNamespace.Name).To(Equal(applicationNamespace))
 		})
 
-		It("Should create default monitoring namespace", func() {
+		It("Should create default monitoring namespace", func(ctx context.Context) {
 			// then
 			foundMonitoringNamespace := &corev1.Namespace{}
-			Eventually(namespaceExists(applicationNamespace, foundMonitoringNamespace), timeout, interval).Should(BeTrue())
+			Eventually(namespaceExists(applicationNamespace, foundMonitoringNamespace), timeout, interval).
+				WithContext(ctx).
+				Should(BeTrue())
 			Expect(foundMonitoringNamespace.Name).Should(Equal(monitoringNamespace))
 		})
 
@@ -166,7 +168,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 		AfterEach(cleanupResources)
 		const applicationName = "default-dsci"
 
-		It("Should not have more than one DSCI instance in the cluster", func() {
+		It("Should not have more than one DSCI instance in the cluster", func(ctx context.Context) {
 
 			anotherApplicationName := "default2"
 			// given
@@ -176,6 +178,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			desiredDsci2 := createDSCI(anotherApplicationName, operatorv1.Managed, operatorv1.Managed, monitoringNamespace)
 			// then
 			Eventually(dscInitializationIsReady(anotherApplicationName, workingNamespace, desiredDsci2)).
+				WithContext(ctx).
 				WithTimeout(timeout).
 				WithPolling(interval).
 				Should(BeFalse())
