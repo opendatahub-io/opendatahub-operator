@@ -34,7 +34,7 @@ import (
 
 var log = ctrl.Log.WithName("rhoai-controller-webhook")
 
-//+kubebuilder:webhook:path=/validate-opendatahub-io-v1,mutating=false,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io;dscinitialization.opendatahub.io,resources=datascienceclusters;dscinitializations,verbs=create;update;delete,versions=v1,name=operator.opendatahub.io,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/validate-opendatahub-io-v1,mutating=false,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io;dscinitialization.opendatahub.io,resources=datascienceclusters;dscinitializations,verbs=create;delete,versions=v1,name=operator.opendatahub.io,admissionReviewVersions=v1
 //nolint:lll
 
 type OpenDataHubWebhook struct {
@@ -105,18 +105,16 @@ func (w *OpenDataHubWebhook) checkDeletion(ctx context.Context, req admission.Re
 
 func (w *OpenDataHubWebhook) Handle(ctx context.Context, req admission.Request) admission.Response {
 	var resp admission.Response
+	resp.Allowed = true // initialize Allowed to be true in case Operation falls into "default" case
 
 	switch req.Operation {
 	case admissionv1.Create:
 		resp = w.checkDupCreation(ctx, req)
 	case admissionv1.Delete:
 		resp = w.checkDeletion(ctx, req)
-	default:
-		msg := fmt.Sprintf("No logic check by webhook is applied on %v request", req.Operation)
-		log.Info(msg)
-		resp = admission.Allowed("")
+	default: // for other operations by default it is admission.Allowed("")
+		// no-op
 	}
-
 	if !resp.Allowed {
 		return resp
 	}
