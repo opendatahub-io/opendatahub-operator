@@ -4,12 +4,10 @@ go 1.21
 
 require (
 	github.com/blang/semver/v4 v4.0.0
-	github.com/ghodss/yaml v1.0.0
 	github.com/go-logr/logr v1.4.1
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/onsi/ginkgo/v2 v2.12.1
 	github.com/onsi/gomega v1.27.10
-	github.com/opendatahub-io/opendatahub-operator v1.7.0
 	github.com/openshift/addon-operator/apis v0.0.0-20230919043633-820afed15881
 	github.com/openshift/api v0.0.0-20230823114715-5fdd7511b790
 	github.com/openshift/custom-resource-status v1.1.2
@@ -29,6 +27,7 @@ require (
 	sigs.k8s.io/controller-runtime v0.16.3
 	sigs.k8s.io/kustomize/api v0.13.4
 	sigs.k8s.io/kustomize/kyaml v0.14.2
+	sigs.k8s.io/yaml v1.3.0
 )
 
 require (
@@ -96,7 +95,6 @@ require (
 	k8s.io/utils v0.0.0-20230726121419-3b25d923346b // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.3.0 // indirect
-	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
 replace (

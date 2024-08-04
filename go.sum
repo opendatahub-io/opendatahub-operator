@@ -1409,7 +1409,6 @@ github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMo
 github.com/fsnotify/fsnotify v1.4.9/go.mod h1:znqG4EE+3YCdAaPaxE2ZRY/06pZUdp0tY4IgpuI1SZQ=
 github.com/fsnotify/fsnotify v1.6.0 h1:n+5WquG0fcWoWp6xPWfHdbskMCQaFnG6PfBrh1Ky4HY=
 github.com/fsnotify/fsnotify v1.6.0/go.mod h1:sl3t1tCWJFWoRz9R8WJCbQihKKwmorjAbSClcnxKAGw=
-github.com/ghodss/yaml v1.0.0 h1:wQHKEahhL6wmXdzwWG11gIVCkOv05bNOh+Rxn0yngAk=
 github.com/ghodss/yaml v1.0.0/go.mod h1:4dBDuWmgqj2HViK6kFavaiC9ZROes6MMH2rRYeMEF04=
 github.com/go-errors/errors v1.4.2 h1:J6MZopCL4uSllY1OfXM374weqZFFItUbrImctkmUxIA=
 github.com/go-errors/errors v1.4.2/go.mod h1:sIVyrIiJhuEF+Pj9Ebtd6P/rEYROXFi3BopGUQ5a5Og=
@@ -1712,8 +1711,6 @@ github.com/onsi/gomega v1.22.1/go.mod h1:x6n7VNe4hw0vkyYUM4mjIXx3JbLiPaBPNgB7PRQ
 github.com/onsi/gomega v1.23.0/go.mod h1:Z/NWtiqwBrwUt4/2loMmHL63EDLnYHmVbuBpDr2vQAg=
 github.com/onsi/gomega v1.27.10 h1:naR28SdDFlqrG6kScpT8VWpu1xWY5nJRCF3XaYyBjhI=
 github.com/onsi/gomega v1.27.10/go.mod h1:RsS8tutOdbdgzbPtzzATp12yT7kM5I5aElG3evPbQ0M=
-github.com/opendatahub-io/opendatahub-operator v1.7.0 h1:Pn76VWCUHeqD5E0L94t5FtZ2OU6ZaWk/IwbEqXGQ4Gs=
-github.com/opendatahub-io/opendatahub-operator v1.7.0/go.mod h1:XsgkXbGjJoVeZOkmRztemhY5ppX7puzuqDw9oUdzNZk=
 github.com/openshift/addon-operator/apis v0.0.0-20230919043633-820afed15881 h1:d0hmj9Is2sCLkNYWtBicZV0Ft8+Os+w+RUkFRjie0VI=
 github.com/openshift/addon-operator/apis v0.0.0-20230919043633-820afed15881/go.mod h1:2hsK4sYLKcjVJ8SziFrzr/c/Tmp5zBDy8aYvrFaRm2o=
 github.com/openshift/api v0.0.0-20230823114715-5fdd7511b790 h1:e3zIxk67/kiABxGFfFVECqJ4FcQRG5DPF8lgDV9f+MM=
