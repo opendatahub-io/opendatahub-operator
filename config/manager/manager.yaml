@@ -47,6 +47,7 @@ spec:
           - name: DEFAULT_MANIFESTS_PATH
             value: /opt/manifests
         args:
+        - --leader-elect
         - --operator-name=opendatahub
         image: controller:latest
         imagePullPolicy: Always
