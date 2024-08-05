@@ -206,11 +206,34 @@ func CreateWithRetry(ctx context.Context, cli client.Client, obj client.Object, 
 	timeout := time.Duration(timeoutMin) * time.Minute
 
 	return wait.PollUntilContextTimeout(ctx, interval, timeout, true, func(ctx context.Context) (bool, error) {
-		err := cli.Create(ctx, obj)
-		if err != nil {
-			fmt.Printf("Error creating object: %v. Retrying...\n", err)
-			return false, err
+		// Create can return:
+		// If webhook enabled:
+		//   - no error (err == nil)
+		//   - 500 InternalError likely if webhook is not available (yet)
+		//   - 403 Forbidden if webhook blocks creation (check of existence)
+		//   - some problem (real error)
+		// else, if webhook disabled:
+		//   - no error (err == nil)
+		//   - 409 AlreadyExists if object exists
+		//   - some problem (real error)
+		errCreate := cli.Create(ctx, obj)
+		if errCreate == nil {
+			return true, nil
 		}
-		return true, nil
+
+		// check existence, success case for the function, covers 409 and 403 (or newly created)
+		errGet := cli.Get(ctx, client.ObjectKeyFromObject(obj), obj)
+		if errGet == nil {
+			return true, nil
+		}
+
+		// retry if 500, assume webhook is not available
+		if k8serr.IsInternalError(errCreate) {
+			fmt.Printf("Error creating object: %v. Retrying...\n", errCreate)
+			return false, nil
+		}
+
+		// some other error
+		return false, errCreate
 	})
 }
