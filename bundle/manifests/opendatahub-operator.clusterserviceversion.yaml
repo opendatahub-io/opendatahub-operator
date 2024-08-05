@@ -102,7 +102,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.15.0
-    createdAt: "2024-07-16T19:17:05Z"
+    createdAt: "2024-08-05T12:50:21Z"
     olm.skipRange: '>=1.0.0 <2.15.0'
     operators.operatorframework.io/builder: operator-sdk-v1.31.0
     operators.operatorframework.io/internal-objects: '[dscinitialization.opendatahub.io]'
@@ -1702,7 +1702,6 @@ spec:
                 - --health-probe-bind-address=:8081
                 - --metrics-bind-address=0.0.0.0:8080
                 - --leader-elect
-                - --operator-name=opendatahub
                 command:
                 - /manager
                 env:
@@ -1714,7 +1713,7 @@ spec:
                       fieldPath: metadata.namespace
                 - name: DEFAULT_MANIFESTS_PATH
                   value: /opt/manifests
-                image: REPLACE_IMAGE:latest
+                image: quay.io/wenzhou/opendatahub-operator:2.15.0
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:
