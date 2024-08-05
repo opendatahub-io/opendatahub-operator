@@ -173,12 +173,21 @@ CLEANFILES += opt/manifests/*
 api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-ref-docs
 	$(CRD_REF_DOCS) --source-path ./ --output-path ./docs/api-overview.md --renderer markdown --config ./crd-ref-docs.config.yaml && \
 	egrep -v '\.io/[^v][^1].*)$$' ./docs/api-overview.md > temp.md && mv ./temp.md ./docs/api-overview.md
-	
+
 ##@ Build
+GIT_HASH = $(shell git rev-parse --short HEAD)
+VERSION_HASH = $(if $(GIT_HASH),-g$(GIT_HASH),)
+VERSION_FULL = $(VERSION)$(VERSION_HASH)
+GO_BUILD = go build -ldflags "-X 'github.com/opendatahub-io/opendatahub-operator/v2/pkg/version.Version=$(VERSION_FULL)'"
+
+.PHONY: manager # to force rebuild every time since, no make dependency tracking
+manager: ## Build manager binary in the root directory rebuilding all packages and passing version
+	$(GO_BUILD) -a -o $@
+CLEANFILES += manager
 
 .PHONY: build
 build: generate fmt vet ## Build manager binary.
-	go build -o bin/manager main.go
+	$(GO_BUILD) -o bin/manager main.go
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
