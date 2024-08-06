@@ -1751,7 +1751,7 @@ spec:
                   name: cert
                   readOnly: true
               securityContext:
-                runAsNonRoot: true
+                runAsUser: 1001
               serviceAccountName: opendatahub-operator-controller-manager
               terminationGracePeriodSeconds: 10
               volumes:
