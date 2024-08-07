@@ -10,8 +10,6 @@ kind: Deployment
 metadata:
   name: controller-manager
   namespace: system
-  annotations:
-    openshift.io/required-scc: "anyuid"
   labels:
     control-plane: controller-manager
 spec:
