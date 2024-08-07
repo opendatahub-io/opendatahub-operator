@@ -292,8 +292,11 @@ func updateResource(ctx context.Context, cli client.Client, res *resource.Resour
 		return nil
 	}
 
-	// only reconcile whiltelistedFields if the existing resource has annoation set to "true"
-	// all other cases, whiltelistedfields will be skipped by ODH operator
+	// annotation is set to true, skip reconcile Allowlist by ODH operator
+	// exist == true, managed == false, 							apply values in Allowlist from component manifests/revert to original value
+	// exist == true, managed == true, 								remain same value from deployment
+	// exist == false, managed was false (== remove annotation), 	remain same value from deployment but abel to change afterwards
+	// exist == false, managed was true  (== remove annotation), 	remain same value from deployment but abel to change afterwards
 	if managed, exists := found.GetAnnotations()[annotations.ManagedByODHOperator]; !exists || managed != "true" {
 		if err := skipUpdateOnAllowlistedFields(res); err != nil {
 			return err
