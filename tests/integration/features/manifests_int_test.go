@@ -46,11 +46,11 @@ var _ = Describe("Applying resources", func() {
 	It("should be able to process an embedded YAML file", func(ctx context.Context) {
 		// given
 		featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
-			errNsCreate := registry.Add(feature.Define("create-namespace").
+			errNsCreate := registry.Add(feature.Define("create-namespaces").
 				UsingConfig(envTest.Config).
 				Manifests(
 					manifest.Location(fixtures.TestEmbeddedFiles).
-						Include(path.Join(fixtures.BaseDir, "namespace.yaml")),
+						Include(path.Join(fixtures.BaseDir, "namespaces.yaml")),
 				),
 			)
 
@@ -63,10 +63,15 @@ var _ = Describe("Applying resources", func() {
 		Expect(featuresHandler.Apply(ctx)).To(Succeed())
 
 		// then
-		embeddedNs, err := fixtures.GetNamespace(ctx, envTestClient, "embedded-test-ns")
-		defer objectCleaner.DeleteAll(ctx, embeddedNs)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(embeddedNs.Name).To(Equal("embedded-test-ns"))
+		embeddedNs1, errNS1 := fixtures.GetNamespace(ctx, envTestClient, "embedded-test-ns-1")
+		embeddedNs2, errNS2 := fixtures.GetNamespace(ctx, envTestClient, "embedded-test-ns-2")
+		defer objectCleaner.DeleteAll(ctx, embeddedNs1, embeddedNs2)
+
+		Expect(errNS1).ToNot(HaveOccurred())
+		Expect(errNS2).ToNot(HaveOccurred())
+
+		Expect(embeddedNs1.Name).To(Equal("embedded-test-ns-1"))
+		Expect(embeddedNs2.Name).To(Equal("embedded-test-ns-2"))
 	})
 
 	It("should be able to process an embedded template file", func(ctx context.Context) {
