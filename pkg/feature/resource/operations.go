@@ -31,15 +31,16 @@ func Apply(ctx context.Context, cli client.Client, objects []*unstructured.Unstr
 			return fmt.Errorf("failed to get resource %s/%s: %w", namespace, name, errGet)
 		}
 
+		justCreated := false
 		if k8serr.IsNotFound(errGet) {
 			if errCreate := cli.Create(ctx, target); client.IgnoreAlreadyExists(errCreate) != nil {
 				return fmt.Errorf("failed to create source %s/%s: %w", namespace, name, errCreate)
 			}
 
-			return nil
+			justCreated = true
 		}
 
-		if shouldReconcile(source) {
+		if !justCreated && shouldReconcile(source) {
 			if errUpdate := patchUsingApplyStrategy(ctx, cli, source, target); errUpdate != nil {
 				return fmt.Errorf("failed to reconcile resource %s/%s: %w", namespace, name, errUpdate)
 			}
