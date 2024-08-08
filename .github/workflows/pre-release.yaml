@@ -46,11 +46,12 @@ jobs:
           pull-request-number: ${{ steps.cpr-dry-run.outputs.pull-request-number }}
           comment: Auto-closing pull request after success checks
           delete-branch: true
-      - name: Push version tag to quay.io
-        run: |
-          skopeo login -u ${{ secrets.QUAY_ID }} -p ${{ secrets.QUAY_TOKEN }} quay.io/{{ secrets.QUAY_ORG }}
-          skopeo copy docker://quay.io/{{ secrets.QUAY_ORG }}/opendatahub-operator:pr-${{ steps.cpr-dry-run.outputs.pull-request-number }} docker://quay.io/{{ secrets.QUAY_ORG }}/opendatahub-operator:${{ env.VERSION }}
-          echo "Successfully updated tag to quay.io with version: ${{ env.VERSION }}"
+      # Will enable this section once we have conformation from devops if we can use a bot to push tags.
+      # - name: Push version tag to quay.io
+      #   run: |
+      #     skopeo login -u ${{ secrets.QUAY_ID }} -p ${{ secrets.QUAY_TOKEN }} quay.io/{{ secrets.QUAY_ORG }}
+      #     skopeo copy docker://quay.io/{{ secrets.QUAY_ORG }}/opendatahub-operator:pr-${{ steps.cpr-dry-run.outputs.pull-request-number }} docker://quay.io/{{ secrets.QUAY_ORG }}/opendatahub-operator:${{ env.VERSION }}
+      #     echo "Successfully updated tag to quay.io with version: ${{ env.VERSION }}"
   release-branch-pr:
     needs: dry-run-pr
     runs-on: ubuntu-latest
