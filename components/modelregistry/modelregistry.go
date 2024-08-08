@@ -5,6 +5,7 @@ package modelregistry
 import (
 	"context"
 	"fmt"
+	v1 "k8s.io/api/core/v1"
 	"path/filepath"
 
 	"github.com/go-logr/logr"
@@ -17,6 +18,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
+
+const DEFAULT_MODELREGISTRY_CERT = "default-modelregistry-cert"
 
 var (
 	ComponentName = "model-registry-operator"
@@ -70,6 +73,10 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 
 	if enabled {
+		if err := m.createDependencies(ctx, cli, dscispec); err != nil {
+			return err
+		}
+
 		if m.DevFlags != nil {
 			// Download manifests and update paths
 			if err := m.OverrideManifests(ctx, platform); err != nil {
@@ -79,7 +86,10 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 
 		// Update image parameters only when we do not have customized manifests set
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (m.DevFlags == nil || len(m.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(Path, imageParamMap); err != nil {
+			extraParamsMap := map[string]string{
+				"DEFAULT_CERT": DEFAULT_MODELREGISTRY_CERT,
+			}
+			if err := deploy.ApplyParams(Path, imageParamMap, extraParamsMap); err != nil {
 				return fmt.Errorf("failed to update image from %s : %w", Path, err)
 			}
 		}
@@ -90,7 +100,14 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 		if err != nil {
 			return err
 		}
+
+	} else {
+		err := m.removeDependencies(ctx, cli, dscispec)
+		if err != nil {
+			return err
+		}
 	}
+
 	// Deploy ModelRegistry Operator
 	if err := deploy.DeployManifestsFromPath(ctx, cli, owner, Path, dscispec.ApplicationsNamespace, m.GetComponentName(), enabled); err != nil {
 		return err
@@ -121,6 +138,28 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 			return err
 		}
 		l.Info("updating SRE monitoring done")
+	}
+	return nil
+}
+
+func (m *ModelRegistry) createDependencies(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec) error {
+	// create DEFAULT_MODELREGISTRY_CERT
+	if err := cluster.PropagateDefaultIngressCertificate(ctx, cli, DEFAULT_MODELREGISTRY_CERT, dscispec.ServiceMesh.ControlPlane.Namespace); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *ModelRegistry) removeDependencies(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec) error {
+	// delete DEFAULT_MODELREGISTRY_CERT
+	certSecret := v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      DEFAULT_MODELREGISTRY_CERT,
+			Namespace: dscispec.ServiceMesh.ControlPlane.Namespace,
+		},
+	}
+	if err := cli.Delete(ctx, &certSecret); err != nil {
+		return err
 	}
 	return nil
 }
