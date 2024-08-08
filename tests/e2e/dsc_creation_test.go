@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
 	"log"
 	"reflect"
 	"strings"
@@ -27,6 +26,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/serverless"
 )
@@ -444,7 +444,7 @@ func (tc *testContext) testDefaultModelRegistryCertAvailable() error {
 	}
 
 	// Verify secret from Control Plane namespace matches the default MR cert secret
-	defaultMRSecretName := modelregistry.DEFAULT_MODELREGISTRY_CERT
+	defaultMRSecretName := modelregistry.DefaultModelRegistryCert
 	defaultMRSecret, err := cluster.GetSecret(tc.ctx, tc.customClient, tc.testDSCI.Spec.ServiceMesh.ControlPlane.Namespace,
 		defaultMRSecretName)
 	if err != nil {

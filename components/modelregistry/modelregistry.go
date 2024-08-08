@@ -5,11 +5,11 @@ package modelregistry
 import (
 	"context"
 	"fmt"
-	v1 "k8s.io/api/core/v1"
 	"path/filepath"
 
 	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -19,7 +19,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
-const DEFAULT_MODELREGISTRY_CERT = "default-modelregistry-cert"
+const DefaultModelRegistryCert = "default-modelregistry-cert"
 
 var (
 	ComponentName = "model-registry-operator"
@@ -87,7 +87,7 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 		// Update image parameters only when we do not have customized manifests set
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (m.DevFlags == nil || len(m.DevFlags.Manifests) == 0) {
 			extraParamsMap := map[string]string{
-				"DEFAULT_CERT": DEFAULT_MODELREGISTRY_CERT,
+				"DEFAULT_CERT": DefaultModelRegistryCert,
 			}
 			if err := deploy.ApplyParams(Path, imageParamMap, extraParamsMap); err != nil {
 				return fmt.Errorf("failed to update image from %s : %w", Path, err)
@@ -100,7 +100,6 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 		if err != nil {
 			return err
 		}
-
 	} else {
 		err := m.removeDependencies(ctx, cli, dscispec)
 		if err != nil {
@@ -143,18 +142,18 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 }
 
 func (m *ModelRegistry) createDependencies(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec) error {
-	// create DEFAULT_MODELREGISTRY_CERT
-	if err := cluster.PropagateDefaultIngressCertificate(ctx, cli, DEFAULT_MODELREGISTRY_CERT, dscispec.ServiceMesh.ControlPlane.Namespace); err != nil {
+	// create DefaultModelRegistryCert
+	if err := cluster.PropagateDefaultIngressCertificate(ctx, cli, DefaultModelRegistryCert, dscispec.ServiceMesh.ControlPlane.Namespace); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (m *ModelRegistry) removeDependencies(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec) error {
-	// delete DEFAULT_MODELREGISTRY_CERT
-	certSecret := v1.Secret{
+	// delete DefaultModelRegistryCert
+	certSecret := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      DEFAULT_MODELREGISTRY_CERT,
+			Name:      DefaultModelRegistryCert,
 			Namespace: dscispec.ServiceMesh.ControlPlane.Namespace,
 		},
 	}
