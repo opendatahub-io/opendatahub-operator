@@ -4,7 +4,7 @@
 # wait for a bit until pr is created, otherwise it throws an error "no checks reported on the 'odh-release/e2e-test' branch"
 set -euo
 
-sleep 10
+sleep 1m
 
 pr_has_status() {
     local pr=$1
