@@ -68,15 +68,15 @@ func WithAnnotations(annotationKeyValue ...string) MetaOptions {
 	}
 }
 
-func extractKeyValues(kv []string) (map[string]string, error) {
-	lenKV := len(kv)
+func extractKeyValues(keyValues []string) (map[string]string, error) {
+	lenKV := len(keyValues)
 	if lenKV%2 != 0 {
 		return nil, fmt.Errorf("passed elements should be in key/value pairs, but got %d elements", lenKV)
 	}
 
-	kvMap := make(map[string]string, lenKV%2)
+	kvMap := make(map[string]string)
 	for i := 0; i < lenKV; i += 2 {
-		kvMap[kv[i]] = kv[i+1]
+		kvMap[keyValues[i]] = keyValues[i+1]
 	}
 
 	return kvMap, nil
