@@ -187,7 +187,7 @@ build: generate fmt vet ## Build manager binary.
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
-	OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) DEFAULT_MANIFESTS_PATH=${DEFAULT_MANIFESTS_PATH} go run ./main.go
+	OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) DEFAULT_MANIFESTS_PATH=${DEFAULT_MANIFESTS_PATH} go run ./main.go --log-mode=devel
 
 .PHONY: image-build
 image-build: # unit-test ## Build image with the manager.
