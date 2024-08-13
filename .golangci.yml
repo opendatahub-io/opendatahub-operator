@@ -28,7 +28,7 @@ linters-settings:
     statements: 100
     ignore-comments: true
   nolintlint:
-    allow-no-explanation: [ funlen, lll ]
+    allow-no-explanation: [ lll ]
     require-specific: true
   importas:
     alias:
@@ -89,7 +89,6 @@ linters:
     # To be fixed
     - gocognit # https://github.com/opendatahub-io/opendatahub-operator/issues/709
     - cyclop   # https://github.com/opendatahub-io/opendatahub-operator/issues/709
-    - funlen   # https://github.com/opendatahub-io/opendatahub-operator/issues/709
     - godox    # https://github.com/opendatahub-io/opendatahub-operator/issues/699
 
 issues:
