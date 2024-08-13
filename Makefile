@@ -108,7 +108,7 @@ OPERATOR_MAKE_ENV_FILE = local.mk
 
 
 .PHONY: default
-default: manifests lint unit-test build
+default: manifests generate lint unit-test build
 
 ##@ General
 
