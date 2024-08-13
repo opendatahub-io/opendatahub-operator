@@ -87,7 +87,6 @@ linters:
     - err113 # [too strict] checks the errors handling expressions
     
     # To be fixed
-    - gocognit # https://github.com/opendatahub-io/opendatahub-operator/issues/709
     - cyclop   # https://github.com/opendatahub-io/opendatahub-operator/issues/709
     - funlen   # https://github.com/opendatahub-io/opendatahub-operator/issues/709
     - godox    # https://github.com/opendatahub-io/opendatahub-operator/issues/699
