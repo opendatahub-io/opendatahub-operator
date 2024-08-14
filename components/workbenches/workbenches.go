@@ -5,6 +5,7 @@ package workbenches
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -16,6 +17,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
@@ -140,11 +142,15 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 	if enabled {
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (w.DevFlags == nil || len(w.DevFlags.Manifests) == 0) {
 			if platform == cluster.ManagedRhods || platform == cluster.SelfManagedRhods {
-				// for kf-notebook-controller image
-				if err := deploy.ApplyParams(notebookControllerPath, imageParamMap, false); err != nil {
+				// for odh-notebook-controller image
+				if err := common.CheckErrors(
+					deploy.ApplyParams(notebookControllerPath, imageParamMap, false),
+					deploy.CheckParams(notebookControllerPath, []string{os.Getenv("RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE")}),
+				); err != nil {
 					return fmt.Errorf("failed to update image %s: %w", notebookControllerPath, err)
 				}
-				// for odh-notebook-controller image
+
+				// for kf-notebook-controller image
 				if err := deploy.ApplyParams(kfnotebookControllerPath, imageParamMap, false); err != nil {
 					return fmt.Errorf("failed to update image %s: %w", kfnotebookControllerPath, err)
 				}

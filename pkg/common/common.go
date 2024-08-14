@@ -116,3 +116,14 @@ func GetMonitoringData(data string) (string, error) {
 
 	return encodedData, nil
 }
+
+// checkErrors to check errors from multiple functions.
+// If any of the functions return error then return that error immedately.
+func CheckErrors(errors ...error) error {
+	for _, err := range errors {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
