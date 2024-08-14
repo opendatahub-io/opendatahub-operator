@@ -13,7 +13,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/manifest"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/provider"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/integration/features/fixtures"
@@ -53,7 +53,13 @@ var _ = Describe("Applying resources", func() {
 				UsingConfig(envTest.Config).
 				Manifests(
 					manifest.Location(fixtures.TestEmbeddedFiles).
-						Include(path.Join(fixtures.BaseDir, "namespaces.yaml")),
+						Include(path.Join(fixtures.BaseDir, "namespaces.tmpl.yaml")),
+				).
+				WithData(
+					feature.Value("StaticNamespace", "embedded-test-ns-1"),
+					feature.Provider("DynamicNamespace", func() (string, error) {
+						return "embedded-test-ns-2", nil
+					}),
 				),
 			)
 
@@ -79,6 +85,9 @@ var _ = Describe("Applying resources", func() {
 
 	It("should be able to process an embedded template file", func(ctx context.Context) {
 		// given
+		controlPlane, errControlPlane := servicemesh.FeatureData.ControlPlane.Create(ctx, envTestClient, &dsci.Spec)
+		Expect(errControlPlane).ToNot(HaveOccurred())
+
 		featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
 			errSvcCreate := registry.Add(feature.Define("create-local-gw-svc").
 				UsingConfig(envTest.Config).
@@ -86,7 +95,7 @@ var _ = Describe("Applying resources", func() {
 					manifest.Location(fixtures.TestEmbeddedFiles).
 						Include(path.Join(fixtures.BaseDir, "local-gateway-svc.tmpl.yaml")),
 				).
-				WithData(feature.Entry("ControlPlane", provider.ValueOf(dsci.Spec.ServiceMesh.ControlPlane).Get)),
+				WithData(controlPlane),
 			)
 
 			Expect(errSvcCreate).ToNot(HaveOccurred())
@@ -170,7 +179,7 @@ metadata:
 		createCfgMapFeature, errCreateFeature := feature.Define("create-cfg-map").
 			UsingConfig(envTest.Config).
 			TargetNamespace(targetNamespace).
-			EnrichResources(&kustomize.PluginsEnricher{Plugins: []resmap.Transformer{plugins.CreateNamespaceApplierPlugin(targetNamespace)}}).
+			WithAdditionalConfig(&kustomize.PluginsEnricher{Plugins: []resmap.Transformer{plugins.CreateNamespaceApplierPlugin(targetNamespace)}}).
 			Manifests(
 				kustomize.Location(kustomizeTestFixture()),
 			).

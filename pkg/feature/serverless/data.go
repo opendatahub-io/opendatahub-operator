@@ -12,50 +12,52 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/provider"
 )
 
-const DefaultCertificateSecretName = "knative-serving-cert"
-
 const (
-	servingKey              = "Serving"
-	certificateKey          = "KnativeCertificateSecret"
-	knativeIngressDomainKey = "KnativeIngressDomain"
+	servingKey                   = "Serving"
+	DefaultCertificateSecretName = "knative-serving-cert"
 )
 
 // FeatureData is a convention to simplify how the data for the Serverless features is Defined and accessed.
 var FeatureData = struct {
-	Serving         feature.DataDefinition[infrav1.ServingSpec, infrav1.ServingSpec]
-	CertificateName feature.DataDefinition[infrav1.ServingSpec, string]
-	IngressDomain   feature.DataDefinition[infrav1.ServingSpec, string]
+	Serving feature.DataDefinition[*infrav1.ServingSpec, Serving]
 }{
-	Serving: feature.DataDefinition[infrav1.ServingSpec, infrav1.ServingSpec]{
-		Define: func(source *infrav1.ServingSpec) feature.DataEntry[infrav1.ServingSpec] {
-			return feature.DataEntry[infrav1.ServingSpec]{
-				Key:   servingKey,
-				Value: provider.ValueOf(*source).Get,
-			}
-		},
-		Extract: feature.ExtractEntry[infrav1.ServingSpec](servingKey),
-	},
-	CertificateName: feature.DataDefinition[infrav1.ServingSpec, string]{
-		Define: func(source *infrav1.ServingSpec) feature.DataEntry[string] {
-			return feature.DataEntry[string]{
-				Key:   certificateKey,
-				Value: provider.ValueOf(source.IngressGateway.Certificate.SecretName).OrElse(DefaultCertificateSecretName),
-			}
-		},
-		Extract: feature.ExtractEntry[string](certificateKey),
-	},
-	IngressDomain: feature.DataDefinition[infrav1.ServingSpec, string]{
-		Define: func(source *infrav1.ServingSpec) feature.DataEntry[string] {
-			return feature.DataEntry[string]{
-				Key:   knativeIngressDomainKey,
-				Value: provider.ValueOf(source.IngressGateway.Domain).OrGet(knativeDomain),
-			}
-		},
-		Extract: feature.ExtractEntry[string](knativeIngressDomainKey),
+	Serving: feature.DataDefinition[*infrav1.ServingSpec, Serving]{
+		Create:  CreateServingConfig,
+		Extract: feature.ExtractEntry[Serving](servingKey),
 	},
 }
 
-func knativeDomain(ctx context.Context, c client.Client) (string, error) {
+type Serving struct {
+	*infrav1.ServingSpec
+	KnativeCertificateSecret,
+	KnativeIngressDomain string
+}
+
+func CreateServingConfig(ctx context.Context, cli client.Client, source *infrav1.ServingSpec) (Serving, error) {
+	certificateName := provider.ValueOf(source.IngressGateway.Certificate.SecretName).OrElse(DefaultCertificateSecretName)
+	domain, errGet := provider.ValueOf(source.IngressGateway.Domain).OrGet(func() (string, error) {
+		return KnativeDomain(ctx, cli)
+	}).Get()
+	if errGet != nil {
+		return Serving{}, fmt.Errorf("failed to get domain for Knative: %w", errGet)
+	}
+
+	config := Serving{
+		ServingSpec:              source,
+		KnativeCertificateSecret: certificateName,
+		KnativeIngressDomain:     domain,
+	}
+
+	return config, nil
+}
+
+var _ feature.Entry = &Serving{}
+
+func (s Serving) AddTo(f *feature.Feature) error {
+	return f.Set(servingKey, s)
+}
+
+func KnativeDomain(ctx context.Context, c client.Client) (string, error) {
 	var errDomain error
 	domain, errDomain := cluster.GetDomain(ctx, c)
 	if errDomain != nil {

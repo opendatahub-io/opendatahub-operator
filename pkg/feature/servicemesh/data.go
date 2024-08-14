@@ -9,124 +9,70 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/provider"
 )
 
 // These keys are used in FeatureData struct, as fields of a struct are not accessible in closures which we define for
 // creating and fetching the data.
 const (
-	controlPlaneKey      string = "ControlPlane"
-	authKey              string = "Auth"
-	authProviderNsKey    string = "AuthNamespace"
-	authConfigSelector   string = "AuthConfigLabelSelectors"
-	authProviderNameKey  string = "AuthProviderName"
-	authExtensionNameKey string = "AuthExtensionName"
+	authorizationKey = "Auth"
+	controlPlaneKey  = "ControlPlane"
 )
 
 // FeatureData is a convention to simplify how the data for the Service Mesh features is Defined and accessed.
 // Being a "singleton" it is based on anonymous struct concept.
 var FeatureData = struct {
-	ControlPlane  feature.DataDefinition[dsciv1.DSCInitializationSpec, infrav1.ControlPlaneSpec]
-	Authorization AuthorizationData
+	ControlPlane  feature.DataDefinition[*dsciv1.DSCInitializationSpec, ControlPlane]
+	Authorization feature.DataDefinition[*dsciv1.DSCInitializationSpec, Authorization]
 }{
-	ControlPlane: feature.DataDefinition[dsciv1.DSCInitializationSpec, infrav1.ControlPlaneSpec]{
-		Define: func(source *dsciv1.DSCInitializationSpec) feature.DataEntry[infrav1.ControlPlaneSpec] {
-			return feature.DataEntry[infrav1.ControlPlaneSpec]{
-				Key: controlPlaneKey,
-				Value: func(_ context.Context, _ client.Client) (infrav1.ControlPlaneSpec, error) {
-					return source.ServiceMesh.ControlPlane, nil
-				},
-			}
+	Authorization: feature.DataDefinition[*dsciv1.DSCInitializationSpec, Authorization]{
+		Create:  CreateAuthorizationData,
+		Extract: feature.ExtractEntry[Authorization](authorizationKey),
+	},
+	ControlPlane: feature.DataDefinition[*dsciv1.DSCInitializationSpec, ControlPlane]{
+		Create: func(_ context.Context, _ client.Client, source *dsciv1.DSCInitializationSpec) (ControlPlane, error) {
+			return ControlPlane{source.ServiceMesh.ControlPlane}, nil
 		},
-		Extract: feature.ExtractEntry[infrav1.ControlPlaneSpec](controlPlaneKey),
+		Extract: feature.ExtractEntry[ControlPlane](controlPlaneKey),
 	},
-	Authorization: AuthorizationData{
-		Spec:                  authSpec,
-		Namespace:             authNs,
-		Provider:              authProvider,
-		ConfigLabel:           authConfigLabel,
-		ExtensionProviderName: authExtensionName,
-		All: func(source *dsciv1.DSCInitializationSpec) []feature.Action {
-			return []feature.Action{
-				authSpec.Define(source).AsAction(),
-				authNs.Define(source).AsAction(),
-				authProvider.Define(source).AsAction(),
-				authExtensionName.Define(source).AsAction(),
-				authConfigLabel.Define(source).AsAction(),
-			}
+}
+
+type Authorization struct {
+	infrav1.AuthSpec
+	ProviderName,
+	ExtensionName,
+	AuthConfigSelector string
+}
+
+func (a Authorization) AddTo(f *feature.Feature) error {
+	return f.Set(authorizationKey, a)
+}
+
+var _ feature.Entry = &Authorization{}
+
+func CreateAuthorizationData(_ context.Context, _ client.Client, dsciSpec *dsciv1.DSCInitializationSpec) (Authorization, error) {
+	authNamespace := provider.ValueOf(strings.TrimSpace(dsciSpec.ServiceMesh.Auth.Namespace)).
+		OrElse(dsciSpec.ApplicationsNamespace + "-auth-provider")
+
+	config := Authorization{
+		AuthSpec: infrav1.AuthSpec{
+			Namespace: authNamespace,
+			Audiences: dsciSpec.ServiceMesh.Auth.Audiences,
 		},
-	},
+		ProviderName:       "authorino",
+		ExtensionName:      dsciSpec.ApplicationsNamespace + "-auth-provider",
+		AuthConfigSelector: "security.opendatahub.io/authorization-group=default",
+	}
+
+	return config, nil
 }
 
-type AuthorizationData struct {
-	Spec                  feature.DataDefinition[dsciv1.DSCInitializationSpec, infrav1.AuthSpec]
-	Namespace             feature.DataDefinition[dsciv1.DSCInitializationSpec, string]
-	Provider              feature.DataDefinition[dsciv1.DSCInitializationSpec, string]
-	ExtensionProviderName feature.DataDefinition[dsciv1.DSCInitializationSpec, string]
-	ConfigLabel           feature.DataDefinition[dsciv1.DSCInitializationSpec, string] // that means static value
-	All                   func(source *dsciv1.DSCInitializationSpec) []feature.Action
+type ControlPlane struct {
+	infrav1.ControlPlaneSpec
 }
 
-var authSpec = feature.DataDefinition[dsciv1.DSCInitializationSpec, infrav1.AuthSpec]{
-	Define: func(source *dsciv1.DSCInitializationSpec) feature.DataEntry[infrav1.AuthSpec] {
-		return feature.DataEntry[infrav1.AuthSpec]{
-			Key: authKey,
-			Value: func(_ context.Context, _ client.Client) (infrav1.AuthSpec, error) {
-				return source.ServiceMesh.Auth, nil
-			},
-		}
-	},
-	Extract: feature.ExtractEntry[infrav1.AuthSpec](authKey),
+func (c ControlPlane) AddTo(f *feature.Feature) error {
+	return f.Set(controlPlaneKey, c)
 }
 
-var authNs = feature.DataDefinition[dsciv1.DSCInitializationSpec, string]{
-	Define: func(source *dsciv1.DSCInitializationSpec) feature.DataEntry[string] {
-		return feature.DataEntry[string]{
-			Key: authProviderNsKey,
-			Value: func(_ context.Context, _ client.Client) (string, error) {
-				ns := strings.TrimSpace(source.ServiceMesh.Auth.Namespace)
-				if len(ns) == 0 {
-					ns = source.ApplicationsNamespace + "-auth-provider"
-				}
-
-				return ns, nil
-			},
-		}
-	},
-	Extract: feature.ExtractEntry[string](authProviderNsKey),
-}
-
-var authConfigLabel = feature.DataDefinition[dsciv1.DSCInitializationSpec, string]{
-	Define: func(_ *dsciv1.DSCInitializationSpec) feature.DataEntry[string] {
-		return feature.DataEntry[string]{
-			Key: authConfigSelector,
-			Value: func(_ context.Context, _ client.Client) (string, error) {
-				return "security.opendatahub.io/authorization-group=default", nil
-			},
-		}
-	},
-	Extract: feature.ExtractEntry[string](authConfigSelector),
-}
-
-var authProvider = feature.DataDefinition[dsciv1.DSCInitializationSpec, string]{ // TODO could be `any` too
-	Define: func(source *dsciv1.DSCInitializationSpec) feature.DataEntry[string] {
-		return feature.DataEntry[string]{
-			Key: authProviderNameKey,
-			Value: func(_ context.Context, _ client.Client) (string, error) {
-				return "authorino", nil
-			},
-		}
-	},
-	Extract: feature.ExtractEntry[string](authProviderNameKey),
-}
-
-var authExtensionName = feature.DataDefinition[dsciv1.DSCInitializationSpec, string]{
-	Define: func(source *dsciv1.DSCInitializationSpec) feature.DataEntry[string] {
-		return feature.DataEntry[string]{
-			Key: authExtensionNameKey,
-			Value: func(_ context.Context, _ client.Client) (string, error) {
-				return source.ApplicationsNamespace + "-auth-provider", nil
-			},
-		}
-	},
-	Extract: feature.ExtractEntry[string](authExtensionNameKey),
-}
+var _ feature.Entry = &ControlPlane{}

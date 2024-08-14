@@ -63,16 +63,20 @@ classDiagram
 
 The easiest way to define a feature is by using the Feature Builder (builder.go), which provides a guided flow through a fluent API, making the construction process straightforward and intuitive.
 
-```go
+```golang
+
+controlPlane, errControlPlane := servicemesh.FeatureData.ControlPlane.Create(ctx, r.Client, &instance.Spec)
+if errControlPlane != nil {
+    return fmt.Errorf("failed to create control plane feature data: %w", errControlPlane)
+}
+
 smcp, errSMCPCreate := feature.Define("mesh-control-plane-creation").
 	TargetNamespace("opendatahub").
 	ManifestsLocation(Templates.Location).
 	Manifests(
 		path.Join(Templates.ServiceMeshDir),
 	).
-	WithData(
-		servicemesh.FeatureData.ControlPlane.Create(&dsci.Spec).AsAction(),
-	).
+	WithData(controlPlane).
 	PreConditions(
 		servicemesh.EnsureServiceMeshOperatorInstalled,
 		feature.CreateNamespaceIfNotExists(serviceMeshSpec.ControlPlane.Namespace),
@@ -85,24 +89,32 @@ smcp, errSMCPCreate := feature.Define("mesh-control-plane-creation").
 
 For more examples have a look at `integration/feature` tests.
 
-### Using dynamic values
+### Enhancing the Feature with data structure
 
-It may be necessary to supply data that is only available at runtime, such as cluster configuration details. For this purpose, a `DataProviderFunc` can be utilized.
+Features can rely on additional data structures to be used when creating resources, processing templates or performing checks like preconditions. 
 
-```go
+Static values can be supplied by defining key-value pairs in the Feature's context data:
+
+```golang
 WithData(
-    feature.Entry("Domain", func (ctx context.Context, c client.Client) (string, error) {
-		//... fetch the data somehow
-		return domain, nil
-    }),
+    feature.Value("Secret", "static-secret"),
 )
 ```
+This can be later accessed in the templates  `{{ .Secret }}` or Feature's Action functions:
 
-Default values can be applied when an expected field in the struct is "empty" by using utilities from the provider package, for example:
+```golang
+secret := f.Get[string]("Secret")
+```
 
-```go
+It may be necessary to supply data that is only available at runtime, such as cluster configuration details. 
+For this purpose, a `Provider` can be used:
+
+```golang
 WithData(
-    feature.Entry("Secret", provider.ValueOf(spec.SecretName).OrElse(DefaultCertificateSecretName),
+    feature.Provider("Domain", func() (string, error) {
+		//... fetch the domain somehow
+		return domain, nil
+    }),
 )
 ```
 
@@ -163,7 +175,7 @@ By convention, these files can be stored in the resources folder next to the Fea
 
 Anonymous struct can be used on per feature set basis to organize resource access easier:
 
-```go
+```golang
 //go:embed resources
 var resourcesFS embed.FS
 
@@ -185,40 +197,87 @@ var Resources = struct {
 
 ### Feature context re-use
 
-The `FeatureData` anonymous struct convention provides a clear and consistent way to manage data for features.
+The `FeatureData` anonymous struct convention provides a consistent way to manage data for features.
 
-By defining data and extraction functions, it simplifies handling of feature-related data in both templates and functions where this data is required. 
+By defining data and extraction functions, it simplifies handling of feature-related data in both templates and 
+functions where this data is required. 
 
-```go
+```golang
+
 const (
-	servingKey  = "Serving" // <1>
+    servingKey = "Serving" // <1>
 )
 
+// FeatureData is a convention to simplify how the data for the Serverless features is Defined and accessed.
 var FeatureData = struct {
-	Serving       feature.DataDefinition[infrav1.ServingSpec, infrav1.ServingSpec] // <2>
+    Serving feature.DataDefinition[*infrav1.ServingSpec, ServingData] // <2>
 }{
-	Serving: feature.DataDefinition[infrav1.ServingSpec, infrav1.ServingSpec]{
-		Define /*<3>*/: func(source *infrav1.ServingSpec) feature.DataEntry[infrav1.ServingSpec] {
-			return feature.DataEntry[infrav1.ServingSpec]{
-				Key:   servingKey,
-				Value: provider.ValueOf(*source).Get,
-			}
-		},
-		Extract /*<4>*/: feature.ExtractEntry[infrav1.ServingSpec](servingKey),
-	},
+    Serving: feature.DataDefinition[*infrav1.ServingSpec, ServingData]{
+        Create:  CreateServingConfig, // <3>
+        Extract: feature.ExtractEntry[ServingData](servingKey), // <4>
+    },
+}
+
+type ServingData struct { // <5>
+    KnativeCertificateSecret string
+    KnativeIngessDomain string
+}
+
+func CreateServingConfig(ctx context.Context, cli client.Client, source *infrav1.ServingSpec) (ServingData, error) {
+    certificateName := provider.ValueOf(source.IngressGateway.Certificate.SecretName).OrElse(DefaultCertificateSecretName) // <5>
+    domain, errGet := provider.ValueOf(source.IngressGateway.Domain).OrGet(func() (string, error) {
+        return KnativeDomain(ctx, cli)
+    }).Get() // <6>
+    if errGet != nil {
+        return ServingData{}, fmt.Errorf("failed to get domain for Knative: %w", errGet)
+    }
+
+    config := ServingData{
+        KnativeCertificateSecret: certificateName,
+        KnativeIngessDomain:      domain,
+    }
+
+    return config, nil
+}
+
+var _ feature.Entry = &ServingData{} // <7>
+
+func (s ServingData) AddAsEntry(f *feature.Feature) error {
+    return f.Set(servingKey, s)
+}
+
+func KnativeDomain(ctx context.Context, c client.Client) (string, error) {
+    var errDomain error
+    domain, errDomain := cluster.GetDomain(ctx, c)
+    if errDomain != nil {
+        return "", fmt.Errorf("failed to fetch OpenShift domain to generate certificate for Serverless: %w", errDomain)
+    }
+
+    domain = "*." + domain
+    
+	return domain, nil
 }
 ```
-- `<1>` Key used to store defined data entry in the Feature's context. This can be later used in templates as well as golang functions.
-- `<2>` Generic struct used to define how context entry is created. Parametrized types hold information about the source and target types. The source type represents the origin from which data is taken, defining the type of data being input or extracted from the source. The target type determines the type of the value that will be stored in the key-value store (feature context data).
-- `<3>` Defines how an entry (key-valaue) is created and stored in Feature's context.
+- `<1>` Key used to store defined data entry in the Feature's context. This can be later used in templates (`{{ .Serving }}`) as well as golang functions.
+- `<2>` Generic struct used to define how Feature's data entry is created. Parametrized types hold information about the source and target types. The source type represents the origin from which data is taken, defining the type of data being input or extracted from the source. The target type determines the type of the value that will be stored in the key-value store (feature context data).
+- `<3>` Constructor function that creates the data needed for the feature. Uses passed source object for mapping. With passed context and client it also can fetch additional data if needed.
 - `<4>` Defines how to extract the value from the context (typed access instead of relying on string keys).
+- `<5>` Data structure that holds the data needed for the feature. Can be also used in other parts of the system
+- `<6>` Example of how to use the provider package to get the value from the source or fallback to a function call.
+- `<7>` Implementing the `feature.Entry` interface allows the data structure to be stored in the Feature's context.
 
 Example below illustrates both storing data in the feature and accessing it from Feature's action function:
 
-```go
+```golang
+
+serving, errCreate := serverless.FeatureData.Serving.Create(ctx, r.Client, &instance.Spec)
+if errCreate != nil {
+    return fmt.Errorf("failed to create serving feature data: %w", errCreate)
+}
+
 // Define the feature using builder
 // ...
-WithData(serverless.FeatureData.Serving.Define(servingSpec).AsAction())
+WithData(serving)
 // ...
 
 // To extract in the action function
@@ -231,6 +290,4 @@ func DoSomethingWithServingData(f *feature.Feature) (string, error) {
     // ....
 }
 ```
-> [!NOTE]
-> Calling `.AsAction()` is a workaround due to limitation of generic on receiver functions
 

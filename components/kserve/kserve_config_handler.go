@@ -125,7 +125,7 @@ func (k *Kserve) configureServerless(ctx context.Context, cli client.Client, log
 
 	case operatorv1.Removed: // we remove serving CR
 		logger.Info("existing Serverless CR (owned by operator) will be removed")
-		if err := k.removeServerlessFeatures(ctx, instance); err != nil {
+		if err := k.removeServerlessFeatures(ctx, cli, instance); err != nil {
 			return err
 		}
 
@@ -147,7 +147,7 @@ func (k *Kserve) configureServerless(ctx context.Context, cli client.Client, log
 			return dependOpsErrors
 		}
 
-		serverlessFeatures := feature.ComponentFeaturesHandler(k.GetComponentName(), instance.ApplicationsNamespace, k.configureServerlessFeatures(instance))
+		serverlessFeatures := feature.ComponentFeaturesHandler(k.GetComponentName(), instance.ApplicationsNamespace, k.configureServerlessFeatures(ctx, cli, instance))
 
 		if err := serverlessFeatures.Apply(ctx); err != nil {
 			return err
@@ -156,8 +156,8 @@ func (k *Kserve) configureServerless(ctx context.Context, cli client.Client, log
 	return nil
 }
 
-func (k *Kserve) removeServerlessFeatures(ctx context.Context, instance *dsciv1.DSCInitializationSpec) error {
-	serverlessFeatures := feature.ComponentFeaturesHandler(k.GetComponentName(), instance.ApplicationsNamespace, k.configureServerlessFeatures(instance))
+func (k *Kserve) removeServerlessFeatures(ctx context.Context, cli client.Client, instance *dsciv1.DSCInitializationSpec) error {
+	serverlessFeatures := feature.ComponentFeaturesHandler(k.GetComponentName(), instance.ApplicationsNamespace, k.configureServerlessFeatures(ctx, cli, instance))
 
 	return serverlessFeatures.Delete(ctx)
 }

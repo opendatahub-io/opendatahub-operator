@@ -12,7 +12,6 @@ import (
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/manifest"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/provider"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 )
 
@@ -95,10 +94,6 @@ func (r *RoutingCapability) defineRoutingFeatures(owner metav1.Object) feature.F
 			return r.IsRequired(), nil
 		}
 
-		// TODO(igw): add roles and rolebindings for the gateway (from the odh-platform-ctrl)
-
-		routing := feature.Entry[RoutingSpec]("Routing", provider.ValueOf(r.routingSpec).Get)
-
 		return registry.Add(
 			feature.Define("mesh-ingress-ns-creation").
 				Manifests(
@@ -110,7 +105,7 @@ func (r *RoutingCapability) defineRoutingFeatures(owner metav1.Object) feature.F
 				Managed().
 				OwnedBy(owner).
 				EnabledWhen(required).
-				WithData(routing).
+				WithData(r.routingSpec).
 				PreConditions(
 					servicemesh.EnsureServiceMeshOperatorInstalled,
 					feature.CreateNamespaceIfNotExists(r.routingSpec.IngressGateway.Namespace),
@@ -133,7 +128,7 @@ func (r *RoutingCapability) defineRoutingFeatures(owner metav1.Object) feature.F
 				Managed().
 				OwnedBy(owner).
 				EnabledWhen(required).
-				WithData(routing).
+				WithData(r.routingSpec).
 				PreConditions(
 					servicemesh.EnsureServiceMeshOperatorInstalled,
 					feature.CreateNamespaceIfNotExists(r.routingSpec.IngressGateway.Namespace),

@@ -8,17 +8,17 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
-// Applier is an interface that allows to apply a set of resources.
+// Applier is an interface that allows to apply a set of resources to the cluster.
 type Applier interface {
 	Apply(ctx context.Context, cli client.Client, data map[string]any, options ...cluster.MetaOptions) error
 }
 
-// Creator is an interface that allows to create a set of resources to be applied.
-type Creator interface {
+// Builder is an interface that allows to create a set of resources to be applied.
+type Builder interface {
 	Create() ([]Applier, error)
 }
 
-// Enricher is an interface that allows to add additional configuration to the resource.
-type Enricher interface {
-	Enrich(c Creator)
+// ConfigurationEnricher is an interface that allows to add additional configuration to the resource.
+type ConfigurationEnricher interface {
+	AddConfig(b Builder)
 }

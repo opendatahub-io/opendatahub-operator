@@ -33,7 +33,7 @@ func (r *DSCInitializationReconciler) configureServiceMesh(ctx context.Context, 
 	case operatorv1.Managed:
 
 		capabilities := []*feature.HandlerWithReporter[*dsciv1.DSCInitialization]{
-			r.serviceMeshCapability(instance, serviceMeshCondition(status.ConfiguredReason, "Service Mesh configured")),
+			r.serviceMeshCapability(ctx, instance, serviceMeshCondition(status.ConfiguredReason, "Service Mesh configured")),
 		}
 
 		authzCapability, err := r.authorizationCapability(ctx, instance, authorizationCondition(status.ConfiguredReason, "Service Mesh Authorization configured"))
@@ -70,7 +70,7 @@ func (r *DSCInitializationReconciler) removeServiceMesh(ctx context.Context, ins
 	}
 	if instance.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
 		capabilities := []*feature.HandlerWithReporter[*dsciv1.DSCInitialization]{
-			r.serviceMeshCapability(instance, serviceMeshCondition(status.RemovedReason, "Service Mesh removed")),
+			r.serviceMeshCapability(ctx, instance, serviceMeshCondition(status.RemovedReason, "Service Mesh removed")),
 		}
 
 		authzCapability, err := r.authorizationCapability(ctx, instance, authorizationCondition(status.RemovedReason, "Service Mesh Authorization removed"))
@@ -93,9 +93,9 @@ func (r *DSCInitializationReconciler) removeServiceMesh(ctx context.Context, ins
 	return nil
 }
 
-func (r *DSCInitializationReconciler) serviceMeshCapability(instance *dsciv1.DSCInitialization, initialCondition *conditionsv1.Condition) *feature.HandlerWithReporter[*dsciv1.DSCInitialization] { //nolint:lll // Reason: generics are long
+func (r *DSCInitializationReconciler) serviceMeshCapability(ctx context.Context, instance *dsciv1.DSCInitialization, initialCondition *conditionsv1.Condition) *feature.HandlerWithReporter[*dsciv1.DSCInitialization] { //nolint:lll // Reason: generics are long
 	return feature.NewHandlerWithReporter(
-		feature.ClusterFeaturesHandler(instance, r.serviceMeshCapabilityFeatures(instance)),
+		feature.ClusterFeaturesHandler(instance, r.serviceMeshCapabilityFeatures(ctx, instance)),
 		createCapabilityReporter(r.Client, instance, initialCondition),
 	)
 }
@@ -115,7 +115,7 @@ func (r *DSCInitializationReconciler) authorizationCapability(ctx context.Contex
 		}
 
 		return feature.NewHandlerWithReporter(
-			// EmptyFeaturesHandler acts as all the authorization features are disabled (calling Apply/Delete has no actual effect on the cluster)
+			// EmptyFeaturesHandler acts as all the authorization features are disabled (calling AddTo/Delete has no actual effect on the cluster)
 			// but it's going to be reported as CapabilityServiceMeshAuthorization/MissingOperator condition/reason
 			feature.EmptyFeaturesHandler,
 			createCapabilityReporter(r.Client, instance, authzMissingOperatorCondition),
@@ -123,17 +123,27 @@ func (r *DSCInitializationReconciler) authorizationCapability(ctx context.Contex
 	}
 
 	return feature.NewHandlerWithReporter(
-		feature.ClusterFeaturesHandler(instance, r.authorizationFeatures(instance)),
+		feature.ClusterFeaturesHandler(instance, r.authorizationFeatures(ctx, instance)),
 		createCapabilityReporter(r.Client, instance, condition),
 	), nil
 }
 
-func (r *DSCInitializationReconciler) serviceMeshCapabilityFeatures(instance *dsciv1.DSCInitialization) feature.FeaturesProvider {
+func (r *DSCInitializationReconciler) serviceMeshCapabilityFeatures(ctx context.Context, instance *dsciv1.DSCInitialization) feature.FeaturesProvider {
 	return func(registry feature.FeaturesRegistry) error {
 		controlPlaneSpec := instance.Spec.ServiceMesh.ControlPlane
 
 		meshMetricsCollection := func(_ context.Context, _ *feature.Feature) (bool, error) {
 			return controlPlaneSpec.MetricsCollection == "Istio", nil
+		}
+
+		controlPlaneConfig, errCreate := servicemesh.FeatureData.ControlPlane.Create(ctx, r.Client, &instance.Spec)
+		if errCreate != nil {
+			return fmt.Errorf("failed to create control plane feature data: %w", errCreate)
+		}
+
+		authorization, errAuthz := servicemesh.FeatureData.Authorization.Create(ctx, r.Client, &instance.Spec)
+		if errAuthz != nil {
+			return fmt.Errorf("failed to create authorization feature data: %w", errAuthz)
 		}
 
 		return registry.Add(
@@ -144,7 +154,7 @@ func (r *DSCInitializationReconciler) serviceMeshCapabilityFeatures(instance *ds
 							path.Join(Templates.ServiceMeshDir),
 						),
 				).
-				WithData(servicemesh.FeatureData.ControlPlane.Define(&instance.Spec).AsAction()).
+				WithData(controlPlaneConfig).
 				PreConditions(
 					servicemesh.EnsureServiceMeshOperatorInstalled,
 					feature.CreateNamespaceIfNotExists(controlPlaneSpec.Namespace),
@@ -160,27 +170,30 @@ func (r *DSCInitializationReconciler) serviceMeshCapabilityFeatures(instance *ds
 							path.Join(Templates.MetricsDir),
 						),
 				).
-				WithData(
-					servicemesh.FeatureData.ControlPlane.Define(&instance.Spec).AsAction(),
-				).
+				WithData(controlPlaneConfig).
 				PreConditions(
 					servicemesh.EnsureServiceMeshInstalled,
 				),
 			feature.Define("mesh-shared-configmap").
 				WithResources(servicemesh.MeshRefs, servicemesh.AuthRefs).
-				WithData(
-					servicemesh.FeatureData.ControlPlane.Define(&instance.Spec).AsAction(),
-				).
-				WithData(
-					servicemesh.FeatureData.Authorization.All(&instance.Spec)...,
-				),
+				WithData(controlPlaneConfig, authorization),
 		)
 	}
 }
 
-func (r *DSCInitializationReconciler) authorizationFeatures(instance *dsciv1.DSCInitialization) feature.FeaturesProvider {
+func (r *DSCInitializationReconciler) authorizationFeatures(ctx context.Context, instance *dsciv1.DSCInitialization) feature.FeaturesProvider {
 	return func(registry feature.FeaturesRegistry) error {
 		serviceMeshSpec := instance.Spec.ServiceMesh
+
+		controlPlaneConfig, errControlPlane := servicemesh.FeatureData.ControlPlane.Create(ctx, r.Client, &instance.Spec)
+		if errControlPlane != nil {
+			return fmt.Errorf("failed to create control plane feature data: %w", errControlPlane)
+		}
+
+		authorization, errAuthz := servicemesh.FeatureData.Authorization.Create(ctx, r.Client, &instance.Spec)
+		if errAuthz != nil {
+			return fmt.Errorf("failed to create authorization feature data: %w", errAuthz)
+		}
 
 		return registry.Add(
 			feature.Define("mesh-control-plane-external-authz").
@@ -192,12 +205,7 @@ func (r *DSCInitializationReconciler) authorizationFeatures(instance *dsciv1.DSC
 							path.Join(Templates.AuthorinoDir, "mesh-authz-ext-provider.patch.tmpl.yaml"),
 						),
 				).
-				WithData(
-					servicemesh.FeatureData.ControlPlane.Define(&instance.Spec).AsAction(),
-				).
-				WithData(
-					servicemesh.FeatureData.Authorization.All(&instance.Spec)...,
-				).
+				WithData(controlPlaneConfig, authorization).
 				PreConditions(
 					feature.EnsureOperatorIsInstalled("authorino-operator"),
 					servicemesh.EnsureServiceMeshInstalled,
@@ -226,16 +234,15 @@ func (r *DSCInitializationReconciler) authorizationFeatures(instance *dsciv1.DSC
 				).
 				PreConditions(
 					func(ctx context.Context, f *feature.Feature) error {
-						namespace, err := servicemesh.FeatureData.Authorization.Namespace.Extract(f)
+						authData, err := servicemesh.FeatureData.Authorization.Extract(f)
 						if err != nil {
 							return fmt.Errorf("failed trying to resolve authorization provider namespace for feature '%s': %w", f.Name, err)
 						}
 
-						return feature.WaitForPodsToBeReady(namespace)(ctx, f)
+						return feature.WaitForPodsToBeReady(authData.Namespace)(ctx, f)
 					},
 				).
-				WithData(servicemesh.FeatureData.ControlPlane.Define(&instance.Spec).AsAction()).
-				WithData(servicemesh.FeatureData.Authorization.All(&instance.Spec)...),
+				WithData(controlPlaneConfig, authorization),
 		)
 	}
 }

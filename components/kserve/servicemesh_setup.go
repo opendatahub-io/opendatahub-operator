@@ -43,6 +43,16 @@ func (k *Kserve) defineServiceMeshFeatures(ctx context.Context, cli client.Clien
 		}
 
 		if authorinoInstalled {
+			controlPlane, errControlPlane := servicemesh.FeatureData.ControlPlane.Create(ctx, cli, dscispec)
+			if errControlPlane != nil {
+				return fmt.Errorf("failed to create control plane feature data: %w", errControlPlane)
+			}
+
+			authorization, errAuthz := servicemesh.FeatureData.Authorization.Create(ctx, cli, dscispec)
+			if errAuthz != nil {
+				return fmt.Errorf("failed to create authorization feature data: %w", errAuthz)
+			}
+
 			kserveExtAuthzErr := registry.Add(feature.Define("kserve-external-authz").
 				Manifests(
 					manifest.Location(Resources.Location).
@@ -54,13 +64,7 @@ func (k *Kserve) defineServiceMeshFeatures(ctx context.Context, cli client.Clien
 						),
 				).
 				Managed().
-				WithData(
-					feature.Entry("Domain", cluster.GetDomain),
-					servicemesh.FeatureData.ControlPlane.Define(dscispec).AsAction(),
-				).
-				WithData(
-					servicemesh.FeatureData.Authorization.All(dscispec)...,
-				),
+				WithData(controlPlane, authorization),
 			)
 
 			if kserveExtAuthzErr != nil {

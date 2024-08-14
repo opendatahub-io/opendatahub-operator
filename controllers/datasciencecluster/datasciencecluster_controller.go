@@ -57,6 +57,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 	annotations "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
@@ -248,31 +249,14 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	// Initialize error list, instead of returning errors after every component is deployed
 	var componentErrors *multierror.Error
 
-	// TODO(extract): config for platform controllers
-	createRoutingSpec := func(spec *dsciv1.DSCInitializationSpec) capabilities.RoutingSpec {
-		appNamespace := spec.ApplicationsNamespace
-		return capabilities.RoutingSpec{
-			CertSecretName: appNamespace + "-router-ingress-certs",
-			ControlPlane:   spec.ServiceMesh.ControlPlane,
-			IngressGateway: capabilities.IngressGatewaySpec{
-				Namespace:          appNamespace + "-services",
-				Name:               appNamespace + "-ingress-router",
-				LabelSelectorKey:   "istio",
-				LabelSelectorValue: appNamespace + "-ingress-gateway",
-			},
-		}
-	}
-
-	// TODO(mvp): simplify Feature API to have easy access to FeatureData here without a need to
-	// pass feature around
-	var audiences []string
-	if r.DataScienceCluster.DSCISpec.ServiceMesh.Auth.Audiences != nil {
-		audiences = *r.DataScienceCluster.DSCISpec.ServiceMesh.Auth.Audiences
+	authz, authzErr := servicemesh.FeatureData.Authorization.Create(ctx, r.Client, r.DataScienceCluster.DSCISpec)
+	if authzErr != nil {
+		componentErrors = multierror.Append(componentErrors, authzErr)
 	}
 	authzConfig := authorization.PlatformAuthorizationConfig{
-		Label:        "security.opendatahub.io/authorization-group=default",
-		Audiences:    audiences,
-		ProviderName: "authorino",
+		Label:        authz.AuthConfigSelector,
+		Audiences:    *authz.Audiences,
+		ProviderName: authz.ProviderName,
 	}
 
 	// --
@@ -284,7 +268,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		),
 		capabilities.NewRouting(
 			conditionsv1.IsStatusConditionTrue(r.DataScienceCluster.DSCIStatus.Conditions, status.CapabilityServiceMesh),
-			createRoutingSpec(r.DataScienceCluster.DSCISpec),
+			capabilities.NewRoutingSpec(r.DataScienceCluster.DSCISpec),
 		),
 		capabilities.AppNamespace(r.DataScienceCluster.DSCISpec.ApplicationsNamespace),
 		capabilities.Owner(instance),

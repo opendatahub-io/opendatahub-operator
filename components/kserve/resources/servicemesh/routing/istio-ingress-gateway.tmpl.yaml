@@ -8,11 +8,11 @@ spec:
     knative: ingressgateway
   servers:
     - hosts:
-        - '{{ .KnativeIngressDomain }}'
+        - '{{ .Serving.KnativeIngressDomain }}'
       port:
         name: https
         number: 443
         protocol: HTTPS
       tls:
-        credentialName: {{ .KnativeCertificateSecret }}
+        credentialName: {{ .Serving.KnativeCertificateSecret }}
         mode: SIMPLE

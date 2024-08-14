@@ -10,7 +10,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/manifest"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/provider"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/integration/features/fixtures"
@@ -25,6 +25,7 @@ var _ = Describe("Applying and updating resources", func() {
 		namespace     *corev1.Namespace
 		objectCleaner *envtestutil.Cleaner
 		dsci          *dsciv1.DSCInitialization
+		controlPlane  servicemesh.ControlPlane
 	)
 
 	const (
@@ -44,6 +45,10 @@ var _ = Describe("Applying and updating resources", func() {
 
 		dsci = fixtures.NewDSCInitialization(testNamespace)
 		dsci.Spec.ServiceMesh.ControlPlane.Namespace = namespace.Name
+
+		var errControlPlane error
+		controlPlane, errControlPlane = servicemesh.FeatureData.ControlPlane.Create(ctx, envTestClient, &dsci.Spec)
+		Expect(errControlPlane).ToNot(HaveOccurred())
 	})
 
 	AfterEach(func(ctx context.Context) {
@@ -63,7 +68,7 @@ var _ = Describe("Applying and updating resources", func() {
 							manifest.Location(fixtures.TestEmbeddedFiles).
 								Include(path.Join(fixtures.BaseDir, "local-gateway-svc.tmpl.yaml")),
 						).
-						WithData(feature.Entry("ControlPlane", provider.ValueOf(dsci.Spec.ServiceMesh.ControlPlane).Get)),
+						WithData(controlPlane),
 				)
 			})
 			Expect(featuresHandler.Apply(ctx)).To(Succeed())
@@ -100,7 +105,7 @@ var _ = Describe("Applying and updating resources", func() {
 							manifest.Location(fixtures.TestEmbeddedFiles).
 								Include(path.Join(fixtures.BaseDir, "unmanaged-svc.tmpl.yaml")),
 						).
-						WithData(feature.Entry("ControlPlane", provider.ValueOf(dsci.Spec.ServiceMesh.ControlPlane).Get)),
+						WithData(controlPlane),
 				)
 			})
 			Expect(featuresHandler.Apply(ctx)).To(Succeed())
@@ -136,7 +141,7 @@ var _ = Describe("Applying and updating resources", func() {
 							manifest.Location(fixtures.TestEmbeddedFiles).
 								Include(path.Join(fixtures.BaseDir, "local-gateway-svc.tmpl.yaml")),
 						).
-						WithData(feature.Entry("ControlPlane", provider.ValueOf(dsci.Spec.ServiceMesh.ControlPlane).Get)),
+						WithData(controlPlane),
 				)
 			})
 			Expect(featuresHandler.Apply(ctx)).To(Succeed())
@@ -170,7 +175,7 @@ var _ = Describe("Applying and updating resources", func() {
 							manifest.Location(fixtures.TestEmbeddedFiles).
 								Include(path.Join(fixtures.BaseDir, "managed-svc.tmpl.yaml")),
 						).
-						WithData(feature.Entry("ControlPlane", provider.ValueOf(dsci.Spec.ServiceMesh.ControlPlane).Get)),
+						WithData(controlPlane),
 				)
 			})
 			Expect(featuresHandler.Apply(ctx)).To(Succeed())

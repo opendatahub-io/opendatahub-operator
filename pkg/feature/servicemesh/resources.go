@@ -44,24 +44,9 @@ func MeshRefs(ctx context.Context, f *feature.Feature) error {
 // be easily accessed by other components which rely on this information.
 func AuthRefs(ctx context.Context, f *feature.Feature) error {
 	targetNamespace := f.TargetNamespace
-	auth, err := FeatureData.Authorization.Spec.Extract(f)
+	auth, err := FeatureData.Authorization.Extract(f)
 	if err != nil {
 		return fmt.Errorf("could not get auth from feature: %w", err)
-	}
-
-	authNamespace, errAuthNs := FeatureData.Authorization.Namespace.Extract(f)
-	if errAuthNs != nil {
-		return fmt.Errorf("could not get auth provider namespace from feature: %w", err)
-	}
-
-	authProviderName, errAuthProvider := FeatureData.Authorization.Provider.Extract(f)
-	if errAuthProvider != nil {
-		return fmt.Errorf("could not get auth provider name from feature: %w", err)
-	}
-
-	authExtProviderName, errAuthProvider := FeatureData.Authorization.ExtensionProviderName.Extract(f)
-	if errAuthProvider != nil {
-		return fmt.Errorf("could not get auth provider name from feature: %w", err)
 	}
 
 	audiences := auth.Audiences
@@ -71,9 +56,9 @@ func AuthRefs(ctx context.Context, f *feature.Feature) error {
 	}
 	data := map[string]string{
 		"AUTH_AUDIENCE":     audiencesList,
-		"AUTH_PROVIDER":     authProviderName,
-		"AUTH_EXT_PROVIDER": authExtProviderName,
-		"AUTH_NAMESPACE":    authNamespace,
+		"AUTH_PROVIDER":     auth.ProviderName,
+		"AUTH_EXT_PROVIDER": auth.ExtensionName,
+		"AUTH_NAMESPACE":    auth.Namespace,
 		"AUTHORINO_LABEL":   "security.opendatahub.io/authorization-group=default",
 	}
 

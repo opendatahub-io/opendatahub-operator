@@ -5,7 +5,9 @@ import (
 	"io/fs"
 	"path"
 
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 )
 
 //go:embed resources
@@ -49,4 +51,25 @@ type RoutingSpec struct {
 	IngressGateway IngressGatewaySpec
 	// ControlPlane is the configuration for the Service Mesh Control Plane populated from DSCI.
 	ControlPlane infrav1.ControlPlaneSpec
+}
+
+func (r RoutingSpec) AddTo(f *feature.Feature) error {
+	return f.Set("Routing", r)
+}
+
+var _ feature.Entry = &RoutingSpec{}
+
+// NewRoutingSpec creates a new RoutingSpec from the DSCInitializationSpec.
+func NewRoutingSpec(spec *dsciv1.DSCInitializationSpec) RoutingSpec {
+	appNamespace := spec.ApplicationsNamespace
+	return RoutingSpec{
+		CertSecretName: appNamespace + "-router-ingress-certs",
+		ControlPlane:   spec.ServiceMesh.ControlPlane,
+		IngressGateway: IngressGatewaySpec{
+			Namespace:          appNamespace + "-services",
+			Name:               appNamespace + "-ingress-router",
+			LabelSelectorKey:   "istio",
+			LabelSelectorValue: appNamespace + "-ingress-gateway",
+		},
+	}
 }

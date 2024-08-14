@@ -25,12 +25,12 @@ const (
 
 // EnsureAuthNamespaceExists creates a namespace for the Authorization provider and set ownership so it will be garbage collected when the operator is uninstalled.
 func EnsureAuthNamespaceExists(ctx context.Context, f *feature.Feature) error {
-	authNs, err := FeatureData.Authorization.Namespace.Extract(f)
+	authz, err := FeatureData.Authorization.Extract(f)
 	if err != nil {
 		return fmt.Errorf("could not get auth from feature: %w", err)
 	}
 
-	_, err = cluster.CreateNamespace(ctx, f.Client, authNs, feature.OwnedBy(f), cluster.WithLabels(labels.ODH.OwnedNamespace, "true"))
+	_, err = cluster.CreateNamespace(ctx, f.Client, authz.Namespace, feature.OwnedBy(f), cluster.WithLabels(labels.ODH.OwnedNamespace, "true"))
 	return err
 }
 

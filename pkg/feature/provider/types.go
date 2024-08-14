@@ -1,21 +1,22 @@
 package provider
 
 import (
-	"context"
 	"reflect"
-
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// DataProvider is a contract on how the data for the Feature container can be fetched.
-// It is expected that either found instance is returned or error occurred during invocation.
+// DataProvider defines how the data for the Feature container can be fetched.
+// It is expected that either a found instance is returned or error occurred while resolving the value.
 type DataProvider[T any] interface {
-	Get(ctx context.Context, c client.Client) (T, error)
+	Get() (T, error)
 }
 
 // DataProviderFunc defines function signature which is used for fetching data.
 // This allows to pass simple closures while construction data providers.
-type DataProviderFunc[T any] func(ctx context.Context, c client.Client) (T, error)
+type DataProviderFunc[T any] func() (T, error)
+
+func (f DataProviderFunc[T]) Get() (T, error) {
+	return f()
+}
 
 // ValueOf is a constructor which allows to define a value with optional provider.
 func ValueOf[T any](value T) DataProviderWithDefault[T] {
@@ -25,8 +26,8 @@ func ValueOf[T any](value T) DataProviderWithDefault[T] {
 // Defaulter defines how a default value can be supplied when original one is zero-value.
 type Defaulter[T any] interface {
 	Value() T
-	OrElse(other T) DataProviderFunc[T]
-	OrGet(getFunc DataProviderFunc[T]) DataProviderFunc[T]
+	OrElse(other T) T
+	OrGet(getFunc DataProviderFunc[T]) DataProvider[T]
 }
 
 // DataProviderWithDefault allows to define a value and optional means of supplying it if original value is empty.
@@ -41,7 +42,7 @@ var _ DataProvider[any] = (*DataProviderWithDefault[any])(nil)
 var _ Defaulter[any] = (*DataProviderWithDefault[any])(nil)
 
 // Get returns Value() of Defaulter and ensures DataProviderWithDefault can be used as DataProviderFunc.
-func (d DataProviderWithDefault[T]) Get(_ context.Context, _ client.Client) (T, error) {
+func (d DataProviderWithDefault[T]) Get() (T, error) {
 	return d.Value(), nil
 }
 
@@ -51,19 +52,19 @@ func (d DataProviderWithDefault[T]) Value() T {
 }
 
 // OrElse allows to define static default value when the stored one is a zero-value.
-func (d DataProviderWithDefault[T]) OrElse(other T) DataProviderFunc[T] {
+func (d DataProviderWithDefault[T]) OrElse(other T) T {
 	if reflect.ValueOf(d.Value()).IsZero() {
 		d.value = other
 	}
 
-	return d.Get
+	return d.Value()
 }
 
 // OrGet allows to define dynamic value provider when the stored one is a zero-value.
-func (d DataProviderWithDefault[T]) OrGet(getFunc DataProviderFunc[T]) DataProviderFunc[T] {
+func (d DataProviderWithDefault[T]) OrGet(getFunc DataProviderFunc[T]) DataProvider[T] {
 	if reflect.ValueOf(d.Value()).IsZero() {
 		return getFunc
 	}
 
-	return d.Get
+	return d
 }

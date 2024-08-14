@@ -1,7 +1,11 @@
 package kserve
 
 import (
+	"context"
+	"fmt"
 	"path"
+
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
@@ -10,8 +14,18 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 )
 
-func (k *Kserve) configureServerlessFeatures(dsciSpec *dsciv1.DSCInitializationSpec) feature.FeaturesProvider {
+func (k *Kserve) configureServerlessFeatures(ctx context.Context, cli client.Client, dsciSpec *dsciv1.DSCInitializationSpec) feature.FeaturesProvider {
 	return func(registry feature.FeaturesRegistry) error {
+		serving, errServing := serverless.FeatureData.Serving.Create(ctx, cli, &k.Serving)
+		if errServing != nil {
+			return fmt.Errorf("failed to create serving feature data: %w", errServing)
+		}
+
+		controlPlane, errControlPlane := servicemesh.FeatureData.ControlPlane.Create(ctx, cli, dsciSpec)
+		if errControlPlane != nil {
+			return fmt.Errorf("failed to create control plane feature data: %w", errControlPlane)
+		}
+
 		servingDeployment := feature.Define("serverless-serving-deployment").
 			Manifests(
 				manifest.Location(Resources.Location).
@@ -19,11 +33,7 @@ func (k *Kserve) configureServerlessFeatures(dsciSpec *dsciv1.DSCInitializationS
 						path.Join(Resources.InstallDir),
 					),
 			).
-			WithData(
-				serverless.FeatureData.IngressDomain.Define(&k.Serving).AsAction(),
-				serverless.FeatureData.Serving.Define(&k.Serving).AsAction(),
-				servicemesh.FeatureData.ControlPlane.Define(dsciSpec).AsAction(),
-			).
+			WithData(serving, controlPlane).
 			PreConditions(
 				serverless.EnsureServerlessOperatorInstalled,
 				serverless.EnsureServerlessAbsent,
@@ -41,7 +51,7 @@ func (k *Kserve) configureServerlessFeatures(dsciSpec *dsciv1.DSCInitializationS
 						path.Join(Resources.BaseDir, "serving-net-istio-secret-filtering.patch.tmpl.yaml"),
 					),
 			).
-			WithData(serverless.FeatureData.Serving.Define(&k.Serving).AsAction()).
+			WithData(serving).
 			PreConditions(serverless.EnsureServerlessServingDeployed).
 			PostConditions(
 				feature.WaitForPodsToBeReady(serverless.KnativeServingNamespace),
@@ -54,12 +64,7 @@ func (k *Kserve) configureServerlessFeatures(dsciSpec *dsciv1.DSCInitializationS
 						path.Join(Resources.GatewaysDir),
 					),
 			).
-			WithData(
-				serverless.FeatureData.IngressDomain.Define(&k.Serving).AsAction(),
-				serverless.FeatureData.CertificateName.Define(&k.Serving).AsAction(),
-				serverless.FeatureData.Serving.Define(&k.Serving).AsAction(),
-				servicemesh.FeatureData.ControlPlane.Define(dsciSpec).AsAction(),
-			).
+			WithData(serving, controlPlane).
 			WithResources(serverless.ServingCertificateResource).
 			PreConditions(serverless.EnsureServerlessServingDeployed)
 

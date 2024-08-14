@@ -49,7 +49,7 @@ type PluginsEnricher struct {
 	Plugins []resmap.Transformer
 }
 
-func (p *PluginsEnricher) Enrich(creator resource.Creator) {
+func (p *PluginsEnricher) AddConfig(creator resource.Builder) {
 	builderValue := reflect.ValueOf(creator)
 	if builderValue.Kind() == reflect.Ptr {
 		builderValue = builderValue.Elem()

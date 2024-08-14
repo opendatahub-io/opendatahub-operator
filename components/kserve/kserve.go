@@ -107,7 +107,7 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 
 	if !enabled {
-		if err := k.removeServerlessFeatures(ctx, dscispec); err != nil {
+		if err := k.removeServerlessFeatures(ctx, cli, dscispec); err != nil {
 			return err
 		}
 	} else {
@@ -178,7 +178,7 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 }
 
 func (k *Kserve) Cleanup(ctx context.Context, cli client.Client, instance *dsciv1.DSCInitializationSpec) error {
-	if removeServerlessErr := k.removeServerlessFeatures(ctx, instance); removeServerlessErr != nil {
+	if removeServerlessErr := k.removeServerlessFeatures(ctx, cli, instance); removeServerlessErr != nil {
 		return removeServerlessErr
 	}
 

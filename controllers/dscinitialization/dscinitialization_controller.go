@@ -249,7 +249,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			}
 		}
 
-		// Apply Service Mesh configurations
+		// AddTo Service Mesh configurations
 		if errServiceMesh := r.configureServiceMesh(ctx, instance); errServiceMesh != nil {
 			return reconcile.Result{}, errServiceMesh
 		}

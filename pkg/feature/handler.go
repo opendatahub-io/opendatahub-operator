@@ -52,7 +52,7 @@ func (fh *FeaturesHandler) Add(builders ...*featureBuilder) error {
 		fb := builders[i]
 		feature, err := fb.TargetNamespace(fh.targetNamespace).
 			Source(fh.source).
-			EnrichResources(&kustomize.PluginsEnricher{Plugins: globalPlugins}).
+			WithAdditionalConfig(&kustomize.PluginsEnricher{Plugins: globalPlugins}).
 			Create()
 		multiErr = multierror.Append(multiErr, err)
 		fh.features = append(fh.features, feature)
@@ -129,7 +129,7 @@ func ComponentFeaturesHandler(componentName, targetNamespace string, def ...Feat
 	}
 }
 
-// EmptyFeaturesHandler is noop handler so that we can avoid nil checks in the code and safely call Apply/Delete methods.
+// EmptyFeaturesHandler is noop handler so that we can avoid nil checks in the code and safely call AddTo/Delete methods.
 var EmptyFeaturesHandler = &FeaturesHandler{
 	features:          []*Feature{},
 	featuresProviders: []FeaturesProvider{},
@@ -154,7 +154,7 @@ func NewHandlerWithReporter[T client.Object](handler *FeaturesHandler, reporter 
 func (h HandlerWithReporter[T]) Apply(ctx context.Context) error {
 	applyErr := h.handler.Apply(ctx)
 	_, reportErr := h.reporter.ReportCondition(ctx, applyErr)
-	// We could have failed during Apply phase as well as during reporting.
+	// We could have failed during AddTo phase as well as during reporting.
 	// We should return both errors to the caller.
 	return multierror.Append(applyErr, reportErr).ErrorOrNil()
 }

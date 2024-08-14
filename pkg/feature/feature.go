@@ -56,7 +56,12 @@ type Feature struct {
 	clusterOperations []Action
 	preconditions     []Action
 	postconditions    []Action
-	dataProviders     []Action
+	dataEntries       []Entry
+}
+
+// Entry is an interface that represents a data entry that can be added to a Feature.
+type Entry interface {
+	AddTo(f *Feature) error
 }
 
 // Action is a func type which can be used for different purposes during Feature's lifecycle
@@ -70,7 +75,7 @@ type Action func(ctx context.Context, f *Feature) error
 type CleanupFunc func(ctx context.Context, cli client.Client) error
 
 // EnabledFunc is a func type used to determine if a feature should be enabled.
-type EnabledFunc func(ctx context.Context, feature *Feature) (bool, error)
+type EnabledFunc func(ctx context.Context, f *Feature) (bool, error)
 
 // Apply applies the feature to the cluster.
 // It creates a FeatureTracker resource to establish ownership and reports the result of the operation as a condition.
@@ -105,8 +110,8 @@ func (f *Feature) Apply(ctx context.Context) error {
 func (f *Feature) applyFeature(ctx context.Context) error {
 	var multiErr *multierror.Error
 
-	for _, dataProvider := range f.dataProviders {
-		multiErr = multierror.Append(multiErr, dataProvider(ctx, f))
+	for _, dataProvider := range f.dataEntries {
+		multiErr = multierror.Append(multiErr, dataProvider.AddTo(f))
 	}
 	if errDataLoad := multiErr.ErrorOrNil(); errDataLoad != nil {
 		return &withConditionReasonError{reason: featurev1.ConditionReason.LoadTemplateData, err: errDataLoad}

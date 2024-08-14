@@ -138,6 +138,10 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 
 		if m.platform.Routing().IsAvailable() {
 			m.platform.Routing().Expose(odhp.RoutingTarget{ObjectReference: watchedCR})
+			// -> CR not representing a solid abstraction yet, desired long-term
+			// -> applying overlay/CR shipped as manifests
+			// -> that would result in deploying platform-ctrl + IGW
+			// Expose(odhp.RoutingTarget{ObjectReference: watchedCR})
 		}
 
 		if m.platform.Authorization().IsAvailable() {

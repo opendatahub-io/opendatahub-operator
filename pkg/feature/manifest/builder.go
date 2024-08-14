@@ -1,6 +1,7 @@
 package manifest
 
 import (
+	"fmt"
 	"io/fs"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/resource"
@@ -27,7 +28,7 @@ func (b *Builder) Create() ([]resource.Applier, error) {
 	for _, path := range b.paths {
 		currManifests, err := LoadManifests(b.manifestLocation, path)
 		if err != nil {
-			return nil, err // TODO wrap
+			return nil, fmt.Errorf("failed to load manifests from %s: %w", path, err)
 		}
 
 		manifests = append(manifests, currManifests...)

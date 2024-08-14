@@ -17,6 +17,7 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/provider"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/serverless"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
@@ -180,8 +181,9 @@ var _ = Describe("Serverless feature", func() {
 
 			It("should set default value when value is empty in the DSCI", func(ctx context.Context) {
 				// given
-				serving := infrav1.ServingSpec{
+				servingSpec := infrav1.ServingSpec{
 					IngressGateway: infrav1.GatewaySpec{
+						Domain: fixtures.TestDomainFooCom,
 						Certificate: infrav1.CertificateSpec{
 							SecretName: "",
 						},
@@ -189,17 +191,20 @@ var _ = Describe("Serverless feature", func() {
 				}
 
 				// when
-				actualSecretName, err := serverless.FeatureData.CertificateName.Define(&serving).Value(ctx, envTestClient)
+				serving, errServing := serverless.FeatureData.Serving.Create(ctx, envTestClient, &servingSpec)
+				Expect(errServing).ToNot(HaveOccurred())
+
+				actualSecretName := serving.KnativeCertificateSecret
 
 				// then
-				Expect(err).ToNot(HaveOccurred())
 				Expect(actualSecretName).To(Equal(serverless.DefaultCertificateSecretName))
 			})
 
 			It("should use user value when set in the DSCI", func(ctx context.Context) {
 				// given
-				serving := infrav1.ServingSpec{
+				servingSpec := infrav1.ServingSpec{
 					IngressGateway: infrav1.GatewaySpec{
+						Domain: fixtures.TestDomainFooCom,
 						Certificate: infrav1.CertificateSpec{
 							SecretName: "top-secret-service",
 						},
@@ -207,10 +212,12 @@ var _ = Describe("Serverless feature", func() {
 				}
 
 				// when
-				actualSecretName, err := serverless.FeatureData.CertificateName.Define(&serving).Value(ctx, envTestClient)
+				serving, errServing := serverless.FeatureData.Serving.Create(ctx, envTestClient, &servingSpec)
+				Expect(errServing).ToNot(HaveOccurred())
+
+				actualSecretName := serving.KnativeCertificateSecret
 
 				// then
-				Expect(err).ToNot(HaveOccurred())
 				Expect(actualSecretName).To(Equal("top-secret-service"))
 			})
 		})
@@ -230,10 +237,12 @@ var _ = Describe("Serverless feature", func() {
 				}
 
 				// when
-				domain, err := serverless.FeatureData.IngressDomain.Define(&serving).Value(ctx, envTestClient)
+				domain, errGet := provider.ValueOf(serving.IngressGateway.Domain).OrGet(func() (string, error) {
+					return serverless.KnativeDomain(ctx, envTestClient)
+				}).Get()
 
 				// then
-				Expect(err).ToNot(HaveOccurred())
+				Expect(errGet).ToNot(HaveOccurred())
 				Expect(domain).To(Equal("*.foo.io"))
 			})
 
@@ -246,10 +255,12 @@ var _ = Describe("Serverless feature", func() {
 				}
 
 				// when
-				domain, err := serverless.FeatureData.IngressDomain.Define(&serving).Value(ctx, envTestClient)
+				domain, errGet := provider.ValueOf(serving.IngressGateway.Domain).OrGet(func() (string, error) {
+					return serverless.KnativeDomain(ctx, envTestClient)
+				}).Get()
 
 				// then
-				Expect(err).ToNot(HaveOccurred())
+				Expect(errGet).ToNot(HaveOccurred())
 				Expect(domain).To(Equal(fixtures.TestDomainFooCom))
 			})
 		})
@@ -279,16 +290,17 @@ var _ = Describe("Serverless feature", func() {
 			kserveComponent.Serving.IngressGateway.Certificate.Type = infrav1.SelfSigned
 			kserveComponent.Serving.IngressGateway.Domain = fixtures.TestDomainFooCom
 
+			serving, errServing := serverless.FeatureData.Serving.Create(ctx, envTestClient, &kserveComponent.Serving)
+			Expect(errServing).ToNot(HaveOccurred())
+
+			controlPlane, errControlPlane := servicemesh.FeatureData.ControlPlane.Create(ctx, envTestClient, &dsci.Spec)
+			Expect(errControlPlane).ToNot(HaveOccurred())
+
 			featuresHandler := feature.ComponentFeaturesHandler(kserveComponent.GetComponentName(), dsci.Spec.ApplicationsNamespace, func(registry feature.FeaturesRegistry) error {
 				errFeatureAdd := registry.Add(
 					feature.Define("tls-secret-creation").
 						UsingConfig(envTest.Config).
-						WithData(
-							servicemesh.FeatureData.ControlPlane.Define(&dsci.Spec).AsAction(),
-							serverless.FeatureData.Serving.Define(&kserveComponent.Serving).AsAction(),
-							serverless.FeatureData.IngressDomain.Define(&kserveComponent.Serving).AsAction(),
-							serverless.FeatureData.CertificateName.Define(&kserveComponent.Serving).AsAction(),
-						).
+						WithData(serving, controlPlane).
 						WithResources(serverless.ServingCertificateResource),
 				)
 
@@ -319,16 +331,18 @@ var _ = Describe("Serverless feature", func() {
 			// given
 			kserveComponent.Serving.IngressGateway.Certificate.Type = infrav1.Provided
 			kserveComponent.Serving.IngressGateway.Domain = fixtures.TestDomainFooCom
+
+			serving, errServing := serverless.FeatureData.Serving.Create(ctx, envTestClient, &kserveComponent.Serving)
+			Expect(errServing).ToNot(HaveOccurred())
+
+			controlPlane, errControlPlane := servicemesh.FeatureData.ControlPlane.Create(ctx, envTestClient, &dsci.Spec)
+			Expect(errControlPlane).ToNot(HaveOccurred())
+
 			featuresHandler := feature.ComponentFeaturesHandler(kserveComponent.GetComponentName(), dsci.Spec.ApplicationsNamespace, func(registry feature.FeaturesRegistry) error {
 				errFeatureAdd := registry.Add(
 					feature.Define("tls-secret-creation").
 						UsingConfig(envTest.Config).
-						WithData(
-							servicemesh.FeatureData.ControlPlane.Define(&dsci.Spec).AsAction(),
-							serverless.FeatureData.Serving.Define(&kserveComponent.Serving).AsAction(),
-							serverless.FeatureData.IngressDomain.Define(&kserveComponent.Serving).AsAction(),
-							serverless.FeatureData.CertificateName.Define(&kserveComponent.Serving).AsAction(),
-						).
+						WithData(serving, controlPlane).
 						WithResources(serverless.ServingCertificateResource),
 				)
 

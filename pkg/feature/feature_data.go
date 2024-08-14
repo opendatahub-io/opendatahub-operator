@@ -4,39 +4,49 @@ import (
 	"context"
 	"fmt"
 
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/provider"
 )
 
-// Entry allows to define association between a name under which the data is stored in the Feature and a data provider
+// Value allows to define association between a name under which the data is stored in the Feature and underlying
+// struct needed by the Feature to e.g. process templates.
+func Value(key string, value any) *PlainValue {
+	return &PlainValue{key: key, value: value}
+}
+
+type PlainValue struct {
+	key   string
+	value any
+}
+
+var _ Entry = PlainValue{}
+
+func (e PlainValue) AddTo(f *Feature) error {
+	return f.Set(e.key, e.value)
+}
+
+type ValueProvider[T any] struct {
+	key   string
+	value provider.DataProviderFunc[T]
+}
+
+var _ Entry = ValueProvider[any]{}
+
+func (e ValueProvider[T]) AddTo(f *Feature) error {
+	value, err := e.value()
+	if err != nil {
+		return err
+	}
+
+	return f.Set(e.key, value)
+}
+
+// Provider allows to define association between a name under which the data is stored in the Feature and a data provider
 // defining the logic for fetching. Provider is a function allowing to fetch a value for a given key dynamically by
 // interacting with Kubernetes client.
-//
-// If the value is static, consider using provider.ValueOf(variable).Get as passed provider function.
-func Entry[T any](key string, providerFunc provider.DataProviderFunc[T]) Action {
-	return func(ctx context.Context, f *Feature) error {
-		data, err := providerFunc(ctx, f.Client)
-		if err != nil {
-			return err
-		}
-
-		return f.Set(key, data)
-	}
-}
-
-// DataEntry associates data provider with a key under which the data is stored in the Feature.
-type DataEntry[T any] struct {
-	Key   string
-	Value provider.DataProviderFunc[T]
-}
-
-// DataDefinition defines how the data is created and fetched from the Feature's data context.
-// S is a source type from which the data is created.
-// T is a type of the data stored in the Feature.
-type DataDefinition[S, T any] struct {
-	// Define is a factory function to create a Feature's DataEntry from the given source.
-	Define func(source *S) DataEntry[T]
-	// Extract allows to fetch data from the Feature.
-	Extract func(f *Feature) (T, error)
+func Provider[T any](key string, providerFunc provider.DataProviderFunc[T]) *ValueProvider[T] {
+	return &ValueProvider[T]{key: key, value: providerFunc}
 }
 
 // ExtractEntry is a convenient way to define how to extract a value from the given Feature's data using defined key.
@@ -46,9 +56,14 @@ func ExtractEntry[T any](key string) func(f *Feature) (T, error) {
 	}
 }
 
-// AsAction converts DataEntry to an Action which is the used to populate defined key-value in the feature itself.
-func (d DataEntry[T]) AsAction() Action {
-	return Entry[T](d.Key, d.Value)
+// DataDefinition defines how the data is created and fetched from the Feature's data context.
+// S is a source type from which the data is created.
+// T is a type of the data stored in the Feature.
+type DataDefinition[S, T any] struct {
+	// Create is a factory function to create a Feature's DataEntry from the given source.
+	Create func(ctx context.Context, cli client.Client, source S) (T, error)
+	// Extract allows to extract data from the Feature.
+	Extract func(f *Feature) (T, error)
 }
 
 // Get allows to retrieve arbitrary value from the Feature's data container.

@@ -31,7 +31,7 @@ type featureBuilder struct {
 	config *rest.Config
 
 	builders  []partialBuilder
-	enrichers []resource.Enricher
+	enrichers []resource.ConfigurationEnricher
 }
 
 // Define creates a new feature builder with the given name.
@@ -79,12 +79,15 @@ func (fb *featureBuilder) TargetNamespace(targetNs string) *featureBuilder {
 	return fb
 }
 
-// Manifests allow to compose manifests using different implementation of builders such as those defined in manifest and kustomize packages.
-func (fb *featureBuilder) Manifests(creators ...resource.Creator) *featureBuilder {
+// Manifests allow to compose manifests using different implementation of builders such as
+// those defined in manifest and kustomize packages.
+func (fb *featureBuilder) Manifests(creators ...resource.Builder) *featureBuilder {
 	for _, creator := range creators {
 		fb.builders = append(fb.builders, func(f *Feature) error {
+			// First check if there are enrichers which can add
+			// extra configuration for a given creator
 			for _, enricher := range fb.enrichers {
-				enricher.Enrich(creator)
+				enricher.AddConfig(creator)
 			}
 
 			appliers, errCreate := creator.Create()
@@ -109,11 +112,11 @@ func (fb *featureBuilder) OwnedBy(object metav1.Object) *featureBuilder {
 	return fb
 }
 
-// EnrichResources allow to add enrichers which can enhance resource builders with additional setup, such
+// WithAdditionalConfig allow to add enrichers that can enhance resource builders with additional setup, such
 // as defaulting certain properties or adding shared fixtures which very builder needs. Though these can be set using
 // each builder specifically, providing an enricher ensures it will be uniformly applied to each relevant builder and reduce
 // code duplication.
-func (fb *featureBuilder) EnrichResources(enrichers ...resource.Enricher) *featureBuilder {
+func (fb *featureBuilder) WithAdditionalConfig(enrichers ...resource.ConfigurationEnricher) *featureBuilder {
 	fb.enrichers = append(fb.enrichers, enrichers...)
 
 	return fb
@@ -139,9 +142,9 @@ func (fb *featureBuilder) Managed() *featureBuilder {
 // WithData adds data providers to the feature (implemented as Actions).
 // This way you can define what data should be loaded before the feature is applied.
 // This can be later used in templates and when creating resources programmatically.
-func (fb *featureBuilder) WithData(dataProviders ...Action) *featureBuilder {
+func (fb *featureBuilder) WithData(entries ...Entry) *featureBuilder {
 	fb.builders = append(fb.builders, func(f *Feature) error {
-		f.dataProviders = append(f.dataProviders, dataProviders...)
+		f.dataEntries = append(f.dataEntries, entries...)
 
 		return nil
 	})

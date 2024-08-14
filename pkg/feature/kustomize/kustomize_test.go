@@ -70,7 +70,7 @@ var _ = Describe("Kustomize support", func() {
 			// given
 			kustomizeBuilder := kustomize.Location(path).UsingFileSystem(inMemFsys)
 			enricher := kustomize.PluginsEnricher{Plugins: []resmap.Transformer{plugins.CreateNamespaceApplierPlugin("kust-ns")}}
-			enricher.Enrich(kustomizeBuilder)
+			enricher.AddConfig(kustomizeBuilder)
 			kustomization := kustomizeBuilder.Build()
 
 			// when
