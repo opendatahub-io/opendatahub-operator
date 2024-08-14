@@ -1,0 +1,153 @@
+rule_files:
+  - workbenches_alerts.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # PVC storage
+  - interval: 1m
+    input_series:
+      - series: kubelet_volume_stats_used_bytes{persistentvolumeclaim="jupyterhub-nb-1a"}
+        values: "10"
+      - series: kubelet_volume_stats_capacity_bytes{persistentvolumeclaim="jupyterhub-nb-1a"}
+        values: "100"
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: User notebook pvc usage above 90%
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: kubelet_volume_stats_used_bytes{persistentvolumeclaim="jupyterhub-nb-1a"}
+        values: "95"
+      - series: kubelet_volume_stats_capacity_bytes{persistentvolumeclaim="jupyterhub-nb-1a"}
+        values: "100"
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: User notebook pvc usage above 90%
+        exp_alerts:
+          - exp_labels:
+              alertname: User notebook pvc usage above 90%
+              persistentvolumeclaim: jupyterhub-nb-1a
+              route: "user-notifications"
+              severity: warning
+            exp_annotations:
+              summary: "User notebook pvc usage above 90%"
+              message: "The user notebook jupyterhub-nb-1a is using 90% of its Volume. You might want to decrease the amount of data stored on the server or you can reach out to your cluster admin to increase the storage capacity to prevent disruptions and loss of data. Please back up your data before increasing the storage limit."
+              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/tree/main/RHODS'
+
+  - interval: 1m
+    input_series:
+      - series: kubelet_volume_stats_used_bytes{persistentvolumeclaim="jupyterhub-nb-1a"}
+        values: "100"
+      - series: kubelet_volume_stats_capacity_bytes{persistentvolumeclaim="jupyterhub-nb-1a"}
+        values: "100"
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: User notebook pvc usage at 100%
+        exp_alerts:
+          - exp_labels:
+              alertname: User notebook pvc usage at 100%
+              route: "user-notifications"
+              persistentvolumeclaim: jupyterhub-nb-1a
+              severity: warning
+            exp_annotations:
+              summary: "User notebook pvc usage at 100%"
+              message: "The user notebook jupyterhub-nb-1a is using 100% of its Volume. You might want to decrease the amount of data stored on the server or you can reach out to your cluster admin to increase the storage capacity to prevent disruptions and loss of data. Please back up your data before increasing the storage limit."
+              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/tree/main/RHODS'     
+      
+  # Probe success
+  - interval: 1m
+    input_series:
+      - series: probe_success:burnrate5m{instance="notebook-spawner"}
+        values: "0x60"
+      - series: probe_success:burnrate1h{instance="notebook-spawner"}
+        values: "0x60"
+      - series: probe_success:burnrate30m{instance="notebook-spawner"}
+        values: "0x60"
+      - series: probe_success:burnrate6h{instance="notebook-spawner"}
+        values: "0x60"
+      - series: probe_success:burnrate2h{instance="notebook-spawner"}
+        values: "0x60"
+      - series: probe_success:burnrate1d{instance="notebook-spawner"}
+        values: "0x60"
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: RHODS Jupyter Probe Success Burn Rate
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: probe_success:burnrate5m{instance="notebook-spawner"}
+        values: "1+1x60"
+      - series: probe_success:burnrate1h{instance="notebook-spawner"}
+        values: "1+1x60"
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: RHODS Jupyter Probe Success Burn Rate
+        exp_alerts:
+          - exp_labels:
+              alertname: RHODS Jupyter Probe Success Burn Rate
+              instance: "notebook-spawner"
+              severity: critical
+            exp_annotations:
+              summary: "RHODS Jupyter Probe Success Burn Rate"
+              message: "High error budget burn for notebook-spawner (current value: 3)."
+              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Jupyter/rhods-jupyter-probe-success-burn-rate.md'
+
+  - interval: 1m
+    input_series:
+      - series: probe_success:burnrate30m{instance="notebook-spawner"}
+        values: "1+1x60"
+      - series: probe_success:burnrate6h{instance="notebook-spawner"}
+        values: "1+1x60"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: RHODS Jupyter Probe Success Burn Rate
+        exp_alerts:
+          - exp_labels:
+              alertname: RHODS Jupyter Probe Success Burn Rate
+              instance: "notebook-spawner"
+              severity: critical
+            exp_annotations:
+              summary: "RHODS Jupyter Probe Success Burn Rate"
+              message: "High error budget burn for notebook-spawner (current value: 16)."
+              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Jupyter/rhods-jupyter-probe-success-burn-rate.md'
+ 
+  - interval: 1m
+    input_series:
+      - series: probe_success:burnrate2h{instance="notebook-spawner"}
+        values: "1+1x60"
+      - series: probe_success:burnrate1d{instance="notebook-spawner"}
+        values: "1+1x60"
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: RHODS Jupyter Probe Success Burn Rate
+        exp_alerts:
+          - exp_labels:
+              alertname: RHODS Jupyter Probe Success Burn Rate
+              instance: "notebook-spawner"
+              severity: warning
+            exp_annotations:
+              summary: "RHODS Jupyter Probe Success Burn Rate"
+              message: "High error budget burn for notebook-spawner (current value: 61)."
+              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Jupyter/rhods-jupyter-probe-success-burn-rate.md'
+
+  - interval: 1m
+    input_series:
+      - series: probe_success:burnrate6h{instance="notebook-spawner"}
+        values: "1+1x200"
+      - series: probe_success:burnrate3d{instance="notebook-spawner"}
+        values: "1+1x200"
+    alert_rule_test:
+      - eval_time: 3h
+        alertname: RHODS Jupyter Probe Success Burn Rate
+        exp_alerts:
+          - exp_labels:
+              alertname: RHODS Jupyter Probe Success Burn Rate
+              instance: "notebook-spawner"
+              severity: warning
+            exp_annotations:
+              summary: "RHODS Jupyter Probe Success Burn Rate"
+              message: "High error budget burn for notebook-spawner (current value: 181)."
+              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Jupyter/rhods-jupyter-probe-success-burn-rate.md'
