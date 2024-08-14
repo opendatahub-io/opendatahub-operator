@@ -74,7 +74,6 @@ metadata:
           }
         }
       }
-    operators.operatorframework.io/internal-objects: '[dscinitialization.opendatahub.io]'
     repository: https://github.com/red-hat-data-services/rhods-operator
   name: rhods-operator.v2.0.0
   namespace: placeholder
