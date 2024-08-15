@@ -48,7 +48,7 @@ COPY --from=builder /workspace/manager .
 COPY --chown=1001:0 --from=builder /opt/manifests /opt/manifests
 # Recursive change all files
 RUN chown -R 1001:0 /opt/manifests &&\
-    chmod -R a+r /opt/manifests
+    chmod -R g=u /opt/manifests
 USER 1001
 
 ENTRYPOINT ["/manager"]
