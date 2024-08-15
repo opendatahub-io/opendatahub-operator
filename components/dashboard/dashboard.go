@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/go-logr/logr"
@@ -121,9 +122,17 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 			return errors.New("failed to set variable for extraParamsMap")
 		}
 
-		// 4. update params.env regardless devFlags is provided of not
-		if err := deploy.ApplyParams(entryPath, imageParamMap, extraParamsMap); err != nil {
-			return fmt.Errorf("failed to update params.env  from %s : %w", entryPath, err)
+		// 4. update params.env regardless devFlags is provided or not
+		// check is to avoid unnecessary disk written
+		var paramsMapValues []string
+		for _, envVariable := range extraParamsMap {
+			paramsMapValues = append(paramsMapValues, envVariable)
+		}
+		paramsMapValues = append(paramsMapValues, os.Getenv("RELATED_IMAGE_ODH_DASHBOARD_IMAGE"))
+		if err := deploy.CheckParams(entryPath, paramsMapValues); err != nil {
+			if err := deploy.ApplyParams(entryPath, imageParamMap, extraParamsMap); err != nil {
+				return fmt.Errorf("failed to update image and env variabls from %s: %w", entryPath, err)
+			}
 		}
 	}
 

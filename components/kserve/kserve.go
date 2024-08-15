@@ -5,6 +5,7 @@ package kserve
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -144,8 +145,11 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 		}
 		// Update image parameters for odh-model-controller
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (k.DevFlags == nil || len(k.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(DependentPath, dependentParamMap); err != nil {
-				return fmt.Errorf("failed to update image %s: %w", DependentPath, err)
+			// only update if passing image does not exist in params.env, to avoid unnecessary disk written
+			if err := deploy.CheckParams(Path, []string{os.Getenv("RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE")}); err != nil {
+				if err := deploy.ApplyParams(DependentPath, dependentParamMap); err != nil {
+					return fmt.Errorf("failed to update image from %s: %w", DependentPath, err)
+				}
 			}
 		}
 	}

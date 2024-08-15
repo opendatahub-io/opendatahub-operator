@@ -6,6 +6,7 @@ package codeflare
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/go-logr/logr"
@@ -68,7 +69,6 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context,
 	var imageParamMap = map[string]string{
 		"codeflare-operator-controller-image": "RELATED_IMAGE_ODH_CODEFLARE_OPERATOR_IMAGE", // no need mcad, embedded in cfo
 	}
-
 	enabled := c.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 
@@ -92,8 +92,14 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context,
 
 		// Update image parameters only when we do not have customized manifests set
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (c.DevFlags == nil || len(c.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(ParamsPath, imageParamMap, map[string]string{"namespace": dscispec.ApplicationsNamespace}); err != nil {
-				return fmt.Errorf("failed update image from %s : %w", CodeflarePath+"/bases", err)
+			// only update if passing image does not exist in params.env, to avoid unnecessary disk written
+			if err := deploy.CheckParams(ParamsPath, []string{
+				os.Getenv("RELATED_IMAGE_ODH_CODEFLARE_OPERATOR_IMAGE"),
+				dscispec.ApplicationsNamespace,
+			}); err != nil {
+				if err := deploy.ApplyParams(ParamsPath, imageParamMap, map[string]string{"namespace": dscispec.ApplicationsNamespace}); err != nil {
+					return fmt.Errorf("failed to update image from %s: %w", ParamsPath, err)
+				}
 			}
 		}
 	}

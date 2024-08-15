@@ -5,6 +5,7 @@ package workbenches
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -140,13 +141,18 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 	if enabled {
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (w.DevFlags == nil || len(w.DevFlags.Manifests) == 0) {
 			if platform == cluster.ManagedRhods || platform == cluster.SelfManagedRhods {
-				// for kf-notebook-controller image
-				if err := deploy.ApplyParams(notebookControllerPath, imageParamMap); err != nil {
-					return fmt.Errorf("failed to update image %s: %w", notebookControllerPath, err)
+				// for odh-notebook-controller image: adding post-check to ensure params.env is updated
+				if err := deploy.CheckParams(notebookControllerPath, []string{os.Getenv("RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE")}); err != nil {
+					if err := deploy.ApplyParams(notebookControllerPath, imageParamMap); err != nil {
+						return fmt.Errorf("failed to update image %s: %w", notebookControllerPath, err)
+					}
 				}
-				// for odh-notebook-controller image
-				if err := deploy.ApplyParams(kfnotebookControllerPath, imageParamMap); err != nil {
-					return fmt.Errorf("failed to update image %s: %w", kfnotebookControllerPath, err)
+
+				// for kf-notebook-controller image: only update if passing image does not exist, to avoid unnecessary disk written
+				if err := deploy.CheckParams(kfnotebookControllerPath, []string{os.Getenv("RELATED_IMAGE_ODH_KF_NOTEBOOK_CONTROLLER_IMAGE")}); err != nil {
+					if err := deploy.ApplyParams(kfnotebookControllerPath, imageParamMap); err != nil {
+						return fmt.Errorf("failed to update image %s: %w", kfnotebookControllerPath, err)
+					}
 				}
 			}
 		}

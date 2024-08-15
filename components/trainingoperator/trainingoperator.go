@@ -6,6 +6,7 @@ package trainingoperator
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/go-logr/logr"
@@ -74,8 +75,11 @@ func (r *TrainingOperator) ReconcileComponent(ctx context.Context, cli client.Cl
 			}
 		}
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (r.DevFlags == nil || len(r.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(TrainingOperatorPath, imageParamMap); err != nil {
-				return err
+			// only update if passing image does not exist in params.env, to avoid unnecessary disk written
+			if err := deploy.CheckParams(TrainingOperatorPath, []string{os.Getenv("RELATED_IMAGE_ODH_TRAINING_OPERATOR_IMAGE")}); err != nil {
+				if err := deploy.ApplyParams(TrainingOperatorPath, imageParamMap); err != nil {
+					return fmt.Errorf("failed to update image from %s: %w", TrainingOperatorPath, err)
+				}
 			}
 		}
 	}

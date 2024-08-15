@@ -5,6 +5,7 @@ package modelmeshserving
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -85,7 +86,6 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 		"odh-modelmesh-runtime-adapter": "RELATED_IMAGE_ODH_MODELMESH_RUNTIME_ADAPTER_IMAGE",
 		"odh-modelmesh":                 "RELATED_IMAGE_ODH_MODELMESH_IMAGE",
 		"odh-modelmesh-controller":      "RELATED_IMAGE_ODH_MODELMESH_CONTROLLER_IMAGE",
-		"odh-model-controller":          "RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
 	}
 
 	// odh-model-controller to use
@@ -114,8 +114,15 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 		}
 		// Update image parameters
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (m.DevFlags == nil || len(m.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(Path, imageParamMap); err != nil {
-				return fmt.Errorf("failed update image from %s : %w", Path, err)
+			// only update if passing image does not exist in params.env, to avoid unnecessary disk written
+			var paramsMapValues []string
+			for _, image := range imageParamMap {
+				paramsMapValues = append(paramsMapValues, os.Getenv(image))
+			}
+			if err := deploy.CheckParams(Path, paramsMapValues); err != nil {
+				if err := deploy.ApplyParams(Path, imageParamMap); err != nil {
+					return fmt.Errorf("failed to update image from %s: %w", Path, err)
+				}
 			}
 		}
 	}
@@ -132,8 +139,11 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 		}
 		// Update image parameters for odh-model-controller
 		if dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "" {
-			if err := deploy.ApplyParams(DependentPath, dependentImageParamMap); err != nil {
-				return err
+			// only update if passing image does not exist in params.env, to avoid unnecessary disk written
+			if err := deploy.CheckParams(Path, []string{os.Getenv("RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE")}); err != nil {
+				if err := deploy.ApplyParams(DependentPath, dependentImageParamMap); err != nil {
+					return fmt.Errorf("failed to update image from %s: %w", dependentImageParamMap, err)
+				}
 			}
 		}
 	}

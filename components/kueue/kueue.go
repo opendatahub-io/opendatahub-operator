@@ -4,6 +4,7 @@ package kueue
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/go-logr/logr"
@@ -70,8 +71,11 @@ func (k *Kueue) ReconcileComponent(ctx context.Context, cli client.Client, logge
 			}
 		}
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (k.DevFlags == nil || len(k.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(Path, imageParamMap); err != nil {
-				return fmt.Errorf("failed to update image from %s : %w", Path, err)
+			// only update if passing image does not exist in params.env, to avoid unnecessary disk written
+			if err := deploy.CheckParams(Path, []string{os.Getenv("RELATED_IMAGE_ODH_KUEUE_CONTROLLER_IMAGE")}); err != nil {
+				if err := deploy.ApplyParams(Path, imageParamMap); err != nil {
+					return fmt.Errorf("failed to update image from %s : %w", Path, err)
+				}
 			}
 		}
 	}

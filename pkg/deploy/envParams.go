@@ -100,3 +100,48 @@ func ApplyParams(componentPath string, imageParamsMap map[string]string, extraPa
 
 	return nil
 }
+
+// check if matchStrings exists in componentPath's params.env file
+// if found string in matchStrings all exist, return nil
+// if any step fail, return err.
+// if some of the strings are not found, return err.
+func CheckParams(componentPath string, matchStrings []string) error {
+	paramsFile := filepath.Join(componentPath, "params.env")
+	paramsEnv, err := os.Open(paramsFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return err
+		}
+		return err
+	}
+	defer paramsEnv.Close()
+
+	// init a all false map
+	found := make(map[string]bool)
+	for _, str := range matchStrings {
+		found[str] = false
+	}
+	scanner := bufio.NewScanner(paramsEnv)
+	for scanner.Scan() {
+		line := scanner.Text()
+		for _, str := range matchStrings {
+			if strings.Contains(line, str) {
+				found[str] = true
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+
+	var allMissings []string
+	for _, str := range matchStrings {
+		if !found[str] {
+			allMissings = append(allMissings, str)
+		}
+	}
+	if len(allMissings) > 0 {
+		return fmt.Errorf("such are not found in params.env: %v", allMissings)
+	}
+	return nil
+}

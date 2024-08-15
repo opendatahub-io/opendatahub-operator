@@ -5,6 +5,7 @@ package trustyai
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/go-logr/logr"
@@ -73,8 +74,14 @@ func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client, lo
 			}
 		}
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (t.DevFlags == nil || len(t.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(Path, imageParamMap); err != nil {
-				return fmt.Errorf("failed to update image %s: %w", Path, err)
+			// only update if passing image does not exist in params.env, to avoid unnecessary disk written
+			if err := deploy.CheckParams(Path, []string{
+				os.Getenv("RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE"),
+				os.Getenv("RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE"),
+			}); err != nil {
+				if err := deploy.ApplyParams(Path, imageParamMap); err != nil {
+					return fmt.Errorf("failed to update image from %s: %w", Path, err)
+				}
 			}
 		}
 	}

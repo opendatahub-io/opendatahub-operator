@@ -6,6 +6,7 @@ package ray
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/go-logr/logr"
@@ -74,8 +75,14 @@ func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, logger 
 			}
 		}
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (r.DevFlags == nil || len(r.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(RayPath, imageParamMap, map[string]string{"namespace": dscispec.ApplicationsNamespace}); err != nil {
-				return fmt.Errorf("failed to update image from %s : %w", RayPath, err)
+			// only update if passing image does not exist in params.env, to avoid unnecessary disk written
+			if err := deploy.CheckParams(RayPath, []string{
+				os.Getenv("RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE"),
+				dscispec.ApplicationsNamespace,
+			}); err != nil {
+				if err := deploy.ApplyParams(RayPath, imageParamMap, map[string]string{"namespace": dscispec.ApplicationsNamespace}); err != nil {
+					return fmt.Errorf("failed to update image from %s: %w", RayPath, err)
+				}
 			}
 		}
 	}
