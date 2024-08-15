@@ -39,8 +39,8 @@ var FeatureData = struct {
 
 type Authorization struct {
 	infrav1.AuthSpec
+	InstanceName,
 	ProviderName,
-	ExtensionName,
 	AuthConfigSelector string
 }
 
@@ -59,8 +59,8 @@ func CreateAuthorizationData(_ context.Context, _ client.Client, dsciSpec *dsciv
 			Namespace: authNamespace,
 			Audiences: dsciSpec.ServiceMesh.Auth.Audiences,
 		},
-		ProviderName:       "authorino",
-		ExtensionName:      dsciSpec.ApplicationsNamespace + "-auth-provider",
+		InstanceName:       "authorino",
+		ProviderName:       dsciSpec.ApplicationsNamespace + "-auth-provider",
 		AuthConfigSelector: "security.opendatahub.io/authorization-group=default",
 	}
 

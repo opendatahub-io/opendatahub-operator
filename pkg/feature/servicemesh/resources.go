@@ -55,11 +55,9 @@ func AuthRefs(ctx context.Context, f *feature.Feature) error {
 		audiencesList = strings.Join(*audiences, ",")
 	}
 	data := map[string]string{
-		"AUTH_AUDIENCE":     audiencesList,
-		"AUTH_PROVIDER":     auth.ProviderName,
-		"AUTH_EXT_PROVIDER": auth.ExtensionName,
-		"AUTH_NAMESPACE":    auth.Namespace,
-		"AUTHORINO_LABEL":   "security.opendatahub.io/authorization-group=default",
+		"AUTH_AUDIENCE":   audiencesList,
+		"AUTH_PROVIDER":   auth.ProviderName,
+		"AUTHORINO_LABEL": auth.AuthConfigSelector,
 	}
 
 	return cluster.CreateOrUpdateConfigMap(
