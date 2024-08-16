@@ -114,7 +114,7 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 		}
 		// Update image parameters
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (m.DevFlags == nil || len(m.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(Path, imageParamMap, false); err != nil {
+			if err := deploy.ApplyParams(Path, imageParamMap); err != nil {
 				return fmt.Errorf("failed update image from %s : %w", Path, err)
 			}
 		}
@@ -132,7 +132,7 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 		}
 		// Update image parameters for odh-model-controller
 		if dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "" {
-			if err := deploy.ApplyParams(DependentPath, dependentImageParamMap, false); err != nil {
+			if err := deploy.ApplyParams(DependentPath, dependentImageParamMap); err != nil {
 				return err
 			}
 		}

@@ -67,7 +67,6 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context,
 	l := c.ConfigComponentLogger(logger, ComponentName, dscispec)
 	var imageParamMap = map[string]string{
 		"codeflare-operator-controller-image": "RELATED_IMAGE_ODH_CODEFLARE_OPERATOR_IMAGE", // no need mcad, embedded in cfo
-		"namespace":                           dscispec.ApplicationsNamespace,
 	}
 
 	enabled := c.GetManagementState() == operatorv1.Managed
@@ -93,7 +92,7 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context,
 
 		// Update image parameters only when we do not have customized manifests set
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (c.DevFlags == nil || len(c.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(ParamsPath, imageParamMap, true); err != nil {
+			if err := deploy.ApplyParams(ParamsPath, imageParamMap, map[string]string{"namespace": dscispec.ApplicationsNamespace}); err != nil {
 				return fmt.Errorf("failed update image from %s : %w", CodeflarePath+"/bases", err)
 			}
 		}

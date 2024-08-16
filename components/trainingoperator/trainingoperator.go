@@ -61,7 +61,6 @@ func (r *TrainingOperator) ReconcileComponent(ctx context.Context, cli client.Cl
 
 	var imageParamMap = map[string]string{
 		"odh-training-operator-controller-image": "RELATED_IMAGE_ODH_TRAINING_OPERATOR_IMAGE",
-		"namespace":                              dscispec.ApplicationsNamespace,
 	}
 
 	enabled := r.GetManagementState() == operatorv1.Managed
@@ -75,7 +74,7 @@ func (r *TrainingOperator) ReconcileComponent(ctx context.Context, cli client.Cl
 			}
 		}
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (r.DevFlags == nil || len(r.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(TrainingOperatorPath, imageParamMap, true); err != nil {
+			if err := deploy.ApplyParams(TrainingOperatorPath, imageParamMap); err != nil {
 				return err
 			}
 		}
