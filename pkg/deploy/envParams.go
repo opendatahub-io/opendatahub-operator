@@ -8,27 +8,11 @@ import (
 	"strings"
 )
 
-/*
-overwrite values in components' manifests params.env file
-This is useful for air gapped cluster
-priority of image values (from high to low):
-- image values set in manifests params.env if manifestsURI is set
-- RELATED_IMAGE_* values from CSV (if it is set)
-- image values set in manifests params.env if manifestsURI is not set.
-extraParamsMaps is used to set extra parameters which are not carried from ENV variable. this can be passed per component.
-*/
-func ApplyParams(componentPath string, imageParamsMap map[string]string, extraParamsMaps ...map[string]string) error {
-	paramsFile := filepath.Join(componentPath, "params.env")
-	// Require params.env at the root folder
-	paramsEnv, err := os.Open(paramsFile)
+func parseParams(fileName string) (map[string]string, error) {
+	paramsEnv, err := os.Open(fileName)
 	if err != nil {
-		if os.IsNotExist(err) {
-			// params.env doesn't exist, do not apply any changes
-			return nil
-		}
-		return err
+		return nil, err
 	}
-
 	defer paramsEnv.Close()
 
 	paramsEnvMap := make(map[string]string)
@@ -41,6 +25,53 @@ func ApplyParams(componentPath string, imageParamsMap map[string]string, extraPa
 		}
 	}
 	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return paramsEnvMap, nil
+}
+
+func writeParamsToTmp(params map[string]string, tmpDir string) (string, error) {
+	tmp, err := os.CreateTemp(tmpDir, "params.env-")
+	if err != nil {
+		return "", err
+	}
+	defer tmp.Close()
+
+	// Write the new map to temporary file
+	writer := bufio.NewWriter(tmp)
+	for key, value := range params {
+		if _, err := fmt.Fprintf(writer, "%s=%s\n", key, value); err != nil {
+			return "", err
+		}
+	}
+	if err := writer.Flush(); err != nil {
+		fmt.Printf("Failed to write to file: %v", err)
+		return "", err
+	}
+
+	return tmp.Name(), nil
+}
+
+/*
+overwrite values in components' manifests params.env file
+This is useful for air gapped cluster
+priority of image values (from high to low):
+- image values set in manifests params.env if manifestsURI is set
+- RELATED_IMAGE_* values from CSV (if it is set)
+- image values set in manifests params.env if manifestsURI is not set.
+extraParamsMaps is used to set extra parameters which are not carried from ENV variable. this can be passed per component.
+*/
+func ApplyParams(componentPath string, imageParamsMap map[string]string, extraParamsMaps ...map[string]string) error {
+	paramsFile := filepath.Join(componentPath, "params.env")
+	// Require params.env at the root folder
+
+	paramsEnvMap, err := parseParams(paramsFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// params.env doesn't exist, do not apply any changes
+			return nil
+		}
 		return err
 	}
 
@@ -60,41 +91,14 @@ func ApplyParams(componentPath string, imageParamsMap map[string]string, extraPa
 		}
 	}
 
-	// Move the existing file to a backup file and create empty file
-	paramsBackupFile := paramsFile + ".bak"
-	if err := os.Rename(paramsFile, paramsBackupFile); err != nil {
-		return err
-	}
-
-	file, err := os.Create(paramsFile)
+	tmp, err := writeParamsToTmp(paramsEnvMap, componentPath)
 	if err != nil {
-		// If create fails, try to restore the backup file
-		_ = os.Rename(paramsBackupFile, paramsFile)
-		return err
-	}
-	defer file.Close()
-
-	// Now, write the new map back to params.env
-	writer := bufio.NewWriter(file)
-	for key, value := range paramsEnvMap {
-		if _, fErr := fmt.Fprintf(writer, "%s=%s\n", key, value); fErr != nil {
-			return fErr
-		}
-	}
-	if err := writer.Flush(); err != nil {
-		if removeErr := os.Remove(paramsFile); removeErr != nil {
-			fmt.Printf("Failed to remove file: %v", removeErr)
-		}
-		if renameErr := os.Rename(paramsBackupFile, paramsFile); renameErr != nil {
-			fmt.Printf("Failed to restore file from backup: %v", renameErr)
-		}
-		fmt.Printf("Failed to write to file: %v", err)
 		return err
 	}
 
-	// cleanup backup file params.env.bak
-	if err := os.Remove(paramsBackupFile); err != nil {
-		fmt.Printf("Failed to remove backup file: %v", err)
+	if err = os.Rename(tmp, paramsFile); err != nil {
+		fmt.Printf("Failed rename %s to %s\n", tmp, paramsFile)
+		_ = os.Remove(tmp)
 		return err
 	}
 
