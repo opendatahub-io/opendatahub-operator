@@ -96,8 +96,6 @@ func (k *Kserve) GetComponentName() string {
 func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 	logger logr.Logger, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, platform cluster.Platform, _ bool) error {
 	l := k.ConfigComponentLogger(logger, ComponentName, dscispec)
-	// paramMap for Kserve to use.
-	var imageParamMap = map[string]string{}
 
 	// dependentParamMap for odh-model-controller to use.
 	var dependentParamMap = map[string]string{
@@ -121,13 +119,6 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 			if err := k.OverrideManifests(ctx, platform); err != nil {
 				return err
 			}
-		}
-	}
-
-	// Update image parameters only when we do not have customized manifests set
-	if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (k.DevFlags == nil || len(k.DevFlags.Manifests) == 0) {
-		if err := deploy.ApplyParams(Path, imageParamMap, false); err != nil {
-			return fmt.Errorf("failed to update image from %s : %w", Path, err)
 		}
 	}
 
