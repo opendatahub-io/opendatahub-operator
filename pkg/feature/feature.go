@@ -51,7 +51,7 @@ type Feature struct {
 
 	appliers []resource.Applier
 
-	cleanups          []Action
+	cleanups          []CleanupFunc
 	clusterOperations []Action
 	preconditions     []Action
 	postconditions    []Action
@@ -61,6 +61,12 @@ type Feature struct {
 // Action is a func type which can be used for different purposes during Feature's lifecycle
 // while having access to Feature struct.
 type Action func(ctx context.Context, f *Feature) error
+
+// CleanupFunc defines how to clean up resources associated with a feature.
+// By default, all resources created by the feature are deleted when the feature is,
+// so there is no need to explicitly add cleanup hooks for them.
+// This is useful when you need to perform some additional cleanup actions such as removing effects of a patch operation.
+type CleanupFunc func(ctx context.Context, cli client.Client) error
 
 // EnabledFunc is a func type used to determine if a feature should be enabled.
 type EnabledFunc func(ctx context.Context, feature *Feature) (bool, error)
@@ -138,26 +144,17 @@ func (f *Feature) applyFeature(ctx context.Context) error {
 func (f *Feature) Cleanup(ctx context.Context) error {
 	// Ensure associated FeatureTracker instance has been removed as last one
 	// in the chain of cleanups.
-	f.addCleanup(removeFeatureTracker)
+	f.addCleanup(removeFeatureTracker(f))
 
 	var cleanupErrors *multierror.Error
-
-	for _, dataProvider := range f.dataProviders {
-		cleanupErrors = multierror.Append(cleanupErrors, dataProvider(ctx, f))
-	}
-
-	if dataLoadErr := cleanupErrors.ErrorOrNil(); dataLoadErr != nil {
-		return dataLoadErr
-	}
-
 	for _, cleanupFunc := range f.cleanups {
-		cleanupErrors = multierror.Append(cleanupErrors, cleanupFunc(ctx, f))
+		cleanupErrors = multierror.Append(cleanupErrors, cleanupFunc(ctx, f.Client))
 	}
 
 	return cleanupErrors.ErrorOrNil()
 }
 
-func (f *Feature) addCleanup(cleanupFuncs ...Action) {
+func (f *Feature) addCleanup(cleanupFuncs ...CleanupFunc) {
 	f.cleanups = append(f.cleanups, cleanupFuncs...)
 }
 

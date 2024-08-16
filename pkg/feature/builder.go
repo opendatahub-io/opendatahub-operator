@@ -174,11 +174,7 @@ func (fb *featureBuilder) PostConditions(postconditions ...Action) *featureBuild
 }
 
 // OnDelete allow to add cleanup hooks that are executed when the feature is going to be deleted.
-// By default, all resources created by the feature are deleted when the feature is deleted, so there is no need to
-// explicitly add cleanup hooks for them.
-//
-// This is useful when you need to perform some additional cleanup actions such as removing effects of a patch operation.
-func (fb *featureBuilder) OnDelete(cleanups ...Action) *featureBuilder {
+func (fb *featureBuilder) OnDelete(cleanups ...CleanupFunc) *featureBuilder {
 	fb.builders = append(fb.builders, func(f *Feature) error {
 		f.addCleanup(cleanups...)
 
