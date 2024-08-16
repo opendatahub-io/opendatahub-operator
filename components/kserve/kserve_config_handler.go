@@ -129,9 +129,15 @@ func (k *Kserve) configureServerless(ctx context.Context, cli client.Client, ins
 		}
 
 	case operatorv1.Managed: // standard workflow to create CR
+		if instance.ServiceMesh == nil {
+			return errors.New("ServiceMesh needs to be configured and 'Managed' in DSCI CR, " +
+				"it is required by KServe serving")
+		}
+
 		switch instance.ServiceMesh.ManagementState {
 		case operatorv1.Unmanaged, operatorv1.Removed:
-			return errors.New("ServiceMesh is need to set to 'Managed' in DSCI CR, it is required by KServe serving field")
+			return fmt.Errorf("ServiceMesh is currently set to '%s'. It needs to be set to 'Managed' in DSCI CR, "+
+				"as it is required by the KServe serving field", instance.ServiceMesh.ManagementState)
 		}
 
 		// check on dependent operators if all installed in cluster
