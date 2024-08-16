@@ -430,6 +430,11 @@ func (tc *testContext) testDefaultCertsAvailable() error {
 }
 
 func (tc *testContext) testDefaultModelRegistryCertAvailable() error {
+	// return if MR is not set to Managed
+	if tc.testDsc.Spec.Components.ModelRegistry.ManagementState != operatorv1.Managed {
+		return nil
+	}
+
 	// Get expected cert secrets
 	defaultIngressCtrl, err := cluster.FindAvailableIngressController(tc.ctx, tc.customClient)
 	if err != nil {

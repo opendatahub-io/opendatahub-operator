@@ -4,6 +4,7 @@ package modelregistry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 
@@ -73,6 +74,11 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 
 	if enabled {
+		// return error if ServiceMesh is not enabled, as it's a required feature
+		if dscispec.ServiceMesh == nil || dscispec.ServiceMesh.ManagementState == operatorv1.Unmanaged || dscispec.ServiceMesh.ManagementState == operatorv1.Removed {
+			return errors.New("ServiceMesh needs to be set to 'Managed' in DSCI CR, it is required by Model Registry")
+		}
+
 		if err := m.createDependencies(ctx, cli, dscispec); err != nil {
 			return err
 		}
