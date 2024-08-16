@@ -203,7 +203,10 @@ func (r *DSCInitializationReconciler) authorizationFeatures(instance *dsciv1.DSC
 					feature.WaitForPodsToBeReady(serviceMeshSpec.ControlPlane.Namespace),
 				).
 				OnDelete(
-					servicemesh.RemoveExtensionProvider,
+					servicemesh.RemoveExtensionProvider(
+						instance.Spec.ServiceMesh.ControlPlane,
+						instance.Spec.ApplicationsNamespace+"-auth-provider",
+					),
 				),
 
 			// We do not have the control over deployment resource creation.

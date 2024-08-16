@@ -212,7 +212,10 @@ var _ = Describe("Service Mesh setup", func() {
 								servicemesh.FeatureData.ControlPlane.Define(&dsci.Spec).AsAction(),
 							).
 							OnDelete(
-								servicemesh.RemoveExtensionProvider,
+								servicemesh.RemoveExtensionProvider(
+									dsci.Spec.ServiceMesh.ControlPlane,
+									dsci.Spec.ApplicationsNamespace+"-auth-provider",
+								),
 							))
 					})
 

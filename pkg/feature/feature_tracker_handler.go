@@ -30,7 +30,7 @@ func (e *withConditionReasonError) Error() string {
 // createFeatureTracker creates a FeatureTracker, persists it in the cluster,
 // and attaches it to the provided Feature instance.
 func createFeatureTracker(ctx context.Context, f *Feature) error {
-	tracker, errGet := getFeatureTracker(ctx, f)
+	tracker, errGet := getFeatureTracker(ctx, f.Client, f.Name, f.TargetNamespace)
 	if client.IgnoreNotFound(errGet) != nil {
 		return errGet
 	}
@@ -56,28 +56,30 @@ func createFeatureTracker(ctx context.Context, f *Feature) error {
 }
 
 // removeFeatureTracker removes the FeatureTracker associated with the provided Feature instance if one exists in the cluster.
-func removeFeatureTracker(ctx context.Context, f *Feature) error {
-	associatedTracker := f.tracker
-	if associatedTracker == nil {
-		// Check if it is persisted in the cluster, but Feature do not have it attached
-		if tracker, errGet := getFeatureTracker(ctx, f); client.IgnoreNotFound(errGet) != nil {
-			return errGet
-		} else {
-			associatedTracker = tracker
+func removeFeatureTracker(f *Feature) CleanupFunc {
+	return func(ctx context.Context, cli client.Client) error {
+		associatedTracker := f.tracker
+		if associatedTracker == nil {
+			// Check if it is persisted in the cluster, but Feature do not have it attached
+			if tracker, errGet := getFeatureTracker(ctx, cli, f.Name, f.TargetNamespace); client.IgnoreNotFound(errGet) != nil {
+				return errGet
+			} else {
+				associatedTracker = tracker
+			}
 		}
-	}
 
-	if associatedTracker != nil {
-		return client.IgnoreNotFound(f.Client.Delete(ctx, associatedTracker))
-	}
+		if associatedTracker != nil {
+			return client.IgnoreNotFound(f.Client.Delete(ctx, associatedTracker))
+		}
 
-	return nil
+		return nil
+	}
 }
 
-func getFeatureTracker(ctx context.Context, f *Feature) (*featurev1.FeatureTracker, error) {
-	tracker := featurev1.NewFeatureTracker(f.Name, f.TargetNamespace)
+func getFeatureTracker(ctx context.Context, cli client.Client, featureName, namespace string) (*featurev1.FeatureTracker, error) {
+	tracker := featurev1.NewFeatureTracker(featureName, namespace)
 
-	if errGet := f.Client.Get(ctx, client.ObjectKeyFromObject(tracker), tracker); errGet != nil {
+	if errGet := cli.Get(ctx, client.ObjectKeyFromObject(tracker), tracker); errGet != nil {
 		return nil, errGet
 	}
 
