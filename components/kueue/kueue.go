@@ -70,7 +70,7 @@ func (k *Kueue) ReconcileComponent(ctx context.Context, cli client.Client, logge
 			}
 		}
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (k.DevFlags == nil || len(k.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(Path, imageParamMap, true); err != nil {
+			if err := deploy.ApplyParams(Path, imageParamMap); err != nil {
 				return fmt.Errorf("failed to update image from %s : %w", Path, err)
 			}
 		}

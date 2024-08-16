@@ -60,7 +60,6 @@ func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, logger 
 
 	var imageParamMap = map[string]string{
 		"odh-kuberay-operator-controller-image": "RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE",
-		"namespace":                             dscispec.ApplicationsNamespace,
 	}
 
 	enabled := r.GetManagementState() == operatorv1.Managed
@@ -74,7 +73,7 @@ func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, logger 
 			}
 		}
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (r.DevFlags == nil || len(r.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(RayPath, imageParamMap, true); err != nil {
+			if err := deploy.ApplyParams(RayPath, imageParamMap, map[string]string{"namespace": dscispec.ApplicationsNamespace}); err != nil {
 				return fmt.Errorf("failed to update image from %s : %w", RayPath, err)
 			}
 		}

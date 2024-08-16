@@ -141,11 +141,11 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (w.DevFlags == nil || len(w.DevFlags.Manifests) == 0) {
 			if platform == cluster.ManagedRhods || platform == cluster.SelfManagedRhods {
 				// for kf-notebook-controller image
-				if err := deploy.ApplyParams(notebookControllerPath, imageParamMap, false); err != nil {
+				if err := deploy.ApplyParams(notebookControllerPath, imageParamMap); err != nil {
 					return fmt.Errorf("failed to update image %s: %w", notebookControllerPath, err)
 				}
 				// for odh-notebook-controller image
-				if err := deploy.ApplyParams(kfnotebookControllerPath, imageParamMap, false); err != nil {
+				if err := deploy.ApplyParams(kfnotebookControllerPath, imageParamMap); err != nil {
 					return fmt.Errorf("failed to update image %s: %w", kfnotebookControllerPath, err)
 				}
 			}

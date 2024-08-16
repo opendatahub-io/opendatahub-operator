@@ -122,7 +122,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		}
 
 		// 4. update params.env regardless devFlags is provided of not
-		if err := deploy.ApplyParams(entryPath, imageParamMap, false, extraParamsMap); err != nil {
+		if err := deploy.ApplyParams(entryPath, imageParamMap, extraParamsMap); err != nil {
 			return fmt.Errorf("failed to update params.env  from %s : %w", entryPath, err)
 		}
 	}

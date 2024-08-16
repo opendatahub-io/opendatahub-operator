@@ -15,10 +15,9 @@ priority of image values (from high to low):
 - image values set in manifests params.env if manifestsURI is set
 - RELATED_IMAGE_* values from CSV (if it is set)
 - image values set in manifests params.env if manifestsURI is not set.
-parameter isUpdateNamespace is used to set if should update namespace  with DSCI CR's applicationnamespace.
 extraParamsMaps is used to set extra parameters which are not carried from ENV variable. this can be passed per component.
 */
-func ApplyParams(componentPath string, imageParamsMap map[string]string, isUpdateNamespace bool, extraParamsMaps ...map[string]string) error {
+func ApplyParams(componentPath string, imageParamsMap map[string]string, extraParamsMaps ...map[string]string) error {
 	paramsFile := filepath.Join(componentPath, "params.env")
 	// Require params.env at the root folder
 	paramsEnv, err := os.Open(paramsFile)
@@ -54,12 +53,7 @@ func ApplyParams(componentPath string, imageParamsMap map[string]string, isUpdat
 		}
 	}
 
-	// 2. Update namespace variable with applicationNamepsace
-	if isUpdateNamespace {
-		paramsEnvMap["namespace"] = imageParamsMap["namespace"]
-	}
-
-	// 3. Update other fileds with extraParamsMap which are not carried from component
+	// 2. Update other fileds with extraParamsMap which are not carried from component
 	for _, extraParamsMap := range extraParamsMaps {
 		for eKey, eValue := range extraParamsMap {
 			paramsEnvMap[eKey] = eValue
