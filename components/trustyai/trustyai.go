@@ -11,6 +11,7 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
@@ -24,6 +25,7 @@ var (
 	PathUpstream      = deploy.DefaultManifestPath + "/" + ComponentPathName + "/overlays/odh"
 	PathDownstream    = deploy.DefaultManifestPath + "/" + ComponentPathName + "/overlays/rhoai"
 	OverridePath      = ""
+	DefaultPath       = ""
 )
 
 // Verifies that TrustyAI implements ComponentInterface.
@@ -33,6 +35,27 @@ var _ components.ComponentInterface = (*TrustyAI)(nil)
 // +kubebuilder:object:generate=true
 type TrustyAI struct {
 	components.Component `json:""`
+}
+
+func (t *TrustyAI) Init(ctx context.Context, platform cluster.Platform) error {
+	log := logf.FromContext(ctx).WithName(ComponentName)
+
+	DefaultPath = map[cluster.Platform]string{
+		cluster.SelfManagedRhods: PathDownstream,
+		cluster.ManagedRhods:     PathDownstream,
+		cluster.OpenDataHub:      PathUpstream,
+		cluster.Unknown:          PathUpstream,
+	}[platform]
+	var imageParamMap = map[string]string{
+		"trustyaiServiceImage":  "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE",
+		"trustyaiOperatorImage": "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE",
+	}
+
+	if err := deploy.ApplyParams(DefaultPath, imageParamMap); err != nil {
+		log.Error(err, "failed to update image", "path", DefaultPath)
+	}
+
+	return nil
 }
 
 func (t *TrustyAI) OverrideManifests(ctx context.Context, _ cluster.Platform) error {
@@ -58,19 +81,9 @@ func (t *TrustyAI) GetComponentName() string {
 
 func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client, l logr.Logger,
 	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, platform cluster.Platform, _ bool) error {
-	var imageParamMap = map[string]string{
-		"trustyaiServiceImage":  "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE",
-		"trustyaiOperatorImage": "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE",
-	}
-	entryPath := map[cluster.Platform]string{
-		cluster.SelfManagedRhods: PathDownstream,
-		cluster.ManagedRhods:     PathDownstream,
-		cluster.OpenDataHub:      PathUpstream,
-		cluster.Unknown:          PathUpstream,
-	}[platform]
-
 	enabled := t.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
+	entryPath := DefaultPath
 
 	if enabled {
 		if t.DevFlags != nil {
@@ -80,11 +93,6 @@ func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client, l 
 			}
 			if OverridePath != "" {
 				entryPath = OverridePath
-			}
-		}
-		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (t.DevFlags == nil || len(t.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(entryPath, imageParamMap); err != nil {
-				return fmt.Errorf("failed to update image %s: %w", entryPath, err)
 			}
 		}
 	}
