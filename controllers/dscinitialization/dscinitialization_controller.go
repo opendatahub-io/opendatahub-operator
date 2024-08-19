@@ -424,6 +424,7 @@ func (r *DSCInitializationReconciler) watchDSCResource(ctx context.Context) []re
 	instanceList := &dscv1.DataScienceClusterList{}
 	if err := r.Client.List(ctx, instanceList); err != nil {
 		// do not handle if cannot get list
+		r.Log.Error(err, "Failed to get DataScienceClusterList")
 		return nil
 	}
 	if len(instanceList.Items) == 0 && !upgrade.HasDeleteConfigMap(ctx, r.Client) {

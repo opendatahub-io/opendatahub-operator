@@ -115,6 +115,7 @@ func (w *OpenDataHubWebhook) Handle(ctx context.Context, req admission.Request) 
 	default: // for other operations by default it is admission.Allowed("")
 		// no-op
 	}
+
 	if !resp.Allowed {
 		return resp
 	}

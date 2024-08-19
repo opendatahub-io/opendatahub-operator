@@ -131,7 +131,7 @@ func main() { //nolint:funlen
 		Metrics: ctrlmetrics.Options{BindAddress: metricsAddr},
 		WebhookServer: ctrlwebhook.NewServer(ctrlwebhook.Options{
 			Port: 9443,
-			// TLSOpts: , // TODO: do we need tls for webhook, it was not set in the old code
+			// TLSOpts: , // TODO: do we need tls for webhook
 		}),
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,

@@ -122,11 +122,13 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
 
+	webhookInstallOptions := &testEnv.WebhookInstallOptions
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
 		Scheme:         testScheme,
 		LeaderElection: false,
 		Metrics: ctrlmetrics.Options{
-			BindAddress: ":8080",
+			BindAddress: "0",
+			CertDir:     webhookInstallOptions.LocalServingCertDir,
 		},
 	})
 
