@@ -17,17 +17,22 @@ module.exports = ({ github, core }) => {
         }
     }).then((result) => {
         result.data.forEach((issue) => {
-            issueCommentBody = issue.body_text
+            let issueCommentBody = issue.body_text
             if (issueCommentBody.includes("#Release#")) {
                 let components = issueCommentBody.split("\n")
                 const releaseIdx = components.indexOf("#Release#")
                 components = components.splice(releaseIdx + 1, components.length)
-                const regex = /\s*[A-Za-z-_0-9]+\s*\|\s*(https:\/\/github\.com\/.*tree.*){1}\s*\|\s*(https:\/\/github\.com\/.*releases.*){1}\s*/;
+                const regex = /\s*[A-Za-z-_0-9]+\s*\|\s*(https:\/\/github\.com\/.*(tree|releases).*){1}\s*\|?\s*(https:\/\/github\.com\/.*releases.*)?\s*/;
                 components.forEach(component => {
                     if (regex.test(component)) {
-                        const [componentName, branchUrl] = component.split("|")
-                        const splitArr = branchUrl.trim().split("/")
-                        const idx = splitArr.indexOf("tree")
+                        const [componentName, branchOrTagUrl] = component.split("|")
+                        const splitArr = branchOrTagUrl.trim().split("/")
+                        let idx = null
+                        if (splitArr.includes("tag")) {
+                            idx = splitArr.indexOf("tag")
+                        } else if (splitArr.includes("tree")) {
+                            idx = splitArr.indexOf("tree")
+                        }
                         const branchName = splitArr.slice(idx + 1).join("/")
                         if (componentName.trim() === "notebook-controller") {
                             core.exportVariable("component_spec_odh-notebook-controller".toLowerCase(), branchName);
