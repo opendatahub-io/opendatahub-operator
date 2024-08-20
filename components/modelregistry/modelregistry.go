@@ -75,7 +75,7 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 
 	if enabled {
 		// return error if ServiceMesh is not enabled, as it's a required feature
-		if dscispec.ServiceMesh == nil || dscispec.ServiceMesh.ManagementState == operatorv1.Unmanaged || dscispec.ServiceMesh.ManagementState == operatorv1.Removed {
+		if dscispec.ServiceMesh == nil || dscispec.ServiceMesh.ManagementState != operatorv1.Managed {
 			return errors.New("ServiceMesh needs to be set to 'Managed' in DSCI CR, it is required by Model Registry")
 		}
 
