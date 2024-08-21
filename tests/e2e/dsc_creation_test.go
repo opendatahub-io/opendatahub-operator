@@ -194,7 +194,7 @@ func (tc *testContext) requireInstalled(t *testing.T, gvk schema.GroupVersionKin
 	err := tc.customClient.List(tc.ctx, list)
 	require.NoErrorf(t, err, "Could not get %s list", gvk.Kind)
 
-	require.NotEmptyf(t, len(list.Items), "%s has not been installed", gvk.Kind)
+	require.NotEmptyf(t, list.Items, "%s has not been installed", gvk.Kind)
 }
 
 func (tc *testContext) testDuplication(t *testing.T, gvk schema.GroupVersionKind, o any) {
@@ -433,37 +433,41 @@ func (tc *testContext) testUpdateComponentReconcile() error {
 	if err != nil {
 		return err
 	}
-	if len(appDeployments.Items) != 0 {
-		testDeployment := appDeployments.Items[0]
-		expectedReplica := 3
-		patchedReplica := &autoscalingv1.Scale{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      testDeployment.Name,
-				Namespace: testDeployment.Namespace,
-			},
-			Spec: autoscalingv1.ScaleSpec{
-				Replicas: 3,
-			},
-			Status: autoscalingv1.ScaleStatus{},
-		}
-		updatedDep, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).UpdateScale(tc.ctx, testDeployment.Name, patchedReplica, metav1.UpdateOptions{})
-		if err != nil {
-			return fmt.Errorf("error patching component resources : %w", err)
-		}
-		if updatedDep.Spec.Replicas != patchedReplica.Spec.Replicas {
-			return fmt.Errorf("failed to patch replicas : expect to be %v but got %v", patchedReplica.Spec.Replicas, updatedDep.Spec.Replicas)
-		}
 
-		// Sleep for 40 seconds to allow the operator to reconcile
-		// we expect it should not revert back to original value because of AllowList
-		time.Sleep(4 * tc.resourceRetryInterval)
-		reconciledDep, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).Get(tc.ctx, testDeployment.Name, metav1.GetOptions{})
-		if err != nil {
-			return fmt.Errorf("error getting component resource after reconcile: %w", err)
-		}
-		if *reconciledDep.Spec.Replicas != int32(expectedReplica) {
-			return fmt.Errorf("failed to revert back replicas : expect to be %v but got %v", expectedReplica, *reconciledDep.Spec.Replicas)
-		}
+	if len(appDeployments.Items) != 1 {
+		return fmt.Errorf("error getting deployment for component %s", tc.testDsc.Spec.Components.Dashboard.GetComponentName())
+	}
+
+	const expectedReplica int32 = 3
+
+	testDeployment := appDeployments.Items[0]
+	patchedReplica := &autoscalingv1.Scale{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      testDeployment.Name,
+			Namespace: testDeployment.Namespace,
+		},
+		Spec: autoscalingv1.ScaleSpec{
+			Replicas: expectedReplica,
+		},
+		Status: autoscalingv1.ScaleStatus{},
+	}
+	updatedDep, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).UpdateScale(tc.ctx, testDeployment.Name, patchedReplica, metav1.UpdateOptions{})
+	if err != nil {
+		return fmt.Errorf("error patching component resources : %w", err)
+	}
+	if updatedDep.Spec.Replicas != patchedReplica.Spec.Replicas {
+		return fmt.Errorf("failed to patch replicas : expect to be %v but got %v", patchedReplica.Spec.Replicas, updatedDep.Spec.Replicas)
+	}
+
+	// Sleep for 40 seconds to allow the operator to reconcile
+	// we expect it should not revert back to original value because of AllowList
+	time.Sleep(4 * tc.resourceRetryInterval)
+	reconciledDep, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).Get(tc.ctx, testDeployment.Name, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("error getting component resource after reconcile: %w", err)
+	}
+	if *reconciledDep.Spec.Replicas != expectedReplica {
+		return fmt.Errorf("failed to revert back replicas : expect to be %v but got %v", expectedReplica, *reconciledDep.Spec.Replicas)
 	}
 
 	return nil
