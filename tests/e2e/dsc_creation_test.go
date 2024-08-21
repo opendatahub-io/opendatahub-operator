@@ -194,7 +194,7 @@ func (tc *testContext) requireInstalled(t *testing.T, gvk schema.GroupVersionKin
 	err := tc.customClient.List(tc.ctx, list)
 	require.NoErrorf(t, err, "Could not get %s list", gvk.Kind)
 
-	require.NotEmptyf(t, len(list.Items), "%s has not been installed", gvk.Kind)
+	require.NotEmptyf(t, list.Items, "%s has not been installed", gvk.Kind)
 }
 
 func (tc *testContext) testDuplication(t *testing.T, gvk schema.GroupVersionKind, o any) {
@@ -435,7 +435,7 @@ func (tc *testContext) testUpdateComponentReconcile() error {
 	}
 	if len(appDeployments.Items) != 0 {
 		testDeployment := appDeployments.Items[0]
-		expectedReplica := 3
+		const expectedReplica int32 = 3
 		patchedReplica := &autoscalingv1.Scale{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      testDeployment.Name,
@@ -461,7 +461,7 @@ func (tc *testContext) testUpdateComponentReconcile() error {
 		if err != nil {
 			return fmt.Errorf("error getting component resource after reconcile: %w", err)
 		}
-		if *reconciledDep.Spec.Replicas != int32(expectedReplica) {
+		if *reconciledDep.Spec.Replicas != expectedReplica {
 			return fmt.Errorf("failed to revert back replicas : expect to be %v but got %v", expectedReplica, *reconciledDep.Spec.Replicas)
 		}
 	}
