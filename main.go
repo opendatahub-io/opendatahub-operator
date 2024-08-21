@@ -57,7 +57,7 @@ import (
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/certconfigmapgenerator"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
-	dscicontr "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
+	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/webhook"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -158,7 +158,7 @@ func main() { //nolint:funlen
 		Decoder: admission.NewDecoder(mgr.GetScheme()),
 	}).SetupWithManager(mgr)
 
-	if err = (&dscicontr.DSCInitializationReconciler{
+	if err = (&dscictrl.DSCInitializationReconciler{
 		Client:                mgr.GetClient(),
 		Scheme:                mgr.GetScheme(),
 		Log:                   logger.LogWithLevel(ctrl.Log.WithName(operatorName).WithName("controllers").WithName("DSCInitialization"), logmode),
