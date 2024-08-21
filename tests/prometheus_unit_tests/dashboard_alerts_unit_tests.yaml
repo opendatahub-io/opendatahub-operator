@@ -6,17 +6,17 @@ evaluation_interval: 1m
 tests:
   - interval: 1m
     input_series:
-      - series: haproxy_backend_http_responses_total:burnrate5m{route="rhods-dashboard"}
+      - series: haproxy_backend_http_responses_total:burnrate2m{route="rhods-dashboard"}
         values: "0x60"
       - series: haproxy_backend_http_responses_total:burnrate5m{route="rhods-dashboard"}
         values: "0x60"
-      - series: haproxy_backend_http_responses_total:burnrate5m{route="rhods-dashboard"}
+      - series: haproxy_backend_http_responses_total:burnrate1h{route="rhods-dashboard"}
         values: "0x60"
-      - series: haproxy_backend_http_responses_total:burnrate5m{route="rhods-dashboard"}
+      - series: haproxy_backend_http_responses_total:burnrate2h{route="rhods-dashboard"}
         values: "0x60"
-      - series: haproxy_backend_http_responses_total:burnrate5m{route="rhods-dashboard"}
+      - series: haproxy_backend_http_responses_total:burnrate6h{route="rhods-dashboard"}
         values: "0x60"
-      - series: haproxy_backend_http_responses_total:burnrate5m{route="rhods-dashboard"}
+      - series: haproxy_backend_http_responses_total:burnrate1d{route="rhods-dashboard"}
         values: "0x60"
     alert_rule_test:
       - eval_time: 1h
