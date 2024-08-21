@@ -6,6 +6,25 @@ evaluation_interval: 1m
 tests:
   - interval: 1m
     input_series:
+      - series: haproxy_backend_http_responses_total:burnrate2m{component="dsp"}
+        values: "0x60"
+      - series: haproxy_backend_http_responses_total:burnrate5m{component="dsp"}
+        values: "0x60"
+      - series: haproxy_backend_http_responses_total:burnrate1h{component="dsp"}
+        values: "0x60"
+      - series: haproxy_backend_http_responses_total:burnrate2h{component="dsp"}
+        values: "0x60"
+      - series: haproxy_backend_http_responses_total:burnrate6h{component="dsp"}
+        values: "0x60"
+      - series: haproxy_backend_http_responses_total:burnrate1d{component="dsp"}
+        values: "0x60"
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: Data Science Pipelines Application Route Error Burn Rate
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
       - series: haproxy_backend_http_responses_total:burnrate5m{component="dsp"}
         values: "1+1x60"
       - series: haproxy_backend_http_responses_total:burnrate1h{component="dsp"}
@@ -81,6 +100,26 @@ tests:
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-error-burn-rate.md'
 
   # Probe success
+  - interval: 1m
+    input_series:
+      - series: probe_success:burnrate2m{instance="data-science-pipelines-operator"}
+        values: "0x60"
+      - series: probe_success:burnrate5m{instance="data-science-pipelines-operator"}
+        values: "0x60"
+      - series: probe_success:burnrate1h{instance="data-science-pipelines-operator"}
+        values: "0x60"
+      - series: probe_success:burnrate2h{instance="data-science-pipelines-operator"}
+        values: "0x60"
+      - series: probe_success:burnrate6h{instance="data-science-pipelines-operator"}
+        values: "0x60"
+      - series: probe_success:burnrate1d{instance="data-science-pipelines-operator"}
+        values: "0x60"
+    alert_rule_test:
+      - eval_time: 3h
+        alertname: Data Science Pipelines Operator Probe Success Burn Rate
+        exp_alerts: []
+
+
   - interval: 1m
     input_series:
       - series: probe_success:burnrate5m{instance="data-science-pipelines-operator"}
