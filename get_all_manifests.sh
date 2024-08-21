@@ -4,7 +4,7 @@ set -e
 GITHUB_URL="https://github.com"
 
 # component: notebook, dsp, kserve, dashbaord, cf/ray/kueue/trainingoperator, trustyai, modelmesh, modelregistry.
-# in the format of "repo-org:repo-name:branch-name:source-folder:target-folder".
+# in the format of "repo-org:repo-name:ref-name:source-folder:target-folder".
 declare -A COMPONENT_MANIFESTS=(
     ["codeflare"]="opendatahub-io:codeflare-operator:main:config:codeflare"
     ["ray"]="opendatahub-io:kuberay:dev:ray-operator/config:ray"
@@ -49,6 +49,25 @@ fi
 TMP_DIR=$(mktemp -d -t "odh-manifests.XXXXXXXXXX")
 trap '{ rm -rf -- "$TMP_DIR"; }' EXIT
 
+function git_fetch_ref()
+{
+
+    local repo=$1
+    local ref=$2
+    local dir=$3
+    local git_fetch="git fetch -q --depth 1 $repo"
+
+    mkdir -p $dir
+    pushd $dir &>/dev/null
+    git init -q
+    # try tag first, avoid printing fatal: couldn't find remote ref
+    if ! $git_fetch refs/tags/$ref 2>/dev/null ; then
+        $git_fetch refs/heads/$ref
+    fi
+    git reset -q --hard FETCH_HEAD
+    popd &>/dev/null
+}
+
 
 for key in "${!COMPONENT_MANIFESTS[@]}"; do
     echo -e "\033[32mCloning repo \033[33m${key}\033[32m:\033[0m ${COMPONENT_MANIFESTS[$key]}"
@@ -56,14 +75,14 @@ for key in "${!COMPONENT_MANIFESTS[@]}"; do
 
     repo_org="${repo_info[0]}"
     repo_name="${repo_info[1]}"
-    repo_branch="${repo_info[2]}"
+    repo_ref="${repo_info[2]}"
     source_path="${repo_info[3]}"
     target_path="${repo_info[4]}"
 
     repo_url="${GITHUB_URL}/${repo_org}/${repo_name}"
     repo_dir=${TMP_DIR}/${key}
-    mkdir -p ${repo_dir}
-    git clone -q --depth 1 --branch ${repo_branch} ${repo_url} ${repo_dir}
+
+    git_fetch_ref ${repo_url} ${repo_ref} ${repo_dir}
 
     mkdir -p ./opt/manifests/${target_path}
     cp -rf ${repo_dir}/${source_path}/* ./opt/manifests/${target_path}
