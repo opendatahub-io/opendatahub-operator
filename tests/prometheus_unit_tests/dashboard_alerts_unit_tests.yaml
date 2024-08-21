@@ -86,17 +86,17 @@ tests:
   # Probe success
   - interval: 1m
     input_series:
-      - series: probe_success:burnrate5m{name="rhods-dashboard"}
+      - series: probe_success:burnrate2m{name="rhods-dashboard"}
         values: "0x60"
       - series: probe_success:burnrate5m{name="rhods-dashboard"}
         values: "0x60"
-      - series: probe_success:burnrate5m{name="rhods-dashboard"}
+      - series: probe_success:burnrate1h{name="rhods-dashboard"}
         values: "0x60"
-      - series: probe_success:burnrate5m{name="rhods-dashboard"}
+      - series: probe_success:burnrate2h{name="rhods-dashboard"}
         values: "0x60"
-      - series: probe_success:burnrate5m{name="rhods-dashboard"}
+      - series: probe_success:burnrate6h{name="rhods-dashboard"}
         values: "0x60"
-      - series: probe_success:burnrate5m{name="rhods-dashboard"}
+      - series: probe_success:burnrate1d{name="rhods-dashboard"}
         values: "0x60"
     alert_rule_test:
       - eval_time: 3h
