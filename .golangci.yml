@@ -45,6 +45,10 @@ linters-settings:
         alias: $1$2
       - pkg: github.com/openshift/api/(\w+)/(v[\w\d]+)
         alias: $1$2
+      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster
+        alias: dsccontr
+      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization
+        alias: dscicontr
   ireturn:
     allow:
       # defaults https://golangci-lint.run/usage/linters/#ireturn

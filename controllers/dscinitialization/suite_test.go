@@ -45,7 +45,7 @@ import (
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
+	dscicontr "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -134,7 +134,7 @@ var _ = BeforeSuite(func() {
 
 	Expect(err).NotTo(HaveOccurred())
 
-	err = (&dsci.DSCInitializationReconciler{
+	err = (&dscicontr.DSCInitializationReconciler{
 		Client:   k8sClient,
 		Scheme:   testScheme,
 		Log:      ctrl.Log.WithName("controllers").WithName("DSCInitialization"),
