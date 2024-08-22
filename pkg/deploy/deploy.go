@@ -204,21 +204,30 @@ func manageResource(ctx context.Context, cli client.Client, res *resource.Resour
 
 	found, err := getResource(ctx, cli, res)
 
-	if err != nil {
-		if !k8serr.IsNotFound(err) {
-			return err
+	if err == nil {
+		// when resource is found
+		if enabled {
+			// Exception to not update kserve with managed annotation
+			// do not reconcile kserve resource with annotation "opendatahub.io/managed: false"
+			// TODO: remove this exception when we define managed annotation across odh
+			if found.GetAnnotations()[annotations.ManagedByODHOperator] == "false" && componentName == "kserve" {
+				return nil
+			}
+			return updateResource(ctx, cli, res, found, owner)
 		}
-	}
-
-	// Component is enabled
-	if enabled {
-		// Create resource if it doesn't exist OR reconcile component if exists
-		return CreateOrUpdateResource(ctx, cli, res, found, owner)
-	}
-	// Component id removed: delete resource if it exists or do nothing if not found
-	if found != nil {
+		// Delete resource if it exists or do nothing if not found
 		return handleDisabledComponent(ctx, cli, found, componentName)
 	}
+
+	if !k8serr.IsNotFound(err) {
+		return err
+	}
+
+	// Create resource when component enabled
+	if enabled {
+		return createResource(ctx, cli, res, owner)
+	}
+	// Skip if resource doesn't exist and component is disabled
 	return nil
 }
 
@@ -266,39 +275,36 @@ func deleteResource(ctx context.Context, cli client.Client, found *unstructured.
 	return nil
 }
 
-// CreateOrUpdateResource deals with both creationg and update of resources.
-// When resource not found, call createResource()
-// When resource found: (in order to call)
-// - skip update if it is OdhDashboardConfig CR
-// - call skipUpdateOnAllowlistedFields() to pass Allowlisted fields either not found annotation or is not "true"
-// - call performPatch() to reconcile.
-func CreateOrUpdateResource(ctx context.Context, cli client.Client, res *resource.Resource, found *unstructured.Unstructured, owner metav1.Object) error {
+func createResource(ctx context.Context, cli client.Client, res *resource.Resource, owner metav1.Object) error {
 	obj, err := conversion.ResourceToUnstructured(res)
 	if err != nil {
 		return err
 	}
-
-	// Create case
-	if found == nil {
-		return createResource(ctx, cli, obj, owner)
+	if obj.GetKind() != "CustomResourceDefinition" && obj.GetKind() != "OdhDashboardConfig" {
+		if err := ctrl.SetControllerReference(owner, metav1.Object(obj), cli.Scheme()); err != nil {
+			return err
+		}
 	}
+	return cli.Create(ctx, obj)
+}
 
-	// Exception to skip ODHDashboardConfig CR reconcile
+// Exception to skip ODHDashboardConfig CR reconcile.
+func updateResource(ctx context.Context, cli client.Client, res *resource.Resource, found *unstructured.Unstructured, owner metav1.Object) error {
 	if found.GetKind() == "OdhDashboardConfig" {
 		return nil
 	}
-	// handl allowlisted fields with annoation
-	switch managed, exists := found.GetAnnotations()[annotations.ManagedByODHOperator]; {
-	case !exists: // not found this annoataion
+
+	// Operator reconcile allowedListfield only when resource is managed by operator(annotation is true)
+	// all other cases: no annotation at all, required annotation not present, of annotation is non-true value, skip reconcile
+	if managed := found.GetAnnotations()[annotations.ManagedByODHOperator]; managed != "true" {
 		if err := skipUpdateOnAllowlistedFields(res); err != nil {
 			return err
 		}
-	case managed != "true":
-		if err := skipUpdateOnAllowlistedFields(res); err != nil {
-			return err
-		}
-	default: // case managed == "true":
-		// noop
+	}
+
+	obj, err := conversion.ResourceToUnstructured(res)
+	if err != nil {
+		return err
 	}
 
 	// Retain existing labels on update
@@ -315,6 +321,7 @@ func skipUpdateOnAllowlistedFields(res *resource.Resource) error {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -328,17 +335,6 @@ func updateLabels(found, obj *unstructured.Unstructured) {
 	newLabels := obj.GetLabels()
 	maps.Copy(foundLabels, newLabels)
 	obj.SetLabels(foundLabels)
-}
-
-// createResource works for create cases.
-func createResource(ctx context.Context, cli client.Client, obj *unstructured.Unstructured, owner metav1.Object) error {
-	if obj.GetKind() != "CustomResourceDefinition" && obj.GetKind() != "OdhDashboardConfig" {
-		// force controller
-		if err := ctrl.SetControllerReference(owner, metav1.Object(obj), cli.Scheme()); err != nil {
-			return err
-		}
-	}
-	return cli.Create(ctx, obj)
 }
 
 // preformPatch works for update cases.
