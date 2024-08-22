@@ -151,7 +151,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 				l.Info("deployment is done, updating monitoring rules")
 			}
 
-			if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentNameDownstream); err != nil {
+			if err := d.UpdatePrometheusConfig(cli, l, enabled && monitoringEnabled, ComponentNameDownstream); err != nil {
 				return err
 			}
 			if err := deploy.DeployManifestsFromPath(ctx, cli, owner,
@@ -213,7 +213,7 @@ func (d *Dashboard) cleanOauthClient(ctx context.Context, cli client.Client, dsc
 	// Assumption: Component is currently set to enabled
 	name := "dashboard-oauth-client"
 	if !currentComponentExist {
-		fmt.Println("Cleanup any left secret")
+		l.Info("Cleanup any left secret")
 		// Delete client secrets from previous installation
 		oauthClientSecret := &corev1.Secret{}
 		err := cli.Get(ctx, client.ObjectKey{

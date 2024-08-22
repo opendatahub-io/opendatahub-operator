@@ -2,7 +2,6 @@ package features_test
 
 import (
 	"context"
-	"fmt"
 	"path"
 
 	corev1 "k8s.io/api/core/v1"
@@ -194,7 +193,6 @@ var _ = Describe("Applying and updating resources", func() {
 				HaveKeyWithValue(testKey, testOriginalValue),
 			)
 			Expect(updatedService.Spec.Type).To(Equal(corev1.ServiceTypeClusterIP))
-			fmt.Println(updatedService.Spec.ExternalName)
 		})
 	})
 

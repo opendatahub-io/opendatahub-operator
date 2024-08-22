@@ -6,6 +6,7 @@ import (
 	"path"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -66,7 +67,7 @@ func (k *Kserve) defineServiceMeshFeatures(ctx context.Context, cli client.Clien
 				return kserveExtAuthzErr
 			}
 		} else {
-			fmt.Println("WARN: Authorino operator is not installed on the cluster, skipping authorization capability")
+			ctrl.Log.Info("WARN: Authorino operator is not installed on the cluster, skipping authorization capability")
 		}
 
 		return nil

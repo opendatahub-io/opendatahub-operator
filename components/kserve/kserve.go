@@ -112,7 +112,7 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 		}
 	} else {
 		// Configure dependencies
-		if err := k.configureServerless(ctx, cli, dscispec); err != nil {
+		if err := k.configureServerless(ctx, cli, l, dscispec); err != nil {
 			return err
 		}
 		if k.DevFlags != nil {
@@ -134,7 +134,7 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 	l.WithValues("Path", Path).Info("apply manifests done for kserve")
 
 	if enabled {
-		if err := k.setupKserveConfig(ctx, cli, dscispec); err != nil {
+		if err := k.setupKserveConfig(ctx, cli, l, dscispec); err != nil {
 			return err
 		}
 
@@ -167,7 +167,7 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 			l.Info("deployment is done, updating monitoing rules")
 		}
 		// kesrve rules
-		if err := k.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
+		if err := k.UpdatePrometheusConfig(cli, l, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
 		}
 		l.Info("updating SRE monitoring done")

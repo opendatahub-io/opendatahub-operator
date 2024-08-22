@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -21,7 +22,7 @@ const (
 	KserveConfigMapName string = "inferenceservice-config"
 )
 
-func (k *Kserve) setupKserveConfig(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec) error {
+func (k *Kserve) setupKserveConfig(ctx context.Context, cli client.Client, logger logr.Logger, dscispec *dsciv1.DSCInitializationSpec) error {
 	// as long as Kserve.Serving is not 'Removed', we will setup the dependencies
 
 	switch k.Serving.ManagementState {
@@ -42,7 +43,7 @@ func (k *Kserve) setupKserveConfig(ctx context.Context, cli client.Client, dscis
 			return errors.New("setting defaultdeployment mode as Serverless is incompatible with having Serving 'Removed'")
 		}
 		if k.DefaultDeploymentMode == "" {
-			fmt.Println("Serving is removed, Kserve will default to rawdeployment")
+			logger.Info("Serving is removed, Kserve will default to rawdeployment")
 		}
 		if err := k.setDefaultDeploymentMode(ctx, cli, dscispec, RawDeployment); err != nil {
 			return err
@@ -117,13 +118,13 @@ func (k *Kserve) setDefaultDeploymentMode(ctx context.Context, cli client.Client
 	return nil
 }
 
-func (k *Kserve) configureServerless(ctx context.Context, cli client.Client, instance *dsciv1.DSCInitializationSpec) error {
+func (k *Kserve) configureServerless(ctx context.Context, cli client.Client, logger logr.Logger, instance *dsciv1.DSCInitializationSpec) error {
 	switch k.Serving.ManagementState {
 	case operatorv1.Unmanaged: // Bring your own CR
-		fmt.Println("Serverless CR is not configured by the operator, we won't do anything")
+		logger.Info("Serverless CR is not configured by the operator, we won't do anything")
 
 	case operatorv1.Removed: // we remove serving CR
-		fmt.Println("existing Serverless CR (owned by operator) will be removed")
+		logger.Info("existing Serverless CR (owned by operator) will be removed")
 		if err := k.removeServerlessFeatures(ctx, instance); err != nil {
 			return err
 		}

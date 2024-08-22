@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -55,7 +56,7 @@ func OperatorUninstall(ctx context.Context, cli client.Client) error {
 			if err := cli.Delete(ctx, &namespace); err != nil {
 				return fmt.Errorf("error deleting namespace %v: %w", namespace.Name, err)
 			}
-			fmt.Printf("Namespace %s deleted as a part of uninstallation.\n", namespace.Name)
+			ctrl.Log.Info("Namespace " + namespace.Name + " deleted as a part of uninstallation.")
 		}
 	}
 
@@ -70,7 +71,7 @@ func OperatorUninstall(ctx context.Context, cli client.Client) error {
 		return err
 	}
 
-	fmt.Printf("Removing operator subscription which in turn will remove installplan\n")
+	ctrl.Log.Info("Removing operator subscription which in turn will remove installplan")
 	subsName := "opendatahub-operator"
 	if platform == cluster.SelfManagedRhods {
 		subsName = "rhods-operator"
@@ -81,10 +82,10 @@ func OperatorUninstall(ctx context.Context, cli client.Client) error {
 		}
 	}
 
-	fmt.Printf("Removing the operator CSV in turn remove operator deployment\n")
+	ctrl.Log.Info("Removing the operator CSV in turn remove operator deployment")
 	err = removeCSV(ctx, cli)
 
-	fmt.Printf("All resources deleted as part of uninstall.")
+	ctrl.Log.Info("All resources deleted as part of uninstall.")
 	return err
 }
 
@@ -138,7 +139,7 @@ func removeCSV(ctx context.Context, c client.Client) error {
 
 	operatorCsv, err := cluster.GetClusterServiceVersion(ctx, c, operatorNamespace)
 	if k8serr.IsNotFound(err) {
-		fmt.Printf("No clusterserviceversion for the operator found.\n")
+		ctrl.Log.Info("No clusterserviceversion for the operator found.")
 		return nil
 	}
 
@@ -146,7 +147,7 @@ func removeCSV(ctx context.Context, c client.Client) error {
 		return err
 	}
 
-	fmt.Printf("Deleting CSV %s\n", operatorCsv.Name)
+	ctrl.Log.Info("Deleting CSV " + operatorCsv.Name)
 	err = c.Delete(ctx, operatorCsv)
 	if err != nil {
 		if k8serr.IsNotFound(err) {
@@ -155,7 +156,7 @@ func removeCSV(ctx context.Context, c client.Client) error {
 
 		return fmt.Errorf("error deleting clusterserviceversion: %w", err)
 	}
-	fmt.Printf("Clusterserviceversion %s deleted as a part of uninstall.\n", operatorCsv.Name)
+	ctrl.Log.Info("Clusterserviceversion " + operatorCsv.Name + " deleted as a part of uninstall")
 
 	return nil
 }

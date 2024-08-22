@@ -155,11 +155,11 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 			l.Info("deployment is done, updating monitoring rules")
 		}
 		// first model-mesh rules
-		if err := m.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
+		if err := m.UpdatePrometheusConfig(cli, l, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
 		}
 		// then odh-model-controller rules
-		if err := m.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, DependentComponentName); err != nil {
+		if err := m.UpdatePrometheusConfig(cli, l, enabled && monitoringEnabled, DependentComponentName); err != nil {
 			return err
 		}
 		if err := deploy.DeployManifestsFromPath(ctx, cli, owner,

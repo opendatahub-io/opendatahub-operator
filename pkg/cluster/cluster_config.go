@@ -155,9 +155,8 @@ func GetRelease(ctx context.Context, cli client.Client) (Release, error) {
 	// Get watchNamespace
 	operatorNamespace, err := GetOperatorNamespace()
 	if err != nil {
-		// unit test does not have k8s file
-		fmt.Printf("Falling back to dummy version: %v\n", err)
-		return initRelease, nil
+		// unit test does not have k8s file or env var set, return default
+		return initRelease, err
 	}
 	csv, err := GetClusterServiceVersion(ctx, cli, operatorNamespace)
 	if k8serr.IsNotFound(err) {
