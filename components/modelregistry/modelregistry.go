@@ -163,7 +163,8 @@ func (m *ModelRegistry) removeDependencies(ctx context.Context, cli client.Clien
 			Namespace: dscispec.ServiceMesh.ControlPlane.Namespace,
 		},
 	}
-	if err := cli.Delete(ctx, &certSecret); err != nil {
+	// ignore error if the secret has already been removed
+	if err := cli.Delete(ctx, &certSecret); client.IgnoreNotFound(err) != nil {
 		return err
 	}
 	return nil
