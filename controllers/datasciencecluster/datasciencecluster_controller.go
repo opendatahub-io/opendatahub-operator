@@ -368,7 +368,7 @@ var configMapPredicates = predicate.Funcs{
 		}
 		// Do not reconcile on kserver's inferenceservice-config CM updates, for rawdeployment
 		namespace := e.ObjectNew.GetNamespace()
-		if e.ObjectNew.GetName() == "inferenceservice-config" && (namespace == "redhat-ods-applications" || namespace == "opendatahub") {
+		if e.ObjectNew.GetName() == "inferenceservice-config" && (namespace == "redhat-ods-applications" || namespace == "opendatahub") { //nolint:goconst
 			return false
 		}
 		return true
