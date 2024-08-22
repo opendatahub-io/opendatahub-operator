@@ -48,12 +48,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/certconfigmapgenerator"
-	datascienceclustercontrollers "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
+	dsccontr "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
 	dscicontr "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/webhook"
@@ -79,7 +82,6 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(addonv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(rbacv1.AddToScheme(scheme))
 	utilruntime.Must(corev1.AddToScheme(scheme))
-	utilruntime.Must(apiextensionsv1.AddToScheme(scheme))
 	utilruntime.Must(routev1.Install(scheme))
 	utilruntime.Must(appsv1.AddToScheme(scheme))
 	utilruntime.Must(oauthv1.Install(scheme))
@@ -123,10 +125,14 @@ func main() { //nolint:funlen
 
 	// root context
 	ctx := ctrl.SetupSignalHandler()
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:                 scheme,
-		MetricsBindAddress:     metricsAddr,
-		Port:                   9443,
+
+	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{ // single pod does not need to have LeaderElection
+		Scheme:  scheme,
+		Metrics: ctrlmetrics.Options{BindAddress: metricsAddr},
+		WebhookServer: ctrlwebhook.NewServer(ctrlwebhook.Options{
+			Port: 9443,
+			// TLSOpts: , // TODO: do we need tls for webhook
+		}),
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "07ed84f7.opendatahub.io",
@@ -147,7 +153,10 @@ func main() { //nolint:funlen
 		os.Exit(1)
 	}
 
-	(&webhook.OpenDataHubWebhook{}).SetupWithManager(mgr)
+	(&webhook.OpenDataHubWebhook{
+		Client:  mgr.GetClient(),
+		Decoder: admission.NewDecoder(mgr.GetScheme()),
+	}).SetupWithManager(mgr)
 
 	if err = (&dscicontr.DSCInitializationReconciler{
 		Client:                mgr.GetClient(),
@@ -160,11 +169,11 @@ func main() { //nolint:funlen
 		os.Exit(1)
 	}
 
-	if err = (&datascienceclustercontrollers.DataScienceClusterReconciler{
+	if err = (&dsccontr.DataScienceClusterReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 		Log:    logger.LogWithLevel(ctrl.Log.WithName(operatorName).WithName("controllers").WithName("DataScienceCluster"), logmode),
-		DataScienceCluster: &datascienceclustercontrollers.DataScienceClusterConfig{
+		DataScienceCluster: &dsccontr.DataScienceClusterConfig{
 			DSCISpec: &dsciv1.DSCInitializationSpec{
 				ApplicationsNamespace: dscApplicationsNamespace,
 			},

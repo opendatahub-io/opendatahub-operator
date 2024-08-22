@@ -41,7 +41,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -301,23 +300,63 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 	return ctrl.NewControllerManagedBy(mgr).
 		// add predicates prevents meaningless reconciliations from being triggered
 		// not use WithEventFilter() because it conflict with secret and configmap predicate
-		For(&dsciv1.DSCInitialization{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{},
-			predicate.LabelChangedPredicate{}), dsciPredicateStateChangeTrustedCA)).
-		Owns(&corev1.Namespace{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
-		Owns(&corev1.Secret{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
-		Owns(&corev1.ConfigMap{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
-		Owns(&networkingv1.NetworkPolicy{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
-		Owns(&rbacv1.Role{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
-		Owns(&rbacv1.RoleBinding{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
-		Owns(&rbacv1.ClusterRole{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
-		Owns(&rbacv1.ClusterRoleBinding{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
-		Owns(&appsv1.Deployment{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
-		Owns(&corev1.ServiceAccount{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
-		Owns(&corev1.Service{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
-		Owns(&routev1.Route{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
-		Watches(&source.Kind{Type: &dscv1.DataScienceCluster{}}, handler.EnqueueRequestsFromMapFunc(r.watchDSCResource(ctx)), builder.WithPredicates(DSCDeletionPredicate)).
-		Watches(&source.Kind{Type: &corev1.Secret{}}, handler.EnqueueRequestsFromMapFunc(r.watchMonitoringSecretResource), builder.WithPredicates(SecretContentChangedPredicate)).
-		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchMonitoringConfigMapResource), builder.WithPredicates(CMContentChangedPredicate)).
+		For(
+			&dsciv1.DSCInitialization{},
+			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}), dsciPredicateStateChangeTrustedCA),
+		).
+		Owns(
+			&corev1.Namespace{},
+			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(
+			&corev1.Secret{},
+			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(
+			&corev1.ConfigMap{},
+			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(
+			&networkingv1.NetworkPolicy{},
+			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(
+			&rbacv1.Role{},
+			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(
+			&rbacv1.RoleBinding{},
+			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(
+			&rbacv1.ClusterRole{},
+			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(
+			&rbacv1.ClusterRoleBinding{},
+			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(
+			&appsv1.Deployment{},
+			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(
+			&corev1.ServiceAccount{},
+			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(
+			&corev1.Service{},
+			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(
+			&routev1.Route{},
+			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Watches(
+			&dscv1.DataScienceCluster{},
+			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {
+				return r.watchDSCResource(ctx)
+			}),
+			builder.WithPredicates(DSCDeletionPredicate),
+		).
+		Watches(
+			&corev1.Secret{},
+			handler.EnqueueRequestsFromMapFunc(r.watchMonitoringSecretResource),
+			builder.WithPredicates(SecretContentChangedPredicate),
+		).
+		Watches(
+			&corev1.ConfigMap{},
+			handler.EnqueueRequestsFromMapFunc(r.watchMonitoringConfigMapResource),
+			builder.WithPredicates(CMContentChangedPredicate),
+		).
 		Complete(r)
 }
 
@@ -358,7 +397,7 @@ var dsciPredicateStateChangeTrustedCA = predicate.Funcs{
 	},
 }
 
-func (r *DSCInitializationReconciler) watchMonitoringConfigMapResource(a client.Object) []reconcile.Request {
+func (r *DSCInitializationReconciler) watchMonitoringConfigMapResource(_ context.Context, a client.Object) []reconcile.Request {
 	if a.GetName() == "prometheus" && a.GetNamespace() == "redhat-ods-monitoring" {
 		r.Log.Info("Found monitoring configmap has updated, start reconcile")
 
@@ -367,7 +406,7 @@ func (r *DSCInitializationReconciler) watchMonitoringConfigMapResource(a client.
 	return nil
 }
 
-func (r *DSCInitializationReconciler) watchMonitoringSecretResource(a client.Object) []reconcile.Request {
+func (r *DSCInitializationReconciler) watchMonitoringSecretResource(_ context.Context, a client.Object) []reconcile.Request {
 	operatorNs, err := cluster.GetOperatorNamespace()
 	if err != nil {
 		return nil
@@ -381,18 +420,17 @@ func (r *DSCInitializationReconciler) watchMonitoringSecretResource(a client.Obj
 	return nil
 }
 
-func (r *DSCInitializationReconciler) watchDSCResource(ctx context.Context) func(client.Object) []reconcile.Request {
-	return func(_ client.Object) []reconcile.Request {
-		instanceList := &dscv1.DataScienceClusterList{}
-		if err := r.Client.List(ctx, instanceList); err != nil {
-			// do not handle if cannot get list
-			return nil
-		}
-		if len(instanceList.Items) == 0 && !upgrade.HasDeleteConfigMap(ctx, r.Client) {
-			r.Log.Info("Found no DSC instance in cluster but not in uninstalltion process, reset monitoring stack config")
-
-			return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "backup"}}}
-		}
+func (r *DSCInitializationReconciler) watchDSCResource(ctx context.Context) []reconcile.Request {
+	instanceList := &dscv1.DataScienceClusterList{}
+	if err := r.Client.List(ctx, instanceList); err != nil {
+		// do not handle if cannot get list
+		r.Log.Error(err, "Failed to get DataScienceClusterList")
 		return nil
 	}
+	if len(instanceList.Items) == 0 && !upgrade.HasDeleteConfigMap(ctx, r.Client) {
+		r.Log.Info("Found no DSC instance in cluster but not in uninstalltion process, reset monitoring stack config")
+
+		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "backup"}}}
+	}
+	return nil
 }

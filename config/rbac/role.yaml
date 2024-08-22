@@ -1062,6 +1062,7 @@ rules:
   - consoles
   verbs:
   - delete
+  - get
   - list
   - patch
   - watch

@@ -48,7 +48,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -438,77 +437,116 @@ func (r *DataScienceClusterReconciler) SetupWithManager(ctx context.Context, mgr
 		For(&dscv1.DataScienceCluster{}).
 		Owns(&corev1.Namespace{}).
 		Owns(&corev1.Secret{}).
-		Owns(&corev1.ConfigMap{}, builder.WithPredicates(configMapPredicates)).
-		Owns(&networkingv1.NetworkPolicy{}, builder.WithPredicates(networkpolicyPredicates)).
-		Owns(&rbacv1.Role{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, modelMeshRolePredicates))).
-		Owns(&rbacv1.RoleBinding{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, modelMeshRBPredicates))).
-		Owns(&rbacv1.ClusterRole{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, modelMeshRolePredicates))).
-		Owns(&rbacv1.ClusterRoleBinding{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, modelMeshRBPredicates))).
+		Owns(
+			&corev1.ConfigMap{},
+			builder.WithPredicates(configMapPredicates),
+		).
+		Owns(
+			&networkingv1.NetworkPolicy{},
+			builder.WithPredicates(networkpolicyPredicates),
+		).
+		Owns(
+			&rbacv1.Role{},
+			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, modelMeshRolePredicates))).
+		Owns(
+			&rbacv1.RoleBinding{},
+			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, modelMeshRBPredicates))).
+		Owns(
+			&rbacv1.ClusterRole{},
+			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, modelMeshRolePredicates))).
+		Owns(
+			&rbacv1.ClusterRoleBinding{},
+			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, modelMeshRBPredicates))).
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.PersistentVolumeClaim{}).
-		Owns(&corev1.Service{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, modelMeshGeneralPredicates))).
+		Owns(
+			&corev1.Service{},
+			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, modelMeshGeneralPredicates))).
 		Owns(&appsv1.StatefulSet{}).
 		Owns(&imagev1.ImageStream{}).
 		Owns(&buildv1.BuildConfig{}).
 		Owns(&apiregistrationv1.APIService{}).
 		Owns(&networkingv1.Ingress{}).
 		Owns(&admissionregistrationv1.MutatingWebhookConfiguration{}).
-		Owns(&admissionregistrationv1.ValidatingWebhookConfiguration{}, builder.WithPredicates(modelMeshwebhookPredicates)).
-		Owns(&corev1.ServiceAccount{}, builder.WithPredicates(saPredicates)).
-		Watches(&source.Kind{Type: &dsciv1.DSCInitialization{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterForDSCI(ctx))).
-		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources(ctx)), builder.WithPredicates(configMapPredicates)).
-		Watches(&source.Kind{Type: &apiextensionsv1.CustomResourceDefinition{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources(ctx)),
-			builder.WithPredicates(argoWorkflowCRDPredicates)).
-		Watches(&source.Kind{Type: &corev1.Secret{}}, handler.EnqueueRequestsFromMapFunc(r.watchDefaultIngressSecret(ctx)), builder.WithPredicates(defaultIngressCertSecretPredicates)).
+		Owns(
+			&admissionregistrationv1.ValidatingWebhookConfiguration{},
+			builder.WithPredicates(modelMeshwebhookPredicates),
+		).
+		Owns(
+			&corev1.ServiceAccount{},
+			builder.WithPredicates(saPredicates),
+		).
+		Watches(
+			&dsciv1.DSCInitialization{},
+			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {
+				return r.watchDataScienceClusterForDSCI(ctx, a)
+			},
+			)).
+		Watches(
+			&corev1.ConfigMap{},
+			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {
+				return r.watchDataScienceClusterResources(ctx, a)
+			}),
+			builder.WithPredicates(configMapPredicates),
+		).
+		Watches(
+			&apiextensionsv1.CustomResourceDefinition{},
+			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {
+				return r.watchDataScienceClusterResources(ctx, a)
+			}),
+			builder.WithPredicates(argoWorkflowCRDPredicates),
+		).
+		Watches(
+			&corev1.Secret{},
+			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {
+				return r.watchDefaultIngressSecret(ctx, a)
+			}),
+			builder.WithPredicates(defaultIngressCertSecretPredicates)).
 		// this predicates prevents meaningless reconciliations from being triggered
 		WithEventFilter(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{})).
 		Complete(r)
 }
 
-func (r *DataScienceClusterReconciler) watchDataScienceClusterForDSCI(ctx context.Context) func(client.Object) []reconcile.Request {
-	return func(a client.Object) []reconcile.Request {
-		requestName, err := r.getRequestName(ctx)
-		if err != nil {
-			return nil
-		}
-		// When DSCI CR gets created, trigger reconcile function
-		if a.GetObjectKind().GroupVersionKind().Kind == "DSCInitialization" || a.GetName() == "default-dsci" {
-			return []reconcile.Request{{
-				NamespacedName: types.NamespacedName{Name: requestName},
-			}}
-		}
+func (r *DataScienceClusterReconciler) watchDataScienceClusterForDSCI(ctx context.Context, a client.Object) []reconcile.Request {
+	requestName, err := r.getRequestName(ctx)
+	if err != nil {
 		return nil
 	}
+	// When DSCI CR gets created, trigger reconcile function
+	if a.GetObjectKind().GroupVersionKind().Kind == "DSCInitialization" || a.GetName() == "default-dsci" {
+		return []reconcile.Request{{
+			NamespacedName: types.NamespacedName{Name: requestName},
+		}}
+	}
+	return nil
 }
 
-func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(ctx context.Context) func(client.Object) []reconcile.Request {
-	return func(a client.Object) []reconcile.Request {
-		requestName, err := r.getRequestName(ctx)
-		if err != nil {
-			return nil
-		}
+func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(ctx context.Context, a client.Object) []reconcile.Request {
+	requestName, err := r.getRequestName(ctx)
+	if err != nil {
+		return nil
+	}
 
-		if a.GetObjectKind().GroupVersionKind().Kind == "CustomResourceDefinition" || a.GetName() == "ArgoWorkflowCRD" {
+	if a.GetObjectKind().GroupVersionKind().Kind == "CustomResourceDefinition" || a.GetName() == "ArgoWorkflowCRD" {
+		return []reconcile.Request{{
+			NamespacedName: types.NamespacedName{Name: requestName},
+		}}
+	}
+
+	// Trigger reconcile function when uninstall configmap is created
+	operatorNs, err := cluster.GetOperatorNamespace()
+	if err != nil {
+		return nil
+	}
+	if a.GetNamespace() == operatorNs {
+		cmLabels := a.GetLabels()
+		if val, ok := cmLabels[upgrade.DeleteConfigMapLabel]; ok && val == "true" {
 			return []reconcile.Request{{
 				NamespacedName: types.NamespacedName{Name: requestName},
 			}}
 		}
-
-		// Trigger reconcile function when uninstall configmap is created
-		operatorNs, err := cluster.GetOperatorNamespace()
-		if err != nil {
-			return nil
-		}
-		if a.GetNamespace() == operatorNs {
-			cmLabels := a.GetLabels()
-			if val, ok := cmLabels[upgrade.DeleteConfigMapLabel]; ok && val == "true" {
-				return []reconcile.Request{{
-					NamespacedName: types.NamespacedName{Name: requestName},
-				}}
-			}
-		}
-		return nil
 	}
+	return nil
 }
 
 func (r *DataScienceClusterReconciler) getRequestName(ctx context.Context) (string, error) {
@@ -543,25 +581,23 @@ var argoWorkflowCRDPredicates = predicate.Funcs{
 	},
 }
 
-func (r *DataScienceClusterReconciler) watchDefaultIngressSecret(ctx context.Context) func(client.Object) []reconcile.Request {
-	return func(a client.Object) []reconcile.Request {
-		requestName, err := r.getRequestName(ctx)
-		if err != nil {
-			return nil
-		}
-		// When ingress secret gets created/deleted, trigger reconcile function
-		ingressCtrl, err := cluster.FindAvailableIngressController(ctx, r.Client)
-		if err != nil {
-			return nil
-		}
-		defaultIngressSecretName := cluster.GetDefaultIngressCertSecretName(ingressCtrl)
-		if a.GetName() == defaultIngressSecretName && a.GetNamespace() == "openshift-ingress" {
-			return []reconcile.Request{{
-				NamespacedName: types.NamespacedName{Name: requestName},
-			}}
-		}
+func (r *DataScienceClusterReconciler) watchDefaultIngressSecret(ctx context.Context, a client.Object) []reconcile.Request {
+	requestName, err := r.getRequestName(ctx)
+	if err != nil {
 		return nil
 	}
+	// When ingress secret gets created/deleted, trigger reconcile function
+	ingressCtrl, err := cluster.FindAvailableIngressController(ctx, r.Client)
+	if err != nil {
+		return nil
+	}
+	defaultIngressSecretName := cluster.GetDefaultIngressCertSecretName(ingressCtrl)
+	if a.GetName() == defaultIngressSecretName && a.GetNamespace() == "openshift-ingress" {
+		return []reconcile.Request{{
+			NamespacedName: types.NamespacedName{Name: requestName},
+		}}
+	}
+	return nil
 }
 
 // defaultIngressCertSecretPredicates filters delete and create events to trigger reconcile when default ingress cert secret is expired
