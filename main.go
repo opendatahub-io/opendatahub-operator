@@ -127,9 +127,31 @@ func main() { //nolint:funlen,maintidx
 
 	// root context
 	ctx := ctrl.SetupSignalHandler()
+	// Create new uncached client to run initial setup
+	setupCfg, err := config.GetConfig()
+	if err != nil {
+		setupLog.Error(err, "error getting config for setup")
+		os.Exit(1)
+	}
+	// uplift default limiataions
+	setupCfg.QPS = rest.DefaultQPS * controllerNum     // 5 * 4 controllers
+	setupCfg.Burst = rest.DefaultBurst * controllerNum // 10 * 4 controllers
 
+	setupClient, err := client.New(setupCfg, client.Options{Scheme: scheme})
+	if err != nil {
+		setupLog.Error(err, "error getting client for setup")
+		os.Exit(1)
+	}
+	// Get operator platform
+	platform, err := cluster.GetPlatform(ctx, setupClient)
+	if err != nil {
+		setupLog.Error(err, "error getting platform")
+		os.Exit(1)
+	}
+
+	secretCache := setSecretCache(platform)
+	deploymentCache := setDeploymentCache(platform)
 	cacheOptions := cache.Options{
-		// opendatahub.io/generated-namespace: 'true'
 		Scheme: scheme,
 		ByObject: map[client.Object]cache.ByObject{
 			// all CRD: mainly for pipeline v1 teckon and v2 argo and dashboard's own CRD
@@ -137,17 +159,11 @@ func main() { //nolint:funlen,maintidx
 			// Cannot find a label on various screts, so we need to watch all secrets
 			// this include, monitoring, dashboard, trustcabundle default cert etc for these NS
 			&corev1.Secret{}: {
-				Namespaces: map[string]cache.Config{
-					"redhat-ods-monitoring":   {},
-					"redhat-ods-applications": {},
-					"opendatahub":             {},
-					"istio-system":            {},
-					"openshift-ingress":       {},
-				},
+				Namespaces: secretCache,
 			},
-			// it is hard to find a label can be used for both trustCAbundle configmap and inferenceservice-config
+			// it is hard to find a label can be used for both trustCAbundle configmap and inferenceservice-config and deletionCM
 			&corev1.ConfigMap{}: {},
-			// TODO: we can limit scope of namespace if we find a way to only get list of DSproject
+			// TODO: we can limit scope of namespace if we find a way to only get list of DSProject
 			// also need for monitoring, trustcabundle
 			&corev1.Namespace{}: {},
 			// For catsrc (avoid frequently check cluster type)
@@ -159,15 +175,7 @@ func main() { //nolint:funlen,maintidx
 				Field: fields.Set{"metadata.name": "default"}.AsSelector(),
 			},
 			// for prometheus and black-box deployment and ones we owns
-			&appsv1.Deployment{}: {
-				Namespaces: map[string]cache.Config{
-					"redhat-ods-monitoring":   {},
-					"redhat-ods-applications": {},
-					"odh-model-registries":    {},
-					"rhods-notebooks":         {},
-					"opendatahub":             {},
-				},
-			},
+			&appsv1.Deployment{}: {Namespaces: deploymentCache},
 		},
 	}
 
@@ -248,27 +256,6 @@ func main() { //nolint:funlen,maintidx
 		os.Exit(1)
 	}
 
-	// Create new uncached client to run initial setup
-	setupCfg, err := config.GetConfig()
-	if err != nil {
-		setupLog.Error(err, "error getting config for setup")
-		os.Exit(1)
-	}
-	// uplift default limiataions
-	setupCfg.QPS = rest.DefaultQPS * controllerNum     // 5 * 4 controllers
-	setupCfg.Burst = rest.DefaultBurst * controllerNum // 10 * 4 controllers
-
-	setupClient, err := client.New(setupCfg, client.Options{Scheme: scheme})
-	if err != nil {
-		setupLog.Error(err, "error getting client for setup")
-		os.Exit(1)
-	}
-	// Get operator platform
-	platform, err := cluster.GetPlatform(ctx, setupClient)
-	if err != nil {
-		setupLog.Error(err, "error getting platform")
-		os.Exit(1)
-	}
 	// Check if user opted for disabling DSC configuration
 	disableDSCConfig, existDSCConfig := os.LookupEnv("DISABLE_DSC_CONFIG")
 	if existDSCConfig && disableDSCConfig != "false" {
@@ -330,4 +317,38 @@ func main() { //nolint:funlen,maintidx
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+}
+
+func setSecretCache(platform cluster.Platform) map[string]cache.Config {
+	namespaceConfigs := map[string]cache.Config{
+		"istio-system":      {FieldSelector: fields.Set{"metadata.name": "knative-serving-cert"}.AsSelector()}, // for expiration case
+		"openshift-ingress": {},
+	}
+	switch platform {
+	case cluster.ManagedRhods:
+		namespaceConfigs["redhat-ods-monitoring"] = cache.Config{}
+		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
+	case cluster.SelfManagedRhods:
+		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
+	default:
+		namespaceConfigs["opendatahub"] = cache.Config{}
+	}
+	return namespaceConfigs
+}
+
+func setDeploymentCache(platform cluster.Platform) map[string]cache.Config {
+	namespaceConfigs := map[string]cache.Config{}
+	switch platform {
+	case cluster.ManagedRhods: // no need workbench NS, only SFS no Deployment
+		namespaceConfigs["redhat-ods-monitoring"] = cache.Config{}
+		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
+		//TODO: if ModelReg has a RHOAI NS
+	case cluster.SelfManagedRhods:
+		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
+		//TODO: if ModelReg has a RHOAI NS
+	default:
+		namespaceConfigs["opendatahub"] = cache.Config{}
+		namespaceConfigs["odh-model-registries"] = cache.Config{}
+	}
+	return namespaceConfigs
 }
