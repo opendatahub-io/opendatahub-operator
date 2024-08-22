@@ -1176,7 +1176,7 @@ spec:
               - name: cert
                 secret:
                   defaultMode: 420
-                  secretName: opendatahub-operator-controller-manager-service-cert
+                  secretName: opendatahub-operator-controller-webhook-cert
     strategy: deployment
   installModes:
   - supported: false
