@@ -734,7 +734,7 @@ data:
         rules:
         - alert: RHODS Dashboard Probe Success Burn Rate
           annotations:
-            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            message: 'High error budget burn for {{ $labels.name }} (current value: {{ $value }}).'
             triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-dashboard-probe-success-burn-rate.md"
             summary: RHODS Dashboard Probe Success Burn Rate
           expr: |
@@ -747,7 +747,7 @@ data:
             namespace: redhat-ods-applications
         - alert: RHODS Dashboard Probe Success Burn Rate
           annotations:
-            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            message: 'High error budget burn for {{ $labels.name }} (current value: {{ $value }}).'
             triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-dashboard-probe-success-burn-rate.md"
             summary: RHODS Dashboard Probe Success Burn Rate
           expr: |
@@ -760,7 +760,7 @@ data:
             namespace: redhat-ods-applications
         - alert: RHODS Dashboard Probe Success Burn Rate
           annotations:
-            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            message: 'High error budget burn for {{ $labels.name }} (current value: {{ $value }}).'
             triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-dashboard-probe-success-burn-rate.md"
             summary: RHODS Dashboard Probe Success Burn Rate
           expr: |
@@ -773,7 +773,7 @@ data:
             namespace: redhat-ods-applications
         - alert: RHODS Dashboard Probe Success Burn Rate
           annotations:
-            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            message: 'High error budget burn for {{ $labels.name }} (current value: {{ $value }}).'
             triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-dashboard-probe-success-burn-rate.md"
             summary: RHODS Dashboard Probe Success Burn Rate
           expr: |
