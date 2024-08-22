@@ -113,11 +113,13 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 		if err != nil {
 			return err
 		}
+		l.Info("created model registry namespace", "namespace", ModelRegistriesNamespace)
 		// create servicemeshmember here, for now until post MVP solution
-		err = createServicemeshMember(ctx, cli, dscispec, ns)
+		err = enrollToServiceMesh(ctx, cli, dscispec, ns)
 		if err != nil {
 			return err
 		}
+		l.Info("created model registry servicemesh member", "namespace", ModelRegistriesNamespace)
 	} else {
 		err := m.removeDependencies(ctx, cli, dscispec)
 		if err != nil {
@@ -185,7 +187,7 @@ func (m *ModelRegistry) removeDependencies(ctx context.Context, cli client.Clien
 //go:embed resources/servicemesh-member.tmpl.yaml
 var smmTemplate string
 
-func createServicemeshMember(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec, namespace *corev1.Namespace) error {
+func enrollToServiceMesh(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec, namespace *corev1.Namespace) error {
 	tmpl, err := template.New("servicemeshmember").Parse(smmTemplate)
 	if err != nil {
 		return fmt.Errorf("error parsing servicemeshmember template: %w", err)
@@ -195,7 +197,7 @@ func createServicemeshMember(ctx context.Context, cli client.Client, dscispec *d
 		Namespace    string
 		ControlPlane *infrav1.ControlPlaneSpec
 	}{Namespace: namespace.Name, ControlPlane: &dscispec.ServiceMesh.ControlPlane}
-	
+
 	if err = tmpl.Execute(&builder, controlPlaneData); err != nil {
 		return fmt.Errorf("error executing servicemeshmember template: %w", err)
 	}
@@ -205,5 +207,5 @@ func createServicemeshMember(ctx context.Context, cli client.Client, dscispec *d
 		return fmt.Errorf("error converting servicemeshmember template: %w", err)
 	}
 
-	return client.IgnoreAlreadyExists(cli.Create(ctx, unstructured[0]))
+	return client.IgnoreAlreadyExists(cli.Create(ctx, unstrObj[0]))
 }
