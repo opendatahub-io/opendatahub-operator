@@ -368,7 +368,7 @@ var configMapPredicates = predicate.Funcs{
 		}
 		// Do not reconcile on kserver's inferenceservice-config CM updates, for rawdeployment
 		namespace := e.ObjectNew.GetNamespace()
-		if e.ObjectNew.GetName() == "inferenceservice-config" && (namespace == cluster.RHOAIApplicationNamespace || namespace == cluster.ODHApplicationNamespace) {
+		if e.ObjectNew.GetName() == "inferenceservice-config" && (namespace == "redhat-ods-applications" || namespace == "opendatahub") {
 			return false
 		}
 		return true
@@ -379,7 +379,7 @@ var configMapPredicates = predicate.Funcs{
 var componentDeploymentPredicates = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
 		namespace := e.ObjectNew.GetNamespace()
-		if namespace == cluster.ODHApplicationNamespace || namespace == cluster.RHOAIApplicationNamespace {
+		if namespace == "opendatahub" || namespace == "redhat-ods-applications" {
 			oldManaged, oldExists := e.ObjectOld.GetAnnotations()[annotations.ManagedByODHOperator]
 			newManaged := e.ObjectNew.GetAnnotations()[annotations.ManagedByODHOperator]
 			// only reoncile if annotation from "not exist" to "set to true", or from "non-true" value to "true"
@@ -396,7 +396,7 @@ var componentDeploymentPredicates = predicate.Funcs{
 var saPredicates = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
 		namespace := e.ObjectNew.GetNamespace()
-		if e.ObjectNew.GetName() == "odh-model-controller" && (namespace == cluster.RHOAIApplicationNamespace || namespace == cluster.ODHApplicationNamespace) {
+		if e.ObjectNew.GetName() == "odh-model-controller" && (namespace == "redhat-ods-applications" || namespace == "opendatahub") {
 			return false
 		}
 		return true

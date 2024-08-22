@@ -243,7 +243,7 @@ func CleanupExistingResource(ctx context.Context, cli client.Client, platform cl
 	multiErr = multierror.Append(multiErr, deleteDeprecatedServiceMonitors(ctx, cli, dscMonitoringNamespace, deprecatedOperatorSM))
 
 	// Remove deprecated opendatahub namespace(previously owned by kuberay and Kueue)
-	multiErr = multierror.Append(multiErr, deleteDeprecatedNamespace(ctx, cli, cluster.ODHApplicationNamespace))
+	multiErr = multierror.Append(multiErr, deleteDeprecatedNamespace(ctx, cli, "opendatahub"))
 
 	// Handling for dashboard OdhApplication Jupyterhub CR, see jira #443
 	multiErr = multierror.Append(multiErr, removOdhApplicationsCR(ctx, cli, gvk.OdhApplication, "jupyterhub", dscApplicationsNamespace))
