@@ -204,5 +204,5 @@ func createServicemeshMember(ctx context.Context, cli client.Client, dscispec *d
 		return fmt.Errorf("error converting servicemeshmember template to unstructured: %w", err)
 	}
 
-	return cli.Create(ctx, unstructured[0])
+	return client.IgnoreAlreadyExists(cli.Create(ctx, unstructured[0]))
 }
