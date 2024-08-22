@@ -21,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -80,6 +81,10 @@ func creationTestSuite(t *testing.T) {
 		t.Run("Validate default model registry cert available", func(t *testing.T) {
 			err = testCtx.testDefaultModelRegistryCertAvailable()
 			require.NoError(t, err, "error getting default cert secret for ModelRegistry")
+		})
+		t.Run("Validate model registry servicemeshmember available", func(t *testing.T) {
+			err = testCtx.testMRServiceMeshMember()
+			require.NoError(t, err, "error getting servicemeshmember for Model Registry")
 		})
 		t.Run("Validate Controller reconcile", func(t *testing.T) {
 			// only test Dashboard component for now
@@ -466,6 +471,23 @@ func (tc *testContext) testDefaultModelRegistryCertAvailable() error {
 
 	if string(defaultIngressSecret.Data["tls.key"]) != string(defaultMRSecret.Data["tls.key"]) {
 		return fmt.Errorf("default MR cert secret not expected. Epected %v, Got %v", defaultIngressSecret.Data["tls.crt"], defaultMRSecret.Data["tls.crt"])
+	}
+	return nil
+}
+
+func (tc *testContext) testMRServiceMeshMember() error {
+	if tc.testDsc.Spec.Components.ModelRegistry.ManagementState != operatorv1.Managed {
+		return nil
+	}
+
+	// Get unstructured ServiceMeshMember
+	smm := unstructured.Unstructured{}
+	smm.SetAPIVersion("maistra.io/v1")
+	smm.SetKind("ServiceMeshMember")
+	err := tc.customClient.Get(tc.ctx,
+		client.ObjectKey{Namespace: modelregistry.ModelRegistriesNamespace, Name: "default"}, &smm)
+	if err != nil {
+		return fmt.Errorf("failed to get servicemesh member: %w", err)
 	}
 	return nil
 }
