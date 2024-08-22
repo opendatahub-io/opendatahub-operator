@@ -191,11 +191,12 @@ func createServicemeshMember(ctx context.Context, cli client.Client, dscispec *d
 		return fmt.Errorf("error parsing servicemeshmember template: %w", err)
 	}
 	builder := strings.Builder{}
-	err = tmpl.Execute(&builder, struct {
+	controlPlaneData := struct {
 		Namespace    string
 		ControlPlane *infrav1.ControlPlaneSpec
-	}{Namespace: namespace.Name, ControlPlane: &dscispec.ServiceMesh.ControlPlane})
-	if err != nil {
+	}{Namespace: namespace.Name, ControlPlane: &dscispec.ServiceMesh.ControlPlane}
+	
+	if err = tmpl.Execute(&builder, controlPlaneData); err != nil {
 		return fmt.Errorf("error executing servicemeshmember template: %w", err)
 	}
 
