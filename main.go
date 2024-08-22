@@ -53,8 +53,8 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/certconfigmapgenerator"
-	datascienceclustercontrollers "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
-	dscicontr "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
+	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
+	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
@@ -146,7 +146,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&dscicontr.DSCInitializationReconciler{
+	if err = (&dscictrl.DSCInitializationReconciler{
 		Client:                mgr.GetClient(),
 		Scheme:                mgr.GetScheme(),
 		Log:                   ctrl.Log.WithName(operatorName).WithName("controllers").WithName("DSCInitialization"),
@@ -157,11 +157,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&datascienceclustercontrollers.DataScienceClusterReconciler{
+	if err = (&dscctrl.DataScienceClusterReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 		Log:    ctrl.Log.WithName(operatorName).WithName("controllers").WithName("DataScienceCluster"),
-		DataScienceCluster: &datascienceclustercontrollers.DataScienceClusterConfig{
+		DataScienceCluster: &dscctrl.DataScienceClusterConfig{
 			DSCISpec: &dsciv1.DSCInitializationSpec{
 				ApplicationsNamespace: dscApplicationsNamespace,
 			},
