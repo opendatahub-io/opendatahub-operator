@@ -3,7 +3,6 @@ package components
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -85,7 +84,7 @@ type ComponentInterface interface {
 	GetComponentName() string
 	GetManagementState() operatorv1.ManagementState
 	OverrideManifests(ctx context.Context, platform cluster.Platform) error
-	UpdatePrometheusConfig(cli client.Client, enable bool, component string) error
+	UpdatePrometheusConfig(cli client.Client, logger logr.Logger, enable bool, component string) error
 	ConfigComponentLogger(logger logr.Logger, component string, dscispec *dsciv1.DSCInitializationSpec) logr.Logger
 }
 
@@ -99,7 +98,7 @@ func (c *Component) ConfigComponentLogger(logger logr.Logger, component string, 
 
 // UpdatePrometheusConfig update prometheus-configs.yaml to include/exclude <component>.rules
 // parameter enable when set to true to add new rules, when set to false to remove existing rules.
-func (c *Component) UpdatePrometheusConfig(_ client.Client, enable bool, component string) error {
+func (c *Component) UpdatePrometheusConfig(_ client.Client, logger logr.Logger, enable bool, component string) error {
 	prometheusconfigPath := filepath.Join("/opt/manifests", "monitoring", "prometheus", "apps", "prometheus-configs.yaml")
 
 	// create a struct to mock poremtheus.yml
@@ -171,7 +170,7 @@ func (c *Component) UpdatePrometheusConfig(_ client.Client, enable bool, compone
 			}
 		}
 	} else { // to remove component rules if it is there
-		fmt.Println("Removing prometheus rule: " + component + "*.rules")
+		logger.Info("Removing prometheus rule: " + component + "*.rules")
 		if ruleList, ok := prometheusContent["rule_files"].([]interface{}); ok {
 			for i, item := range ruleList {
 				if rule, isStr := item.(string); isStr && rule == component+"*.rules" {

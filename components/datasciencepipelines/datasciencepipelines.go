@@ -135,7 +135,7 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 			l.Info("deployment is done, updating monitoring rules")
 		}
 
-		if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
+		if err := d.UpdatePrometheusConfig(cli, l, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
 		}
 		if err := deploy.DeployManifestsFromPath(ctx, cli, owner,

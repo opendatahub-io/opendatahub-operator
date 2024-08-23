@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -12,6 +13,7 @@ import (
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -190,7 +192,7 @@ func WaitForDeploymentAvailable(ctx context.Context, c client.Client, componentN
 			return false, fmt.Errorf("error fetching list of deployments: %w", err)
 		}
 
-		fmt.Printf("waiting for %d deployment to be ready for %s\n", len(componentDeploymentList.Items), componentName)
+		ctrl.Log.Info("waiting for " + strconv.Itoa(len(componentDeploymentList.Items)) + " deployment to be ready for %s" + componentName)
 		for _, deployment := range componentDeploymentList.Items {
 			if deployment.Status.ReadyReplicas != deployment.Status.Replicas {
 				return false, nil
@@ -229,7 +231,7 @@ func CreateWithRetry(ctx context.Context, cli client.Client, obj client.Object, 
 
 		// retry if 500, assume webhook is not available
 		if k8serr.IsInternalError(errCreate) {
-			fmt.Printf("Error creating object: %v. Retrying...\n", errCreate)
+			ctrl.Log.Info("Error creating object, retrying...", "reason", errCreate)
 			return false, nil
 		}
 

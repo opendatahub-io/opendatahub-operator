@@ -93,7 +93,7 @@ func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, logger 
 			}
 			l.Info("deployment is done, updating monitoring rules")
 		}
-		if err := r.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
+		if err := r.UpdatePrometheusConfig(cli, l, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
 		}
 		if err := deploy.DeployManifestsFromPath(ctx, cli, owner,

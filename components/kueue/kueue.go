@@ -89,7 +89,7 @@ func (k *Kueue) ReconcileComponent(ctx context.Context, cli client.Client, logge
 			}
 			l.Info("deployment is done, updating monitoring rules")
 		}
-		if err := k.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
+		if err := k.UpdatePrometheusConfig(cli, l, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
 		}
 		if err := deploy.DeployManifestsFromPath(ctx, cli, owner,

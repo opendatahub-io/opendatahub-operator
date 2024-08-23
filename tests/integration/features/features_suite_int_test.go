@@ -1,7 +1,6 @@
 package features_test
 
 import (
-	"fmt"
 	"path/filepath"
 	"testing"
 
@@ -43,7 +42,7 @@ var _ = BeforeSuite(func() {
 	By("Bootstrapping k8s test environment")
 	projectDir, err := envtestutil.FindProjectRoot()
 	if err != nil {
-		fmt.Printf("Error finding project root: %v\n", err)
+		logf.Log.Error(err, "Error finding project root")
 
 		return
 	}
