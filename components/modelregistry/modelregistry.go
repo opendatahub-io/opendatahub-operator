@@ -11,9 +11,11 @@ import (
 	"text/template"
 
 	"github.com/go-logr/logr"
+	odhp "github.com/opendatahub-io/odh-platform/pkg/platform"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -22,6 +24,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/conversion"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/platform/capabilities"
 
 	_ "embed"
 )
@@ -40,11 +43,14 @@ var (
 
 // Verifies that ModelRegistry implements ComponentInterface.
 var _ components.ComponentInterface = (*ModelRegistry)(nil)
+var _ capabilities.InjectPlatformCapabilities = (*ModelRegistry)(nil)
 
 // ModelRegistry struct holds the configuration for the ModelRegistry component.
 // +kubebuilder:object:generate=true
 type ModelRegistry struct {
 	components.Component `json:""`
+
+	platform capabilities.PlatformCapabilitiesStruct `json:"-"`
 }
 
 func (m *ModelRegistry) OverrideManifests(ctx context.Context, _ cluster.Platform) error {
@@ -67,6 +73,10 @@ func (m *ModelRegistry) OverrideManifests(ctx context.Context, _ cluster.Platfor
 
 func (m *ModelRegistry) GetComponentName() string {
 	return ComponentName
+}
+
+func (m *ModelRegistry) InjectPlatformCapabilities(platform capabilities.PlatformCapabilitiesStruct) {
+	m.platform = platform
 }
 
 func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
@@ -124,6 +134,14 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 		err := m.removeDependencies(ctx, cli, dscispec)
 		if err != nil {
 			return err
+		}
+
+		if m.platform.Routing().IsAvailable() {
+			m.platform.Routing().Expose(odhp.RoutingTarget{ObjectReference: watchedCR})
+		}
+
+		if m.platform.Authorization().IsAvailable() {
+			m.platform.Authorization().ProtectedResources(m.ProtectedResources()...)
 		}
 	}
 
@@ -208,4 +226,27 @@ func enrollToServiceMesh(ctx context.Context, cli client.Client, dscispec *dsciv
 	}
 
 	return client.IgnoreAlreadyExists(cli.Create(ctx, unstrObj[0]))
+}
+
+func (m *ModelRegistry) ProtectedResources() []odhp.ProtectedResource {
+	return []odhp.ProtectedResource{
+		{
+			ObjectReference: watchedCR,
+			WorkloadSelector: map[string]string{
+				"component": "model-registry",
+			},
+			HostPaths: []string{"status.hosts"},
+			Ports:     []string{"8080", "9090"},
+		},
+	}
+}
+
+// platform target resource.
+var watchedCR = odhp.ObjectReference{
+	GroupVersionKind: schema.GroupVersionKind{
+		Group:   "modelregistry.opendatahub.io",
+		Version: "v1alpha1",
+		Kind:    "ModelRegistry",
+	},
+	Resources: "modelregistries",
 }

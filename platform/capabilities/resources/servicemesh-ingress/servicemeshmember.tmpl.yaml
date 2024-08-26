@@ -1,0 +1,9 @@
+apiVersion: maistra.io/v1
+kind: ServiceMeshMember
+metadata:
+  name: default  
+  namespace: {{ .Routing.IngressGateway.Namespace }}
+spec:
+  controlPlaneRef:
+    name:  {{ .Routing.ControlPlane.Name }}
+    namespace: {{ .Routing.ControlPlane.Namespace }}

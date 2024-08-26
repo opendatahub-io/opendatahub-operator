@@ -4,7 +4,7 @@ metadata:
   name: {{ .AuthProviderName }}
   namespace: {{ .AuthNamespace }}
 spec:
-  authConfigLabelSelectors: security.opendatahub.io/authorization-group=default
+  authConfigLabelSelectors: {{ .AuthConfigLabelSelectors}}
   clusterWide: true
   listener:
     tls:

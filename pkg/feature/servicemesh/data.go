@@ -17,6 +17,7 @@ const (
 	controlPlaneKey      string = "ControlPlane"
 	authKey              string = "Auth"
 	authProviderNsKey    string = "AuthNamespace"
+	authConfigSelector   string = "AuthConfigLabelSelectors"
 	authProviderNameKey  string = "AuthProviderName"
 	authExtensionNameKey string = "AuthExtensionName"
 )
@@ -42,6 +43,7 @@ var FeatureData = struct {
 		Spec:                  authSpec,
 		Namespace:             authNs,
 		Provider:              authProvider,
+		ConfigLabel:           authConfigLabel,
 		ExtensionProviderName: authExtensionName,
 		All: func(source *dsciv1.DSCInitializationSpec) []feature.Action {
 			return []feature.Action{
@@ -49,6 +51,7 @@ var FeatureData = struct {
 				authNs.Define(source).AsAction(),
 				authProvider.Define(source).AsAction(),
 				authExtensionName.Define(source).AsAction(),
+				authConfigLabel.Define(source).AsAction(),
 			}
 		},
 	},
@@ -59,6 +62,7 @@ type AuthorizationData struct {
 	Namespace             feature.DataDefinition[dsciv1.DSCInitializationSpec, string]
 	Provider              feature.DataDefinition[dsciv1.DSCInitializationSpec, string]
 	ExtensionProviderName feature.DataDefinition[dsciv1.DSCInitializationSpec, string]
+	ConfigLabel           feature.DataDefinition[dsciv1.DSCInitializationSpec, string] // that means static value
 	All                   func(source *dsciv1.DSCInitializationSpec) []feature.Action
 }
 
@@ -91,7 +95,19 @@ var authNs = feature.DataDefinition[dsciv1.DSCInitializationSpec, string]{
 	Extract: feature.ExtractEntry[string](authProviderNsKey),
 }
 
-var authProvider = feature.DataDefinition[dsciv1.DSCInitializationSpec, string]{
+var authConfigLabel = feature.DataDefinition[dsciv1.DSCInitializationSpec, string]{
+	Define: func(_ *dsciv1.DSCInitializationSpec) feature.DataEntry[string] {
+		return feature.DataEntry[string]{
+			Key: authConfigSelector,
+			Value: func(_ context.Context, _ client.Client) (string, error) {
+				return "security.opendatahub.io/authorization-group=default", nil
+			},
+		}
+	},
+	Extract: feature.ExtractEntry[string](authConfigSelector),
+}
+
+var authProvider = feature.DataDefinition[dsciv1.DSCInitializationSpec, string]{ // TODO could be `any` too
 	Define: func(source *dsciv1.DSCInitializationSpec) feature.DataEntry[string] {
 		return feature.DataEntry[string]{
 			Key: authProviderNameKey,

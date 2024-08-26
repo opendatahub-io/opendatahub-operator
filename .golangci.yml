@@ -58,6 +58,8 @@ linters-settings:
       - stdlib
       # also allow generics
       - generic
+      # exclude tmp platform types
+      - capabilities
   revive:
     rules:
       - name: dot-imports

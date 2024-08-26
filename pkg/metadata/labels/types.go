@@ -7,13 +7,14 @@ const (
 	ClusterMonitoring = "openshift.io/cluster-monitoring"
 )
 
-// K8SCommon keeps common kubernetes labels [1]
-// used across the project.
+// K8SCommon keeps common kubernetes labels [1] used across the project.
 // [1] (https://kubernetes.io/docs/concepts/overview/working-with-objects/common-labels/#labels)
 var K8SCommon = struct {
-	PartOf string
+	PartOf,
+	ManagedBy string
 }{
-	PartOf: "app.kubernetes.io/part-of",
+	PartOf:    "app.kubernetes.io/part-of",
+	ManagedBy: "app.kubernetes.io/managed-by",
 }
 
 // ODH holds Open Data Hub specific labels grouped by types.

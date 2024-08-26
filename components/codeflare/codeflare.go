@@ -57,11 +57,9 @@ func (c *CodeFlare) GetComponentName() string {
 	return ComponentName
 }
 
-func (c *CodeFlare) ReconcileComponent(ctx context.Context,
-	cli client.Client,
-	logger logr.Logger,
-	owner metav1.Object,
-	dscispec *dsciv1.DSCInitializationSpec,
+func (c *CodeFlare) ReconcileComponent(
+	ctx context.Context, cli client.Client, logger logr.Logger,
+	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec,
 	platform cluster.Platform,
 	_ bool) error {
 	l := c.ConfigComponentLogger(logger, ComponentName, dscispec)

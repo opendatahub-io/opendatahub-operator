@@ -59,16 +59,22 @@ func AuthRefs(ctx context.Context, f *feature.Feature) error {
 		return fmt.Errorf("could not get auth provider name from feature: %w", err)
 	}
 
+	authExtProviderName, errAuthProvider := FeatureData.Authorization.ExtensionProviderName.Extract(f)
+	if errAuthProvider != nil {
+		return fmt.Errorf("could not get auth provider name from feature: %w", err)
+	}
+
 	audiences := auth.Audiences
 	audiencesList := ""
 	if audiences != nil && len(*audiences) > 0 {
 		audiencesList = strings.Join(*audiences, ",")
 	}
 	data := map[string]string{
-		"AUTH_AUDIENCE":   audiencesList,
-		"AUTH_PROVIDER":   authProviderName,
-		"AUTH_NAMESPACE":  authNamespace,
-		"AUTHORINO_LABEL": "security.opendatahub.io/authorization-group=default",
+		"AUTH_AUDIENCE":     audiencesList,
+		"AUTH_PROVIDER":     authProviderName,
+		"AUTH_EXT_PROVIDER": authExtProviderName,
+		"AUTH_NAMESPACE":    authNamespace,
+		"AUTHORINO_LABEL":   "security.opendatahub.io/authorization-group=default",
 	}
 
 	return cluster.CreateOrUpdateConfigMap(

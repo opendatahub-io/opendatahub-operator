@@ -35,6 +35,7 @@ RUN go mod download
 COPY apis/ apis/
 COPY components/ components/
 COPY controllers/ controllers/
+COPY platform/ platform/
 COPY main.go main.go
 COPY pkg/ pkg/
 

@@ -21,6 +21,7 @@ import (
 	"flag"
 	"os"
 
+	platform "github.com/opendatahub-io/odh-platform/pkg/schema"
 	addonv1alpha1 "github.com/openshift/addon-operator/apis/addons/v1alpha1"
 	ocappsv1 "github.com/openshift/api/apps/v1" //nolint:importas //reason: conflicts with appsv1 "k8s.io/api/apps/v1"
 	buildv1 "github.com/openshift/api/build/v1"
@@ -65,6 +66,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
+	"github.com/opendatahub-io/opendatahub-operator/v2/platform/capabilities"
 )
 
 const controllerNum = 4 // we should keep this updated if we have new controllers to add
@@ -76,6 +78,7 @@ var (
 
 func init() { //nolint:gochecknoinits
 	// +kubebuilder:scaffold:scheme
+	platform.RegisterSchemes(scheme)
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(dsciv1.AddToScheme(scheme))
 	utilruntime.Must(dscv1.AddToScheme(scheme))
@@ -231,8 +234,13 @@ func main() { //nolint:funlen,maintidx
 			DSCISpec: &dsciv1.DSCInitializationSpec{
 				ApplicationsNamespace: dscApplicationsNamespace,
 			},
+			DSCIStatus: &dsciv1.DSCInitializationStatus{},
 		},
 		Recorder: mgr.GetEventRecorderFor("datasciencecluster-controller"),
+		Orchestrator: &capabilities.PlatformOrchestrator{
+			Manager: mgr,
+			Log:     logger.LogWithLevel(ctrl.Log.WithName(operatorName).WithName("controllers").WithName("platform"), logmode),
+		},
 	}).SetupWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DataScienceCluster")
 		os.Exit(1)

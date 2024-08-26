@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -31,6 +32,46 @@ func EnsureAuthNamespaceExists(ctx context.Context, f *feature.Feature) error {
 
 	_, err = cluster.CreateNamespace(ctx, f.Client, authNs, feature.OwnedBy(f), cluster.WithLabels(labels.ODH.OwnedNamespace, "true"))
 	return err
+}
+
+func WaitForServiceMeshMember(namespace string) feature.Action {
+	return func(ctx context.Context, f *feature.Feature) error {
+		gvk := schema.GroupVersionKind{
+			Version: "maistra.io/v1",
+			Kind:    "ServiceMeshMember",
+		}
+		f.Log.Info("waiting for resource to be created", "namespace", namespace, "resource", gvk)
+
+		return wait.PollUntilContextTimeout(ctx, interval, duration, false, func(ctx context.Context) (bool, error) {
+			smm := &unstructured.Unstructured{}
+			smm.SetGroupVersionKind(gvk)
+
+			err := f.Client.Get(ctx, client.ObjectKey{Namespace: namespace, Name: "default"}, smm)
+			if err != nil {
+				f.Log.Error(err, "failed waiting for resource", "namespace", namespace, "resource", gvk)
+
+				return false, err
+			}
+
+			conditions, found, err := unstructured.NestedSlice(smm.Object, "status", "conditions")
+			if err != nil {
+				return false, err
+			}
+			if !found {
+				return false, nil
+			}
+			for _, condition := range conditions {
+				if cond, ok := condition.(map[string]interface{}); ok {
+					conType, _, _ := unstructured.NestedString(cond, "type")
+					conStatus, _, _ := unstructured.NestedString(cond, "status")
+					if conType == "Ready" && conStatus == "True" {
+						return true, nil
+					}
+				}
+			}
+			return false, nil
+		})
+	}
 }
 
 func EnsureServiceMeshOperatorInstalled(ctx context.Context, f *feature.Feature) error {

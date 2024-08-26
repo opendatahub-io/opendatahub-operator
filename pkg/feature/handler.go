@@ -105,6 +105,14 @@ func (fh *FeaturesHandler) Delete(ctx context.Context) error {
 // and add them to the handler's registry.
 type FeaturesProvider func(registry FeaturesRegistry) error
 
+func NewFeaturesHandler(targetNs string, source featurev1.Source, def ...FeaturesProvider) *FeaturesHandler {
+	return &FeaturesHandler{
+		targetNamespace:   targetNs,
+		source:            source,
+		featuresProviders: def,
+	}
+}
+
 func ClusterFeaturesHandler(dsci *dsciv1.DSCInitialization, def ...FeaturesProvider) *FeaturesHandler {
 	return &FeaturesHandler{
 		targetNamespace:   dsci.Spec.ApplicationsNamespace,

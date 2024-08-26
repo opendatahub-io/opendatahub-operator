@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -48,7 +49,7 @@ func createFeatureTracker(ctx context.Context, f *Feature) error {
 				return err
 			}
 
-			tracker.SetOwnerReferences(reference)
+			tracker.SetOwnerReferences([]metav1.OwnerReference{reference})
 		}
 
 		if errCreate := f.Client.Create(ctx, tracker); errCreate != nil {

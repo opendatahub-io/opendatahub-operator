@@ -102,6 +102,13 @@ rules:
   - authconfigs
   verbs:
   - '*'
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - authorization.k8s.io
   resources:
@@ -580,6 +587,7 @@ rules:
 - apiGroups:
   - networking.istio.io
   resources:
+  - destinationrules
   - envoyfilters
   - gateways
   - virtualservices
@@ -738,6 +746,7 @@ rules:
   resources:
   - routes
   verbs:
+  - '*'
   - create
   - delete
   - get
@@ -746,11 +755,24 @@ rules:
   - update
   - watch
 - apiGroups:
+  - route.openshift.io
+  resources:
+  - routes/custom-host
+  verbs:
+  - '*'
+- apiGroups:
   - security.istio.io
   resources:
   - authorizationpolicies
   verbs:
   - '*'
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - security.openshift.io
   resources:

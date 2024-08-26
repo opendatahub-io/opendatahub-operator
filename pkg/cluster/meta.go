@@ -5,7 +5,6 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 // MetaOptions allows to add additional settings for the object being created through a chain
@@ -29,16 +28,10 @@ func WithOwnerReference(ownerReferences ...metav1.OwnerReference) MetaOptions {
 	}
 }
 
-func OwnedBy(owner metav1.Object, scheme *runtime.Scheme) MetaOptions {
-	return func(obj metav1.Object) error {
-		return controllerutil.SetOwnerReference(owner, obj, scheme)
-	}
-}
-
-func ToOwnerReference(obj metav1.Object) ([]metav1.OwnerReference, error) {
+func ToOwnerReference(obj metav1.Object) (metav1.OwnerReference, error) {
 	runtimeOwner, ok := obj.(runtime.Object)
 	if !ok {
-		return nil, fmt.Errorf("%T is not a runtime.Object", obj)
+		return metav1.OwnerReference{}, fmt.Errorf("%T is not a runtime.Object", obj)
 	}
 
 	gvk := runtimeOwner.GetObjectKind().GroupVersionKind()
@@ -49,7 +42,7 @@ func ToOwnerReference(obj metav1.Object) ([]metav1.OwnerReference, error) {
 		Name:       obj.GetName(),
 		UID:        obj.GetUID(),
 	}
-	return []metav1.OwnerReference{ownerRef}, nil
+	return ownerRef, nil
 }
 
 func WithLabels(labels ...string) MetaOptions {

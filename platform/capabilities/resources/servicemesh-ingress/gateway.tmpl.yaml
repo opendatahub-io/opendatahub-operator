@@ -1,0 +1,19 @@
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: {{ .Routing.IngressGateway.Name }}
+  namespace: {{ .Routing.IngressGateway.Namespace }}
+spec:
+  selector:
+    {{ .Routing.IngressGateway.LabelSelectorKey }} : {{ .Routing.IngressGateway.LabelSelectorValue }}
+  servers:
+    - hosts:
+        # OpenShift Router limitations: SNI field is empty in forwarded requests, requiring a wildcard host on the “public” Gateway
+        - '*'
+      port:
+        name: https
+        number: 443
+        protocol: HTTPS
+      tls:
+        credentialName: {{ .Routing.CertSecretName }}
+        mode: SIMPLE
