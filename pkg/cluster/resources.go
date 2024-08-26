@@ -192,7 +192,7 @@ func WaitForDeploymentAvailable(ctx context.Context, c client.Client, componentN
 			return false, fmt.Errorf("error fetching list of deployments: %w", err)
 		}
 
-		ctrl.Log.Info("waiting for " + strconv.Itoa(len(componentDeploymentList.Items)) + " deployment to be ready for %s" + componentName)
+		ctrl.Log.Info("waiting for " + strconv.Itoa(len(componentDeploymentList.Items)) + " deployment to be ready for " + componentName)
 		for _, deployment := range componentDeploymentList.Items {
 			if deployment.Status.ReadyReplicas != deployment.Status.Replicas {
 				return false, nil
