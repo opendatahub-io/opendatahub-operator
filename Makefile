@@ -367,7 +367,7 @@ test: unit-test e2e-test
 
 .PHONY: unit-test
 unit-test: envtest
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $(TEST_SRC) -v  -coverprofile cover.out
+	OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $(TEST_SRC) -v  -coverprofile cover.out
 CLEANFILES += cover.out
 
 .PHONY: e2e-test
