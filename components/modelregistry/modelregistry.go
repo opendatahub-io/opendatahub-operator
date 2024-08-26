@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
+	"text/template"
 
 	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -15,9 +17,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/conversion"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+
+	_ "embed"
 )
 
 const DefaultModelRegistryCert = "default-modelregistry-cert"
@@ -27,8 +33,9 @@ var (
 	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/odh"
 	// we should not apply this label to the namespace, as it triggered namspace deletion during operator uninstall
 	// modelRegistryLabels = cluster.WithLabels(
-	// 	labels.ODH.OwnedNamespace, "true",
+	//      labels.ODH.OwnedNamespace, "true",
 	// ).
+	ModelRegistriesNamespace = "odh-model-registries"
 )
 
 // Verifies that ModelRegistry implements ComponentInterface.
@@ -100,12 +107,19 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 			}
 		}
 
-		// Create odh-model-registries namespace
+		// Create model registries namespace
 		// We do not delete this namespace even when ModelRegistry is Removed or when operator is uninstalled.
-		_, err := cluster.CreateNamespace(ctx, cli, "odh-model-registries")
+		ns, err := cluster.CreateNamespace(ctx, cli, ModelRegistriesNamespace)
 		if err != nil {
 			return err
 		}
+		l.Info("created model registry namespace", "namespace", ModelRegistriesNamespace)
+		// create servicemeshmember here, for now until post MVP solution
+		err = enrollToServiceMesh(ctx, cli, dscispec, ns)
+		if err != nil {
+			return err
+		}
+		l.Info("created model registry servicemesh member", "namespace", ModelRegistriesNamespace)
 	} else {
 		err := m.removeDependencies(ctx, cli, dscispec)
 		if err != nil {
@@ -168,4 +182,30 @@ func (m *ModelRegistry) removeDependencies(ctx context.Context, cli client.Clien
 		return err
 	}
 	return nil
+}
+
+//go:embed resources/servicemesh-member.tmpl.yaml
+var smmTemplate string
+
+func enrollToServiceMesh(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec, namespace *corev1.Namespace) error {
+	tmpl, err := template.New("servicemeshmember").Parse(smmTemplate)
+	if err != nil {
+		return fmt.Errorf("error parsing servicemeshmember template: %w", err)
+	}
+	builder := strings.Builder{}
+	controlPlaneData := struct {
+		Namespace    string
+		ControlPlane *infrav1.ControlPlaneSpec
+	}{Namespace: namespace.Name, ControlPlane: &dscispec.ServiceMesh.ControlPlane}
+
+	if err = tmpl.Execute(&builder, controlPlaneData); err != nil {
+		return fmt.Errorf("error executing servicemeshmember template: %w", err)
+	}
+
+	unstrObj, err := conversion.StrToUnstructured(builder.String())
+	if err != nil || len(unstrObj) != 1 {
+		return fmt.Errorf("error converting servicemeshmember template: %w", err)
+	}
+
+	return client.IgnoreAlreadyExists(cli.Create(ctx, unstrObj[0]))
 }
