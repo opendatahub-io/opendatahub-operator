@@ -380,7 +380,6 @@ var CMContentChangedPredicate = predicate.Funcs{
 
 var DSCDeletionPredicate = predicate.Funcs{
 	DeleteFunc: func(e event.DeleteEvent) bool {
-
 		return true
 	},
 }

@@ -204,30 +204,31 @@ func manageResource(ctx context.Context, cli client.Client, res *resource.Resour
 
 	found, err := getResource(ctx, cli, res)
 
-	if err != nil {
-		if !k8serr.IsNotFound(err) {
-			return err
-		}
-		// Create resource if it doesn't exist and component enabled
+	if err == nil {
+		// when resource is found
 		if enabled {
-			return createResource(ctx, cli, res, owner)
+			// Exception to not update kserve with managed annotation
+			// do not reconcile kserve resource with annotation "opendatahub.io/managed: false"
+			// TODO: remove this exception when we define managed annotation across odh
+			if found.GetAnnotations()[annotations.ManagedByODHOperator] == "false" && componentName == "kserve" {
+				return nil
+			}
+			return updateResource(ctx, cli, res, found, owner)
 		}
-		// Skip if resource doesn't exist and component is disabled
-		return nil
+		// Delete resource if it exists or do nothing if not found
+		return handleDisabledComponent(ctx, cli, found, componentName)
 	}
 
-	// when resource is found
-	if enabled {
-		// Exception to not update kserve with managed annotation
-		// do not reconcile kserve resource with annotation "opendatahub.io/managed: false"
-		// TODO: remove this exception when we define managed annotation across odh
-		if found.GetAnnotations()[annotations.ManagedByODHOperator] == "false" && componentName == "kserve" {
-			return nil
-		}
-		return updateResource(ctx, cli, res, found, owner)
+	if !k8serr.IsNotFound(err) {
+		return err
 	}
-	// Delete resource if it exists and component is disabled
-	return handleDisabledComponent(ctx, cli, found, componentName)
+
+	// Create resource when component enabled
+	if enabled {
+		return createResource(ctx, cli, res, owner)
+	}
+	// Skip if resource doesn't exist and component is disabled
+	return nil
 }
 
 func getResource(ctx context.Context, cli client.Client, obj *resource.Resource) (*unstructured.Unstructured, error) {
@@ -287,15 +288,15 @@ func createResource(ctx context.Context, cli client.Client, res *resource.Resour
 	return cli.Create(ctx, obj)
 }
 
+// Exception to skip ODHDashboardConfig CR reconcile.
 func updateResource(ctx context.Context, cli client.Client, res *resource.Resource, found *unstructured.Unstructured, owner metav1.Object) error {
-	// Skip ODHDashboardConfig Update
 	if found.GetKind() == "OdhDashboardConfig" {
 		return nil
 	}
 
-	// only reconcile whiltelistedFields if the existing resource has annoation set to "true"
-	// all other cases, whiltelistedfields will be skipped by ODH operator
-	if managed, exists := found.GetAnnotations()[annotations.ManagedByODHOperator]; !exists || managed != "true" {
+	// Operator reconcile allowedListfield only when resource is managed by operator(annotation is true)
+	// all other cases: no annotation at all, required annotation not present, of annotation is non-true value, skip reconcile
+	if managed := found.GetAnnotations()[annotations.ManagedByODHOperator]; managed != "true" {
 		if err := skipUpdateOnAllowlistedFields(res); err != nil {
 			return err
 		}
@@ -336,11 +337,13 @@ func updateLabels(found, obj *unstructured.Unstructured) {
 	obj.SetLabels(foundLabels)
 }
 
+// preformPatch works for update cases.
 func performPatch(ctx context.Context, cli client.Client, obj, found *unstructured.Unstructured, owner metav1.Object) error {
 	data, err := json.Marshal(obj)
 	if err != nil {
 		return err
 	}
+	// force owner to be default-dsc/default-dsci
 	return cli.Patch(ctx, found, client.RawPatch(types.ApplyPatchType, data), client.ForceOwnership, client.FieldOwner(owner.GetName()))
 }
 
