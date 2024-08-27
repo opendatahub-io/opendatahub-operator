@@ -73,7 +73,7 @@ YQ_VERSION ?= v4.12.2
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.31.0
 ENVTEST_PACKAGE_VERSION = v0.0.0-20240813183042-b901db121e1f
-CRD_REF_DOCS_VERSION = 0.0.11
+CRD_REF_DOCS_VERSION = 0.1.0
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -95,8 +95,8 @@ E2E_TEST_FLAGS = "--skip-deletion=false" -timeout 20m # See README.md, default g
 # see target "image-build"
 IMAGE_BUILD_FLAGS ?= --build-arg USE_LOCAL=false
 
-# Read any custom variables overrides from a local.mk file.  This will only be read if it exists in the 
-# same directory as this Makefile.  Variables can be specified in the standard format supported by 
+# Read any custom variables overrides from a local.mk file.  This will only be read if it exists in the
+# same directory as this Makefile.  Variables can be specified in the standard format supported by
 # GNU Make since `include` processes any valid Makefile
 # Standard variables override would include anything you would pass at runtime that is different
 # from the defaults specified in this file
@@ -173,7 +173,7 @@ CLEANFILES += opt/manifests/*
 api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-ref-docs
 	$(CRD_REF_DOCS) --source-path ./ --output-path ./docs/api-overview.md --renderer markdown --config ./crd-ref-docs.config.yaml && \
 	grep -Ev '\.io/[^v][^1].*)$$' ./docs/api-overview.md > temp.md && mv ./temp.md ./docs/api-overview.md
-	
+
 ##@ Build
 
 .PHONY: build
@@ -264,12 +264,23 @@ golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
 $(GOLANGCI_LINT): $(LOCALBIN)
 	test -s $(GOLANGCI_LINT) || { curl -sSfL $(GOLANGCI_LINT_INSTALL_SCRIPT) | bash -s $(GOLANGCI_LINT_VERSION); }
 
-CRD_REF_DOCS_DL_URL ?= 'https://github.com/elastic/crd-ref-docs/releases/download/v$(CRD_REF_DOCS_VERSION)/crd-ref-docs'
+
+ifeq ($(shell go env GOOS), linux)
+ARCH=x86_64
+else
+ARCH=$(strip $(shell go env GOARCH))
+endif
+CRD_REF_DOCS_TARBALL="crd-ref-docs.tar.gz"
 .PHONY: crd-ref-docs
-crd-ref-docs: $(CRD_REF_DOCS) ## Download crd-ref-docs locally if necessary.
+crd-ref-docs: $(CRD_REF_DOCS)
 $(CRD_REF_DOCS): $(LOCALBIN)
-	test -s $(CRD_REF_DOCS) || curl -sSLo $(CRD_REF_DOCS) $(CRD_REF_DOCS_DL_URL) && \
-	chmod +x $(CRD_REF_DOCS) ;\
+	test -s $(CRD_REF_DOCS) || ( \
+		OS=$(shell go env GOOS) && \
+		wget -q -O $(LOCALBIN)/$(CRD_REF_DOCS_TARBALL) https://github.com/elastic/crd-ref-docs/releases/download/v$(CRD_REF_DOCS_VERSION)/crd-ref-docs_$(CRD_REF_DOCS_VERSION)_$${OS}_${ARCH}.tar.gz && \
+		tar -xzf $(LOCALBIN)/$(CRD_REF_DOCS_TARBALL) -C $(LOCALBIN) && \
+		rm -rf $(LOCALBIN)/$(CRD_REF_DOCS_TARBALL) $(LOCALBIN)/LICENSE $(LOCALBIN)/README.md && \
+		chmod +x $(CRD_REF_DOCS) \
+	)
 
 BUNDLE_DIR ?= "bundle"
 .PHONY: bundle
