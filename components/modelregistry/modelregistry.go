@@ -11,11 +11,9 @@ import (
 	"text/template"
 
 	"github.com/go-logr/logr"
-	odhp "github.com/opendatahub-io/odh-platform/pkg/platform"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -136,17 +134,6 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 			return err
 		}
 
-		if m.platform.Routing().IsAvailable() {
-			m.platform.Routing().Expose(odhp.RoutingTarget{ObjectReference: watchedCR})
-			// -> CR not representing a solid abstraction yet, desired long-term
-			// -> applying overlay/CR shipped as manifests
-			// -> that would result in deploying platform-ctrl + IGW
-			// Expose(odhp.RoutingTarget{ObjectReference: watchedCR})
-		}
-
-		if m.platform.Authorization().IsAvailable() {
-			m.platform.Authorization().ProtectedResources(m.ProtectedResources()...)
-		}
 	}
 
 	// Deploy ModelRegistry Operator
@@ -180,6 +167,9 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 		}
 		l.Info("updating SRE monitoring done")
 	}
+
+	m.platformRegister()
+
 	return nil
 }
 
@@ -230,27 +220,4 @@ func enrollToServiceMesh(ctx context.Context, cli client.Client, dscispec *dsciv
 	}
 
 	return client.IgnoreAlreadyExists(cli.Create(ctx, unstrObj[0]))
-}
-
-func (m *ModelRegistry) ProtectedResources() []odhp.ProtectedResource {
-	return []odhp.ProtectedResource{
-		{
-			ObjectReference: watchedCR,
-			WorkloadSelector: map[string]string{
-				"component": "model-registry",
-			},
-			HostPaths: []string{"status.hosts"},
-			Ports:     []string{"8080", "9090"},
-		},
-	}
-}
-
-// platform target resource.
-var watchedCR = odhp.ObjectReference{
-	GroupVersionKind: schema.GroupVersionKind{
-		Group:   "modelregistry.opendatahub.io",
-		Version: "v1alpha1",
-		Kind:    "ModelRegistry",
-	},
-	Resources: "modelregistries",
 }
