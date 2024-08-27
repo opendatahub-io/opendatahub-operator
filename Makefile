@@ -265,21 +265,13 @@ $(GOLANGCI_LINT): $(LOCALBIN)
 	test -s $(GOLANGCI_LINT) || { curl -sSfL $(GOLANGCI_LINT_INSTALL_SCRIPT) | bash -s $(GOLANGCI_LINT_VERSION); }
 
 
-ifeq ($(shell go env GOOS), linux)
-ARCH=x86_64
-else
-ARCH=$(strip $(shell go env GOARCH))
-endif
-CRD_REF_DOCS_TARBALL="crd-ref-docs.tar.gz"
+OS=$(shell uname -s)
+ARCH=$(shell uname -m)
 .PHONY: crd-ref-docs
 crd-ref-docs: $(CRD_REF_DOCS)
 $(CRD_REF_DOCS): $(LOCALBIN)
 	test -s $(CRD_REF_DOCS) || ( \
-		OS=$(shell go env GOOS) && \
-		wget -q -O $(LOCALBIN)/$(CRD_REF_DOCS_TARBALL) https://github.com/elastic/crd-ref-docs/releases/download/v$(CRD_REF_DOCS_VERSION)/crd-ref-docs_$(CRD_REF_DOCS_VERSION)_$${OS}_${ARCH}.tar.gz && \
-		tar -xzf $(LOCALBIN)/$(CRD_REF_DOCS_TARBALL) -C $(LOCALBIN) && \
-		rm -rf $(LOCALBIN)/$(CRD_REF_DOCS_TARBALL) $(LOCALBIN)/LICENSE $(LOCALBIN)/README.md && \
-		chmod +x $(CRD_REF_DOCS) \
+		curl -sSL https://github.com/elastic/crd-ref-docs/releases/download/v$(CRD_REF_DOCS_VERSION)/crd-ref-docs_$(CRD_REF_DOCS_VERSION)_$(OS)_$(ARCH).tar.gz | tar -xzf - -C $(LOCALBIN) crd-ref-docs \
 	)
 
 BUNDLE_DIR ?= "bundle"
