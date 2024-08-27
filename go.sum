@@ -245,8 +245,8 @@ github.com/mailru/easyjson v0.0.0-20190626092158-b2ccc519800e/go.mod h1:C1wdFJiN
 github.com/mailru/easyjson v0.7.6/go.mod h1:xzfreul335JAWq5oZzymOObrkdz5UnU4kGfJJLY9Nlc=
 github.com/mailru/easyjson v0.7.7 h1:UGYAvKxe3sBsEDzO8ZeWOSlIQfWFlxbzLZe7hwFURr0=
 github.com/mailru/easyjson v0.7.7/go.mod h1:xzfreul335JAWq5oZzymOObrkdz5UnU4kGfJJLY9Nlc=
-github.com/maistra/odh-platform v0.0.2-0.20240815224030-03289064851e h1:f4HReZx9XGt6OwHVNJHT8EoDr5SfL4AnhzW/MkOQ30A=
-github.com/maistra/odh-platform v0.0.2-0.20240815224030-03289064851e/go.mod h1:tY+s46vo4CR7tj60AAg96QqjVGJHVNk2fBWoH1JANpU=
+github.com/maistra/odh-platform v0.0.2-0.20240827094806-9faba499d406 h1:zNraZf7nXy3NfDmW9+H27M0NV/IfVgVifDtXAcGtIwo=
+github.com/maistra/odh-platform v0.0.2-0.20240827094806-9faba499d406/go.mod h1:tY+s46vo4CR7tj60AAg96QqjVGJHVNk2fBWoH1JANpU=
 github.com/matttproud/golang_protobuf_extensions/v2 v2.0.0 h1:jWpvCLoY8Z/e3VKvlsiIGKtc+UG6U5vzxaoagmhXfyg=
 github.com/matttproud/golang_protobuf_extensions/v2 v2.0.0/go.mod h1:QUyp042oQthUoa9bqDv0ER0wrtXnBruoNd7aNjkbP+k=
 github.com/mitchellh/mapstructure v1.1.2/go.mod h1:FVVH3fgwuzCH5S8UJGiWEs2h04kUh9fWfEaFds41c1Y=
