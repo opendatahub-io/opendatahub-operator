@@ -28,6 +28,11 @@ func NewPlatformCapabilitiesStruct(p PlatformCapabilities) PlatformCapabilitiesS
 	return PlatformCapabilitiesStruct{p: p}
 }
 
+// PlatformCapabilitiesStruct is a wrapper struct to inject PlatformCapabilities into components instead of polluting
+// the interface.
+//
+// We cannot directly use an interface type, so this struct wrapper exists to work around the hard requirement that the implementation
+// of the component is an API-facing concept. Without this indirection, the API generation toolchain fails to generate the deep copy.
 type PlatformCapabilitiesStruct struct {
 	p PlatformCapabilities
 }
@@ -40,10 +45,10 @@ func (p *PlatformCapabilitiesStruct) Routing() Routing {
 	return p.p.Routing()
 }
 
-func (p *PlatformCapabilitiesStruct) DeepCopyInto(platform *PlatformCapabilitiesStruct) {
+func (p *PlatformCapabilitiesStruct) DeepCopyInto(_ *PlatformCapabilitiesStruct) {
 
 }
 
-type InjectPlatformCapabilities interface {
+type Injectable interface {
 	InjectPlatformCapabilities(platform PlatformCapabilitiesStruct)
 }

@@ -6,16 +6,15 @@ import (
 
 	"github.com/opendatahub-io/odh-platform/pkg/platform"
 	rbacv1 "k8s.io/api/rbac/v1"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
-func CreateOrUpdatePlatformRoleBindings(ctx context.Context, cli client.Client, roleName string,
+func CreateOrUpdatePlatformRBAC(ctx context.Context, cli client.Client, roleName string,
 	objectReferences []platform.ObjectReference, metaOptions ...cluster.MetaOptions) error {
-	if _, err := cluster.CreateOrUpdateClusterRole(ctx, cli, roleName, createAuthRules(objectReferences), metaOptions...); err != nil {
+	if _, err := cluster.CreateOrUpdateClusterRole(ctx, cli, roleName, createPolicyRules(objectReferences), metaOptions...); err != nil {
 		return fmt.Errorf("failed creating cluster role: %w", err)
 	}
 
@@ -33,19 +32,7 @@ func CreateOrUpdatePlatformRoleBindings(ctx context.Context, cli client.Client, 
 	return nil
 }
 
-// DeletePlatformRoleBindings attempts to remove created role/bindings but does not fail if these are not existing in the cluster.
-func DeletePlatformRoleBindings(ctx context.Context, cli client.Client, roleName string) error {
-	if err := cluster.DeleteClusterRoleBinding(ctx, cli, roleName); !k8serr.IsNotFound(err) {
-		return err
-	}
-	if err := cluster.DeleteClusterRole(ctx, cli, roleName); !k8serr.IsNotFound(err) {
-		return err
-	}
-
-	return nil
-}
-
-func createAuthRules(objectReferences []platform.ObjectReference) []rbacv1.PolicyRule {
+func createPolicyRules(objectReferences []platform.ObjectReference) []rbacv1.PolicyRule {
 	apiGroups := make([]string, 0)
 	resources := make([]string, 0)
 	for _, ref := range objectReferences {
@@ -67,7 +54,7 @@ func createPlatformRoleBinding(roleName, namespace string) ([]rbacv1.Subject, rb
 			{
 				Kind:      rbacv1.ServiceAccountKind,
 				Name:      "opendatahub-operator-controller-manager", // "odh-platform-manager",
-				Namespace: namespace,                                 // "opendatahub" (ApplicationNamespace)
+				Namespace: namespace,
 			},
 		},
 		rbacv1.RoleRef{
@@ -77,7 +64,6 @@ func createPlatformRoleBinding(roleName, namespace string) ([]rbacv1.Subject, rb
 		}
 }
 
-// TODO(mvp) this function should be moved somewhere else, as it is not roles-specific.
 func defineMetaOptions(owner metav1.Object) ([]cluster.MetaOptions, error) {
 	var metaOpts []cluster.MetaOptions
 
@@ -86,14 +72,6 @@ func defineMetaOptions(owner metav1.Object) ([]cluster.MetaOptions, error) {
 		return nil, fmt.Errorf("failed to create owner reference: %w", err)
 	}
 	metaOpts = append(metaOpts, cluster.WithOwnerReference(ownerRef))
-
-	// As the platform controllers will be run added to manager of opendatahub-operator, resources has to be defined
-	// for the same namespace
-	operatorNS, errNS := cluster.GetOperatorNamespace()
-	if errNS != nil {
-		return nil, errNS
-	}
-	metaOpts = append(metaOpts, cluster.InNamespace(operatorNS))
 
 	return metaOpts, nil
 }

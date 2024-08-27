@@ -8,8 +8,6 @@ import (
 	"github.com/opendatahub-io/odh-platform/pkg/platform"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
 func NewAuthorization(available bool, opts ...AuthzOption) *AuthorizationCapability {
@@ -28,15 +26,21 @@ type Authorization interface {
 
 type AuthzOption func(*AuthorizationCapability)
 
-// Producer
-
-var _ Authorization = (*AuthorizationCapability)(nil)
-
+// TODO(mvp): godoc.
 type AuthorizationCapability struct {
 	available          bool
 	config             authzctrl.PlatformAuthorizationConfig
 	protectedResources []platform.ProtectedResource
 }
+
+func WithAuthzConfig(config authzctrl.PlatformAuthorizationConfig) AuthzOption {
+	return func(a *AuthorizationCapability) {
+		a.config = config
+	}
+}
+
+// Component registration API.
+var _ Authorization = (*AuthorizationCapability)(nil)
 
 func (a *AuthorizationCapability) IsAvailable() bool {
 	return a.available
@@ -46,14 +50,7 @@ func (a *AuthorizationCapability) ProtectedResources(protectedResource ...platfo
 	a.protectedResources = append(a.protectedResources, protectedResource...)
 }
 
-func WithAuthzConfig(config authzctrl.PlatformAuthorizationConfig) AuthzOption {
-	return func(a *AuthorizationCapability) {
-		a.config = config
-	}
-}
-
-// Consumer
-
+// Platform configuration by the operator.
 var _ Reconciler = (*AuthorizationCapability)(nil)
 
 func (a *AuthorizationCapability) IsRequired() bool {
@@ -64,19 +61,15 @@ func (a *AuthorizationCapability) IsRequired() bool {
 func (a *AuthorizationCapability) Reconcile(ctx context.Context, cli client.Client, owner metav1.Object) error {
 	const roleName = "platform-protected-resources-watcher"
 
-	if a.IsRequired() {
-		ownerRef, err := cluster.ToOwnerReference(owner)
-		if err != nil {
-			return fmt.Errorf("failed to create owner reference while reconciling Authorization capability: %w", err)
-		}
-
-		objectReferences := make([]platform.ObjectReference, len(a.protectedResources))
-		for i, ref := range a.protectedResources {
-			objectReferences[i] = ref.ObjectReference
-		}
-
-		return CreateOrUpdatePlatformRoleBindings(ctx, cli, roleName, objectReferences, cluster.WithOwnerReference(ownerRef))
+	metaOpts, err := defineMetaOptions(owner)
+	if err != nil {
+		return fmt.Errorf("failed to define meta options while reconciling authorization capability: %w", err)
 	}
 
-	return DeletePlatformRoleBindings(ctx, cli, roleName)
+	objectReferences := make([]platform.ObjectReference, len(a.protectedResources))
+	for i, ref := range a.protectedResources {
+		objectReferences[i] = ref.ObjectReference
+	}
+
+	return CreateOrUpdatePlatformRBAC(ctx, cli, roleName, objectReferences, metaOpts...)
 }

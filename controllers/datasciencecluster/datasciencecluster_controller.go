@@ -270,9 +270,9 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 			conditionsv1.IsStatusConditionTrue(r.DataScienceCluster.DSCIStatus.Conditions, status.CapabilityServiceMesh),
 			capabilities.NewRoutingSpec(r.DataScienceCluster.DSCISpec),
 		),
-		capabilities.AppNamespace(r.DataScienceCluster.DSCISpec.ApplicationsNamespace),
-		capabilities.Owner(instance),
-		capabilities.Orchestrator(r.Orchestrator),
+		capabilities.WithAppNamespace(r.DataScienceCluster.DSCISpec.ApplicationsNamespace),
+		capabilities.WithOwner(instance),
+		capabilities.WithOrchestrator(r.Orchestrator),
 	)
 
 	for _, component := range allComponents {
@@ -285,7 +285,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	// as we rely on configuration of the registry first to determine what is needed
 	// If there will be a split to sub-controllers, dealing with changes separately, this will need to be adjusted
 	// as we do not have a notion now if a component is enabled or not
-	if configErr := capabilitiesRegistry.ConfigureCapabilities(ctx, r.Client); configErr != nil {
+	if configErr := capabilitiesRegistry.Configure(ctx, r.Client); configErr != nil {
 		return ctrl.Result{}, multierror.Append(componentErrors, configErr)
 	}
 
@@ -358,7 +358,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 		r.Log.Error(err, "Failed to determine platform")
 		return instance, err
 	}
-	if comp, implements := component.(capabilities.InjectPlatformCapabilities); implements {
+	if comp, implements := component.(capabilities.Injectable); implements {
 		comp.InjectPlatformCapabilities(capabilities.NewPlatformCapabilitiesStruct(platformCapabilities))
 	}
 	err = component.ReconcileComponent(ctx, r.Client, r.Log, instance, r.DataScienceCluster.DSCISpec, platform, installedComponentValue)

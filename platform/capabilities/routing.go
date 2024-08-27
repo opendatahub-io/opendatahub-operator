@@ -29,13 +29,15 @@ type Routing interface {
 	Expose(targets ...platform.RoutingTarget)
 }
 
-var _ Routing = (*RoutingCapability)(nil)
-
+// TODO(mvp): godoc.
 type RoutingCapability struct {
 	available      bool
 	routingSpec    RoutingSpec
 	routingTargets []platform.RoutingTarget
 }
+
+// Component registration API.
+var _ Routing = (*RoutingCapability)(nil)
 
 func (r *RoutingCapability) Expose(targets ...platform.RoutingTarget) {
 	r.routingTargets = append(r.routingTargets, targets...)
@@ -45,23 +47,17 @@ func (r *RoutingCapability) IsAvailable() bool {
 	return r.available
 }
 
+// Platform configuration by the operator.
 var _ Reconciler = (*RoutingCapability)(nil)
 
 func (r *RoutingCapability) IsRequired() bool {
 	return len(r.routingTargets) > 0
 }
 
-// TODO expect a function here?
 // Reconcile ensures routing capability and component-specific configuration is wired when needed.
 func (r *RoutingCapability) Reconcile(ctx context.Context, cli client.Client, owner metav1.Object) error {
 	const roleName = "platform-routing-resources-watcher"
 
-	// TODO(mvp): can this be a Feature instead?
-	if !r.IsRequired() {
-		if errDelete := DeletePlatformRoleBindings(ctx, cli, roleName); errDelete != nil {
-			return fmt.Errorf("failed to delete platform role bindings when reconciling routing capability: %w", errDelete)
-		}
-	}
 	metaOpts, err := defineMetaOptions(owner)
 	if err != nil {
 		return fmt.Errorf("failed to define meta options while reconciling routing capability: %w", err)
@@ -72,10 +68,7 @@ func (r *RoutingCapability) Reconcile(ctx context.Context, cli client.Client, ow
 		objectReferences[i] = ref.ObjectReference
 	}
 
-	// TODO rethink - we need ns in some, but not in the others - currently it's GetOperatorNs in the func itself
-	// TODO multi error?
-	err = CreateOrUpdatePlatformRoleBindings(ctx, cli, roleName, objectReferences, metaOpts...)
-	if err != nil {
+	if errRoleCreate := CreateOrUpdatePlatformRBAC(ctx, cli, roleName, objectReferences, metaOpts...); errRoleCreate != nil {
 		return fmt.Errorf("failed to create role bindings for platform routing: %w", err)
 	}
 
@@ -91,7 +84,7 @@ func (r *RoutingCapability) Reconcile(ctx context.Context, cli client.Client, ow
 func (r *RoutingCapability) defineRoutingFeatures(owner metav1.Object) feature.FeaturesProvider {
 	return func(registry feature.FeaturesRegistry) error {
 		required := func(_ context.Context, _ *feature.Feature) (bool, error) {
-			return r.IsRequired(), nil
+			return len(r.routingTargets) > 0, nil
 		}
 
 		return registry.Add(

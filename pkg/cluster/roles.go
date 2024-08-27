@@ -36,16 +36,6 @@ func CreateOrUpdateClusterRole(ctx context.Context, cli client.Client, name stri
 	return foundClusterRole, cli.Update(ctx, foundClusterRole)
 }
 
-// DeleteClusterRole simply calls delete on a ClusterRole with the given name. Any error is returned. Check for IsNotFound.
-func DeleteClusterRole(ctx context.Context, cli client.Client, name string) error {
-	desiredClusterRole := &rbacv1.ClusterRole{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-		},
-	}
-	return cli.Delete(ctx, desiredClusterRole)
-}
-
 // CreateOrUpdateClusterRoleBinding creates cluster role bindings based on define PolicyRules and optional metadata fields and updates the bindings if it already exists.
 func CreateOrUpdateClusterRoleBinding(ctx context.Context, cli client.Client, name string,
 	subjects []rbacv1.Subject, roleRef rbacv1.RoleRef,
@@ -75,15 +65,4 @@ func CreateOrUpdateClusterRoleBinding(ctx context.Context, cli client.Client, na
 	foundClusterRoleBinding.RoleRef = roleRef
 
 	return foundClusterRoleBinding, cli.Update(ctx, foundClusterRoleBinding)
-}
-
-// DeleteClusterRoleBinding simply calls delete on a ClusterRoleBinding with the given name. Any error is returned. Check for IsNotFound.
-func DeleteClusterRoleBinding(ctx context.Context, cli client.Client, name string) error {
-	desiredClusterRoleBinding := &rbacv1.ClusterRoleBinding{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-		},
-	}
-
-	return cli.Delete(ctx, desiredClusterRoleBinding)
 }

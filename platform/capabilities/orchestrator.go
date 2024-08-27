@@ -2,7 +2,6 @@
 package capabilities
 
 import (
-	"context"
 	"errors"
 	"fmt"
 
@@ -33,11 +32,12 @@ type PlatformOrchestrator struct {
 	routing map[platform.ObjectReference]controllers.Activable
 }
 
-func (p *PlatformOrchestrator) StartRouting(ctx context.Context, cli client.Client, config spi.PlatformRoutingConfiguration, refs ...platform.RoutingTarget) error {
+func (p *PlatformOrchestrator) toggleRouting(cli client.Client, config spi.PlatformRoutingConfiguration, refs ...platform.RoutingTarget) error {
 	if p.routing == nil {
 		p.routing = make(map[platform.ObjectReference]controllers.Activable)
 	}
 
+	// Deactivate controllers that are not required
 	for objectRef, controller := range p.routing {
 		requiredToWatch := false
 		for _, target := range refs {
@@ -52,11 +52,12 @@ func (p *PlatformOrchestrator) StartRouting(ctx context.Context, cli client.Clie
 		}
 	}
 
+	// Activate controllers that are required
 	var errSetup []error
 	for _, routingTarget := range refs {
-		ctrl, alreadyExists := p.routing[routingTarget.ObjectReference]
+		ctrl, alreadyWatched := p.routing[routingTarget.ObjectReference]
 
-		if !alreadyExists {
+		if !alreadyWatched {
 			component := spi.RoutingComponent{RoutingTarget: routingTarget}
 			// TODO(mvp): retry until CRD/object reference exists
 			// TODO(mvp): non-blocking wait.PollUntilContextTimeout()
@@ -76,12 +77,12 @@ func (p *PlatformOrchestrator) StartRouting(ctx context.Context, cli client.Clie
 	return errors.Join(errSetup...)
 }
 
-func (p *PlatformOrchestrator) StartAuthorization(ctx context.Context, cli client.Client,
-	config authzctrl.PlatformAuthorizationConfig, refs ...platform.ProtectedResource) error {
+func (p *PlatformOrchestrator) authorize(cli client.Client, config authzctrl.PlatformAuthorizationConfig, refs ...platform.ProtectedResource) error {
 	if p.authz == nil {
 		p.authz = make(map[platform.ObjectReference]controllers.Activable)
 	}
 
+	// Deactivate controllers that are not required anymore
 	for objectRef, controller := range p.authz {
 		requiredToWatch := false
 		for _, target := range refs {
@@ -96,6 +97,7 @@ func (p *PlatformOrchestrator) StartAuthorization(ctx context.Context, cli clien
 		}
 	}
 
+	// Activate controllers that are required
 	var errSetup []error
 	for _, protectedResource := range refs {
 		ctrl, alreadyExists := p.routing[protectedResource.ObjectReference]

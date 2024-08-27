@@ -41,7 +41,7 @@ var (
 
 // Verifies that ModelRegistry implements ComponentInterface.
 var _ components.ComponentInterface = (*ModelRegistry)(nil)
-var _ capabilities.InjectPlatformCapabilities = (*ModelRegistry)(nil)
+var _ capabilities.Injectable = (*ModelRegistry)(nil)
 
 // ModelRegistry struct holds the configuration for the ModelRegistry component.
 // +kubebuilder:object:generate=true
@@ -130,13 +130,11 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 		l.Info("created model registry servicemesh member", "namespace", ModelRegistriesNamespace)
 
 		m.platformRegister()
-
 	} else {
 		err := m.removeDependencies(ctx, cli, dscispec)
 		if err != nil {
 			return err
 		}
-
 	}
 
 	// Deploy ModelRegistry Operator
