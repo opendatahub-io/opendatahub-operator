@@ -8,8 +8,8 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/opendatahub-io/odh-platform/controllers"
-	"github.com/opendatahub-io/odh-platform/controllers/authorization"
-	"github.com/opendatahub-io/odh-platform/controllers/routing"
+	"github.com/opendatahub-io/odh-platform/controllers/authzctrl"
+	"github.com/opendatahub-io/odh-platform/controllers/routingctrl"
 	"github.com/opendatahub-io/odh-platform/pkg/platform"
 	"github.com/opendatahub-io/odh-platform/pkg/spi"
 	controllerruntime "sigs.k8s.io/controller-runtime"
@@ -60,7 +60,7 @@ func (p *PlatformOrchestrator) StartRouting(ctx context.Context, cli client.Clie
 			component := spi.RoutingComponent{RoutingTarget: routingTarget}
 			// TODO(mvp): retry until CRD/object reference exists
 			// TODO(mvp): non-blocking wait.PollUntilContextTimeout()
-			controller := routing.NewPlatformRoutingController(cli, p.Log, component, config)
+			controller := routingctrl.New(cli, p.Log, component, config)
 			errStart := controller.SetupWithManager(p.Manager)
 			if errStart != nil {
 				errSetup = append(errSetup, fmt.Errorf("failed to setup routing controller: %w", errStart))
@@ -77,7 +77,7 @@ func (p *PlatformOrchestrator) StartRouting(ctx context.Context, cli client.Clie
 }
 
 func (p *PlatformOrchestrator) StartAuthorization(ctx context.Context, cli client.Client,
-	config authorization.PlatformAuthorizationConfig, refs ...platform.ProtectedResource) error {
+	config authzctrl.PlatformAuthorizationConfig, refs ...platform.ProtectedResource) error {
 	if p.authz == nil {
 		p.authz = make(map[platform.ObjectReference]controllers.Activable)
 	}
@@ -104,7 +104,7 @@ func (p *PlatformOrchestrator) StartAuthorization(ctx context.Context, cli clien
 			component := spi.AuthorizationComponent{ProtectedResource: protectedResource}
 			// TODO(mvp): retry until CRD/object reference exists
 			// TODO(mvp): non-blocking wait.PollUntilContextTimeout()
-			controller := authorization.NewPlatformAuthorizationController(cli, p.Log, component, config)
+			controller := authzctrl.New(cli, p.Log, component, config)
 			errStart := controller.SetupWithManager(p.Manager)
 			if errStart != nil {
 				errSetup = append(errSetup, fmt.Errorf("failed to setup authorization controller: %w", errStart))

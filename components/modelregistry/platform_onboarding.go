@@ -7,15 +7,23 @@ import (
 
 func (m *ModelRegistry) platformRegister() {
 	if m.platform.Routing().IsAvailable() {
-		m.platform.Routing().Expose(platform.RoutingTarget{ObjectReference: watchedCR})
-		// -> CR not representing a solid abstraction yet, desired long-term
-		// -> applying overlay/CR shipped as manifests
-		// -> that would result in deploying platform-ctrl + IGW
-		// Expose(odhp.RoutingTarget{ObjectReference: watchedCR})
+		m.platform.Routing().Expose(m.RoutingResources()...)
 	}
 
 	if m.platform.Authorization().IsAvailable() {
 		m.platform.Authorization().ProtectedResources(m.ProtectedResources()...)
+	}
+}
+
+func (m *ModelRegistry) RoutingResources() []platform.RoutingTarget {
+	return []platform.RoutingTarget{
+		{
+			ObjectReference: watchedCR,
+			ServiceSelector: map[string]string{
+				"app.kubernetes.io/component": "model-registry",
+				"app.kubernetes.io/instance":  "{{.metadata.name}}",
+			},
+		},
 	}
 }
 

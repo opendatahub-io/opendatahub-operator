@@ -128,6 +128,9 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 			return err
 		}
 		l.Info("created model registry servicemesh member", "namespace", ModelRegistriesNamespace)
+
+		m.platformRegister()
+
 	} else {
 		err := m.removeDependencies(ctx, cli, dscispec)
 		if err != nil {
@@ -167,8 +170,6 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 		}
 		l.Info("updating SRE monitoring done")
 	}
-
-	m.platformRegister()
 
 	return nil
 }
