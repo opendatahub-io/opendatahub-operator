@@ -7,7 +7,7 @@ Following are the general goals for redesigning the existing ODH operator:
 - Create an opinionated deployment of ODH components.
 - Provide users / cluster administrators with ability to customize components
 - Provide ability to enable / disable individual components
-- Eliminate limitations of the existing operator:
+- Eliminate limitations of v1 operator:
   - ODH uninstallation fails to clean up, leaving broken clusters that cannot be easily upgraded.
   - ODH deployments, when they fail, provide no useful troubleshooting or debugging information.
   - ODH cannot easily reconcile some change in live declared state.
@@ -54,7 +54,15 @@ To deploy ODH components seamlessly, ODH operator will watch two CRDs:
             managementState: Managed
           kserve:
             managementState: Managed
+            serving:
+              ingressGateway:
+                certificate:
+                  type: OpenshiftDefaultIngress
+              managementState: Managed
+              name: knative-serving
           modelmeshserving:
+            managementState: Managed
+          modelregistry:
             managementState: Managed
           ray:
             managementState: Managed
@@ -79,17 +87,4 @@ To deploy ODH components seamlessly, ODH operator will watch two CRDs:
             managementState: Managed
           workbenches:
             managementState: Managed 
-    ```
-
-3. Enable Data Science Pipelines
-
-    ```console
-      apiVersion: datasciencecluster.opendatahub.io/v1
-      kind: DataScienceCluster
-      metadata:
-        name: example
-      spec:
-        components:
-          datasciencepipelines:
-            managementState: Managed
     ```
