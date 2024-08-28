@@ -62,6 +62,8 @@ To deploy ODH components seamlessly, ODH operator will watch two CRDs:
               name: knative-serving
           modelmeshserving:
             managementState: Managed
+          modelregistry:
+            managementState: Managed
           ray:
             managementState: Managed
           kueue:
