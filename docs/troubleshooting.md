@@ -1,6 +1,7 @@
 # What
 
 This document serves as the knowledge base for troubleshooting the Open Data Hub Operator.
+More information can be found at https://github.com/opendatahub-io/opendatahub-operator/wiki
 
 ## Troubleshooting
 
@@ -17,3 +18,23 @@ To upgrade, follow these steps:
 
 All of the above steps can be performed either through the console UI or via the `oc`/`kubectl` CLI.
 After completing these steps, please refer to the installation guide to proceed with a clean installation of the v2.2+ operator.
+
+
+### Why component's managementState is set to {} not Removed?
+
+Only if managementState is explicitliy set to "Managed" on component level, below configs in DSC CR to component "X" take the same effects:
+
+```console
+spec:
+components:
+    X:
+        managementState: Removed
+
+```
+
+```console
+spec:
+components:
+    X: {}
+```
+
