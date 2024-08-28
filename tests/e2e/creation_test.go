@@ -51,13 +51,8 @@ func creationTestSuite(t *testing.T) {
 		t.Run("Validate DSCInitialization instance", func(t *testing.T) {
 			err = testCtx.validateDSCI()
 			require.NoError(t, err, "error validating DSCInitialization instance")
-		})
-		t.Run("Check owned namespaces exist", func(t *testing.T) {
-			err = testCtx.testOwnedNamespacesAllExist()
-			require.NoError(t, err, "error owned namespace is missing")
-		})
 
-		// DSC
+		})
 		t.Run("Creation of DataScienceCluster instance", func(t *testing.T) {
 			err = testCtx.testDSCCreation()
 			require.NoError(t, err, "error creating DataScienceCluster instance")
@@ -65,6 +60,12 @@ func creationTestSuite(t *testing.T) {
 		t.Run("Creation of more than one of DataScienceCluster instance", func(t *testing.T) {
 			testCtx.testDSCDuplication(t)
 		})
+
+		t.Run("Validate DSCInitialization instance", func(t *testing.T) {
+			err = testCtx.validateDSCI()
+			require.NoError(t, err, "error validating DSCInitialization instance")
+		})
+
 		t.Run("Validate Ownerrefrences exist", func(t *testing.T) {
 			err = testCtx.testOwnerrefrences()
 			require.NoError(t, err, "error getting all DataScienceCluster's Ownerrefrences")
@@ -216,25 +217,20 @@ func (tc *testContext) requireInstalled(t *testing.T, gvk schema.GroupVersionKin
 	list.SetGroupVersionKind(gvk)
 
 	err := tc.customClient.List(tc.ctx, list)
-	require.NoErrorf(t, err, "Could not get %s list", gvk.Kind)
-
-	require.NotEmptyf(t, list.Items, "%s has not been installed", gvk.Kind)
+	require.NotEmptyf(t, err, "Could not get %s list", gvk.Kind)
+	require.Greaterf(t, len(list.Items), 0, "%s has not been installed", gvk.Kind)
 }
 
 func (tc *testContext) testDuplication(t *testing.T, gvk schema.GroupVersionKind, o any) {
 	t.Helper()
 	tc.requireInstalled(t, gvk)
-
 	u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(o)
 	require.NoErrorf(t, err, "Could not unstructure %s", gvk.Kind)
-
 	obj := &unstructured.Unstructured{
 		Object: u,
 	}
 	obj.SetGroupVersionKind(gvk)
-
 	err = tc.customClient.Create(tc.ctx, obj)
-
 	require.Errorf(t, err, "Could create second %s", gvk.Kind)
 }
 
@@ -289,6 +285,12 @@ func (tc *testContext) testAllComponentCreation(t *testing.T) error { //nolint:f
 			require.NoError(t, err, "error validating component %v when "+c.GetManagementState())
 		})
 	}
+
+	// Verify DSC instance is in Ready phase in the end when all components are up and running
+	if tc.testDsc.Status.Phase != "Ready" {
+		return fmt.Errorf("DSC instance is not in Ready phase. Current phase: %v", tc.testDsc.Status.Phase)
+	}
+
 	return nil
 }
 

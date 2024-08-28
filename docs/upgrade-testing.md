@@ -142,7 +142,6 @@ spec:
       managementState: Managed
     trainingoperator:
       managementState: Managed
->>>>>>> 742b09bd (docs: update old docs (#1188))
     workbenches:
       managementState: Managed
     trustyai:
