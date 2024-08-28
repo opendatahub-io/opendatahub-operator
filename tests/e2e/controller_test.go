@@ -83,7 +83,7 @@ func NewTestContext() (*testContext, error) {
 	// setup DSCI CR since we do not create automatically by operator
 	testDSCI := setupDSCICR("e2e-test-dsci")
 	// Setup DataScienceCluster CR
-	testDSC := setupDSCInstance("e2e-test")
+	testDSC := setupDSCInstance("e2e-test-dsc")
 
 	return &testContext{
 		cfg:                     config,
@@ -123,7 +123,6 @@ func TestOdhOperator(t *testing.T) {
 
 	// Run deletion if skipDeletion is not set
 	if !skipDeletion {
-		// This test case recreates entire DSC again and deletes afterward
 		// this is a negative test case, since by using the positive CM('true'), even CSV gets deleted which leaves no operator pod in prow
 		t.Run("components should not be removed if labeled is set to 'false' on configmap", cfgMapDeletionTestSuite)
 

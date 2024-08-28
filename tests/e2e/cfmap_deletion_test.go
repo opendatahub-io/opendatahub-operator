@@ -30,7 +30,7 @@ func cfgMapDeletionTestSuite(t *testing.T) {
 
 		t.Run("owned namespaces should be not deleted", func(t *testing.T) {
 			err = testCtx.testOwnedNamespacesAllExist()
-			require.NoError(t, err, "Error while deleting owned namespaces")
+			require.NoError(t, err, "Configmap should not delete owned namespaces")
 		})
 	})
 }
@@ -62,21 +62,21 @@ func (tc *testContext) testOwnedNamespacesAllExist() error {
 	if err != nil {
 		return fmt.Errorf("failed getting owned namespaces %w", err)
 	}
-	if len(namespaces.Items) == 0 {
-		return errors.New("all namespaces are gone")
+	if len(namespaces.Items) < ownedNamespaceNumber {
+		return errors.New("some owned namespaces are missing")
 	}
 
 	return nil
 }
 
 func removeDeletionConfigMap(tc *testContext) {
-	_ = tc.kubeClient.CoreV1().ConfigMaps(tc.operatorNamespace).Delete(tc.ctx, "delete-self-managed", metav1.DeleteOptions{})
+	_ = tc.kubeClient.CoreV1().ConfigMaps(tc.operatorNamespace).Delete(tc.ctx, deleteConfigMap, metav1.DeleteOptions{})
 }
 
 func createDeletionConfigMap(tc *testContext, enableDeletion string) error {
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "delete-self-managed",
+			Name:      deleteConfigMap,
 			Namespace: tc.operatorNamespace,
 			Labels: map[string]string{
 				upgrade.DeleteConfigMapLabel: enableDeletion,
