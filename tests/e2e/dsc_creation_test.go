@@ -58,17 +58,9 @@ func creationTestSuite(t *testing.T) {
 		t.Run("Creation of more than one of DataScienceCluster instance", func(t *testing.T) {
 			testCtx.testDSCDuplication(t)
 		})
-		t.Run("Validate all deployed components", func(t *testing.T) {
-			err = testCtx.testAllApplicationCreation(t)
-			require.NoError(t, err, "error testing deployments for DataScienceCluster: "+testCtx.testDsc.Name)
-		})
 		t.Run("Validate DSCInitialization instance", func(t *testing.T) {
 			err = testCtx.validateDSCI()
 			require.NoError(t, err, "error validating DSCInitialization instance")
-		})
-		t.Run("Validate DataScienceCluster instance", func(t *testing.T) {
-			err = testCtx.validateDSC()
-			require.NoError(t, err, "error validating DataScienceCluster instance")
 		})
 		t.Run("Validate Ownerrefrences exist", func(t *testing.T) {
 			err = testCtx.testOwnerrefrences()
@@ -77,6 +69,15 @@ func creationTestSuite(t *testing.T) {
 		t.Run("Validate default certs available", func(t *testing.T) {
 			err = testCtx.testDefaultCertsAvailable()
 			require.NoError(t, err, "error getting default cert secrets for Kserve")
+		})
+		t.Run("Validate Knative resoruce", func(t *testing.T) {
+			err = testCtx.validateDSC()
+			require.NoError(t, err, "error getting Knatvie resrouce as part of DataScienceCluster validation")
+		})
+		t.Run("Validate all deployed components", func(t *testing.T) {
+			// this will take about 5-6mins to complete
+			err = testCtx.testAllApplicationCreation(t)
+			require.NoError(t, err, "error testing deployments for DataScienceCluster: "+testCtx.testDsc.Name)
 		})
 		t.Run("Validate default model registry cert available", func(t *testing.T) {
 			err = testCtx.testDefaultModelRegistryCertAvailable()
@@ -261,11 +262,6 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint
 	}
 	tc.testDsc = createdDSC
 
-	// Verify DSC instance is in Ready phase
-	if tc.testDsc.Status.Phase != "Ready" {
-		return fmt.Errorf("DSC instance is not in Ready phase. Current phase: %v", tc.testDsc.Status.Phase)
-	}
-
 	components, err := tc.testDsc.GetComponents()
 	if err != nil {
 		return err
@@ -286,6 +282,10 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint
 				require.Error(t, err, msg+"disabled")
 			}
 		})
+	}
+	// Verify DSC instance is in Ready phase in the end when all components are up and running
+	if tc.testDsc.Status.Phase != "Ready" {
+		return fmt.Errorf("DSC instance is not in Ready phase. Current phase: %v", tc.testDsc.Status.Phase)
 	}
 
 	return nil
@@ -354,6 +354,7 @@ func (tc *testContext) validateDSCI() error {
 	return nil
 }
 
+// test if knative resource has been created.
 func (tc *testContext) validateDSC() error {
 	expServingSpec := infrav1.ServingSpec{
 		ManagementState: operatorv1.Managed,
@@ -586,8 +587,8 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 		return fmt.Errorf("error after retry %w", err)
 	}
 
-	// Sleep for 40 seconds to allow the operator to reconcile
-	time.Sleep(4 * tc.resourceRetryInterval)
+	// Sleep for 80 seconds to allow the operator to reconcile
+	time.Sleep(8 * tc.resourceRetryInterval)
 	_, err = tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).Get(tc.ctx, dashboardDeploymentName, metav1.GetOptions{})
 	if err != nil {
 		if k8serr.IsNotFound(err) {

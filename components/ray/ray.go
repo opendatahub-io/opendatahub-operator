@@ -84,15 +84,15 @@ func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, logger 
 		return fmt.Errorf("failed to apply manifets from %s : %w", RayPath, err)
 	}
 	l.Info("apply manifests done")
+
+	if enabled {
+		if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
+			return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
+		}
+	}
+
 	// CloudService Monitoring handling
 	if platform == cluster.ManagedRhods {
-		if enabled {
-			// first check if the service is up, so prometheus won't fire alerts when it is just startup
-			if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 20, 2); err != nil {
-				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
-			}
-			l.Info("deployment is done, updating monitoring rules")
-		}
 		if err := r.UpdatePrometheusConfig(cli, l, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
 		}

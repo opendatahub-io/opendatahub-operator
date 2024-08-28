@@ -139,14 +139,14 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 	}
 	l.Info("apply extra manifests done")
 
+	if enabled {
+		if err := cluster.WaitForDeploymentAvailable(ctx, cli, m.GetComponentName(), dscispec.ApplicationsNamespace, 10, 1); err != nil {
+			return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
+		}
+	}
+
 	// CloudService Monitoring handling
 	if platform == cluster.ManagedRhods {
-		if enabled {
-			if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 10, 1); err != nil {
-				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
-			}
-			l.Info("deployment is done, updating monitoring rules")
-		}
 		if err := m.UpdatePrometheusConfig(cli, l, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
 		}
