@@ -47,13 +47,13 @@ metadata:
                 "managementState": "Managed"
               },
               "modelregistry": {
-                "managementState": "Removed"
+                "managementState": "Managed"
               },
               "ray": {
                 "managementState": "Managed"
               },
               "trainingoperator": {
-                "managementState": "Removed"
+                "managementState": "Managed"
               },
               "trustyai": {
                 "managementState": "Managed"
