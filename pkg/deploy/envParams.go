@@ -52,6 +52,17 @@ func writeParamsToTmp(params map[string]string, tmpDir string) (string, error) {
 	return tmp.Name(), nil
 }
 
+// updateMap returns the number of updates made (it operates on 1 field, so 0 or 1 only).
+func updateMap(m *map[string]string, key, val string) int {
+	old := (*m)[key]
+	if old == val {
+		return 0
+	}
+
+	(*m)[key] = val
+	return 1
+}
+
 /*
 overwrite values in components' manifests params.env file
 This is useful for air gapped cluster
@@ -74,20 +85,28 @@ func ApplyParams(componentPath string, imageParamsMap map[string]string, extraPa
 		return err
 	}
 
+	// will be used as a boolean (0 or non-0) and accumulate result of updates of every field
+	// Could use sum, but safe from hypothetically integer overflow
+	updated := 0
+
 	// 1. Update images with env variables
 	// e.g "odh-kuberay-operator-controller-image": "RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE",
 	for i := range paramsEnvMap {
 		relatedImageValue := os.Getenv(imageParamsMap[i])
 		if relatedImageValue != "" {
-			paramsEnvMap[i] = relatedImageValue
+			updated |= updateMap(&paramsEnvMap, i, relatedImageValue)
 		}
 	}
 
 	// 2. Update other fileds with extraParamsMap which are not carried from component
 	for _, extraParamsMap := range extraParamsMaps {
 		for eKey, eValue := range extraParamsMap {
-			paramsEnvMap[eKey] = eValue
+			updated |= updateMap(&paramsEnvMap, eKey, eValue)
 		}
+	}
+
+	if updated == 0 {
+		return nil
 	}
 
 	tmp, err := writeParamsToTmp(paramsEnvMap, componentPath)
