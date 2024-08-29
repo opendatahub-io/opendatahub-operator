@@ -144,7 +144,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			saved.Status.Phase = status.PhaseProgressing
 		})
 		if err != nil {
-			r.Log.Error(err, "Failed to add conditions to status of DSCInitialization resource.", "DSCInitialization Request.Name", req.Name)
+			r.Log.Error(err, "Failed to add conditions to status of DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
 			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError",
 				"%s for instance %s", message, instance.Name)
 
@@ -152,7 +152,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 	}
 
-	// Check namespace
+	// Check namespace is not exist, then create
 	namespace := instance.Spec.ApplicationsNamespace
 	err = r.createOdhNamespace(ctx, instance, namespace)
 	if err != nil {
@@ -206,32 +206,6 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 		return ctrl.Result{}, nil
 	default:
-		// Check namespace is not exist, then create
-		namespace := instance.Spec.ApplicationsNamespace
-		r.Log.Info("Standard Reconciling workflow to create namespaces")
-		err = r.createOdhNamespace(ctx, instance, namespace)
-		if err != nil {
-			// no need to log error as it was already logged in createOdhNamespace
-			return reconcile.Result{}, err
-		}
-
-		// Start reconciling
-		if instance.Status.Conditions == nil {
-			reason := status.ReconcileInit
-			message := "Initializing DSCInitialization resource"
-			instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
-				status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
-				saved.Status.Phase = status.PhaseProgressing
-			})
-			if err != nil {
-				r.Log.Error(err, "Failed to add conditions to status of DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
-				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError",
-					"%s for instance %s", message, instance.Name)
-
-				return reconcile.Result{}, err
-			}
-		}
-
 		switch platform {
 		case cluster.SelfManagedRhods:
 			err := r.createUserGroup(ctx, instance, "rhods-admins")
