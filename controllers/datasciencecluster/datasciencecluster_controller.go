@@ -148,8 +148,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	dsciInstances := &dsciv1.DSCInitializationList{}
 	err = r.Client.List(ctx, dsciInstances)
 	if err != nil {
-		r.Log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization Request.Name", req.Name)
-		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to retrieve DSCInitialization instance")
+		r.reportWarning(err, instance, "DSCInitializationReconcileError", "Failed to retrieve DSCInitialization resource")
 
 		return ctrl.Result{}, err
 	}
@@ -167,11 +166,11 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 			saved.Status.Phase = status.PhaseError
 		})
 		if err != nil {
-			r.reportError(err, instance, "failed to update DataScienceCluster condition")
-
+			r.reportWarning(err, instance, "DataScienceClusterReconcileError", "Failed to update DataScienceCluster resource")
 			return ctrl.Result{}, err
 		}
-		return ctrl.Result{}, nil
+		// do not rush to reconcile DSC, wait for DSCI
+		return ctrl.Result{RequeueAfter: time.Second * 30}, nil
 	case 1:
 		dscInitializationSpec := dsciInstances.Items[0].Spec
 		dscInitializationSpec.DeepCopyInto(r.DataScienceCluster.DSCISpec)
@@ -230,8 +229,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 			saved.Status.Phase = status.PhaseProgressing
 		})
 		if err != nil {
-			_ = r.reportError(err, instance, fmt.Sprintf("failed to add conditions to status of DataScienceCluster resource name %s", req.Name))
-
+			_ = r.reportWarning(err, instance, "DataScienceClusterReconcileError", "Failed to add conditions to DataScienceCluster resource: "+req.Name)
 			return ctrl.Result{}, err
 		}
 	}
@@ -303,7 +301,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 			status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileInit, message, corev1.ConditionUnknown)
 		})
 		if err != nil {
-			_ = r.reportError(err, instance, "failed to update DataScienceCluster conditions before first time reconciling "+componentName)
+			_ = r.reportWarning(err, instance, "DataScienceClusterReconcileError", "Failed to update DataScienceCluster conditions before first time reconciling "+componentName)
 			// try to continue with reconciliation, as further updates can fix the status
 		}
 	}
@@ -318,7 +316,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 
 	if err != nil {
 		// reconciliation failed: log errors, raise event and update status accordingly
-		instance = r.reportError(err, instance, "failed to reconcile "+componentName+" on DataScienceCluster")
+		instance = r.reportWarning(err, instance, "DataScienceClusterReconcileError", "Failed to reconcile "+componentName+" on DataScienceCluster")
 		instance, _ = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dscv1.DataScienceCluster) {
 			if enabled {
 				if strings.Contains(err.Error(), datasciencepipelines.ArgoWorkflowCRD+" CRD already exists") {
@@ -345,18 +343,16 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 		}
 	})
 	if err != nil {
-		instance = r.reportError(err, instance, "failed to update DataScienceCluster status after reconciling "+componentName)
-
+		instance = r.reportWarning(err, instance, "DataScienceClusterReconcileError", "Failed to update DataScienceCluster status after reconciling "+componentName)
 		return instance, err
 	}
 
 	return instance, nil
 }
 
-func (r *DataScienceClusterReconciler) reportError(err error, instance *dscv1.DataScienceCluster, message string) *dscv1.DataScienceCluster {
+func (r *DataScienceClusterReconciler) reportWarning(err error, instance *dscv1.DataScienceCluster, reason string, message string) *dscv1.DataScienceCluster {
 	r.Log.Error(err, message, "instance.Name", instance.Name)
-	r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DataScienceClusterReconcileError",
-		"%s for instance %s", message, instance.Name)
+	r.Recorder.Eventf(instance, corev1.EventTypeWarning, reason, message)
 	return instance
 }
 

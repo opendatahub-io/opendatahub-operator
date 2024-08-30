@@ -49,8 +49,8 @@
 //		})
 //
 //		serviceMeshErr := createServiceMesh(instance)
-//		_, reportError := reporter.ReportCondition(serviceMeshErr)
+//		_, reportWarning := reporter.ReportCondition(serviceMeshErr)
 //
-//		return multierror.Append(serviceMeshErr, reportError) // return all errors
+//		return multierror.Append(serviceMeshErr, reportWarning) // return all errors
 //	}
 package status
