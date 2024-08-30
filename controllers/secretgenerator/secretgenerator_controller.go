@@ -39,7 +39,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	annotation "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
@@ -86,11 +85,15 @@ func (r *SecretGeneratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	secretBuilder := ctrl.NewControllerManagedBy(mgr).Named("secret-generator-controller")
 	err := secretBuilder.For(&corev1.Secret{}).
-		Watches(&source.Kind{Type: &corev1.Secret{}}, handler.EnqueueRequestsFromMapFunc(
-			func(a client.Object) []reconcile.Request {
-				namespacedName := types.NamespacedName{Name: a.GetName(), Namespace: a.GetNamespace()}
-				return []reconcile.Request{{NamespacedName: namespacedName}}
-			}), builder.WithPredicates(predicates)).WithEventFilter(predicates).
+		Watches(
+			&corev1.Secret{},
+			handler.EnqueueRequestsFromMapFunc(
+				func(_ context.Context, a client.Object) []reconcile.Request {
+					namespacedName := types.NamespacedName{Name: a.GetName(), Namespace: a.GetNamespace()}
+					return []reconcile.Request{{NamespacedName: namespacedName}}
+				},
+			), builder.WithPredicates(predicates)).
+		WithEventFilter(predicates).
 		Complete(r)
 
 	return err

@@ -21,6 +21,8 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlruntime "sigs.k8s.io/controller-runtime/pkg/client/config"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -109,6 +111,8 @@ func TestOdhOperator(t *testing.T) {
 	utilruntime.Must(monitoringv1.AddToScheme(scheme))
 	utilruntime.Must(ofapi.AddToScheme(scheme))
 	utilruntime.Must(operatorv1.AddToScheme(scheme))
+
+	log.SetLogger(zap.New(zap.UseDevMode(true)))
 
 	// individual test suites after the operator is running
 	if !t.Run("validate operator pod is running", testODHOperatorValidation) {

@@ -41,6 +41,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -121,10 +122,14 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
 
+	webhookInstallOptions := &testEnv.WebhookInstallOptions
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
-		Scheme:             testScheme,
-		LeaderElection:     false,
-		MetricsBindAddress: "0",
+		Scheme:         testScheme,
+		LeaderElection: false,
+		Metrics: ctrlmetrics.Options{
+			BindAddress: "0",
+			CertDir:     webhookInstallOptions.LocalServingCertDir,
+		},
 	})
 
 	Expect(err).NotTo(HaveOccurred())

@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
-	v2 "github.com/operator-framework/api/pkg/operators/v2"
+	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -54,7 +54,7 @@ func DeleteExistingSubscription(ctx context.Context, cli client.Client, operator
 // Return true if found it, false if not.
 // if we need to check exact version of the operator installed, can append vX.Y.Z later.
 func OperatorExists(ctx context.Context, cli client.Client, operatorPrefix string) (bool, error) {
-	opConditionList := &v2.OperatorConditionList{}
+	opConditionList := &ofapiv2.OperatorConditionList{}
 	err := cli.List(ctx, opConditionList)
 	if err != nil {
 		return false, err

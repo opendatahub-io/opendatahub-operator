@@ -18,7 +18,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	annotation "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
@@ -37,8 +36,8 @@ func (r *CertConfigmapGeneratorReconciler) SetupWithManager(mgr ctrl.Manager) er
 	r.Log.Info("Adding controller for Configmap Generation.")
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("cert-configmap-generator-controller").
-		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchTrustedCABundleConfigMapResource), builder.WithPredicates(ConfigMapChangedPredicate)).
-		Watches(&source.Kind{Type: &corev1.Namespace{}}, handler.EnqueueRequestsFromMapFunc(r.watchNamespaceResource), builder.WithPredicates(NamespaceCreatedPredicate)).
+		Watches(&corev1.ConfigMap{}, handler.EnqueueRequestsFromMapFunc(r.watchTrustedCABundleConfigMapResource), builder.WithPredicates(ConfigMapChangedPredicate)).
+		Watches(&corev1.Namespace{}, handler.EnqueueRequestsFromMapFunc(r.watchNamespaceResource), builder.WithPredicates(NamespaceCreatedPredicate)).
 		Complete(r)
 }
 
@@ -100,7 +99,7 @@ func (r *CertConfigmapGeneratorReconciler) Reconcile(ctx context.Context, req ct
 	return ctrl.Result{}, nil
 }
 
-func (r *CertConfigmapGeneratorReconciler) watchNamespaceResource(a client.Object) []reconcile.Request {
+func (r *CertConfigmapGeneratorReconciler) watchNamespaceResource(_ context.Context, a client.Object) []reconcile.Request {
 	namespace, isNamespaceObject := a.(*corev1.Namespace)
 	if !isNamespaceObject {
 		return nil
@@ -111,7 +110,7 @@ func (r *CertConfigmapGeneratorReconciler) watchNamespaceResource(a client.Objec
 	return nil
 }
 
-func (r *CertConfigmapGeneratorReconciler) watchTrustedCABundleConfigMapResource(a client.Object) []reconcile.Request {
+func (r *CertConfigmapGeneratorReconciler) watchTrustedCABundleConfigMapResource(_ context.Context, a client.Object) []reconcile.Request {
 	if a.GetName() == trustedcabundle.CAConfigMapName {
 		r.Log.Info("Cert configmap has been updated, start reconcile")
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: a.GetName(), Namespace: a.GetNamespace()}}}

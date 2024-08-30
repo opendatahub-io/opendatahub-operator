@@ -48,6 +48,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -78,7 +80,6 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(addonv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(rbacv1.AddToScheme(scheme))
 	utilruntime.Must(corev1.AddToScheme(scheme))
-	utilruntime.Must(apiextensionsv1.AddToScheme(scheme))
 	utilruntime.Must(routev1.Install(scheme))
 	utilruntime.Must(appsv1.AddToScheme(scheme))
 	utilruntime.Must(oauthv1.Install(scheme))
@@ -122,10 +123,14 @@ func main() {
 
 	// root context
 	ctx := ctrl.SetupSignalHandler()
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:                 scheme,
-		MetricsBindAddress:     metricsAddr,
-		Port:                   9443,
+
+	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{ // single pod does not need to have LeaderElection
+		Scheme:  scheme,
+		Metrics: ctrlmetrics.Options{BindAddress: metricsAddr},
+		WebhookServer: ctrlwebhook.NewServer(ctrlwebhook.Options{
+			Port: 9443,
+			// TLSOpts: , // TODO: do we need tls for webhook
+		}),
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "07ed84f7.opendatahub.io",
