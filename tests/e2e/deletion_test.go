@@ -16,25 +16,27 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 func deletionTestSuite(t *testing.T) {
 	testCtx, err := NewTestContext()
 	require.NoError(t, err)
 
+	// pre-check before deletion
 	t.Run("ensure all components created", func(t *testing.T) {
 		err = testCtx.testAllApplicationCreation(t)
-		require.NoError(t, err, "Error to create DSC instance")
+		require.NoError(t, err, "Not all components are created")
 	})
 
 	t.Run(testCtx.testDsc.Name, func(t *testing.T) {
-		t.Run("Deletion: DataScienceCluster instance", func(t *testing.T) {
+		t.Run("Deletion: DSC instance", func(t *testing.T) {
 			err = testCtx.testDeletionExistDSC()
 			require.NoError(t, err, "Error to delete DSC instance")
 		})
-		t.Run("Deletion: Application Resource", func(t *testing.T) {
+		t.Run("Check: all component resource are deleted", func(t *testing.T) {
 			err = testCtx.testAllApplicationDeletion(t)
-			require.NoError(t, err, "Error to delete component")
+			require.NoError(t, err, "Should not found component exist")
 		})
 		t.Run("Deletion: DSCI instance", func(t *testing.T) {
 			err = testCtx.testDeletionExistDSCI()
@@ -57,7 +59,7 @@ func (tc *testContext) testDeletionExistDSC() error {
 		}
 	} else if !errors.IsNotFound(err) {
 		if err != nil {
-			return fmt.Errorf("error getting DSC instance :%w", err)
+			return fmt.Errorf("could not find DSC instance to delete: %w", err)
 		}
 	}
 
@@ -69,17 +71,17 @@ func (tc *testContext) testApplicationDeletion(component components.ComponentInt
 
 	if err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
 		appList, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(ctx, metav1.ListOptions{
-			LabelSelector: odhLabelPrefix + component.GetComponentName(),
+			LabelSelector: labels.ODH.Component(component.GetComponentName()),
 		})
 		if err != nil {
-			log.Printf("error listing component deployments :%v. Trying again...", err)
+			log.Printf("error getting component deployments :%v. Trying again...", err)
 
 			return false, err
 		}
 
 		return len(appList.Items) == 0, nil
 	}); err != nil {
-		return fmt.Errorf("error deleting component: %v", component.GetComponentName())
+		return fmt.Errorf("error to find component still exist: %v", component.GetComponentName())
 	}
 
 	return nil
@@ -121,7 +123,7 @@ func (tc *testContext) testDeletionExistDSCI() error {
 		}
 	} else if !errors.IsNotFound(err) {
 		if err != nil {
-			return fmt.Errorf("error getting DSCI instance :%w", err)
+			return fmt.Errorf("could not find DSCI instance to delete :%w", err)
 		}
 	}
 

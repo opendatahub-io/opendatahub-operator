@@ -30,10 +30,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/serverless"
-)
-
-const (
-	odhLabelPrefix = "app.opendatahub.io/"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 func creationTestSuite(t *testing.T) {
@@ -44,6 +41,7 @@ func creationTestSuite(t *testing.T) {
 	require.NoError(t, err, "error setting up environment")
 
 	t.Run(testCtx.testDsc.Name, func(t *testing.T) {
+		// DSCI
 		t.Run("Creation of DSCI CR", func(t *testing.T) {
 			err = testCtx.testDSCICreation()
 			require.NoError(t, err, "error creating DSCI CR")
@@ -51,16 +49,22 @@ func creationTestSuite(t *testing.T) {
 		t.Run("Creation of more than one of DSCInitialization instance", func(t *testing.T) {
 			testCtx.testDSCIDuplication(t)
 		})
+		t.Run("Validate DSCInitialization instance", func(t *testing.T) {
+			err = testCtx.validateDSCI()
+			require.NoError(t, err, "error validating DSCInitialization instance")
+		})
+		t.Run("Check owned namespaces exist", func(t *testing.T) {
+			err = testCtx.testOwnedNamespacesAllExist()
+			require.NoError(t, err, "error owned namespace is missing")
+		})
+
+		// DSC
 		t.Run("Creation of DataScienceCluster instance", func(t *testing.T) {
 			err = testCtx.testDSCCreation()
 			require.NoError(t, err, "error creating DataScienceCluster instance")
 		})
 		t.Run("Creation of more than one of DataScienceCluster instance", func(t *testing.T) {
 			testCtx.testDSCDuplication(t)
-		})
-		t.Run("Validate DSCInitialization instance", func(t *testing.T) {
-			err = testCtx.validateDSCI()
-			require.NoError(t, err, "error validating DSCInitialization instance")
 		})
 		t.Run("Validate Ownerrefrences exist", func(t *testing.T) {
 			err = testCtx.testOwnerrefrences()
@@ -70,15 +74,19 @@ func creationTestSuite(t *testing.T) {
 			err = testCtx.testDefaultCertsAvailable()
 			require.NoError(t, err, "error getting default cert secrets for Kserve")
 		})
+		t.Run("Validate all deployed components", func(t *testing.T) {
+			// this will take about 5-6 mins to complete
+			err = testCtx.testAllApplicationCreation(t)
+			require.NoError(t, err, "error testing deployments for DataScienceCluster: "+testCtx.testDsc.Name)
+		})
+
+		// Kserve
 		t.Run("Validate Knative resoruce", func(t *testing.T) {
 			err = testCtx.validateDSC()
 			require.NoError(t, err, "error getting Knatvie resrouce as part of DataScienceCluster validation")
 		})
-		t.Run("Validate all deployed components", func(t *testing.T) {
-			// this will take about 5-6mins to complete
-			err = testCtx.testAllApplicationCreation(t)
-			require.NoError(t, err, "error testing deployments for DataScienceCluster: "+testCtx.testDsc.Name)
-		})
+
+		// ModelReg
 		t.Run("Validate default model registry cert available", func(t *testing.T) {
 			err = testCtx.testDefaultModelRegistryCertAvailable()
 			require.NoError(t, err, "error getting default cert secret for ModelRegistry")
@@ -87,6 +95,8 @@ func creationTestSuite(t *testing.T) {
 			err = testCtx.testMRServiceMeshMember()
 			require.NoError(t, err, "error getting servicemeshmember for Model Registry")
 		})
+
+		// reconcile
 		t.Run("Validate Controller reconcile", func(t *testing.T) {
 			// only test Dashboard component for now
 			err = testCtx.testUpdateComponentReconcile()
@@ -187,10 +197,10 @@ func (tc *testContext) testDSCCreation() error {
 				return true, nil
 			})
 			if nberr != nil {
-				return fmt.Errorf("error creating e2e-test DSC %s: %w", tc.testDsc.Name, nberr)
+				return fmt.Errorf("error creating e2e-test-dsc DSC %s: %w", tc.testDsc.Name, nberr)
 			}
 		} else {
-			return fmt.Errorf("error getting e2e-test DSC %s: %w", tc.testDsc.Name, err)
+			return fmt.Errorf("error getting e2e-test-dsc DSC %s: %w", tc.testDsc.Name, err)
 		}
 	}
 
@@ -242,7 +252,7 @@ func (tc *testContext) testDSCDuplication(t *testing.T) { //nolint:thelper
 		Version: "v1",
 		Kind:    "DataScienceCluster",
 	}
-	dup := setupDSCInstance("e2e-test-dup")
+	dup := setupDSCInstance("e2e-test-dsc-dup")
 
 	tc.testDuplication(t, gvk, dup)
 }
@@ -295,7 +305,7 @@ func (tc *testContext) testApplicationCreation(component components.ComponentInt
 	err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
 		// TODO: see if checking deployment is a good test, CF does not create deployment
 		appList, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(ctx, metav1.ListOptions{
-			LabelSelector: odhLabelPrefix + component.GetComponentName(),
+			LabelSelector: labels.ODH.Component(component.GetComponentName()),
 		})
 		if err != nil {
 			log.Printf("error listing application deployments :%v. Trying again...", err)
@@ -381,7 +391,7 @@ func (tc *testContext) testOwnerrefrences() error {
 	// Test any one of the apps
 	if tc.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
 		appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(tc.ctx, metav1.ListOptions{
-			LabelSelector: odhLabelPrefix + tc.testDsc.Spec.Components.Dashboard.GetComponentName(),
+			LabelSelector: labels.ODH.Component(tc.testDsc.Spec.Components.Dashboard.GetComponentName()),
 		})
 		if err != nil {
 			return fmt.Errorf("error listing application deployments %w", err)
@@ -497,7 +507,7 @@ func (tc *testContext) testUpdateComponentReconcile() error {
 	// Test Updating Dashboard Replicas
 
 	appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(tc.ctx, metav1.ListOptions{
-		LabelSelector: odhLabelPrefix + tc.testDsc.Spec.Components.Dashboard.GetComponentName(),
+		LabelSelector: labels.ODH.Component(tc.testDsc.Spec.Components.Dashboard.GetComponentName()),
 	})
 	if err != nil {
 		return err
@@ -548,7 +558,7 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 
 	if tc.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
 		appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(tc.ctx, metav1.ListOptions{
-			LabelSelector: odhLabelPrefix + tc.testDsc.Spec.Components.Dashboard.GetComponentName(),
+			LabelSelector: labels.ODH.Component(tc.testDsc.Spec.Components.Dashboard.GetComponentName()),
 		})
 		if err != nil {
 			return fmt.Errorf("error getting enabled component %v", tc.testDsc.Spec.Components.Dashboard.GetComponentName())

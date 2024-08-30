@@ -27,4 +27,7 @@ func (tc *testContext) validateOwnedCRDs(t *testing.T) {
 
 	require.NoErrorf(t, tc.validateCRD("dscinitializations.dscinitialization.opendatahub.io"),
 		"error in validating CRD : dscinitializations.dscinitialization.opendatahub.io")
+
+	require.NoErrorf(t, tc.validateCRD("featuretrackers.features.opendatahub.io"),
+		"error in validating CRD : featuretrackers.features.opendatahub.io")
 }
