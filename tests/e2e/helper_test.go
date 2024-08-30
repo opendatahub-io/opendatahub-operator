@@ -37,9 +37,11 @@ import (
 )
 
 const (
-	depedentOperatorNamespace = "openshift-operators"
-	servicemeshOpName         = "servicemeshoperator"
-	serverlessOpName          = "serverless-operator"
+	servicemeshNamespace = "openshift-operators"
+	servicemeshOpName    = "servicemeshoperator"
+	serverlessOpName     = "serverless-operator"
+	ownedNamespaceNumber = 1 // set to 4 for RHOAI
+	deleteConfigMap      = "delete-configmap-name"
 )
 
 func (tc *testContext) waitForControllerDeployment(name string, replicas int32) error {
@@ -348,7 +350,7 @@ func approveInstallPlan(tc *testContext, plan *ofapi.InstallPlan) error {
 	}
 	force := true
 	opt := &client.PatchOptions{
-		FieldManager: "e2e-test",
+		FieldManager: "e2e-test-dsc",
 		Force:        &force,
 	}
 
@@ -390,7 +392,7 @@ func ensureDepedentOperators(t *testing.T, tc *testContext) error { //nolint: th
 		op := op // to avoid loop variable in the closures
 		t.Logf("Ensuring %s is installed", op)
 		go func(op string) {
-			err := ensureOperator(tc, op, depedentOperatorNamespace)
+			err := ensureOperator(tc, op, servicemeshNamespace)
 			c <- err
 		}(op)
 	}

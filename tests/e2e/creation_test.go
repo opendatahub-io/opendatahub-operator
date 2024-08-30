@@ -25,10 +25,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/serverless"
-)
-
-const (
-	odhLabelPrefix = "app.opendatahub.io/"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 func creationTestSuite(t *testing.T) {
@@ -39,6 +36,7 @@ func creationTestSuite(t *testing.T) {
 	require.NoError(t, err, "error setting up environment")
 
 	t.Run(testCtx.testDsc.Name, func(t *testing.T) {
+		// DSCI
 		t.Run("Creation of DSCI CR", func(t *testing.T) {
 			err = testCtx.testDSCICreation()
 			require.NoError(t, err, "error creating DSCI CR")
@@ -68,6 +66,13 @@ func creationTestSuite(t *testing.T) {
 			err = testCtx.testDefaultCertsAvailable()
 			require.NoError(t, err, "error getting default cert secrets for Kserve")
 		})
+		t.Run("Validate all deployed components", func(t *testing.T) {
+			// this will take about 5-6 mins to complete
+			err = testCtx.testAllApplicationCreation(t)
+			require.NoError(t, err, "error testing deployments for DataScienceCluster: "+testCtx.testDsc.Name)
+		})
+
+		// Kserve
 		t.Run("Validate Knative resoruce", func(t *testing.T) {
 			err = testCtx.validateDSC()
 			require.NoError(t, err, "error getting Knatvie resrouce as part of DataScienceCluster validation")
@@ -174,10 +179,10 @@ func (tc *testContext) testDSCCreation() error {
 				return true, nil
 			})
 			if nberr != nil {
-				return fmt.Errorf("error creating e2e-test DSC %s: %w", tc.testDsc.Name, nberr)
+				return fmt.Errorf("error creating e2e-test-dsc DSC %s: %w", tc.testDsc.Name, nberr)
 			}
 		} else {
-			return fmt.Errorf("error getting e2e-test DSC %s: %w", tc.testDsc.Name, err)
+			return fmt.Errorf("error getting e2e-test-dsc DSC %s: %w", tc.testDsc.Name, err)
 		}
 	}
 
@@ -280,7 +285,7 @@ func (tc *testContext) testApplicationCreation(component components.ComponentInt
 		}
 
 		appList, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(ctx, metav1.ListOptions{
-			LabelSelector: odhLabelPrefix + componentName,
+			LabelSelector: labels.ODH.Component(component.GetComponentName()),
 		})
 		if err != nil {
 			log.Printf("error listing application deployments :%v. Trying again...", err)
@@ -366,7 +371,7 @@ func (tc *testContext) testOwnerrefrences() error {
 	// Test any one of the apps
 	if tc.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
 		appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(tc.ctx, metav1.ListOptions{
-			LabelSelector: odhLabelPrefix + tc.testDsc.Spec.Components.Dashboard.GetComponentName(),
+			LabelSelector: labels.ODH.Component(tc.testDsc.Spec.Components.Dashboard.GetComponentName()),
 		})
 		if err != nil {
 			return fmt.Errorf("error listing application deployments %w", err)
@@ -422,8 +427,8 @@ func (tc *testContext) testDefaultCertsAvailable() error {
 func (tc *testContext) testUpdateComponentReconcile() error {
 	// Test Updating Dashboard Replicas
 
-	appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(context.TODO(), metav1.ListOptions{
-		LabelSelector: odhLabelPrefix + "rhods-dashboard",
+	appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(tc.ctx, metav1.ListOptions{
+		LabelSelector: labels.ODH.Component(tc.testDsc.Spec.Components.Dashboard.GetComponentName()),
 	})
 	if err != nil {
 		return err
@@ -473,8 +478,8 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 	var dashboardDeploymentName string
 
 	if tc.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
-		appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(context.TODO(), metav1.ListOptions{
-			LabelSelector: odhLabelPrefix + "rhods-dashboard", // here is not same label as comopnent name in DSC
+		appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(tc.ctx, metav1.ListOptions{
+			LabelSelector: labels.ODH.Component(tc.testDsc.Spec.Components.Dashboard.GetComponentName()),
 		})
 		if err != nil {
 			return fmt.Errorf("error getting enabled component %v", "rhods-dashboard")
