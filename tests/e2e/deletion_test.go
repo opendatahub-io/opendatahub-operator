@@ -71,7 +71,7 @@ func (tc *testContext) testApplicationDeletion(component components.ComponentInt
 
 	if err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
 		appList, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(ctx, metav1.ListOptions{
-			LabelSelector: labels.ODHAppPrefix + component.GetComponentName(),
+			LabelSelector: labels.ODH.Component(component.GetComponentName()),
 		})
 		if err != nil {
 			log.Printf("error getting component deployments :%v. Trying again...", err)
