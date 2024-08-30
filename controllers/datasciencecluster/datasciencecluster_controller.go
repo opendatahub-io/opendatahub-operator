@@ -55,6 +55,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	annotations "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
@@ -381,7 +382,25 @@ var configMapPredicates = predicate.Funcs{
 			return false
 		}
 		// Do not reconcile on kserver's inferenceservice-config CM updates, for rawdeployment
-		if e.ObjectNew.GetName() == "inferenceservice-config" && (e.ObjectNew.GetNamespace() == "redhat-ods-applications" || e.ObjectNew.GetNamespace() == "opendatahub") {
+		namespace := e.ObjectNew.GetNamespace()
+		if e.ObjectNew.GetName() == "inferenceservice-config" && (namespace == "redhat-ods-applications" || namespace == "opendatahub") { //nolint:goconst
+			return false
+		}
+		return true
+	},
+}
+
+// reduce unnecessary reconcile triggered by odh component's deployment change due to ManagedByODHOperator annotation.
+var componentDeploymentPredicates = predicate.Funcs{
+	UpdateFunc: func(e event.UpdateEvent) bool {
+		namespace := e.ObjectNew.GetNamespace()
+		if namespace == "opendatahub" || namespace == "redhat-ods-applications" {
+			oldManaged, oldExists := e.ObjectOld.GetAnnotations()[annotations.ManagedByODHOperator]
+			newManaged := e.ObjectNew.GetAnnotations()[annotations.ManagedByODHOperator]
+			// only reoncile if annotation from "not exist" to "set to true", or from "non-true" value to "true"
+			if newManaged == "true" && (!oldExists || oldManaged != "true") {
+				return true
+			}
 			return false
 		}
 		return true
@@ -391,7 +410,8 @@ var configMapPredicates = predicate.Funcs{
 // a workaround for 2.5 due to odh-model-controller serivceaccount keeps updates with label.
 var saPredicates = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
-		if e.ObjectNew.GetName() == "odh-model-controller" && e.ObjectNew.GetNamespace() == "redhat-ods-applications" {
+		namespace := e.ObjectNew.GetNamespace()
+		if e.ObjectNew.GetName() == "odh-model-controller" && (namespace == "redhat-ods-applications" || namespace == "opendatahub") {
 			return false
 		}
 		return true
@@ -472,7 +492,9 @@ func (r *DataScienceClusterReconciler) SetupWithManager(ctx context.Context, mgr
 		Owns(
 			&rbacv1.ClusterRoleBinding{},
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, modelMeshRBPredicates))).
-		Owns(&appsv1.Deployment{}).
+		Owns(
+			&appsv1.Deployment{},
+			builder.WithPredicates(componentDeploymentPredicates)).
 		Owns(&corev1.PersistentVolumeClaim{}).
 		Owns(
 			&corev1.Service{},
