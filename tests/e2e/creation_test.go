@@ -47,23 +47,22 @@ func creationTestSuite(t *testing.T) {
 		t.Run("Creation of more than one of DSCInitialization instance", func(t *testing.T) {
 			testCtx.testDSCIDuplication(t)
 		})
-
 		t.Run("Validate DSCInitialization instance", func(t *testing.T) {
 			err = testCtx.validateDSCI()
 			require.NoError(t, err, "error validating DSCInitialization instance")
-
 		})
+		t.Run("Check owned namespaces exist", func(t *testing.T) {
+			err = testCtx.testOwnedNamespacesAllExist()
+			require.NoError(t, err, "error owned namespace is missing")
+		})
+
+		// DSC
 		t.Run("Creation of DataScienceCluster instance", func(t *testing.T) {
 			err = testCtx.testDSCCreation()
 			require.NoError(t, err, "error creating DataScienceCluster instance")
 		})
 		t.Run("Creation of more than one of DataScienceCluster instance", func(t *testing.T) {
 			testCtx.testDSCDuplication(t)
-		})
-
-		t.Run("Validate DSCInitialization instance", func(t *testing.T) {
-			err = testCtx.validateDSCI()
-			require.NoError(t, err, "error validating DSCInitialization instance")
 		})
 
 		t.Run("Validate Ownerrefrences exist", func(t *testing.T) {
@@ -74,10 +73,6 @@ func creationTestSuite(t *testing.T) {
 			// this will take about 5-6 mins to complete
 			err = testCtx.testAllComponentCreation(t)
 			require.NoError(t, err, "error testing deployments for DataScienceCluster: "+testCtx.testDsc.Name)
-		})
-		t.Run("Validate DSC Ready", func(t *testing.T) {
-			err = testCtx.validateDSCReady()
-			require.NoError(t, err, "DataScienceCluster instance is not Ready")
 		})
 
 		// Kserve
@@ -191,6 +186,7 @@ func (tc *testContext) validateDSCReady() error {
 	return waitDSCReady(tc)
 }
 
+// Verify DSC instance is in Ready phase when all components are up and running
 func waitDSCReady(tc *testContext) error {
 	// wait for 2 mins which is on the safe side, normally it should get ready once all components are ready
 	err := tc.wait(func(ctx context.Context) (bool, error) {
@@ -303,6 +299,7 @@ func (tc *testContext) testComponentCreation(component components.ComponentInter
 		}
 
 		appList, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(ctx, metav1.ListOptions{
+
 			LabelSelector: labels.ODH.Component(componentName),
 		})
 		if err != nil {
@@ -388,7 +385,7 @@ func (tc *testContext) testOwnerrefrences() error {
 	// Test Dashboard component
 	if tc.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
 		appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(tc.ctx, metav1.ListOptions{
-			LabelSelector: labels.ODH.Component("rhods-dashboard"),
+			LabelSelector: labels.ODH.Component(tc.testDsc.Spec.Components.Dashboard.GetComponentName()),
 		})
 		if err != nil {
 			return fmt.Errorf("error listing component deployments %w", err)
@@ -444,7 +441,8 @@ func (tc *testContext) testDefaultCertsAvailable() error {
 func (tc *testContext) testUpdateComponentReconcile() error {
 	// Test Updating Dashboard Replicas
 	appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(tc.ctx, metav1.ListOptions{
-		LabelSelector: labels.ODH.Component("rhods-dashboard"),
+
+		LabelSelector: labels.ODH.Component(tc.testDsc.Spec.Components.Dashboard.GetComponentName()),
 	})
 	if err != nil {
 		return err
@@ -495,7 +493,8 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 
 	if tc.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
 		appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(tc.ctx, metav1.ListOptions{
-			LabelSelector: labels.ODH.Component("rhods-dashboard"),
+
+			LabelSelector: labels.ODH.Component(tc.testDsc.Spec.Components.Dashboard.GetComponentName()),
 		})
 		if err != nil {
 			return fmt.Errorf("error getting enabled component %v", "rhods-dashboard")

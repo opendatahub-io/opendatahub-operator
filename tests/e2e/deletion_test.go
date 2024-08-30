@@ -30,11 +30,11 @@ func deletionTestSuite(t *testing.T) {
 	})
 
 	t.Run(testCtx.testDsc.Name, func(t *testing.T) {
-		t.Run("Deletion DSC instance", func(t *testing.T) {
+		t.Run("Deletion: DSC instance", func(t *testing.T) {
 			err = testCtx.testDeletionExistDSC()
 			require.NoError(t, err, "Error to delete DSC instance")
 		})
-		t.Run("Check all component resource are deleted", func(t *testing.T) {
+		t.Run("Check: all component resource are deleted", func(t *testing.T) {
 			err = testCtx.testAllApplicationDeletion(t)
 			require.NoError(t, err, "Should not found component exist")
 		})
@@ -78,6 +78,7 @@ func (tc *testContext) testComponentDeletion(component components.ComponentInter
 		})
 		if err != nil {
 			log.Printf("error getting component deployments :%v. Trying again...", err)
+
 			return false, err
 		}
 
