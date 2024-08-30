@@ -149,8 +149,8 @@ func main() { //nolint:funlen,maintidx
 		os.Exit(1)
 	}
 
-	secretCache := setSecretCache(platform)
-	deploymentCache := setDeploymentCache(platform)
+	secretCache := createSecretCacheConfig(platform)
+	deploymentCache := createDeploymentCacheConfig(platform)
 	cacheOptions := cache.Options{
 		Scheme: scheme,
 		ByObject: map[client.Object]cache.ByObject{
@@ -319,7 +319,7 @@ func main() { //nolint:funlen,maintidx
 	}
 }
 
-func setSecretCache(platform cluster.Platform) map[string]cache.Config {
+func createSecretCacheConfig(platform cluster.Platform) map[string]cache.Config {
 	namespaceConfigs := map[string]cache.Config{
 		"istio-system":      {FieldSelector: fields.Set{"metadata.name": "knative-serving-cert"}.AsSelector()}, // for expiration case
 		"openshift-ingress": {},
@@ -336,7 +336,7 @@ func setSecretCache(platform cluster.Platform) map[string]cache.Config {
 	return namespaceConfigs
 }
 
-func setDeploymentCache(platform cluster.Platform) map[string]cache.Config {
+func createDeploymentCacheConfig(platform cluster.Platform) map[string]cache.Config {
 	namespaceConfigs := map[string]cache.Config{}
 	switch platform {
 	case cluster.ManagedRhods: // no need workbench NS, only SFS no Deployment
