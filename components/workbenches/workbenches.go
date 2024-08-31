@@ -175,17 +175,17 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 		return err
 	}
 	l.WithValues("Path", manifestsPath).Info("apply manifests done notebook image")
+
+	// Wait for deployment available
+	if enabled {
+		if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 10, 2); err != nil {
+			return fmt.Errorf("deployments for %s are not ready to server: %w", ComponentName, err)
+		}
+	}
+
 	// CloudService Monitoring handling
 	if platform == cluster.ManagedRhods {
-		if enabled {
-			// first check if the service is up, so prometheus wont fire alerts when it is just startup
-			// only 1 replica set timeout to 1min
-			if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 10, 1); err != nil {
-				return fmt.Errorf("deployments for %s are not ready to server: %w", ComponentName, err)
-			}
-			l.Info("deployment is done, updating monitoring rules")
-		}
-		if err := w.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
+		if err := w.UpdatePrometheusConfig(cli, l, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
 		}
 		if err := deploy.DeployManifestsFromPath(ctx, cli, owner,

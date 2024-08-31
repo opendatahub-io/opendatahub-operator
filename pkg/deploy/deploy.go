@@ -123,19 +123,20 @@ func DownloadManifests(ctx context.Context, componentName string, manifestConfig
 			if header.Typeflag == tar.TypeReg {
 				file, err := os.Create(DefaultManifestPath + "/" + componentName + "/" + componentFileRelativePathFound)
 				if err != nil {
-					fmt.Println("Error creating file:", err)
+					return fmt.Errorf("error creating file: %w", err)
 				}
+
+				defer file.Close()
+
 				for {
 					_, err := io.CopyN(file, tarReader, 1024)
 					if err != nil {
 						if errors.Is(err, io.EOF) {
 							break
 						}
-						fmt.Println("Error downloading file contents:", err)
-						return err
+						return fmt.Errorf("error downloading file contents: %w", err)
 					}
 				}
-				file.Close()
 				continue
 			}
 		}

@@ -141,17 +141,15 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		}
 		l.Info("apply manifests done")
 
+		if enabled {
+			if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentNameDownstream, dscispec.ApplicationsNamespace, 20, 3); err != nil {
+				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentNameDownstream, err)
+			}
+		}
+
 		// CloudService Monitoring handling
 		if platform == cluster.ManagedRhods {
-			if enabled {
-				// first check if the service is up, so prometheus won't fire alerts when it is just startup
-				if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentNameDownstream, dscispec.ApplicationsNamespace, 20, 3); err != nil {
-					return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentNameDownstream, err)
-				}
-				l.Info("deployment is done, updating monitoring rules")
-			}
-
-			if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentNameDownstream); err != nil {
+			if err := d.UpdatePrometheusConfig(cli, l, enabled && monitoringEnabled, ComponentNameDownstream); err != nil {
 				return err
 			}
 			if err := deploy.DeployManifestsFromPath(ctx, cli, owner,
@@ -170,6 +168,12 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 			return err
 		}
 		l.Info("apply manifests done")
+		if enabled {
+			if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentNameUpstream, dscispec.ApplicationsNamespace, 20, 3); err != nil {
+				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentNameUpstream, err)
+			}
+		}
+
 		return nil
 	}
 }
@@ -213,7 +217,7 @@ func (d *Dashboard) cleanOauthClient(ctx context.Context, cli client.Client, dsc
 	// Assumption: Component is currently set to enabled
 	name := "dashboard-oauth-client"
 	if !currentComponentExist {
-		fmt.Println("Cleanup any left secret")
+		l.Info("Cleanup any left secret")
 		// Delete client secrets from previous installation
 		oauthClientSecret := &corev1.Secret{}
 		err := cli.Get(ctx, client.ObjectKey{

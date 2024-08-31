@@ -3,7 +3,6 @@ package components
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,7 +15,7 @@ import (
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
+	ctrlogger "github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 )
 
 // Component struct defines the basis for each OpenDataHub component configuration.
@@ -85,21 +84,21 @@ type ComponentInterface interface {
 	GetComponentName() string
 	GetManagementState() operatorv1.ManagementState
 	OverrideManifests(ctx context.Context, platform cluster.Platform) error
-	UpdatePrometheusConfig(cli client.Client, enable bool, component string) error
+	UpdatePrometheusConfig(cli client.Client, logger logr.Logger, enable bool, component string) error
 	ConfigComponentLogger(logger logr.Logger, component string, dscispec *dsciv1.DSCInitializationSpec) logr.Logger
 }
 
 // extend origal ConfigLoggers to include component name.
 func (c *Component) ConfigComponentLogger(logger logr.Logger, component string, dscispec *dsciv1.DSCInitializationSpec) logr.Logger {
 	if dscispec.DevFlags != nil {
-		return common.ConfigLoggers(dscispec.DevFlags.LogMode).WithName("DSC.Components." + component)
+		return ctrlogger.ConfigLoggers(dscispec.DevFlags.LogMode).WithName("DSC.Components." + component)
 	}
 	return logger.WithName("DSC.Components." + component)
 }
 
 // UpdatePrometheusConfig update prometheus-configs.yaml to include/exclude <component>.rules
 // parameter enable when set to true to add new rules, when set to false to remove existing rules.
-func (c *Component) UpdatePrometheusConfig(_ client.Client, enable bool, component string) error {
+func (c *Component) UpdatePrometheusConfig(_ client.Client, logger logr.Logger, enable bool, component string) error {
 	prometheusconfigPath := filepath.Join("/opt/manifests", "monitoring", "prometheus", "apps", "prometheus-configs.yaml")
 
 	// create a struct to mock poremtheus.yml
@@ -167,7 +166,7 @@ func (c *Component) UpdatePrometheusConfig(_ client.Client, enable bool, compone
 			}
 		}
 	} else { // to remove component rules if it is there
-		fmt.Println("Removing prometheus rule: " + component + "*.rules")
+		logger.Info("Removing prometheus rule: " + component + "*.rules")
 		if ruleList, ok := prometheusContent["rule_files"].([]interface{}); ok {
 			for i, item := range ruleList {
 				if rule, isStr := item.(string); isStr && rule == component+"*.rules" {

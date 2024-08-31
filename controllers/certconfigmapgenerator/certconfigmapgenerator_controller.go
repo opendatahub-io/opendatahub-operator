@@ -49,7 +49,7 @@ func (r *CertConfigmapGeneratorReconciler) Reconcile(ctx context.Context, req ct
 	// Get namespace instance
 	userNamespace := &corev1.Namespace{}
 	if err := r.Client.Get(ctx, client.ObjectKey{Name: req.Namespace}, userNamespace); err != nil {
-		return ctrl.Result{}, errors.WithMessage(err, "error getting namespace to inject trustedCA bundle ")
+		return ctrl.Result{}, errors.WithMessage(err, "error getting namespace to inject trustedCA bundle")
 	}
 
 	// Get DSCI instance

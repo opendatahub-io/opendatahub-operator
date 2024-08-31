@@ -21,6 +21,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
@@ -146,14 +147,14 @@ func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ cluster.Platfor
 
 	switch {
 	case len(instances.Items) > 1:
-		fmt.Println("only one instance of DSCInitialization object is allowed. Please delete other instances.")
+		ctrl.Log.Info("only one instance of DSCInitialization object is allowed. Please delete other instances.")
 		return nil
 	case len(instances.Items) == 1:
 		// Do not patch/update if DSCI already exists.
-		fmt.Println("DSCInitialization resource already exists. It will not be updated with default DSCI.")
+		ctrl.Log.Info("DSCInitialization resource already exists. It will not be updated with default DSCI.")
 		return nil
 	case len(instances.Items) == 0:
-		fmt.Println("create default DSCI CR.")
+		ctrl.Log.Info("create default DSCI CR.")
 		err := cluster.CreateWithRetry(ctx, cli, defaultDsci, 1) // 1 min timeout
 		if err != nil {
 			return err
@@ -290,7 +291,7 @@ func deleteOneResource(ctx context.Context, c client.Client, res ResourceSpec) e
 	err := c.List(ctx, list, client.InNamespace(res.Namespace))
 	if err != nil {
 		if errors.Is(err, &meta.NoKindMatchError{}) {
-			fmt.Printf("CRD not found, will not delete %v\n", res.Gvk)
+			ctrl.Log.Info("CRD not found, will not delete " + res.Gvk.String())
 			return nil
 		}
 		return fmt.Errorf("failed to list %s: %w", res.Gvk.Kind, err)
@@ -313,7 +314,7 @@ func deleteOneResource(ctx context.Context, c client.Client, res ResourceSpec) e
 				if err != nil {
 					return fmt.Errorf("failed to delete %s %s/%s: %w", res.Gvk.Kind, res.Namespace, item.GetName(), err)
 				}
-				fmt.Println("Deleted object", item.GetName(), res.Gvk, "in namespace", res.Namespace)
+				ctrl.Log.Info("Deleted object " + item.GetName() + " " + res.Gvk.String() + "in namespace" + res.Namespace)
 			}
 		}
 	}
@@ -332,16 +333,16 @@ func deleteDeprecatedResources(ctx context.Context, cli client.Client, namespace
 		item := items.Index(i).Addr().Interface().(client.Object) //nolint:errcheck,forcetypeassert
 		for _, name := range resourceList {
 			if name == item.GetName() {
-				fmt.Printf("Attempting to delete %s in namespace %s\n", item.GetName(), namespace)
+				ctrl.Log.Info("Attempting to delete " + item.GetName() + " in namespace " + namespace)
 				err := cli.Delete(ctx, item)
 				if err != nil {
 					if k8serr.IsNotFound(err) {
-						fmt.Printf("Could not find %s in namespace %s\n", item.GetName(), namespace)
+						ctrl.Log.Info("Could not find " + item.GetName() + " in namespace " + namespace)
 					} else {
 						multiErr = multierror.Append(multiErr, err)
 					}
 				}
-				fmt.Printf("Successfully deleted %s\n", item.GetName())
+				ctrl.Log.Info("Successfully deleted " + item.GetName())
 			}
 		}
 	}
@@ -361,16 +362,16 @@ func deleteDeprecatedServiceMonitors(ctx context.Context, cli client.Client, nam
 		servicemonitor := servicemonitor
 		for _, name := range resourceList {
 			if name == servicemonitor.Name {
-				fmt.Printf("Attempting to delete %s in namespace %s\n", servicemonitor.Name, namespace)
+				ctrl.Log.Info("Attempting to delete " + servicemonitor.Name + " in namespace " + namespace)
 				err := cli.Delete(ctx, servicemonitor)
 				if err != nil {
 					if k8serr.IsNotFound(err) {
-						fmt.Printf("Could not find %s in namespace %s\n", servicemonitor.Name, namespace)
+						ctrl.Log.Info("Could not find " + servicemonitor.Name + " in namespace " + namespace)
 					} else {
 						multiErr = multierror.Append(multiErr, err)
 					}
 				}
-				fmt.Printf("Successfully deleted %s\n", servicemonitor.Name)
+				ctrl.Log.Info("Successfully deleted " + servicemonitor.Name)
 			}
 		}
 	}
@@ -467,7 +468,7 @@ func deleteDeprecatedNamespace(ctx context.Context, cli client.Client, namespace
 		return fmt.Errorf("error getting pods from namespace %s: %w", namespace, err)
 	}
 	if len(podList.Items) != 0 {
-		fmt.Printf("Skip deletion of namespace %s due to running Pods in it\n", namespace)
+		ctrl.Log.Info("Skip deletion of namespace " + namespace + " due to running Pods in it")
 		return nil
 	}
 
