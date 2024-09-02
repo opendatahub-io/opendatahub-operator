@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 
@@ -325,12 +324,6 @@ func (tc *testContext) testApplicationCreation(component components.ComponentInt
 			return false, nil
 		}
 		// when no deployment is found
-		// check Reconcile failed with missing dependent operator error
-		for _, Condition := range tc.testDsc.Status.Conditions {
-			if strings.Contains(Condition.Message, "Please install the operator before enabling "+component.GetComponentName()) {
-				return true, err
-			}
-		}
 		return false, nil
 	})
 
