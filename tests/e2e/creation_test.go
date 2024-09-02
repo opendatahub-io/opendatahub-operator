@@ -311,17 +311,13 @@ func (tc *testContext) testApplicationCreation(component components.ComponentInt
 			return false, fmt.Errorf("error listing application deployments :%w", err)
 		}
 		if len(appList.Items) != 0 {
-			allAppDeploymentsReady := true
 			for _, deployment := range appList.Items {
 				if deployment.Status.ReadyReplicas < 1 {
-					allAppDeploymentsReady = false
+					log.Printf("waiting for application deployments to be in Ready state.")
+					return false, nil
 				}
 			}
-			if allAppDeploymentsReady {
-				return true, nil
-			}
-			log.Printf("waiting for application deployments to be in Ready state.")
-			return false, nil
+			return true, nil
 		}
 		// when no deployment is found
 		return false, nil
