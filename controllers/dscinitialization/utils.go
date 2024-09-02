@@ -57,7 +57,7 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 			// Set Controller reference
 			// err = ctrl.SetControllerReference(dscInit, desiredNamespace, r.Scheme)
 			// if err != nil {
-			//	 r.Log.Error(err, "Unable to add OwnerReference to the Namespace")
+			//	 r.log.Error(err, "Unable to add OwnerReference to the Namespace")
 			//	 return err
 			// }
 			err = r.Create(ctx, desiredNamespace)

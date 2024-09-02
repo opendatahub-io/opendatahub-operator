@@ -47,7 +47,7 @@ func ConfigLoggers(mode string) logr.Logger {
 				config.EncodeTime = zapcore.ISO8601TimeEncoder // human readable not epoch
 				config.EncodeDuration = zapcore.SecondsDurationEncoder
 				config.LevelKey = "LogLevel"
-				config.NameKey = "Log"
+				config.NameKey = "log"
 				config.CallerKey = "Caller"
 				config.MessageKey = "Message"
 				config.TimeKey = "Time"

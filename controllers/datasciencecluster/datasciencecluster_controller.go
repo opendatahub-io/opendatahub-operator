@@ -498,7 +498,7 @@ var modelMeshGeneralPredicates = predicate.Funcs{
 	},
 }
 
-// SetupWithManager sets up the controller with the Manager.
+// SetupWithManager sets up the controller with the mgr.
 func (r *DataScienceClusterReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&dscv1.DataScienceCluster{}).

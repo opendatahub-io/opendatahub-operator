@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/go-multierror"
-	"github.com/opendatahub-io/odh-platform/pkg/spi"
+	"github.com/opendatahub-io/odh-platform/pkg/routing"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -61,7 +61,7 @@ func (r *Registry) Configure(ctx context.Context, cli client.Client) error {
 		errReconcile = multierror.Append(errReconcile, handler.Reconcile(ctx, cli, r.owner))
 	}
 
-	if errStart := r.configureCtrls(cli); errStart != nil {
+	if errStart := r.configureCtrls(ctx, cli); errStart != nil {
 		errReconcile = multierror.Append(errReconcile, errStart)
 	}
 
@@ -72,20 +72,20 @@ func (r *Registry) Configure(ctx context.Context, cli client.Client) error {
 	return nil
 }
 
-func (r *Registry) configureCtrls(cli client.Client) error {
-	if errAuthzStart := r.orchestrator.authorize(cli, r.authorization.config, r.authorization.protectedResources...); errAuthzStart != nil {
+func (r *Registry) configureCtrls(ctx context.Context, cli client.Client) error {
+	if errAuthzStart := r.orchestrator.ToggleAuthorization(ctx, cli, r.authorization.config, r.authorization.protectedResources...); errAuthzStart != nil {
 		return fmt.Errorf("failed to start authorization controllers: %w", errAuthzStart)
 	}
 
 	// TODO(mvp): move up as part of r.routing - do not pass spec
-	config := spi.PlatformRoutingConfiguration{
+	config := routing.PlatformRoutingConfiguration{
 		IngressSelectorLabel: r.routing.routingSpec.IngressGateway.LabelSelectorKey,
 		IngressSelectorValue: r.routing.routingSpec.IngressGateway.LabelSelectorValue,
 		IngressService:       r.routing.routingSpec.IngressGateway.Name,
 		GatewayNamespace:     r.routing.routingSpec.IngressGateway.Namespace,
 	}
 
-	if errRoutingStart := r.orchestrator.toggleRouting(cli, config, r.routing.routingTargets...); errRoutingStart != nil {
+	if errRoutingStart := r.orchestrator.ToggleRouting(ctx, cli, config, r.routing.routingTargets...); errRoutingStart != nil {
 		return fmt.Errorf("failed to start authorization controllers: %w", errRoutingStart)
 	}
 

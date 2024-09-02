@@ -18,7 +18,7 @@ func (m *ModelRegistry) platformRegister() {
 func (m *ModelRegistry) RoutingResources() []platform.RoutingTarget {
 	return []platform.RoutingTarget{
 		{
-			ObjectReference: watchedCR,
+			ResourceReference: watchedCR,
 			ServiceSelector: map[string]string{
 				"app.kubernetes.io/component": "model-registry",
 				"app.kubernetes.io/instance":  "{{.metadata.name}}",
@@ -30,7 +30,7 @@ func (m *ModelRegistry) RoutingResources() []platform.RoutingTarget {
 func (m *ModelRegistry) ProtectedResources() []platform.ProtectedResource {
 	return []platform.ProtectedResource{
 		{
-			ObjectReference: watchedCR,
+			ResourceReference: watchedCR,
 			WorkloadSelector: map[string]string{
 				"component": "model-registry",
 			},
@@ -41,7 +41,7 @@ func (m *ModelRegistry) ProtectedResources() []platform.ProtectedResource {
 }
 
 // platform target resource.
-var watchedCR = platform.ObjectReference{
+var watchedCR = platform.ResourceReference{
 	GroupVersionKind: schema.GroupVersionKind{
 		Group:   "modelregistry.opendatahub.io",
 		Version: "v1alpha1",

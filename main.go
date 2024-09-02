@@ -122,7 +122,7 @@ func main() { //nolint:funlen,maintidx
 	flag.StringVar(&dscMonitoringNamespace, "dsc-monitoring-namespace", "opendatahub", "The namespace where data science cluster"+
 		"monitoring stack will be deployed")
 	flag.StringVar(&operatorName, "operator-name", "opendatahub", "The name of the operator")
-	flag.StringVar(&logmode, "log-mode", "", "Log mode ('', prod, devel), default to ''")
+	flag.StringVar(&logmode, "log-mode", "", "log mode ('', prod, devel), default to ''")
 
 	flag.Parse()
 
@@ -194,8 +194,8 @@ func main() { //nolint:funlen,maintidx
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "07ed84f7.opendatahub.io",
 		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
-		// when the Manager ends. This requires the binary to immediately end when the
-		// Manager is stopped, otherwise, this setting is unsafe. Setting this significantly
+		// when the mgr ends. This requires the binary to immediately end when the
+		// mgr is stopped, otherwise, this setting is unsafe. Setting this significantly
 		// speeds up voluntary leader transitions as the new leader don't have to wait
 		// LeaseDuration time first.
 		//
@@ -226,6 +226,13 @@ func main() { //nolint:funlen,maintidx
 		os.Exit(1)
 	}
 
+	platformLogger := ctrl.Log.WithName(operatorName).WithName("controllers").WithName("platform")
+	orchestrator, errOrchestrator := capabilities.NewPlatformOrchestrator(logger.LogWithLevel(platformLogger, logmode), mgr)
+	if errOrchestrator != nil {
+		setupLog.Error(errOrchestrator, "unable to create platform orchestrator")
+		os.Exit(1)
+	}
+
 	if err = (&dscctrl.DataScienceClusterReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
@@ -236,11 +243,8 @@ func main() { //nolint:funlen,maintidx
 			},
 			DSCIStatus: &dsciv1.DSCInitializationStatus{},
 		},
-		Recorder: mgr.GetEventRecorderFor("datasciencecluster-controller"),
-		Orchestrator: &capabilities.PlatformOrchestrator{
-			Manager: mgr,
-			Log:     logger.LogWithLevel(ctrl.Log.WithName(operatorName).WithName("controllers").WithName("platform"), logmode),
-		},
+		Recorder:     mgr.GetEventRecorderFor("datasciencecluster-controller"),
+		Orchestrator: orchestrator,
 	}).SetupWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DataScienceCluster")
 		os.Exit(1)

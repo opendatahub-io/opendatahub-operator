@@ -1,16 +1,20 @@
-//nolint:dupl //reason temporary to make things working, refactor later
 package capabilities
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"sync"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/opendatahub-io/odh-platform/controllers"
 	"github.com/opendatahub-io/odh-platform/controllers/authzctrl"
 	"github.com/opendatahub-io/odh-platform/controllers/routingctrl"
 	"github.com/opendatahub-io/odh-platform/pkg/platform"
-	"github.com/opendatahub-io/odh-platform/pkg/spi"
+	"github.com/opendatahub-io/odh-platform/pkg/routing"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/discovery"
 	controllerruntime "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -24,100 +28,150 @@ import (
 // +kubebuilder:rbac:groups=authorino.kuadrant.io,resources=authconfigs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=security.istio.io,resources=authorizationpolicies,verbs=get;list;watch;create;update;patch;delete
 
+// PlatformOrchestrator is responsible for managing the lifecycle of platform capabilities and respective controllers.
 type PlatformOrchestrator struct {
-	Log     logr.Logger
-	Manager controllerruntime.Manager
-	// TODO split by capability? the core logic for setting stuff up is very similar, differs by types and ctrl creation func
-	authz   map[platform.ObjectReference]controllers.Activable
-	routing map[platform.ObjectReference]controllers.Activable
+	log     logr.Logger
+	authz   capabilityActivator[platform.ProtectedResource]
+	routing capabilityActivator[platform.RoutingTarget]
 }
 
-func (p *PlatformOrchestrator) toggleRouting(cli client.Client, config spi.PlatformRoutingConfiguration, refs ...platform.RoutingTarget) error {
-	if p.routing == nil {
-		p.routing = make(map[platform.ObjectReference]controllers.Activable)
+func NewPlatformOrchestrator(log logr.Logger, manager controllerruntime.Manager) (*PlatformOrchestrator, error) {
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(manager.GetConfig())
+	if err != nil {
+		return nil, fmt.Errorf("failed to create discovery client for PlatformOrchestrator: %w", err)
 	}
 
-	// Deactivate controllers that are not required
-	for objectRef, controller := range p.routing {
-		requiredToWatch := false
-		for _, target := range refs {
-			if target.ObjectReference == objectRef {
-				requiredToWatch = true
-				break
-			}
-		}
-
-		if !requiredToWatch {
-			controller.Deactivate()
-		}
+	p := &PlatformOrchestrator{
+		log: log,
+		authz: capabilityActivator[platform.ProtectedResource]{
+			log:             log.WithValues("capibility", "authz"),
+			mgr:             manager,
+			discoveryClient: discoveryClient,
+		},
+		routing: capabilityActivator[platform.RoutingTarget]{
+			log:             log.WithValues("capibility", "routing"),
+			mgr:             manager,
+			discoveryClient: discoveryClient,
+		},
 	}
-
-	// Activate controllers that are required
-	var errSetup []error
-	for _, routingTarget := range refs {
-		ctrl, alreadyWatched := p.routing[routingTarget.ObjectReference]
-
-		if !alreadyWatched {
-			component := spi.RoutingComponent{RoutingTarget: routingTarget}
-			// TODO(mvp): retry until CRD/object reference exists
-			// TODO(mvp): non-blocking wait.PollUntilContextTimeout()
-			controller := routingctrl.New(cli, p.Log, component, config)
-			errStart := controller.SetupWithManager(p.Manager)
-			if errStart != nil {
-				errSetup = append(errSetup, fmt.Errorf("failed to setup routing controller: %w", errStart))
-				continue
-			}
-
-			p.routing[routingTarget.ObjectReference] = controller
-		} else {
-			ctrl.Activate()
-		}
-	}
-
-	return errors.Join(errSetup...)
+	return p, nil
 }
 
-func (p *PlatformOrchestrator) authorize(cli client.Client, config authzctrl.PlatformAuthorizationConfig, refs ...platform.ProtectedResource) error {
-	if p.authz == nil {
-		p.authz = make(map[platform.ObjectReference]controllers.Activable)
+func (p *PlatformOrchestrator) ToggleRouting(ctx context.Context, cli client.Client, config routing.PlatformRoutingConfiguration, refs ...platform.RoutingTarget) error {
+	p.routing.deactivateStaleCtrls(refs...)
+
+	createCtrl := func(ref platform.RoutingTarget) activableCtrl {
+		return routingctrl.New(cli, p.log, ref, config)
 	}
 
-	// Deactivate controllers that are not required anymore
-	for objectRef, controller := range p.authz {
-		requiredToWatch := false
-		for _, target := range refs {
-			if target.ObjectReference == objectRef {
-				requiredToWatch = true
-				break
-			}
-		}
+	return p.routing.activateOrNewCtrl(ctx, createCtrl, refs...)
+}
 
-		if !requiredToWatch {
-			controller.Deactivate()
-		}
+func (p *PlatformOrchestrator) ToggleAuthorization(ctx context.Context, cli client.Client, config authzctrl.PlatformAuthorizationConfig, refs ...platform.ProtectedResource) error {
+	p.authz.deactivateStaleCtrls(refs...)
+
+	createCtrl := func(ref platform.ProtectedResource) activableCtrl {
+		return authzctrl.New(cli, p.log, ref, config)
 	}
 
-	// Activate controllers that are required
+	return p.authz.activateOrNewCtrl(ctx, createCtrl, refs...)
+}
+
+type hasResourceReference interface {
+	GetResourceReference() platform.ResourceReference
+}
+
+type activableCtrl interface {
+	controllers.Activable
+	Name() string
+	SetupWithManager(mgr controllerruntime.Manager) error
+}
+
+type createCtrl[T hasResourceReference] func(ref T) activableCtrl
+
+type capabilityActivator[T hasResourceReference] struct {
+	mu              sync.RWMutex
+	log             logr.Logger
+	mgr             controllerruntime.Manager
+	ctrls           map[platform.ResourceReference]activableCtrl
+	discoveryClient discovery.DiscoveryInterface
+}
+
+// deactivateStaleCtrls deactivates controllers that are not required anymore, meaning there are no resource references
+// previously watched that are still required. This can happen when a component has been deactivated.
+func (c *capabilityActivator[T]) deactivateStaleCtrls(currentRefs ...T) {
+	if c.ctrls == nil {
+		c.ctrls = make(map[platform.ResourceReference]activableCtrl)
+	}
+
+	ctrlState := make(map[platform.ResourceReference]bool)
+	for objectRef := range c.ctrls {
+		ctrlState[objectRef] = false
+	}
+
+	for _, ref := range currentRefs {
+		ctrlState[ref.GetResourceReference()] = true
+	}
+
+	for objectRef, active := range ctrlState {
+		if !active {
+			c.ctrls[objectRef].Deactivate()
+		}
+	}
+}
+
+func (c *capabilityActivator[T]) activateOrNewCtrl(ctx context.Context, createCtrlFunc createCtrl[T], currentRefs ...T) error {
 	var errSetup []error
-	for _, protectedResource := range refs {
-		ctrl, alreadyExists := p.routing[protectedResource.ObjectReference]
 
-		if !alreadyExists {
-			component := spi.AuthorizationComponent{ProtectedResource: protectedResource}
-			// TODO(mvp): retry until CRD/object reference exists
-			// TODO(mvp): non-blocking wait.PollUntilContextTimeout()
-			controller := authzctrl.New(cli, p.Log, component, config)
-			errStart := controller.SetupWithManager(p.Manager)
-			if errStart != nil {
-				errSetup = append(errSetup, fmt.Errorf("failed to setup authorization controller: %w", errStart))
-				continue
+	var wg sync.WaitGroup
+
+	for _, ref := range currentRefs {
+		wg.Add(1)
+
+		currentRef := ref
+		resourceReference := currentRef.GetResourceReference()
+
+		// Resolve watches for all requested components in parallel, so they do not wait for others if their CRDs are not yet
+		// persisted in the cluster.
+		go func() {
+			defer wg.Done()
+
+			// TODO(nice-to-have): encapsulate map with mutex so RW is uniformly handled without potential concurrent access.
+			c.mu.Lock()
+			ctrl, watchExists := c.ctrls[resourceReference]
+			c.mu.Unlock()
+
+			if !watchExists {
+				resourceExists := func(ctx context.Context) (bool, error) {
+					resources, err := c.discoveryClient.ServerResourcesForGroupVersion(resourceReference.GroupVersion().String())
+					if err != nil {
+						return false, client.IgnoreNotFound(err)
+					}
+
+					return resources.Size() > 0, nil
+				}
+
+				if errResWait := wait.PollUntilContextTimeout(ctx, 200*time.Millisecond, 10*time.Second, true, resourceExists); errResWait != nil {
+					errSetup = append(errSetup, fmt.Errorf("failed to wait for resource '%s' to be available: %w", resourceReference.GroupVersionKind.String(), errResWait))
+					return
+				}
+
+				controller := createCtrlFunc(currentRef)
+				if errStart := controller.SetupWithManager(c.mgr); errStart != nil {
+					errSetup = append(errSetup, fmt.Errorf("failed to setup controller %s: %w", controller.Name(), errStart))
+					return
+				}
+
+				c.mu.Lock()
+				c.ctrls[resourceReference] = controller
+				c.mu.Unlock()
+			} else {
+				ctrl.Activate()
 			}
-
-			p.authz[protectedResource.ObjectReference] = controller
-		} else {
-			ctrl.Activate()
-		}
+		}()
 	}
+
+	wg.Wait()
 
 	return errors.Join(errSetup...)
 }

@@ -13,10 +13,6 @@ type Reconciler interface {
 	Reconcile(ctx context.Context, cli client.Client, owner metav1.Object) error
 }
 
-type Availability interface {
-	IsAvailable() bool
-}
-
 // PlatformCapabilities offers component views of the platform capabilities. This allows components to provide required
 // information when onboarding.
 type PlatformCapabilities interface {

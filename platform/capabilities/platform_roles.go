@@ -13,7 +13,7 @@ import (
 )
 
 func CreateOrUpdatePlatformRBAC(ctx context.Context, cli client.Client, roleName string,
-	objectReferences []platform.ObjectReference, metaOptions ...cluster.MetaOptions) error {
+	objectReferences []platform.ResourceReference, metaOptions ...cluster.MetaOptions) error {
 	if _, err := cluster.CreateOrUpdateClusterRole(ctx, cli, roleName, createPolicyRules(objectReferences), metaOptions...); err != nil {
 		return fmt.Errorf("failed creating cluster role: %w", err)
 	}
@@ -32,7 +32,7 @@ func CreateOrUpdatePlatformRBAC(ctx context.Context, cli client.Client, roleName
 	return nil
 }
 
-func createPolicyRules(objectReferences []platform.ObjectReference) []rbacv1.PolicyRule {
+func createPolicyRules(objectReferences []platform.ResourceReference) []rbacv1.PolicyRule {
 	apiGroups := make([]string, 0)
 	resources := make([]string, 0)
 	for _, ref := range objectReferences {

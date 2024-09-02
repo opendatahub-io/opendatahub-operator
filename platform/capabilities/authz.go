@@ -20,13 +20,12 @@ func NewAuthorization(available bool, opts ...AuthzOption) *AuthorizationCapabil
 }
 
 type Authorization interface {
-	Availability
+	IsAvailable() bool
 	ProtectedResources(protectedResource ...platform.ProtectedResource)
 }
 
 type AuthzOption func(*AuthorizationCapability)
 
-// TODO(mvp): godoc.
 type AuthorizationCapability struct {
 	available          bool
 	config             authzctrl.PlatformAuthorizationConfig
@@ -66,10 +65,12 @@ func (a *AuthorizationCapability) Reconcile(ctx context.Context, cli client.Clie
 		return fmt.Errorf("failed to define meta options while reconciling authorization capability: %w", err)
 	}
 
-	objectReferences := make([]platform.ObjectReference, len(a.protectedResources))
+	objectReferences := make([]platform.ResourceReference, len(a.protectedResources))
 	for i, ref := range a.protectedResources {
-		objectReferences[i] = ref.ObjectReference
+		objectReferences[i] = ref.ResourceReference
 	}
 
+	// TODO: check if it is safe to delete roles. We have running (but potentially deactivated) controllers for the given resources,
+	// so we keep the roles after first creation.
 	return CreateOrUpdatePlatformRBAC(ctx, cli, roleName, objectReferences, metaOpts...)
 }

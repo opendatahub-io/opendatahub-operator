@@ -94,7 +94,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsciv1.DSCInitializati
 		r.Log.Error(err, "error getting deadmansnitch secret from namespace "+dsciInit.Spec.Monitoring.Namespace)
 		return err
 	}
-	// r.Log.Info("Success: got deadmansnitch secret")
+	// r.log.Info("Success: got deadmansnitch secret")
 
 	// Get PagerDuty Secret
 	pagerDutySecret, err := r.waitForManagedSecret(ctx, "redhat-rhods-pagerduty", dsciInit.Spec.Monitoring.Namespace)
@@ -102,7 +102,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsciv1.DSCInitializati
 		r.Log.Error(err, "error getting pagerduty secret from namespace "+dsciInit.Spec.Monitoring.Namespace)
 		return err
 	}
-	// r.Log.Info("Success: got pagerduty secret")
+	// r.log.Info("Success: got pagerduty secret")
 
 	// Get Smtp Secret
 	smtpSecret, err := r.waitForManagedSecret(ctx, "redhat-rhods-smtp", dsciInit.Spec.Monitoring.Namespace)
@@ -110,7 +110,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsciv1.DSCInitializati
 		r.Log.Error(err, "error getting smtp secret from namespace "+dsciInit.Spec.Monitoring.Namespace)
 		return err
 	}
-	// r.Log.Info("Success: got smtp secret")
+	// r.log.Info("Success: got smtp secret")
 
 	// Replace variables in alertmanager configmap for the initial time
 	// TODO: Following variables can later be exposed by the API
@@ -127,7 +127,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsciv1.DSCInitializati
 		r.Log.Error(err, "error to inject data to alertmanager-configs.yaml")
 		return err
 	}
-	// r.Log.Info("Success: inject alertmanage-configs.yaml")
+	// r.log.Info("Success: inject alertmanage-configs.yaml")
 
 	// special handling for dev-mod
 	consolelinkDomain, err := cluster.GetDomain(ctx, r.Client)
@@ -157,7 +157,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsciv1.DSCInitializati
 		}
 	}
 
-	// r.Log.Info("Success: inject alertmanage-configs.yaml for dev mode")
+	// r.log.Info("Success: inject alertmanage-configs.yaml for dev mode")
 
 	operatorNs, err := cluster.GetOperatorNamespace()
 	if err != nil {
@@ -170,7 +170,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsciv1.DSCInitializati
 	if err != nil {
 		return fmt.Errorf("error getting smtp receiver email secret: %w", err)
 	}
-	// r.Log.Info("Success: got smpt email secret")
+	// r.log.Info("Success: got smpt email secret")
 	// replace smtpEmailSecret in alertmanager-configs.yaml
 	if err = common.MatchLineInFile(filepath.Join(alertManagerPath, "alertmanager-configs.yaml"),
 		map[string]string{
@@ -180,20 +180,20 @@ func configureAlertManager(ctx context.Context, dsciInit *dsciv1.DSCInitializati
 		r.Log.Error(err, "error to update with new notification-email")
 		return err
 	}
-	// r.Log.Info("Success: update alertmanage-configs.yaml with email")
+	// r.log.Info("Success: update alertmanage-configs.yaml with email")
 	err = deploy.DeployManifestsFromPath(ctx, r.Client, dsciInit, alertManagerPath, dsciInit.Spec.Monitoring.Namespace, "alertmanager", true)
 	if err != nil {
 		r.Log.Error(err, "error to deploy manifests", "path", alertManagerPath)
 		return err
 	}
-	// r.Log.Info("Success: update alertmanager with manifests")
+	// r.log.Info("Success: update alertmanager with manifests")
 
 	// Create alertmanager-proxy secret
 	if err := createMonitoringProxySecret(ctx, r.Client, "alertmanager-proxy", dsciInit); err != nil {
 		r.Log.Error(err, "error to create secret alertmanager-proxy")
 		return err
 	}
-	// r.Log.Info("Success: create alertmanager-proxy secret")
+	// r.log.Info("Success: create alertmanager-proxy secret")
 	return nil
 }
 
@@ -235,7 +235,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsciv1.DSCInitialization
 		r.Log.Error(err, "error to deploy manifests for prometheus configs", "path", prometheusConfigPath)
 		return err
 	}
-	// r.Log.Info("Success: create prometheus configmap 'prometheus'")
+	// r.log.Info("Success: create prometheus configmap 'prometheus'")
 
 	// Get prometheus configmap
 	prometheusConfigMap := &corev1.ConfigMap{}
@@ -247,7 +247,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsciv1.DSCInitialization
 		r.Log.Error(err, "error to get configmap 'prometheus'")
 		return err
 	}
-	// r.Log.Info("Success: got prometheus configmap")
+	// r.log.Info("Success: got prometheus configmap")
 
 	// Get encoded prometheus data from configmap 'prometheus'
 	prometheusData, err := common.GetMonitoringData(fmt.Sprint(prometheusConfigMap.Data))
@@ -255,7 +255,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsciv1.DSCInitialization
 		r.Log.Error(err, "error to get prometheus data")
 		return err
 	}
-	// r.Log.Info("Success: read encoded prometheus data from prometheus.yml in configmap")
+	// r.log.Info("Success: read encoded prometheus data from prometheus.yml in configmap")
 
 	// Get alertmanager host
 	alertmanagerRoute := &routev1.Route{}
@@ -267,7 +267,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsciv1.DSCInitialization
 		r.Log.Error(err, "error to get alertmanager route")
 		return err
 	}
-	// r.Log.Info("Success: got alertmanager route")
+	// r.log.Info("Success: got alertmanager route")
 
 	// Get alertmanager configmap
 	alertManagerConfigMap := &corev1.ConfigMap{}
@@ -279,14 +279,14 @@ func configurePrometheus(ctx context.Context, dsciInit *dsciv1.DSCInitialization
 		r.Log.Error(err, "error to get configmap 'alertmanager'")
 		return err
 	}
-	// r.Log.Info("Success: got configmap 'alertmanager'")
+	// r.log.Info("Success: got configmap 'alertmanager'")
 
 	alertmanagerData, err := common.GetMonitoringData(alertManagerConfigMap.Data["alertmanager.yml"])
 	if err != nil {
 		r.Log.Error(err, "error to get encoded alertmanager data from alertmanager.yml")
 		return err
 	}
-	// r.Log.Info("Success: read alertmanager data from alertmanage.yml")
+	// r.log.Info("Success: read alertmanager data from alertmanage.yml")
 
 	// Update prometheus deployment with alertmanager and prometheus data
 	err = common.ReplaceStringsInFile(filepath.Join(prometheusManifestsPath, "prometheus-deployment.yaml"),
@@ -297,7 +297,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsciv1.DSCInitialization
 		r.Log.Error(err, "error to inject set_alertmanager_host to prometheus-deployment.yaml")
 		return err
 	}
-	// r.Log.Info("Success: update set_alertmanager_host in prometheus-deployment.yaml")
+	// r.log.Info("Success: update set_alertmanager_host in prometheus-deployment.yaml")
 	err = common.MatchLineInFile(filepath.Join(prometheusManifestsPath, "prometheus-deployment.yaml"),
 		map[string]string{
 			"alertmanager: ": "alertmanager: " + alertmanagerData,
@@ -307,7 +307,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsciv1.DSCInitialization
 		r.Log.Error(err, "error to update annotations in prometheus-deployment.yaml")
 		return err
 	}
-	// r.Log.Info("Success: update annotations in prometheus-deployment.yaml")
+	// r.log.Info("Success: update annotations in prometheus-deployment.yaml")
 
 	// final apply prometheus manifests including prometheus deployment
 	// Check if Prometheus deployment from legacy version exists(check for initContainer)
@@ -340,7 +340,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsciv1.DSCInitialization
 	if err := createMonitoringProxySecret(ctx, r.Client, "prometheus-proxy", dsciInit); err != nil {
 		return err
 	}
-	// r.Log.Info("Success: create prometheus-proxy secret")
+	// r.log.Info("Success: create prometheus-proxy secret")
 	return nil
 }
 

@@ -23,7 +23,7 @@ func NewRouting(available bool, spec RoutingSpec) *RoutingCapability {
 }
 
 type Routing interface {
-	Availability
+	IsAvailable() bool
 	// Expose defines which resources should be watched and updated
 	// for the routing capability for a given component.
 	Expose(targets ...platform.RoutingTarget)
@@ -63,9 +63,9 @@ func (r *RoutingCapability) Reconcile(ctx context.Context, cli client.Client, ow
 		return fmt.Errorf("failed to define meta options while reconciling routing capability: %w", err)
 	}
 
-	objectReferences := make([]platform.ObjectReference, len(r.routingTargets))
+	objectReferences := make([]platform.ResourceReference, len(r.routingTargets))
 	for i, ref := range r.routingTargets {
-		objectReferences[i] = ref.ObjectReference
+		objectReferences[i] = ref.ResourceReference
 	}
 
 	if errRoleCreate := CreateOrUpdatePlatformRBAC(ctx, cli, roleName, objectReferences, metaOpts...); errRoleCreate != nil {
