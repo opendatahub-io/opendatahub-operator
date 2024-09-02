@@ -302,7 +302,7 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint
 }
 
 func (tc *testContext) testApplicationCreation(component components.ComponentInterface) error {
-	err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
+	err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, true, func(ctx context.Context) (bool, error) {
 		// TODO: see if checking deployment is a good test, CF does not create deployment
 		appList, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(ctx, metav1.ListOptions{
 			LabelSelector: labels.ODH.Component(component.GetComponentName()),
