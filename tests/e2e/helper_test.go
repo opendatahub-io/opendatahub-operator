@@ -121,7 +121,7 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 				},
 				ModelMeshServing: modelmeshserving.ModelMeshServing{
 					Component: components.Component{
-						ManagementState: operatorv1.Removed,
+						ManagementState: operatorv1.Managed,
 					},
 				},
 				DataSciencePipelines: datasciencepipelines.DataSciencePipelines{
