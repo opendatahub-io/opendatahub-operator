@@ -308,9 +308,8 @@ func (tc *testContext) testApplicationCreation(component components.ComponentInt
 			LabelSelector: labels.ODH.Component(component.GetComponentName()),
 		})
 		if err != nil {
-			log.Printf("error listing application deployments :%v. Trying again...", err)
-
-			return false, fmt.Errorf("error listing application deployments :%w. Trying again", err)
+			log.Printf("error listing application deployments :%v", err)
+			return false, fmt.Errorf("error listing application deployments :%w", err)
 		}
 		if len(appList.Items) != 0 {
 			allAppDeploymentsReady := true
