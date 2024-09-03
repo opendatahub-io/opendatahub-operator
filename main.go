@@ -38,12 +38,14 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -98,7 +100,7 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(operatorv1.Install(scheme))
 }
 
-func main() {
+func main() { //nolint:funlen,maintidx
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
@@ -125,15 +127,67 @@ func main() {
 
 	// root context
 	ctx := ctrl.SetupSignalHandler()
+	// Create new uncached client to run initial setup
+	setupCfg, err := config.GetConfig()
+	if err != nil {
+		setupLog.Error(err, "error getting config for setup")
+		os.Exit(1)
+	}
+	// uplift default limiataions
+	setupCfg.QPS = rest.DefaultQPS * controllerNum     // 5 * 4 controllers
+	setupCfg.Burst = rest.DefaultBurst * controllerNum // 10 * 4 controllers
+
+	setupClient, err := client.New(setupCfg, client.Options{Scheme: scheme})
+	if err != nil {
+		setupLog.Error(err, "error getting client for setup")
+		os.Exit(1)
+	}
+	// Get operator platform
+	platform, err := cluster.GetPlatform(ctx, setupClient)
+	if err != nil {
+		setupLog.Error(err, "error getting platform")
+		os.Exit(1)
+	}
+
+	secretCache := createSecretCacheConfig(platform)
+	deploymentCache := createDeploymentCacheConfig(platform)
+	cacheOptions := cache.Options{
+		Scheme: scheme,
+		ByObject: map[client.Object]cache.ByObject{
+			// all CRD: mainly for pipeline v1 teckon and v2 argo and dashboard's own CRD
+			&apiextensionsv1.CustomResourceDefinition{}: {},
+			// Cannot find a label on various screts, so we need to watch all secrets
+			// this include, monitoring, dashboard, trustcabundle default cert etc for these NS
+			&corev1.Secret{}: {
+				Namespaces: secretCache,
+			},
+			// it is hard to find a label can be used for both trustCAbundle configmap and inferenceservice-config and deletionCM
+			&corev1.ConfigMap{}: {},
+			// TODO: we can limit scope of namespace if we find a way to only get list of DSProject
+			// also need for monitoring, trustcabundle
+			&corev1.Namespace{}: {},
+			// For catsrc (avoid frequently check cluster type)
+			&ofapiv1alpha1.CatalogSource{}: {
+				Field: fields.Set{"metadata.name": "addon-managed-odh-catalog"}.AsSelector(),
+			},
+			// For domain to get OpenshiftIngress and default cert
+			&operatorv1.IngressController{}: {
+				Field: fields.Set{"metadata.name": "default"}.AsSelector(),
+			},
+			// for prometheus and black-box deployment and ones we owns
+			&appsv1.Deployment{}: {Namespaces: deploymentCache},
+		},
+	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{ // single pod does not need to have LeaderElection
 		Scheme:  scheme,
 		Metrics: ctrlmetrics.Options{BindAddress: metricsAddr},
 		WebhookServer: ctrlwebhook.NewServer(ctrlwebhook.Options{
 			Port: 9443,
-			// TLSOpts: , // TODO: do we need tls for webhook
+			// TLSOpts: , // TODO: it was not set in the old code
 		}),
 		HealthProbeBindAddress: probeAddr,
+		Cache:                  cacheOptions,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "07ed84f7.opendatahub.io",
 		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
@@ -202,27 +256,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create new uncached client to run initial setup
-	setupCfg, err := config.GetConfig()
-	if err != nil {
-		setupLog.Error(err, "error getting config for setup")
-		os.Exit(1)
-	}
-	// uplift default limiataions
-	setupCfg.QPS = rest.DefaultQPS * controllerNum     // 5 * 4 controllers
-	setupCfg.Burst = rest.DefaultBurst * controllerNum // 10 * 4 controllers
-
-	setupClient, err := client.New(setupCfg, client.Options{Scheme: scheme})
-	if err != nil {
-		setupLog.Error(err, "error getting client for setup")
-		os.Exit(1)
-	}
-	// Get operator platform
-	platform, err := cluster.GetPlatform(ctx, setupClient)
-	if err != nil {
-		setupLog.Error(err, "error getting platform")
-		os.Exit(1)
-	}
 	// Check if user opted for disabling DSC configuration
 	disableDSCConfig, existDSCConfig := os.LookupEnv("DISABLE_DSC_CONFIG")
 	if existDSCConfig && disableDSCConfig != "false" {
@@ -284,4 +317,38 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+}
+
+func createSecretCacheConfig(platform cluster.Platform) map[string]cache.Config {
+	namespaceConfigs := map[string]cache.Config{
+		"istio-system":      {FieldSelector: fields.Set{"metadata.name": "knative-serving-cert"}.AsSelector()}, // for expiration case
+		"openshift-ingress": {},
+	}
+	switch platform {
+	case cluster.ManagedRhods:
+		namespaceConfigs["redhat-ods-monitoring"] = cache.Config{}
+		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
+	case cluster.SelfManagedRhods:
+		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
+	default:
+		namespaceConfigs["opendatahub"] = cache.Config{}
+	}
+	return namespaceConfigs
+}
+
+func createDeploymentCacheConfig(platform cluster.Platform) map[string]cache.Config {
+	namespaceConfigs := map[string]cache.Config{}
+	switch platform {
+	case cluster.ManagedRhods: // no need workbench NS, only SFS no Deployment
+		namespaceConfigs["redhat-ods-monitoring"] = cache.Config{}
+		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
+		//TODO: if ModelReg has a RHOAI NS
+	case cluster.SelfManagedRhods:
+		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
+		//TODO: if ModelReg has a RHOAI NS
+	default:
+		namespaceConfigs["opendatahub"] = cache.Config{}
+		namespaceConfigs["odh-model-registries"] = cache.Config{}
+	}
+	return namespaceConfigs
 }
