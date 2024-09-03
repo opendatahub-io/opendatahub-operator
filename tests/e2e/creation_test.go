@@ -258,13 +258,7 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint
 			t.Parallel()
 
 			err = tc.testApplicationCreation(c)
-
-			msg := fmt.Sprintf("error validating application %v when ", name)
-			if c.GetManagementState() == operatorv1.Managed {
-				require.NoError(t, err, msg+"enabled")
-			} else {
-				require.Error(t, err, msg+"disabled")
-			}
+			require.NoError(t, err, "error validating application %v when "+c.GetManagementState())
 		})
 	}
 	// Verify DSC instance is in Ready phase in the end when all components are up and running
@@ -291,6 +285,11 @@ func (tc *testContext) testApplicationCreation(component components.ComponentInt
 			return false, fmt.Errorf("error listing application deployments :%w", err)
 		}
 		if len(appList.Items) != 0 {
+			if component.GetManagementState() == operatorv1.Removed {
+				// deployment exists for removed component, retrying
+				return false, nil
+			}
+
 			for _, deployment := range appList.Items {
 				if deployment.Status.ReadyReplicas < 1 {
 					log.Printf("waiting for application deployments to be in Ready state.")
@@ -300,6 +299,11 @@ func (tc *testContext) testApplicationCreation(component components.ComponentInt
 			return true, nil
 		}
 		// when no deployment is found
+		// It's ok not to have deployements for unmanaged component
+		if component.GetManagementState() != operatorv1.Managed {
+			return true, nil
+		}
+
 		return false, nil
 	})
 
