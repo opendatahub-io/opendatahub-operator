@@ -277,8 +277,9 @@ func (tc *testContext) testAllComponentCreation(t *testing.T) error { //nolint:f
 		name := c.GetComponentName()
 		t.Run("Validate "+name, func(t *testing.T) {
 			t.Parallel()
-			err = tc.testComponentCreation(c)
-			require.NoError(t, err, "error validating component %v when "+c.GetManagementState())
+
+			err = tc.testApplicationCreation(c)
+			require.NoError(t, err, "error validating application %v when "+c.GetManagementState())
 		})
 	}
 
@@ -307,6 +308,11 @@ func (tc *testContext) testApplicationCreation(component components.ComponentInt
 			return false, fmt.Errorf("error listing application deployments :%w", err)
 		}
 		if len(appList.Items) != 0 {
+			if component.GetManagementState() == operatorv1.Removed {
+				// deployment exists for removed component, retrying
+				return false, nil
+			}
+
 			for _, deployment := range appList.Items {
 				if deployment.Status.ReadyReplicas < 1 {
 					log.Printf("waiting for application deployments to be in Ready state.")
@@ -316,6 +322,11 @@ func (tc *testContext) testApplicationCreation(component components.ComponentInt
 			return true, nil
 		}
 		// when no deployment is found
+		// It's ok not to have deployements for unmanaged component
+		if component.GetManagementState() != operatorv1.Managed {
+			return true, nil
+		}
+
 		return false, nil
 	})
 

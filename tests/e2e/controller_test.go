@@ -81,14 +81,16 @@ func NewTestContext() (*testContext, error) {
 	testDSC := setupDSCInstance("e2e-test-dsc")
 
 	return &testContext{
-		cfg:                   config,
-		kubeClient:            kc,
-		customClient:          custClient,
-		operatorNamespace:     opNamespace,
-		applicationsNamespace: testDSCI.Spec.ApplicationsNamespace,
-		ctx:                   context.TODO(),
-		testDsc:               testDSC,
-		testDSCI:              testDSCI,
+		cfg:                     config,
+		kubeClient:              kc,
+		customClient:            custClient,
+		operatorNamespace:       opNamespace,
+		applicationsNamespace:   testDSCI.Spec.ApplicationsNamespace,
+		resourceCreationTimeout: time.Minute * 7, // since we introduce check for all deployment, we need prolong time here too and match what we set in the component
+		resourceRetryInterval:   time.Second * 10,
+		ctx:                     context.TODO(),
+		testDsc:                 testDSC,
+		testDSCI:                testDSCI,
 	}, nil
 }
 
