@@ -44,12 +44,12 @@ func NewPlatformOrchestrator(log logr.Logger, manager controllerruntime.Manager)
 	p := &PlatformOrchestrator{
 		log: log,
 		authz: capabilityActivator[platform.ProtectedResource]{
-			log:             log.WithValues("capibility", "authz"),
+			log:             log.WithValues("capability", "authz"),
 			mgr:             manager,
 			discoveryClient: discoveryClient,
 		},
 		routing: capabilityActivator[platform.RoutingTarget]{
-			log:             log.WithValues("capibility", "routing"),
+			log:             log.WithValues("capability", "routing"),
 			mgr:             manager,
 			discoveryClient: discoveryClient,
 		},
