@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 
@@ -277,41 +276,30 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint
 }
 
 func (tc *testContext) testApplicationCreation(component components.ComponentInterface) error {
-	err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
+	err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, true, func(ctx context.Context) (bool, error) {
 		// TODO: see if checking deployment is a good test, CF does not create deployment
-		componentName := component.GetComponentName()
-		if componentName == "dashboard" { // special case for RHOAI dashboard name
+		var componentName string
+		if component.GetComponentName() == "dashboard" { // special case for RHOAI dashboard name
 			componentName = "rhods-dashboard"
 		}
 
 		appList, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(ctx, metav1.ListOptions{
-			LabelSelector: labels.ODH.Component(component.GetComponentName()),
+			LabelSelector: labels.ODH.Component(componentName),
 		})
 		if err != nil {
-			log.Printf("error listing application deployments :%v. Trying again...", err)
-
-			return false, fmt.Errorf("error listing application deployments :%w. Trying again", err)
+			log.Printf("error listing application deployments :%v", err)
+			return false, fmt.Errorf("error listing application deployments :%w", err)
 		}
 		if len(appList.Items) != 0 {
-			allAppDeploymentsReady := true
 			for _, deployment := range appList.Items {
 				if deployment.Status.ReadyReplicas < 1 {
-					allAppDeploymentsReady = false
+					log.Printf("waiting for application deployments to be in Ready state.")
+					return false, nil
 				}
 			}
-			if allAppDeploymentsReady {
-				return true, nil
-			}
-			log.Printf("waiting for application deployments to be in Ready state.")
-			return false, nil
+			return true, nil
 		}
 		// when no deployment is found
-		// check Reconcile failed with missing dependent operator error
-		for _, Condition := range tc.testDsc.Status.Conditions {
-			if strings.Contains(Condition.Message, "Please install the operator before enabling "+componentName) {
-				return true, err
-			}
-		}
 		return false, nil
 	})
 
