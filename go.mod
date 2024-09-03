@@ -2,6 +2,8 @@ module github.com/opendatahub-io/opendatahub-operator/v2
 
 go 1.21
 
+toolchain go1.22.6
+
 require (
 	github.com/blang/semver/v4 v4.0.0
 	github.com/go-logr/logr v1.4.2
