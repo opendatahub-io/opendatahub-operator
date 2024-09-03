@@ -78,7 +78,7 @@ func (r *Registry) configureCtrls(ctx context.Context, cli client.Client) error 
 	}
 
 	// TODO(mvp): move up as part of r.routing - do not pass spec
-	config := routing.PlatformRoutingConfiguration{
+	config := routing.IngressConfig{
 		IngressSelectorLabel: r.routing.routingSpec.IngressGateway.LabelSelectorKey,
 		IngressSelectorValue: r.routing.routingSpec.IngressGateway.LabelSelectorValue,
 		IngressService:       r.routing.routingSpec.IngressGateway.Name,

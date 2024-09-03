@@ -26,7 +26,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
-	"github.com/opendatahub-io/odh-platform/controllers/authzctrl"
+	"github.com/opendatahub-io/odh-platform/pkg/authorization"
 	buildv1 "github.com/openshift/api/build/v1"
 	imagev1 "github.com/openshift/api/image/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -253,7 +253,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	if authzErr != nil {
 		componentErrors = multierror.Append(componentErrors, authzErr)
 	}
-	authzConfig := authzctrl.PlatformAuthorizationConfig{
+	authzConfig := authorization.ProviderConfig{
 		Label:        authz.AuthConfigSelector,
 		Audiences:    *authz.Audiences,
 		ProviderName: authz.ProviderName,

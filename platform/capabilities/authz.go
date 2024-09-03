@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/opendatahub-io/odh-platform/controllers/authzctrl"
+	"github.com/opendatahub-io/odh-platform/pkg/authorization"
 	"github.com/opendatahub-io/odh-platform/pkg/platform"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -28,11 +28,11 @@ type AuthzOption func(*AuthorizationCapability)
 
 type AuthorizationCapability struct {
 	available          bool
-	config             authzctrl.PlatformAuthorizationConfig
+	config             authorization.ProviderConfig
 	protectedResources []platform.ProtectedResource
 }
 
-func WithAuthzConfig(config authzctrl.PlatformAuthorizationConfig) AuthzOption {
+func WithAuthzConfig(config authorization.ProviderConfig) AuthzOption {
 	return func(a *AuthorizationCapability) {
 		a.config = config
 	}

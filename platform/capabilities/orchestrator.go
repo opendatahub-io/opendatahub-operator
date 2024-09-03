@@ -11,6 +11,7 @@ import (
 	"github.com/opendatahub-io/odh-platform/controllers"
 	"github.com/opendatahub-io/odh-platform/controllers/authzctrl"
 	"github.com/opendatahub-io/odh-platform/controllers/routingctrl"
+	"github.com/opendatahub-io/odh-platform/pkg/authorization"
 	"github.com/opendatahub-io/odh-platform/pkg/platform"
 	"github.com/opendatahub-io/odh-platform/pkg/routing"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -31,8 +32,8 @@ import (
 // PlatformOrchestrator is responsible for managing the lifecycle of platform capabilities and respective controllers.
 type PlatformOrchestrator struct {
 	log     logr.Logger
-	authz   capabilityActivator[platform.ProtectedResource]
-	routing capabilityActivator[platform.RoutingTarget]
+	authz   capabilityActivator[authorization.ProviderConfig, platform.ProtectedResource]
+	routing capabilityActivator[routing.IngressConfig, platform.RoutingTarget]
 }
 
 func NewPlatformOrchestrator(log logr.Logger, manager controllerruntime.Manager) (*PlatformOrchestrator, error) {
@@ -43,12 +44,12 @@ func NewPlatformOrchestrator(log logr.Logger, manager controllerruntime.Manager)
 
 	p := &PlatformOrchestrator{
 		log: log,
-		authz: capabilityActivator[platform.ProtectedResource]{
+		authz: capabilityActivator[authorization.ProviderConfig, platform.ProtectedResource]{
 			log:             log.WithValues("capability", "authz"),
 			mgr:             manager,
 			discoveryClient: discoveryClient,
 		},
-		routing: capabilityActivator[platform.RoutingTarget]{
+		routing: capabilityActivator[routing.IngressConfig, platform.RoutingTarget]{
 			log:             log.WithValues("capability", "routing"),
 			mgr:             manager,
 			discoveryClient: discoveryClient,
@@ -57,51 +58,60 @@ func NewPlatformOrchestrator(log logr.Logger, manager controllerruntime.Manager)
 	return p, nil
 }
 
-func (p *PlatformOrchestrator) ToggleRouting(ctx context.Context, cli client.Client, config routing.PlatformRoutingConfiguration, refs ...platform.RoutingTarget) error {
+func (p *PlatformOrchestrator) ToggleRouting(ctx context.Context, cli client.Client, config routing.IngressConfig, refs ...platform.RoutingTarget) error {
 	p.routing.deactivateStaleCtrls(refs...)
 
-	createCtrl := func(ref platform.RoutingTarget) activableCtrl {
+	createCtrl := func(ref platform.RoutingTarget) activableCtrl[routing.IngressConfig] {
 		return routingctrl.New(cli, p.log, ref, config)
 	}
 
-	return p.routing.activateOrNewCtrl(ctx, createCtrl, refs...)
+	updateCtrl := func(ctrl activableCtrl[routing.IngressConfig]) {
+		ctrl.Activate(config)
+	}
+
+	return p.routing.activateOrNewCtrl(ctx, createCtrl, updateCtrl, refs...)
 }
 
-func (p *PlatformOrchestrator) ToggleAuthorization(ctx context.Context, cli client.Client, config authzctrl.PlatformAuthorizationConfig, refs ...platform.ProtectedResource) error {
+func (p *PlatformOrchestrator) ToggleAuthorization(ctx context.Context, cli client.Client, config authorization.ProviderConfig, refs ...platform.ProtectedResource) error {
 	p.authz.deactivateStaleCtrls(refs...)
 
-	createCtrl := func(ref platform.ProtectedResource) activableCtrl {
+	createCtrl := func(ref platform.ProtectedResource) activableCtrl[authorization.ProviderConfig] {
 		return authzctrl.New(cli, p.log, ref, config)
 	}
 
-	return p.authz.activateOrNewCtrl(ctx, createCtrl, refs...)
+	updateCtrl := func(ctrl activableCtrl[authorization.ProviderConfig]) {
+		ctrl.Activate(config)
+	}
+
+	return p.authz.activateOrNewCtrl(ctx, createCtrl, updateCtrl, refs...)
 }
 
 type hasResourceReference interface {
 	GetResourceReference() platform.ResourceReference
 }
 
-type activableCtrl interface {
-	controllers.Activable
+type activableCtrl[T any] interface {
+	controllers.Activable[T]
 	Name() string
 	SetupWithManager(mgr controllerruntime.Manager) error
 }
 
-type createCtrl[T hasResourceReference] func(ref T) activableCtrl
+type createCtrlFunc[C any, T hasResourceReference] func(ref T) activableCtrl[C]
+type updateCtrlFunc[C any] func(activableCtrl[C])
 
-type capabilityActivator[T hasResourceReference] struct {
+type capabilityActivator[C any, T hasResourceReference] struct {
 	mu              sync.RWMutex
 	log             logr.Logger
 	mgr             controllerruntime.Manager
-	ctrls           map[platform.ResourceReference]activableCtrl
+	ctrls           map[platform.ResourceReference]activableCtrl[C]
 	discoveryClient discovery.DiscoveryInterface
 }
 
 // deactivateStaleCtrls deactivates controllers that are not required anymore, meaning there are no resource references
 // previously watched that are still required. This can happen when a component has been deactivated.
-func (c *capabilityActivator[T]) deactivateStaleCtrls(currentRefs ...T) {
+func (c *capabilityActivator[C, T]) deactivateStaleCtrls(currentRefs ...T) {
 	if c.ctrls == nil {
-		c.ctrls = make(map[platform.ResourceReference]activableCtrl)
+		c.ctrls = make(map[platform.ResourceReference]activableCtrl[C])
 	}
 
 	ctrlState := make(map[platform.ResourceReference]bool)
@@ -120,7 +130,7 @@ func (c *capabilityActivator[T]) deactivateStaleCtrls(currentRefs ...T) {
 	}
 }
 
-func (c *capabilityActivator[T]) activateOrNewCtrl(ctx context.Context, createCtrlFunc createCtrl[T], currentRefs ...T) error {
+func (c *capabilityActivator[C, T]) activateOrNewCtrl(ctx context.Context, createCtrl createCtrlFunc[C, T], updateCtrl updateCtrlFunc[C], currentRefs ...T) error {
 	var errSetup []error
 
 	var wg sync.WaitGroup
@@ -156,7 +166,7 @@ func (c *capabilityActivator[T]) activateOrNewCtrl(ctx context.Context, createCt
 					return
 				}
 
-				controller := createCtrlFunc(currentRef)
+				controller := createCtrl(currentRef)
 				if errStart := controller.SetupWithManager(c.mgr); errStart != nil {
 					errSetup = append(errSetup, fmt.Errorf("failed to setup controller %s: %w", controller.Name(), errStart))
 					return
@@ -166,7 +176,7 @@ func (c *capabilityActivator[T]) activateOrNewCtrl(ctx context.Context, createCt
 				c.ctrls[resourceReference] = controller
 				c.mu.Unlock()
 			} else {
-				ctrl.Activate()
+				updateCtrl(ctrl)
 			}
 		}()
 	}
