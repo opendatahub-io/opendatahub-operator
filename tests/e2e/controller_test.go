@@ -91,7 +91,7 @@ func NewTestContext() (*testContext, error) {
 		customClient:            custClient,
 		operatorNamespace:       opNamespace,
 		applicationsNamespace:   testDSCI.Spec.ApplicationsNamespace,
-		resourceCreationTimeout: time.Minute * 5, // since we introduce check for all deployment, we need prolong time here too and match what we set in the component
+		resourceCreationTimeout: time.Minute * 7, // since we introduce check for all deployment, we need prolong time here too and match what we set in the component
 		resourceRetryInterval:   time.Second * 10,
 		ctx:                     context.TODO(),
 		testDsc:                 testDSC,
