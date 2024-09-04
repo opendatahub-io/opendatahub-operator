@@ -64,6 +64,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/webhook"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/safeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
 
@@ -98,6 +99,15 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(apiregistrationv1.AddToScheme(scheme))
 	utilruntime.Must(monitoringv1.AddToScheme(scheme))
 	utilruntime.Must(operatorv1.Install(scheme))
+}
+
+func newClientFunc(config *rest.Config, options client.Options) (client.Client, error) { //nolint:ireturn
+	c, err := client.New(config, options)
+	if err != nil {
+		return c, err
+	}
+
+	return safeclient.New(c), nil
 }
 
 func main() { //nolint:funlen,maintidx
@@ -201,6 +211,7 @@ func main() { //nolint:funlen,maintidx
 		// if you are doing or is intended to do any operation such as perform cleanups
 		// after the manager stops then its usage might be unsafe.
 		// LeaderElectionReleaseOnCancel: true,
+		NewClient: newClientFunc,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
