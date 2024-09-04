@@ -21,7 +21,9 @@ import (
 var (
 	ComponentName     = "trustyai"
 	ComponentPathName = "trustyai-service-operator"
-	Path              = deploy.DefaultManifestPath + "/" + ComponentPathName + "/base"
+	PathUpstream      = deploy.DefaultManifestPath + "/" + ComponentPathName + "/overlays/odh"
+	PathDownstream    = deploy.DefaultManifestPath + "/" + ComponentPathName + "/overlays/rhoai"
+	OverridePath      = ""
 )
 
 // Verifies that TrustyAI implements ComponentInterface.
@@ -45,7 +47,7 @@ func (t *TrustyAI) OverrideManifests(ctx context.Context, _ cluster.Platform) er
 		if manifestConfig.SourcePath != "" {
 			defaultKustomizePath = manifestConfig.SourcePath
 		}
-		Path = filepath.Join(deploy.DefaultManifestPath, ComponentPathName, defaultKustomizePath)
+		OverridePath = filepath.Join(deploy.DefaultManifestPath, ComponentPathName, defaultKustomizePath)
 	}
 	return nil
 }
@@ -60,6 +62,13 @@ func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client, lo
 		"trustyaiServiceImage":  "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE",
 		"trustyaiOperatorImage": "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE",
 	}
+	entryPath := map[cluster.Platform]string{
+		cluster.SelfManagedRhods: PathDownstream,
+		cluster.ManagedRhods:     PathDownstream,
+		cluster.OpenDataHub:      PathUpstream,
+		cluster.Unknown:          PathUpstream,
+	}[platform]
+
 	l := t.ConfigComponentLogger(logger, ComponentName, dscispec)
 
 	enabled := t.GetManagementState() == operatorv1.Managed
@@ -71,15 +80,18 @@ func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client, lo
 			if err := t.OverrideManifests(ctx, platform); err != nil {
 				return err
 			}
+			if OverridePath != "" {
+				entryPath = OverridePath
+			}
 		}
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (t.DevFlags == nil || len(t.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(Path, imageParamMap); err != nil {
-				return fmt.Errorf("failed to update image %s: %w", Path, err)
+			if err := deploy.ApplyParams(entryPath, imageParamMap); err != nil {
+				return fmt.Errorf("failed to update image %s: %w", entryPath, err)
 			}
 		}
 	}
 	// Deploy TrustyAI Operator
-	if err := deploy.DeployManifestsFromPath(ctx, cli, owner, Path, dscispec.ApplicationsNamespace, t.GetComponentName(), enabled); err != nil {
+	if err := deploy.DeployManifestsFromPath(ctx, cli, owner, entryPath, dscispec.ApplicationsNamespace, t.GetComponentName(), enabled); err != nil {
 		return err
 	}
 	l.Info("apply manifests done")
