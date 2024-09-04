@@ -55,8 +55,9 @@ spec:
         displayName: Dev Flags
         path: devFlags
       statusDescriptors:
-      - description: Conditions describes the state of the DSCInitializationStatus
-          resource
+      - description: 'Conditions describes the state of the DSCInitializationStatus
+          resource Known .status.conditions.type are: "Available", "Progressing",
+          "Degraded" and "ReconcileSuccess"'
         displayName: Conditions
         path: conditions
       version: v1

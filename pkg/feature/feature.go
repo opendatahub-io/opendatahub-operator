@@ -2,10 +2,11 @@ package feature
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
+	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -89,8 +90,14 @@ func (f *Feature) Apply(ctx context.Context) error {
 	}
 
 	if _, updateErr := status.UpdateWithRetry(ctx, f.Client, f.tracker, func(saved *featurev1.FeatureTracker) {
-		status.SetProgressingCondition(&saved.Status.Conditions, string(featurev1.ConditionReason.FeatureCreated), fmt.Sprintf("Applying feature [%s]", f.Name))
-		saved.Status.Phase = status.PhaseProgressing
+		featureCondition := conditionsv1.Condition{
+			Type:    conditionsv1.ConditionProgressing,
+			Status:  corev1.ConditionTrue,
+			Reason:  string(featurev1.ConditionReason.FeatureCreated),
+			Message: "Applying feature " + f.Name,
+		}
+		conditionsv1.SetStatusCondition(&saved.Status.Conditions, featureCondition)
+		saved.Status.Phase = string(conditionsv1.ConditionProgressing)
 	}); updateErr != nil {
 		return updateErr
 	}

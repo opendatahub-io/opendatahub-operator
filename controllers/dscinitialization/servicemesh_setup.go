@@ -42,7 +42,7 @@ func (r *DSCInitializationReconciler) configureServiceMesh(ctx context.Context, 
 			capabilityErr := capability.Apply(ctx)
 			if capabilityErr != nil {
 				r.Log.Error(capabilityErr, "failed applying service mesh resources")
-				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed applying service mesh resources")
+				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed applying service mesh resources")
 				return capabilityErr
 			}
 		}
@@ -80,7 +80,7 @@ func (r *DSCInitializationReconciler) removeServiceMesh(ctx context.Context, ins
 			capabilityErr := capability.Delete(ctx)
 			if capabilityErr != nil {
 				r.Log.Error(capabilityErr, "failed deleting service mesh resources")
-				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed deleting service mesh resources")
+				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed deleting service mesh resources")
 
 				return capabilityErr
 			}
