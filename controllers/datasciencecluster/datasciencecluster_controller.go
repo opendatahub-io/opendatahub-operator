@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/hashicorp/go-multierror"
 	buildv1 "github.com/openshift/api/build/v1"
 	imagev1 "github.com/openshift/api/image/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -237,12 +236,12 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	// Initialize error list, instead of returning errors after every component is deployed
-	var componentErrors *multierror.Error
+	tmp, componentErrors := instance.ForEachComponentParallel(func(c components.ComponentInterface, args ...any) (any, error) {
+		return r.reconcileSubComponent(ctx, instance, c)
+	})
 
-	for _, component := range allComponents {
-		if instance, err = r.reconcileSubComponent(ctx, instance, component); err != nil {
-			componentErrors = multierror.Append(componentErrors, err)
-		}
+	if tmp != nil {
+		instance, _ = tmp.(*dscv1.DataScienceCluster)
 	}
 
 	// Process errors for components
