@@ -90,28 +90,28 @@ type hasResourceReference interface {
 	GetResourceReference() platform.ResourceReference
 }
 
-type activableCtrl[T any] interface {
-	controllers.Activable[T]
+type activableCtrl[ConfigType any] interface {
+	controllers.Activable[ConfigType]
 	Name() string
 	SetupWithManager(mgr controllerruntime.Manager) error
 }
 
-type createCtrlFunc[C any, T hasResourceReference] func(ref T) activableCtrl[C]
-type updateCtrlFunc[C any] func(activableCtrl[C])
+type createCtrlFn[ConfigType any, ResType hasResourceReference] func(ref ResType) activableCtrl[ConfigType]
+type updateCtrlFn[ConfigType any] func(activableCtrl[ConfigType])
 
-type capabilityActivator[C any, T hasResourceReference] struct {
+type capabilityActivator[ConfigType any, ResType hasResourceReference] struct {
 	mu              sync.RWMutex
 	log             logr.Logger
 	mgr             controllerruntime.Manager
-	ctrls           map[platform.ResourceReference]activableCtrl[C]
+	ctrls           map[platform.ResourceReference]activableCtrl[ConfigType]
 	discoveryClient discovery.DiscoveryInterface
 }
 
 // deactivateStaleCtrls deactivates controllers that are not required anymore, meaning there are no resource references
 // previously watched that are still required. This can happen when a component has been deactivated.
-func (c *capabilityActivator[C, T]) deactivateStaleCtrls(currentRefs ...T) {
+func (c *capabilityActivator[ConfigType, ResType]) deactivateStaleCtrls(currentRefs ...ResType) {
 	if c.ctrls == nil {
-		c.ctrls = make(map[platform.ResourceReference]activableCtrl[C])
+		c.ctrls = make(map[platform.ResourceReference]activableCtrl[ConfigType])
 	}
 
 	ctrlState := make(map[platform.ResourceReference]bool)
@@ -130,9 +130,11 @@ func (c *capabilityActivator[C, T]) deactivateStaleCtrls(currentRefs ...T) {
 	}
 }
 
-func (c *capabilityActivator[C, T]) activateOrNewCtrl(ctx context.Context, createCtrl createCtrlFunc[C, T], updateCtrl updateCtrlFunc[C], currentRefs ...T) error {
+func (c *capabilityActivator[ConfigType, ResType]) activateOrNewCtrl(
+	ctx context.Context,
+	createCtrl createCtrlFn[ConfigType, ResType],
+	updateCtrl updateCtrlFn[ConfigType], currentRefs ...ResType) error {
 	var errSetup []error
-
 	var wg sync.WaitGroup
 
 	for _, ref := range currentRefs {
