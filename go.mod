@@ -31,7 +31,7 @@ require (
 	sigs.k8s.io/yaml v1.4.0
 )
 
-replace github.com/opendatahub-io/odh-platform v1.0.0 => github.com/maistra/odh-platform v0.0.2-0.20240904065301-d84c4c695d63
+replace github.com/opendatahub-io/odh-platform v1.0.0 => github.com/maistra/odh-platform v0.0.2-0.20240904113035-5915fa2cc2f6
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
