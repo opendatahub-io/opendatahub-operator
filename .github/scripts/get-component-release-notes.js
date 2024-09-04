@@ -1,3 +1,8 @@
+function getModifiedComponentName(name){
+    let modifiedWord = name.split("-").join(" ")
+    modifiedWord = modifiedWord[0].toUpperCase() + modifiedWord.slice(1).toLowerCase()
+    return modifiedWord.replace("Odh", "ODH")
+}
 module.exports = ({ github, core }) => {
     const { TRACKER_URL } = process.env
     console.log(`The TRACKER_URL is ${TRACKER_URL}`)
@@ -17,16 +22,19 @@ module.exports = ({ github, core }) => {
     }).then((result) => {
         let outputStr = "## Component Release Notes\n"
         result.data.forEach((issue) => {
-            issueCommentBody = issue.body_text
+            let issueCommentBody = issue.body_text
             if (issueCommentBody.includes("#Release#")) {
                 let components = issueCommentBody.split("\n")
                 const releaseIdx = components.indexOf("#Release#")
                 components = components.splice(releaseIdx + 1, components.length)
-                const regex = /\s*[A-Za-z-_0-9]+\s*\|\s*(https:\/\/github\.com\/.*tree.*){1}\s*\|\s*(https:\/\/github\.com\/.*releases.*){1}\s*/;
+                const regex = /\s*[A-Za-z-_0-9]+\s*\|\s*(https:\/\/github\.com\/.*(tree|releases).*){1}\s*\|?\s*(https:\/\/github\.com\/.*releases.*)?\s*/;
                 components.forEach(component => {
                     if (regex.test(component)) {
-                        const [componentName, branchUrl, tagUrl] = component.split("|")
-                        outputStr += `- **${componentName.trim().charAt(0).toUpperCase() + componentName.trim().slice(1)}**: ${tagUrl.trim()}\n`
+                        let [componentName, branchUrl, tagUrl] = component.split("|")
+                        componentName = componentName.trim()
+                        const releaseNotesUrl = (tagUrl || branchUrl).trim();
+                        outputStr += `- **${getModifiedComponentName(componentName)}**: ${releaseNotesUrl}\n`
+        
                     }
                 })
             }
