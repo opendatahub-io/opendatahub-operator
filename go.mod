@@ -2,8 +2,6 @@ module github.com/opendatahub-io/opendatahub-operator/v2
 
 go 1.21
 
-toolchain go1.22.6
-
 require (
 	github.com/blang/semver/v4 v4.0.0
 	github.com/go-logr/logr v1.4.2
@@ -33,7 +31,7 @@ require (
 	sigs.k8s.io/yaml v1.4.0
 )
 
-replace github.com/opendatahub-io/odh-platform v1.0.0 => github.com/maistra/odh-platform v0.0.2-0.20240903183803-7d1e405802f3
+replace github.com/opendatahub-io/odh-platform v1.0.0 => github.com/maistra/odh-platform v0.0.2-0.20240904065301-d84c4c695d63
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
