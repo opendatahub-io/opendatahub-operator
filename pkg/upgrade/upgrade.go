@@ -21,6 +21,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -264,7 +265,7 @@ func CleanupExistingResource(ctx context.Context, cli client.Client, platform cl
 	multiErr = multierror.Append(multiErr, deleteResources(ctx, cli, &odhDocJPH))
 	// only apply on RHOAI since ODH has a different way to create this CR by dashboard
 	if platform == cluster.SelfManagedRhods || platform == cluster.ManagedRhods {
-		if err := unsetOwnerReference(ctx, cli, "odh-dashboard-config", dscApplicationsNamespace); err != nil {
+		if err := upgradeODCCR(ctx, cli, "odh-dashboard-config", dscApplicationsNamespace); err != nil {
 			return err
 		}
 	}
@@ -404,7 +405,10 @@ func removOdhApplicationsCR(ctx context.Context, cli client.Client, gvk schema.G
 	return nil
 }
 
-func unsetOwnerReference(ctx context.Context, cli client.Client, instanceName string, applicationNS string) error {
+// upgradODCCR handles different cases:
+// 1. unset ownerreference for CR odh-dashboard-config
+// 2. flip TrustyAI BiasMetrics to false (.spec.dashboardConfig.disableBiasMetrics).
+func upgradeODCCR(ctx context.Context, cli client.Client, instanceName string, applicationNS string) error {
 	crd := &apiextv1.CustomResourceDefinition{}
 	if err := cli.Get(ctx, client.ObjectKey{Name: "odhdashboardconfigs.opendatahub.io"}, crd); err != nil {
 		return client.IgnoreNotFound(err)
@@ -423,6 +427,11 @@ func unsetOwnerReference(ctx context.Context, cli client.Client, instanceName st
 		if err := cli.Update(ctx, odhObject); err != nil {
 			return fmt.Errorf("error unset ownerreference for CR %s : %w", instanceName, err)
 		}
+	}
+	// flip TrustyAI BiasMetrics to false (.spec.dashboardConfig.disableBiasMetrics)
+	disableBiasMetricsValue := []byte(`{"spec": {"dashboardConfig": {"disableBiasMetrics": false}}}`)
+	if err := cli.Patch(ctx, odhObject, client.RawPatch(types.MergePatchType, disableBiasMetricsValue)); err != nil {
+		return fmt.Errorf("error enable BiasMetrics in CR %s : %w", instanceName, err)
 	}
 	return nil
 }
