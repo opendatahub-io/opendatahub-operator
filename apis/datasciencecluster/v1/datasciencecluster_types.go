@@ -162,18 +162,32 @@ func (d *DataScienceCluster) ForEachComponentParallel(f func(c components.Compon
 	var errs *multierror.Error
 	var err error
 	var res any
+	type result struct {
+		value any
+		err   error
+	}
 
 	comps, err := d.GetComponents()
 	if err != nil {
 		return nil, err
 	}
 
+	ch := make(chan result)
+
 	for _, c := range comps {
 		c := c
-		r, err := f(c, args...)
-		errs = multierror.Append(errs, err)
-		if err != nil {
-			res = r
+		go func(c components.ComponentInterface, args ...any) {
+			r, err := f(c, args...)
+			ch <- result{value: r, err: err}
+		}(c, args...)
+	}
+
+	for i := 0; i < len(comps); i++ {
+		result := <- ch
+
+		errs = multierror.Append(errs, result.err)
+		if result.err != nil {
+			res = result.value
 		}
 	}
 	// res is the latest successful result
