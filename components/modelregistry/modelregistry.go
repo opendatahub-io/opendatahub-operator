@@ -46,7 +46,7 @@ type ModelRegistry struct {
 	components.Component `json:""`
 
 	// Namespace for model registries to be installed, configurable once, defaults to "odh-model-registries"
-	// +kubebuilder:default=odh-model-registries
+	// +kubebuilder:default="odh-model-registries"
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="RegistriesNamespace is immutable"
 	RegistriesNamespace string `json:"registriesNamespace"`
 }

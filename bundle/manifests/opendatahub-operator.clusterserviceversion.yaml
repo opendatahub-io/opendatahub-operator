@@ -47,7 +47,8 @@ metadata:
                 "managementState": "Managed"
               },
               "modelregistry": {
-                "managementState": "Managed"
+                "managementState": "Managed",
+                "registriesNamespace": "odh-model-registries"
               },
               "ray": {
                 "managementState": "Managed"
