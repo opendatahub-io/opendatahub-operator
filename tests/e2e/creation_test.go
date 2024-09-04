@@ -491,7 +491,7 @@ func (tc *testContext) testMRServiceMeshMember() error {
 	smm.SetAPIVersion("maistra.io/v1")
 	smm.SetKind("ServiceMeshMember")
 	err := tc.customClient.Get(tc.ctx,
-		client.ObjectKey{Namespace: modelregistry.ModelRegistriesNamespace, Name: "default"}, &smm)
+		client.ObjectKey{Namespace: tc.testDsc.Spec.Components.ModelRegistry.RegistriesNamespace, Name: "default"}, &smm)
 	if err != nil {
 		return fmt.Errorf("failed to get servicemesh member: %w", err)
 	}

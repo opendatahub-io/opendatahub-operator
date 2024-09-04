@@ -35,7 +35,6 @@ var (
 	// modelRegistryLabels = cluster.WithLabels(
 	//      labels.ODH.OwnedNamespace, "true",
 	// ).
-	ModelRegistriesNamespace = "odh-model-registries"
 )
 
 // Verifies that ModelRegistry implements ComponentInterface.
@@ -45,6 +44,11 @@ var _ components.ComponentInterface = (*ModelRegistry)(nil)
 // +kubebuilder:object:generate=true
 type ModelRegistry struct {
 	components.Component `json:""`
+
+	// Namespace for model registries to be installed, configurable once, defaults to "odh-model-registries"
+	// +kubebuilder:default=odh-model-registries
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="RegistriesNamespace is immutable"
+	RegistriesNamespace string `json:"registriesNamespace"`
 }
 
 func (m *ModelRegistry) OverrideManifests(ctx context.Context, _ cluster.Platform) error {
@@ -109,17 +113,17 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 
 		// Create model registries namespace
 		// We do not delete this namespace even when ModelRegistry is Removed or when operator is uninstalled.
-		ns, err := cluster.CreateNamespace(ctx, cli, ModelRegistriesNamespace)
+		ns, err := cluster.CreateNamespace(ctx, cli, m.RegistriesNamespace)
 		if err != nil {
 			return err
 		}
-		l.Info("created model registry namespace", "namespace", ModelRegistriesNamespace)
+		l.Info("created model registry namespace", "namespace", m.RegistriesNamespace)
 		// create servicemeshmember here, for now until post MVP solution
 		err = enrollToServiceMesh(ctx, cli, dscispec, ns)
 		if err != nil {
 			return err
 		}
-		l.Info("created model registry servicemesh member", "namespace", ModelRegistriesNamespace)
+		l.Info("created model registry servicemesh member", "namespace", m.RegistriesNamespace)
 	} else {
 		err := m.removeDependencies(ctx, cli, dscispec)
 		if err != nil {
