@@ -5,25 +5,28 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/go-multierror"
-	"github.com/opendatahub-io/odh-platform/pkg/routing"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// Registry used by Components to register their Capabilities configuration.
+// Registry used by ODH Components to register their capabilities configuration.
 type Registry struct {
-	owner         metav1.Object
-	appNs         string
+	orchestrator  *PlatformOrchestrator
 	authorization *AuthorizationCapability
 	routing       *RoutingCapability
-	// Tmp solution to allow the registry to interact with the orchestrator when ctrls are embedded as library
-	orchestrator *PlatformOrchestrator
+	owner         metav1.Object
+	appNs         string
 }
 
-func NewRegistry(authz *AuthorizationCapability, routing *RoutingCapability, options ...RegistryOption) *Registry {
+// NewRegistry creates a new Registry instance with the provided capabilities as required parameters, and allows to pass
+// optional configuration through RegistryOption functions.
+func NewRegistry(authz *AuthorizationCapability, routing *RoutingCapability, owner metav1.Object, orchestrator *PlatformOrchestrator, options ...RegistryOption) *Registry {
 	registry := Registry{
 		authorization: authz,
 		routing:       routing,
+		owner:         owner,
+		orchestrator:  orchestrator,
+		appNs:         "opendatahub",
 	}
 
 	for _, option := range options {
@@ -33,13 +36,8 @@ func NewRegistry(authz *AuthorizationCapability, routing *RoutingCapability, opt
 	return &registry
 }
 
+// RegistryOption is a function that allows to enrich the logic of constructing the Registry struct.
 type RegistryOption func(*Registry)
-
-func WithOwner(owner metav1.Object) RegistryOption {
-	return func(r *Registry) {
-		r.owner = owner
-	}
-}
 
 func WithAppNamespace(appNs string) RegistryOption {
 	return func(r *Registry) {
@@ -47,12 +45,7 @@ func WithAppNamespace(appNs string) RegistryOption {
 	}
 }
 
-func WithOrchestrator(orchestrator *PlatformOrchestrator) RegistryOption {
-	return func(r *Registry) {
-		r.orchestrator = orchestrator
-	}
-}
-
+// Configure enables the platform capabilities for registered components.
 func (r *Registry) Configure(ctx context.Context, cli client.Client) error {
 	handlers := []Reconciler{r.authorization, r.routing}
 
@@ -77,29 +70,23 @@ func (r *Registry) configureCtrls(ctx context.Context, cli client.Client) error 
 		return fmt.Errorf("failed to start authorization controllers: %w", errAuthzStart)
 	}
 
-	// TODO(mvp): move up as part of r.routing - do not pass spec
-	config := routing.IngressConfig{
-		IngressSelectorLabel: r.routing.routingSpec.IngressGateway.LabelSelectorKey,
-		IngressSelectorValue: r.routing.routingSpec.IngressGateway.LabelSelectorValue,
-		IngressService:       r.routing.routingSpec.IngressGateway.Name,
-		GatewayNamespace:     r.routing.routingSpec.IngressGateway.Namespace,
-	}
-
-	if errRoutingStart := r.orchestrator.ToggleRouting(ctx, cli, config, r.routing.routingTargets...); errRoutingStart != nil {
+	if errRoutingStart := r.orchestrator.ToggleRouting(ctx, cli, r.routing.IngressConfig(), r.routing.RoutingTargets()...); errRoutingStart != nil {
 		return fmt.Errorf("failed to start authorization controllers: %w", errRoutingStart)
 	}
 
 	return nil
 }
 
+// Component view of the platform capabilities.
+
 var _ PlatformCapabilities = (*Registry)(nil)
 
-// Authorization returns the "component view" of the capability.
+// Authorization returns the "component view" of this capability.
 func (r *Registry) Authorization() Authorization {
 	return r.authorization
 }
 
-// Routing returns the "component view" of the capability.
+// Routing returns the "component view" of this capability.
 func (r *Registry) Routing() Routing {
 	return r.routing
 }

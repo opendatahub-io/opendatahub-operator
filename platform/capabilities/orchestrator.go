@@ -32,8 +32,8 @@ import (
 // PlatformOrchestrator is responsible for managing the lifecycle of platform capabilities and respective controllers.
 type PlatformOrchestrator struct {
 	log     logr.Logger
-	authz   capabilityActivator[authorization.ProviderConfig, platform.ProtectedResource]
-	routing capabilityActivator[routing.IngressConfig, platform.RoutingTarget]
+	authz   activator[authorization.ProviderConfig, platform.ProtectedResource]
+	routing activator[routing.IngressConfig, platform.RoutingTarget]
 }
 
 func NewPlatformOrchestrator(log logr.Logger, manager controllerruntime.Manager) (*PlatformOrchestrator, error) {
@@ -44,12 +44,12 @@ func NewPlatformOrchestrator(log logr.Logger, manager controllerruntime.Manager)
 
 	p := &PlatformOrchestrator{
 		log: log,
-		authz: capabilityActivator[authorization.ProviderConfig, platform.ProtectedResource]{
+		authz: activator[authorization.ProviderConfig, platform.ProtectedResource]{
 			log:             log.WithValues("capability", "authz"),
 			mgr:             manager,
 			discoveryClient: discoveryClient,
 		},
-		routing: capabilityActivator[routing.IngressConfig, platform.RoutingTarget]{
+		routing: activator[routing.IngressConfig, platform.RoutingTarget]{
 			log:             log.WithValues("capability", "routing"),
 			mgr:             manager,
 			discoveryClient: discoveryClient,
@@ -58,6 +58,7 @@ func NewPlatformOrchestrator(log logr.Logger, manager controllerruntime.Manager)
 	return p, nil
 }
 
+// ToggleRouting ensures that only the controllers for currently desired routing targets are active.
 func (p *PlatformOrchestrator) ToggleRouting(ctx context.Context, cli client.Client, config routing.IngressConfig, refs ...platform.RoutingTarget) error {
 	p.routing.deactivateStaleCtrls(refs...)
 
@@ -72,6 +73,7 @@ func (p *PlatformOrchestrator) ToggleRouting(ctx context.Context, cli client.Cli
 	return p.routing.activateOrNewCtrl(ctx, createCtrl, updateCtrl, refs...)
 }
 
+// ToggleAuthorization ensures that only the controllers for currently desired protected resources are active.
 func (p *PlatformOrchestrator) ToggleAuthorization(ctx context.Context, cli client.Client, config authorization.ProviderConfig, refs ...platform.ProtectedResource) error {
 	p.authz.deactivateStaleCtrls(refs...)
 
@@ -79,83 +81,65 @@ func (p *PlatformOrchestrator) ToggleAuthorization(ctx context.Context, cli clie
 		return authzctrl.New(cli, p.log, ref, config)
 	}
 
-	updateCtrl := func(ctrl activableCtrl[authorization.ProviderConfig]) {
+	activateCtrl := func(ctrl activableCtrl[authorization.ProviderConfig]) {
 		ctrl.Activate(config)
 	}
 
-	return p.authz.activateOrNewCtrl(ctx, createCtrl, updateCtrl, refs...)
+	return p.authz.activateOrNewCtrl(ctx, createCtrl, activateCtrl, refs...)
 }
 
-type hasResourceReference interface {
-	GetResourceReference() platform.ResourceReference
-}
-
+// activableCtrl allows to activate or deactivate a controller and wire it with controller-runtime manager.
 type activableCtrl[ConfigType any] interface {
 	controllers.Activable[ConfigType]
 	Name() string
 	SetupWithManager(mgr controllerruntime.Manager) error
 }
 
-type createCtrlFn[ConfigType any, ResType hasResourceReference] func(ref ResType) activableCtrl[ConfigType]
-type updateCtrlFn[ConfigType any] func(activableCtrl[ConfigType])
+type hasResourceReference interface {
+	GetResourceReference() platform.ResourceReference
+}
 
-type capabilityActivator[ConfigType any, ResType hasResourceReference] struct {
+// activator manages the lifecycle of controllers for a given capability.
+// It ensures that controllers are started with the right configuration when required and deactivated when no longer needed.
+type activator[Config any, Res hasResourceReference] struct {
 	mu              sync.RWMutex
+	ctrls           map[platform.ResourceReference]activableCtrl[Config]
 	log             logr.Logger
 	mgr             controllerruntime.Manager
-	ctrls           map[platform.ResourceReference]activableCtrl[ConfigType]
 	discoveryClient discovery.DiscoveryInterface
 }
 
-// deactivateStaleCtrls deactivates controllers that are not required anymore, meaning there are no resource references
-// previously watched that are still required. This can happen when a component has been deactivated.
-func (c *capabilityActivator[ConfigType, ResType]) deactivateStaleCtrls(currentRefs ...ResType) {
-	if c.ctrls == nil {
-		c.ctrls = make(map[platform.ResourceReference]activableCtrl[ConfigType])
-	}
+// activateCtrlFn is a function that updates the controller with the latest configuration and activates it.
+type activateCtrlFn[ConfigType any] func(activableCtrl[ConfigType])
 
-	ctrlState := make(map[platform.ResourceReference]bool)
-	for objectRef := range c.ctrls {
-		ctrlState[objectRef] = false
-	}
+// createCtrlFn is a function that creates a new controller instance for a given resource reference.
+type createCtrlFn[ConfigType any, ResType hasResourceReference] func(ref ResType) activableCtrl[ConfigType]
 
-	for _, ref := range currentRefs {
-		ctrlState[ref.GetResourceReference()] = true
-	}
-
-	for objectRef, active := range ctrlState {
-		if !active {
-			c.ctrls[objectRef].Deactivate()
-		}
-	}
-}
-
-func (c *capabilityActivator[ConfigType, ResType]) activateOrNewCtrl(
-	ctx context.Context,
-	createCtrl createCtrlFn[ConfigType, ResType],
-	updateCtrl updateCtrlFn[ConfigType], currentRefs ...ResType) error {
+// activateOrNewCtrl attempts to activate a controller which is already watching the given resource reference with updated configuration or
+// will create a new instance if not existing yet.
+func (a *activator[Config, Res]) activateOrNewCtrl(ctx context.Context, create createCtrlFn[Config, Res], activate activateCtrlFn[Config], refs ...Res) error {
 	var errSetup []error
 	var wg sync.WaitGroup
 
-	for _, ref := range currentRefs {
+	for _, ref := range refs {
 		wg.Add(1)
 
 		currentRef := ref
 		resourceReference := currentRef.GetResourceReference()
 
-		// Resolve watches for all requested components in parallel, so they do not wait for others if their CRDs are not yet
-		// persisted in the cluster.
+		// Resolve watches for all requested components in parallel, so they do not wait for others
+		// if their CRDs are not persisted yet in the cluster.
 		go func() {
 			defer wg.Done()
 
 			// TODO(nice-to-have): encapsulate map with mutex so RW is uniformly handled without potential concurrent access.
-			c.mu.Lock()
-			ctrl, watchExists := c.ctrls[resourceReference]
-			c.mu.Unlock()
+			a.mu.RLock()
+			ctrl, watchExists := a.ctrls[resourceReference]
+			a.mu.RUnlock()
 
 			if !watchExists {
 				resourceExists := func(ctx context.Context) (bool, error) {
-					resources, err := c.discoveryClient.ServerResourcesForGroupVersion(resourceReference.GroupVersion().String())
+					resources, err := a.discoveryClient.ServerResourcesForGroupVersion(resourceReference.GroupVersion().String())
 					if err != nil {
 						return false, client.IgnoreNotFound(err)
 					}
@@ -168,17 +152,17 @@ func (c *capabilityActivator[ConfigType, ResType]) activateOrNewCtrl(
 					return
 				}
 
-				controller := createCtrl(currentRef)
-				if errStart := controller.SetupWithManager(c.mgr); errStart != nil {
+				controller := create(currentRef)
+				if errStart := controller.SetupWithManager(a.mgr); errStart != nil {
 					errSetup = append(errSetup, fmt.Errorf("failed to setup controller %s: %w", controller.Name(), errStart))
 					return
 				}
 
-				c.mu.Lock()
-				c.ctrls[resourceReference] = controller
-				c.mu.Unlock()
+				a.mu.Lock()
+				a.ctrls[resourceReference] = controller
+				a.mu.Unlock()
 			} else {
-				updateCtrl(ctrl)
+				activate(ctrl)
 			}
 		}()
 	}
@@ -186,4 +170,27 @@ func (c *capabilityActivator[ConfigType, ResType]) activateOrNewCtrl(
 	wg.Wait()
 
 	return errors.Join(errSetup...)
+}
+
+// deactivateStaleCtrls deactivates controllers that are not required anymore, meaning there are no resource references
+// previously watched that are still required. This can happen when a component has been deactivated.
+func (a *activator[Config, Res]) deactivateStaleCtrls(refs ...Res) {
+	if a.ctrls == nil {
+		a.ctrls = make(map[platform.ResourceReference]activableCtrl[Config])
+	}
+
+	ctrlState := make(map[platform.ResourceReference]bool)
+	for objectRef := range a.ctrls {
+		ctrlState[objectRef] = false
+	}
+
+	for _, ref := range refs {
+		ctrlState[ref.GetResourceReference()] = true
+	}
+
+	for objectRef, isActive := range ctrlState {
+		if !isActive {
+			a.ctrls[objectRef].Deactivate()
+		}
+	}
 }

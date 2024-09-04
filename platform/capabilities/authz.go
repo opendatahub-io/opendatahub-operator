@@ -8,34 +8,27 @@ import (
 	"github.com/opendatahub-io/odh-platform/pkg/platform"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
-func NewAuthorization(available bool, opts ...AuthzOption) *AuthorizationCapability {
-	authzCapability := &AuthorizationCapability{available: available}
-	for _, opt := range opts {
-		opt(authzCapability)
-	}
-
-	return authzCapability
-}
-
+// Authorization is component-facing interface allowing ODH components to enroll to platform's authorization capability.
 type Authorization interface {
 	IsAvailable() bool
 	ProtectedResources(protectedResource ...platform.ProtectedResource)
 }
 
-type AuthzOption func(*AuthorizationCapability)
+func NewAuthorization(config authorization.ProviderConfig, available bool) *AuthorizationCapability {
+	return &AuthorizationCapability{
+		available: available,
+		config:    config,
+	}
+}
 
 type AuthorizationCapability struct {
 	available          bool
 	config             authorization.ProviderConfig
 	protectedResources []platform.ProtectedResource
-}
-
-func WithAuthzConfig(config authorization.ProviderConfig) AuthzOption {
-	return func(a *AuthorizationCapability) {
-		a.config = config
-	}
 }
 
 // Component registration API.
@@ -49,7 +42,7 @@ func (a *AuthorizationCapability) ProtectedResources(protectedResource ...platfo
 	a.protectedResources = append(a.protectedResources, protectedResource...)
 }
 
-// Platform configuration by the operator.
+// Platform configuration managed by the operator.
 var _ Reconciler = (*AuthorizationCapability)(nil)
 
 func (a *AuthorizationCapability) IsRequired() bool {
@@ -60,7 +53,7 @@ func (a *AuthorizationCapability) IsRequired() bool {
 func (a *AuthorizationCapability) Reconcile(ctx context.Context, cli client.Client, owner metav1.Object) error {
 	const roleName = "platform-protected-resources-watcher"
 
-	metaOpts, err := defineMetaOptions(owner)
+	withOwnerRef, err := cluster.AsOwnerRef(owner)
 	if err != nil {
 		return fmt.Errorf("failed to define meta options while reconciling authorization capability: %w", err)
 	}
@@ -72,5 +65,5 @@ func (a *AuthorizationCapability) Reconcile(ctx context.Context, cli client.Clie
 
 	// TODO: check if it is safe to delete roles. We have running (but potentially deactivated) controllers for the given resources,
 	// so we keep the roles after first creation.
-	return CreateOrUpdatePlatformRBAC(ctx, cli, roleName, objectReferences, metaOpts...)
+	return CreateOrUpdatePlatformRBAC(ctx, cli, roleName, objectReferences, withOwnerRef)
 }

@@ -6,12 +6,12 @@ import (
 
 	"github.com/opendatahub-io/odh-platform/pkg/platform"
 	rbacv1 "k8s.io/api/rbac/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
+// CreateOrUpdatePlatformRBAC ensures that platform controllers have right RBAC for the given object references.
 func CreateOrUpdatePlatformRBAC(ctx context.Context, cli client.Client, roleName string,
 	objectReferences []platform.ResourceReference, metaOptions ...cluster.MetaOptions) error {
 	if _, err := cluster.CreateOrUpdateClusterRole(ctx, cli, roleName, createPolicyRules(objectReferences), metaOptions...); err != nil {
@@ -53,7 +53,7 @@ func createPlatformRoleBinding(roleName, namespace string) ([]rbacv1.Subject, rb
 	return []rbacv1.Subject{
 			{
 				Kind:      rbacv1.ServiceAccountKind,
-				Name:      "opendatahub-operator-controller-manager", // "odh-platform-manager",
+				Name:      "opendatahub-operator-controller-manager",
 				Namespace: namespace,
 			},
 		},
@@ -62,16 +62,4 @@ func createPlatformRoleBinding(roleName, namespace string) ([]rbacv1.Subject, rb
 			Kind:     "ClusterRole",
 			Name:     roleName,
 		}
-}
-
-func defineMetaOptions(owner metav1.Object) ([]cluster.MetaOptions, error) {
-	var metaOpts []cluster.MetaOptions
-
-	ownerRef, err := cluster.ToOwnerReference(owner)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create owner reference: %w", err)
-	}
-	metaOpts = append(metaOpts, cluster.WithOwnerReference(ownerRef))
-
-	return metaOpts, nil
 }

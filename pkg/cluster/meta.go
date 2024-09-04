@@ -23,9 +23,21 @@ func ApplyMetaOptions(obj metav1.Object, opts ...MetaOptions) error {
 
 func WithOwnerReference(ownerReferences ...metav1.OwnerReference) MetaOptions {
 	return func(obj metav1.Object) error {
-		obj.SetOwnerReferences(ownerReferences)
+		existingOwnerRef := obj.GetOwnerReferences()
+		existingOwnerRef = append(existingOwnerRef, ownerReferences...)
+		obj.SetOwnerReferences(existingOwnerRef)
+
 		return nil
 	}
+}
+
+func AsOwnerRef(owner metav1.Object) (MetaOptions, error) {
+	ownerRef, err := ToOwnerReference(owner)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create owner reference: %w", err)
+	}
+
+	return WithOwnerReference(ownerRef), nil
 }
 
 func ToOwnerReference(obj metav1.Object) (metav1.OwnerReference, error) {

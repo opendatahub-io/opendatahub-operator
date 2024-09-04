@@ -261,18 +261,14 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	// --
 
+	isAuthorizationCapabilityAvailable := conditionsv1.IsStatusConditionTrue(r.DataScienceCluster.DSCIStatus.Conditions, status.CapabilityServiceMeshAuthorization)
+	isServiceMeshAvailable := conditionsv1.IsStatusConditionTrue(r.DataScienceCluster.DSCIStatus.Conditions, status.CapabilityServiceMesh)
+
 	capabilitiesRegistry := capabilities.NewRegistry(
-		capabilities.NewAuthorization(
-			conditionsv1.IsStatusConditionTrue(r.DataScienceCluster.DSCIStatus.Conditions, status.CapabilityServiceMeshAuthorization),
-			capabilities.WithAuthzConfig(authzConfig),
-		),
-		capabilities.NewRouting(
-			conditionsv1.IsStatusConditionTrue(r.DataScienceCluster.DSCIStatus.Conditions, status.CapabilityServiceMesh),
-			capabilities.NewRoutingSpec(r.DataScienceCluster.DSCISpec),
-		),
+		capabilities.NewAuthorization(authzConfig, isAuthorizationCapabilityAvailable),
+		capabilities.NewRouting(capabilities.NewRoutingSpec(r.DataScienceCluster.DSCISpec), isServiceMeshAvailable),
+		instance, r.Orchestrator,
 		capabilities.WithAppNamespace(r.DataScienceCluster.DSCISpec.ApplicationsNamespace),
-		capabilities.WithOwner(instance),
-		capabilities.WithOrchestrator(r.Orchestrator),
 	)
 
 	for _, component := range allComponents {

@@ -6,22 +6,25 @@ import (
 	"path"
 
 	"github.com/opendatahub-io/odh-platform/pkg/platform"
+	"github.com/opendatahub-io/odh-platform/pkg/routing"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/manifest"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 )
 
-func NewRouting(available bool, spec RoutingSpec) *RoutingCapability {
+func NewRouting(spec RoutingSpec, available bool) *RoutingCapability {
 	return &RoutingCapability{
 		available:   available,
 		routingSpec: spec,
 	}
 }
 
+// Routing is component-facing interface allowing ODH components to enroll to platform's routing capability.
 type Routing interface {
 	IsAvailable() bool
 	// Expose defines which resources should be watched and updated
@@ -29,11 +32,23 @@ type Routing interface {
 	Expose(targets ...platform.RoutingTarget)
 }
 
-// TODO(mvp): godoc.
 type RoutingCapability struct {
 	available      bool
 	routingSpec    RoutingSpec
 	routingTargets []platform.RoutingTarget
+}
+
+func (r *RoutingCapability) IngressConfig() routing.IngressConfig {
+	return routing.IngressConfig{
+		IngressSelectorLabel: r.routingSpec.IngressGateway.LabelSelectorKey,
+		IngressSelectorValue: r.routingSpec.IngressGateway.LabelSelectorValue,
+		IngressService:       r.routingSpec.IngressGateway.Name,
+		GatewayNamespace:     r.routingSpec.IngressGateway.Namespace,
+	}
+}
+
+func (r *RoutingCapability) RoutingTargets() []platform.RoutingTarget {
+	return r.routingTargets
 }
 
 // Component registration API.
@@ -47,7 +62,7 @@ func (r *RoutingCapability) IsAvailable() bool {
 	return r.available
 }
 
-// Platform configuration by the operator.
+// Platform configuration managed by the operator.
 var _ Reconciler = (*RoutingCapability)(nil)
 
 func (r *RoutingCapability) IsRequired() bool {
@@ -58,7 +73,7 @@ func (r *RoutingCapability) IsRequired() bool {
 func (r *RoutingCapability) Reconcile(ctx context.Context, cli client.Client, owner metav1.Object) error {
 	const roleName = "platform-routing-resources-watcher"
 
-	metaOpts, err := defineMetaOptions(owner)
+	withOwnerRef, err := cluster.AsOwnerRef(owner)
 	if err != nil {
 		return fmt.Errorf("failed to define meta options while reconciling routing capability: %w", err)
 	}
@@ -68,7 +83,7 @@ func (r *RoutingCapability) Reconcile(ctx context.Context, cli client.Client, ow
 		objectReferences[i] = ref.ResourceReference
 	}
 
-	if errRoleCreate := CreateOrUpdatePlatformRBAC(ctx, cli, roleName, objectReferences, metaOpts...); errRoleCreate != nil {
+	if errRoleCreate := CreateOrUpdatePlatformRBAC(ctx, cli, roleName, objectReferences, withOwnerRef); errRoleCreate != nil {
 		return fmt.Errorf("failed to create role bindings for platform routing: %w", err)
 	}
 
