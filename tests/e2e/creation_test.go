@@ -61,14 +61,14 @@ func creationTestSuite(t *testing.T) {
 			err = testCtx.testOwnerrefrences()
 			require.NoError(t, err, "error getting all DataScienceCluster's Ownerrefrences")
 		})
-		t.Run("Validate default certs available", func(t *testing.T) {
-			err = testCtx.testDefaultCertsAvailable()
-			require.NoError(t, err, "error getting default cert secrets for Kserve")
-		})
 		t.Run("Validate all deployed components", func(t *testing.T) {
 			// this will take about 5-6 mins to complete
-			err = testCtx.testAllApplicationCreation(t)
+			err = testCtx.testAllComponentCreation(t)
 			require.NoError(t, err, "error testing deployments for DataScienceCluster: "+testCtx.testDsc.Name)
+		})
+		t.Run("Validate DSC Ready", func(t *testing.T) {
+			err = testCtx.validateDSCReady()
+			require.NoError(t, err, "DataScienceCluster instance is not Ready")
 		})
 
 		// Kserve
@@ -76,11 +76,12 @@ func creationTestSuite(t *testing.T) {
 			err = testCtx.validateDSC()
 			require.NoError(t, err, "error getting Knatvie resrouce as part of DataScienceCluster validation")
 		})
-		t.Run("Validate all deployed components", func(t *testing.T) {
-			// this will take about 5-6mins to complete
-			err = testCtx.testAllApplicationCreation(t)
-			require.NoError(t, err, "error testing deployments for DataScienceCluster: "+testCtx.testDsc.Name)
+		t.Run("Validate default certs available", func(t *testing.T) {
+			// move it to be part of check with kserve since it is using serving's secret
+			err = testCtx.testDefaultCertsAvailable()
+			require.NoError(t, err, "error getting default cert secrets for Kserve")
 		})
+
 		t.Run("Validate Controller reconcile", func(t *testing.T) {
 			// only test Dashboard component for now
 			err = testCtx.testUpdateComponentReconcile()
@@ -110,7 +111,7 @@ func (tc *testContext) testDSCICreation() error {
 	err = tc.customClient.Get(tc.ctx, dscLookupKey, createdDSCI)
 	if err != nil {
 		if k8serr.IsNotFound(err) {
-			nberr := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
+			nberr := wait.PollUntilContextTimeout(tc.ctx, generalRetryInterval, dsciCreationTimeout, false, func(ctx context.Context) (bool, error) {
 				creationErr := tc.customClient.Create(ctx, tc.testDSCI)
 				if creationErr != nil {
 					log.Printf("error creating DSCI resource %v: %v, trying again",
@@ -130,26 +131,6 @@ func (tc *testContext) testDSCICreation() error {
 	return nil
 }
 
-func waitDSCReady(tc *testContext) error {
-	err := tc.wait(func(ctx context.Context) (bool, error) {
-		key := types.NamespacedName{Name: tc.testDsc.Name}
-		dsc := &dscv1.DataScienceCluster{}
-
-		err := tc.customClient.Get(ctx, key, dsc)
-		if err != nil {
-			return false, err
-		}
-
-		return dsc.Status.Phase == "Ready", nil
-	})
-
-	if err != nil {
-		return fmt.Errorf("Error waiting Ready state for DSC %v: %w", tc.testDsc.Name, err)
-	}
-
-	return nil
-}
-
 func (tc *testContext) testDSCCreation() error {
 	// Create DataScienceCluster resource if not already created
 	dscLookupKey := types.NamespacedName{Name: tc.testDsc.Name}
@@ -164,11 +145,10 @@ func (tc *testContext) testDSCCreation() error {
 			return nil
 		}
 	}
-
 	err = tc.customClient.Get(tc.ctx, dscLookupKey, createdDSC)
 	if err != nil {
 		if k8serr.IsNotFound(err) {
-			nberr := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
+			dsciErr := wait.PollUntilContextTimeout(tc.ctx, generalRetryInterval, dscCreationTimeout, false, func(ctx context.Context) (bool, error) {
 				creationErr := tc.customClient.Create(ctx, tc.testDsc)
 				if creationErr != nil {
 					log.Printf("error creating DSC resource %v: %v, trying again",
@@ -177,14 +157,17 @@ func (tc *testContext) testDSCCreation() error {
 				}
 				return true, nil
 			})
-			if nberr != nil {
-				return fmt.Errorf("error creating e2e-test-dsc DSC %s: %w", tc.testDsc.Name, nberr)
+			if dsciErr != nil {
+				return fmt.Errorf("error creating e2e-test-dsc DSC %s: %w", tc.testDsc.Name, dsciErr)
 			}
 		} else {
 			return fmt.Errorf("error getting e2e-test-dsc DSC %s: %w", tc.testDsc.Name, err)
 		}
 	}
+	return nil
+}
 
+func (tc *testContext) validateDSCReady() error {
 	return waitDSCReady(tc)
 }
 
@@ -196,6 +179,27 @@ func (tc *testContext) testDSCCreation() error {
 //	require.NotEmptyf(t, err, "Could not get %s list", gvk.Kind)
 //	require.Greaterf(t, len(list.Items), 0, "%s has not been installed", gvk.Kind)
 //}
+// Verify DSC instance is in Ready phase when all components are up and running
+
+func waitDSCReady(tc *testContext) error {
+	// wait for 2 mins which is on the safe side, normally it should get ready once all components are ready
+	err := tc.wait(func(ctx context.Context) (bool, error) {
+		key := types.NamespacedName{Name: tc.testDsc.Name}
+		dsc := &dscv1.DataScienceCluster{}
+
+		err := tc.customClient.Get(ctx, key, dsc)
+		if err != nil {
+			return false, err
+		}
+		return dsc.Status.Phase == "Ready", nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("Error waiting Ready state for DSC %v: %w", tc.testDsc.Name, err)
+	}
+
+	return nil
+}
 
 // func (tc *testContext) testDuplication(t *testing.T, gvk schema.GroupVersionKind, o any) {
 //	t.Helper()
@@ -231,13 +235,13 @@ func (tc *testContext) testDSCCreation() error {
 //	tc.testDuplication(t, gvk, dup)
 //}
 
-func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint:funlen,thelper
-	// Validate test instance is in Ready state
+func (tc *testContext) testAllComponentCreation(t *testing.T) error { //nolint:funlen,thelper
+	// Validate all components are in Ready state
 
 	dscLookupKey := types.NamespacedName{Name: tc.testDsc.Name}
 	createdDSC := &dscv1.DataScienceCluster{}
 
-	// Wait for applications to get deployed
+	// Wait for components to get deployed
 	time.Sleep(1 * time.Minute)
 
 	err := tc.customClient.Get(tc.ctx, dscLookupKey, createdDSC)
@@ -256,21 +260,15 @@ func (tc *testContext) testAllApplicationCreation(t *testing.T) error { //nolint
 		name := c.GetComponentName()
 		t.Run("Validate "+name, func(t *testing.T) {
 			t.Parallel()
-
-			err = tc.testApplicationCreation(c)
-			require.NoError(t, err, "error validating application %v when "+c.GetManagementState())
+			err = tc.testComponentCreation(c)
+			require.NoError(t, err, "error validating component %v when "+c.GetManagementState())
 		})
 	}
-	// Verify DSC instance is in Ready phase in the end when all components are up and running
-	if tc.testDsc.Status.Phase != "Ready" {
-		return fmt.Errorf("DSC instance is not in Ready phase. Current phase: %v", tc.testDsc.Status.Phase)
-	}
-
 	return nil
 }
 
-func (tc *testContext) testApplicationCreation(component components.ComponentInterface) error {
-	err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, true, func(ctx context.Context) (bool, error) {
+func (tc *testContext) testComponentCreation(component components.ComponentInterface) error {
+	err := wait.PollUntilContextTimeout(tc.ctx, generalRetryInterval, componentReadyTimeout, true, func(ctx context.Context) (bool, error) {
 		// TODO: see if checking deployment is a good test, CF does not create deployment
 		var componentName string
 		if component.GetComponentName() == "dashboard" { // special case for RHOAI dashboard name
@@ -281,8 +279,8 @@ func (tc *testContext) testApplicationCreation(component components.ComponentInt
 			LabelSelector: labels.ODH.Component(componentName),
 		})
 		if err != nil {
-			log.Printf("error listing application deployments :%v", err)
-			return false, fmt.Errorf("error listing application deployments :%w", err)
+			log.Printf("error listing component deployments :%v", err)
+			return false, fmt.Errorf("error listing component deployments :%w", err)
 		}
 		if len(appList.Items) != 0 {
 			if component.GetManagementState() == operatorv1.Removed {
@@ -292,7 +290,7 @@ func (tc *testContext) testApplicationCreation(component components.ComponentInt
 
 			for _, deployment := range appList.Items {
 				if deployment.Status.ReadyReplicas < 1 {
-					log.Printf("waiting for application deployments to be in Ready state.")
+					log.Printf("waiting for component deployments to be in Ready state: %s", deployment.Name)
 					return false, nil
 				}
 			}
@@ -366,7 +364,7 @@ func (tc *testContext) testOwnerrefrences() error {
 			LabelSelector: labels.ODH.Component(tc.testDsc.Spec.Components.Dashboard.GetComponentName()),
 		})
 		if err != nil {
-			return fmt.Errorf("error listing application deployments %w", err)
+			return fmt.Errorf("error listing component deployments %w", err)
 		}
 		// test any one deployment for ownerreference
 		if len(appDeployments.Items) != 0 && appDeployments.Items[0].OwnerReferences[0].Kind != "DataScienceCluster" {
@@ -453,7 +451,7 @@ func (tc *testContext) testUpdateComponentReconcile() error {
 
 	// Sleep for 40 seconds to allow the operator to reconcile
 	// we expect it should not revert back to original value because of AllowList
-	time.Sleep(4 * tc.resourceRetryInterval)
+	time.Sleep(4 * generalRetryInterval)
 	reconciledDep, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).Get(tc.ctx, testDeployment.Name, metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("error getting component resource after reconcile: %w", err)
@@ -510,7 +508,7 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 	}
 
 	// Sleep for 80 seconds to allow the operator to reconcile
-	time.Sleep(8 * tc.resourceRetryInterval)
+	time.Sleep(8 * generalRetryInterval)
 	_, err = tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).Get(tc.ctx, dashboardDeploymentName, metav1.GetOptions{})
 	if err != nil {
 		if k8serr.IsNotFound(err) {
