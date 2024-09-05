@@ -32,6 +32,7 @@ func (m *ModelRegistry) ProtectedResources() []platform.ProtectedResource {
 		{
 			ResourceReference: watchedCR,
 			WorkloadSelector: map[string]string{
+				"app":       "{{.metadata.name}}",
 				"component": "model-registry",
 			},
 			HostPaths: []string{"status.hosts"},
