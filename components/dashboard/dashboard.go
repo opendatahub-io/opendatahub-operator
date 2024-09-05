@@ -92,7 +92,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		if err := d.cleanOauthClient(ctx, cli, dscispec, currentComponentExist, l); err != nil {
 			return err
 		}
-		if d.DevFlags != nil {
+		if d.DevFlags != nil && len(d.DevFlags.Manifests) != 0 {
 			// Download manifests and update paths
 			if err := d.OverrideManifests(ctx, platform); err != nil {
 				return err
