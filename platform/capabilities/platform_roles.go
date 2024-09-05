@@ -24,7 +24,12 @@ func CreateOrUpdatePlatformRBAC(ctx context.Context, cli client.Client, roleName
 		return fmt.Errorf("failed getting operator namespace: %w", errNS)
 	}
 
-	subjects, roleRef := createPlatformRoleBinding(roleName, namespace)
+	subjectName, errSubject := determineSvcAccountName(ctx, cli)
+	if errSubject != nil {
+		return fmt.Errorf("failed determining subject name for platform roles: %w", errSubject)
+	}
+
+	subjects, roleRef := createPlatformRoleBinding(subjectName, roleName, namespace)
 	if _, err := cluster.CreateOrUpdateClusterRoleBinding(ctx, cli, roleName, subjects, roleRef, metaOptions...); err != nil {
 		return fmt.Errorf("failed creating cluster role binding: %w", err)
 	}
@@ -49,11 +54,11 @@ func createPolicyRules(objectReferences []platform.ResourceReference) []rbacv1.P
 	}
 }
 
-func createPlatformRoleBinding(roleName, namespace string) ([]rbacv1.Subject, rbacv1.RoleRef) {
+func createPlatformRoleBinding(subjectName, roleName, namespace string) ([]rbacv1.Subject, rbacv1.RoleRef) {
 	return []rbacv1.Subject{
 			{
 				Kind:      rbacv1.ServiceAccountKind,
-				Name:      "opendatahub-operator-controller-manager",
+				Name:      subjectName,
 				Namespace: namespace,
 			},
 		},
@@ -62,4 +67,19 @@ func createPlatformRoleBinding(roleName, namespace string) ([]rbacv1.Subject, rb
 			Kind:     "ClusterRole",
 			Name:     roleName,
 		}
+}
+
+func determineSvcAccountName(ctx context.Context, cli client.Client) (string, error) {
+	svcAccountName := "opendatahub-operator-controller-manager"
+
+	platform, err := cluster.GetPlatform(ctx, cli)
+	if err != nil {
+		return "", err
+	}
+
+	if platform == cluster.ManagedRhods || platform == cluster.SelfManagedRhods {
+		svcAccountName = "redhat-ods-operator-controller-manager"
+	}
+
+	return svcAccountName, nil
 }
