@@ -321,7 +321,7 @@ func main() { //nolint:funlen,maintidx
 
 func createSecretCacheConfig(platform cluster.Platform) map[string]cache.Config {
 	namespaceConfigs := map[string]cache.Config{
-		"istio-system":      {FieldSelector: fields.Set{"metadata.name": "knative-serving-cert"}.AsSelector()}, // for expiration case
+		"istio-system":      {}, // for both knative-serving-cert and default-modelregistry-cert,as an easy workarond, to watch all in this namespace for now
 		"openshift-ingress": {},
 	}
 	switch platform {
