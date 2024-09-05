@@ -24,21 +24,21 @@ func deletionTestSuite(t *testing.T) {
 	require.NoError(t, err)
 
 	// pre-check before deletion
-	t.Run("ensure all components created", func(t *testing.T) {
-		err = testCtx.testAllApplicationCreation(t)
+	t.Run("Ensure all components created", func(t *testing.T) {
+		err = testCtx.testAllComponentCreation(t)
 		require.NoError(t, err, "Not all components are created")
 	})
 
 	t.Run(testCtx.testDsc.Name, func(t *testing.T) {
-		t.Run("Deletion: DSC instance", func(t *testing.T) {
+		t.Run("Deletion DSC instance", func(t *testing.T) {
 			err = testCtx.testDeletionExistDSC()
 			require.NoError(t, err, "Error to delete DSC instance")
 		})
-		t.Run("Check: all component resource are deleted", func(t *testing.T) {
+		t.Run("Check all component resource are deleted", func(t *testing.T) {
 			err = testCtx.testAllApplicationDeletion(t)
 			require.NoError(t, err, "Should not found component exist")
 		})
-		t.Run("Deletion: DSCI instance", func(t *testing.T) {
+		t.Run("Deletion DSCI instance", func(t *testing.T) {
 			err = testCtx.testDeletionExistDSCI()
 			require.NoError(t, err, "Error to delete DSCI instance")
 		})
@@ -66,10 +66,9 @@ func (tc *testContext) testDeletionExistDSC() error {
 	return nil
 }
 
-func (tc *testContext) testApplicationDeletion(component components.ComponentInterface) error {
+func (tc *testContext) testComponentDeletion(component components.ComponentInterface) error {
 	// Deletion of Deployments
-
-	if err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
+	if err := wait.PollUntilContextTimeout(tc.ctx, generalRetryInterval, componentDeletionTimeout, true, func(ctx context.Context) (bool, error) {
 		appList, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(ctx, metav1.ListOptions{
 			LabelSelector: labels.ODH.Component(component.GetComponentName()),
 		})
@@ -99,7 +98,7 @@ func (tc *testContext) testAllApplicationDeletion(t *testing.T) error { //nolint
 		c := c
 		t.Run("Delete "+c.GetComponentName(), func(t *testing.T) {
 			t.Parallel()
-			err = tc.testApplicationDeletion(c)
+			err = tc.testComponentDeletion(c)
 			require.NoError(t, err)
 		})
 	}

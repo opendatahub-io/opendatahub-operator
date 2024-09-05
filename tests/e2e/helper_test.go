@@ -6,6 +6,7 @@ import (
 	"log"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -38,15 +39,24 @@ import (
 )
 
 const (
-	servicemeshNamespace = "openshift-operators"
-	servicemeshOpName    = "servicemeshoperator"
-	serverlessOpName     = "serverless-operator"
-	ownedNamespaceNumber = 1 // set to 4 for RHOAI
-	deleteConfigMap      = "delete-configmap-name"
+	servicemeshNamespace     = "openshift-operators"
+	servicemeshOpName        = "servicemeshoperator"
+	serverlessOpName         = "serverless-operator"
+	ownedNamespaceNumber     = 1 // set to 4 for RHOAI
+	deleteConfigMap          = "delete-configmap-name"
+	operatorReadyTimeout     = 2 * time.Minute
+	componentReadyTimeout    = 7 * time.Minute // in component code is to set 2-3 mins, keep it 7 mins just the same value we used after introduce "Ready" check
+	componentDeletionTimeout = 1 * time.Minute
+	crdReadyTimeout          = 1 * time.Minute
+	csvWaitTimeout           = 1 * time.Minute
+	dsciCreationTimeout      = 20 * time.Second // time required to get a DSCI is created.
+	dscCreationTimeout       = 20 * time.Second // time required to wait till DSC is created.
+	generalRetryInterval     = 10 * time.Second
+	generalWaitTimeout       = 2 * time.Minute
 )
 
-func (tc *testContext) waitForControllerDeployment(name string, replicas int32) error {
-	err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
+func (tc *testContext) waitForOperatorDeployment(name string, replicas int32) error {
+	err := wait.PollUntilContextTimeout(tc.ctx, generalRetryInterval, operatorReadyTimeout, false, func(ctx context.Context) (bool, error) {
 		controllerDeployment, err := tc.kubeClient.AppsV1().Deployments(tc.operatorNamespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			if errors.IsNotFound(err) {
@@ -195,7 +205,8 @@ func (tc *testContext) validateCRD(crdName string) error {
 	obj := client.ObjectKey{
 		Name: crdName,
 	}
-	err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
+
+	err := wait.PollUntilContextTimeout(tc.ctx, generalRetryInterval, crdReadyTimeout, false, func(ctx context.Context) (bool, error) {
 		err := tc.customClient.Get(ctx, obj, crd)
 		if err != nil {
 			if errors.IsNotFound(err) {
@@ -222,7 +233,7 @@ func (tc *testContext) validateCRD(crdName string) error {
 }
 
 func (tc *testContext) wait(isReady func(ctx context.Context) (bool, error)) error {
-	return wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, true, isReady)
+	return wait.PollUntilContextTimeout(tc.ctx, generalRetryInterval, generalWaitTimeout, true, isReady)
 }
 
 func getCSV(ctx context.Context, cli client.Client, name string, namespace string) (*ofapi.ClusterServiceVersion, error) {
@@ -281,9 +292,7 @@ func getSubscription(tc *testContext, name string, ns string) (*ofapi.Subscripti
 }
 
 func waitCSV(tc *testContext, name string, ns string) error {
-	interval := tc.resourceRetryInterval
-	timeout := tc.resourceCreationTimeout * 3 // just empirical value
-
+	interval := generalRetryInterval
 	isReady := func(ctx context.Context) (bool, error) {
 		csv, err := getCSV(ctx, tc.customClient, name, ns)
 		if errors.IsNotFound(err) {
@@ -296,7 +305,7 @@ func waitCSV(tc *testContext, name string, ns string) error {
 		return csv.Status.Phase == "Succeeded", nil
 	}
 
-	err := wait.PollUntilContextTimeout(tc.ctx, interval, timeout, false, isReady)
+	err := wait.PollUntilContextTimeout(tc.ctx, interval, csvWaitTimeout, false, isReady)
 	if err != nil {
 		return fmt.Errorf("Error installing %s CSV: %w", name, err)
 	}

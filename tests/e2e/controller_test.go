@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"testing"
-	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
@@ -47,14 +46,10 @@ type testContext struct {
 	operatorNamespace string
 	// namespace of the deployed applications
 	applicationsNamespace string
-	// time required to create a resource
-	resourceCreationTimeout time.Duration
 	// test DataScienceCluster instance
 	testDsc *dscv1.DataScienceCluster
 	// test DSCI CR because we do not create it in ODH by default
 	testDSCI *dsciv1.DSCInitialization
-	// time interval to check for resource creation
-	resourceRetryInterval time.Duration
 	// context for accessing resources
 	//nolint:containedctx //reason: legacy v1 test setup
 	ctx context.Context
@@ -86,16 +81,14 @@ func NewTestContext() (*testContext, error) {
 	testDSC := setupDSCInstance("e2e-test-dsc")
 
 	return &testContext{
-		cfg:                     config,
-		kubeClient:              kc,
-		customClient:            custClient,
-		operatorNamespace:       opNamespace,
-		applicationsNamespace:   testDSCI.Spec.ApplicationsNamespace,
-		resourceCreationTimeout: time.Minute * 7, // since we introduce check for all deployment, we need prolong time here too and match what we set in the component
-		resourceRetryInterval:   time.Second * 10,
-		ctx:                     context.TODO(),
-		testDsc:                 testDSC,
-		testDSCI:                testDSCI,
+		cfg:                   config,
+		kubeClient:            kc,
+		customClient:          custClient,
+		operatorNamespace:     opNamespace,
+		applicationsNamespace: testDSCI.Spec.ApplicationsNamespace,
+		ctx:                   context.TODO(),
+		testDsc:               testDSC,
+		testDSCI:              testDSCI,
 	}, nil
 }
 
