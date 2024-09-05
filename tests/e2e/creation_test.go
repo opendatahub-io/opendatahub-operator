@@ -291,7 +291,7 @@ func (tc *testContext) testAllComponentCreation(t *testing.T) error { //nolint:f
 		t.Run("Validate "+name, func(t *testing.T) {
 			t.Parallel()
 			err = tc.testComponentCreation(c)
-			require.NoError(t, err, "error validating component %v when "+c.GetManagementState())
+			require.NoError(t, err, "error validating component %s when %v", name, c.GetManagementState())
 		})
 	}
 	return nil

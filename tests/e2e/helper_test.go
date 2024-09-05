@@ -171,6 +171,7 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 					Component: components.Component{
 						ManagementState: operatorv1.Managed,
 					},
+					RegistriesNamespace: "odh-model-registries",
 				},
 				TrainingOperator: trainingoperator.TrainingOperator{
 					Component: components.Component{
