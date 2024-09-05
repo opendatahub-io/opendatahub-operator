@@ -14,6 +14,11 @@ import (
 // CreateOrUpdatePlatformRBAC ensures that platform controllers have right RBAC for the given object references.
 func CreateOrUpdatePlatformRBAC(ctx context.Context, cli client.Client, roleName string,
 	objectReferences []platform.ResourceReference, metaOptions ...cluster.MetaOptions) error {
+
+	if len(objectReferences) == 0 {
+		return nil
+	}
+
 	if _, err := cluster.CreateOrUpdateClusterRole(ctx, cli, roleName, createPolicyRules(objectReferences), metaOptions...); err != nil {
 		return fmt.Errorf("failed creating cluster role: %w", err)
 	}

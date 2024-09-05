@@ -333,7 +333,7 @@ func main() { //nolint:funlen,maintidx
 
 func createSecretCacheConfig(platform cluster.Platform) map[string]cache.Config {
 	namespaceConfigs := map[string]cache.Config{
-		"istio-system":      {FieldSelector: fields.Set{"metadata.name": "knative-serving-cert"}.AsSelector()}, // for expiration case
+		"istio-system":      {}, // for expiration case
 		"openshift-ingress": {},
 	}
 	switch platform {

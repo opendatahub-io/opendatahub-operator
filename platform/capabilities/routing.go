@@ -84,7 +84,7 @@ func (r *RoutingCapability) Reconcile(ctx context.Context, cli client.Client, ow
 	}
 
 	if errRoleCreate := CreateOrUpdatePlatformRBAC(ctx, cli, roleName, objectReferences, withOwnerRef); errRoleCreate != nil {
-		return fmt.Errorf("failed to create role bindings for platform routing: %w", err)
+		return fmt.Errorf("failed to create role bindings for platform routing: %w", errRoleCreate)
 	}
 
 	routingFeatures := feature.NewFeaturesHandler(

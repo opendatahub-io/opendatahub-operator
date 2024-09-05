@@ -89,6 +89,8 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 
 	if enabled {
+		m.platformRegister()
+
 		// return error if ServiceMesh is not enabled, as it's a required feature
 		if dscispec.ServiceMesh == nil || dscispec.ServiceMesh.ManagementState != operatorv1.Managed {
 			return errors.New("ServiceMesh needs to be set to 'Managed' in DSCI CR, it is required by Model Registry")
@@ -129,7 +131,6 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 		}
 		l.Info("created model registry servicemesh member", "namespace", ModelRegistriesNamespace)
 
-		m.platformRegister()
 	} else {
 		err := m.removeDependencies(ctx, cli, dscispec)
 		if err != nil {

@@ -195,8 +195,8 @@ func recreateSecret(ctx context.Context, c client.Client, existingSecret, newSec
 
 // generateCertSecret creates a secret if it does not exist;  recreate this secret if type not match; update data if outdated.
 func generateCertSecret(ctx context.Context, c client.Client, certSecret *corev1.Secret, secretName, namespace string) error {
-	existingSecret := &corev1.Secret{}
-	err := c.Get(ctx, client.ObjectKey{Name: secretName, Namespace: namespace}, existingSecret)
+	existingSecret := certSecret.DeepCopy()
+	err := c.Get(ctx, client.ObjectKeyFromObject(certSecret), existingSecret)
 	switch {
 	case err == nil:
 		// Secret exists but with a different type, delete and create it again
@@ -211,8 +211,8 @@ func generateCertSecret(ctx context.Context, c client.Client, certSecret *corev1
 		}
 	case k8serr.IsNotFound(err):
 		// Secret does not exist, create it
-		if err := c.Create(ctx, certSecret); err != nil {
-			return fmt.Errorf("failed creating new certificate secret: %w", err)
+		if errCreate := c.Create(ctx, certSecret); errCreate != nil {
+			return fmt.Errorf("failed creating new certificate secret: %w", errCreate)
 		}
 	default:
 		return fmt.Errorf("failed getting certificate secret: %w", err)
