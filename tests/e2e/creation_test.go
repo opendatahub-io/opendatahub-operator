@@ -74,6 +74,10 @@ func creationTestSuite(t *testing.T) {
 			err = testCtx.testAllComponentCreation(t)
 			require.NoError(t, err, "error testing deployments for DataScienceCluster: "+testCtx.testDsc.Name)
 		})
+		t.Run("Validate DSC Ready", func(t *testing.T) {
+			err = testCtx.validateDSCReady()
+			require.NoError(t, err, "DataScienceCluster instance is not Ready")
+		})
 
 		// Kserve
 		t.Run("Validate Knative resoruce", func(t *testing.T) {
@@ -277,22 +281,15 @@ func (tc *testContext) testAllComponentCreation(t *testing.T) error { //nolint:f
 		name := c.GetComponentName()
 		t.Run("Validate "+name, func(t *testing.T) {
 			t.Parallel()
-
-			err = tc.testApplicationCreation(c)
-			require.NoError(t, err, "error validating application %v when "+c.GetManagementState())
+			err = tc.testComponentCreation(c)
+			require.NoError(t, err, "error validating component %v when "+c.GetManagementState())
 		})
 	}
-
-	// Verify DSC instance is in Ready phase in the end when all components are up and running
-	if tc.testDsc.Status.Phase != "Ready" {
-		return fmt.Errorf("DSC instance is not in Ready phase. Current phase: %v", tc.testDsc.Status.Phase)
-	}
-
 	return nil
 }
 
-func (tc *testContext) testApplicationCreation(component components.ComponentInterface) error {
-	err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, true, func(ctx context.Context) (bool, error) {
+func (tc *testContext) testComponentCreation(component components.ComponentInterface) error {
+	err := wait.PollUntilContextTimeout(tc.ctx, generalRetryInterval, componentReadyTimeout, true, func(ctx context.Context) (bool, error) {
 		// TODO: see if checking deployment is a good test, CF does not create deployment
 		var componentName = component.GetComponentName()
 		if component.GetComponentName() == "dashboard" { // special case for RHOAI dashboard name
@@ -304,8 +301,8 @@ func (tc *testContext) testApplicationCreation(component components.ComponentInt
 			LabelSelector: labels.ODH.Component(componentName),
 		})
 		if err != nil {
-			log.Printf("error listing application deployments :%v", err)
-			return false, fmt.Errorf("error listing application deployments :%w", err)
+			log.Printf("error listing component deployments :%v", err)
+			return false, fmt.Errorf("error listing component deployments :%w", err)
 		}
 		if len(appList.Items) != 0 {
 			if component.GetManagementState() == operatorv1.Removed {
@@ -315,7 +312,7 @@ func (tc *testContext) testApplicationCreation(component components.ComponentInt
 
 			for _, deployment := range appList.Items {
 				if deployment.Status.ReadyReplicas < 1 {
-					log.Printf("waiting for application deployments to be in Ready state.")
+					log.Printf("waiting for component deployments to be in Ready state: %s", deployment.Name)
 					return false, nil
 				}
 			}
