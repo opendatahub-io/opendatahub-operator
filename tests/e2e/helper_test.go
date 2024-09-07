@@ -181,6 +181,7 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 			},
 		},
 	}
+	log.Printf("***debug setupDSCInstance RegistriesNamespace: %s", dscTest.Spec.Components.ModelRegistry.RegistriesNamespace)
 
 	return dscTest
 }

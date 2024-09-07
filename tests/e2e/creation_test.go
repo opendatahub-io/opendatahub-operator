@@ -490,6 +490,7 @@ func (tc *testContext) testMRServiceMeshMember() error {
 	smm := unstructured.Unstructured{}
 	smm.SetAPIVersion("maistra.io/v1")
 	smm.SetKind("ServiceMeshMember")
+	log.Printf("***debug testMRServiceMeshMember RegistriesNamespace: %s", tc.testDsc.Spec.Components.ModelRegistry.RegistriesNamespace)
 	err := tc.customClient.Get(tc.ctx,
 		client.ObjectKey{Namespace: tc.testDsc.Spec.Components.ModelRegistry.RegistriesNamespace, Name: "default"}, &smm)
 	if err != nil {
