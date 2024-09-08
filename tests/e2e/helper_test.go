@@ -171,7 +171,6 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 					Component: components.Component{
 						ManagementState: operatorv1.Managed,
 					},
-					RegistriesNamespace: "odh-model-registries",
 				},
 				TrainingOperator: trainingoperator.TrainingOperator{
 					Component: components.Component{
@@ -181,6 +180,9 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 			},
 		},
 	}
+
+	// set default values like RegistriesNamespace
+	scheme.Default(dscTest)
 	log.Printf("***debug setupDSCInstance RegistriesNamespace: %s", dscTest.Spec.Components.ModelRegistry.RegistriesNamespace)
 
 	return dscTest
