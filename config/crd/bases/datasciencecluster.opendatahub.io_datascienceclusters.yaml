@@ -451,8 +451,6 @@ spec:
                         x-kubernetes-validations:
                         - message: RegistriesNamespace is immutable
                           rule: self == oldSelf
-                    required:
-                    - registriesNamespace
                     type: object
                   ray:
                     description: Ray component configuration.

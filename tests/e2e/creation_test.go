@@ -155,10 +155,7 @@ func (tc *testContext) testDSCCreation(t *testing.T) error {
 	t.Helper()
 	// Create DataScienceCluster resource if not already created
 
-	dscLookupKey := types.NamespacedName{Name: tc.testDsc.Name}
-	createdDSC := &dscv1.DataScienceCluster{}
 	existingDSCList := &dscv1.DataScienceClusterList{}
-
 	err := tc.customClient.List(tc.ctx, existingDSCList)
 	if err == nil {
 		if len(existingDSCList.Items) > 0 {
@@ -169,6 +166,9 @@ func (tc *testContext) testDSCCreation(t *testing.T) error {
 			return nil
 		}
 	}
+
+	dscLookupKey := types.NamespacedName{Name: tc.testDsc.Name}
+	createdDSC := &dscv1.DataScienceCluster{}
 	err = tc.customClient.Get(tc.ctx, dscLookupKey, createdDSC)
 	if err != nil {
 		if k8serr.IsNotFound(err) {
