@@ -48,6 +48,10 @@ func (c *Component) Cleanup(_ context.Context, _ client.Client, _ *dsciv1.DSCIni
 	return nil
 }
 
+func (c *Component) IsManifestsOverridden() bool {
+	return c.DevFlags != nil && len(c.DevFlags.Manifests) != 0
+}
+
 // DevFlags defines list of fields that can be used by developers to test customizations. This is not recommended
 // to be used in production environment.
 // +kubebuilder:object:generate=true
