@@ -342,10 +342,10 @@ func createDeploymentCacheConfig(platform cluster.Platform) map[string]cache.Con
 	case cluster.ManagedRhods: // no need workbench NS, only SFS no Deployment
 		namespaceConfigs["redhat-ods-monitoring"] = cache.Config{}
 		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
-		//TODO: if ModelReg has a RHOAI NS
+		namespaceConfigs["rhoai-model-registries"] = cache.Config{}
 	case cluster.SelfManagedRhods:
 		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
-		//TODO: if ModelReg has a RHOAI NS
+		namespaceConfigs["rhoai-model-registries"] = cache.Config{}
 	default:
 		namespaceConfigs["opendatahub"] = cache.Config{}
 		namespaceConfigs["odh-model-registries"] = cache.Config{}

@@ -48,7 +48,7 @@ type ModelRegistry struct {
 	// Namespace for model registries to be installed, configurable once, defaults to "odh-model-registries"
 	// +kubebuilder:default="odh-model-registries"
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="RegistriesNamespace is immutable"
-	RegistriesNamespace string `json:"registriesNamespace,omitempty"`
+	RegistriesNamespace string `json:"registriesNamespace"`
 }
 
 func (m *ModelRegistry) OverrideManifests(ctx context.Context, _ cluster.Platform) error {

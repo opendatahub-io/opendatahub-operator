@@ -443,6 +443,16 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      registriesNamespace:
+                        default: odh-model-registries
+                        description: Namespace for model registries to be installed,
+                          configurable once, defaults to "odh-model-registries"
+                        type: string
+                        x-kubernetes-validations:
+                        - message: RegistriesNamespace is immutable
+                          rule: self == oldSelf
+                    required:
+                    - registriesNamespace
                     type: object
                   ray:
                     description: Ray component configuration.
