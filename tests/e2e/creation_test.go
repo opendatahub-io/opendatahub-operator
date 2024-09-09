@@ -21,7 +21,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/yaml"
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -161,8 +160,6 @@ func (tc *testContext) testDSCCreation(t *testing.T) error {
 		if len(existingDSCList.Items) > 0 {
 			// Use DSC instance if it already exists
 			tc.testDsc = &existingDSCList.Items[0]
-			t.Logf("Using existing e2e-test-dsc DSC %s", tc.testDsc.Name)
-
 			return nil
 		}
 	}
@@ -185,18 +182,10 @@ func (tc *testContext) testDSCCreation(t *testing.T) error {
 			if dsciErr != nil {
 				return fmt.Errorf("error creating e2e-test-dsc DSC %s: %w", tc.testDsc.Name, dsciErr)
 			}
-			t.Logf("created e2e-test-dsc DSC %s", tc.testDsc.Name)
 		} else {
 			return fmt.Errorf("error getting e2e-test-dsc DSC %s: %w", tc.testDsc.Name, err)
 		}
 	}
-
-	// print test DSC yaml to help debug using test log
-	bytes, err := yaml.Marshal(tc.testDsc)
-	if err != nil {
-		return fmt.Errorf("error marshaling e2e-test-dsc DSC %s: %w", tc.testDsc.Name, err)
-	}
-	t.Logf("e2e-test-dsc DSC %s:\n%s", tc.testDsc.Name, string(bytes))
 	return nil
 }
 
@@ -285,12 +274,10 @@ func (tc *testContext) testAllComponentCreation(t *testing.T) error { //nolint:f
 	// Wait for components to get deployed
 	time.Sleep(1 * time.Minute)
 
-	t.Logf("*** debug input RegistriesNamespace %s", tc.testDsc.Spec.Components.ModelRegistry.RegistriesNamespace)
 	err := tc.customClient.Get(tc.ctx, dscLookupKey, createdDSC)
 	if err != nil {
 		return fmt.Errorf("error getting DataScienceCluster instance :%v", tc.testDsc.Name)
 	}
-	t.Logf("*** debug output RegistriesNamespace %s", createdDSC.Spec.Components.ModelRegistry.RegistriesNamespace)
 	tc.testDsc = createdDSC
 
 	components, err := tc.testDsc.GetComponents()

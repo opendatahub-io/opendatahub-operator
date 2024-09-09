@@ -74,9 +74,7 @@ func (tc *testContext) waitForOperatorDeployment(name string, replicas int32) er
 				}
 			}
 		}
-
 		log.Printf("Error in %s deployment", name)
-
 		return false, nil
 	})
 
@@ -184,7 +182,6 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 
 	// set default values like RegistriesNamespace
 	scheme.Default(dscTest)
-	log.Printf("***debug setupDSCInstance RegistriesNamespace: %s", dscTest.Spec.Components.ModelRegistry.RegistriesNamespace)
 
 	return dscTest
 }
