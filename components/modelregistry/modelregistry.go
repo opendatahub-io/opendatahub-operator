@@ -41,14 +41,18 @@ var (
 var _ components.ComponentInterface = (*ModelRegistry)(nil)
 
 // ModelRegistry struct holds the configuration for the ModelRegistry component.
+// The property `registriesNamespace` is immutable when management state was not equal to `Removed`
 // +kubebuilder:object:generate=true
+//+kubebuilder:validation:XValidation:rule="(self.managementState == 'Removed' || oldSelf.managementState == 'Removed') || (self.managementState != 'Removed' && self.registriesNamespace == oldSelf.registriesNamespace)",message="RegistriesNamespace is immutable when ManagementState was not equal to Removed"
+//nolint:lll
+
 type ModelRegistry struct {
 	components.Component `json:""`
 
-	// Namespace for model registries to be installed, configurable once, defaults to "odh-model-registries"
+	// Namespace for model registries to be installed, configurable once when model registry is enabled, defaults to "odh-model-registries"
+	// +kubebuilder:validation:Required
 	// +kubebuilder:default="odh-model-registries"
-	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="RegistriesNamespace is immutable"
-	RegistriesNamespace string `json:"registriesNamespace"`
+	RegistriesNamespace string `json:"registriesNamespace,omitempty"`
 }
 
 func (m *ModelRegistry) OverrideManifests(ctx context.Context, _ cluster.Platform) error {
