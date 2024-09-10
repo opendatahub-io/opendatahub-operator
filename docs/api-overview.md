@@ -251,7 +251,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `Component` _[Component](#component)_ |  |  |  |
-| `registriesNamespace` _string_ | Namespace for model registries to be installed, configurable once when model registry is enabled, defaults to "odh-model-registries" | odh-model-registries | Required: \{\} <br /> |
+| `registriesNamespace` _string_ | Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries" | odh-model-registries |  |
 
 
 

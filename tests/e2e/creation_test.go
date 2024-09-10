@@ -91,6 +91,10 @@ func creationTestSuite(t *testing.T) {
 		})
 
 		// ModelReg
+		t.Run("Validate model registry cert config", func(t *testing.T) {
+			err = testCtx.validateModelRegistryConfig()
+			require.NoError(t, err, "error validating ModelRegistry config")
+		})
 		t.Run("Validate default model registry cert available", func(t *testing.T) {
 			err = testCtx.testDefaultModelRegistryCertAvailable()
 			require.NoError(t, err, "error getting default cert secret for ModelRegistry")
@@ -491,7 +495,7 @@ func (tc *testContext) testMRServiceMeshMember() error {
 	smm.SetAPIVersion("maistra.io/v1")
 	smm.SetKind("ServiceMeshMember")
 	err := tc.customClient.Get(tc.ctx,
-		client.ObjectKey{Namespace: tc.testDsc.Spec.Components.ModelRegistry.RegistriesNamespace, Name: "default"}, &smm)
+		client.ObjectKey{Namespace: modelregistry.DefaultModelRegistriesNamespace, Name: "default"}, &smm)
 	if err != nil {
 		return fmt.Errorf("failed to get servicemesh member: %w", err)
 	}
@@ -606,4 +610,51 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 		tc.testDsc.Spec.Components.Dashboard.GetComponentName(),
 		dashboardDeploymentName,
 		tc.applicationsNamespace)
+}
+
+const testNs = "test-model-registries"
+
+func (tc *testContext) validateModelRegistryConfig() error {
+	// check immutable property registriesNamespace
+	if tc.testDsc.Spec.Components.ModelRegistry.ManagementState != operatorv1.Managed {
+		// allowed to set registriesNamespace to non-default
+		err := patchRegistriesNamespace(tc, testNs, testNs, false)
+		if err != nil {
+			return err
+		}
+		// allowed to set registriesNamespace back to default value
+		err = patchRegistriesNamespace(tc, modelregistry.DefaultModelRegistriesNamespace,
+			modelregistry.DefaultModelRegistriesNamespace, false)
+		if err != nil {
+			return err
+		}
+	} else {
+		// not allowed to change registriesNamespace
+		err := patchRegistriesNamespace(tc, testNs, modelregistry.DefaultModelRegistriesNamespace, true)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func patchRegistriesNamespace(tc *testContext, namespace string, expected string, expectErr bool) error {
+	err := tc.customClient.Patch(tc.ctx, tc.testDsc, modelregistry.GetRegistriesNamespacePatch(namespace))
+	if err != nil {
+		if !expectErr {
+			return fmt.Errorf("unexpected error when setting registriesNamespace in DSC %s to %s: %w",
+				tc.testDsc.Name, namespace, err)
+		}
+	} else {
+		if expectErr {
+			return fmt.Errorf("unexpected success when setting registriesNamespace in DSC %s to %s",
+				tc.testDsc.Name, namespace)
+		}
+	}
+	// compare expected against returned registriesNamespace
+	if tc.testDsc.Spec.Components.ModelRegistry.RegistriesNamespace != expected {
+		return fmt.Errorf("expected registriesNamespace %s, got %s",
+			expected, tc.testDsc.Spec.Components.ModelRegistry.RegistriesNamespace)
+	}
+	return nil
 }
