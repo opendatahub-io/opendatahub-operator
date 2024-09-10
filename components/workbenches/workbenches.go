@@ -23,12 +23,15 @@ import (
 var (
 	ComponentName          = "workbenches"
 	DependentComponentName = "notebooks"
-	// manifests for nbc in ODH and downstream + downstream use it for imageparams.
-	notebookControllerPath = deploy.DefaultManifestPath + "/odh-notebook-controller/odh-notebook-controller/base"
-	// manifests for ODH nbc + downstream use it for imageparams.
-	kfnotebookControllerPath    = deploy.DefaultManifestPath + "/odh-notebook-controller/kf-notebook-controller/overlays/openshift"
-	notebookImagesPath          = deploy.DefaultManifestPath + "/notebooks/overlays/additional"
-	notebookImagesPathSupported = deploy.DefaultManifestPath + "/jupyterhub/notebook-images/overlays/additional"
+
+	defaultPathConfig = pathConfig{
+		// manifests for nbc in ODH and downstream + downstream use it for imageparams.
+		notebookControllerPath: deploy.DefaultManifestPath + "/odh-notebook-controller/odh-notebook-controller/base",
+		// manifests for ODH nbc + downstream use it for imageparams.
+		kfnotebookControllerPath:    deploy.DefaultManifestPath + "/odh-notebook-controller/kf-notebook-controller/overlays/openshift",
+		notebookImagesPath:          deploy.DefaultManifestPath + "/notebooks/overlays/additional",
+		notebookImagesPathSupported: deploy.DefaultManifestPath + "/jupyterhub/notebook-images/overlays/additional",
+	}
 )
 
 // Verifies that Workbench implements ComponentInterface.
@@ -40,14 +43,28 @@ type Workbenches struct {
 	components.Component `json:""`
 }
 
-func (w *Workbenches) OverrideManifests(ctx context.Context, platform cluster.Platform) error {
+type pathConfig struct {
+	notebookControllerPath      string
+	kfnotebookControllerPath    string
+	notebookImagesPath          string
+	notebookImagesPathSupported string
+}
+
+func (w *Workbenches) getPathConfig(ctx context.Context, platform cluster.Platform) (*pathConfig, error) {
 	// Download manifests if defined by devflags
 	// Go through each manifest and set the overlays if defined
+
+	if !w.IsManifestsOverridden() {
+		return &defaultPathConfig, nil
+	}
+
+	o := defaultPathConfig
+
 	for _, subcomponent := range w.DevFlags.Manifests {
 		if strings.Contains(subcomponent.URI, DependentComponentName) {
 			// Download subcomponent
 			if err := deploy.DownloadManifests(ctx, DependentComponentName, subcomponent); err != nil {
-				return err
+				return nil, err
 			}
 			// If overlay is defined, update paths
 			defaultKustomizePath := "overlays/additional"
@@ -57,39 +74,39 @@ func (w *Workbenches) OverrideManifests(ctx context.Context, platform cluster.Pl
 				defaultKustomizePathSupported = subcomponent.SourcePath
 			}
 			if platform == cluster.ManagedRhods || platform == cluster.SelfManagedRhods {
-				notebookImagesPathSupported = filepath.Join(deploy.DefaultManifestPath, "jupyterhub", defaultKustomizePathSupported)
+				o.notebookImagesPathSupported = filepath.Join(deploy.DefaultManifestPath, "jupyterhub", defaultKustomizePathSupported)
 			} else {
-				notebookImagesPath = filepath.Join(deploy.DefaultManifestPath, DependentComponentName, defaultKustomizePath)
+				o.notebookImagesPath = filepath.Join(deploy.DefaultManifestPath, DependentComponentName, defaultKustomizePath)
 			}
 		}
 
 		if strings.Contains(subcomponent.ContextDir, "components/odh-notebook-controller") {
 			// Download subcomponent
 			if err := deploy.DownloadManifests(ctx, "odh-notebook-controller/odh-notebook-controller", subcomponent); err != nil {
-				return err
+				return nil, err
 			}
 			// If overlay is defined, update paths
 			defaultKustomizePathNbc := "base"
 			if subcomponent.SourcePath != "" {
 				defaultKustomizePathNbc = subcomponent.SourcePath
 			}
-			notebookControllerPath = filepath.Join(deploy.DefaultManifestPath, "odh-notebook-controller/odh-notebook-controller", defaultKustomizePathNbc)
+			o.notebookControllerPath = filepath.Join(deploy.DefaultManifestPath, "odh-notebook-controller/odh-notebook-controller", defaultKustomizePathNbc)
 		}
 
 		if strings.Contains(subcomponent.ContextDir, "components/notebook-controller") {
 			// Download subcomponent
 			if err := deploy.DownloadManifests(ctx, "odh-notebook-controller/kf-notebook-controller", subcomponent); err != nil {
-				return err
+				return nil, err
 			}
 			// If overlay is defined, update paths
 			defaultKustomizePathKfNbc := "overlays/openshift"
 			if subcomponent.SourcePath != "" {
 				defaultKustomizePathKfNbc = subcomponent.SourcePath
 			}
-			kfnotebookControllerPath = filepath.Join(deploy.DefaultManifestPath, "odh-notebook-controller/kf-notebook-controller", defaultKustomizePathKfNbc)
+			o.kfnotebookControllerPath = filepath.Join(deploy.DefaultManifestPath, "odh-notebook-controller/kf-notebook-controller", defaultKustomizePathKfNbc)
 		}
 	}
-	return nil
+	return &o, nil
 }
 
 func (w *Workbenches) GetComponentName() string {
@@ -110,13 +127,19 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 	// Set default notebooks namespace
 	// Create rhods-notebooks namespace in managed platforms
+
+	pathConfig, err := w.getPathConfig(ctx, platform)
+	if err != nil {
+		return err
+	}
+
+	// shortcut to avoid adding structure name below
+	notebookControllerPath := pathConfig.notebookControllerPath
+	kfnotebookControllerPath := pathConfig.kfnotebookControllerPath
+	notebookImagesPath := pathConfig.notebookImagesPath
+	notebookImagesPathSupported := pathConfig.notebookImagesPathSupported
+
 	if enabled {
-		if w.DevFlags != nil {
-			// Download manifests and update paths
-			if err := w.OverrideManifests(ctx, platform); err != nil {
-				return err
-			}
-		}
 		if platform == cluster.SelfManagedRhods || platform == cluster.ManagedRhods {
 			// Intentionally leaving the ownership unset for this namespace.
 			// Specifying this label triggers its deletion when the operator is uninstalled.

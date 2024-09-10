@@ -48,6 +48,10 @@ func (c *Component) Cleanup(_ context.Context, _ client.Client, _ *dsciv1.DSCIni
 	return nil
 }
 
+func (c *Component) IsManifestsOverridden() bool {
+	return c.DevFlags != nil && len(c.DevFlags.Manifests) != 0
+}
+
 // DevFlags defines list of fields that can be used by developers to test customizations. This is not recommended
 // to be used in production environment.
 // +kubebuilder:object:generate=true
@@ -83,7 +87,6 @@ type ComponentInterface interface {
 	Cleanup(ctx context.Context, cli client.Client, DSCISpec *dsciv1.DSCInitializationSpec) error
 	GetComponentName() string
 	GetManagementState() operatorv1.ManagementState
-	OverrideManifests(ctx context.Context, platform cluster.Platform) error
 	UpdatePrometheusConfig(cli client.Client, logger logr.Logger, enable bool, component string) error
 	ConfigComponentLogger(logger logr.Logger, component string, dscispec *dsciv1.DSCInitializationSpec) logr.Logger
 }
