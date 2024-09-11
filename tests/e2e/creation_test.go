@@ -639,7 +639,8 @@ func (tc *testContext) validateModelRegistryConfig() error {
 }
 
 func patchRegistriesNamespace(tc *testContext, namespace string, expected string, expectErr bool) error {
-	err := tc.customClient.Patch(tc.ctx, tc.testDsc, modelregistry.GetRegistriesNamespacePatch(namespace))
+	patchStr := fmt.Sprintf("{\"spec\":{\"components\":{\"modelregistry\":{\"registriesNamespace\":\"%s\"}}}}", namespace)
+	err := tc.customClient.Patch(tc.ctx, tc.testDsc, client.RawPatch(types.MergePatchType, []byte(patchStr)))
 	if err != nil {
 		if !expectErr {
 			return fmt.Errorf("unexpected error when setting registriesNamespace in DSC %s to %s: %w",

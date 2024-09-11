@@ -207,7 +207,12 @@ func main() { //nolint:funlen,maintidx
 		os.Exit(1)
 	}
 
-	(&webhook.OpenDataHubWebhook{
+	(&webhook.OpenDataHubValidatingWebhook{
+		Client:  mgr.GetClient(),
+		Decoder: admission.NewDecoder(mgr.GetScheme()),
+	}).SetupWithManager(mgr)
+
+	(&webhook.OpenDataHubMutatingWebhook{
 		Client:  mgr.GetClient(),
 		Decoder: admission.NewDecoder(mgr.GetScheme()),
 	}).SetupWithManager(mgr)

@@ -446,14 +446,16 @@ spec:
                       registriesNamespace:
                         default: odh-model-registries
                         description: Namespace for model registries to be installed,
-                          configurable once, defaults to "odh-model-registries"
+                          configurable only once when model registry is enabled, defaults
+                          to "odh-model-registries"
                         type: string
-                        x-kubernetes-validations:
-                        - message: RegistriesNamespace is immutable
-                          rule: self == oldSelf
-                    required:
-                    - registriesNamespace
                     type: object
+                    x-kubernetes-validations:
+                    - message: RegistriesNamespace is immutable when model registry
+                        is Managed
+                      rule: self.managementState != 'Managed' || (oldSelf.registriesNamespace
+                        == '' && self.registriesNamespace != '') || (self.registriesNamespace
+                        == oldSelf.registriesNamespace)
                   ray:
                     description: Ray component configuration.
                     properties:

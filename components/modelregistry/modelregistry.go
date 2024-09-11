@@ -14,9 +14,6 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -46,6 +43,7 @@ var _ components.ComponentInterface = (*ModelRegistry)(nil)
 
 // ModelRegistry struct holds the configuration for the ModelRegistry component.
 // The property `registriesNamespace` is immutable when `managementState` is `Managed`
+
 // +kubebuilder:object:generate=true
 // +kubebuilder:validation:XValidation:rule="self.managementState != 'Managed' || (oldSelf.registriesNamespace == '' && self.registriesNamespace != '') || (self.registriesNamespace == oldSelf.registriesNamespace)",message="RegistriesNamespace is immutable when model registry is Managed"
 //nolint:lll
@@ -95,14 +93,6 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 		// return error if ServiceMesh is not enabled, as it's a required feature
 		if dscispec.ServiceMesh == nil || dscispec.ServiceMesh.ManagementState != operatorv1.Managed {
 			return errors.New("ServiceMesh needs to be set to 'Managed' in DSCI CR, it is required by Model Registry")
-		}
-
-		// if registriesNamespace is not set, patch it to default value to allow omitempty registriesNamespace
-		if len(m.RegistriesNamespace) == 0 {
-			err := m.setDefaultRegistriesNamespace(ctx, cli, l, owner)
-			if err != nil {
-				return fmt.Errorf("failed to patch registriesNamespace for DSC %s : %w", owner.GetName(), err)
-			}
 		}
 
 		if err := m.createDependencies(ctx, cli, dscispec); err != nil {
@@ -178,25 +168,6 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 		l.Info("updating SRE monitoring done")
 	}
 	return nil
-}
-
-func (m *ModelRegistry) setDefaultRegistriesNamespace(ctx context.Context, cli client.Client, l logr.Logger, owner metav1.Object) error {
-	m.RegistriesNamespace = DefaultModelRegistriesNamespace
-
-	patch := GetRegistriesNamespacePatch(m.RegistriesNamespace)
-	l.Info("Patching empty registriesNamespace", "DSC", owner.GetName(), "registriesNamespace", m.RegistriesNamespace, "patch", patch)
-	// have to use unstructured to avoid circular references with DSC type
-	obj := unstructured.Unstructured{}
-	obj.SetGroupVersionKind(schema.GroupVersionKind{Group: "datasciencecluster.opendatahub.io", Version: "v1", Kind: "DataScienceCluster"})
-	obj.SetName(owner.GetName())
-	obj.SetNamespace(owner.GetNamespace())
-	return cli.Patch(ctx, &obj, patch)
-}
-
-//nolint:ireturn
-func GetRegistriesNamespacePatch(namespace string) client.Patch {
-	patchStr := fmt.Sprintf("{\"spec\":{\"components\":{\"modelregistry\":{\"registriesNamespace\":\"%s\"}}}}", namespace)
-	return client.RawPatch(types.MergePatchType, []byte(patchStr))
 }
 
 func (m *ModelRegistry) createDependencies(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec) error {
