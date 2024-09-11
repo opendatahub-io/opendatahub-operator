@@ -36,7 +36,7 @@ import (
 
 var log = ctrl.Log.WithName("odh-controller-webhook")
 
-//+kubebuilder:webhook:path=/validate-opendatahub-io-v1,mutating=false,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io;dscinitialization.opendatahub.io,resources=datascienceclusters;dscinitializations,verbs=create;delete,versions=v1,name=validate.operator.opendatahub.io,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/validate-opendatahub-io-v1,mutating=false,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io;dscinitialization.opendatahub.io,resources=datascienceclusters;dscinitializations,verbs=create;delete,versions=v1,name=operator.opendatahub.io,admissionReviewVersions=v1
 //nolint:lll
 
 type OpenDataHubValidatingWebhook struct {

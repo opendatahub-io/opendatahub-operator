@@ -38,7 +38,7 @@ webhooks:
       namespace: system
       path: /validate-opendatahub-io-v1
   failurePolicy: Fail
-  name: validate.operator.opendatahub.io
+  name: operator.opendatahub.io
   rules:
   - apiGroups:
     - datasciencecluster.opendatahub.io
