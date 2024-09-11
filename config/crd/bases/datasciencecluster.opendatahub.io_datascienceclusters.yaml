@@ -448,6 +448,8 @@ spec:
                         description: Namespace for model registries to be installed,
                           configurable only once when model registry is enabled, defaults
                           to "odh-model-registries"
+                        maxLength: 63
+                        pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
                         type: string
                     type: object
                     x-kubernetes-validations:
