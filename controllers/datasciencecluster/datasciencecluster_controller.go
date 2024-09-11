@@ -53,6 +53,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	annotations "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
@@ -315,6 +316,17 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 		return instance, err
 	}
 	err = component.ReconcileComponent(ctx, r.Client, r.Log, instance, r.DataScienceCluster.DSCISpec, platform, installedComponentValue)
+
+	// TODO: replace this hack with a full refactor of component status in the future
+	if mr, isMR := component.(*modelregistry.ModelRegistry); isMR {
+		instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dscv1.DataScienceCluster) {
+			if enabled {
+				saved.Status.Components.ModelRegistry = &modelregistry.ModelRegistryStatus{RegistriesNamespace: mr.RegistriesNamespace}
+			} else {
+				saved.Status.Components.ModelRegistry = nil
+			}
+		})
+	}
 
 	if err != nil {
 		// reconciliation failed: log errors, raise event and update status accordingly

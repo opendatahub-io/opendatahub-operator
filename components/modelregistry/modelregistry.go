@@ -58,6 +58,14 @@ type ModelRegistry struct {
 	RegistriesNamespace string `json:"registriesNamespace,omitempty"`
 }
 
+// ModelRegistryStatus struct holds the status for the ModelRegistry component.
+
+// +kubebuilder:object:generate=true
+type ModelRegistryStatus struct {
+	// Namespace for model registries to be installed
+	RegistriesNamespace string `json:"registriesNamespace"`
+}
+
 func (m *ModelRegistry) OverrideManifests(ctx context.Context, _ cluster.Platform) error {
 	// If devflags are set, update default manifests path
 	if len(m.DevFlags.Manifests) != 0 {

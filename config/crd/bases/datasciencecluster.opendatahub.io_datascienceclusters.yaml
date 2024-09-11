@@ -647,6 +647,19 @@ spec:
           status:
             description: DataScienceClusterStatus defines the observed state of DataScienceCluster.
             properties:
+              components:
+                description: Component specific status
+                properties:
+                  modelregistry:
+                    description: ModelRegistry component status
+                    properties:
+                      registriesNamespace:
+                        description: Namespace for model registries to be installed
+                        type: string
+                    required:
+                    - registriesNamespace
+                    type: object
+                type: object
               conditions:
                 description: Conditions describes the state of the DataScienceCluster
                   resource.
