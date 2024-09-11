@@ -136,17 +136,15 @@ spec:
         name: knative-serving
     modelmeshserving:
       managementState: Managed
-    modelregistry:
-      managementState: Managed
     ray:
       managementState: Managed
     kueue:
       managementState: Managed
     trainingoperator:
-      managementState: Managed
+      managementState: Removed
     workbenches:
       managementState: Managed
     trustyai:
-      managementState: Managed
+      managementState: Removed
 EOF
 ```

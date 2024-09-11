@@ -68,11 +68,16 @@ func (tc *testContext) testDeletionExistDSC() error {
 func (tc *testContext) testComponentDeletion(component components.ComponentInterface) error {
 	// Deletion of Deployments
 	if err := wait.PollUntilContextTimeout(tc.ctx, generalRetryInterval, componentDeletionTimeout, true, func(ctx context.Context) (bool, error) {
+		var componentName = component.GetComponentName()
+		if component.GetComponentName() == "dashboard" { // special case for RHOAI dashboard name
+			componentName = "rhods-dashboard"
+		}
+
 		appList, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(ctx, metav1.ListOptions{
-			LabelSelector: labels.ODH.Component(component.GetComponentName()),
+			LabelSelector: labels.ODH.Component(componentName),
 		})
 		if err != nil {
-			log.Printf("error listing component deployments :%v. Trying again...", err)
+			log.Printf("error getting component deployments :%v. Trying again...", err)
 			return false, err
 		}
 

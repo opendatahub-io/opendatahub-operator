@@ -389,7 +389,7 @@ func ensureOperator(tc *testContext, name string, ns string) error {
 	return waitCSV(tc, name, ns)
 }
 
-func ensureDepedentOperators(t *testing.T, tc *testContext) error { //nolint: thelper
+func ensureServicemeshOperators(t *testing.T, tc *testContext) error { //nolint: thelper
 	ops := []string{
 		serverlessOpName,
 		servicemeshOpName,
@@ -415,5 +415,5 @@ func ensureDepedentOperators(t *testing.T, tc *testContext) error { //nolint: th
 }
 
 func (tc *testContext) setUp(t *testing.T) error { //nolint: thelper
-	return ensureDepedentOperators(t, tc)
+	return ensureServicemeshOperators(t, tc)
 }
