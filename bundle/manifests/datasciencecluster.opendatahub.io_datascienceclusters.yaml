@@ -245,6 +245,17 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      rawRouteCreation:
+                        description: |-
+                          Configures the global setting for route creation for Kserve Raw InferenceServices.
+                          Managed: Route creation is enabled by default, InferenceServices will have to choose to opt out.
+                          Removed: Route creation is disabled globally. In this configuration it is not possible for an individual
+                          InferenceService to opt in to having a Route created automatically.
+                        enum:
+                        - Managed
+                        - Removed
+                        pattern: ^(Managed|Unmanaged|Force|Removed)$
+                        type: string
                       serving:
                         description: |-
                           Serving configures the KNative-Serving stack used for model serving. A Service

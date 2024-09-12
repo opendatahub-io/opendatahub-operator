@@ -54,6 +54,12 @@ type Kserve struct {
 	// This field is optional. If no default deployment mode is specified, Kserve will use Serverless mode.
 	// +kubebuilder:validation:Enum=Serverless;RawDeployment
 	DefaultDeploymentMode DefaultDeploymentMode `json:"defaultDeploymentMode,omitempty"`
+	// Configures the global setting for route creation for Kserve Raw InferenceServices.
+	// Managed: Route creation is enabled by default, InferenceServices will have to choose to opt out.
+	// Removed: Route creation is disabled globally. In this configuration it is not possible for an individual
+	// InferenceService to opt in to having a Route created automatically.
+	// +kubebuilder:validation:Enum=Managed;Removed
+	RawRouteCreation operatorv1.ManagementState `json:"rawRouteCreation,omitempty"`
 }
 
 func (k *Kserve) OverrideManifests(ctx context.Context, _ cluster.Platform) error {

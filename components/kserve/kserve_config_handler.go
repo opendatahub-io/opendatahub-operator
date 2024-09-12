@@ -25,18 +25,23 @@ const (
 func (k *Kserve) setupKserveConfig(ctx context.Context, cli client.Client, logger logr.Logger, dscispec *dsciv1.DSCInitializationSpec) error {
 	// as long as Kserve.Serving is not 'Removed', we will setup the dependencies
 
+	var disableIngressCreation bool
+	defaultDeploymentMode := k.DefaultDeploymentMode
+	if defaultDeploymentMode == "" {
+		defaultDeploymentMode = Serverless
+	}
+	switch k.RawRouteCreation {
+	case operatorv1.Removed, "":
+		disableIngressCreation = true
+	case operatorv1.Managed:
+		disableIngressCreation = false
+	default:
+		disableIngressCreation = true
+	}
 	switch k.Serving.ManagementState {
 	case operatorv1.Managed, operatorv1.Unmanaged:
-		if k.DefaultDeploymentMode == "" {
-			// if the default mode is empty in the DSC, assume mode is "Serverless" since k.Serving is Managed
-			if err := k.setDefaultDeploymentMode(ctx, cli, dscispec, Serverless); err != nil {
-				return err
-			}
-		} else {
-			// if the default mode is explicitly specified, respect that
-			if err := k.setDefaultDeploymentMode(ctx, cli, dscispec, k.DefaultDeploymentMode); err != nil {
-				return err
-			}
+		if err := k.setKserveRawConfig(ctx, cli, dscispec, defaultDeploymentMode, disableIngressCreation); err != nil {
+			return err
 		}
 	case operatorv1.Removed:
 		if k.DefaultDeploymentMode == Serverless {
@@ -45,14 +50,16 @@ func (k *Kserve) setupKserveConfig(ctx context.Context, cli client.Client, logge
 		if k.DefaultDeploymentMode == "" {
 			logger.Info("Serving is removed, Kserve will default to rawdeployment")
 		}
-		if err := k.setDefaultDeploymentMode(ctx, cli, dscispec, RawDeployment); err != nil {
+		if err := k.setKserveRawConfig(ctx, cli, dscispec, RawDeployment, disableIngressCreation); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (k *Kserve) setDefaultDeploymentMode(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec, defaultmode DefaultDeploymentMode) error {
+func (k *Kserve) setKserveRawConfig(
+	ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec,
+	defaultmode DefaultDeploymentMode, disableIngressCreation bool) error {
 	inferenceServiceConfigMap := &corev1.ConfigMap{}
 	err := cli.Get(ctx, client.ObjectKey{
 		Namespace: dscispec.ApplicationsNamespace,
@@ -67,24 +74,25 @@ func (k *Kserve) setDefaultDeploymentMode(ctx context.Context, cli client.Client
 	if err = json.Unmarshal([]byte(inferenceServiceConfigMap.Data["deploy"]), &deployData); err != nil {
 		return fmt.Errorf("error retrieving value for key 'deploy' from configmap %s. %w", KserveConfigMapName, err)
 	}
+	var ingressData map[string]interface{}
+	if err = json.Unmarshal([]byte(inferenceServiceConfigMap.Data["ingress"]), &ingressData); err != nil {
+		return fmt.Errorf("error retrieving value for key 'ingress' from configmap %s. %w", KserveConfigMapName, err)
+	}
 	modeFound := deployData["defaultDeploymentMode"]
-	if modeFound != string(defaultmode) {
+	ingressCreationValueFound := ingressData["disableIngressCreation"]
+	if (modeFound != string(defaultmode)) || ingressCreationValueFound != disableIngressCreation {
 		deployData["defaultDeploymentMode"] = defaultmode
 		deployDataBytes, err := json.MarshalIndent(deployData, "", " ")
 		if err != nil {
 			return fmt.Errorf("could not set values in configmap %s. %w", KserveConfigMapName, err)
 		}
 		inferenceServiceConfigMap.Data["deploy"] = string(deployDataBytes)
-
-		var ingressData map[string]interface{}
-		if err = json.Unmarshal([]byte(inferenceServiceConfigMap.Data["ingress"]), &ingressData); err != nil {
-			return fmt.Errorf("error retrieving value for key 'ingress' from configmap %s. %w", KserveConfigMapName, err)
+		clusterDomain, err := cluster.GetDomain(ctx, cli)
+		if err != nil {
+			return fmt.Errorf("error retrieving cluster domain %s. %w", KserveConfigMapName, err)
 		}
-		if defaultmode == RawDeployment {
-			ingressData["disableIngressCreation"] = true
-		} else {
-			ingressData["disableIngressCreation"] = false
-		}
+		ingressData["ingressDomain"] = clusterDomain
+		ingressData["disableIngressCreation"] = disableIngressCreation
 		ingressDataBytes, err := json.MarshalIndent(ingressData, "", " ")
 		if err != nil {
 			return fmt.Errorf("could not set values in configmap %s. %w", KserveConfigMapName, err)
