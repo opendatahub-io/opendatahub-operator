@@ -88,7 +88,9 @@ spec:
   - workbenches
   - dashboard
   - kserve
-  - distributed-workloads
+  - distributed workloads
+  - trustyai
+  - modelregistry
   links:
   - name: Open Data Hub
     url: https://opendatahub.io
