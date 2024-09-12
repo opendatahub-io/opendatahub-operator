@@ -21,6 +21,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -203,7 +204,12 @@ func getDashboardWatsonResources(ns string) []ResourceSpec {
 }
 
 // TODO: remove function once we have a generic solution across all components.
-func CleanupExistingResource(ctx context.Context, cli client.Client, platform cluster.Platform, dscApplicationsNamespace, dscMonitoringNamespace string) error {
+func CleanupExistingResource(ctx context.Context,
+	cli client.Client,
+	platform cluster.Platform,
+	dscApplicationsNamespace, dscMonitoringNamespace string,
+	oldReleaseVersion cluster.Release,
+) error {
 	var multiErr *multierror.Error
 	// Special Handling of cleanup of deprecated model monitoring stack
 	if platform == cluster.ManagedRhods {
@@ -261,7 +267,7 @@ func CleanupExistingResource(ctx context.Context, cli client.Client, platform cl
 
 	// only apply on RHOAI since ODH has a different way to create this CR by dashboard
 	if platform == cluster.SelfManagedRhods || platform == cluster.ManagedRhods {
-		if err := unsetOwnerReference(ctx, cli, "odh-dashboard-config", dscApplicationsNamespace); err != nil {
+		if err := upgradeODCCR(ctx, cli, "odh-dashboard-config", dscApplicationsNamespace, oldReleaseVersion); err != nil {
 			return err
 		}
 	}
@@ -401,7 +407,10 @@ func removOdhApplicationsCR(ctx context.Context, cli client.Client, gvk schema.G
 	return nil
 }
 
-func unsetOwnerReference(ctx context.Context, cli client.Client, instanceName string, applicationNS string) error {
+// upgradODCCR handles different cases:
+// 1. unset ownerreference for CR odh-dashboard-config
+// 2. flip TrustyAI BiasMetrics to false (.spec.dashboardConfig.disableBiasMetrics) if it is lower release version than version.
+func upgradeODCCR(ctx context.Context, cli client.Client, instanceName string, applicationNS string, release cluster.Release) error {
 	crd := &apiextv1.CustomResourceDefinition{}
 	if err := cli.Get(ctx, client.ObjectKey{Name: "odhdashboardconfigs.opendatahub.io"}, crd); err != nil {
 		return client.IgnoreNotFound(err)
@@ -414,6 +423,14 @@ func unsetOwnerReference(ctx context.Context, cli client.Client, instanceName st
 	}, odhObject); err != nil {
 		return client.IgnoreNotFound(err)
 	}
+
+	if err := unsetOwnerReference(ctx, cli, instanceName, odhObject); err != nil {
+		return err
+	}
+	return updateODCBiasMetrics(ctx, cli, instanceName, release, odhObject)
+}
+
+func unsetOwnerReference(ctx context.Context, cli client.Client, instanceName string, odhObject *unstructured.Unstructured) error {
 	if odhObject.GetOwnerReferences() != nil {
 		// set to nil as updates
 		odhObject.SetOwnerReferences(nil)
@@ -421,6 +438,22 @@ func unsetOwnerReference(ctx context.Context, cli client.Client, instanceName st
 			return fmt.Errorf("error unset ownerreference for CR %s : %w", instanceName, err)
 		}
 	}
+	return nil
+}
+
+func updateODCBiasMetrics(ctx context.Context, cli client.Client, instanceName string, oldRelease cluster.Release, odhObject *unstructured.Unstructured) error {
+	// "from version" as oldRelease, if return "0.0.0" meaning running on 2.10- release/dummy CI build
+	// if oldRelease is lower than 2.14.0(e.g 2.13.x-a), flip TrustyAI BiasMetrics to false (even the field did not exist)
+	if oldRelease.Version.Minor < 14 {
+		ctrl.Log.Info("Upgrade force BiasMetrics to false due to from release < 2.14.0")
+		// flip TrustyAI BiasMetrics to false (.spec.dashboardConfig.disableBiasMetrics)
+		disableBiasMetricsValue := []byte(`{"spec": {"dashboardConfig": {"disableBiasMetrics": false}}}`)
+		if err := cli.Patch(ctx, odhObject, client.RawPatch(types.MergePatchType, disableBiasMetricsValue)); err != nil {
+			return fmt.Errorf("error enable BiasMetrics in CR %s : %w", instanceName, err)
+		}
+		return nil
+	}
+	ctrl.Log.Info("Upgrade does not force BiasMetrics to false due to from release >= 2.14.0")
 	return nil
 }
 
@@ -478,4 +511,25 @@ func deleteDeprecatedNamespace(ctx context.Context, cli client.Client, namespace
 	}
 
 	return nil
+}
+
+func GetReleaseFromCR(ctx context.Context, cli client.Client) (cluster.Release, error) {
+	dsciInstance := &dsciv1.DSCInitializationList{}
+	if err := cli.List(ctx, dsciInstance); err != nil {
+		return cluster.Release{}, err
+	}
+	if len(dsciInstance.Items) == 1 { // found one DSCI CR found
+		// can return a valid Release or 0.0.0
+		return dsciInstance.Items[0].Status.Release, nil
+	}
+	// no DSCI CR found, try with DSC CR
+	dscInstances := &dscv1.DataScienceClusterList{}
+	if err := cli.List(ctx, dscInstances); err != nil {
+		return cluster.Release{}, err
+	}
+	if len(dscInstances.Items) == 1 { // one DSC CR found
+		return dscInstances.Items[0].Status.Release, nil
+	}
+	// could be a clean installation or both CRs are deleted already
+	return cluster.Release{}, nil
 }

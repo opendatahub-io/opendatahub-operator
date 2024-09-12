@@ -133,7 +133,7 @@ type Release struct {
 	Version version.OperatorVersion `json:"version,omitempty"`
 }
 
-func GetRelease(ctx context.Context, cli client.Client) (Release, error) {
+func GetReleaseFromCSV(ctx context.Context, cli client.Client) (Release, error) {
 	initRelease := Release{
 		// dummy version set to name "", version 0.0.0
 		Version: version.OperatorVersion{
