@@ -128,8 +128,8 @@ func (w *OpenDataHubValidatingWebhook) Handle(ctx context.Context, req admission
 //+kubebuilder:webhook:path=/mutate-opendatahub-io-v1,mutating=true,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io,resources=datascienceclusters,verbs=create;update,versions=v1,name=mutate.operator.opendatahub.io,admissionReviewVersions=v1
 //nolint:lll
 
-// OpenDataHubMutatingWebhook is a mutating webhook to set defaults
-// It currently only sets defaults for datascienceclusters.
+// OpenDataHubMutatingWebhook is a mutating webhook
+// It currently only sets defaults for modelregiestry in datascienceclusters.
 type OpenDataHubMutatingWebhook struct {
 	Client  client.Client
 	Decoder *admission.Decoder
@@ -165,5 +165,5 @@ func (w *OpenDataHubMutatingWebhook) setDSCDefaults(_ context.Context, dsc *dscv
 			Value:     modelregistry.DefaultModelRegistriesNamespace,
 		})
 	}
-	return admission.Allowed("No change")
+	return admission.Allowed("")
 }

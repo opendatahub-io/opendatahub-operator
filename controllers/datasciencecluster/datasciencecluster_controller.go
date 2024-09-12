@@ -318,15 +318,6 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 	err = component.ReconcileComponent(ctx, r.Client, r.Log, instance, r.DataScienceCluster.DSCISpec, platform, installedComponentValue)
 
 	// TODO: replace this hack with a full refactor of component status in the future
-	if mr, isMR := component.(*modelregistry.ModelRegistry); isMR {
-		instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dscv1.DataScienceCluster) {
-			if enabled {
-				saved.Status.Components.ModelRegistry = &modelregistry.ModelRegistryStatus{RegistriesNamespace: mr.RegistriesNamespace}
-			} else {
-				saved.Status.Components.ModelRegistry = nil
-			}
-		})
-	}
 
 	if err != nil {
 		// reconciliation failed: log errors, raise event and update status accordingly
@@ -354,6 +345,15 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 			status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileCompleted, "Component reconciled successfully", corev1.ConditionTrue)
 		} else {
 			status.RemoveComponentCondition(&saved.Status.Conditions, componentName)
+		}
+
+		// TODO: replace this hack with a full refactor of component status in the future
+		if mr, isMR := component.(*modelregistry.ModelRegistry); isMR {
+			if enabled {
+				saved.Status.Components.ModelRegistry = &status.ModelRegistryStatus{RegistriesNamespace: mr.RegistriesNamespace}
+			} else {
+				saved.Status.Components.ModelRegistry = nil
+			}
 		}
 	})
 	if err != nil {

@@ -45,7 +45,7 @@ var _ components.ComponentInterface = (*ModelRegistry)(nil)
 // The property `registriesNamespace` is immutable when `managementState` is `Managed`
 
 // +kubebuilder:object:generate=true
-// +kubebuilder:validation:XValidation:rule="self.managementState != 'Managed' || (oldSelf.registriesNamespace == '' && self.registriesNamespace != '') || (self.registriesNamespace == oldSelf.registriesNamespace)",message="RegistriesNamespace is immutable when model registry is Managed"
+// +kubebuilder:validation:XValidation:rule="(self.managementState != 'Managed') || (oldSelf.registriesNamespace == '') || (oldSelf.managementState != 'Managed')|| (self.registriesNamespace == oldSelf.registriesNamespace)",message="RegistriesNamespace is immutable when model registry is Managed"
 //nolint:lll
 
 type ModelRegistry struct {
@@ -56,14 +56,6 @@ type ModelRegistry struct {
 	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
 	// +kubebuilder:validation:MaxLength=63
 	RegistriesNamespace string `json:"registriesNamespace,omitempty"`
-}
-
-// ModelRegistryStatus struct holds the status for the ModelRegistry component.
-
-// +kubebuilder:object:generate=true
-type ModelRegistryStatus struct {
-	// Namespace for model registries to be installed
-	RegistriesNamespace string `json:"registriesNamespace"`
 }
 
 func (m *ModelRegistry) OverrideManifests(ctx context.Context, _ cluster.Platform) error {

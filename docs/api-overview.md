@@ -254,22 +254,6 @@ _Appears in:_
 | `registriesNamespace` _string_ | Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries" | odh-model-registries | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 
-#### ModelRegistryStatus
-
-
-
-
-
-
-
-_Appears in:_
-- [ComponentsStatus](#componentsstatus)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `registriesNamespace` _string_ | Namespace for model registries to be installed |  |  |
-
-
 
 ## datasciencecluster.opendatahub.io/ray
 
@@ -518,7 +502,7 @@ _Appears in:_
 | `relatedObjects` _[ObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectreference-v1-core) array_ | RelatedObjects is a list of objects created and maintained by this operator.<br />Object references will be added to this list after they have been created AND found in the cluster. |  |  |
 | `errorMessage` _string_ |  |  |  |
 | `installedComponents` _object (keys:string, values:boolean)_ | List of components with status if installed or not |  |  |
-| `components` _[ComponentsStatus](#componentsstatus)_ | Component specific status |  |  |
+| `components` _[ComponentsStatus](#componentsstatus)_ | Expose component's specific status |  |  |
 | `release` _[Release](#release)_ | Version and release type |  |  |
 
 

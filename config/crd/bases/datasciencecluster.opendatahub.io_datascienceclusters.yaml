@@ -455,8 +455,8 @@ spec:
                     x-kubernetes-validations:
                     - message: RegistriesNamespace is immutable when model registry
                         is Managed
-                      rule: self.managementState != 'Managed' || (oldSelf.registriesNamespace
-                        == '' && self.registriesNamespace != '') || (self.registriesNamespace
+                      rule: (self.managementState != 'Managed') || (oldSelf.registriesNamespace
+                        == '') || (oldSelf.managementState != 'Managed')|| (self.registriesNamespace
                         == oldSelf.registriesNamespace)
                   ray:
                     description: Ray component configuration.
@@ -648,16 +648,13 @@ spec:
             description: DataScienceClusterStatus defines the observed state of DataScienceCluster.
             properties:
               components:
-                description: Component specific status
+                description: Expose component's specific status
                 properties:
                   modelregistry:
                     description: ModelRegistry component status
                     properties:
                       registriesNamespace:
-                        description: Namespace for model registries to be installed
                         type: string
-                    required:
-                    - registriesNamespace
                     type: object
                 type: object
               conditions:
