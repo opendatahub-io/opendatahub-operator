@@ -46,6 +46,8 @@ spec:
                 fieldPath: metadata.namespace
           - name: DEFAULT_MANIFESTS_PATH
             value: /opt/manifests
+          - name: ODH_PLATFORM_TYPE
+            value: OpenDataHub
         args:
         - --leader-elect
         - --operator-name=opendatahub

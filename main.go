@@ -143,12 +143,14 @@ func main() { //nolint:funlen,maintidx
 		setupLog.Error(err, "error getting client for setup")
 		os.Exit(1)
 	}
+
 	// Get operator platform
 	platform, err := cluster.GetPlatform(ctx, setupClient)
 	if err != nil {
 		setupLog.Error(err, "error getting platform")
 		os.Exit(1)
 	}
+	setupLog.Info("running on", "platform", platform)
 
 	secretCache := createSecretCacheConfig(platform)
 	deploymentCache := createDeploymentCacheConfig(platform)

@@ -85,6 +85,13 @@ const (
 func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:maintidx,gocyclo
 	r.Log.Info("Reconciling DataScienceCluster resources", "Request.Name", req.Name)
 
+	// Get platform
+	platform, err := cluster.GetPlatform(ctx, r.Client)
+	if err != nil {
+		r.Log.Error(err, "Failed to determine platform")
+		return ctrl.Result{}, err
+	}
+
 	// Get information on version
 	currentOperatorReleaseVersion, err := cluster.GetRelease(ctx, r.Client)
 	if err != nil {
@@ -103,7 +110,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		// For additional cleanup logic use operatorUninstall function.
 		// Return and don't requeue
 		if upgrade.HasDeleteConfigMap(ctx, r.Client) {
-			if uninstallErr := upgrade.OperatorUninstall(ctx, r.Client); uninstallErr != nil {
+			if uninstallErr := upgrade.OperatorUninstall(ctx, r.Client, platform); uninstallErr != nil {
 				return ctrl.Result{}, fmt.Errorf("error while operator uninstall: %w", uninstallErr)
 			}
 		}
@@ -241,7 +248,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	var componentErrors *multierror.Error
 
 	for _, component := range allComponents {
-		if instance, err = r.reconcileSubComponent(ctx, instance, component); err != nil {
+		if instance, err = r.reconcileSubComponent(ctx, instance, platform, component); err != nil {
 			componentErrors = multierror.Append(componentErrors, err)
 		}
 	}
@@ -285,7 +292,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 }
 
 func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context, instance *dscv1.DataScienceCluster,
-	component components.ComponentInterface,
+	platform cluster.Platform, component components.ComponentInterface,
 ) (*dscv1.DataScienceCluster, error) {
 	componentName := component.GetComponentName()
 
@@ -308,13 +315,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 		}
 	}
 	// Reconcile component
-	// Get platform
-	platform, err := cluster.GetPlatform(ctx, r.Client)
-	if err != nil {
-		r.Log.Error(err, "Failed to determine platform")
-		return instance, err
-	}
-	err = component.ReconcileComponent(ctx, r.Client, r.Log, instance, r.DataScienceCluster.DSCISpec, platform, installedComponentValue)
+	err := component.ReconcileComponent(ctx, r.Client, r.Log, instance, r.DataScienceCluster.DSCISpec, platform, installedComponentValue)
 
 	// TODO: replace this hack with a full refactor of component status in the future
 

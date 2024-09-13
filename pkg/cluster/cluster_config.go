@@ -114,7 +114,7 @@ func detectManagedRHODS(ctx context.Context, cli client.Client) (Platform, error
 	return ManagedRhods, nil
 }
 
-func GetPlatform(ctx context.Context, cli client.Client) (Platform, error) {
+func DetectPlatform(ctx context.Context, cli client.Client) (Platform, error) {
 	// First check if its addon installation to return 'ManagedRhods, nil'
 	if platform, err := detectManagedRHODS(ctx, cli); err != nil {
 		return Unknown, err
@@ -124,6 +124,20 @@ func GetPlatform(ctx context.Context, cli client.Client) (Platform, error) {
 
 	// check and return whether ODH or self-managed platform
 	return detectSelfManaged(ctx, cli)
+}
+
+func GetPlatform(ctx context.Context, cli client.Client) (Platform, error) {
+	switch os.Getenv("ODH_PLATFORM_TYPE") {
+	case "OpenDataHub", "":
+		return OpenDataHub, nil
+	case "ManagedRHOAI":
+		return ManagedRhods, nil
+	case "SelfManagedRHOAI":
+		return SelfManagedRhods, nil
+	default:
+		// fall back to detect platform if ODH_PLATFORM_TYPE env is not provided
+		return DetectPlatform(ctx, cli)
+	}
 }
 
 // Release includes information on operator version and platform
@@ -141,7 +155,7 @@ func GetRelease(ctx context.Context, cli client.Client) (Release, error) {
 		},
 	}
 	// Set platform
-	platform, err := GetPlatform(ctx, cli)
+	platform, err := DetectPlatform(ctx, cli)
 	if err != nil {
 		return initRelease, err
 	}
