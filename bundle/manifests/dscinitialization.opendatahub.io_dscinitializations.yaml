@@ -57,6 +57,9 @@ spec:
                 description: Namespace for applications to be installed, non-configurable,
                   default to "redhat-ods-applications"
                 type: string
+                x-kubernetes-validations:
+                - message: ApplicationsNamespace is immutable
+                  rule: self == oldSelf
               devFlags:
                 description: |-
                   Internal development useful field to test customizations.

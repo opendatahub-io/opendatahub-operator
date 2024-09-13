@@ -32,6 +32,7 @@ import (
 type DSCInitializationSpec struct {
 	// +kubebuilder:default:=redhat-ods-applications
 	// Namespace for applications to be installed, non-configurable, default to "redhat-ods-applications"
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="ApplicationsNamespace is immutable"
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=1
 	ApplicationsNamespace string `json:"applicationsNamespace"`
 	// Enable monitoring on specified namespace
