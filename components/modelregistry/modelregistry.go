@@ -29,22 +29,33 @@ import (
 const DefaultModelRegistryCert = "default-modelregistry-cert"
 
 var (
-	ComponentName = "model-registry-operator"
-	Path          = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/odh"
+	ComponentName                   = "model-registry-operator"
+	DefaultModelRegistriesNamespace = "odh-model-registries"
+	Path                            = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/odh"
 	// we should not apply this label to the namespace, as it triggered namspace deletion during operator uninstall
 	// modelRegistryLabels = cluster.WithLabels(
 	//      labels.ODH.OwnedNamespace, "true",
 	// ).
-	ModelRegistriesNamespace = "odh-model-registries"
 )
 
 // Verifies that ModelRegistry implements ComponentInterface.
 var _ components.ComponentInterface = (*ModelRegistry)(nil)
 
 // ModelRegistry struct holds the configuration for the ModelRegistry component.
+// The property `registriesNamespace` is immutable when `managementState` is `Managed`
+
 // +kubebuilder:object:generate=true
+// +kubebuilder:validation:XValidation:rule="(self.managementState != 'Managed') || (oldSelf.registriesNamespace == '') || (oldSelf.managementState != 'Managed')|| (self.registriesNamespace == oldSelf.registriesNamespace)",message="RegistriesNamespace is immutable when model registry is Managed"
+//nolint:lll
+
 type ModelRegistry struct {
 	components.Component `json:""`
+
+	// Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries"
+	// +kubebuilder:default="odh-model-registries"
+	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
+	// +kubebuilder:validation:MaxLength=63
+	RegistriesNamespace string `json:"registriesNamespace,omitempty"`
 }
 
 func (m *ModelRegistry) OverrideManifests(ctx context.Context, _ cluster.Platform) error {
@@ -109,17 +120,17 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 
 		// Create model registries namespace
 		// We do not delete this namespace even when ModelRegistry is Removed or when operator is uninstalled.
-		ns, err := cluster.CreateNamespace(ctx, cli, ModelRegistriesNamespace)
+		ns, err := cluster.CreateNamespace(ctx, cli, m.RegistriesNamespace)
 		if err != nil {
 			return err
 		}
-		l.Info("created model registry namespace", "namespace", ModelRegistriesNamespace)
+		l.Info("created model registry namespace", "namespace", m.RegistriesNamespace)
 		// create servicemeshmember here, for now until post MVP solution
 		err = enrollToServiceMesh(ctx, cli, dscispec, ns)
 		if err != nil {
 			return err
 		}
-		l.Info("created model registry servicemesh member", "namespace", ModelRegistriesNamespace)
+		l.Info("created model registry servicemesh member", "namespace", m.RegistriesNamespace)
 	} else {
 		err := m.removeDependencies(ctx, cli, dscispec)
 		if err != nil {

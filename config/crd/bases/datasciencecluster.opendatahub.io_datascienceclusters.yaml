@@ -443,7 +443,21 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      registriesNamespace:
+                        default: odh-model-registries
+                        description: Namespace for model registries to be installed,
+                          configurable only once when model registry is enabled, defaults
+                          to "odh-model-registries"
+                        maxLength: 63
+                        pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
+                        type: string
                     type: object
+                    x-kubernetes-validations:
+                    - message: RegistriesNamespace is immutable when model registry
+                        is Managed
+                      rule: (self.managementState != 'Managed') || (oldSelf.registriesNamespace
+                        == '') || (oldSelf.managementState != 'Managed')|| (self.registriesNamespace
+                        == oldSelf.registriesNamespace)
                   ray:
                     description: Ray component configuration.
                     properties:
@@ -633,6 +647,16 @@ spec:
           status:
             description: DataScienceClusterStatus defines the observed state of DataScienceCluster.
             properties:
+              components:
+                description: Expose component's specific status
+                properties:
+                  modelregistry:
+                    description: ModelRegistry component status
+                    properties:
+                      registriesNamespace:
+                        type: string
+                    type: object
+                type: object
               conditions:
                 description: Conditions describes the state of the DataScienceCluster
                   resource.

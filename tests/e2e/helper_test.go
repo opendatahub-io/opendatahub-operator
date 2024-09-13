@@ -74,9 +74,7 @@ func (tc *testContext) waitForOperatorDeployment(name string, replicas int32) er
 				}
 			}
 		}
-
 		log.Printf("Error in %s deployment", name)
-
 		return false, nil
 	})
 

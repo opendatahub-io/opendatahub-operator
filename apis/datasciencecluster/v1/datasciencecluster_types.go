@@ -36,6 +36,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trainingoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
@@ -86,6 +87,12 @@ type Components struct {
 	TrainingOperator trainingoperator.TrainingOperator `json:"trainingoperator,omitempty"`
 }
 
+// ComponentsStatus defines the custom status of DataScienceCluster components.
+type ComponentsStatus struct {
+	// ModelRegistry component status
+	ModelRegistry *status.ModelRegistryStatus `json:"modelregistry,omitempty"`
+}
+
 // DataScienceClusterStatus defines the observed state of DataScienceCluster.
 type DataScienceClusterStatus struct {
 	// Phase describes the Phase of DataScienceCluster reconciliation state
@@ -104,6 +111,10 @@ type DataScienceClusterStatus struct {
 
 	// List of components with status if installed or not
 	InstalledComponents map[string]bool `json:"installedComponents,omitempty"`
+
+	// Expose component's specific status
+	// +optional
+	Components ComponentsStatus `json:"components,omitempty"`
 
 	// Version and release type
 	Release cluster.Release `json:"release,omitempty"`

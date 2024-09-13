@@ -241,7 +241,7 @@ Package modelregistry provides utility functions to config ModelRegistry, an ML 
 
 
 
-ModelRegistry struct holds the configuration for the ModelRegistry component.
+
 
 
 
@@ -251,6 +251,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `Component` _[Component](#component)_ |  |  |  |
+| `registriesNamespace` _string_ | Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries" | odh-model-registries | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 
 
@@ -412,6 +413,22 @@ _Appears in:_
 | `trainingoperator` _[TrainingOperator](#trainingoperator)_ | Training Operator component configuration. |  |  |
 
 
+#### ComponentsStatus
+
+
+
+ComponentsStatus defines the custom status of DataScienceCluster components.
+
+
+
+_Appears in:_
+- [DataScienceClusterStatus](#datascienceclusterstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `modelregistry` _[ModelRegistryStatus](#modelregistrystatus)_ | ModelRegistry component status |  |  |
+
+
 #### ControlPlaneSpec
 
 
@@ -485,6 +502,7 @@ _Appears in:_
 | `relatedObjects` _[ObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectreference-v1-core) array_ | RelatedObjects is a list of objects created and maintained by this operator.<br />Object references will be added to this list after they have been created AND found in the cluster. |  |  |
 | `errorMessage` _string_ |  |  |  |
 | `installedComponents` _object (keys:string, values:boolean)_ | List of components with status if installed or not |  |  |
+| `components` _[ComponentsStatus](#componentsstatus)_ | Expose component's specific status |  |  |
 | `release` _[Release](#release)_ | Version and release type |  |  |
 
 

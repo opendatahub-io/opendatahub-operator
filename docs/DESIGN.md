@@ -64,6 +64,7 @@ To deploy ODH components seamlessly, ODH operator will watch two CRDs:
             managementState: Managed
           modelregistry:
             managementState: Managed
+            registriesNamespace: "odh-model-registries"
           ray:
             managementState: Managed
           kueue:

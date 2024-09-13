@@ -138,6 +138,7 @@ spec:
       managementState: Managed
     modelregistry:
       managementState: Managed
+      registriesNamespace: "odh-model-registries"
     ray:
       managementState: Managed
     kueue:

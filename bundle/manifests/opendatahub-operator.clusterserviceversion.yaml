@@ -47,7 +47,8 @@ metadata:
                 "managementState": "Managed"
               },
               "modelregistry": {
-                "managementState": "Managed"
+                "managementState": "Managed",
+                "registriesNamespace": "odh-model-registries"
               },
               "ray": {
                 "managementState": "Managed"
@@ -1217,6 +1218,26 @@ spec:
       component: opendatahub-operator
   version: 2.17.0
   webhookdefinitions:
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: opendatahub-operator-controller-manager
+    failurePolicy: Fail
+    generateName: mutate.operator.opendatahub.io
+    rules:
+    - apiGroups:
+      - datasciencecluster.opendatahub.io
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - datascienceclusters
+    sideEffects: None
+    targetPort: 9443
+    type: MutatingAdmissionWebhook
+    webhookPath: /mutate-opendatahub-io-v1
   - admissionReviewVersions:
     - v1
     containerPort: 443
