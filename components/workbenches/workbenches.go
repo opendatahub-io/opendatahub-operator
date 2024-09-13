@@ -23,12 +23,12 @@ import (
 var (
 	ComponentName          = "workbenches"
 	DependentComponentName = "notebooks"
-	// manifests for nbc in ODH and downstream + downstream use it for imageparams.
+	// manifests for nbc in ODH and RHOAI + downstream use it for imageparams.
 	notebookControllerPath = deploy.DefaultManifestPath + "/odh-notebook-controller/odh-notebook-controller/base"
 	// manifests for ODH nbc + downstream use it for imageparams.
-	kfnotebookControllerPath    = deploy.DefaultManifestPath + "/odh-notebook-controller/kf-notebook-controller/overlays/openshift"
-	notebookImagesPath          = deploy.DefaultManifestPath + "/notebooks/overlays/additional"
-	notebookImagesPathSupported = deploy.DefaultManifestPath + "/jupyterhub/notebooks/base"
+	kfnotebookControllerPath = deploy.DefaultManifestPath + "/odh-notebook-controller/kf-notebook-controller/overlays/openshift"
+	// notebook image manifests.
+	notebookImagesPath = deploy.DefaultManifestPath + "/notebooks/overlays/additional"
 )
 
 // Verifies that Workbench implements ComponentInterface.
@@ -43,26 +43,8 @@ type Workbenches struct {
 func (w *Workbenches) OverrideManifests(ctx context.Context, platform cluster.Platform) error {
 	// Download manifests if defined by devflags
 	// Go through each manifest and set the overlays if defined
+	// first on odh-notebook-controller and kf-notebook-controller last to notebook-images
 	for _, subcomponent := range w.DevFlags.Manifests {
-		if strings.Contains(subcomponent.URI, DependentComponentName) {
-			// Download subcomponent
-			if err := deploy.DownloadManifests(ctx, DependentComponentName, subcomponent); err != nil {
-				return err
-			}
-			// If overlay is defined, update paths
-			defaultKustomizePath := "overlays/additional"
-			defaultKustomizePathSupported := "notebook-images/overlays/additional"
-			if subcomponent.SourcePath != "" {
-				defaultKustomizePath = subcomponent.SourcePath
-				defaultKustomizePathSupported = subcomponent.SourcePath
-			}
-			if platform == cluster.ManagedRhods || platform == cluster.SelfManagedRhods {
-				notebookImagesPathSupported = filepath.Join(deploy.DefaultManifestPath, "jupyterhub", defaultKustomizePathSupported)
-			} else {
-				notebookImagesPath = filepath.Join(deploy.DefaultManifestPath, DependentComponentName, defaultKustomizePath)
-			}
-		}
-
 		if strings.Contains(subcomponent.ContextDir, "components/odh-notebook-controller") {
 			// Download subcomponent
 			if err := deploy.DownloadManifests(ctx, "odh-notebook-controller/odh-notebook-controller", subcomponent); err != nil {
@@ -88,6 +70,18 @@ func (w *Workbenches) OverrideManifests(ctx context.Context, platform cluster.Pl
 			}
 			kfnotebookControllerPath = filepath.Join(deploy.DefaultManifestPath, "odh-notebook-controller/kf-notebook-controller", defaultKustomizePathKfNbc)
 		}
+		if strings.Contains(subcomponent.URI, DependentComponentName) {
+			// Download subcomponent
+			if err := deploy.DownloadManifests(ctx, DependentComponentName, subcomponent); err != nil {
+				return err
+			}
+			// If overlay is defined, update paths
+			defaultKustomizePath := "overlays/additional"
+			if subcomponent.SourcePath != "" {
+				defaultKustomizePath = subcomponent.SourcePath
+			}
+			notebookImagesPath = filepath.Join(deploy.DefaultManifestPath, DependentComponentName, defaultKustomizePath)
+		}
 	}
 	return nil
 }
@@ -108,8 +102,6 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 	// Create rhods-notebooks namespace in managed platforms
 	enabled := w.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
-	// Set default notebooks namespace
-	// Create rhods-notebooks namespace in managed platforms
 	if enabled {
 		if w.DevFlags != nil {
 			// Download manifests and update paths
@@ -120,7 +112,7 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 		if platform == cluster.SelfManagedRhods || platform == cluster.ManagedRhods {
 			// Intentionally leaving the ownership unset for this namespace.
 			// Specifying this label triggers its deletion when the operator is uninstalled.
-			_, err := cluster.CreateNamespace(ctx, cli, "rhods-notebooks", cluster.WithLabels(labels.ODH.OwnedNamespace, "true"))
+			_, err := cluster.CreateNamespace(ctx, cli, cluster.DefaultNotebooksNamespace, cluster.WithLabels(labels.ODH.OwnedNamespace, "true"))
 			if err != nil {
 				return err
 			}
@@ -131,10 +123,6 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 			return err
 		}
 	}
-	if err := deploy.DeployManifestsFromPath(ctx, cli, owner, notebookControllerPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
-		return fmt.Errorf("failed to apply manifetss %s: %w", notebookControllerPath, err)
-	}
-	l.WithValues("Path", notebookControllerPath).Info("apply manifests done NBC")
 
 	// Update image parameters for nbc
 	if enabled {
@@ -150,31 +138,28 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 		}
 	}
 	if err := deploy.DeployManifestsFromPath(ctx, cli, owner,
+		notebookControllerPath,
+		dscispec.ApplicationsNamespace,
+		ComponentName, enabled); err != nil {
+		return fmt.Errorf("failed to apply manifetss %s: %w", notebookControllerPath, err)
+	}
+	l.WithValues("Path", notebookControllerPath).Info("apply manifests done notebook controller done")
+
+	if err := deploy.DeployManifestsFromPath(ctx, cli, owner,
 		kfnotebookControllerPath,
 		dscispec.ApplicationsNamespace,
 		ComponentName, enabled); err != nil {
-		return err
+		return fmt.Errorf("failed to apply manifetss %s: %w", kfnotebookControllerPath, err)
 	}
-	var manifestsPath string
-	if platform == cluster.OpenDataHub || platform == "" {
-		// only for ODH after transit to kubeflow repo
-		if err := deploy.DeployManifestsFromPath(ctx, cli, owner,
-			kfnotebookControllerPath,
-			dscispec.ApplicationsNamespace,
-			ComponentName, enabled); err != nil {
-			return err
-		}
-		manifestsPath = notebookImagesPath
-	} else {
-		manifestsPath = notebookImagesPathSupported
-	}
+	l.WithValues("Path", kfnotebookControllerPath).Info("apply manifests done kf-notebook controller done")
+
 	if err := deploy.DeployManifestsFromPath(ctx, cli, owner,
-		manifestsPath,
+		notebookImagesPath,
 		dscispec.ApplicationsNamespace,
 		ComponentName, enabled); err != nil {
 		return err
 	}
-	l.WithValues("Path", manifestsPath).Info("apply manifests done notebook image")
+	l.WithValues("Path", notebookImagesPath).Info("apply manifests done notebook image done")
 
 	// Wait for deployment available
 	if enabled {
