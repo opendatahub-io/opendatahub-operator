@@ -32,6 +32,7 @@ import (
 type DSCInitializationSpec struct {
 	// Namespace for applications to be installed, non-configurable, default to "opendatahub"
 	// +kubebuilder:default:=opendatahub
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="ApplicationsNamespace is immutable"
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=1
 	ApplicationsNamespace string `json:"applicationsNamespace"`
 	// Enable monitoring on specified namespace
