@@ -85,7 +85,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	r.Log.Info("Reconciling DataScienceCluster resources", "Request.Name", req.Name)
 
 	// Get information on version
-	currentOperatorReleaseVersion, err := cluster.GetReleaseFromCSV(ctx, r.Client)
+	currentOperatorReleaseVersion, err := cluster.GetRelease(ctx, r.Client)
 	if err != nil {
 		r.Log.Error(err, "failed to get operator release version")
 		return ctrl.Result{}, err

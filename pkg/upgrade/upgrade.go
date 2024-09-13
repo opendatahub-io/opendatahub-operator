@@ -513,7 +513,7 @@ func deleteDeprecatedNamespace(ctx context.Context, cli client.Client, namespace
 	return nil
 }
 
-func GetReleaseFromCR(ctx context.Context, cli client.Client) (cluster.Release, error) {
+func GetDeployedRelease(ctx context.Context, cli client.Client) (cluster.Release, error) {
 	dsciInstance := &dsciv1.DSCInitializationList{}
 	if err := cli.List(ctx, dsciInstance); err != nil {
 		return cluster.Release{}, err
