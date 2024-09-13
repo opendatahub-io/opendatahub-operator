@@ -15,8 +15,8 @@ import (
 )
 
 type featuresHandler interface {
-	Apply(ctx context.Context) error
-	Delete(ctx context.Context) error
+	Apply(ctx context.Context, cli client.Client) error
+	Delete(ctx context.Context, cli client.Client) error
 }
 
 type FeaturesRegistry interface {
@@ -28,7 +28,6 @@ var _ featuresHandler = (*FeaturesHandler)(nil)
 // FeaturesHandler provides a structured way to manage and coordinate the creation, application,
 // and deletion of features needed in particular Data Science Cluster configuration.
 type FeaturesHandler struct {
-	cli               client.Client
 	source            featurev1.Source
 	owner             metav1.Object
 	targetNamespace   string
@@ -45,7 +44,7 @@ func (fh *FeaturesHandler) Add(builders ...*featureBuilder) error {
 
 	for i := range builders {
 		fb := builders[i]
-		feature, err := fb.UsingClient(fh.cli).
+		feature, err := fb.
 			TargetNamespace(fh.targetNamespace).
 			OwnedBy(fh.owner).
 			Source(fh.source).
@@ -57,7 +56,7 @@ func (fh *FeaturesHandler) Add(builders ...*featureBuilder) error {
 	return multiErr.ErrorOrNil()
 }
 
-func (fh *FeaturesHandler) Apply(ctx context.Context) error {
+func (fh *FeaturesHandler) Apply(ctx context.Context, cli client.Client) error {
 	fh.features = make([]*Feature, 0)
 
 	for _, featuresProvider := range fh.featuresProviders {
@@ -68,7 +67,7 @@ func (fh *FeaturesHandler) Apply(ctx context.Context) error {
 
 	var multiErr *multierror.Error
 	for _, f := range fh.features {
-		if applyErr := f.Apply(ctx); applyErr != nil {
+		if applyErr := f.Apply(ctx, cli); applyErr != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("failed applying FeatureHandler features. cause: %w", applyErr))
 		}
 	}
@@ -78,7 +77,7 @@ func (fh *FeaturesHandler) Apply(ctx context.Context) error {
 
 // Delete executes registered clean-up tasks for handled Features in the opposite order they were initiated.
 // This approach assumes that Features are either instantiated in the correct sequence or are self-contained.
-func (fh *FeaturesHandler) Delete(ctx context.Context) error {
+func (fh *FeaturesHandler) Delete(ctx context.Context, cli client.Client) error {
 	fh.features = make([]*Feature, 0)
 
 	for _, featuresProvider := range fh.featuresProviders {
@@ -89,7 +88,7 @@ func (fh *FeaturesHandler) Delete(ctx context.Context) error {
 
 	var multiErr *multierror.Error
 	for i := len(fh.features) - 1; i >= 0; i-- {
-		if cleanupErr := fh.features[i].Cleanup(ctx); cleanupErr != nil {
+		if cleanupErr := fh.features[i].Cleanup(ctx, cli); cleanupErr != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("failed executing cleanup in FeatureHandler. cause: %w", cleanupErr))
 		}
 	}
@@ -101,9 +100,8 @@ func (fh *FeaturesHandler) Delete(ctx context.Context) error {
 // and add them to the handler's registry.
 type FeaturesProvider func(registry FeaturesRegistry) error
 
-func ClusterFeaturesHandler(cli client.Client, dsci *dsciv1.DSCInitialization, def ...FeaturesProvider) *FeaturesHandler {
+func ClusterFeaturesHandler(dsci *dsciv1.DSCInitialization, def ...FeaturesProvider) *FeaturesHandler {
 	return &FeaturesHandler{
-		cli:               cli,
 		targetNamespace:   dsci.Spec.ApplicationsNamespace,
 		owner:             dsci,
 		source:            featurev1.Source{Type: featurev1.DSCIType, Name: dsci.Name},
@@ -111,9 +109,8 @@ func ClusterFeaturesHandler(cli client.Client, dsci *dsciv1.DSCInitialization, d
 	}
 }
 
-func ComponentFeaturesHandler(cli client.Client, owner metav1.Object, componentName, targetNamespace string, def ...FeaturesProvider) *FeaturesHandler {
+func ComponentFeaturesHandler(owner metav1.Object, componentName, targetNamespace string, def ...FeaturesProvider) *FeaturesHandler {
 	return &FeaturesHandler{
-		cli:               cli,
 		owner:             owner,
 		targetNamespace:   targetNamespace,
 		source:            featurev1.Source{Type: featurev1.ComponentType, Name: componentName},
@@ -143,16 +140,16 @@ func NewHandlerWithReporter[T client.Object](handler *FeaturesHandler, reporter 
 	}
 }
 
-func (h HandlerWithReporter[T]) Apply(ctx context.Context) error {
-	applyErr := h.handler.Apply(ctx)
+func (h HandlerWithReporter[T]) Apply(ctx context.Context, cli client.Client) error {
+	applyErr := h.handler.Apply(ctx, cli)
 	_, reportErr := h.reporter.ReportCondition(ctx, applyErr)
 	// We could have failed during Apply phase as well as during reporting.
 	// We should return both errors to the caller.
 	return multierror.Append(applyErr, reportErr).ErrorOrNil()
 }
 
-func (h HandlerWithReporter[T]) Delete(ctx context.Context) error {
-	deleteErr := h.handler.Delete(ctx)
+func (h HandlerWithReporter[T]) Delete(ctx context.Context, cli client.Client) error {
+	deleteErr := h.handler.Delete(ctx, cli)
 	_, reportErr := h.reporter.ReportCondition(ctx, deleteErr)
 	// We could have failed during Delete phase as well as during reporting.
 	// We should return both errors to the caller.

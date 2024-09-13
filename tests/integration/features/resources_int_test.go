@@ -54,7 +54,7 @@ var _ = Describe("Applying and updating resources", func() {
 
 		It("should reconcile the resource to its managed state", func(ctx context.Context) {
 			// given managed feature
-			featuresHandler := feature.ClusterFeaturesHandler(envTestClient, dsci, func(registry feature.FeaturesRegistry) error {
+			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
 				return registry.Add(
 					feature.Define("create-local-gw-svc").
 						Managed().
@@ -65,7 +65,7 @@ var _ = Describe("Applying and updating resources", func() {
 						WithData(feature.Entry("ControlPlane", provider.ValueOf(dsci.Spec.ServiceMesh.ControlPlane).Get)),
 				)
 			})
-			Expect(featuresHandler.Apply(ctx)).To(Succeed())
+			Expect(featuresHandler.Apply(ctx, envTestClient)).To(Succeed())
 
 			// expect created svc to have managed annotation
 			service, err := fixtures.GetService(ctx, envTestClient, testNamespace, "knative-local-gateway")
@@ -80,7 +80,7 @@ var _ = Describe("Applying and updating resources", func() {
 
 			// then
 			// expect that modification is reconciled away
-			Expect(featuresHandler.Apply(ctx)).To(Succeed())
+			Expect(featuresHandler.Apply(ctx, envTestClient)).To(Succeed())
 			updatedService, err := fixtures.GetService(ctx, envTestClient, testNamespace, "knative-local-gateway")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(updatedService.Annotations).To(
@@ -90,7 +90,7 @@ var _ = Describe("Applying and updating resources", func() {
 
 		It("should not reconcile explicitly opt-ed out resource", func(ctx context.Context) {
 			// given managed feature
-			featuresHandler := feature.ClusterFeaturesHandler(envTestClient, dsci, func(registry feature.FeaturesRegistry) error {
+			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
 				return registry.Add(
 					feature.Define("create-unmanaged-svc").
 						Managed().
@@ -101,7 +101,7 @@ var _ = Describe("Applying and updating resources", func() {
 						WithData(feature.Entry("ControlPlane", provider.ValueOf(dsci.Spec.ServiceMesh.ControlPlane).Get)),
 				)
 			})
-			Expect(featuresHandler.Apply(ctx)).To(Succeed())
+			Expect(featuresHandler.Apply(ctx, envTestClient)).To(Succeed())
 
 			// when
 			service, err := fixtures.GetService(ctx, envTestClient, testNamespace, "unmanaged-svc")
@@ -111,7 +111,7 @@ var _ = Describe("Applying and updating resources", func() {
 
 			// then
 			// expect that modification is reconciled away
-			Expect(featuresHandler.Apply(ctx)).To(Succeed())
+			Expect(featuresHandler.Apply(ctx, envTestClient)).To(Succeed())
 
 			updatedService, err := fixtures.GetService(ctx, envTestClient, testNamespace, "unmanaged-svc")
 			Expect(err).ToNot(HaveOccurred())
@@ -126,7 +126,7 @@ var _ = Describe("Applying and updating resources", func() {
 
 		It("should not reconcile the resource", func(ctx context.Context) {
 			// given unmanaged feature
-			featuresHandler := feature.ClusterFeaturesHandler(envTestClient, dsci, func(registry feature.FeaturesRegistry) error {
+			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
 				return registry.Add(
 					feature.Define("create-local-gw-svc").
 						Manifests(
@@ -136,7 +136,7 @@ var _ = Describe("Applying and updating resources", func() {
 						WithData(feature.Entry("ControlPlane", provider.ValueOf(dsci.Spec.ServiceMesh.ControlPlane).Get)),
 				)
 			})
-			Expect(featuresHandler.Apply(ctx)).To(Succeed())
+			Expect(featuresHandler.Apply(ctx, envTestClient)).To(Succeed())
 
 			// when
 			service, err := fixtures.GetService(ctx, envTestClient, testNamespace, "knative-local-gateway")
@@ -146,7 +146,7 @@ var _ = Describe("Applying and updating resources", func() {
 
 			// then
 			// expect that modification is reconciled away
-			Expect(featuresHandler.Apply(ctx)).To(Succeed())
+			Expect(featuresHandler.Apply(ctx, envTestClient)).To(Succeed())
 			updatedService, err := fixtures.GetService(ctx, envTestClient, testNamespace, "knative-local-gateway")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(updatedService.Annotations).To(
@@ -159,7 +159,7 @@ var _ = Describe("Applying and updating resources", func() {
 	When("a feature is unmanaged but the object is marked as managed", func() {
 		It("should reconcile this resource", func(ctx context.Context) {
 			// given unmanaged feature but object marked with managed annotation
-			featuresHandler := feature.ClusterFeaturesHandler(envTestClient, dsci, func(registry feature.FeaturesRegistry) error {
+			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
 				return registry.Add(
 					feature.Define("create-managed-svc").
 						Manifests(
@@ -169,7 +169,7 @@ var _ = Describe("Applying and updating resources", func() {
 						WithData(feature.Entry("ControlPlane", provider.ValueOf(dsci.Spec.ServiceMesh.ControlPlane).Get)),
 				)
 			})
-			Expect(featuresHandler.Apply(ctx)).To(Succeed())
+			Expect(featuresHandler.Apply(ctx, envTestClient)).To(Succeed())
 
 			// when
 			service, err := fixtures.GetService(ctx, envTestClient, testNamespace, "managed-svc")
@@ -182,7 +182,7 @@ var _ = Describe("Applying and updating resources", func() {
 
 			// then
 			// expect that modification is reconciled away
-			Expect(featuresHandler.Apply(ctx)).To(Succeed())
+			Expect(featuresHandler.Apply(ctx, envTestClient)).To(Succeed())
 			updatedService, err := fixtures.GetService(ctx, envTestClient, testNamespace, "managed-svc")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(updatedService.Annotations).To(

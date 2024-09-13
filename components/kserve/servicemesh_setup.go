@@ -20,8 +20,8 @@ import (
 func (k *Kserve) configureServiceMesh(ctx context.Context, cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
 	if dscispec.ServiceMesh != nil {
 		if dscispec.ServiceMesh.ManagementState == operatorv1.Managed && k.GetManagementState() == operatorv1.Managed {
-			serviceMeshInitializer := feature.ComponentFeaturesHandler(cli, owner, k.GetComponentName(), dscispec.ApplicationsNamespace, k.defineServiceMeshFeatures(ctx, cli, dscispec))
-			return serviceMeshInitializer.Apply(ctx)
+			serviceMeshInitializer := feature.ComponentFeaturesHandler(owner, k.GetComponentName(), dscispec.ApplicationsNamespace, k.defineServiceMeshFeatures(ctx, cli, dscispec))
+			return serviceMeshInitializer.Apply(ctx, cli)
 		}
 		if dscispec.ServiceMesh.ManagementState == operatorv1.Unmanaged && k.GetManagementState() == operatorv1.Managed {
 			return nil
@@ -32,8 +32,8 @@ func (k *Kserve) configureServiceMesh(ctx context.Context, cli client.Client, ow
 }
 
 func (k *Kserve) removeServiceMeshConfigurations(ctx context.Context, cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
-	serviceMeshInitializer := feature.ComponentFeaturesHandler(cli, owner, k.GetComponentName(), dscispec.ApplicationsNamespace, k.defineServiceMeshFeatures(ctx, cli, dscispec))
-	return serviceMeshInitializer.Delete(ctx)
+	serviceMeshInitializer := feature.ComponentFeaturesHandler(owner, k.GetComponentName(), dscispec.ApplicationsNamespace, k.defineServiceMeshFeatures(ctx, cli, dscispec))
+	return serviceMeshInitializer.Delete(ctx, cli)
 }
 
 func (k *Kserve) defineServiceMeshFeatures(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec) feature.FeaturesProvider {

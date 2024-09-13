@@ -148,9 +148,9 @@ func (k *Kserve) configureServerless(ctx context.Context, cli client.Client, log
 			return dependOpsErrors
 		}
 
-		serverlessFeatures := feature.ComponentFeaturesHandler(cli, owner, k.GetComponentName(), instance.ApplicationsNamespace, k.configureServerlessFeatures(instance))
+		serverlessFeatures := feature.ComponentFeaturesHandler(owner, k.GetComponentName(), instance.ApplicationsNamespace, k.configureServerlessFeatures(instance))
 
-		if err := serverlessFeatures.Apply(ctx); err != nil {
+		if err := serverlessFeatures.Apply(ctx, cli); err != nil {
 			return err
 		}
 	}
@@ -158,9 +158,9 @@ func (k *Kserve) configureServerless(ctx context.Context, cli client.Client, log
 }
 
 func (k *Kserve) removeServerlessFeatures(ctx context.Context, cli client.Client, owner metav1.Object, instance *dsciv1.DSCInitializationSpec) error {
-	serverlessFeatures := feature.ComponentFeaturesHandler(cli, owner, k.GetComponentName(), instance.ApplicationsNamespace, k.configureServerlessFeatures(instance))
+	serverlessFeatures := feature.ComponentFeaturesHandler(owner, k.GetComponentName(), instance.ApplicationsNamespace, k.configureServerlessFeatures(instance))
 
-	return serverlessFeatures.Delete(ctx)
+	return serverlessFeatures.Delete(ctx, cli)
 }
 
 func checkDependentOperators(ctx context.Context, cli client.Client) *multierror.Error {

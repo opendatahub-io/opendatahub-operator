@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/provider"
 )
 
@@ -13,8 +15,8 @@ import (
 //
 // If the value is static, consider using provider.ValueOf(variable).Get as passed provider function.
 func Entry[T any](key string, providerFunc provider.DataProviderFunc[T]) Action {
-	return func(ctx context.Context, f *Feature) error {
-		data, err := providerFunc(ctx, f.Client)
+	return func(ctx context.Context, cli client.Client, f *Feature) error {
+		data, err := providerFunc(ctx, cli)
 		if err != nil {
 			return err
 		}

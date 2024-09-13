@@ -43,7 +43,6 @@ var _ = Describe("feature cleanup", func() {
 					Type: featurev1.DSCIType,
 					Name: dsci.Name,
 				}).
-				UsingClient(envTestClient).
 				PreConditions(
 					feature.CreateNamespaceIfNotExists(namespace),
 				).
@@ -56,7 +55,7 @@ var _ = Describe("feature cleanup", func() {
 
 		It("should successfully create resource and associated feature tracker", func(ctx context.Context) {
 			// when
-			Expect(testFeature.Apply(ctx)).Should(Succeed())
+			Expect(testFeature.Apply(ctx, envTestClient)).Should(Succeed())
 
 			// then
 			Eventually(createdSecretHasOwnerReferenceToOwningFeature(namespace, featureName)).
@@ -68,7 +67,7 @@ var _ = Describe("feature cleanup", func() {
 
 		It("should remove feature tracker on clean-up", func(ctx context.Context) {
 			// when
-			Expect(testFeature.Cleanup(ctx)).To(Succeed())
+			Expect(testFeature.Cleanup(ctx, envTestClient)).To(Succeed())
 
 			// then
 			Consistently(createdSecretHasOwnerReferenceToOwningFeature(namespace, featureName)).
@@ -103,7 +102,7 @@ var _ = Describe("feature cleanup", func() {
 			err := fixtures.CreateOrUpdateNamespace(ctx, envTestClient, fixtures.NewNamespace("conditional-ns"))
 			Expect(err).To(Not(HaveOccurred()))
 
-			featuresHandler = feature.ClusterFeaturesHandler(envTestClient, dsci, func(registry feature.FeaturesRegistry) error {
+			featuresHandler = feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
 				return registry.Add(feature.Define(featureName).
 					EnabledWhen(namespaceExists).
 					PreConditions(
@@ -114,7 +113,7 @@ var _ = Describe("feature cleanup", func() {
 			})
 
 			// when
-			Expect(featuresHandler.Apply(ctx)).Should(Succeed())
+			Expect(featuresHandler.Apply(ctx, envTestClient)).Should(Succeed())
 
 			// then
 			Eventually(createdSecretHasOwnerReferenceToOwningFeature(namespace, featureName)).
@@ -130,7 +129,7 @@ var _ = Describe("feature cleanup", func() {
 			Expect(err).To(Not(HaveOccurred()))
 
 			// Mimic reconcile by re-loading the feature handler
-			featuresHandler = feature.ClusterFeaturesHandler(envTestClient, dsci, func(registry feature.FeaturesRegistry) error {
+			featuresHandler = feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
 				return registry.Add(feature.Define(featureName).
 					EnabledWhen(namespaceExists).
 					PreConditions(
@@ -140,7 +139,7 @@ var _ = Describe("feature cleanup", func() {
 				)
 			})
 
-			Expect(featuresHandler.Apply(ctx)).Should(Succeed())
+			Expect(featuresHandler.Apply(ctx, envTestClient)).Should(Succeed())
 
 			// then
 			Consistently(createdSecretHasOwnerReferenceToOwningFeature(namespace, featureName)).
@@ -204,8 +203,8 @@ func createdSecretHasOwnerReferenceToOwningFeature(namespace, featureName string
 	}
 }
 
-func namespaceExists(ctx context.Context, f *feature.Feature) (bool, error) {
-	namespace, err := fixtures.GetNamespace(ctx, f.Client, "conditional-ns")
+func namespaceExists(ctx context.Context, cli client.Client, f *feature.Feature) (bool, error) {
+	namespace, err := fixtures.GetNamespace(ctx, cli, "conditional-ns")
 	if errors.IsNotFound(err) {
 		return false, nil
 	}
