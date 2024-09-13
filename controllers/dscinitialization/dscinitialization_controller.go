@@ -78,7 +78,7 @@ type DSCInitializationReconciler struct {
 func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:funlen,gocyclo,maintidx
 	r.Log.Info("Reconciling DSCInitialization.", "DSCInitialization Request.Name", req.Name)
 
-	currentOperatorReleaseVersion, err := cluster.GetReleaseFromCSV(ctx, r.Client)
+	currentOperatorReleaseVersion, err := cluster.GetRelease(ctx, r.Client)
 	if err != nil {
 		r.Log.Error(err, "failed to get operator release version")
 		return ctrl.Result{}, err
