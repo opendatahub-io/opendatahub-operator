@@ -11,6 +11,7 @@ import (
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
+	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/integration/features/fixtures"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -20,14 +21,15 @@ import (
 
 var _ = Describe("Feature tracking capability", func() {
 
-	const appNamespace = "default"
-
 	var (
-		dsci *dsciv1.DSCInitialization
+		appNamespace string
+		dsci         *dsciv1.DSCInitialization
 	)
 
 	BeforeEach(func(ctx context.Context) {
-		dsci = fixtures.NewDSCInitialization(ctx, envTestClient, "default")
+		appNamespace = envtestutil.AppendRandomNameTo("app-namespace")
+		dsciName := envtestutil.AppendRandomNameTo("dsci-" + appNamespace)
+		dsci = fixtures.NewDSCInitialization(ctx, envTestClient, dsciName, appNamespace)
 	})
 
 	Context("Reporting progress when applying Feature", func() {
@@ -138,7 +140,7 @@ var _ = Describe("Feature tracking capability", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(featureTracker.Spec.Source).To(
 				MatchFields(IgnoreExtras, Fields{
-					"Name": Equal("default-dsci"),
+					"Name": Equal(dsci.Name),
 					"Type": Equal(featurev1.DSCIType),
 				}),
 			)
@@ -160,7 +162,7 @@ var _ = Describe("Feature tracking capability", func() {
 			// then
 			featureTracker, err := fixtures.GetFeatureTracker(ctx, envTestClient, appNamespace, "empty-feature")
 			Expect(err).ToNot(HaveOccurred())
-			Expect(featureTracker.Spec.AppNamespace).To(Equal("default"))
+			Expect(featureTracker.Spec.AppNamespace).To(Equal(dsci.Spec.ApplicationsNamespace))
 		})
 
 	})
