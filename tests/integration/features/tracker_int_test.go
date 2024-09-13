@@ -26,18 +26,15 @@ var _ = Describe("Feature tracking capability", func() {
 		dsci *dsciv1.DSCInitialization
 	)
 
-	BeforeEach(func() {
-		dsci = fixtures.NewDSCInitialization("default")
+	BeforeEach(func(ctx context.Context) {
+		dsci = fixtures.NewDSCInitialization(ctx, envTestClient, "default")
 	})
 
 	Context("Reporting progress when applying Feature", func() {
 
 		It("should indicate successful installation in FeatureTracker through Status conditions", func(ctx context.Context) {
-			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
-				errFeatureAdd := registry.Add(
-					feature.Define("always-working-feature").
-						UsingConfig(envTest.Config),
-				)
+			featuresHandler := feature.ClusterFeaturesHandler(envTestClient, dsci, func(registry feature.FeaturesRegistry) error {
+				errFeatureAdd := registry.Add(feature.Define("always-working-feature"))
 
 				Expect(errFeatureAdd).ToNot(HaveOccurred())
 
@@ -62,9 +59,8 @@ var _ = Describe("Feature tracking capability", func() {
 
 		It("should indicate when failure occurs in preconditions through Status conditions", func(ctx context.Context) {
 			// given
-			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+			featuresHandler := feature.ClusterFeaturesHandler(envTestClient, dsci, func(registry feature.FeaturesRegistry) error {
 				errFeatureAdd := registry.Add(feature.Define("precondition-fail").
-					UsingConfig(envTest.Config).
 					PreConditions(func(_ context.Context, _ *feature.Feature) error {
 						return errors.New("during test always fail")
 					}),
@@ -93,9 +89,8 @@ var _ = Describe("Feature tracking capability", func() {
 
 		It("should indicate when failure occurs in post-conditions through Status conditions", func(ctx context.Context) {
 			// given
-			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+			featuresHandler := feature.ClusterFeaturesHandler(envTestClient, dsci, func(registry feature.FeaturesRegistry) error {
 				errFeatureAdd := registry.Add(feature.Define("post-condition-failure").
-					UsingConfig(envTest.Config).
 					PostConditions(func(_ context.Context, _ *feature.Feature) error {
 						return errors.New("during test always fail")
 					}),
@@ -127,10 +122,8 @@ var _ = Describe("Feature tracking capability", func() {
 
 		It("should correctly indicate source in the feature tracker", func(ctx context.Context) {
 			// given
-			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
-				errFeatureAdd := registry.Add(feature.Define("always-working-feature").
-					UsingConfig(envTest.Config),
-				)
+			featuresHandler := feature.ClusterFeaturesHandler(envTestClient, dsci, func(registry feature.FeaturesRegistry) error {
+				errFeatureAdd := registry.Add(feature.Define("always-working-feature"))
 
 				Expect(errFeatureAdd).ToNot(HaveOccurred())
 
@@ -153,10 +146,8 @@ var _ = Describe("Feature tracking capability", func() {
 
 		It("should correctly indicate app namespace in the feature tracker", func(ctx context.Context) {
 			// given
-			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
-				errFeatureAdd := registry.Add(feature.Define("empty-feature").
-					UsingConfig(envTest.Config),
-				)
+			featuresHandler := feature.ClusterFeaturesHandler(envTestClient, dsci, func(registry feature.FeaturesRegistry) error {
+				errFeatureAdd := registry.Add(feature.Define("empty-feature"))
 
 				Expect(errFeatureAdd).ToNot(HaveOccurred())
 
@@ -172,5 +163,54 @@ var _ = Describe("Feature tracking capability", func() {
 			Expect(featureTracker.Spec.AppNamespace).To(Equal("default"))
 		})
 
+	})
+
+	Context("adding ownerReferences to feature tracker", func() {
+		It("should indicate owner in the feature tracker when owner in feature", func(ctx context.Context) {
+			// given
+
+			// DSCI created in cluster
+			Expect(fixtures.CreateOrUpdateDSCI(ctx, envTestClient, dsci)).ToNot(HaveOccurred())
+
+			feature, featErr := feature.Define("empty-feat-with-owner").
+				UsingClient(envTestClient).
+				Source(featurev1.Source{
+					Type: featurev1.DSCIType,
+					Name: dsci.Name,
+				}).
+				TargetNamespace(appNamespace).
+				OwnedBy(dsci).
+				Create()
+
+			// when
+			Expect(featErr).ToNot(HaveOccurred())
+			Expect(feature.Apply(ctx)).To(Succeed())
+
+			// then
+			tracker, err := fixtures.GetFeatureTracker(ctx, envTestClient, appNamespace, "empty-feat-with-owner")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(tracker.OwnerReferences).ToNot(BeEmpty())
+		})
+
+		It("should not indicate owner in the feature tracker when owner not in feature", func(ctx context.Context) {
+			// given
+			feature, featErr := feature.Define("empty-feat-no-owner").
+				UsingClient(envTestClient).
+				Source(featurev1.Source{
+					Type: featurev1.DSCIType,
+					Name: dsci.Name,
+				}).
+				TargetNamespace(appNamespace).
+				Create()
+
+			// when
+			Expect(featErr).ToNot(HaveOccurred())
+			Expect(feature.Apply(ctx)).To(Succeed())
+
+			// then
+			tracker, err := fixtures.GetFeatureTracker(ctx, envTestClient, appNamespace, "empty-feat-no-owner")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(tracker.OwnerReferences).To(BeEmpty())
+		})
 	})
 })

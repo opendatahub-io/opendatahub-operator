@@ -3,6 +3,7 @@ package fixtures
 import (
 	"context"
 
+	"github.com/onsi/gomega"
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,6 +15,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 )
 
@@ -44,21 +46,21 @@ func createOrUpdateSubscription(ctx context.Context, client client.Client, subsc
 	return err
 }
 
+func CreateOrUpdateDSCI(ctx context.Context, client client.Client, dsci *dsciv1.DSCInitialization) error {
+	_, err := controllerutil.CreateOrUpdate(ctx, client, dsci, func() error {
+		return nil
+	})
+	dsci.APIVersion = dsciv1.GroupVersion.String()
+	dsci.Kind = gvk.DSCInitialization.Kind
+	return err
+}
+
 func NewNamespace(name string) *corev1.Namespace {
 	return &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
 	}
-}
-
-func GetConfigMap(client client.Client, namespace, name string) (*corev1.ConfigMap, error) {
-	cfgMap := &corev1.ConfigMap{}
-	err := client.Get(context.Background(), types.NamespacedName{
-		Name: name, Namespace: namespace,
-	}, cfgMap)
-
-	return cfgMap, err
 }
 
 func GetNamespace(ctx context.Context, client client.Client, namespace string) (*corev1.Namespace, error) {
@@ -105,12 +107,19 @@ func GetFeatureTracker(ctx context.Context, cli client.Client, appNamespace, fea
 	return tracker, err
 }
 
-func NewDSCInitialization(ns string) *dsciv1.DSCInitialization {
-	return &dsciv1.DSCInitialization{
+func NewDSCInitialization(ctx context.Context, cli client.Client, ns string) *dsciv1.DSCInitialization {
+	dsci := &dsciv1.DSCInitialization{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: gvk.DSCInitialization.Version,
+			Kind:       gvk.DSCInitialization.Kind,
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "default-dsci",
 		},
-		Spec: dsciv1.DSCInitializationSpec{
+	}
+
+	_, errCreate := controllerutil.CreateOrUpdate(ctx, cli, dsci, func() error {
+		dsci.Spec = dsciv1.DSCInitializationSpec{
 			ApplicationsNamespace: ns,
 			ServiceMesh: &infrav1.ServiceMeshSpec{
 				ManagementState: "Managed",
@@ -120,6 +129,12 @@ func NewDSCInitialization(ns string) *dsciv1.DSCInitialization {
 					MetricsCollection: "Istio",
 				},
 			},
-		},
-	}
+		}
+
+		return nil
+	})
+
+	gomega.Expect(errCreate).ToNot(gomega.HaveOccurred())
+
+	return dsci
 }

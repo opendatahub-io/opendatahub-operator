@@ -21,8 +21,7 @@ import (
 
 var _ = Describe("feature cleanup", func() {
 
-	Context("using FeatureTracker and ownership as cleanup strategy", Ordered, func() {
-
+	Context("using FeatureTracker and ownership as cleanup strategy", func() {
 		const (
 			featureName = "create-secret"
 			secretName  = "test-secret"
@@ -34,9 +33,9 @@ var _ = Describe("feature cleanup", func() {
 			testFeature *feature.Feature
 		)
 
-		BeforeAll(func() {
+		BeforeEach(func(ctx context.Context) {
 			namespace = envtestutil.AppendRandomNameTo("test-secret-ownership")
-			dsci = fixtures.NewDSCInitialization(namespace)
+			dsci = fixtures.NewDSCInitialization(ctx, envTestClient, namespace)
 			var errSecretCreation error
 			testFeature, errSecretCreation = feature.Define(featureName).
 				TargetNamespace(dsci.Spec.ApplicationsNamespace).
@@ -44,7 +43,7 @@ var _ = Describe("feature cleanup", func() {
 					Type: featurev1.DSCIType,
 					Name: dsci.Name,
 				}).
-				UsingConfig(envTest.Config).
+				UsingClient(envTestClient).
 				PreConditions(
 					feature.CreateNamespaceIfNotExists(namespace),
 				).
@@ -94,9 +93,9 @@ var _ = Describe("feature cleanup", func() {
 			featuresHandler *feature.FeaturesHandler
 		)
 
-		BeforeAll(func() {
+		BeforeAll(func(ctx context.Context) {
 			namespace = envtestutil.AppendRandomNameTo("test-conditional-cleanup")
-			dsci = fixtures.NewDSCInitialization(namespace)
+			dsci = fixtures.NewDSCInitialization(ctx, envTestClient, namespace)
 		})
 
 		It("should create feature, apply resource and create feature tracker", func(ctx context.Context) {
@@ -104,9 +103,8 @@ var _ = Describe("feature cleanup", func() {
 			err := fixtures.CreateOrUpdateNamespace(ctx, envTestClient, fixtures.NewNamespace("conditional-ns"))
 			Expect(err).To(Not(HaveOccurred()))
 
-			featuresHandler = feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+			featuresHandler = feature.ClusterFeaturesHandler(envTestClient, dsci, func(registry feature.FeaturesRegistry) error {
 				return registry.Add(feature.Define(featureName).
-					UsingConfig(envTest.Config).
 					EnabledWhen(namespaceExists).
 					PreConditions(
 						feature.CreateNamespaceIfNotExists(namespace),
@@ -132,9 +130,8 @@ var _ = Describe("feature cleanup", func() {
 			Expect(err).To(Not(HaveOccurred()))
 
 			// Mimic reconcile by re-loading the feature handler
-			featuresHandler = feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+			featuresHandler = feature.ClusterFeaturesHandler(envTestClient, dsci, func(registry feature.FeaturesRegistry) error {
 				return registry.Add(feature.Define(featureName).
-					UsingConfig(envTest.Config).
 					EnabledWhen(namespaceExists).
 					PreConditions(
 						feature.CreateNamespaceIfNotExists(namespace),

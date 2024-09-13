@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -44,7 +45,7 @@ func UpdateWithRetry[T client.Object](ctx context.Context, cli client.Client, or
 	if !ok {
 		return *new(T), errors.New("failed to deep copy object")
 	}
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+	err := retry.OnError(retry.DefaultBackoff, retryOnNotFoundOrConflict, func() error {
 		if err := cli.Get(ctx, client.ObjectKeyFromObject(original), saved); err != nil {
 			return err
 		}
@@ -52,9 +53,14 @@ func UpdateWithRetry[T client.Object](ctx context.Context, cli client.Client, or
 		update(saved)
 
 		// Return err itself here (not wrapped inside another error)
-		// so that RetryOnConflict can identify it correctly.
+		// so that Retry can identify it correctly.
 		return cli.Status().Update(ctx, saved)
 	})
 
 	return saved, err
+}
+
+func retryOnNotFoundOrConflict(err error) bool {
+	// We are now sharing the client, read/write can occur on delay
+	return k8serr.IsConflict(err) || k8serr.IsNotFound(err)
 }

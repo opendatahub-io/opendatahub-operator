@@ -32,14 +32,14 @@ var _ = Describe("Service Mesh setup", func() {
 		objectCleaner *envtestutil.Cleaner
 	)
 
-	BeforeEach(func() {
+	BeforeEach(func(ctx context.Context) {
 		c, err := client.New(envTest.Config, client.Options{})
 		Expect(err).ToNot(HaveOccurred())
 		objectCleaner = envtestutil.CreateCleaner(c, envTest.Config, fixtures.Timeout, fixtures.Interval)
 
 		namespace := envtestutil.AppendRandomNameTo("service-mesh-settings")
 
-		dsci = fixtures.NewDSCInitialization(namespace)
+		dsci = fixtures.NewDSCInitialization(ctx, envTestClient, namespace)
 
 		Expect(err).ToNot(HaveOccurred())
 	})
@@ -52,9 +52,8 @@ var _ = Describe("Service Mesh setup", func() {
 
 				It("should fail using precondition check", func(ctx context.Context) {
 					// given
-					featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+					featuresHandler := feature.ClusterFeaturesHandler(envTestClient, dsci, func(registry feature.FeaturesRegistry) error {
 						errFeatureAdd := registry.Add(feature.Define("no-service-mesh-operator-check").
-							UsingConfig(envTest.Config).
 							PreConditions(servicemesh.EnsureServiceMeshOperatorInstalled),
 						)
 
@@ -86,10 +85,9 @@ var _ = Describe("Service Mesh setup", func() {
 
 				It("should succeed using precondition check", func(ctx context.Context) {
 					// when
-					featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+					featuresHandler := feature.ClusterFeaturesHandler(envTestClient, dsci, func(registry feature.FeaturesRegistry) error {
 						errFeatureAdd := registry.Add(
 							feature.Define("service-mesh-operator-check").
-								UsingConfig(envTest.Config).
 								WithData(feature.Entry("ControlPlane", provider.ValueOf(dsci.Spec.ServiceMesh.ControlPlane).Get)).
 								PreConditions(servicemesh.EnsureServiceMeshOperatorInstalled),
 						)
@@ -119,9 +117,8 @@ var _ = Describe("Service Mesh setup", func() {
 					dsci.Spec.ServiceMesh.ControlPlane.Name = "test-name"
 
 					// when
-					featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+					featuresHandler := feature.ClusterFeaturesHandler(envTestClient, dsci, func(registry feature.FeaturesRegistry) error {
 						errFeatureAdd := registry.Add(feature.Define("service-mesh-control-plane-check").
-							UsingConfig(envTest.Config).
 							WithData(feature.Entry("ControlPlane", provider.ValueOf(dsci.Spec.ServiceMesh.ControlPlane).Get)).
 							PreConditions(servicemesh.EnsureServiceMeshInstalled),
 						)
@@ -141,10 +138,9 @@ var _ = Describe("Service Mesh setup", func() {
 					dsci.Spec.ServiceMesh.ControlPlane.Namespace = "test-namespace"
 
 					// when
-					featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+					featuresHandler := feature.ClusterFeaturesHandler(envTestClient, dsci, func(registry feature.FeaturesRegistry) error {
 						errFeatureAdd := registry.Add(feature.Define("no-service-mesh-control-plane-check").
 							WithData(feature.Entry("ControlPlane", provider.ValueOf(dsci.Spec.ServiceMesh.ControlPlane).Get)).
-							UsingConfig(envTest.Config).
 							PreConditions(servicemesh.EnsureServiceMeshInstalled),
 						)
 
@@ -176,7 +172,7 @@ var _ = Describe("Service Mesh setup", func() {
 				BeforeEach(func(ctx context.Context) {
 					smcpCrdObj = installServiceMeshCRD(ctx)
 					objectCleaner = envtestutil.CreateCleaner(envTestClient, envTest.Config, fixtures.Timeout, fixtures.Interval)
-					dsci = fixtures.NewDSCInitialization(namespace)
+					dsci = fixtures.NewDSCInitialization(ctx, envTestClient, namespace)
 
 					serviceMeshSpec = dsci.Spec.ServiceMesh
 
@@ -198,9 +194,8 @@ var _ = Describe("Service Mesh setup", func() {
 
 					createServiceMeshControlPlane(ctx, name, namespace)
 
-					handler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+					handler := feature.ClusterFeaturesHandler(envTestClient, dsci, func(registry feature.FeaturesRegistry) error {
 						return registry.Add(feature.Define("control-plane-with-external-authz-provider").
-							UsingConfig(envTest.Config).
 							Manifests(
 								manifest.Location(fixtures.TestEmbeddedFiles).
 									Include(path.Join("templates", "mesh-authz-ext-provider.patch.tmpl.yaml")),
