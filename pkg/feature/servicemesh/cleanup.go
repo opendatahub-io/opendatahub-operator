@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
@@ -55,7 +56,11 @@ func RemoveExtensionProvider(controlPlane infrav1.ControlPlaneSpec, extensionNam
 		}
 
 		if removed {
-			return cli.Update(ctx, smcp)
+			// Update the ServiceMeshControlPlane with the removed extension provider.
+			// As it could have been updated by another controller in the meantime, we need to retry on conflict.
+			return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+				return cli.Update(ctx, smcp)
+			})
 		}
 
 		return nil

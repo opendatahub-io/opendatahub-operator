@@ -91,7 +91,7 @@ func (r *DSCInitializationReconciler) removeServiceMesh(ctx context.Context, ins
 
 func (r *DSCInitializationReconciler) serviceMeshCapability(instance *dsciv1.DSCInitialization, initialCondition *conditionsv1.Condition) *feature.HandlerWithReporter[*dsciv1.DSCInitialization] { //nolint:lll // Reason: generics are long
 	return feature.NewHandlerWithReporter(
-		feature.ClusterFeaturesHandler(instance, r.serviceMeshCapabilityFeatures(instance)),
+		feature.ClusterFeaturesHandler(r.Client, instance, r.serviceMeshCapabilityFeatures(instance)),
 		createCapabilityReporter(r.Client, instance, initialCondition),
 	)
 }
@@ -119,7 +119,7 @@ func (r *DSCInitializationReconciler) authorizationCapability(ctx context.Contex
 	}
 
 	return feature.NewHandlerWithReporter(
-		feature.ClusterFeaturesHandler(instance, r.authorizationFeatures(instance)),
+		feature.ClusterFeaturesHandler(r.Client, instance, r.authorizationFeatures(instance)),
 		createCapabilityReporter(r.Client, instance, condition),
 	), nil
 }

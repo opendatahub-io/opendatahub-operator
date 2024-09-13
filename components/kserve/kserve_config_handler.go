@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -118,14 +119,14 @@ func (k *Kserve) setDefaultDeploymentMode(ctx context.Context, cli client.Client
 	return nil
 }
 
-func (k *Kserve) configureServerless(ctx context.Context, cli client.Client, logger logr.Logger, instance *dsciv1.DSCInitializationSpec) error {
+func (k *Kserve) configureServerless(ctx context.Context, cli client.Client, logger logr.Logger, owner metav1.Object, instance *dsciv1.DSCInitializationSpec) error {
 	switch k.Serving.ManagementState {
 	case operatorv1.Unmanaged: // Bring your own CR
 		logger.Info("Serverless CR is not configured by the operator, we won't do anything")
 
 	case operatorv1.Removed: // we remove serving CR
 		logger.Info("existing Serverless CR (owned by operator) will be removed")
-		if err := k.removeServerlessFeatures(ctx, instance); err != nil {
+		if err := k.removeServerlessFeatures(ctx, cli, owner, instance); err != nil {
 			return err
 		}
 
@@ -147,7 +148,7 @@ func (k *Kserve) configureServerless(ctx context.Context, cli client.Client, log
 			return dependOpsErrors
 		}
 
-		serverlessFeatures := feature.ComponentFeaturesHandler(k.GetComponentName(), instance.ApplicationsNamespace, k.configureServerlessFeatures(instance))
+		serverlessFeatures := feature.ComponentFeaturesHandler(cli, owner, k.GetComponentName(), instance.ApplicationsNamespace, k.configureServerlessFeatures(instance))
 
 		if err := serverlessFeatures.Apply(ctx); err != nil {
 			return err
@@ -156,8 +157,8 @@ func (k *Kserve) configureServerless(ctx context.Context, cli client.Client, log
 	return nil
 }
 
-func (k *Kserve) removeServerlessFeatures(ctx context.Context, instance *dsciv1.DSCInitializationSpec) error {
-	serverlessFeatures := feature.ComponentFeaturesHandler(k.GetComponentName(), instance.ApplicationsNamespace, k.configureServerlessFeatures(instance))
+func (k *Kserve) removeServerlessFeatures(ctx context.Context, cli client.Client, owner metav1.Object, instance *dsciv1.DSCInitializationSpec) error {
+	serverlessFeatures := feature.ComponentFeaturesHandler(cli, owner, k.GetComponentName(), instance.ApplicationsNamespace, k.configureServerlessFeatures(instance))
 
 	return serverlessFeatures.Delete(ctx)
 }
