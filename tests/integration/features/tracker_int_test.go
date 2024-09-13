@@ -170,8 +170,7 @@ var _ = Describe("Feature tracking capability", func() {
 			// given
 
 			// DSCI created in cluster
-			dsci, dsciErr := fixtures.CreateOrUpdateDSCI(ctx, envTestClient, dsci)
-			Expect(dsciErr).ToNot(HaveOccurred())
+			Expect(fixtures.CreateOrUpdateDSCI(ctx, envTestClient, dsci)).ToNot(HaveOccurred())
 
 			feature, featErr := feature.Define("empty-feat-with-owner").
 				UsingClient(envTestClient).

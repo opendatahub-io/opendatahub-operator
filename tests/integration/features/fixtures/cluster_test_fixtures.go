@@ -46,15 +46,13 @@ func createOrUpdateSubscription(ctx context.Context, client client.Client, subsc
 	return err
 }
 
-func CreateOrUpdateDSCI(ctx context.Context,
-	client client.Client,
-	dsci *dsciv1.DSCInitialization) (*dsciv1.DSCInitialization, error) {
+func CreateOrUpdateDSCI(ctx context.Context, client client.Client, dsci *dsciv1.DSCInitialization) error {
 	_, err := controllerutil.CreateOrUpdate(ctx, client, dsci, func() error {
 		return nil
 	})
 	dsci.APIVersion = dsciv1.GroupVersion.String()
 	dsci.Kind = gvk.DSCInitialization.Kind
-	return dsci, err
+	return err
 }
 
 func NewNamespace(name string) *corev1.Namespace {
