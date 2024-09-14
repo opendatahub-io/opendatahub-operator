@@ -37,17 +37,18 @@ var _ = Describe("Applying and updating resources", func() {
 		objectCleaner = envtestutil.CreateCleaner(envTestClient, envTest.Config, fixtures.Timeout, fixtures.Interval)
 
 		testNamespace = envtestutil.AppendRandomNameTo("test-namespace")
+		dsciName := envtestutil.AppendRandomNameTo("test-dsci")
 
 		var err error
 		namespace, err = cluster.CreateNamespace(ctx, envTestClient, testNamespace)
 		Expect(err).ToNot(HaveOccurred())
 
-		dsci = fixtures.NewDSCInitialization(ctx, envTestClient, testNamespace)
+		dsci = fixtures.NewDSCInitialization(ctx, envTestClient, dsciName, testNamespace)
 		dsci.Spec.ServiceMesh.ControlPlane.Namespace = namespace.Name
 	})
 
 	AfterEach(func(ctx context.Context) {
-		objectCleaner.DeleteAll(ctx, namespace)
+		objectCleaner.DeleteAll(ctx, namespace, dsci)
 	})
 
 	When("a feature is managed", func() {

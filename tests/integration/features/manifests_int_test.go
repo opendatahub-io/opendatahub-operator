@@ -29,18 +29,19 @@ var _ = Describe("Applying resources", func() {
 
 	BeforeEach(func(ctx context.Context) {
 		objectCleaner = envtestutil.CreateCleaner(envTestClient, envTest.Config, fixtures.Timeout, fixtures.Interval)
-		nsName := envtestutil.AppendRandomNameTo("smcp-ns")
+		nsName := envtestutil.AppendRandomNameTo("ns-smcp")
+		dsciName := envtestutil.AppendRandomNameTo("dsci-smcp")
 
 		var err error
 		namespace, err = cluster.CreateNamespace(ctx, envTestClient, nsName)
 		Expect(err).ToNot(HaveOccurred())
 
-		dsci = fixtures.NewDSCInitialization(ctx, envTestClient, nsName)
+		dsci = fixtures.NewDSCInitialization(ctx, envTestClient, dsciName, nsName)
 		dsci.Spec.ServiceMesh.ControlPlane.Namespace = namespace.Name
 	})
 
 	AfterEach(func(ctx context.Context) {
-		objectCleaner.DeleteAll(ctx, namespace)
+		objectCleaner.DeleteAll(ctx, namespace, dsci)
 	})
 
 	It("should be able to process an embedded YAML file", func(ctx context.Context) {

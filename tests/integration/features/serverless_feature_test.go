@@ -40,7 +40,9 @@ var _ = Describe("Serverless feature", func() {
 		Expect(err).ToNot(HaveOccurred())
 		objectCleaner = envtestutil.CreateCleaner(c, envTest.Config, fixtures.Timeout, fixtures.Interval)
 
-		dsci = fixtures.NewDSCInitialization(ctx, envTestClient, "default")
+		namespace := envtestutil.AppendRandomNameTo("ns-serverless")
+		dsciName := envtestutil.AppendRandomNameTo("dsci-serverless")
+		dsci = fixtures.NewDSCInitialization(ctx, envTestClient, dsciName, namespace)
 		kserveComponent = &kserve.Kserve{}
 	})
 
