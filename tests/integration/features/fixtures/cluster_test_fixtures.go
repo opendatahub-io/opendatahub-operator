@@ -107,14 +107,14 @@ func GetFeatureTracker(ctx context.Context, cli client.Client, appNamespace, fea
 	return tracker, err
 }
 
-func NewDSCInitialization(ctx context.Context, cli client.Client, ns string) *dsciv1.DSCInitialization {
+func NewDSCInitialization(ctx context.Context, cli client.Client, dsciName, ns string) *dsciv1.DSCInitialization {
 	dsci := &dsciv1.DSCInitialization{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: gvk.DSCInitialization.Version,
 			Kind:       gvk.DSCInitialization.Kind,
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "default-dsci",
+			Name: dsciName,
 		},
 	}
 

@@ -38,8 +38,9 @@ var _ = Describe("Service Mesh setup", func() {
 		objectCleaner = envtestutil.CreateCleaner(c, envTest.Config, fixtures.Timeout, fixtures.Interval)
 
 		namespace := envtestutil.AppendRandomNameTo("service-mesh-settings")
+		dsciName := envtestutil.AppendRandomNameTo("service-mesh-settings")
 
-		dsci = fixtures.NewDSCInitialization(ctx, envTestClient, namespace)
+		dsci = fixtures.NewDSCInitialization(ctx, envTestClient, dsciName, namespace)
 
 		Expect(err).ToNot(HaveOccurred())
 	})
@@ -172,7 +173,7 @@ var _ = Describe("Service Mesh setup", func() {
 				BeforeEach(func(ctx context.Context) {
 					smcpCrdObj = installServiceMeshCRD(ctx)
 					objectCleaner = envtestutil.CreateCleaner(envTestClient, envTest.Config, fixtures.Timeout, fixtures.Interval)
-					dsci = fixtures.NewDSCInitialization(ctx, envTestClient, namespace)
+					dsci = fixtures.NewDSCInitialization(ctx, envTestClient, envtestutil.AppendRandomNameTo(namespace), namespace)
 
 					serviceMeshSpec = dsci.Spec.ServiceMesh
 
