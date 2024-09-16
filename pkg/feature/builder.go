@@ -4,14 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hashicorp/go-multierror"
-	"github.com/pkg/errors"
-	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
@@ -26,8 +20,6 @@ type featureBuilder struct {
 	source      featurev1.Source
 	owner       metav1.Object
 	targetNs    string
-
-	client client.Client
 
 	builders []partialBuilder
 }
@@ -193,16 +185,10 @@ func (fb *featureBuilder) OnDelete(cleanups ...CleanupFunc) *featureBuilder {
 	return fb
 }
 
-// UsingClient allows to provide a custom client to the feature. If not called, a default client will be created.
-func (fb *featureBuilder) UsingClient(cli client.Client) *featureBuilder {
-	fb.client = cli
-	return fb
-}
-
 // Create creates a new Feature instance and add it to corresponding FeaturesHandler.
 // The actual feature creation in the cluster is not performed here.
 func (fb *featureBuilder) Create() (*Feature, error) {
-	alwaysEnabled := func(_ context.Context, _ *Feature) (bool, error) {
+	alwaysEnabled := func(_ context.Context, _ client.Client, _ *Feature) (bool, error) {
 		return true, nil
 	}
 
@@ -215,15 +201,6 @@ func (fb *featureBuilder) Create() (*Feature, error) {
 		owner:   fb.owner,
 	}
 
-	// UsingClient has not been called, so we need to create a new client
-	if fb.client == nil {
-		if err := createDefaultClient()(f); err != nil {
-			return nil, err
-		}
-	} else {
-		f.Client = fb.client
-	}
-
 	for i := range fb.builders {
 		if err := fb.builders[i](f); err != nil {
 			return nil, err
@@ -231,40 +208,4 @@ func (fb *featureBuilder) Create() (*Feature, error) {
 	}
 
 	return f, nil
-}
-
-func createDefaultClient() partialBuilder {
-	return func(f *Feature) error {
-		var err error
-
-		restCfg, err := config.GetConfig()
-		if errors.Is(err, rest.ErrNotInCluster) {
-			// rollback to local kubeconfig - this can be helpful when running the process locally i.e. while debugging
-			kubeconfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-				&clientcmd.ClientConfigLoadingRules{ExplicitPath: clientcmd.RecommendedHomeFile},
-				&clientcmd.ConfigOverrides{},
-			)
-
-			restCfg, err = kubeconfig.ClientConfig()
-			if err != nil {
-				return err
-			}
-		} else if err != nil {
-			return err
-		}
-
-		f.Client, err = client.New(restCfg, client.Options{})
-		if err != nil {
-			return errors.WithStack(err)
-		}
-
-		var multiErr *multierror.Error
-		s := f.Client.Scheme()
-		multiErr = multierror.Append(multiErr,
-			featurev1.AddToScheme(s),
-			apiextv1.AddToScheme(s),
-		)
-
-		return multiErr.ErrorOrNil()
-	}
 }

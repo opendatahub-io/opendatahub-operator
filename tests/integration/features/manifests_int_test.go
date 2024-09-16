@@ -46,7 +46,7 @@ var _ = Describe("Applying resources", func() {
 
 	It("should be able to process an embedded YAML file", func(ctx context.Context) {
 		// given
-		featuresHandler := feature.ClusterFeaturesHandler(envTestClient, dsci, func(registry feature.FeaturesRegistry) error {
+		featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
 			errNsCreate := registry.Add(feature.Define("create-namespaces").
 				Manifests(
 					manifest.Location(fixtures.TestEmbeddedFiles).
@@ -60,7 +60,7 @@ var _ = Describe("Applying resources", func() {
 		})
 
 		// when
-		Expect(featuresHandler.Apply(ctx)).To(Succeed())
+		Expect(featuresHandler.Apply(ctx, envTestClient)).To(Succeed())
 
 		// then
 		embeddedNs1, errNS1 := fixtures.GetNamespace(ctx, envTestClient, "embedded-test-ns-1")
@@ -76,7 +76,7 @@ var _ = Describe("Applying resources", func() {
 
 	It("should be able to process an embedded template file", func(ctx context.Context) {
 		// given
-		featuresHandler := feature.ClusterFeaturesHandler(envTestClient, dsci, func(registry feature.FeaturesRegistry) error {
+		featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
 			errSvcCreate := registry.Add(feature.Define("create-local-gw-svc").
 				Manifests(
 					manifest.Location(fixtures.TestEmbeddedFiles).
@@ -91,7 +91,7 @@ var _ = Describe("Applying resources", func() {
 		})
 
 		// when
-		Expect(featuresHandler.Apply(ctx)).To(Succeed())
+		Expect(featuresHandler.Apply(ctx, envTestClient)).To(Succeed())
 
 		// then
 		service, err := fixtures.GetService(ctx, envTestClient, namespace.Name, "knative-local-gateway")
@@ -110,7 +110,7 @@ metadata:
 
 		Expect(fixtures.CreateFile(tempDir, "namespace.yaml", nsYAML)).To(Succeed())
 
-		featuresHandler := feature.ClusterFeaturesHandler(envTestClient, dsci, func(registry feature.FeaturesRegistry) error {
+		featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
 			errSvcCreate := registry.Add(feature.Define("create-namespace").
 				Manifests(
 					manifest.Location(os.DirFS(tempDir)).
@@ -124,7 +124,7 @@ metadata:
 		})
 
 		// when
-		Expect(featuresHandler.Apply(ctx)).To(Succeed())
+		Expect(featuresHandler.Apply(ctx, envTestClient)).To(Succeed())
 
 		// then
 		realNs, err := fixtures.GetNamespace(ctx, envTestClient, "real-file-test-ns")

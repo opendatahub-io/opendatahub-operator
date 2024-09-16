@@ -46,7 +46,7 @@ var _ = Describe("feature preconditions", func() {
 			defer objectCleaner.DeleteAll(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
 
 			// when
-			featuresHandler := feature.ClusterFeaturesHandler(envTestClient, dsci, func(registry feature.FeaturesRegistry) error {
+			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
 				errFeatureAdd := registry.Add(feature.Define("create-new-ns").
 					PreConditions(feature.CreateNamespaceIfNotExists(namespace)),
 				)
@@ -57,7 +57,7 @@ var _ = Describe("feature preconditions", func() {
 			})
 
 			// then
-			Expect(featuresHandler.Apply(ctx)).To(Succeed())
+			Expect(featuresHandler.Apply(ctx, envTestClient)).To(Succeed())
 
 			// and
 			Eventually(func() error {
@@ -81,7 +81,7 @@ var _ = Describe("feature preconditions", func() {
 			defer objectCleaner.DeleteAll(ctx, ns)
 
 			// when
-			featuresHandler := feature.ClusterFeaturesHandler(envTestClient, dsci, func(registry feature.FeaturesRegistry) error {
+			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
 				errFeatureAdd := registry.Add(feature.Define("create-new-ns").
 					PreConditions(feature.CreateNamespaceIfNotExists(namespace)),
 				)
@@ -92,7 +92,7 @@ var _ = Describe("feature preconditions", func() {
 			})
 
 			// then
-			Expect(featuresHandler.Apply(ctx)).To(Succeed())
+			Expect(featuresHandler.Apply(ctx, envTestClient)).To(Succeed())
 
 		})
 

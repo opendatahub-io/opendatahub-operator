@@ -7,6 +7,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
@@ -14,7 +15,7 @@ import (
 
 // MeshRefs stores service mesh configuration in the config map, so it can
 // be easily accessed by other components which rely on this information.
-func MeshRefs(ctx context.Context, f *feature.Feature) error {
+func MeshRefs(ctx context.Context, cli client.Client, f *feature.Feature) error {
 	meshConfig, err := FeatureData.ControlPlane.Extract(f)
 	if err != nil {
 		return fmt.Errorf("failed to get control plane struct: %w", err)
@@ -28,7 +29,7 @@ func MeshRefs(ctx context.Context, f *feature.Feature) error {
 
 	return cluster.CreateOrUpdateConfigMap(
 		ctx,
-		f.Client,
+		cli,
 		&corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      ConfigMapMeshRef,
@@ -42,7 +43,7 @@ func MeshRefs(ctx context.Context, f *feature.Feature) error {
 
 // AuthRefs stores authorization configuration in the config map, so it can
 // be easily accessed by other components which rely on this information.
-func AuthRefs(ctx context.Context, f *feature.Feature) error {
+func AuthRefs(ctx context.Context, cli client.Client, f *feature.Feature) error {
 	targetNamespace := f.TargetNamespace
 	auth, err := FeatureData.Authorization.Spec.Extract(f)
 	if err != nil {
@@ -73,7 +74,7 @@ func AuthRefs(ctx context.Context, f *feature.Feature) error {
 
 	return cluster.CreateOrUpdateConfigMap(
 		ctx,
-		f.Client,
+		cli,
 		&corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      ConfigMapAuthRef,

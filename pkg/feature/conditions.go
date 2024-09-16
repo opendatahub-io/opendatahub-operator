@@ -40,8 +40,8 @@ func (e *MissingOperatorError) Error() string {
 }
 
 func EnsureOperatorIsInstalled(operatorName string) Action {
-	return func(ctx context.Context, f *Feature) error {
-		if found, err := cluster.SubscriptionExists(ctx, f.Client, operatorName); !found || err != nil {
+	return func(ctx context.Context, cli client.Client, f *Feature) error {
+		if found, err := cluster.SubscriptionExists(ctx, cli, operatorName); !found || err != nil {
 			return fmt.Errorf(
 				"failed to find the pre-requisite operator subscription %q, please ensure operator is installed. %w",
 				operatorName,
@@ -53,13 +53,13 @@ func EnsureOperatorIsInstalled(operatorName string) Action {
 }
 
 func WaitForPodsToBeReady(namespace string) Action {
-	return func(ctx context.Context, f *Feature) error {
+	return func(ctx context.Context, cli client.Client, f *Feature) error {
 		f.Log.Info("waiting for pods to become ready", "namespace", namespace, "duration (s)", duration.Seconds())
 
 		return wait.PollUntilContextTimeout(ctx, interval, duration, false, func(ctx context.Context) (bool, error) {
 			var podList corev1.PodList
 
-			err := f.Client.List(ctx, &podList, client.InNamespace(namespace))
+			err := cli.List(ctx, &podList, client.InNamespace(namespace))
 			if err != nil {
 				return false, err
 			}
@@ -103,14 +103,14 @@ func WaitForPodsToBeReady(namespace string) Action {
 }
 
 func WaitForResourceToBeCreated(namespace string, gvk schema.GroupVersionKind) Action {
-	return func(ctx context.Context, f *Feature) error {
+	return func(ctx context.Context, cli client.Client, f *Feature) error {
 		f.Log.Info("waiting for resource to be created", "namespace", namespace, "resource", gvk)
 
 		return wait.PollUntilContextTimeout(ctx, interval, duration, false, func(ctx context.Context) (bool, error) {
 			list := &unstructured.UnstructuredList{}
 			list.SetGroupVersionKind(gvk)
 
-			err := f.Client.List(ctx, list, client.InNamespace(namespace), client.Limit(1))
+			err := cli.List(ctx, list, client.InNamespace(namespace), client.Limit(1))
 			if err != nil {
 				f.Log.Error(err, "failed waiting for resource", "namespace", namespace, "resource", gvk)
 
