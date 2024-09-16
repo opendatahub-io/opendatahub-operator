@@ -3,13 +3,15 @@ package serverless
 import (
 	"context"
 
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 )
 
-func ServingCertificateResource(ctx context.Context, f *feature.Feature) error {
+func ServingCertificateResource(ctx context.Context, cli client.Client, f *feature.Feature) error {
 	secretData, err := getSecretParams(f)
 	if err != nil {
 		return err
@@ -17,7 +19,7 @@ func ServingCertificateResource(ctx context.Context, f *feature.Feature) error {
 
 	switch secretData.Type {
 	case infrav1.SelfSigned:
-		return cluster.CreateSelfSignedCertificate(ctx, f.Client,
+		return cluster.CreateSelfSignedCertificate(ctx, cli,
 			secretData.Name,
 			secretData.Domain,
 			secretData.Namespace,
@@ -25,7 +27,7 @@ func ServingCertificateResource(ctx context.Context, f *feature.Feature) error {
 	case infrav1.Provided:
 		return nil
 	default:
-		return cluster.PropagateDefaultIngressCertificate(ctx, f.Client, secretData.Name, secretData.Namespace)
+		return cluster.PropagateDefaultIngressCertificate(ctx, cli, secretData.Name, secretData.Namespace)
 	}
 }
 

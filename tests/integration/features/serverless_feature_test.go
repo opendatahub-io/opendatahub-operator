@@ -63,10 +63,10 @@ var _ = Describe("Serverless feature", func() {
 					return nil
 				}
 
-				featuresHandler := feature.ComponentFeaturesHandler(envTestClient, dsci, kserveComponent.GetComponentName(), dsci.Spec.ApplicationsNamespace, featuresProvider)
+				featuresHandler := feature.ComponentFeaturesHandler(dsci, kserveComponent.GetComponentName(), dsci.Spec.ApplicationsNamespace, featuresProvider)
 
 				// when
-				applyErr := featuresHandler.Apply(ctx)
+				applyErr := featuresHandler.Apply(ctx, envTestClient)
 
 				// then
 				Expect(applyErr).To(MatchError(ContainSubstring("failed to find the pre-requisite operator subscription \"serverless-operator\"")))
@@ -111,10 +111,10 @@ var _ = Describe("Serverless feature", func() {
 					return nil
 				}
 
-				featuresHandler := feature.ComponentFeaturesHandler(envTestClient, dsci, kserveComponent.GetComponentName(), dsci.Spec.ApplicationsNamespace, featuresProvider)
+				featuresHandler := feature.ComponentFeaturesHandler(dsci, kserveComponent.GetComponentName(), dsci.Spec.ApplicationsNamespace, featuresProvider)
 
 				// then
-				Expect(featuresHandler.Apply(ctx)).To(Succeed())
+				Expect(featuresHandler.Apply(ctx, envTestClient)).To(Succeed())
 			})
 
 			It("should succeed if serving is not installed for KNative serving precondition", func(ctx context.Context) {
@@ -130,10 +130,10 @@ var _ = Describe("Serverless feature", func() {
 					return nil
 				}
 
-				featuresHandler := feature.ComponentFeaturesHandler(envTestClient, dsci, kserveComponent.GetComponentName(), dsci.Spec.ApplicationsNamespace, featuresProvider)
+				featuresHandler := feature.ComponentFeaturesHandler(dsci, kserveComponent.GetComponentName(), dsci.Spec.ApplicationsNamespace, featuresProvider)
 
 				// then
-				Expect(featuresHandler.Apply(ctx)).To(Succeed())
+				Expect(featuresHandler.Apply(ctx, envTestClient)).To(Succeed())
 			})
 
 			It("should fail if serving is already installed for KNative serving precondition", func(ctx context.Context) {
@@ -160,27 +160,16 @@ var _ = Describe("Serverless feature", func() {
 					return nil
 				}
 
-				featuresHandler := feature.ComponentFeaturesHandler(envTestClient, dsci, kserveComponent.GetComponentName(), dsci.Spec.ApplicationsNamespace, featuresProvider)
+				featuresHandler := feature.ComponentFeaturesHandler(dsci, kserveComponent.GetComponentName(), dsci.Spec.ApplicationsNamespace, featuresProvider)
 
 				// then
-				Expect(featuresHandler.Apply(ctx)).ToNot(Succeed())
+				Expect(featuresHandler.Apply(ctx, envTestClient)).ToNot(Succeed())
 			})
 		})
 
 	})
 
 	Context("default values", func() {
-
-		var testFeature *feature.Feature
-
-		BeforeEach(func() {
-			// Stubbing feature as we want to test particular functions in isolation
-			testFeature = &feature.Feature{
-				Name: "test-feature",
-			}
-
-			testFeature.Client = envTestClient
-		})
 
 		Context("ingress gateway TLS secret name", func() {
 
@@ -302,10 +291,10 @@ var _ = Describe("Serverless feature", func() {
 				return nil
 			}
 
-			featuresHandler := feature.ComponentFeaturesHandler(envTestClient, dsci, kserveComponent.GetComponentName(), dsci.Spec.ApplicationsNamespace, featuresProvider)
+			featuresHandler := feature.ComponentFeaturesHandler(dsci, kserveComponent.GetComponentName(), dsci.Spec.ApplicationsNamespace, featuresProvider)
 
 			// when
-			Expect(featuresHandler.Apply(ctx)).To(Succeed())
+			Expect(featuresHandler.Apply(ctx, envTestClient)).To(Succeed())
 
 			// then
 			Eventually(func() error {
@@ -344,10 +333,10 @@ var _ = Describe("Serverless feature", func() {
 				return nil
 			}
 
-			featuresHandler := feature.ComponentFeaturesHandler(envTestClient, dsci, kserveComponent.GetComponentName(), dsci.Spec.ApplicationsNamespace, featuresProvider)
+			featuresHandler := feature.ComponentFeaturesHandler(dsci, kserveComponent.GetComponentName(), dsci.Spec.ApplicationsNamespace, featuresProvider)
 
 			// when
-			Expect(featuresHandler.Apply(ctx)).To(Succeed())
+			Expect(featuresHandler.Apply(ctx, envTestClient)).To(Succeed())
 
 			// then
 			Consistently(func() error {

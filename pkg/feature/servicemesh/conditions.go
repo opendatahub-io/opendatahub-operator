@@ -23,30 +23,30 @@ const (
 )
 
 // EnsureAuthNamespaceExists creates a namespace for the Authorization provider and set ownership so it will be garbage collected when the operator is uninstalled.
-func EnsureAuthNamespaceExists(ctx context.Context, f *feature.Feature) error {
+func EnsureAuthNamespaceExists(ctx context.Context, cli client.Client, f *feature.Feature) error {
 	authNs, err := FeatureData.Authorization.Namespace.Extract(f)
 	if err != nil {
 		return fmt.Errorf("could not get auth from feature: %w", err)
 	}
 
-	_, err = cluster.CreateNamespace(ctx, f.Client, authNs, feature.OwnedBy(f), cluster.WithLabels(labels.ODH.OwnedNamespace, "true"))
+	_, err = cluster.CreateNamespace(ctx, cli, authNs, feature.OwnedBy(f), cluster.WithLabels(labels.ODH.OwnedNamespace, "true"))
 	return err
 }
 
-func EnsureServiceMeshOperatorInstalled(ctx context.Context, f *feature.Feature) error {
-	if err := feature.EnsureOperatorIsInstalled("servicemeshoperator")(ctx, f); err != nil {
+func EnsureServiceMeshOperatorInstalled(ctx context.Context, cli client.Client, f *feature.Feature) error {
+	if err := feature.EnsureOperatorIsInstalled("servicemeshoperator")(ctx, cli, f); err != nil {
 		return fmt.Errorf("failed to find the pre-requisite Service Mesh Operator subscription, please ensure Service Mesh Operator is installed. %w", err)
 	}
 
 	return nil
 }
 
-func EnsureServiceMeshInstalled(ctx context.Context, f *feature.Feature) error {
-	if err := EnsureServiceMeshOperatorInstalled(ctx, f); err != nil {
+func EnsureServiceMeshInstalled(ctx context.Context, cli client.Client, f *feature.Feature) error {
+	if err := EnsureServiceMeshOperatorInstalled(ctx, cli, f); err != nil {
 		return err
 	}
 
-	if err := WaitForControlPlaneToBeReady(ctx, f); err != nil {
+	if err := WaitForControlPlaneToBeReady(ctx, cli, f); err != nil {
 		controlPlane, errGet := FeatureData.ControlPlane.Extract(f)
 		if errGet != nil {
 			return fmt.Errorf("failed to get control plane struct: %w", err)
@@ -60,7 +60,7 @@ func EnsureServiceMeshInstalled(ctx context.Context, f *feature.Feature) error {
 	return nil
 }
 
-func WaitForControlPlaneToBeReady(ctx context.Context, f *feature.Feature) error {
+func WaitForControlPlaneToBeReady(ctx context.Context, cli client.Client, f *feature.Feature) error {
 	controlPlane, err := FeatureData.ControlPlane.Extract(f)
 	if err != nil {
 		return err
@@ -72,7 +72,7 @@ func WaitForControlPlaneToBeReady(ctx context.Context, f *feature.Feature) error
 	f.Log.Info("waiting for control plane components to be ready", "control-plane", smcp, "namespace", smcpNs, "duration (s)", duration.Seconds())
 
 	return wait.PollUntilContextTimeout(ctx, interval, duration, false, func(ctx context.Context) (bool, error) {
-		ready, err := CheckControlPlaneComponentReadiness(ctx, f.Client, smcp, smcpNs)
+		ready, err := CheckControlPlaneComponentReadiness(ctx, cli, smcp, smcpNs)
 
 		if ready {
 			f.Log.Info("done waiting for control plane components to be ready", "control-plane", smcp, "namespace", smcpNs)

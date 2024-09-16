@@ -8,6 +8,7 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
@@ -39,7 +40,7 @@ func (r *DSCInitializationReconciler) configureServiceMesh(ctx context.Context, 
 		capabilities = append(capabilities, authzCapability)
 
 		for _, capability := range capabilities {
-			capabilityErr := capability.Apply(ctx)
+			capabilityErr := capability.Apply(ctx, r.Client)
 			if capabilityErr != nil {
 				r.Log.Error(capabilityErr, "failed applying service mesh resources")
 				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed applying service mesh resources")
@@ -77,7 +78,7 @@ func (r *DSCInitializationReconciler) removeServiceMesh(ctx context.Context, ins
 		capabilities = append(capabilities, authzCapability)
 
 		for _, capability := range capabilities {
-			capabilityErr := capability.Delete(ctx)
+			capabilityErr := capability.Delete(ctx, r.Client)
 			if capabilityErr != nil {
 				r.Log.Error(capabilityErr, "failed deleting service mesh resources")
 				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed deleting service mesh resources")
@@ -91,7 +92,7 @@ func (r *DSCInitializationReconciler) removeServiceMesh(ctx context.Context, ins
 
 func (r *DSCInitializationReconciler) serviceMeshCapability(instance *dsciv1.DSCInitialization, initialCondition *conditionsv1.Condition) *feature.HandlerWithReporter[*dsciv1.DSCInitialization] { //nolint:lll // Reason: generics are long
 	return feature.NewHandlerWithReporter(
-		feature.ClusterFeaturesHandler(r.Client, instance, r.serviceMeshCapabilityFeatures(instance)),
+		feature.ClusterFeaturesHandler(instance, r.serviceMeshCapabilityFeatures(instance)),
 		createCapabilityReporter(r.Client, instance, initialCondition),
 	)
 }
@@ -119,7 +120,7 @@ func (r *DSCInitializationReconciler) authorizationCapability(ctx context.Contex
 	}
 
 	return feature.NewHandlerWithReporter(
-		feature.ClusterFeaturesHandler(r.Client, instance, r.authorizationFeatures(instance)),
+		feature.ClusterFeaturesHandler(instance, r.authorizationFeatures(instance)),
 		createCapabilityReporter(r.Client, instance, condition),
 	), nil
 }
@@ -128,7 +129,7 @@ func (r *DSCInitializationReconciler) serviceMeshCapabilityFeatures(instance *ds
 	return func(registry feature.FeaturesRegistry) error {
 		controlPlaneSpec := instance.Spec.ServiceMesh.ControlPlane
 
-		meshMetricsCollection := func(_ context.Context, _ *feature.Feature) (bool, error) {
+		meshMetricsCollection := func(_ context.Context, _ client.Client, _ *feature.Feature) (bool, error) {
 			return controlPlaneSpec.MetricsCollection == "Istio", nil
 		}
 
@@ -221,13 +222,13 @@ func (r *DSCInitializationReconciler) authorizationFeatures(instance *dsciv1.DSC
 						Include(path.Join(Templates.AuthorinoDir, "deployment.injection.patch.tmpl.yaml")),
 				).
 				PreConditions(
-					func(ctx context.Context, f *feature.Feature) error {
+					func(ctx context.Context, cli client.Client, f *feature.Feature) error {
 						namespace, err := servicemesh.FeatureData.Authorization.Namespace.Extract(f)
 						if err != nil {
 							return fmt.Errorf("failed trying to resolve authorization provider namespace for feature '%s': %w", f.Name, err)
 						}
 
-						return feature.WaitForPodsToBeReady(namespace)(ctx, f)
+						return feature.WaitForPodsToBeReady(namespace)(ctx, cli, f)
 					},
 				).
 				WithData(servicemesh.FeatureData.ControlPlane.Define(&instance.Spec).AsAction()).

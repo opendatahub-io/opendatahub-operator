@@ -79,8 +79,8 @@ func GetService(ctx context.Context, client client.Client, namespace, name strin
 	return svc, err
 }
 
-func CreateSecret(name, namespace string) func(ctx context.Context, f *feature.Feature) error {
-	return func(ctx context.Context, f *feature.Feature) error {
+func CreateSecret(name, namespace string) feature.Action {
+	return func(ctx context.Context, cli client.Client, f *feature.Feature) error {
 		secret := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name,
@@ -94,7 +94,7 @@ func CreateSecret(name, namespace string) func(ctx context.Context, f *feature.F
 			},
 		}
 
-		return f.Client.Create(ctx, secret)
+		return cli.Create(ctx, secret)
 	}
 }
 
