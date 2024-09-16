@@ -190,7 +190,7 @@ func (tc *testContext) validateDSCReady() error {
 	return waitDSCReady(tc)
 }
 
-// Verify DSC instance is in Ready phase when all components are up and running
+// Verify DSC instance is in Ready phase when all components are up and running.
 func waitDSCReady(tc *testContext) error {
 	// wait for 2 mins which is on the safe side, normally it should get ready once all components are ready
 	err := tc.wait(func(ctx context.Context) (bool, error) {
@@ -218,7 +218,7 @@ func (tc *testContext) requireInstalled(t *testing.T, gvk schema.GroupVersionKin
 
 	err := tc.customClient.List(tc.ctx, list)
 	require.NotEmptyf(t, err, "Could not get %s list", gvk.Kind)
-	require.Greaterf(t, len(list.Items), 0, "%s has not been installed", gvk.Kind)
+	require.NotEmptyf(t, len(list.Items), "%s has not been installed", gvk.Kind)
 }
 
 func (tc *testContext) testDuplication(t *testing.T, gvk schema.GroupVersionKind, o any) {
