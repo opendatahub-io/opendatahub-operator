@@ -218,7 +218,7 @@ func (tc *testContext) requireInstalled(t *testing.T, gvk schema.GroupVersionKin
 
 	err := tc.customClient.List(tc.ctx, list)
 	require.NotEmptyf(t, err, "Could not get %s list", gvk.Kind)
-	require.NotEmptyf(t, len(list.Items), "%s has not been installed", gvk.Kind)
+	require.NotEmptyf(t, list.Items, "%s has not been installed", gvk.Kind)
 }
 
 func (tc *testContext) testDuplication(t *testing.T, gvk schema.GroupVersionKind, o any) {
