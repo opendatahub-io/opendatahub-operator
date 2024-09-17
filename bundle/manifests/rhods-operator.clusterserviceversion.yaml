@@ -1777,8 +1777,15 @@ spec:
   keywords:
   - OpenShift
   - Open Data Hub
+  - ODH
   - opendatahub
   - Red Hat OpenShift AI
+  - RHOAI
+  - OAI
+  - AI
+  - ML
+  - Machine Learning
+  - Data Science
   - notebooks
   - serving
   - training
