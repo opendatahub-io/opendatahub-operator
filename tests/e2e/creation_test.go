@@ -217,7 +217,7 @@ func (tc *testContext) requireInstalled(t *testing.T, gvk schema.GroupVersionKin
 	list.SetGroupVersionKind(gvk)
 
 	err := tc.customClient.List(tc.ctx, list)
-	require.NotEmptyf(t, err, "Could not get %s list", gvk.Kind)
+	require.NoErrorf(t, err, "Could not get %s list", gvk.Kind)
 	require.NotEmptyf(t, list.Items, "%s has not been installed", gvk.Kind)
 }
 
@@ -383,7 +383,7 @@ func (tc *testContext) testOwnerrefrences() error {
 	// Test Dashboard component
 	if tc.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
 		appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(tc.ctx, metav1.ListOptions{
-			LabelSelector: labels.ODH.Component(tc.testDsc.Spec.Components.Dashboard.GetComponentName()),
+			LabelSelector: labels.ODH.Component("rhods-dashboard"),
 		})
 		if err != nil {
 			return fmt.Errorf("error listing component deployments %w", err)
@@ -439,8 +439,7 @@ func (tc *testContext) testDefaultCertsAvailable() error {
 func (tc *testContext) testUpdateComponentReconcile() error {
 	// Test Updating Dashboard Replicas
 	appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(tc.ctx, metav1.ListOptions{
-
-		LabelSelector: labels.ODH.Component(tc.testDsc.Spec.Components.Dashboard.GetComponentName()),
+		LabelSelector: labels.ODH.Component("rhods-dashboard"),
 	})
 	if err != nil {
 		return err
@@ -491,8 +490,7 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 
 	if tc.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
 		appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(tc.ctx, metav1.ListOptions{
-
-			LabelSelector: labels.ODH.Component(tc.testDsc.Spec.Components.Dashboard.GetComponentName()),
+			LabelSelector: labels.ODH.Component("rhods-dashboard"),
 		})
 		if err != nil {
 			return fmt.Errorf("error getting enabled component %v", "rhods-dashboard")
