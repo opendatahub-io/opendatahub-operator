@@ -138,10 +138,7 @@ var _ = BeforeSuite(func() {
 		Decoder: admission.NewDecoder(mgr.GetScheme()),
 	}).SetupValidatingWebhookWithManager(mgr)
 
-	(&webhook.OpenDataHubMutatingWebhook{
-		Client:  mgr.GetClient(),
-		Decoder: admission.NewDecoder(mgr.GetScheme()),
-	}).SetupMutateWebhookWithManager(mgr)
+	(&webhook.DSCDefaulter{}).SetupMutateWebhookWithManager(mgr)
 
 	// +kubebuilder:scaffold:webhook
 

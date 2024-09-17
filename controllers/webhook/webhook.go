@@ -18,7 +18,6 @@ package webhook
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -131,43 +130,19 @@ func (v *OpenDataHubValidatingWebhook) Handle(ctx context.Context, req admission
 //+kubebuilder:webhook:path=/mutate-opendatahub-io-v1,mutating=true,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io,resources=datascienceclusters,verbs=create;update,versions=v1,name=mutate.operator.opendatahub.io,admissionReviewVersions=v1
 //nolint:lll
 
-// OpenDataHubMutatingWebhook is a mutating webhook
 // It currently only sets defaults for modelregiestry in datascienceclusters.
-type OpenDataHubMutatingWebhook struct {
-	Client  client.Client
-	Decoder *admission.Decoder
-}
+type DSCDefaulter struct{}
 
-func (m *OpenDataHubMutatingWebhook) SetupMutateWebhookWithManager(mgr ctrl.Manager) {
-	hookServer := mgr.GetWebhookServer()
-	odhWebhook := &webhook.Admission{
-		Handler: m,
-	}
-	hookServer.Register("/mutate-opendatahub-io-v1", odhWebhook)
-}
+// just assert that DSCDefaulter implements webhook.CustomDefaulter.
+var _ webhook.CustomDefaulter = &DSCDefaulter{}
 
-func (m *OpenDataHubMutatingWebhook) Handle(ctx context.Context, req admission.Request) admission.Response {
-	dsc := &dscv1.DataScienceCluster{}
-	err := m.Decoder.Decode(req, dsc)
-	if err != nil {
-		return admission.Denied(fmt.Sprintf("failed to decode request body: %s", err))
-	}
-
-	if err := m.Default(ctx, dsc); err != nil {
-		return admission.Errored(http.StatusInternalServerError, err)
-	}
-
-	// convert to []byte
-	dscBytes, err := json.Marshal(dsc)
-	if err != nil {
-		return admission.Errored(http.StatusInternalServerError, err)
-	}
-	// use PatchResponseFromRaw to ensure dsc CR is updated with defaults
-	return admission.PatchResponseFromRaw(req.Object.Raw, dscBytes)
+func (m *DSCDefaulter) SetupMutateWebhookWithManager(mgr ctrl.Manager) {
+	mutateWebhook := admission.WithCustomDefaulter(mgr.GetScheme(), &dscv1.DataScienceCluster{}, m)
+	mgr.GetWebhookServer().Register("/mutate-opendatahub-io-v1", mutateWebhook)
 }
 
 // implement admission.CustomDefaulter interface.
-func (m *OpenDataHubMutatingWebhook) Default(_ context.Context, obj runtime.Object) error {
+func (m *DSCDefaulter) Default(_ context.Context, obj runtime.Object) error {
 	dsc, isDSC := obj.(*dscv1.DataScienceCluster)
 	if !isDSC {
 		return errors.New("expected DataScienceCluster but got a different type")
