@@ -211,7 +211,7 @@ func main() { //nolint:funlen,maintidx
 	(&webhook.OpenDataHubValidatingWebhook{
 		Client:  mgr.GetClient(),
 		Decoder: admission.NewDecoder(mgr.GetScheme()),
-	}).SetupValidatingWebhookWithManager(mgr)
+	}).SetupWithManager(mgr)
 
 	(&webhook.DSCDefaulter{}).SetupMutateWebhookWithManager(mgr)
 

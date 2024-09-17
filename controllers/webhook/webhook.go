@@ -18,7 +18,6 @@ package webhook
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 
@@ -46,10 +45,10 @@ type OpenDataHubValidatingWebhook struct {
 	Decoder *admission.Decoder
 }
 
-func (v *OpenDataHubValidatingWebhook) SetupValidatingWebhookWithManager(mgr ctrl.Manager) {
+func (w *OpenDataHubValidatingWebhook) SetupWithManager(mgr ctrl.Manager) {
 	hookServer := mgr.GetWebhookServer()
 	odhWebhook := &webhook.Admission{
-		Handler: v,
+		Handler: w,
 	}
 	hookServer.Register("/validate-opendatahub-io-v1", odhWebhook)
 }
@@ -78,7 +77,7 @@ func denyCountGtZero(ctx context.Context, cli client.Client, gvk schema.GroupVer
 	return admission.Allowed("")
 }
 
-func (v *OpenDataHubValidatingWebhook) checkDupCreation(ctx context.Context, req admission.Request) admission.Response {
+func (w *OpenDataHubValidatingWebhook) checkDupCreation(ctx context.Context, req admission.Request) admission.Response {
 	switch req.Kind.Kind {
 	case "DataScienceCluster", "DSCInitialization":
 	default:
@@ -93,29 +92,29 @@ func (v *OpenDataHubValidatingWebhook) checkDupCreation(ctx context.Context, req
 	}
 
 	// if count == 1 now creation of #2 is being handled
-	return denyCountGtZero(ctx, v.Client, gvk,
+	return denyCountGtZero(ctx, w.Client, gvk,
 		fmt.Sprintf("Only one instance of %s object is allowed", req.Kind.Kind))
 }
 
-func (v *OpenDataHubValidatingWebhook) checkDeletion(ctx context.Context, req admission.Request) admission.Response {
+func (w *OpenDataHubValidatingWebhook) checkDeletion(ctx context.Context, req admission.Request) admission.Response {
 	if req.Kind.Kind == "DataScienceCluster" {
 		return admission.Allowed("")
 	}
 
 	// Restrict deletion of DSCI if DSC exists
-	return denyCountGtZero(ctx, v.Client, gvk.DataScienceCluster,
+	return denyCountGtZero(ctx, w.Client, gvk.DataScienceCluster,
 		fmt.Sprintln("Cannot delete DSCI object when DSC object still exists"))
 }
 
-func (v *OpenDataHubValidatingWebhook) Handle(ctx context.Context, req admission.Request) admission.Response {
+func (w *OpenDataHubValidatingWebhook) Handle(ctx context.Context, req admission.Request) admission.Response {
 	var resp admission.Response
 	resp.Allowed = true // initialize Allowed to be true in case Operation falls into "default" case
 
 	switch req.Operation {
 	case admissionv1.Create:
-		resp = v.checkDupCreation(ctx, req)
+		resp = w.checkDupCreation(ctx, req)
 	case admissionv1.Delete:
-		resp = v.checkDeletion(ctx, req)
+		resp = w.checkDeletion(ctx, req)
 	default: // for other operations by default it is admission.Allowed("")
 		// no-op
 	}
@@ -145,7 +144,7 @@ func (m *DSCDefaulter) SetupMutateWebhookWithManager(mgr ctrl.Manager) {
 func (m *DSCDefaulter) Default(_ context.Context, obj runtime.Object) error {
 	dsc, isDSC := obj.(*dscv1.DataScienceCluster)
 	if !isDSC {
-		return errors.New("expected DataScienceCluster but got a different type")
+		return fmt.Errorf("expected DataScienceCluster but got a different type: %T", obj)
 	}
 	// set default registriesNamespace if empty
 	if len(dsc.Spec.Components.ModelRegistry.RegistriesNamespace) == 0 {

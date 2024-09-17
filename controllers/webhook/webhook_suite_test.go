@@ -136,7 +136,7 @@ var _ = BeforeSuite(func() {
 	(&webhook.OpenDataHubValidatingWebhook{
 		Client:  mgr.GetClient(),
 		Decoder: admission.NewDecoder(mgr.GetScheme()),
-	}).SetupValidatingWebhookWithManager(mgr)
+	}).SetupWithManager(mgr)
 
 	(&webhook.DSCDefaulter{}).SetupMutateWebhookWithManager(mgr)
 
