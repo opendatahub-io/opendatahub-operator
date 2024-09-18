@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/http"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	admissionv1 "k8s.io/api/admission/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -158,7 +159,7 @@ func (w *OpenDataHubMutatingWebhook) Handle(ctx context.Context, req admission.R
 
 func (w *OpenDataHubMutatingWebhook) setDSCDefaults(_ context.Context, dsc *dscv1.DataScienceCluster) admission.Response {
 	// set default registriesNamespace if empty
-	if len(dsc.Spec.Components.ModelRegistry.RegistriesNamespace) == 0 {
+	if len(dsc.Spec.Components.ModelRegistry.RegistriesNamespace) == 0 && dsc.Spec.Components.ModelRegistry.ManagementState == operatorv1.Managed {
 		return admission.Patched("Property registriesNamespace set to default value", webhook.JSONPatchOp{
 			Operation: "replace",
 			Path:      "spec.components.modelregistry.registriesNamespace",
