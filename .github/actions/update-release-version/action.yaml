@@ -16,6 +16,9 @@ inputs:
   branch-name:
     description: "Temporary branch to host the changes"
     required: true
+  base-branch:
+    description: "Set pr base branch."
+    required: true
 outputs:
   pull-request-number:
     description: "Number of the pull request created"
@@ -44,6 +47,7 @@ runs:
         delete-branch: true
         title: ${{ inputs.title }}
         reviewers: "VaishnaviHire,zdtsw"
+        base: ${{ inputs.base-branch }}
     - name: Set pr number in output
       shell: bash
       run: |
