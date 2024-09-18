@@ -91,7 +91,6 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		r.Log.Error(err, "failed to get operator release version")
 		return ctrl.Result{}, err
 	}
-
 	instances := &dscv1.DataScienceClusterList{}
 
 	if err := r.Client.List(ctx, instances); err != nil {
@@ -229,6 +228,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dscv1.DataScienceCluster) {
 			status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
 			saved.Status.Phase = status.PhaseProgressing
+			saved.Status.Release = currentOperatorReleaseVersion
 		})
 		if err != nil {
 			_ = r.reportError(err, instance, fmt.Sprintf("failed to add conditions to status of DataScienceCluster resource name %s", req.Name))
@@ -269,7 +269,6 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dscv1.DataScienceCluster) {
 		status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, "DataScienceCluster resource reconciled successfully")
 		saved.Status.Phase = status.PhaseReady
-		saved.Status.Release = currentOperatorReleaseVersion
 	})
 
 	if err != nil {
