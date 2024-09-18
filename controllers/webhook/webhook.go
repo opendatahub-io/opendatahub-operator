@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/http"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	admissionv1 "k8s.io/api/admission/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -146,9 +147,12 @@ func (m *DSCDefaulter) Default(_ context.Context, obj runtime.Object) error {
 	if !isDSC {
 		return fmt.Errorf("expected DataScienceCluster but got a different type: %T", obj)
 	}
-	// set default registriesNamespace if empty
-	if len(dsc.Spec.Components.ModelRegistry.RegistriesNamespace) == 0 {
-		dsc.Spec.Components.ModelRegistry.RegistriesNamespace = modelregistry.DefaultModelRegistriesNamespace
+
+	// set default registriesNamespace if empty "" but ModelRegistry is enabled
+	if dsc.Spec.Components.ModelRegistry.ManagementState == operatorv1.Managed {
+		if dsc.Spec.Components.ModelRegistry.RegistriesNamespace == "" {
+			dsc.Spec.Components.ModelRegistry.RegistriesNamespace = modelregistry.DefaultModelRegistriesNamespace
+		}
 	}
 	return nil
 }
