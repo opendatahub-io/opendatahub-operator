@@ -7,14 +7,6 @@ rules:
 - apiGroups:
   - '*'
   resources:
-  - customresourcedefinitions
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - '*'
-  resources:
   - deployments
   - replicasets
   - services
@@ -32,12 +24,6 @@ rules:
   - patch
   - update
   - watch
-- apiGroups:
-  - addons.managed.openshift.io
-  resources:
-  - addons
-  verbs:
-  - get
 - apiGroups:
   - admissionregistration.k8s.io
   resources:
@@ -863,32 +849,6 @@ rules:
   - templates
   verbs:
   - '*'
-- apiGroups:
-  - trustyai.opendatahub.io
-  resources:
-  - trustyaiservices
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - trustyai.opendatahub.io
-  resources:
-  - trustyaiservices/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - trustyai.opendatahub.io
-  resources:
-  - trustyaiservices/status
-  verbs:
-  - get
-  - patch
-  - update
 - apiGroups:
   - user.openshift.io
   resources:
