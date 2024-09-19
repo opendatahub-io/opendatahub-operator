@@ -169,10 +169,35 @@ tests:
         alertname: ODH notebook controller pod is not running
         exp_alerts:
           - exp_labels:
-              alertname: DH notebook controller pod is not running
+              alertname: ODH notebook controller pod is not running
               severity: warning
               namespace: redhat-ods-applications
             exp_annotations:
               summary: ODH notebook controller pod is not running
               message: 'ODH notebook controller is down!'
               triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Jupyter/rhods-odh-notebook-controller-alert.md"
+  
+  # Kubeflow notebook controllers running
+  - interval: 1m
+    input_series:
+      - series: up{job="Kubeflow Notebook Controller Service Metrics"}
+        values: "1"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: Kubeflow notebook controller pod is not running
+        exp_alerts: []
+  
+  - interval: 1m
+    input_series:
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: Kubeflow notebook controller pod is not running
+        exp_alerts:
+          - exp_labels:
+              alertname: Kubeflow notebook controller pod is not running
+              severity: warning
+              namespace: redhat-ods-applications
+            exp_annotations:
+              summary: Kubeflow notebook controller pod is not running
+              message: 'Kubeflow Notebook controller is down!'
+              triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Jupyter/rhods-kfnbc-notebook-controller-alert.md"
