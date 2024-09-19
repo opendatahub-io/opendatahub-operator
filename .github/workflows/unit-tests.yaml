@@ -5,7 +5,7 @@ on:
       - incubation
       - main
       - master
-  pull_request
+  pull_request:
 jobs:
   unit-test:
     runs-on: ubuntu-latest
