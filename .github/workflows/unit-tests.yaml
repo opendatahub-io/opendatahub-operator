@@ -1,5 +1,10 @@
 name: Unit Tests
-on:
+on: 
+  push:
+    branches:
+      - incubation
+      - main
+      - master
   pull_request:
 jobs:
   unit-test:
