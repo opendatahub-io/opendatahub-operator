@@ -139,7 +139,7 @@ var _ = BeforeSuite(func() {
 		Decoder: admission.NewDecoder(mgr.GetScheme()),
 	}).SetupWithManager(mgr)
 
-	(&webhook.DSCDefaulter{}).SetupMutateWebhookWithManager(mgr)
+	(&webhook.DSCDefaulter{}).SetupWithManager(mgr)
 
 	// +kubebuilder:scaffold:webhook
 

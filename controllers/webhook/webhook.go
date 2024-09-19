@@ -130,18 +130,18 @@ func (w *OpenDataHubValidatingWebhook) Handle(ctx context.Context, req admission
 //+kubebuilder:webhook:path=/mutate-opendatahub-io-v1,mutating=true,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io,resources=datascienceclusters,verbs=create;update,versions=v1,name=mutate.operator.opendatahub.io,admissionReviewVersions=v1
 //nolint:lll
 
-// It currently only sets defaults for modelregiestry in datascienceclusters.
 type DSCDefaulter struct{}
 
 // just assert that DSCDefaulter implements webhook.CustomDefaulter.
 var _ webhook.CustomDefaulter = &DSCDefaulter{}
 
-func (m *DSCDefaulter) SetupMutateWebhookWithManager(mgr ctrl.Manager) {
+func (m *DSCDefaulter) SetupWithManager(mgr ctrl.Manager) {
 	mutateWebhook := admission.WithCustomDefaulter(mgr.GetScheme(), &dscv1.DataScienceCluster{}, m)
 	mgr.GetWebhookServer().Register("/mutate-opendatahub-io-v1", mutateWebhook)
 }
 
-// implement admission.CustomDefaulter interface.
+// Implement admission.CustomDefaulter interface.
+// It currently only sets defaults for modelregiestry in datascienceclusters.
 func (m *DSCDefaulter) Default(_ context.Context, obj runtime.Object) error {
 	dsc, isDSC := obj.(*dscv1.DataScienceCluster)
 	if !isDSC {
