@@ -36,7 +36,7 @@ var (
 // - ConfigMap  'odh-common-config'
 // - Network Policies 'opendatahub' that allow traffic between the ODH namespaces
 // - RoleBinding 'opendatahub'.
-func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, dscInit *dsciv1.DSCInitialization, name string) error {
+func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, dscInit *dsciv1.DSCInitialization, name string, platform cluster.Platform) error {
 	// Expected application namespace for the given name
 	desiredNamespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -118,7 +118,7 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 	}
 
 	// Create default NetworkPolicy for the namespace
-	err = r.reconcileDefaultNetworkPolicy(ctx, name, dscInit)
+	err = r.reconcileDefaultNetworkPolicy(ctx, name, dscInit, platform)
 	if err != nil {
 		r.Log.Error(err, "error reconciling network policy ", "name", name)
 		return err
@@ -190,14 +190,10 @@ func (r *DSCInitializationReconciler) createDefaultRoleBinding(ctx context.Conte
 	return nil
 }
 
-func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.Context, name string, dscInit *dsciv1.DSCInitialization) error {
-	platform, err := cluster.GetPlatform(ctx, r.Client)
-	if err != nil {
-		return err
-	}
+func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.Context, name string, dscInit *dsciv1.DSCInitialization, platform cluster.Platform) error {
 	if platform == cluster.ManagedRhods || platform == cluster.SelfManagedRhods {
 		// Deploy networkpolicy for operator namespace
-		err = deploy.DeployManifestsFromPath(ctx, r.Client, dscInit, networkpolicyPath+"/operator", "redhat-ods-operator", "networkpolicy", true)
+		err := deploy.DeployManifestsFromPath(ctx, r.Client, dscInit, networkpolicyPath+"/operator", "redhat-ods-operator", "networkpolicy", true)
 		if err != nil {
 			r.Log.Error(err, "error to set networkpolicy in operator namespace", "path", networkpolicyPath)
 			return err
@@ -287,7 +283,7 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.
 		// Create NetworkPolicy if it doesn't exist
 		foundNetworkPolicy := &networkingv1.NetworkPolicy{}
 		justCreated := false
-		err = r.Client.Get(ctx, client.ObjectKey{
+		err := r.Client.Get(ctx, client.ObjectKey{
 			Name:      name,
 			Namespace: name,
 		}, foundNetworkPolicy)
