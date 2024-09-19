@@ -168,15 +168,21 @@ func detectManagedRHODS(ctx context.Context, cli client.Client) (Platform, error
 }
 
 func getPlatform(ctx context.Context, cli client.Client) (Platform, error) {
-	// First check if its addon installation to return 'ManagedRhods, nil'
-	if platform, err := detectManagedRHODS(ctx, cli); err != nil {
-		return Unknown, err
-	} else if platform == ManagedRhods {
+	switch os.Getenv("ODH_PLATFORM_TYPE") {
+	case "OpenDataHub", "":
+		return OpenDataHub, nil
+	case "ManagedRHOAI":
 		return ManagedRhods, nil
+	case "SelfManagedRHOAI":
+		return SelfManagedRhods, nil
+	default: // fall back to detect platform if ODH_PLATFORM_TYPE env is not provided
+		if platform, err := detectManagedRHODS(ctx, cli); err != nil {
+			return Unknown, err
+		} else if platform == ManagedRhods {
+			return ManagedRhods, nil
+		}
+		return detectSelfManaged(ctx, cli)
 	}
-
-	// check and return whether ODH or self-managed platform
-	return detectSelfManaged(ctx, cli)
 }
 
 func getRelease(ctx context.Context, cli client.Client) (Release, error) {
@@ -197,7 +203,16 @@ func getRelease(ctx context.Context, cli client.Client) (Release, error) {
 	if os.Getenv("CI") == "true" {
 		return initRelease, nil
 	}
-	// Set Version
+
+	// Set Version, if empty string from OPERATOR_RELEASE_VERSION, use CSV version instead.
+	if os.Getenv("OPERATOR_RELEASE_VERSION") != "" {
+		initRelease.Version.Version, err = semver.Parse(os.Getenv("OPERATOR_RELEASE_VERSION"))
+		if err != nil {
+			return initRelease, err
+		}
+	}
+
+	// fallback to use CSV version
 	// Get watchNamespace
 	operatorNamespace, err := GetOperatorNamespace()
 	if err != nil {

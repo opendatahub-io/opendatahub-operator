@@ -1085,12 +1085,16 @@ spec:
                 env:
                 - name: DISABLE_DSC_CONFIG
                   value: "true"
+                - name: OPERATOR_RELEASE_VERSION
++                 value: 2.18.2
                 - name: OPERATOR_NAMESPACE
                   valueFrom:
                     fieldRef:
                       fieldPath: metadata.namespace
                 - name: DEFAULT_MANIFESTS_PATH
                   value: /opt/manifests
+                - name: ODH_PLATFORM_TYPE
+                  value: OpenDataHub
                 image: REPLACE_IMAGE:latest
                 imagePullPolicy: Always
                 livenessProbe:
