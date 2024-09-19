@@ -212,10 +212,16 @@ var _ = Describe("DSC/DSCI validating webhook", func() {
 // mutating webhook tests for model registry.
 var _ = Describe("DSC mutating webhook", func() {
 	It("Should use defaults for DSC if empty string for MR namespace when MR is enabled", func(ctx context.Context) {
-		dscInstance := newMRDSC(nameBase+"-dsc-mr", "", operatorv1.Managed)
+		dscInstance := newMRDSC1(nameBase+"-dsc-mr1", "", operatorv1.Managed)
 		Expect(k8sClient.Create(ctx, dscInstance)).Should(Succeed())
 		Expect(dscInstance.Spec.Components.ModelRegistry.RegistriesNamespace).
 			Should(Equal(modelregistry.DefaultModelRegistriesNamespace))
+		Expect(clearInstance(ctx, dscInstance)).Should(Succeed())
+	})
+
+	It("Should create DSC if no MR is set (for upgrade case)", func(ctx context.Context) {
+		dscInstance := newMRDSC2(nameBase + "-dsc-mr2")
+		Expect(k8sClient.Create(ctx, dscInstance)).Should(Succeed())
 		Expect(clearInstance(ctx, dscInstance)).Should(Succeed())
 	})
 })
@@ -305,7 +311,7 @@ func newDSC(name string, namespace string) *dscv1.DataScienceCluster {
 	}
 }
 
-func newMRDSC(name string, mrNamespace string, state operatorv1.ManagementState) *dscv1.DataScienceCluster {
+func newMRDSC1(name string, mrNamespace string, state operatorv1.ManagementState) *dscv1.DataScienceCluster {
 	return &dscv1.DataScienceCluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -318,6 +324,24 @@ func newMRDSC(name string, mrNamespace string, state operatorv1.ManagementState)
 						ManagementState: state,
 					},
 					RegistriesNamespace: mrNamespace,
+				},
+			},
+		},
+	}
+}
+
+func newMRDSC2(name string) *dscv1.DataScienceCluster {
+	return &dscv1.DataScienceCluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: "appNS",
+		},
+		Spec: dscv1.DataScienceClusterSpec{
+			Components: dscv1.Components{
+				Workbenches: workbenches.Workbenches{
+					Component: components.Component{
+						ManagementState: operatorv1.Removed,
+					},
 				},
 			},
 		},
