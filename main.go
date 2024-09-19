@@ -213,10 +213,7 @@ func main() { //nolint:funlen,maintidx
 		Decoder: admission.NewDecoder(mgr.GetScheme()),
 	}).SetupWithManager(mgr)
 
-	(&webhook.OpenDataHubMutatingWebhook{
-		Client:  mgr.GetClient(),
-		Decoder: admission.NewDecoder(mgr.GetScheme()),
-	}).SetupWithManager(mgr)
+	(&webhook.DSCDefaulter{}).SetupWithManager(mgr)
 
 	if err = (&dscictrl.DSCInitializationReconciler{
 		Client:                mgr.GetClient(),

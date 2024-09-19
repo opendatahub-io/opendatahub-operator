@@ -24,6 +24,7 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	admissionv1 "k8s.io/api/admission/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -128,42 +129,29 @@ func (w *OpenDataHubValidatingWebhook) Handle(ctx context.Context, req admission
 //+kubebuilder:webhook:path=/mutate-opendatahub-io-v1,mutating=true,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io,resources=datascienceclusters,verbs=create;update,versions=v1,name=mutate.operator.opendatahub.io,admissionReviewVersions=v1
 //nolint:lll
 
-// OpenDataHubMutatingWebhook is a mutating webhook
+type DSCDefaulter struct{}
+
+// just assert that DSCDefaulter implements webhook.CustomDefaulter.
+var _ webhook.CustomDefaulter = &DSCDefaulter{}
+
+func (m *DSCDefaulter) SetupWithManager(mgr ctrl.Manager) {
+	mutateWebhook := admission.WithCustomDefaulter(mgr.GetScheme(), &dscv1.DataScienceCluster{}, m)
+	mgr.GetWebhookServer().Register("/mutate-opendatahub-io-v1", mutateWebhook)
+}
+
+// Implement admission.CustomDefaulter interface.
 // It currently only sets defaults for modelregiestry in datascienceclusters.
-type OpenDataHubMutatingWebhook struct {
-	Client  client.Client
-	Decoder *admission.Decoder
-}
-
-func (w *OpenDataHubMutatingWebhook) SetupWithManager(mgr ctrl.Manager) {
-	hookServer := mgr.GetWebhookServer()
-	odhWebhook := &webhook.Admission{
-		Handler: w,
+func (m *DSCDefaulter) Default(_ context.Context, obj runtime.Object) error {
+	dsc, isDSC := obj.(*dscv1.DataScienceCluster)
+	if !isDSC {
+		return fmt.Errorf("expected DataScienceCluster but got a different type: %T", obj)
 	}
-	hookServer.Register("/mutate-opendatahub-io-v1", odhWebhook)
-}
 
-func (w *OpenDataHubMutatingWebhook) Handle(ctx context.Context, req admission.Request) admission.Response {
-	var resp admission.Response
-	resp.Allowed = true // initialize Allowed to be true in case Operation falls into "default" case
-
-	dsc := &dscv1.DataScienceCluster{}
-	err := w.Decoder.Decode(req, dsc)
-	if err != nil {
-		return admission.Denied(fmt.Sprintf("failed to decode request body: %s", err))
+	// set default registriesNamespace if empty "" but ModelRegistry is enabled
+	if dsc.Spec.Components.ModelRegistry.ManagementState == operatorv1.Managed {
+		if dsc.Spec.Components.ModelRegistry.RegistriesNamespace == "" {
+			dsc.Spec.Components.ModelRegistry.RegistriesNamespace = modelregistry.DefaultModelRegistriesNamespace
+		}
 	}
-	resp = w.setDSCDefaults(ctx, dsc)
-	return resp
-}
-
-func (w *OpenDataHubMutatingWebhook) setDSCDefaults(_ context.Context, dsc *dscv1.DataScienceCluster) admission.Response {
-	// set default registriesNamespace if empty
-	if len(dsc.Spec.Components.ModelRegistry.RegistriesNamespace) == 0 && dsc.Spec.Components.ModelRegistry.ManagementState == operatorv1.Managed {
-		return admission.Patched("Property registriesNamespace set to default value", webhook.JSONPatchOp{
-			Operation: "replace",
-			Path:      "spec.components.modelregistry.registriesNamespace",
-			Value:     modelregistry.DefaultModelRegistriesNamespace,
-		})
-	}
-	return admission.Allowed("")
+	return nil
 }

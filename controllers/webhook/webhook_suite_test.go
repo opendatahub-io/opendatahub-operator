@@ -60,6 +60,7 @@ import (
 const (
 	namespace = "webhook-test-ns"
 	nameBase  = "webhook-test"
+	mrNS      = "model-registry-namespace"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
@@ -136,10 +137,7 @@ var _ = BeforeSuite(func() {
 		Decoder: admission.NewDecoder(mgr.GetScheme()),
 	}).SetupWithManager(mgr)
 
-	(&webhook.OpenDataHubMutatingWebhook{
-		Client:  mgr.GetClient(),
-		Decoder: admission.NewDecoder(mgr.GetScheme()),
-	}).SetupWithManager(mgr)
+	(&webhook.DSCDefaulter{}).SetupWithManager(mgr)
 
 	// +kubebuilder:scaffold:webhook
 
@@ -171,7 +169,7 @@ var _ = AfterSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 })
 
-var _ = Describe("DSC/DSCI webhook", func() {
+var _ = Describe("DSC/DSCI validating webhook", func() {
 	It("Should not have more than one DSCI instance in the cluster", func(ctx context.Context) {
 		desiredDsci := newDSCI(nameBase + "-dsci-1")
 		Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
@@ -207,11 +205,21 @@ var _ = Describe("DSC/DSCI webhook", func() {
 		Expect(k8sClient.Delete(ctx, dsciInstance)).Should(Succeed())
 	})
 
-	It("Should set defaults in DSC instance", func(ctx context.Context) {
-		dscInstance := newDSC(nameBase+"-dsc-1", namespace)
+})
+
+// mutating webhook tests for model registry.
+var _ = Describe("DSC mutating webhook", func() {
+	It("Should use defaults for DSC if empty string for MR namespace when MR is enabled", func(ctx context.Context) {
+		dscInstance := newMRDSC1(nameBase+"-dsc-mr1", "", operatorv1.Managed)
 		Expect(k8sClient.Create(ctx, dscInstance)).Should(Succeed())
 		Expect(dscInstance.Spec.Components.ModelRegistry.RegistriesNamespace).
 			Should(Equal(modelregistry.DefaultModelRegistriesNamespace))
+		Expect(clearInstance(ctx, dscInstance)).Should(Succeed())
+	})
+
+	It("Should create DSC if no MR is set (for upgrade case)", func(ctx context.Context) {
+		dscInstance := newMRDSC2(nameBase + "-dsc-mr2")
+		Expect(k8sClient.Create(ctx, dscInstance)).Should(Succeed())
 		Expect(clearInstance(ctx, dscInstance)).Should(Succeed())
 	})
 })
@@ -287,6 +295,48 @@ func newDSC(name string, namespace string) *dscv1.DataScienceCluster {
 					},
 				},
 				TrustyAI: trustyai.TrustyAI{
+					Component: components.Component{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				ModelRegistry: modelregistry.ModelRegistry{
+					Component: components.Component{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+			},
+		},
+	}
+}
+
+func newMRDSC1(name string, mrNamespace string, state operatorv1.ManagementState) *dscv1.DataScienceCluster {
+	return &dscv1.DataScienceCluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: "appNS",
+		},
+		Spec: dscv1.DataScienceClusterSpec{
+			Components: dscv1.Components{
+				ModelRegistry: modelregistry.ModelRegistry{
+					Component: components.Component{
+						ManagementState: state,
+					},
+					RegistriesNamespace: mrNamespace,
+				},
+			},
+		},
+	}
+}
+
+func newMRDSC2(name string) *dscv1.DataScienceCluster {
+	return &dscv1.DataScienceCluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: "appNS",
+		},
+		Spec: dscv1.DataScienceClusterSpec{
+			Components: dscv1.Components{
+				Workbenches: workbenches.Workbenches{
 					Component: components.Component{
 						ManagementState: operatorv1.Removed,
 					},
