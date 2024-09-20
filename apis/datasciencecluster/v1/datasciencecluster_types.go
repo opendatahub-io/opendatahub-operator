@@ -20,6 +20,7 @@ import (
 	"errors"
 	"reflect"
 
+	"github.com/hashicorp/go-multierror"
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -166,4 +167,40 @@ func (d *DataScienceCluster) GetComponents() ([]components.ComponentInterface, e
 	}
 
 	return allComponents, nil
+}
+
+func (d *DataScienceCluster) ForEachComponentParallel(f func(c components.ComponentInterface, args ...any) (any, error), args ...any) (any, error) {
+	var errs *multierror.Error
+	var err error
+	var res any
+	type result struct {
+		value any
+		err   error
+	}
+
+	comps, err := d.GetComponents()
+	if err != nil {
+		return nil, err
+	}
+
+	ch := make(chan result)
+
+	for _, c := range comps {
+		c := c
+		go func(c components.ComponentInterface, args ...any) {
+			r, err := f(c, args...)
+			ch <- result{value: r, err: err}
+		}(c, args...)
+	}
+
+	for i := 0; i < len(comps); i++ {
+		result := <- ch
+
+		errs = multierror.Append(errs, result.err)
+		if result.err != nil {
+			res = result.value
+		}
+	}
+	// res is the latest successful result
+	return res, errs.ErrorOrNil()
 }

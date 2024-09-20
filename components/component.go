@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -38,6 +39,8 @@ type Component struct {
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=2
 	DevFlags *DevFlags `json:"devFlags,omitempty"`
 }
+
+var lock sync.Mutex
 
 func (c *Component) GetManagementState() operatorv1.ManagementState {
 	return c.ManagementState
@@ -99,6 +102,9 @@ func (c *Component) ConfigComponentLogger(logger logr.Logger, component string, 
 // UpdatePrometheusConfig update prometheus-configs.yaml to include/exclude <component>.rules
 // parameter enable when set to true to add new rules, when set to false to remove existing rules.
 func (c *Component) UpdatePrometheusConfig(_ client.Client, logger logr.Logger, enable bool, component string) error {
+	lock.Lock()
+	defer lock.Unlock()
+
 	prometheusconfigPath := filepath.Join("/opt/manifests", "monitoring", "prometheus", "apps", "prometheus-configs.yaml")
 
 	// create a struct to mock poremtheus.yml
