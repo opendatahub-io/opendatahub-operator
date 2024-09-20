@@ -149,6 +149,7 @@ func main() { //nolint:funlen,maintidx
 		setupLog.Error(err, "error getting platform")
 		os.Exit(1)
 	}
+	setupLog.Info("running on", "platform", platform)
 
 	secretCache := createSecretCacheConfig(platform)
 	deploymentCache := createDeploymentCacheConfig(platform)
