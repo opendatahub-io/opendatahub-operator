@@ -1,8 +1,11 @@
 package cluster_test
 
 import (
+	"path/filepath"
 	"testing"
 
+	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -34,8 +37,19 @@ var _ = BeforeSuite(func() {
 	By("Bootstrapping k8s test environment")
 
 	utilruntime.Must(corev1.AddToScheme(testScheme))
+	utilruntime.Must(ofapiv1alpha1.AddToScheme(testScheme))
+	utilruntime.Must(ofapiv2.AddToScheme(testScheme))
 
-	envTest = &envtest.Environment{}
+	envTest = &envtest.Environment{
+		CRDInstallOptions: envtest.CRDInstallOptions{
+			Scheme: testScheme,
+			Paths: []string{
+				filepath.Join("..", "..", "config", "crd", "external"),
+			},
+			ErrorIfPathMissing: true,
+			CleanUpAfterUse:    false,
+		},
+	}
 
 	config, err := envTest.Start()
 	Expect(err).NotTo(HaveOccurred())

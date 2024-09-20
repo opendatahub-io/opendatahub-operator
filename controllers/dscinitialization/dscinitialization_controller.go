@@ -167,9 +167,17 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 	}
 
+	// Get platform
+	platform, err := cluster.GetPlatform(ctx, r.Client)
+	if err != nil {
+		r.Log.Error(err, "Failed to determine platform")
+
+		return reconcile.Result{}, err
+	}
+
 	// Check namespace is not exist, then create
 	namespace := instance.Spec.ApplicationsNamespace
-	err = r.createOdhNamespace(ctx, instance, namespace)
+	err = r.createOdhNamespace(ctx, instance, namespace, platform)
 	if err != nil {
 		// no need to log error as it was already logged in createOdhNamespace
 		return reconcile.Result{}, err
@@ -180,13 +188,6 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return reconcile.Result{}, err
 	}
 	managementStateChangeTrustedCA = false
-
-	// Get platform
-	platform, err := cluster.GetPlatform(ctx, r.Client)
-	if err != nil {
-		r.Log.Error(err, "Failed to determine platform (odh vs managed vs self-managed)")
-		return reconcile.Result{}, err
-	}
 
 	switch req.Name {
 	case "prometheus": // prometheus configmap
