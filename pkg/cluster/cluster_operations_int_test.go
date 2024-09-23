@@ -4,8 +4,6 @@ import (
 	"context"
 	"time"
 
-	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
-	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrlruntime "sigs.k8s.io/controller-runtime/pkg/client"
@@ -92,89 +90,6 @@ var _ = Describe("Creating cluster resources", func() {
 			Expect(nsWithLabels.Annotations).To(HaveKeyWithValue("opendatahub.io/test-annotation", "true"))
 		})
 
-	})
-
-	Context("Platform detection", func() {
-		var objectCleaner *envtestutil.Cleaner
-		operatorNS := "redhat-ods-operator"
-
-		BeforeEach(func(ctx context.Context) {
-			objectCleaner = envtestutil.CreateCleaner(envTestClient, envTest.Config, timeout, interval)
-		})
-
-		It("should run as unknown", func(ctx context.Context) {
-			// given nothing
-			// when
-			platform, err := cluster.GetPlatform(ctx, envTestClient)
-			Expect(err).ToNot(HaveOccurred())
-
-			// then
-			Expect(platform).To(Equal(cluster.Unknown))
-
-		})
-
-		It("should run as managed platform", func(ctx context.Context) {
-			// give catalogsource exists in operator namespace
-			_, errNs := cluster.CreateNamespace(ctx, envTestClient, operatorNS)
-			Expect(errNs).ToNot(HaveOccurred())
-
-			catalogSource := &ofapiv1alpha1.CatalogSource{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "addon-managed-odh-catalog",
-					Namespace: operatorNS,
-				},
-			}
-			Expect(envTestClient.Create(ctx, catalogSource)).To(Succeed())
-
-			// when
-			platform, err := cluster.GetPlatform(ctx, envTestClient)
-			Expect(err).ToNot(HaveOccurred())
-			defer objectCleaner.DeleteAll(ctx, catalogSource)
-
-			// then
-			Expect(platform).To(Equal(cluster.ManagedRhods))
-
-		})
-
-		It("should run as self-managed platform", func(ctx context.Context) {
-			// given rhoai operatorcondition exist
-			operatorCondition := &ofapiv2.OperatorCondition{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "rhods-operator-something",
-					Namespace: operatorNS,
-				},
-			}
-			Expect(envTestClient.Create(ctx, operatorCondition)).To(Succeed())
-
-			// when
-			platform, err := cluster.GetPlatform(ctx, envTestClient)
-			Expect(err).ToNot(HaveOccurred())
-			defer objectCleaner.DeleteAll(ctx, operatorCondition)
-
-			// then
-			Expect(platform).To(Equal(cluster.SelfManagedRhods))
-
-		})
-
-		It("should run as ODH platform", func(ctx context.Context) {
-			// given odh operatorcondition exist
-			operatorCondition := &ofapiv2.OperatorCondition{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "opendatahub-operator-something",
-					Namespace: operatorNS,
-				},
-			}
-			Expect(envTestClient.Create(ctx, operatorCondition)).To(Succeed())
-
-			// when
-			platform, err := cluster.GetPlatform(ctx, envTestClient)
-			Expect(err).ToNot(HaveOccurred())
-			defer objectCleaner.DeleteAll(ctx, operatorCondition)
-
-			// then
-			Expect(platform).To(Equal(cluster.OpenDataHub))
-
-		})
 	})
 
 	Context("config map manipulation", func() {

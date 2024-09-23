@@ -116,7 +116,7 @@ func detectManagedRHODS(ctx context.Context, cli client.Client) (Platform, error
 	return ManagedRhods, nil
 }
 
-func GetPlatform(ctx context.Context, cli client.Client) (Platform, error) {
+func getPlatform(ctx context.Context, cli client.Client) (Platform, error) {
 	// First check if its addon installation to return 'ManagedRhods, nil'
 	if platform, err := detectManagedRHODS(ctx, cli); err != nil {
 		return Unknown, err
@@ -143,7 +143,7 @@ func GetRelease(ctx context.Context, cli client.Client) (Release, error) {
 		},
 	}
 	// Set platform
-	platform, err := GetPlatform(ctx, cli)
+	platform, err := getPlatform(ctx, cli)
 	if err != nil {
 		return initRelease, err
 	}
