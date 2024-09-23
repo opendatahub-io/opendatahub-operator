@@ -85,19 +85,15 @@ const (
 func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:maintidx,gocyclo
 	r.Log.Info("Reconciling DataScienceCluster resources", "Request.Name", req.Name)
 
-	// Get platform
-	platform, err := cluster.GetPlatform(ctx, r.Client)
-	if err != nil {
-		r.Log.Error(err, "Failed to determine platform")
-		return ctrl.Result{}, err
-	}
-
-	// Get information on version
+	// Get information on version and platform
 	currentOperatorRelease, err := cluster.GetRelease(ctx, r.Client)
 	if err != nil {
 		r.Log.Error(err, "failed to get operator release version")
 		return ctrl.Result{}, err
 	}
+	// Set platform
+	platform := currentOperatorRelease.Name
+
 	instances := &dscv1.DataScienceClusterList{}
 
 	if err := r.Client.List(ctx, instances); err != nil {

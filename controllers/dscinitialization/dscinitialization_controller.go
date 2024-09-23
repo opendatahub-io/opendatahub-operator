@@ -85,6 +85,8 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		r.Log.Error(err, "failed to get operator release version")
 		return ctrl.Result{}, err
 	}
+	// Set platform
+	platform := currentOperatorRelease.Name
 
 	instances := &dsciv1.DSCInitializationList{}
 	if err := r.Client.List(ctx, instances); err != nil {
@@ -165,14 +167,6 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 				"%s for instance %s", message, instance.Name)
 			return reconcile.Result{}, err
 		}
-	}
-
-	// Get platform
-	platform, err := cluster.GetPlatform(ctx, r.Client)
-	if err != nil {
-		r.Log.Error(err, "Failed to determine platform")
-
-		return reconcile.Result{}, err
 	}
 
 	// Check namespace is not exist, then create
