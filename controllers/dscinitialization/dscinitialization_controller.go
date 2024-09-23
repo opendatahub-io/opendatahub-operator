@@ -78,11 +78,13 @@ type DSCInitializationReconciler struct {
 func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:funlen,gocyclo,maintidx
 	r.Log.Info("Reconciling DSCInitialization.", "DSCInitialization Request.Name", req.Name)
 
-	currentOperatorReleaseVersion, err := cluster.GetRelease(ctx, r.Client)
+	currentOperatorRelease, err := cluster.GetRelease(ctx, r.Client)
 	if err != nil {
 		r.Log.Error(err, "failed to get operator release version")
 		return ctrl.Result{}, err
 	}
+	// Set platform
+	platform := currentOperatorRelease.Name
 
 	instances := &dsciv1.DSCInitializationList{}
 	if err := r.Client.List(ctx, instances); err != nil {
@@ -142,7 +144,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
 			status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
 			saved.Status.Phase = status.PhaseProgressing
-			saved.Status.Release = currentOperatorReleaseVersion
+			saved.Status.Release = currentOperatorRelease
 		})
 		if err != nil {
 			r.Log.Error(err, "Failed to add conditions to status of DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
@@ -151,14 +153,6 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 			return reconcile.Result{}, err
 		}
-	}
-
-	// Get platform
-	platform, err := cluster.GetPlatform(ctx, r.Client)
-	if err != nil {
-		r.Log.Error(err, "Failed to determine platform")
-
-		return reconcile.Result{}, err
 	}
 
 	// Check namespace is not exist, then create
