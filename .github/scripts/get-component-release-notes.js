@@ -1,5 +1,5 @@
 function getModifiedComponentName(name){
-    let modifiedWord = name.split("-").join(" ")
+    let modifiedWord = name.split("-").join(" ").replace(/[^a-zA-Z ]/g, "").trim()
     modifiedWord = modifiedWord[0].toUpperCase() + modifiedWord.slice(1).toLowerCase()
     return modifiedWord.replace("Odh", "ODH")
 }
@@ -31,9 +31,9 @@ module.exports = ({ github, core }) => {
                 components.forEach(component => {
                     if (regex.test(component)) {
                         let [componentName, branchUrl, tagUrl] = component.split("|")
-                        componentName = componentName.trim()
+                        componentName = getModifiedComponentName(componentName.trim())
                         const releaseNotesUrl = (tagUrl || branchUrl).trim();
-                        outputStr += `- **${getModifiedComponentName(componentName)}**: ${releaseNotesUrl}\n`
+                        if(!outputStr.includes(componentName)) outputStr += `- **${componentName}**: ${releaseNotesUrl}\n`
         
                     }
                 })

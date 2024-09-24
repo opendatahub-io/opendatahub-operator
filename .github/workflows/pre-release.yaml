@@ -1,89 +1,75 @@
-name: "Pre-Release"
+name: "Push tags and create version update prs"
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        type: string
-        description: The version to update(https://semver.org/).
-        required: true
-      tracker-url:
-        type: string
-        description: The URL to tracker issue(https://github.com/opendatahub-io/opendatahub-community/issues).
-        required: true
-permissions:
-  checks: read
-  pull-requests: write
-  contents: write
-env:
-  VERSION: ${{ inputs.version }}
-  TRACKER_URL: ${{ inputs.tracker-url }}
+  pull_request:
+    types:
+      - closed
+
 jobs:
-  dry-run-pr:
+  push-tags-and-create-release-prs:
+    if: github.event_name == 'pull_request' && github.event.pull_request.merged == false && github.event.action == 'closed' && contains(github.event.pull_request.title, '[DO NOT MERGE] Test')
     runs-on: ubuntu-latest
-    name: Create dry-run pr and update tags
     steps:
-      - uses: actions/checkout@v4
-      - name: Validate semver
-        run: ./.github/scripts/validate-semver.sh v${{ env.VERSION }}
-      - uses: ./.github/actions/update-manifest-branches
-      - name: Create dry-run pr
-        uses: peter-evans/create-pull-request@v6
-        id: cpr-dry-run
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "Test ${{ env.VERSION }} Release"
-          branch: odh-release/e2e-dry-run
-          delete-branch: true
-          title: "[DO NOT MERGE] Test ${{ env.VERSION }} Release"
-      - name: Wait for checks to pass
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./.github/scripts/wait-for-checks.sh ${{ steps.cpr-dry-run.outputs.pull-request-number }}
-      - name: Close PR
-        uses: peter-evans/close-pull@v3
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          pull-request-number: ${{ steps.cpr-dry-run.outputs.pull-request-number }}
-          comment: Auto-closing pull request after success checks
-          delete-branch: true
-      - name: Push version tag to quay.io
-        run: |
-          skopeo login -u ${{ secrets.QUAY_ID }} -p ${{ secrets.QUAY_TOKEN }} quay.io
-          skopeo copy docker://quay.io/${{ secrets.QUAY_ORG }}/opendatahub-operator:pr-${{ steps.cpr-dry-run.outputs.pull-request-number }} docker://quay.io/${{ secrets.QUAY_ORG }}/opendatahub-operator:${{ env.VERSION }}
-          echo "Successfully updated tag to quay.io with version: ${{ env.VERSION }}"
-  release-branch-pr:
-    needs: dry-run-pr
-    runs-on: ubuntu-latest
-    name: Create version update pr
-    steps:
-      - uses: actions/checkout@v4
-      - name: Create version update pr in incubation
-        uses: ./.github/actions/update-release-version
-        with:
-          version: ${{ inputs.version }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "Update version to ${{ env.VERSION }}"
-          title: "Update version to ${{ env.VERSION }}"
-          branch-name: "odh-release/version-update"
-      - name: Create release branch
-        run: |
-          git checkout -b odh-${{ env.VERSION }}
-          git push -f origin odh-${{ env.VERSION }}
-      - uses: ./.github/actions/update-manifest-branches
-      - name: Create release pr in release branch
-        uses: ./.github/actions/update-release-version
-        id: cpr-release-pr
-        with:
-          version: ${{ inputs.version }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "ODH Release ${{ env.VERSION }}"
-          title: "ODH Release ${{ env.VERSION }}: Version Update"
-          branch-name: "odh-release/release-branch-update"
-      - name: Comment version and tracker url in the pr
-        uses: thollander/actions-comment-pull-request@v2
-        with:
-          message: |
-            #Release#
-            version=${{ env.VERSION }}
-            tracker-url=${{ env.TRACKER_URL }}
-          pr_number: ${{ steps.cpr-release-pr.outputs.pull-request-number }}
+    - name: check release comment
+      uses: peter-evans/find-comment@v3
+      id: dry-run-comment
+      with:
+        issue-number: ${{ github.event.pull_request.number }}
+        body-includes: /release-odh
+        direction: last
+    - name: "Evaluate release comment"
+      run: |
+        if [ "${{ steps.dry-run-comment.outputs.comment-body }}" != "/release-odh" ]; then
+          echo "Please add /release-odh comment while closing the pr"
+          exit 1
+        fi
+      shell: bash
+    - name: Get release data
+      uses: peter-evans/find-comment@v3
+      id: release-data
+      with:
+        issue-number: ${{ github.event.pull_request.number }}
+        body-includes: "#Release#"
+    - name: Set version/tracker-url in env
+      run: |
+        echo "VERSION=$(echo "${{ steps.release-data.outputs.comment-body }}" | awk -F= '$1 ~ /version$/{print $2}')" >> $GITHUB_ENV
+        echo "TRACKER_URL=$(echo "${{ steps.release-data.outputs.comment-body }}" | awk -F= '$1 ~ /tracker-url$/{print $2}')" >> $GITHUB_ENV
+    - name: Push version tag to quay.io
+      run: |
+        skopeo login -u ${{ secrets.QUAY_ID }} -p ${{ secrets.QUAY_TOKEN }} quay.io
+        skopeo copy docker://quay.io/${{ secrets.QUAY_ORG }}/opendatahub-operator:pr-${{ github.event.pull_request.number }} docker://quay.io/${{ secrets.QUAY_ORG }}/opendatahub-operator:v${{ env.VERSION }}
+        echo "Successfully updated tag to quay.io with version: v${{ env.VERSION }}"
+    - uses: actions/checkout@v4
+    - name: Create version update pr in incubation
+      uses: ./.github/actions/update-release-version
+      with:
+        version: ${{ env.VERSION }}
+        token: ${{ secrets.GITHUB_TOKEN }}
+        commit-message: "Update version to ${{ env.VERSION }}"
+        title: "Update version to ${{ env.VERSION }}"
+        branch-name: "odh-release/version-update"
+        base-branch: incubation
+    - name: Create release branch
+      run: |
+        git checkout -b odh-${{ env.VERSION }}
+        git push -f origin odh-${{ env.VERSION }}
+    - uses: ./.github/actions/update-manifest-branches
+    - name: Create release pr in release branch
+      uses: ./.github/actions/update-release-version
+      id: cpr-release-pr
+      with:
+        version: ${{ env.VERSION }}
+        token: ${{ secrets.GITHUB_TOKEN }}
+        commit-message: "ODH Release ${{ env.VERSION }}"
+        title: "ODH Release ${{ env.VERSION }}: Version Update"
+        branch-name: "odh-release/release-branch-update"
+        base-branch: odh-${{ env.VERSION }}
+    - name: Comment version and tracker url in the pr
+      uses: thollander/actions-comment-pull-request@v2
+      with:
+        message: |
+          #Release#
+          version=${{ env.VERSION }}
+          tracker-url=${{ env.TRACKER_URL }}
+          :exclamation: DO NOT EDIT THIS COMMENT :exclamation:
+        pr_number: ${{ steps.cpr-release-pr.outputs.pull-request-number }}
+    
