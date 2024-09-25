@@ -327,7 +327,7 @@ spec:
       managementState: Managed
     modelregistry:
       managementState: Managed
-      registriesNamespace: "odh-model-registries"
+      registriesNamespace: "rhoai-model-registries"
     ray:
       managementState: Managed
     trainingoperator:
