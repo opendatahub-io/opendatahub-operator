@@ -126,6 +126,8 @@ spec:
                         description: |-
                           Namespace where it is deployed. If not provided, the default is to
                           use '-auth-provider' suffix on the ApplicationsNamespace of the DSCI.
+                        maxLength: 63
+                        pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
                         type: string
                     type: object
                   controlPlane:
@@ -152,6 +154,8 @@ spec:
                         default: istio-system
                         description: Namespace is a namespace where Service Mesh is
                           deployed. Defaults to "istio-system".
+                        maxLength: 63
+                        pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
                         type: string
                     type: object
                   managementState:
