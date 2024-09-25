@@ -91,7 +91,7 @@ type ComponentInterface interface {
 // extend origal ConfigLoggers to include component name.
 func (c *Component) ConfigComponentLogger(logger logr.Logger, component string, dscispec *dsciv1.DSCInitializationSpec) logr.Logger {
 	if dscispec.DevFlags != nil {
-		return ctrlogger.ConfigLoggers(dscispec.DevFlags.LogMode).WithName("DSC.Components." + component)
+		return ctrlogger.NewLogger(dscispec.DevFlags.LogMode).WithName("DSC.Components." + component)
 	}
 	return logger.WithName("DSC.Components." + component)
 }

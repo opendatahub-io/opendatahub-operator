@@ -27,7 +27,7 @@ func LogWithLevel(logger logr.Logger, level string) logr.Logger {
 
 // in DSC component, to use different mode for logging, e.g. development, production
 // when not set mode it falls to "default" which is used by startup main.go.
-func ConfigLoggers(mode string) logr.Logger {
+func NewLogger(mode string) logr.Logger {
 	var opts zap.Options
 	switch mode {
 	case "devel", "development": //  the most logging verbosity
