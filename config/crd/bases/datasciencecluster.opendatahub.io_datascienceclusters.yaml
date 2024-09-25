@@ -444,7 +444,7 @@ spec:
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
                       registriesNamespace:
-                        default: odh-model-registries
+                        default: rhoai-model-registries
                         description: Namespace for model registries to be installed,
                           configurable only once when model registry is enabled, defaults
                           to "odh-model-registries"
