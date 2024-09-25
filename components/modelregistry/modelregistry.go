@@ -30,7 +30,7 @@ const DefaultModelRegistryCert = "default-modelregistry-cert"
 
 var (
 	ComponentName                   = "model-registry-operator"
-	DefaultModelRegistriesNamespace = "odh-model-registries"
+	DefaultModelRegistriesNamespace = "rhoai-model-registries"
 	Path                            = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/odh"
 	// we should not apply this label to the namespace, as it triggered namspace deletion during operator uninstall
 	// modelRegistryLabels = cluster.WithLabels(
