@@ -42,4 +42,4 @@ spec:
       managementState: "Removed"      
     modelregistry:
       managementState: "Removed"
-      registriesNamespace: "odh-model-registries"
+      registriesNamespace: "rhoai-model-registries"
