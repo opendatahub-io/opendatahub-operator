@@ -35,16 +35,14 @@ jobs:
         with:
           script: |
             const script = require('./.github/scripts/get-component-release-notes.js')
-            script({github, core})
+            await script({github, core, context})
       - name: Create GH release
         uses: softprops/action-gh-release@v2
         with:
           body: ${{ steps.release-notes.outputs.release-notes-body }}
           tag_name: v${{ env.VERSION }}
-          generate_release_notes: true
-          append_body: true
           make_latest: true
-  # To be enabled later.
+  # TODO: To be enabled later.
   # create-community-operators-pr:
   #   needs: [gh-release]
   #   name: Create community operators prod pr # https://github.com/redhat-openshift-ecosystem/community-operators-prod
