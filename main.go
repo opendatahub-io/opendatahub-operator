@@ -124,7 +124,7 @@ func main() { //nolint:funlen,maintidx
 
 	flag.Parse()
 
-	ctrl.SetLogger(logger.ConfigLoggers(logmode))
+	ctrl.SetLogger(logger.NewLogger(logmode))
 
 	// root context
 	ctx := ctrl.SetupSignalHandler()

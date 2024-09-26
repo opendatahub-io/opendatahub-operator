@@ -15,6 +15,16 @@ var logLevelMapping = map[string]int{
 	"prod":    2,
 }
 
+// NewNamedLogger creates a new logger for a component.
+// If the mode is set (so can be different from the default one),
+// it will create a new logger with the specified mode's options.
+func NewNamedLogger(log logr.Logger, name string, mode string) logr.Logger {
+	if mode != "" {
+		log = NewLogger(mode)
+	}
+	return log.WithName(name)
+}
+
 // in each controller, to use different log level.
 func LogWithLevel(logger logr.Logger, level string) logr.Logger {
 	level = strings.TrimSpace(level)
@@ -27,7 +37,7 @@ func LogWithLevel(logger logr.Logger, level string) logr.Logger {
 
 // in DSC component, to use different mode for logging, e.g. development, production
 // when not set mode it falls to "default" which is used by startup main.go.
-func ConfigLoggers(mode string) logr.Logger {
+func NewLogger(mode string) logr.Logger {
 	var opts zap.Options
 	switch mode {
 	case "devel", "development": //  the most logging verbosity

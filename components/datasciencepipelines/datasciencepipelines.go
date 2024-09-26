@@ -65,13 +65,12 @@ func (d *DataSciencePipelines) GetComponentName() string {
 
 func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 	cli client.Client,
-	logger logr.Logger,
+	l logr.Logger,
 	owner metav1.Object,
 	dscispec *dsciv1.DSCInitializationSpec,
 	platform cluster.Platform,
 	_ bool,
 ) error {
-	l := d.ConfigComponentLogger(logger, ComponentName, dscispec)
 	var imageParamMap = map[string]string{
 		// v1
 		"IMAGES_APISERVER":         "RELATED_IMAGE_ODH_ML_PIPELINES_API_SERVER_IMAGE",

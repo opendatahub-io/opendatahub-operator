@@ -62,20 +62,12 @@ func (d *Dashboard) GetComponentName() string {
 
 func (d *Dashboard) ReconcileComponent(ctx context.Context,
 	cli client.Client,
-	logger logr.Logger,
+	l logr.Logger,
 	owner metav1.Object,
 	dscispec *dsciv1.DSCInitializationSpec,
 	platform cluster.Platform,
 	currentComponentExist bool,
 ) error {
-	var l logr.Logger
-
-	if platform == cluster.SelfManagedRhods || platform == cluster.ManagedRhods {
-		l = d.ConfigComponentLogger(logger, ComponentNameDownstream, dscispec)
-	} else {
-		l = d.ConfigComponentLogger(logger, ComponentNameUpstream, dscispec)
-	}
-
 	entryPath := map[cluster.Platform]string{
 		cluster.SelfManagedRhods: PathDownstream + "/onprem",
 		cluster.ManagedRhods:     PathDownstream + "/addon",
