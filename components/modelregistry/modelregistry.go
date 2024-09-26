@@ -51,7 +51,7 @@ var _ components.ComponentInterface = (*ModelRegistry)(nil)
 type ModelRegistry struct {
 	components.Component `json:""`
 
-	// Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries"
+	// Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "rhoai-model-registries"
 	// +kubebuilder:default="rhoai-model-registries"
 	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
 	// +kubebuilder:validation:MaxLength=63
