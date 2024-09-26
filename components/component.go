@@ -15,7 +15,6 @@ import (
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	ctrlogger "github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 )
 
 // Component struct defines the basis for each OpenDataHub component configuration.
@@ -85,15 +84,6 @@ type ComponentInterface interface {
 	GetManagementState() operatorv1.ManagementState
 	OverrideManifests(ctx context.Context, platform cluster.Platform) error
 	UpdatePrometheusConfig(cli client.Client, logger logr.Logger, enable bool, component string) error
-	ConfigComponentLogger(logger logr.Logger, component string, dscispec *dsciv1.DSCInitializationSpec) logr.Logger
-}
-
-// extend origal ConfigLoggers to include component name.
-func (c *Component) ConfigComponentLogger(logger logr.Logger, component string, dscispec *dsciv1.DSCInitializationSpec) logr.Logger {
-	if dscispec.DevFlags != nil {
-		return ctrlogger.NewLogger(dscispec.DevFlags.LogMode).WithName("DSC.Components." + component)
-	}
-	return logger.WithName("DSC.Components." + component)
 }
 
 // UpdatePrometheusConfig update prometheus-configs.yaml to include/exclude <component>.rules

@@ -55,10 +55,8 @@ func (r *TrainingOperator) GetComponentName() string {
 	return ComponentName
 }
 
-func (r *TrainingOperator) ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
+func (r *TrainingOperator) ReconcileComponent(ctx context.Context, cli client.Client, l logr.Logger,
 	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, platform cluster.Platform, _ bool) error {
-	l := r.ConfigComponentLogger(logger, ComponentName, dscispec)
-
 	var imageParamMap = map[string]string{
 		"odh-training-operator-controller-image": "RELATED_IMAGE_ODH_TRAINING_OPERATOR_IMAGE",
 	}

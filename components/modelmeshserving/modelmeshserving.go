@@ -73,13 +73,12 @@ func (m *ModelMeshServing) GetComponentName() string {
 
 func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 	cli client.Client,
-	logger logr.Logger,
+	l logr.Logger,
 	owner metav1.Object,
 	dscispec *dsciv1.DSCInitializationSpec,
 	platform cluster.Platform,
 	_ bool,
 ) error {
-	l := m.ConfigComponentLogger(logger, ComponentName, dscispec)
 	var imageParamMap = map[string]string{
 		"odh-mm-rest-proxy":             "RELATED_IMAGE_ODH_MM_REST_PROXY_IMAGE",
 		"odh-modelmesh-runtime-adapter": "RELATED_IMAGE_ODH_MODELMESH_RUNTIME_ADAPTER_IMAGE",
