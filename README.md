@@ -145,10 +145,10 @@ e.g `make image-build -e IMAGE_BUILD_FLAGS="--build-arg USE_LOCAL=true"`
   make image -e IMG=quay.io/<username>/opendatahub-operator:<custom-tag>
   ```
   
-  or (for example to user vhire)
+  or (for example to user <username>)
 
   ```commandline
-  make image -e IMAGE_OWNER=vhire
+  make image -e IMAGE_OWNER=<username>
   ```
 
   The default image used is `quay.io/opendatahub/opendatahub-operator:dev-0.0.1` when not supply argument for `make image`

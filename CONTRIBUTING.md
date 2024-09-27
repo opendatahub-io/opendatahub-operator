@@ -1,60 +1,81 @@
 # Contributing to the Opendatahub Operator
 
-Thanks for your interest in this project. You can contribute to this project in many different ways.
+Thanks for your interest in the opendatahub-operator project! You can contribute to this project in various ways: filing bug reports, proposing features, submitting pull requests (PRs), and improving documentation.
 
-## Issues and Enhancements
+Before you begin, please take a look at our contribution guidelines below to ensure that your contribuutions are aligned with the project's goals.
 
-Please let us know via our GitHub issue tracker if you find a problem, even if you don't have a fix for it.
-The ideal issue report should be descriptive, and where possible include the steps we can take to reproduce the problem for ourselves.
+## Reporting Issues
+Issues are tracked using [Jira](https://issues.redhat.com/secure/RapidBoard.jspa?rapidView=18680#). If you encounter a bug or have suggestions for enhancements, please follow the steps below:
 
-Please go to [issue tracker](https://github.com/opendatahub-io/opendatahub-operator/issues) and create a "New issue".
-Choose suitable issue type and fill in description as detailed as possible.
-Lastly, add extra label for this issue if that can help us refine it.
+1. **Check for Existing Issues:** Before creating a new issue, search the Jira project to see if a similar issue already exists.
+2. **Create a Jira Ticket:** If the issue doesn’t exist, create a new ticket in Jira. 
+   - **For Feature Requests:**  Set the issue type to be `Initative`
+   - **For Bugs:** Set the issue type to `Bug`
+   - **For all other code changes:** Use the issue type `Story`
 
-If you have a proposed fix for an issue, or an enhancement you would like to make to the code please describe it in an issue, then send us the code as a GitHub pull request as described below.
+## Pull Requests
 
-## Pull request
+### Workflow
 
-Use a descriptive title, and if it relates to an issue in our tracker please reference which one.
-If the PR is not intended to be merged you should prefix the title with "[WIP]" which indicates it is still Work In Progress.
-PR's description should provide enough information for a reviewer to understand the changes and their relation to the rest of the code.
+1. **Fork the Repository:** Create your own fork of the repository to work on your changes.
+2. **Create a Branch:** Create your own branch to include changes for the feature or a bug fix off of `incubation` branch.
+3. **Work on Your Changes:** Commit often, and ensure your code adheres to these [Code Style Guidelines](#code-style-guidelines) and passes all the [quality gates](#quality-gates) for the operator.
+4. **Testing:** Make sure your code passes all the tests, including any new tests you've added. 
 
-## Setting up a Fedora-based development environment
+### Open a Pull Request:
 
-This is a loose list of tools to install on your linux box in order to compile, test and deploy the operator. 
+1. **Link to Jira Issue**: Include the Jira issue link in your PR description.
+2. **Description**: Provide a detailed description of the changes and what they fix or implement.
+3. **Add Testing Steps**: Provide information on how the PR has been tested, and list out testing steps if any for reviewers.
+4. **Review Request**: Tag the relevant maintainers(@opendatahub-io/odh-operator-maintainers ) or team members(@opendatahub-io/odh-platform-members) for a review.
+5. **Resolve Feedback**: Be open to feedback and iterate on your changes.
 
-```bash
-ssh-keygen -t ed25519 -C "<email-registered-on-github-account>"
-# upload public key to github
+### Quality Gates
 
-sudo dnf makecache --refresh
-sudo dnf install -y git-all
-sudo dnf install -y golang
-sudo dnf install -y podman
-sudo dnf install -y cri-o kubernetes-kubeadm kubernetes-node kubernetes-client cri-tools
-sudo dnf install -y operator-sdk
-sudo dnf install -y wget
-wget https://mirror.openshift.com/pub/openshift-v4/clients/oc/latest/linux/oc.tar.gz
-cd bin/; tar -xzvf ../oc.tar.gz ; cd .. ; rm oc.tar.gz
-sudo dnf install -y zsh
+To ensure the contributed code adheres to the project goals, we have set up some automated quality gates:
 
-# update PATH
-echo 'export PATH=${PATH}:~/bin' >> ~/.zshrc
-echo 'export GOPROXY=https://proxy.golang.org' >> ~/.zshrc
-```
+1. [linters](https://github.com/opendatahub-io/opendatahub-operator/blob/incubation/.github/workflows/linter.yaml): Ensure the check for linters is successful. If it fails, run `make lint` to resolve errors
+2. [api-docs](https://github.com/opendatahub-io/opendatahub-operator/blob/incubation/.github/workflows/check-file-updates.yaml): Ensure the api-docs are updated when making changes to operator apis. If it fails, run `make generate manifests api-docs` to resolve errors
+3. [unit-tests](https://github.com/opendatahub-io/opendatahub-operator/blob/incubation/.github/workflows/unit-tests.yaml): Ensure unit tests pass. Run `make unit-tests` 
+4. [e2e-tests](https://prow.ci.openshift.org/job-history/gs/test-platform-results/pr-logs/directory/pull-ci-opendatahub-io-opendatahub-operator-incubation-opendatahub-operator-e2e): Ensure CI job for [e2e tests](https://github.com/opendatahub-io/opendatahub-operator/tree/incubation/tests/e2e) pass. Refer run e2e locally to debug. CI test logs can also be found under `Artifacts` directory under Job details.
 
-## Using a local.mk file to override Makefile variables for your development environment
+### Code Style Guidelines
 
-To support the ability for a developer to customize the Makefile execution to support their development environment, you can create a `local.mk` file in the root of this repo to specify custom values that match your environment.
+1. Follow the Go community’s best practices, which can be found in the official [Effective Go](https://go.dev/doc/effective_go) guide.
+2. Follow the best practices defined by the [Operator SDK](https://sdk.operatorframework.io/docs/best-practices/).
+3. Use `go fmt` to automatically format your code.
+4. Ensure your code passes `make lint` (we have a .golangci.yml file configured in the repo).
+5. Ensure you write clear and concise comments, especially for exported functions.
+6. Always check and handle errors appropriately. Avoid ignoring errors by using _.
+7. Make sure to run `go mod tidy before` submitting a PR to ensure the `go.mod` and `go.sum` files are up-to-date.
 
-```
-$ cat local.mk
-VERSION=9.9.9
-IMAGE_TAG_BASE=quay.io/my-dev-env/opendatahub-operator
-IMG_TAG=my-dev-tag
-OPERATOR_NAMESPACE=my-dev-odh-operator-system
-IMAGE_BUILD_FLAGS=--build-arg USE_LOCAL=true
-E2E_TEST_FLAGS="--skip-deletion=true" -timeout 15m
-DEFAULT_MANIFESTS_PATH=./opt/manifests
-```
+### Commit Messages
 
+We follow the conventional commits format for writing commit messages. A good commit message should include:
+1. **Type:** `fix`, `feat`, `docs`, `chore`, etc. **Note:** All commits except `chore` require an associated jira issue. Please add link to your jira issue.
+2. **Scope:** A short description of the area affected.
+3. **Summary:** A brief explanation of what the commit does.
+
+### Testing PR Changes Locally
+
+1. When a PR is opened, we have set up an OpenShift CI job that creates an operator image with the changes - `quay.io/opendatahub/opendatahub-operator:pr-<pr-number>`.
+2. Set up your environment to override Makefile defaults as described [here](./docs/troubleshooting.md#using-a-localmk-file-to-override-makefile-variables-for-your-development-environment)
+3. Use developer [guide](./README.md#developer-guide) to deploy operator [using OLM](./README.md#deployment) on a cluster.
+4. Follow the steps given [here](./README.md#run-e2e-tests) to run e2e tests in your environment.
+
+## Sync Changes in Downstream
+
+After a PR is merged into the upstream `opendatahub-io/opendatahub-operator` repository, the changes need to be synced with the downstream repository:
+
+1. **Cherry-Pick:** Use `git cherry-pick` to apply the changes to the downstream repo ([rhods-operator](https://github.com/red-hat-data-services/rhods-operator)).
+2. **Version Labels:** Ensure the downstream PR is labeled with the target release version (e.g., `rhoai-2.14`).
+3. **Operator Bundle or Dockerfile Updates:** If changes affect the operator bundle or Dockerfile, sync the changes in the `rhods-cpaas-midstream` repo in addition to downstream PR.
+
+Follow the same [PR Guide](#pull-requests) for creating and reviewing downstream PRs.
+
+## Communication
+
+For general questions, feel free to open a discussion in our repository or communicate via:
+
+- **Slack:** All issues related to ODH platform can be discussed in **#forum-openshift-ai-operator** channel.
+- **Jira Comments**: Feel free to discuss issues directly on Jira tickets.
