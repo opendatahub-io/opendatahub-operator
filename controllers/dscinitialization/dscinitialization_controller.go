@@ -22,7 +22,6 @@ import (
 	"path/filepath"
 	"reflect"
 
-	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -40,6 +39,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -65,7 +65,6 @@ var managementStateChangeTrustedCA = false
 type DSCInitializationReconciler struct {
 	client.Client
 	Scheme                *runtime.Scheme
-	Log                   logr.Logger
 	Recorder              record.EventRecorder
 	ApplicationsNamespace string
 }
@@ -79,7 +78,7 @@ type DSCInitializationReconciler struct {
 
 // Reconcile contains controller logic specific to DSCInitialization instance updates.
 func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:funlen,gocyclo,maintidx
-	log := r.Log
+	log := logf.FromContext(ctx).WithName("DSCInitialization")
 	log.Info("Reconciling DSCInitialization.", "DSCInitialization Request.Name", req.Name)
 
 	currentOperatorRelease := cluster.GetRelease()
@@ -402,8 +401,8 @@ var dsciPredicateStateChangeTrustedCA = predicate.Funcs{
 	},
 }
 
-func (r *DSCInitializationReconciler) watchMonitoringConfigMapResource(_ context.Context, a client.Object) []reconcile.Request {
-	log := r.Log
+func (r *DSCInitializationReconciler) watchMonitoringConfigMapResource(ctx context.Context, a client.Object) []reconcile.Request {
+	log := logf.FromContext(ctx)
 	if a.GetName() == "prometheus" && a.GetNamespace() == "redhat-ods-monitoring" {
 		log.Info("Found monitoring configmap has updated, start reconcile")
 
@@ -412,8 +411,8 @@ func (r *DSCInitializationReconciler) watchMonitoringConfigMapResource(_ context
 	return nil
 }
 
-func (r *DSCInitializationReconciler) watchMonitoringSecretResource(_ context.Context, a client.Object) []reconcile.Request {
-	log := r.Log
+func (r *DSCInitializationReconciler) watchMonitoringSecretResource(ctx context.Context, a client.Object) []reconcile.Request {
+	log := logf.FromContext(ctx)
 	operatorNs, err := cluster.GetOperatorNamespace()
 	if err != nil {
 		return nil
@@ -428,7 +427,7 @@ func (r *DSCInitializationReconciler) watchMonitoringSecretResource(_ context.Co
 }
 
 func (r *DSCInitializationReconciler) watchDSCResource(ctx context.Context) []reconcile.Request {
-	log := r.Log
+	log := logf.FromContext(ctx)
 	instanceList := &dscv1.DataScienceClusterList{}
 	if err := r.Client.List(ctx, instanceList); err != nil {
 		// do not handle if cannot get list

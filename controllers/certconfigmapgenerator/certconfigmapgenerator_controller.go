@@ -5,7 +5,6 @@ import (
 	"context"
 	"reflect"
 
-	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -16,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -28,13 +28,11 @@ import (
 type CertConfigmapGeneratorReconciler struct {
 	Client client.Client
 	Scheme *runtime.Scheme
-	Log    logr.Logger
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *CertConfigmapGeneratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	log := r.Log
-	log.Info("Adding controller for Configmap Generation.")
+func (r *CertConfigmapGeneratorReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
+	logf.FromContext(ctx).Info("Adding controller for Configmap Generation.")
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("cert-configmap-generator-controller").
 		Watches(&corev1.ConfigMap{}, handler.EnqueueRequestsFromMapFunc(r.watchTrustedCABundleConfigMapResource), builder.WithPredicates(ConfigMapChangedPredicate)).
@@ -45,7 +43,7 @@ func (r *CertConfigmapGeneratorReconciler) SetupWithManager(mgr ctrl.Manager) er
 // Reconcile will generate new configmap, odh-trusted-ca-bundle, that includes cluster-wide trusted-ca bundle and custom
 // ca bundle in every new namespace created.
 func (r *CertConfigmapGeneratorReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := r.Log
+	log := logf.FromContext(ctx).WithName("CertConfigmapGenerator")
 	// Request includes namespace that is newly created or where odh-trusted-ca-bundle configmap is updated.
 	log.Info("Reconciling CertConfigMapGenerator.", " Request.Namespace", req.NamespacedName)
 	// Get namespace instance
@@ -109,8 +107,8 @@ func (r *CertConfigmapGeneratorReconciler) watchNamespaceResource(_ context.Cont
 	return nil
 }
 
-func (r *CertConfigmapGeneratorReconciler) watchTrustedCABundleConfigMapResource(_ context.Context, a client.Object) []reconcile.Request {
-	log := r.Log
+func (r *CertConfigmapGeneratorReconciler) watchTrustedCABundleConfigMapResource(ctx context.Context, a client.Object) []reconcile.Request {
+	log := logf.FromContext(ctx)
 	if a.GetName() == trustedcabundle.CAConfigMapName {
 		log.Info("Cert configmap has been updated, start reconcile")
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: a.GetName(), Namespace: a.GetNamespace()}}}
