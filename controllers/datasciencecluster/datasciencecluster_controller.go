@@ -66,7 +66,6 @@ import (
 type DataScienceClusterReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
-	Log    logr.Logger
 	// Recorder to generate events
 	Recorder           record.EventRecorder
 	DataScienceCluster *DataScienceClusterConfig
@@ -84,7 +83,7 @@ const (
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:maintidx,gocyclo
-	log := r.Log
+	log := logf.FromContext(ctx).WithName("DataScienceCluster")
 	log.Info("Reconciling DataScienceCluster resources", "Request.Name", req.Name)
 
 	// Get information on version and platform
@@ -168,7 +167,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 			saved.Status.Phase = status.PhaseError
 		})
 		if err != nil {
-			r.reportError(err, instance, "failed to update DataScienceCluster condition")
+			r.reportError(ctx, err, instance, "failed to update DataScienceCluster condition")
 
 			return ctrl.Result{}, err
 		}
@@ -232,7 +231,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 			saved.Status.Release = currentOperatorRelease
 		})
 		if err != nil {
-			_ = r.reportError(err, instance, fmt.Sprintf("failed to add conditions to status of DataScienceCluster resource name %s", req.Name))
+			_ = r.reportError(ctx, err, instance, fmt.Sprintf("failed to add conditions to status of DataScienceCluster resource name %s", req.Name))
 
 			return ctrl.Result{}, err
 		}
@@ -290,7 +289,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context, instance *dscv1.DataScienceCluster,
 	platform cluster.Platform, component components.ComponentInterface,
 ) (*dscv1.DataScienceCluster, error) {
-	log := r.Log
+	log := logf.FromContext(ctx)
 	componentName := component.GetComponentName()
 
 	enabled := component.GetManagementState() == operatorv1.Managed
@@ -307,7 +306,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 			status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileInit, message, corev1.ConditionUnknown)
 		})
 		if err != nil {
-			_ = r.reportError(err, instance, "failed to update DataScienceCluster conditions before first time reconciling "+componentName)
+			_ = r.reportError(ctx, err, instance, "failed to update DataScienceCluster conditions before first time reconciling "+componentName)
 			// try to continue with reconciliation, as further updates can fix the status
 		}
 	}
@@ -319,7 +318,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 
 	if err != nil {
 		// reconciliation failed: log errors, raise event and update status accordingly
-		instance = r.reportError(err, instance, "failed to reconcile "+componentName+" on DataScienceCluster")
+		instance = r.reportError(ctx, err, instance, "failed to reconcile "+componentName+" on DataScienceCluster")
 		instance, _ = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dscv1.DataScienceCluster) {
 			if enabled {
 				if strings.Contains(err.Error(), datasciencepipelines.ArgoWorkflowCRD+" CRD already exists") {
@@ -355,7 +354,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 		}
 	})
 	if err != nil {
-		instance = r.reportError(err, instance, "failed to update DataScienceCluster status after reconciling "+componentName)
+		instance = r.reportError(ctx, err, instance, "failed to update DataScienceCluster status after reconciling "+componentName)
 
 		return instance, err
 	}
@@ -367,9 +366,8 @@ func newComponentContext(ctx context.Context, log logr.Logger, componentName str
 	return logf.IntoContext(ctx, log.WithName(componentName).WithValues("component", componentName))
 }
 
-func (r *DataScienceClusterReconciler) reportError(err error, instance *dscv1.DataScienceCluster, message string) *dscv1.DataScienceCluster {
-	log := r.Log
-	log.Error(err, message, "instance.Name", instance.Name)
+func (r *DataScienceClusterReconciler) reportError(ctx context.Context, err error, instance *dscv1.DataScienceCluster, message string) *dscv1.DataScienceCluster {
+	logf.FromContext(ctx).Error(err, message, "instance.Name", instance.Name)
 	r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DataScienceClusterReconcileError",
 		"%s for instance %s", message, instance.Name)
 	return instance
