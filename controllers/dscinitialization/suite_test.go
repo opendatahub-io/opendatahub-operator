@@ -139,7 +139,6 @@ var _ = BeforeSuite(func() {
 	err = (&dscictrl.DSCInitializationReconciler{
 		Client:   k8sClient,
 		Scheme:   testScheme,
-		Log:      ctrl.Log.WithName("controllers").WithName("DSCInitialization"),
 		Recorder: mgr.GetEventRecorderFor("dscinitialization-controller"),
 	}).SetupWithManager(gCtx, mgr)
 
