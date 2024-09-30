@@ -13,8 +13,8 @@ import (
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
@@ -178,6 +178,7 @@ func ExecuteOnAllNamespaces(ctx context.Context, cli client.Client, processFunc 
 
 // WaitForDeploymentAvailable to check if component deployment from 'namespace' is ready within 'timeout' before apply prometheus rules for the component.
 func WaitForDeploymentAvailable(ctx context.Context, c client.Client, componentName string, namespace string, interval int, timeout int) error {
+	log := logf.FromContext(ctx)
 	resourceInterval := time.Duration(interval) * time.Second
 	resourceTimeout := time.Duration(timeout) * time.Minute
 
@@ -188,7 +189,7 @@ func WaitForDeploymentAvailable(ctx context.Context, c client.Client, componentN
 			return false, fmt.Errorf("error fetching list of deployments: %w", err)
 		}
 
-		ctrl.Log.Info("waiting for " + strconv.Itoa(len(componentDeploymentList.Items)) + " deployment to be ready for " + componentName)
+		log.Info("waiting for " + strconv.Itoa(len(componentDeploymentList.Items)) + " deployment to be ready for " + componentName)
 		for _, deployment := range componentDeploymentList.Items {
 			if deployment.Status.ReadyReplicas != deployment.Status.Replicas {
 				return false, nil
@@ -200,6 +201,7 @@ func WaitForDeploymentAvailable(ctx context.Context, c client.Client, componentN
 }
 
 func CreateWithRetry(ctx context.Context, cli client.Client, obj client.Object, timeoutMin int) error {
+	log := logf.FromContext(ctx)
 	interval := time.Second * 5 // arbitrary value
 	timeout := time.Duration(timeoutMin) * time.Minute
 
@@ -227,7 +229,7 @@ func CreateWithRetry(ctx context.Context, cli client.Client, obj client.Object, 
 
 		// retry if 500, assume webhook is not available
 		if k8serr.IsInternalError(errCreate) {
-			ctrl.Log.Info("Error creating object, retrying...", "reason", errCreate)
+			log.Info("Error creating object, retrying...", "reason", errCreate)
 			return false, nil
 		}
 
