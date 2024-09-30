@@ -33,7 +33,8 @@ type CertConfigmapGeneratorReconciler struct {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *CertConfigmapGeneratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.Log.Info("Adding controller for Configmap Generation.")
+	log := r.Log
+	log.Info("Adding controller for Configmap Generation.")
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("cert-configmap-generator-controller").
 		Watches(&corev1.ConfigMap{}, handler.EnqueueRequestsFromMapFunc(r.watchTrustedCABundleConfigMapResource), builder.WithPredicates(ConfigMapChangedPredicate)).
@@ -44,8 +45,9 @@ func (r *CertConfigmapGeneratorReconciler) SetupWithManager(mgr ctrl.Manager) er
 // Reconcile will generate new configmap, odh-trusted-ca-bundle, that includes cluster-wide trusted-ca bundle and custom
 // ca bundle in every new namespace created.
 func (r *CertConfigmapGeneratorReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	log := r.Log
 	// Request includes namespace that is newly created or where odh-trusted-ca-bundle configmap is updated.
-	r.Log.Info("Reconciling CertConfigMapGenerator.", " Request.Namespace", req.NamespacedName)
+	log.Info("Reconciling CertConfigMapGenerator.", " Request.Namespace", req.NamespacedName)
 	// Get namespace instance
 	userNamespace := &corev1.Namespace{}
 	if err := r.Client.Get(ctx, client.ObjectKey{Name: req.Namespace}, userNamespace); err != nil {
@@ -55,7 +57,7 @@ func (r *CertConfigmapGeneratorReconciler) Reconcile(ctx context.Context, req ct
 	// Get DSCI instance
 	dsciInstances := &dsciv1.DSCInitializationList{}
 	if err := r.Client.List(ctx, dsciInstances); err != nil {
-		r.Log.Error(err, "Failed to retrieve DSCInitialization resource for CertConfigMapGenerator ", "Request.Name", req.Name)
+		log.Error(err, "Failed to retrieve DSCInitialization resource for CertConfigMapGenerator ", "Request.Name", req.Name)
 		return ctrl.Result{}, err
 	}
 
@@ -73,10 +75,10 @@ func (r *CertConfigmapGeneratorReconciler) Reconcile(ctx context.Context, req ct
 
 	// Delete odh-trusted-ca-bundle Configmap if namespace has annotation set to opt-out CA bundle injection
 	if trustedcabundle.HasCABundleAnnotationDisabled(userNamespace) {
-		r.Log.Info("Namespace has opted-out of CA bundle injection using annotation", "namespace", userNamespace.Name,
+		log.Info("Namespace has opted-out of CA bundle injection using annotation", "namespace", userNamespace.Name,
 			"annotation", annotation.InjectionOfCABundleAnnotatoion)
 		if err := trustedcabundle.DeleteOdhTrustedCABundleConfigMap(ctx, r.Client, req.Namespace); client.IgnoreNotFound(err) != nil {
-			r.Log.Error(err, "error deleting existing configmap from namespace", "name", trustedcabundle.CAConfigMapName, "namespace", userNamespace.Name)
+			log.Error(err, "error deleting existing configmap from namespace", "name", trustedcabundle.CAConfigMapName, "namespace", userNamespace.Name)
 			return reconcile.Result{}, err
 		}
 
@@ -85,11 +87,11 @@ func (r *CertConfigmapGeneratorReconciler) Reconcile(ctx context.Context, req ct
 
 	// Add odh-trusted-ca-bundle Configmap
 	if trustedcabundle.ShouldInjectTrustedBundle(userNamespace) {
-		r.Log.Info("Adding trusted CA bundle configmap to the new or existing namespace ", "namespace", userNamespace.Name,
+		log.Info("Adding trusted CA bundle configmap to the new or existing namespace ", "namespace", userNamespace.Name,
 			"configmap", trustedcabundle.CAConfigMapName)
 		trustCAData := dsciInstance.Spec.TrustedCABundle.CustomCABundle
 		if err := trustedcabundle.CreateOdhTrustedCABundleConfigMap(ctx, r.Client, req.Namespace, trustCAData); err != nil {
-			r.Log.Error(err, "error adding configmap to namespace", "name", trustedcabundle.CAConfigMapName, "namespace", userNamespace.Name)
+			log.Error(err, "error adding configmap to namespace", "name", trustedcabundle.CAConfigMapName, "namespace", userNamespace.Name)
 			return reconcile.Result{}, err
 		}
 	}
@@ -108,8 +110,9 @@ func (r *CertConfigmapGeneratorReconciler) watchNamespaceResource(_ context.Cont
 }
 
 func (r *CertConfigmapGeneratorReconciler) watchTrustedCABundleConfigMapResource(_ context.Context, a client.Object) []reconcile.Request {
+	log := r.Log
 	if a.GetName() == trustedcabundle.CAConfigMapName {
-		r.Log.Info("Cert configmap has been updated, start reconcile")
+		log.Info("Cert configmap has been updated, start reconcile")
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: a.GetName(), Namespace: a.GetNamespace()}}}
 	}
 	return nil
