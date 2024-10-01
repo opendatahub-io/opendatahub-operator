@@ -60,7 +60,6 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/certconfigmapgenerator"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
@@ -384,7 +383,5 @@ func createDeploymentCacheConfig(platform cluster.Platform) map[string]cache.Con
 	default:
 		namespaceConfigs["opendatahub"] = cache.Config{}
 	}
-	// for modelregistry namespace
-	namespaceConfigs[modelregistry.DefaultModelRegistriesNamespace] = cache.Config{}
 	return namespaceConfigs
 }
