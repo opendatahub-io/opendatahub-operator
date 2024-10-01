@@ -46,6 +46,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -311,7 +312,8 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 	}
 	// Reconcile component
 	componentLogger := newComponentLogger(log, componentName, r.DataScienceCluster.DSCISpec)
-	err := component.ReconcileComponent(ctx, r.Client, componentLogger, instance, r.DataScienceCluster.DSCISpec, platform, installedComponentValue)
+	componentCtx := logf.IntoContext(ctx, componentLogger)
+	err := component.ReconcileComponent(componentCtx, r.Client, instance, r.DataScienceCluster.DSCISpec, platform, installedComponentValue)
 
 	// TODO: replace this hack with a full refactor of component status in the future
 
