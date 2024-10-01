@@ -413,7 +413,8 @@ func removOdhApplicationsCR(ctx context.Context, cli client.Client, gvk schema.G
 
 // upgradODCCR handles different cases:
 // 1. unset ownerreference for CR odh-dashboard-config
-// 2. flip TrustyAI BiasMetrics to false (.spec.dashboardConfig.disableBiasMetrics) if it is lower release version than version.
+// 2. flip TrustyAI BiasMetrics to false (.spec.dashboardConfig.disableBiasMetrics) if it is lower release version than input 'release'.
+// 3. flip ModelRegistry to false (.spec.dashboardConfig.disableModelRegistry) if it is lower release version than input 'release'.
 func upgradeODCCR(ctx context.Context, cli client.Client, instanceName string, applicationNS string, release cluster.Release) error {
 	crd := &apiextv1.CustomResourceDefinition{}
 	if err := cli.Get(ctx, client.ObjectKey{Name: "odhdashboardconfigs.opendatahub.io"}, crd); err != nil {
@@ -431,7 +432,12 @@ func upgradeODCCR(ctx context.Context, cli client.Client, instanceName string, a
 	if err := unsetOwnerReference(ctx, cli, instanceName, odhObject); err != nil {
 		return err
 	}
-	return updateODCBiasMetrics(ctx, cli, instanceName, release, odhObject)
+
+	if err := updateODCBiasMetrics(ctx, cli, instanceName, release, odhObject); err != nil {
+		return err
+	}
+
+	return updateODCModelRegistry(ctx, cli, instanceName, release, odhObject)
 }
 
 func unsetOwnerReference(ctx context.Context, cli client.Client, instanceName string, odhObject *unstructured.Unstructured) error {
@@ -447,9 +453,9 @@ func unsetOwnerReference(ctx context.Context, cli client.Client, instanceName st
 
 func updateODCBiasMetrics(ctx context.Context, cli client.Client, instanceName string, oldRelease cluster.Release, odhObject *unstructured.Unstructured) error {
 	// "from version" as oldRelease, if return "0.0.0" meaning running on 2.10- release/dummy CI build
-	// if oldRelease is lower than 2.14.0(e.g 2.13.x-a), flip TrustyAI BiasMetrics to false (even the field did not exist)
+	// if oldRelease is lower than 2.14.0(e.g 2.13.x-a), flip disableBiasMetrics to false (even the field did not exist)
 	if oldRelease.Version.Minor < 14 {
-		ctrl.Log.Info("Upgrade force BiasMetrics to false due to from release < 2.14.0")
+		ctrl.Log.Info("Upgrade force BiasMetrics to false in " + instanceName + " CR due to old release < 2.14.0")
 		// flip TrustyAI BiasMetrics to false (.spec.dashboardConfig.disableBiasMetrics)
 		disableBiasMetricsValue := []byte(`{"spec": {"dashboardConfig": {"disableBiasMetrics": false}}}`)
 		if err := cli.Patch(ctx, odhObject, client.RawPatch(types.MergePatchType, disableBiasMetricsValue)); err != nil {
@@ -458,6 +464,21 @@ func updateODCBiasMetrics(ctx context.Context, cli client.Client, instanceName s
 		return nil
 	}
 	ctrl.Log.Info("Upgrade does not force BiasMetrics to false due to from release >= 2.14.0")
+	return nil
+}
+
+func updateODCModelRegistry(ctx context.Context, cli client.Client, instanceName string, oldRelease cluster.Release, odhObject *unstructured.Unstructured) error {
+	// "from version" as oldRelease, if return "0.0.0" meaning running on 2.10- release/dummy CI build
+	// if oldRelease is lower than 2.14.0(e.g 2.13.x-a), flip disableModelRegistry to false (even the field did not exist)
+	if oldRelease.Version.Minor < 14 {
+		ctrl.Log.Info("Upgrade force ModelRegistry to false in " + instanceName + " CR due to old release < 2.14.0")
+		disableModelRegistryValue := []byte(`{"spec": {"dashboardConfig": {"disableModelRegistry": false}}}`)
+		if err := cli.Patch(ctx, odhObject, client.RawPatch(types.MergePatchType, disableModelRegistryValue)); err != nil {
+			return fmt.Errorf("error enable ModelRegistry in CR %s : %w", instanceName, err)
+		}
+		return nil
+	}
+	ctrl.Log.Info("Upgrade does not force ModelRegistry to false due to from release >= 2.14.0")
 	return nil
 }
 
