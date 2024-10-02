@@ -669,7 +669,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `manifestsUri` _string_ | Custom manifests uri for odh-manifests |  |  |
-| `logmode` _string_ |  | production | Enum: [devel development prod production] <br /> |
+| `logmode` _string_ |  | production | Enum: [devel development prod production default] <br /> |
 
 
 #### Monitoring
