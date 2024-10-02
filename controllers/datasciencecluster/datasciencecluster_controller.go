@@ -84,12 +84,13 @@ const (
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:maintidx,gocyclo
-	r.Log.Info("Reconciling DataScienceCluster resources", "Request.Name", req.Name)
+	log := r.Log
+	log.Info("Reconciling DataScienceCluster resources", "Request.Name", req.Name)
 
 	// Get information on version and platform
 	currentOperatorRelease, err := cluster.GetRelease(ctx, r.Client)
 	if err != nil {
-		r.Log.Error(err, "failed to get operator release version")
+		log.Error(err, "failed to get operator release version")
 		return ctrl.Result{}, err
 	}
 	// Set platform
@@ -129,10 +130,10 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		if controllerutil.ContainsFinalizer(instance, finalizerName) {
 			if controllerutil.RemoveFinalizer(instance, finalizerName) {
 				if err := r.Update(ctx, instance); err != nil {
-					r.Log.Info("Error to remove DSC finalizer", "error", err)
+					log.Info("Error to remove DSC finalizer", "error", err)
 					return ctrl.Result{}, err
 				}
-				r.Log.Info("Removed finalizer for DataScienceCluster", "name", instance.Name, "finalizer", finalizerName)
+				log.Info("Removed finalizer for DataScienceCluster", "name", instance.Name, "finalizer", finalizerName)
 			}
 		}
 		if err := r.Client.Delete(ctx, instance, []client.DeleteOption{}...); err != nil {
@@ -152,7 +153,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	dsciInstances := &dsciv1.DSCInitializationList{}
 	err = r.Client.List(ctx, dsciInstances)
 	if err != nil {
-		r.Log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization Request.Name", req.Name)
+		log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization Request.Name", req.Name)
 		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to retrieve DSCInitialization instance")
 
 		return ctrl.Result{}, err
@@ -163,7 +164,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	case 0:
 		reason := status.ReconcileFailed
 		message := "Failed to get a valid DSCInitialization instance, please create a DSCI instance"
-		r.Log.Info(message)
+		log.Info(message)
 		instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dscv1.DataScienceCluster) {
 			status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
 			// Patch Degraded with True status
@@ -183,14 +184,14 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	if instance.ObjectMeta.DeletionTimestamp.IsZero() {
 		if !controllerutil.ContainsFinalizer(instance, finalizerName) {
-			r.Log.Info("Adding finalizer for DataScienceCluster", "name", instance.Name, "finalizer", finalizerName)
+			log.Info("Adding finalizer for DataScienceCluster", "name", instance.Name, "finalizer", finalizerName)
 			controllerutil.AddFinalizer(instance, finalizerName)
 			if err := r.Update(ctx, instance); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
 	} else {
-		r.Log.Info("Finalization DataScienceCluster start deleting instance", "name", instance.Name, "finalizer", finalizerName)
+		log.Info("Finalization DataScienceCluster start deleting instance", "name", instance.Name, "finalizer", finalizerName)
 		for _, component := range allComponents {
 			if err := component.Cleanup(ctx, r.Client, instance, r.DataScienceCluster.DSCISpec); err != nil {
 				return ctrl.Result{}, err
@@ -252,14 +253,14 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	// Process errors for components
 	if componentErrors != nil {
-		r.Log.Info("DataScienceCluster Deployment Incomplete.")
+		log.Info("DataScienceCluster Deployment Incomplete.")
 		instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dscv1.DataScienceCluster) {
 			status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompletedWithComponentErrors,
 				fmt.Sprintf("DataScienceCluster resource reconciled with component errors: %v", componentErrors))
 			saved.Status.Phase = status.PhaseReady
 		})
 		if err != nil {
-			r.Log.Error(err, "failed to update DataScienceCluster conditions with incompleted reconciliation")
+			log.Error(err, "failed to update DataScienceCluster conditions with incompleted reconciliation")
 
 			return ctrl.Result{}, err
 		}
@@ -276,12 +277,12 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	})
 
 	if err != nil {
-		r.Log.Error(err, "failed to update DataScienceCluster conditions after successfully completed reconciliation")
+		log.Error(err, "failed to update DataScienceCluster conditions after successfully completed reconciliation")
 
 		return ctrl.Result{}, err
 	}
 
-	r.Log.Info("DataScienceCluster Deployment Completed.")
+	log.Info("DataScienceCluster Deployment Completed.")
 	r.Recorder.Eventf(instance, corev1.EventTypeNormal, "DataScienceClusterCreationSuccessful",
 		"DataScienceCluster instance %s created and deployed successfully", instance.Name)
 
@@ -291,6 +292,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context, instance *dscv1.DataScienceCluster,
 	platform cluster.Platform, component components.ComponentInterface,
 ) (*dscv1.DataScienceCluster, error) {
+	log := r.Log
 	componentName := component.GetComponentName()
 
 	enabled := component.GetManagementState() == operatorv1.Managed
@@ -312,7 +314,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 		}
 	}
 	// Reconcile component
-	componentLogger := newComponentLogger(r.Log, componentName, r.DataScienceCluster.DSCISpec)
+	componentLogger := newComponentLogger(log, componentName, r.DataScienceCluster.DSCISpec)
 	err := component.ReconcileComponent(ctx, r.Client, componentLogger, instance, r.DataScienceCluster.DSCISpec, platform, installedComponentValue)
 
 	// TODO: replace this hack with a full refactor of component status in the future
@@ -373,7 +375,8 @@ func newComponentLogger(logger logr.Logger, componentName string, dscispec *dsci
 }
 
 func (r *DataScienceClusterReconciler) reportError(err error, instance *dscv1.DataScienceCluster, message string) *dscv1.DataScienceCluster {
-	r.Log.Error(err, message, "instance.Name", instance.Name)
+	log := r.Log
+	log.Error(err, message, "instance.Name", instance.Name)
 	r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DataScienceClusterReconcileError",
 		"%s for instance %s", message, instance.Name)
 	return instance

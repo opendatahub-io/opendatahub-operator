@@ -76,11 +76,12 @@ type DSCInitializationReconciler struct {
 
 // Reconcile contains controller logic specific to DSCInitialization instance updates.
 func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:funlen,gocyclo,maintidx
-	r.Log.Info("Reconciling DSCInitialization.", "DSCInitialization Request.Name", req.Name)
+	log := r.Log
+	log.Info("Reconciling DSCInitialization.", "DSCInitialization Request.Name", req.Name)
 
 	currentOperatorRelease, err := cluster.GetRelease(ctx, r.Client)
 	if err != nil {
-		r.Log.Error(err, "failed to get operator release version")
+		log.Error(err, "failed to get operator release version")
 		return ctrl.Result{}, err
 	}
 	// Set platform
@@ -88,7 +89,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	instances := &dsciv1.DSCInitializationList{}
 	if err := r.Client.List(ctx, instances); err != nil {
-		r.Log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization Request.Name", req.Name)
+		log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization Request.Name", req.Name)
 		r.Recorder.Eventf(instances, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to retrieve DSCInitialization instance")
 
 		return ctrl.Result{}, err
@@ -104,14 +105,14 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	if instance.ObjectMeta.DeletionTimestamp.IsZero() {
 		if !controllerutil.ContainsFinalizer(instance, finalizerName) {
-			r.Log.Info("Adding finalizer for DSCInitialization", "name", instance.Name, "finalizer", finalizerName)
+			log.Info("Adding finalizer for DSCInitialization", "name", instance.Name, "finalizer", finalizerName)
 			controllerutil.AddFinalizer(instance, finalizerName)
 			if err := r.Update(ctx, instance); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
 	} else {
-		r.Log.Info("Finalization DSCInitialization start deleting instance", "name", instance.Name, "finalizer", finalizerName)
+		log.Info("Finalization DSCInitialization start deleting instance", "name", instance.Name, "finalizer", finalizerName)
 		if err := r.removeServiceMesh(ctx, instance); err != nil {
 			return reconcile.Result{}, err
 		}
@@ -130,7 +131,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			return nil
 		})
 		if err != nil {
-			r.Log.Error(err, "Failed to remove finalizer when deleting DSCInitialization instance")
+			log.Error(err, "Failed to remove finalizer when deleting DSCInitialization instance")
 			return ctrl.Result{}, err
 		}
 
@@ -147,7 +148,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			saved.Status.Release = currentOperatorRelease
 		})
 		if err != nil {
-			r.Log.Error(err, "Failed to add conditions to status of DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
+			log.Error(err, "Failed to add conditions to status of DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
 			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError",
 				"%s for instance %s", message, instance.Name)
 
@@ -164,7 +165,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 
 	// Check ManagementState to verify if odh-trusted-ca-bundle Configmap should be configured for namespaces
-	if err := trustedcabundle.ConfigureTrustedCABundle(ctx, r.Client, r.Log, instance, managementStateChangeTrustedCA); err != nil {
+	if err := trustedcabundle.ConfigureTrustedCABundle(ctx, r.Client, log, instance, managementStateChangeTrustedCA); err != nil {
 		return reconcile.Result{}, err
 	}
 	managementStateChangeTrustedCA = false
@@ -172,7 +173,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	switch req.Name {
 	case "prometheus": // prometheus configmap
 		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == cluster.ManagedRhods {
-			r.Log.Info("Monitoring enabled to restart deployment", "cluster", "Managed Service Mode")
+			log.Info("Monitoring enabled to restart deployment", "cluster", "Managed Service Mode")
 			err := r.configureManagedMonitoring(ctx, instance, "updates")
 			if err != nil {
 				return reconcile.Result{}, err
@@ -182,7 +183,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return ctrl.Result{}, nil
 	case "addon-managed-odh-parameters":
 		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == cluster.ManagedRhods {
-			r.Log.Info("Monitoring enabled when notification updated", "cluster", "Managed Service Mode")
+			log.Info("Monitoring enabled when notification updated", "cluster", "Managed Service Mode")
 			err := r.configureManagedMonitoring(ctx, instance, "updates")
 			if err != nil {
 				return reconcile.Result{}, err
@@ -192,7 +193,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return ctrl.Result{}, nil
 	case "backup": // revert back to the original prometheus.yml
 		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == cluster.ManagedRhods {
-			r.Log.Info("Monitoring enabled to restore back", "cluster", "Managed Service Mode")
+			log.Info("Monitoring enabled to restore back", "cluster", "Managed Service Mode")
 			err := r.configureManagedMonitoring(ctx, instance, "revertbackup")
 			if err != nil {
 				return reconcile.Result{}, err
@@ -208,7 +209,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 				return reconcile.Result{}, err
 			}
 			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
-				r.Log.Info("Monitoring enabled, won't apply changes", "cluster", "Self-Managed RHODS Mode")
+				log.Info("Monitoring enabled, won't apply changes", "cluster", "Self-Managed RHODS Mode")
 				err = r.configureCommonMonitoring(ctx, instance)
 				if err != nil {
 					return reconcile.Result{}, err
@@ -218,13 +219,13 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			osdConfigsPath := filepath.Join(deploy.DefaultManifestPath, "osd-configs")
 			err = deploy.DeployManifestsFromPath(ctx, r.Client, instance, osdConfigsPath, r.ApplicationsNamespace, "osd", true)
 			if err != nil {
-				r.Log.Error(err, "Failed to apply osd specific configs from manifests", "Manifests path", osdConfigsPath)
+				log.Error(err, "Failed to apply osd specific configs from manifests", "Manifests path", osdConfigsPath)
 				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to apply "+osdConfigsPath)
 
 				return reconcile.Result{}, err
 			}
 			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
-				r.Log.Info("Monitoring enabled in initialization stage", "cluster", "Managed Service Mode")
+				log.Info("Monitoring enabled in initialization stage", "cluster", "Managed Service Mode")
 				err := r.configureManagedMonitoring(ctx, instance, "init")
 				if err != nil {
 					return reconcile.Result{}, err
@@ -240,7 +241,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 				return reconcile.Result{}, err
 			}
 			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
-				r.Log.Info("Monitoring enabled, won't apply changes", "cluster", "ODH Mode")
+				log.Info("Monitoring enabled, won't apply changes", "cluster", "ODH Mode")
 			}
 		}
 
@@ -255,7 +256,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			saved.Status.Phase = status.PhaseReady
 		})
 		if err != nil {
-			r.Log.Error(err, "failed to update DSCInitialization status after successfully completed reconciliation")
+			log.Error(err, "failed to update DSCInitialization status after successfully completed reconciliation")
 			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to update DSCInitialization status")
 		}
 
@@ -365,8 +366,9 @@ var dsciPredicateStateChangeTrustedCA = predicate.Funcs{
 }
 
 func (r *DSCInitializationReconciler) watchMonitoringConfigMapResource(_ context.Context, a client.Object) []reconcile.Request {
+	log := r.Log
 	if a.GetName() == "prometheus" && a.GetNamespace() == "redhat-ods-monitoring" {
-		r.Log.Info("Found monitoring configmap has updated, start reconcile")
+		log.Info("Found monitoring configmap has updated, start reconcile")
 
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "prometheus", Namespace: "redhat-ods-monitoring"}}}
 	}
@@ -374,13 +376,14 @@ func (r *DSCInitializationReconciler) watchMonitoringConfigMapResource(_ context
 }
 
 func (r *DSCInitializationReconciler) watchMonitoringSecretResource(_ context.Context, a client.Object) []reconcile.Request {
+	log := r.Log
 	operatorNs, err := cluster.GetOperatorNamespace()
 	if err != nil {
 		return nil
 	}
 
 	if a.GetName() == "addon-managed-odh-parameters" && a.GetNamespace() == operatorNs {
-		r.Log.Info("Found monitoring secret has updated, start reconcile")
+		log.Info("Found monitoring secret has updated, start reconcile")
 
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "addon-managed-odh-parameters", Namespace: operatorNs}}}
 	}
@@ -388,14 +391,15 @@ func (r *DSCInitializationReconciler) watchMonitoringSecretResource(_ context.Co
 }
 
 func (r *DSCInitializationReconciler) watchDSCResource(ctx context.Context) []reconcile.Request {
+	log := r.Log
 	instanceList := &dscv1.DataScienceClusterList{}
 	if err := r.Client.List(ctx, instanceList); err != nil {
 		// do not handle if cannot get list
-		r.Log.Error(err, "Failed to get DataScienceClusterList")
+		log.Error(err, "Failed to get DataScienceClusterList")
 		return nil
 	}
 	if len(instanceList.Items) == 0 && !upgrade.HasDeleteConfigMap(ctx, r.Client) {
-		r.Log.Info("Found no DSC instance in cluster but not in uninstalltion process, reset monitoring stack config")
+		log.Info("Found no DSC instance in cluster but not in uninstalltion process, reset monitoring stack config")
 
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "backup"}}}
 	}
