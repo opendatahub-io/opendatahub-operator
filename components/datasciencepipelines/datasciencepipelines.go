@@ -63,6 +63,11 @@ func (d *DataSciencePipelines) GetComponentName() string {
 	return ComponentName
 }
 
+func (d *DataSciencePipelines) GetComponentDetails() (any, error) {
+
+	return "", nil
+}
+
 func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 	cli client.Client,
 	l logr.Logger,

@@ -311,9 +311,17 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 			// try to continue with reconciliation, as further updates can fix the status
 		}
 	}
+	fmt.Print("DSCISpec", r.DataScienceCluster.DSCISpec.DevFlags)
 	// Reconcile component
 	componentLogger := newComponentLogger(r.Log, componentName, r.DataScienceCluster.DSCISpec)
-	err := component.ReconcileComponent(ctx, r.Client, componentLogger, instance, r.DataScienceCluster.DSCISpec, platform, installedComponentValue)
+	details, err := component.GetComponentDetails()
+	if err != nil {
+		fmt.Print("details error", err)
+	} else {
+		fmt.Print("fetched details", details)
+	}
+	instance.Status.Release = details.(cluster.Release)
+	err = component.ReconcileComponent(ctx, r.Client, componentLogger, instance, r.DataScienceCluster.DSCISpec, platform, installedComponentValue)
 
 	// TODO: replace this hack with a full refactor of component status in the future
 

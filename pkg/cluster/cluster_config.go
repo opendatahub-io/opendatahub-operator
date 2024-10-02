@@ -129,8 +129,10 @@ func getPlatform(ctx context.Context, cli client.Client) (Platform, error) {
 // Release includes information on operator version and platform
 // +kubebuilder:object:generate=true
 type Release struct {
-	Name    Platform                `json:"name,omitempty"`
-	Version version.OperatorVersion `json:"version,omitempty"`
+	Name        Platform                `json:"name,omitempty"`
+	Version     version.OperatorVersion `json:"version,omitempty"`
+	DisplayName string                  `json:"displayName,omitempty"`
+	RepoUrl     string                  `json:"uri,omitempty"`
 }
 
 func GetRelease(ctx context.Context, cli client.Client) (Release, error) {

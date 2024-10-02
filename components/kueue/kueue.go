@@ -53,6 +53,11 @@ func (k *Kueue) GetComponentName() string {
 	return ComponentName
 }
 
+func (d *Kueue) GetComponentDetails() (any, error) {
+
+	return "", nil
+}
+
 func (k *Kueue) ReconcileComponent(ctx context.Context, cli client.Client, l logr.Logger,
 	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, platform cluster.Platform, _ bool) error {
 	var imageParamMap = map[string]string{

@@ -94,6 +94,11 @@ func (k *Kserve) GetComponentName() string {
 	return ComponentName
 }
 
+func (d *Kserve) GetComponentDetails() (any, error) {
+
+	return "", nil
+}
+
 func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 	l logr.Logger, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, platform cluster.Platform, _ bool) error {
 	// dependentParamMap for odh-model-controller to use.

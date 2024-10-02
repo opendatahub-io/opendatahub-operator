@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/go-logr/logr"
@@ -16,6 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/joho/godotenv"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -42,10 +44,20 @@ type Dashboard struct {
 	components.Component `json:""`
 }
 
+type ComponentDetails struct {
+	Name        string
+	DisplayName string
+	Version     string
+	RepoUrl     string
+}
+
 func (d *Dashboard) OverrideManifests(ctx context.Context, platform cluster.Platform) error {
+	fmt.Print("Here inside overrideManifests check")
 	// If devflags are set, update default manifests path
 	if len(d.DevFlags.Manifests) != 0 {
+		fmt.Print("Here inside overridemanifests if case")
 		manifestConfig := d.DevFlags.Manifests[0]
+		fmt.Print("manifestConfig", manifestConfig)
 		if err := deploy.DownloadManifests(ctx, ComponentNameUpstream, manifestConfig); err != nil {
 			return err
 		}
@@ -58,6 +70,40 @@ func (d *Dashboard) OverrideManifests(ctx context.Context, platform cluster.Plat
 
 func (d *Dashboard) GetComponentName() string {
 	return ComponentNameUpstream
+}
+
+func (d *Dashboard) GetComponentDetails() (cluster.Release, error) {
+	if d.DevFlags != nil && len(d.DevFlags.Manifests) != 0 {
+		// dirEntry2, err := os.ReadFile((filepath.Join("/opt/manifests/dashboard/.env")))
+		dir, err := os.ReadDir("/opt/manifests/dashboard/")
+
+		if err != nil {
+			fmt.Print(err)
+		}
+		fmt.Print("dir-check", dir)
+		dirEntry, err := os.ReadFile("/opt/manifests/dashboard/.env")
+
+		var asciiString string
+		for _, code := range dirEntry {
+			asciiString += string(rune(code))
+		}
+		// regexp.MatchString("INTERNAL_RELEASE_VERSION", asciiString)
+		fmt.Print("Check dashboard dir", asciiString, err)
+		if err != nil {
+			return cluster.Release{}, err
+		}
+
+		err = godotenv.Load("/opt/manifests/dashboard/.env")
+
+		if err != nil {
+			return cluster.Release{}, err
+		}
+		releaseVersion := os.Getenv("INTERNAL_RELEASE_VERSION")
+		fmt.Print("envData from joho", releaseVersion)
+
+		return cluster.Release{Name: cluster.Platform(ComponentNameUpstream), DisplayName: ComponentNameDownstream, Version: releaseVersion, RepoUrl: d.DevFlags.Manifests[0].URI}, nil
+	}
+	return cluster.Release{}, nil
 }
 
 func (d *Dashboard) ReconcileComponent(ctx context.Context,
@@ -78,13 +124,14 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 	enabled := d.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 	imageParamMap := make(map[string]string)
-
+	fmt.Print("check manifests", d.DevFlags.Manifests)
 	if enabled {
 		// 1. cleanup OAuth client related secret and CR if dashboard is in 'installed false' status
 		if err := d.cleanOauthClient(ctx, cli, dscispec, currentComponentExist, l); err != nil {
 			return err
 		}
 		if d.DevFlags != nil && len(d.DevFlags.Manifests) != 0 {
+			fmt.Print("Here inside devflags check")
 			// Download manifests and update paths
 			if err := d.OverrideManifests(ctx, platform); err != nil {
 				return err

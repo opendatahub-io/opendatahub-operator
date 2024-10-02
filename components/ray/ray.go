@@ -55,6 +55,11 @@ func (r *Ray) GetComponentName() string {
 	return ComponentName
 }
 
+func (d *Ray) GetComponentDetails() (any, error) {
+
+	return "", nil
+}
+
 func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, l logr.Logger,
 	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, platform cluster.Platform, _ bool) error {
 	var imageParamMap = map[string]string{

@@ -71,6 +71,11 @@ func (m *ModelMeshServing) GetComponentName() string {
 	return ComponentName
 }
 
+func (d *ModelMeshServing) GetComponentDetails() (any, error) {
+
+	return "", nil
+}
+
 func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 	cli client.Client,
 	l logr.Logger,

@@ -57,6 +57,11 @@ func (c *CodeFlare) GetComponentName() string {
 	return ComponentName
 }
 
+func (d *CodeFlare) GetComponentDetails() (any, error) {
+
+	return "", nil
+}
+
 func (c *CodeFlare) ReconcileComponent(ctx context.Context,
 	cli client.Client,
 	l logr.Logger,
