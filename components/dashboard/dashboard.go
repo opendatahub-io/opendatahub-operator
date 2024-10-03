@@ -15,6 +15,7 @@ import (
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
@@ -31,6 +32,7 @@ var (
 	PathSelfDownstream      = PathDownstream + "/onprem"
 	PathManagedDownstream   = PathDownstream + "/addon"
 	OverridePath            = ""
+	DefaultPath             = ""
 )
 
 // Verifies that Dashboard implements ComponentInterface.
@@ -40,6 +42,26 @@ var _ components.ComponentInterface = (*Dashboard)(nil)
 // +kubebuilder:object:generate=true
 type Dashboard struct {
 	components.Component `json:""`
+}
+
+func (d *Dashboard) Init(ctx context.Context, platform cluster.Platform) error {
+	log := logf.FromContext(ctx).WithName(ComponentNameUpstream)
+
+	imageParamMap := map[string]string{
+		"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
+	}
+	DefaultPath = map[cluster.Platform]string{
+		cluster.SelfManagedRhods: PathDownstream + "/onprem",
+		cluster.ManagedRhods:     PathDownstream + "/addon",
+		cluster.OpenDataHub:      PathUpstream,
+		cluster.Unknown:          PathUpstream,
+	}[platform]
+
+	if err := deploy.ApplyParams(DefaultPath, imageParamMap); err != nil {
+		log.Error(err, "failed to update image", "path", DefaultPath)
+	}
+
+	return nil
 }
 
 func (d *Dashboard) OverrideManifests(ctx context.Context, platform cluster.Platform) error {
@@ -68,16 +90,9 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 	platform cluster.Platform,
 	currentComponentExist bool,
 ) error {
-	entryPath := map[cluster.Platform]string{
-		cluster.SelfManagedRhods: PathDownstream + "/onprem",
-		cluster.ManagedRhods:     PathDownstream + "/addon",
-		cluster.OpenDataHub:      PathUpstream,
-		cluster.Unknown:          PathUpstream,
-	}[platform]
-
+	entryPath := DefaultPath
 	enabled := d.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
-	imageParamMap := make(map[string]string)
 
 	if enabled {
 		// 1. cleanup OAuth client related secret and CR if dashboard is in 'installed false' status
@@ -92,8 +107,6 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 			if OverridePath != "" {
 				entryPath = OverridePath
 			}
-		} else { // Update image parameters if devFlags is not provided
-			imageParamMap["odh-dashboard-image"] = "RELATED_IMAGE_ODH_DASHBOARD_IMAGE"
 		}
 
 		// 2. platform specific RBAC
@@ -114,7 +127,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		}
 
 		// 4. update params.env regardless devFlags is provided of not
-		if err := deploy.ApplyParams(entryPath, imageParamMap, extraParamsMap); err != nil {
+		if err := deploy.ApplyParams(entryPath, nil, extraParamsMap); err != nil {
 			return fmt.Errorf("failed to update params.env  from %s : %w", entryPath, err)
 		}
 	}
