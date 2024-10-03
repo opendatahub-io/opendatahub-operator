@@ -213,7 +213,7 @@ var _ = Describe("DSC mutating webhook", func() {
 		dscInstance := newMRDSC1(nameBase+"-dsc-mr1", "", operatorv1.Managed)
 		Expect(k8sClient.Create(ctx, dscInstance)).Should(Succeed())
 		Expect(dscInstance.Spec.Components.ModelRegistry.RegistriesNamespace).
-			Should(Equal("odh-model-registries"))
+			Should(Equal(modelregistry.DefaultModelRegistriesNamespace))
 		Expect(clearInstance(ctx, dscInstance)).Should(Succeed())
 	})
 

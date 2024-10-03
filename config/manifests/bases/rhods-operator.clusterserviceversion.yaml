@@ -146,8 +146,14 @@ spec:
   keywords:
   - OpenShift
   - Open Data Hub
+  - ODH
   - opendatahub
   - Red Hat OpenShift AI
+  - RHOAI
+  - OAI
+  - ML
+  - Machine Learning
+  - Data Science
   - notebooks
   - serving
   - training
