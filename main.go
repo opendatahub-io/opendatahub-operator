@@ -49,6 +49,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -128,6 +129,7 @@ func main() { //nolint:funlen,maintidx
 
 	// root context
 	ctx := ctrl.SetupSignalHandler()
+	ctx = logf.IntoContext(ctx, setupLog)
 	// Create new uncached client to run initial setup
 	setupCfg, err := config.GetConfig()
 	if err != nil {
@@ -143,14 +145,16 @@ func main() { //nolint:funlen,maintidx
 		setupLog.Error(err, "error getting client for setup")
 		os.Exit(1)
 	}
-	// Get operator platform
-	release, err := cluster.GetRelease(ctx, setupClient)
+
+	err = cluster.Init(ctx, setupClient)
 	if err != nil {
-		setupLog.Error(err, "error getting release")
+		setupLog.Error(err, "unable to initialize cluster config")
 		os.Exit(1)
 	}
+
+	// Get operator platform
+	release := cluster.GetRelease()
 	platform := release.Name
-	setupLog.Info("running on", "platform", platform)
 
 	secretCache := createSecretCacheConfig(platform)
 	deploymentCache := createDeploymentCacheConfig(platform)
