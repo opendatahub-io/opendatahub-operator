@@ -71,9 +71,9 @@ func (m *ModelMeshServing) GetComponentName() string {
 	return ComponentName
 }
 
-func (d *ModelMeshServing) GetComponentDetails() (any, error) {
+func (d *ModelMeshServing) GetComponentDetails() (cluster.Release, error) {
 
-	return "", nil
+	return cluster.Release{}, nil
 }
 
 func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,

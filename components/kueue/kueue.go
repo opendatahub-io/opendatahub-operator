@@ -53,9 +53,9 @@ func (k *Kueue) GetComponentName() string {
 	return ComponentName
 }
 
-func (d *Kueue) GetComponentDetails() (any, error) {
+func (d *Kueue) GetComponentDetails() (cluster.Release, error) {
 
-	return "", nil
+	return cluster.Release{}, nil
 }
 
 func (k *Kueue) ReconcileComponent(ctx context.Context, cli client.Client, l logr.Logger,

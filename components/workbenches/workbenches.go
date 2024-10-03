@@ -90,9 +90,9 @@ func (w *Workbenches) GetComponentName() string {
 	return ComponentName
 }
 
-func (d *Workbenches) GetComponentDetails() (any, error) {
+func (d *Workbenches) GetComponentDetails() (cluster.Release, error) {
 
-	return "", nil
+	return cluster.Release{}, nil
 }
 
 func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client, l logr.Logger,

@@ -56,9 +56,9 @@ func (t *TrustyAI) GetComponentName() string {
 	return ComponentName
 }
 
-func (d *TrustyAI) GetComponentDetails() (any, error) {
+func (d *TrustyAI) GetComponentDetails() (cluster.Release, error) {
 
-	return "", nil
+	return cluster.Release{}, nil
 }
 
 func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client, l logr.Logger,

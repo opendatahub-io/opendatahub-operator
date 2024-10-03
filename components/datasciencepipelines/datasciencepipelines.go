@@ -63,9 +63,9 @@ func (d *DataSciencePipelines) GetComponentName() string {
 	return ComponentName
 }
 
-func (d *DataSciencePipelines) GetComponentDetails() (any, error) {
+func (d *DataSciencePipelines) GetComponentDetails() (cluster.Release, error) {
 
-	return "", nil
+	return cluster.Release{}, nil
 }
 
 func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,

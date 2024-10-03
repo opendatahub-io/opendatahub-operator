@@ -117,7 +117,7 @@ type DataScienceClusterStatus struct {
 	Components ComponentsStatus `json:"components,omitempty"`
 
 	// Version and release type
-	Release cluster.Release `json:"release,omitempty"`
+	Release []cluster.Release `json:"release,omitempty"`
 }
 
 //+kubebuilder:object:root=true

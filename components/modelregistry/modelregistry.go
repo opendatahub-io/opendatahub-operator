@@ -80,9 +80,9 @@ func (m *ModelRegistry) GetComponentName() string {
 	return ComponentName
 }
 
-func (d *ModelRegistry) GetComponentDetails() (any, error) {
+func (d *ModelRegistry) GetComponentDetails() (cluster.Release, error) {
 
-	return "", nil
+	return cluster.Release{}, nil
 }
 
 func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Client, l logr.Logger,

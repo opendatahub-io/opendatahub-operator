@@ -55,9 +55,9 @@ func (r *TrainingOperator) GetComponentName() string {
 	return ComponentName
 }
 
-func (d *TrainingOperator) GetComponentDetails() (any, error) {
+func (d *TrainingOperator) GetComponentDetails() (cluster.Release, error) {
 
-	return "", nil
+	return cluster.Release{}, nil
 }
 
 func (r *TrainingOperator) ReconcileComponent(ctx context.Context, cli client.Client, l logr.Logger,

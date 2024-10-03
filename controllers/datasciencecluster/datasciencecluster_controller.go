@@ -88,6 +88,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	// Get information on version and platform
 	currentOperatorRelease, err := cluster.GetRelease(ctx, r.Client)
+	fmt.Print("currentOperatorRelease", currentOperatorRelease)
 	if err != nil {
 		r.Log.Error(err, "failed to get operator release version")
 		return ctrl.Result{}, err
@@ -232,7 +233,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dscv1.DataScienceCluster) {
 			status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
 			saved.Status.Phase = status.PhaseProgressing
-			saved.Status.Release = currentOperatorRelease
+			saved.Status.Release = append(saved.Status.Release, currentOperatorRelease)
 		})
 		if err != nil {
 			_ = r.reportError(err, instance, fmt.Sprintf("failed to add conditions to status of DataScienceCluster resource name %s", req.Name))
@@ -315,12 +316,35 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 	// Reconcile component
 	componentLogger := newComponentLogger(r.Log, componentName, r.DataScienceCluster.DSCISpec)
 	details, err := component.GetComponentDetails()
+	var releaseDetails cluster.Release
 	if err != nil {
 		fmt.Print("details error", err)
 	} else {
+		// append([]byte(saved.Status.Release, &details))
 		fmt.Print("fetched details", details)
 	}
-	instance.Status.Release = details.(cluster.Release)
+	if instance.Status.Phase == status.PhaseReady {
+		reason := status.ReconcileInit
+		message := "Initializing DataScienceCluster resource"
+		instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dscv1.DataScienceCluster) {
+			status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
+			saved.Status.Phase = status.PhaseProgressing
+			// err := json.Unmarshal(saved.Status.Release, &releaseDetails)
+			// releaseDetails = append(releaseDetails, details)
+			// result, err := json.Marshal(releaseDetails)
+			saved.Status.Release = append(saved.Status.Release, releaseDetails)
+		})
+		if err != nil {
+			_ = r.reportError(err, instance, "failed to update release versions on status")
+
+			return &dscv1.DataScienceCluster{}, err
+		}
+	}
+	// instance.Status.Release = details
+	fmt.Print("Instance after update", instance)
+	if err != nil {
+		r.Log.Error(err, "failed to update release versions on the DataScienceCluster")
+	}
 	err = component.ReconcileComponent(ctx, r.Client, componentLogger, instance, r.DataScienceCluster.DSCISpec, platform, installedComponentValue)
 
 	// TODO: replace this hack with a full refactor of component status in the future

@@ -55,9 +55,9 @@ func (r *Ray) GetComponentName() string {
 	return ComponentName
 }
 
-func (d *Ray) GetComponentDetails() (any, error) {
+func (d *Ray) GetComponentDetails() (cluster.Release, error) {
 
-	return "", nil
+	return cluster.Release{}, nil
 }
 
 func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, l logr.Logger,

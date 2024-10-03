@@ -296,16 +296,20 @@ spec:
                 type: array
               release:
                 description: Version and release type
-                properties:
-                  displayName:
-                    type: string
-                  name:
-                    type: string
-                  uri:
-                    type: string
-                  version:
-                    type: string
-                type: object
+                items:
+                  description: Release includes information on operator version and
+                    platform
+                  properties:
+                    displayName:
+                      type: string
+                    name:
+                      type: string
+                    uri:
+                      type: string
+                    version:
+                      type: string
+                  type: object
+                type: array
             type: object
         type: object
     served: true

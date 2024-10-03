@@ -94,9 +94,9 @@ func (k *Kserve) GetComponentName() string {
 	return ComponentName
 }
 
-func (d *Kserve) GetComponentDetails() (any, error) {
+func (d *Kserve) GetComponentDetails() (cluster.Release, error) {
 
-	return "", nil
+	return cluster.Release{}, nil
 }
 
 func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,

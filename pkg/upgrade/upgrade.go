@@ -544,7 +544,7 @@ func GetDeployedRelease(ctx context.Context, cli client.Client) (cluster.Release
 	}
 	if len(dsciInstance.Items) == 1 { // found one DSCI CR found
 		// can return a valid Release or 0.0.0
-		return dsciInstance.Items[0].Status.Release, nil
+		return dsciInstance.Items[0].Status.Release[0], nil
 	}
 	// no DSCI CR found, try with DSC CR
 	dscInstances := &dscv1.DataScienceClusterList{}
@@ -552,7 +552,7 @@ func GetDeployedRelease(ctx context.Context, cli client.Client) (cluster.Release
 		return cluster.Release{}, err
 	}
 	if len(dscInstances.Items) == 1 { // one DSC CR found
-		return dscInstances.Items[0].Status.Release, nil
+		return dscInstances.Items[0].Status.Release[0], nil
 	}
 	// could be a clean installation or both CRs are deleted already
 	return cluster.Release{}, nil

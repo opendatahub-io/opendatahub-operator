@@ -57,9 +57,9 @@ func (c *CodeFlare) GetComponentName() string {
 	return ComponentName
 }
 
-func (d *CodeFlare) GetComponentDetails() (any, error) {
+func (d *CodeFlare) GetComponentDetails() (cluster.Release, error) {
 
-	return "", nil
+	return cluster.Release{}, nil
 }
 
 func (c *CodeFlare) ReconcileComponent(ctx context.Context,

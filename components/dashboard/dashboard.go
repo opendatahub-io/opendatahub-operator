@@ -12,11 +12,13 @@ import (
 
 	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"github.com/operator-framework/api/pkg/lib/version"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/blang/semver/v4"
 	"github.com/joho/godotenv"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
@@ -90,18 +92,26 @@ func (d *Dashboard) GetComponentDetails() (cluster.Release, error) {
 		// regexp.MatchString("INTERNAL_RELEASE_VERSION", asciiString)
 		fmt.Print("Check dashboard dir", asciiString, err)
 		if err != nil {
+			fmt.Print("dir check error")
 			return cluster.Release{}, err
 		}
 
 		err = godotenv.Load("/opt/manifests/dashboard/.env")
 
 		if err != nil {
+			fmt.Print("godot env load err")
 			return cluster.Release{}, err
 		}
-		releaseVersion := os.Getenv("INTERNAL_RELEASE_VERSION")
+
+		releaseVersion, err := semver.Parse(os.Getenv("INTERNAL_RELEASE_VERSION"))
 		fmt.Print("envData from joho", releaseVersion)
 
-		return cluster.Release{Name: cluster.Platform(ComponentNameUpstream), DisplayName: ComponentNameDownstream, Version: releaseVersion, RepoUrl: d.DevFlags.Manifests[0].URI}, nil
+		if err != nil {
+			fmt.Print("semver parse error")
+			return cluster.Release{}, err
+		}
+
+		return cluster.Release{Name: cluster.Platform(ComponentNameUpstream), DisplayName: ComponentNameDownstream, Version: version.OperatorVersion{releaseVersion}, RepoUrl: d.DevFlags.Manifests[0].URI}, nil
 	}
 	return cluster.Release{}, nil
 }

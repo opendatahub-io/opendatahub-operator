@@ -114,7 +114,7 @@ type DSCInitializationStatus struct {
 	ErrorMessage   string                   `json:"errorMessage,omitempty"`
 
 	// Version and release type
-	Release cluster.Release `json:"release,omitempty"`
+	Release []cluster.Release `json:"release,omitempty"`
 }
 
 //+kubebuilder:object:root=true
