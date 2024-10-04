@@ -304,8 +304,8 @@ func main() { //nolint:funlen,maintidx
 		}
 	}
 
-	// Create default DSC CR for managed RHODS
-	if platform == cluster.ManagedRhods {
+	// Create default DSC CR for managed RHOAI
+	if platform == cluster.ManagedRhoai {
 		var createDefaultDSCFunc manager.RunnableFunc = func(ctx context.Context) error {
 			err := upgrade.CreateDefaultDSC(ctx, setupClient)
 			if err != nil {
@@ -358,11 +358,11 @@ func createSecretCacheConfig(platform cluster.Platform) map[string]cache.Config 
 		"openshift-ingress": {},
 	}
 	switch platform {
-	case cluster.ManagedRhods:
+	case cluster.ManagedRhoai:
 		namespaceConfigs["redhat-ods-monitoring"] = cache.Config{}
 		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
 		namespaceConfigs["redhat-ods-operator"] = cache.Config{}
-	case cluster.SelfManagedRhods:
+	case cluster.SelfManagedRhoai:
 		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
 	default:
 		namespaceConfigs["opendatahub"] = cache.Config{}
@@ -373,10 +373,10 @@ func createSecretCacheConfig(platform cluster.Platform) map[string]cache.Config 
 func createDeploymentCacheConfig(platform cluster.Platform) map[string]cache.Config {
 	namespaceConfigs := map[string]cache.Config{}
 	switch platform {
-	case cluster.ManagedRhods: // no need workbench NS, only SFS no Deployment
+	case cluster.ManagedRhoai: // no need workbench NS, only SFS no Deployment
 		namespaceConfigs["redhat-ods-monitoring"] = cache.Config{}
 		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
-	case cluster.SelfManagedRhods:
+	case cluster.SelfManagedRhoai:
 		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
 	default:
 		namespaceConfigs["opendatahub"] = cache.Config{}
