@@ -3,15 +3,18 @@ package dscinitialization
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"reflect"
 	"time"
 
+	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	userv1 "github.com/openshift/api/user/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -414,7 +417,7 @@ func (r *DSCInitializationReconciler) createOdhCommonConfigMap(ctx context.Conte
 	return nil
 }
 
-func (r *DSCInitializationReconciler) createUserGroup(ctx context.Context, dscInit *dsciv1.DSCInitialization, userGroupName string) error {
+func (r *DSCInitializationReconciler) createUserGroup(ctx context.Context, dscInit *dsciv1.DSCInitialization, log logr.Logger, userGroupName string) error {
 	userGroup := &userv1.Group{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: userGroupName,
@@ -429,6 +432,11 @@ func (r *DSCInitializationReconciler) createUserGroup(ctx context.Context, dscIn
 		Namespace: dscInit.Spec.ApplicationsNamespace,
 	}, userGroup)
 	if err != nil {
+		// only create Groups if API exist/run on OCP
+		if errors.Is(err, &meta.NoKindMatchError{}) {
+			log.Info("Skipping Group creation as the API does not exist on the cluster")
+			return nil
+		}
 		if k8serr.IsNotFound(err) {
 			err = r.Client.Create(ctx, userGroup)
 			if err != nil && !k8serr.IsAlreadyExists(err) {

@@ -200,7 +200,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	default:
 		switch platform {
 		case cluster.SelfManagedRhods:
-			err := r.createUserGroup(ctx, instance, "rhods-admins")
+			err := r.createUserGroup(ctx, instance, log, "rhods-admins")
 			if err != nil {
 				return reconcile.Result{}, err
 			}
@@ -232,7 +232,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 				}
 			}
 		default:
-			err := r.createUserGroup(ctx, instance, "odh-admins")
+			err := r.createUserGroup(ctx, instance, log, "odh-admins")
 			if err != nil {
 				return reconcile.Result{}, err
 			}
