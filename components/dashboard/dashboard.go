@@ -33,6 +33,12 @@ var (
 	PathManagedDownstream   = PathDownstream + "/addon"
 	OverridePath            = ""
 	DefaultPath             = ""
+	adminGroupsMap          = map[cluster.Platform]string{
+		cluster.SelfManagedRhods: "rhods-admins",
+		cluster.ManagedRhods:     "dedicated-admins",
+		cluster.OpenDataHub:      "odh-admins",
+		cluster.Unknown:          "odh-admins",
+	}
 )
 
 // Verifies that Dashboard implements ComponentInterface.
@@ -95,6 +101,10 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 
 	if enabled {
+		// 0. check if user group exists
+		if err := cluster.CheckUserGroup(ctx, cli, adminGroupsMap[platform], dscispec.ApplicationsNamespace); err != nil {
+			return errors.New("failed to get user group " + adminGroupsMap[platform] + " if running with external IdP, set component to Removed")
+		}
 		// 1. cleanup OAuth client related secret and CR if dashboard is in 'installed false' status
 		if err := d.cleanOauthClient(ctx, cli, dscispec, currentComponentExist, l); err != nil {
 			return err
@@ -184,13 +194,6 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 }
 
 func updateKustomizeVariable(ctx context.Context, cli client.Client, platform cluster.Platform, dscispec *dsciv1.DSCInitializationSpec) (map[string]string, error) {
-	adminGroups := map[cluster.Platform]string{
-		cluster.SelfManagedRhods: "rhods-admins",
-		cluster.ManagedRhods:     "dedicated-admins",
-		cluster.OpenDataHub:      "odh-admins",
-		cluster.Unknown:          "odh-admins",
-	}[platform]
-
 	sectionTitle := map[cluster.Platform]string{
 		cluster.SelfManagedRhods: "OpenShift Self Managed Services",
 		cluster.ManagedRhods:     "OpenShift Managed Services",
@@ -210,7 +213,7 @@ func updateKustomizeVariable(ctx context.Context, cli client.Client, platform cl
 	}[platform]
 
 	return map[string]string{
-		"admin_groups":  adminGroups,
+		"admin_groups":  adminGroupsMap[platform],
 		"dashboard-url": consoleURL,
 		"section-title": sectionTitle,
 	}, nil

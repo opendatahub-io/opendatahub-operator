@@ -4,6 +4,7 @@ package workbenches
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -30,6 +31,12 @@ var (
 	kfnotebookControllerPath = deploy.DefaultManifestPath + "/odh-notebook-controller/kf-notebook-controller/overlays/openshift"
 	// notebook image manifests.
 	notebookImagesPath = deploy.DefaultManifestPath + "/notebooks/overlays/additional"
+	adminGroupsMap     = map[cluster.Platform]string{
+		cluster.SelfManagedRhods: "rhods-admins",
+		cluster.ManagedRhods:     "dedicated-admins",
+		cluster.OpenDataHub:      "odh-admins",
+		cluster.Unknown:          "odh-admins",
+	}
 )
 
 // Verifies that Workbench implements ComponentInterface.
@@ -118,6 +125,9 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 	enabled := w.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 	if enabled {
+		if err := cluster.CheckUserGroup(ctx, cli, adminGroupsMap[platform], dscispec.ApplicationsNamespace); err != nil {
+			return errors.New("failed to get user group " + adminGroupsMap[platform] + " if running with external IdP, set component to Removed")
+		}
 		if w.DevFlags != nil {
 			// Download manifests and update paths
 			if err := w.OverrideManifests(ctx, platform); err != nil {

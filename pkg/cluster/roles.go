@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 
+	userv1 "github.com/openshift/api/user/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -86,4 +87,17 @@ func DeleteClusterRoleBinding(ctx context.Context, cli client.Client, name strin
 	}
 
 	return cli.Delete(ctx, desiredClusterRoleBinding)
+}
+
+// Check if userGroup exists in the cluster.
+func CheckUserGroup(ctx context.Context, cli client.Client, userGroupName string, applicationsNamespace string) error {
+	userGroup := &userv1.Group{}
+	err := cli.Get(ctx, client.ObjectKey{
+		Name:      userGroupName,
+		Namespace: applicationsNamespace,
+	}, userGroup)
+	if err != nil {
+		return err
+	}
+	return nil
 }
