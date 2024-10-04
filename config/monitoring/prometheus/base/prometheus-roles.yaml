@@ -46,3 +46,7 @@ rules:
   - list
   - get
   - watch
+- nonResourceURLs:
+  - "/metrics"
+  verbs:
+  - get
