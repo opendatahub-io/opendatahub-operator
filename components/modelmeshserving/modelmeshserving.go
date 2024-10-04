@@ -156,7 +156,7 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 	}
 
 	// CloudService Monitoring handling
-	if platform == cluster.ManagedRhods {
+	if platform == cluster.ManagedRhoai {
 		// first model-mesh rules
 		if err := m.UpdatePrometheusConfig(cli, l, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
