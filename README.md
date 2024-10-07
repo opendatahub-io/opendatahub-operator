@@ -66,7 +66,7 @@ Additionally installing `Authorino operator` & `Service Mesh operator` enhances 
         sourceNamespace: openshift-marketplace
       EOF
       ```
-      If user would prefer skipping group "odh-admin" to be created by DSCI CR automatically, explicitly set env variable ODH_DISABLE_USERGROUP to "true". example:
+      If user would prefer skipping group "odh-admin" to be created by DSCI CR automatically, explicitly set env variable ODH_USE_EXTERNAL_AUTH to "true". example:
 
     ```console
       cat <<EOF | oc create -f -
@@ -82,7 +82,7 @@ Additionally installing `Authorino operator` & `Service Mesh operator` enhances 
         sourceNamespace: openshift-marketplace
         config:
           env:
-            - name: "ODH_DISABLE_USERGROUP"
+            - name: "ODH_USE_EXTERNAL_AUTH"
               value: "true"
       EOF
 

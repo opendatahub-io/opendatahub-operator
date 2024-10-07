@@ -202,7 +202,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		switch platform {
 		case cluster.SelfManagedRhods:
 			// Check if user opted for disabling creating user groups
-			if os.Getenv("ODH_DISABLE_USERGROUP") == "true" {
+			if os.Getenv("ODH_USE_EXTERNAL_AUTH") == "true" {
 				log.Info("DSCI disabled usergroup creation")
 			} else {
 				err := r.createUserGroup(ctx, instance, "rhods-admins")
@@ -239,7 +239,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			}
 		default:
 			// Check if user opted for disabling creating user groups
-			if os.Getenv("ODH_DISABLE_USERGROUP") == "true" {
+			if os.Getenv("ODH_USE_EXTERNAL_AUTH") == "true" {
 				log.Info("DSCI disabled usergroup creation")
 			} else {
 				err := r.createUserGroup(ctx, instance, "odh-admins")
