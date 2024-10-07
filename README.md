@@ -224,17 +224,12 @@ This will ensure that the doc for the apis are updated accordingly.
 
 #### Controller level
 
-Logger on all controllers can only be changed from CSV with parameters: --log-mode devel
-valid value: "" (as default) || prod || production || devel || development
+Global logger configuration can be changed with a command line switch `--log-mode <mode>`
+for example from CSV. Valid values for `<mode>`: "" (as default) || prod || production || devel || development.
 
-This mainly impacts logging for operator pod startup, generating common resource, monitoring deployment.
-
-| --log-mode value | mapping Log level   | Comments       |
-| ---------------- | ------------------- | -------------- |
-| devel            | debug  / 0          | lowest level   |
-| ""               | info / 1            | default option |
-| default          | info / 1            | default option |
-| prod             | error / 2           | highest level  |
+Verbosity level is INFO.
+To fine tune zap backend [standard operator sdk zap switches](https://sdk.operatorframework.io/docs/building-operators/golang/references/logging/)
+can be used.
 
 #### Component level
 
