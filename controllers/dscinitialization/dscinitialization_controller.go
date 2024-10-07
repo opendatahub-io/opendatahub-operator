@@ -48,6 +48,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/trustedcabundle"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
@@ -99,6 +100,15 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return ctrl.Result{}, nil
 	case len(instances.Items) == 1:
 		instance = &instances.Items[0]
+	}
+
+	if instance.Spec.DevFlags != nil {
+		level := instance.Spec.DevFlags.LogLevel
+		log.V(1).Info("Setting log level", "level", level)
+		err := logger.SetLevel(level)
+		if err != nil {
+			log.Error(err, "Failed to set log level", "level", level)
+		}
 	}
 
 	if instance.ObjectMeta.DeletionTimestamp.IsZero() {

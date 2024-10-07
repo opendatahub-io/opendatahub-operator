@@ -1,13 +1,67 @@
 package logger
 
 import (
+	"errors"
 	"flag"
+	"fmt"
 	"os"
+	"strconv"
+	"strings"
+	"sync/atomic"
 
 	"github.com/go-logr/logr"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	ctrlzap "sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
+
+var logLevel atomic.Value
+
+// copy from controller-runtime/pkg/log/zap/flag.go.
+var levelStrings = map[string]zapcore.Level{
+	"debug": zap.DebugLevel,
+	"info":  zap.InfoLevel,
+	"error": zap.ErrorLevel,
+}
+
+// adjusted copy from controller-runtime/pkg/log/zap/flag.go, keep the same argument name.
+func stringToLevel(flagValue string) (zapcore.Level, error) {
+	level, validLevel := levelStrings[strings.ToLower(flagValue)]
+	if validLevel {
+		return level, nil
+	}
+	logLevel, err := strconv.Atoi(flagValue)
+	if err != nil {
+		return 0, fmt.Errorf("invalid log level \"%s\"", flagValue)
+	}
+	if logLevel > 0 {
+		intLevel := -1 * logLevel
+		return zapcore.Level(int8(intLevel)), nil
+	}
+
+	return 0, fmt.Errorf("invalid log level \"%s\"", flagValue)
+}
+
+func SetLevel(levelStr string) error {
+	if levelStr == "" {
+		return nil
+	}
+	levelNum, err := stringToLevel(levelStr)
+	if err != nil {
+		return err
+	}
+
+	// ctrlzap.addDefauls() uses a pointer to the AtomicLevel,
+	// but ctrlzap.(*levelFlag).Set() the structure itsef.
+	// So use the structure and always set the value in newOptions() to addDefaults() call
+	level, ok := logLevel.Load().(zap.AtomicLevel)
+	if !ok {
+		return errors.New("stored loglevel is not of type *zap.AtomicLevel")
+	}
+
+	level.SetLevel(levelNum)
+	return nil
+}
 
 // NewNamedLogger creates a new logger for a component.
 // If the mode is set (so can be different from the default one),
@@ -22,6 +76,7 @@ func NewNamedLogger(log logr.Logger, name string, mode string) logr.Logger {
 func NewLoggerWithOptions(mode string, override *ctrlzap.Options) logr.Logger {
 	opts := newOptions(mode)
 	overrideOptions(opts, override)
+	logLevel.Store(opts.Level)
 	return newLogger(opts)
 }
 
@@ -37,19 +92,19 @@ func newLogger(opts *ctrlzap.Options) logr.Logger {
 
 func newOptions(mode string) *ctrlzap.Options {
 	var opts ctrlzap.Options
+	level := zap.NewAtomicLevelAt(zapcore.InfoLevel)
+
 	switch mode {
 	case "devel", "development": //  the most logging verbosity
 		opts = ctrlzap.Options{
 			Development:     true,
 			StacktraceLevel: zapcore.WarnLevel,
-			Level:           zapcore.InfoLevel,
 			DestWriter:      os.Stdout,
 		}
 	case "prod", "production": // the least logging verbosity
 		opts = ctrlzap.Options{
 			Development:     false,
 			StacktraceLevel: zapcore.ErrorLevel,
-			Level:           zapcore.InfoLevel,
 			DestWriter:      os.Stdout,
 			EncoderConfigOptions: []ctrlzap.EncoderConfigOption{func(config *zapcore.EncoderConfig) {
 				config.EncodeTime = zapcore.ISO8601TimeEncoder // human readable not epoch
@@ -66,10 +121,11 @@ func newOptions(mode string) *ctrlzap.Options {
 		opts = ctrlzap.Options{
 			Development:     false,
 			StacktraceLevel: zapcore.ErrorLevel,
-			Level:           zapcore.InfoLevel,
 			DestWriter:      os.Stdout,
 		}
 	}
+
+	opts.Level = level
 	return &opts
 }
 
