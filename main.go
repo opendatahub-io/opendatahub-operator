@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"flag"
+	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	"os"
 
 	"github.com/hashicorp/go-multierror"
@@ -78,6 +79,8 @@ var (
 )
 
 func init() { //nolint:gochecknoinits
+
+	utilruntime.Must(componentsv1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(dsciv1.AddToScheme(scheme))
