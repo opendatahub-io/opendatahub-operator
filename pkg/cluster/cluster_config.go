@@ -9,10 +9,12 @@ import (
 
 	"github.com/blang/semver/v4"
 	"github.com/go-logr/logr"
+	configv1 "github.com/openshift/api/config/v1"
 	"github.com/operator-framework/api/pkg/lib/version"
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -20,8 +22,6 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
-
-// +kubebuilder:rbac:groups="config.openshift.io",resources=ingresses,verbs=get
 
 type Platform string
 
@@ -225,4 +225,21 @@ func getRelease(ctx context.Context, cli client.Client) (Release, error) {
 	}
 	initRelease.Version = csv.Spec.Version
 	return initRelease, nil
+}
+
+// IsDefaultAuthMethod returns true if the default authentication method is IntegratedOAuth or empty.
+// This will give indication that Operator should create userGroups or not in the cluster.
+func IsDefaultAuthMethod(ctx context.Context, cli client.Client) (bool, error) {
+	authenticationobj := &configv1.Authentication{}
+	if err := cli.Get(ctx, client.ObjectKey{Name: "cluster", Namespace: ""}, authenticationobj); err != nil {
+		if errors.Is(err, &meta.NoKindMatchError{}) { // when CRD is missing, conver error type
+			return false, k8serr.NewNotFound(configv1.Resource("authentications"), "cluster")
+		}
+		return false, err
+	}
+
+	// for now, HPC support "" "None" "IntegratedOAuth"(default) "OIDC"
+	// other offering support "" "None" "IntegratedOAuth"(default)
+	// we only create userGroups for "IntegratedOAuth" or "" and leave other or new supported type value in the future
+	return (authenticationobj.Spec.Type == configv1.AuthenticationTypeIntegratedOAuth || authenticationobj.Spec.Type == ""), nil
 }

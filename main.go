@@ -25,6 +25,7 @@ import (
 	addonv1alpha1 "github.com/openshift/addon-operator/apis/addons/v1alpha1"
 	ocappsv1 "github.com/openshift/api/apps/v1" //nolint:importas //reason: conflicts with appsv1 "k8s.io/api/apps/v1"
 	buildv1 "github.com/openshift/api/build/v1"
+	configv1 "github.com/openshift/api/config/v1"
 	imagev1 "github.com/openshift/api/image/v1"
 	oauthv1 "github.com/openshift/api/oauth/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -200,6 +201,10 @@ func main() { //nolint:funlen,maintidx
 			// For domain to get OpenshiftIngress and default cert
 			&operatorv1.IngressController{}: {
 				Field: fields.Set{"metadata.name": "default"}.AsSelector(),
+			},
+			// For authentication CR "cluster"
+			&configv1.Authentication{}: {
+				Field: fields.Set{"metadata.name": "cluster"}.AsSelector(),
 			},
 			// for prometheus and black-box deployment and ones we owns
 			&appsv1.Deployment{}: {Namespaces: deploymentCache},

@@ -29,6 +29,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -73,6 +74,7 @@ type DSCInitializationReconciler struct {
 // +kubebuilder:rbac:groups="dscinitialization.opendatahub.io",resources=dscinitializations,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="features.opendatahub.io",resources=featuretrackers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="features.opendatahub.io",resources=featuretrackers/status,verbs=get;update;patch;delete
+// +kubebuilder:rbac:groups="config.openshift.io",resources=authentications,verbs=get;watch;list
 
 // Reconcile contains controller logic specific to DSCInitialization instance updates.
 func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:funlen,gocyclo,maintidx
@@ -212,11 +214,23 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 		return ctrl.Result{}, nil
 	default:
+		createUsergroup, err := cluster.IsDefaultAuthMethod(ctx, r.Client)
+		if err != nil {
+			if !k8serr.IsNotFound(err) { // only keep reconcile if real error but not missing CRD or missing CR
+				return ctrl.Result{}, err
+			}
+		}
+
 		switch platform {
 		case cluster.SelfManagedRhods:
-			err := r.createUserGroup(ctx, instance, "rhods-admins")
-			if err != nil {
-				return reconcile.Result{}, err
+			// Check if user opted for disabling creating user groups
+			if !createUsergroup {
+				log.Info("DSCI disabled usergroup creation")
+			} else {
+				err := r.createUserGroup(ctx, instance, "rhods-admins")
+				if err != nil {
+					return reconcile.Result{}, err
+				}
 			}
 			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
 				log.Info("Monitoring enabled, won't apply changes", "cluster", "Self-Managed RHODS Mode")
@@ -246,9 +260,14 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 				}
 			}
 		default:
-			err := r.createUserGroup(ctx, instance, "odh-admins")
-			if err != nil {
-				return reconcile.Result{}, err
+			// Check if user opted for disabling creating user groups
+			if !createUsergroup {
+				log.Info("DSCI disabled usergroup creation")
+			} else {
+				err := r.createUserGroup(ctx, instance, "odh-admins")
+				if err != nil {
+					return reconcile.Result{}, err
+				}
 			}
 			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
 				log.Info("Monitoring enabled, won't apply changes", "cluster", "ODH Mode")
