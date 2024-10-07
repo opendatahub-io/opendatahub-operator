@@ -66,6 +66,25 @@ Additionally installing `Authorino operator` & `Service Mesh operator` enhances 
         sourceNamespace: openshift-marketplace
       EOF
       ```
+      If user would prefer skipping group "odh-admin" to be created by DSCI CR automatically, explicitly set env variable ODH_DISABLE_USERGROUP to "true". example:
+
+    ```console
+      cat <<EOF | oc create -f -
+      apiVersion: operators.coreos.com/v1alpha1
+      kind: Subscription
+      metadata:
+        name: opendatahub-operator
+        namespace: openshift-operators
+      spec:
+        channel: fast
+        name: opendatahub-operator
+        source: community-operators
+        sourceNamespace: openshift-marketplace
+        config:
+          env:
+            - name: "ODH_DISABLE_USERGROUP"
+              value: "true"
+      EOF
 
   2. Create [DSCInitialization](#example-dscinitialization) CR manually.
     You can also use operator to create default DSCI CR by removing env variable DISABLE_DSC_CONFIG from CSV or changing the value to "false", followed by restarting the operator pod.
