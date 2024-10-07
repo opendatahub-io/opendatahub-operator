@@ -63,30 +63,10 @@ func SetLevel(levelStr string) error {
 	return nil
 }
 
-// NewNamedLogger creates a new logger for a component.
-// If the mode is set (so can be different from the default one),
-// it will create a new logger with the specified mode's options.
-func NewNamedLogger(log logr.Logger, name string, mode string) logr.Logger {
-	if mode != "" {
-		log = NewLogger(mode)
-	}
-	return log.WithName(name)
-}
-
-func NewLoggerWithOptions(mode string, override *ctrlzap.Options) logr.Logger {
+func NewLogger(mode string, override *ctrlzap.Options) logr.Logger {
 	opts := newOptions(mode)
 	overrideOptions(opts, override)
 	logLevel.Store(opts.Level)
-	return newLogger(opts)
-}
-
-// in DSC component, to use different mode for logging, e.g. development, production
-// when not set mode it falls to "default" which is used by startup main.go.
-func NewLogger(mode string) logr.Logger {
-	return newLogger(newOptions(mode))
-}
-
-func newLogger(opts *ctrlzap.Options) logr.Logger {
 	return ctrlzap.New(ctrlzap.UseFlagOptions(opts))
 }
 

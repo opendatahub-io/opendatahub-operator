@@ -57,7 +57,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	ctrlogger "github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	annotations "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
@@ -313,7 +312,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 		}
 	}
 	// Reconcile component
-	componentLogger := newComponentLogger(log, componentName, r.DataScienceCluster.DSCISpec)
+	componentLogger := newComponentLogger(log, componentName)
 	componentCtx := logf.IntoContext(ctx, componentLogger)
 	err := component.ReconcileComponent(componentCtx, r.Client, instance, r.DataScienceCluster.DSCISpec, platform, installedComponentValue)
 
@@ -365,13 +364,8 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 	return instance, nil
 }
 
-// newComponentLogger is a wrapper to add DSC name and extract log mode from DSCISpec.
-func newComponentLogger(logger logr.Logger, componentName string, dscispec *dsciv1.DSCInitializationSpec) logr.Logger {
-	mode := ""
-	if dscispec.DevFlags != nil {
-		mode = dscispec.DevFlags.LogMode
-	}
-	return ctrlogger.NewNamedLogger(logger, "DSC.Components."+componentName, mode)
+func newComponentLogger(logger logr.Logger, componentName string) logr.Logger {
+	return logger.WithName(componentName).WithValues("component", componentName)
 }
 
 func (r *DataScienceClusterReconciler) reportError(err error, instance *dscv1.DataScienceCluster, message string) *dscv1.DataScienceCluster {
