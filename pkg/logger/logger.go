@@ -3,18 +3,11 @@ package logger
 import (
 	"flag"
 	"os"
-	"strings"
 
 	"github.com/go-logr/logr"
 	"go.uber.org/zap/zapcore"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
-
-var logLevelMapping = map[string]int{
-	"devel":   0,
-	"default": 1, // default one when not set log-mode
-	"prod":    2,
-}
 
 // NewNamedLogger creates a new logger for a component.
 // If the mode is set (so can be different from the default one),
@@ -24,16 +17,6 @@ func NewNamedLogger(log logr.Logger, name string, mode string) logr.Logger {
 		log = NewLogger(mode)
 	}
 	return log.WithName(name)
-}
-
-// in each controller, to use different log level.
-func LogWithLevel(logger logr.Logger, level string) logr.Logger {
-	level = strings.TrimSpace(level)
-	verbosityLevel, ok := logLevelMapping[level]
-	if !ok {
-		verbosityLevel = 1 // fallback to info level
-	}
-	return logger.V(verbosityLevel)
 }
 
 func NewLoggerWithOptions(mode string, override *zap.Options) logr.Logger {
