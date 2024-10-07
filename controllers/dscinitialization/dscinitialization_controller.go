@@ -19,6 +19,7 @@ package dscinitialization
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"reflect"
 
@@ -200,9 +201,15 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	default:
 		switch platform {
 		case cluster.SelfManagedRhods:
-			err := r.createUserGroup(ctx, instance, "rhods-admins")
-			if err != nil {
-				return reconcile.Result{}, err
+			// Check if user opted for disabling creating user groups
+			disableUserGroup, exist := os.LookupEnv("DISABLE_USERGROUP")
+			if exist && disableUserGroup != "false" {
+				log.Info("DSCI disabled usergroup creation")
+			} else {
+				err := r.createUserGroup(ctx, instance, "rhods-admins")
+				if err != nil {
+					return reconcile.Result{}, err
+				}
 			}
 			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
 				log.Info("Monitoring enabled, won't apply changes", "cluster", "Self-Managed RHODS Mode")
@@ -232,9 +239,15 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 				}
 			}
 		default:
-			err := r.createUserGroup(ctx, instance, "odh-admins")
-			if err != nil {
-				return reconcile.Result{}, err
+			// Check if user opted for disabling creating user groups
+			disableUserGroup, exist := os.LookupEnv("DISABLE_USERGROUP")
+			if exist && disableUserGroup != "false" {
+				log.Info("DSCI disabled usergroup creation")
+			} else {
+				err := r.createUserGroup(ctx, instance, "odh-admins")
+				if err != nil {
+					return reconcile.Result{}, err
+				}
 			}
 			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
 				log.Info("Monitoring enabled, won't apply changes", "cluster", "ODH Mode")
