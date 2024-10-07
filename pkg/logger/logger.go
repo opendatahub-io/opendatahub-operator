@@ -6,7 +6,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"go.uber.org/zap/zapcore"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	ctrlzap "sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
 // NewNamedLogger creates a new logger for a component.
@@ -19,7 +19,7 @@ func NewNamedLogger(log logr.Logger, name string, mode string) logr.Logger {
 	return log.WithName(name)
 }
 
-func NewLoggerWithOptions(mode string, override *zap.Options) logr.Logger {
+func NewLoggerWithOptions(mode string, override *ctrlzap.Options) logr.Logger {
 	opts := newOptions(mode)
 	overrideOptions(opts, override)
 	return newLogger(opts)
@@ -31,27 +31,27 @@ func NewLogger(mode string) logr.Logger {
 	return newLogger(newOptions(mode))
 }
 
-func newLogger(opts *zap.Options) logr.Logger {
-	return zap.New(zap.UseFlagOptions(opts))
+func newLogger(opts *ctrlzap.Options) logr.Logger {
+	return ctrlzap.New(ctrlzap.UseFlagOptions(opts))
 }
 
-func newOptions(mode string) *zap.Options {
-	var opts zap.Options
+func newOptions(mode string) *ctrlzap.Options {
+	var opts ctrlzap.Options
 	switch mode {
 	case "devel", "development": //  the most logging verbosity
-		opts = zap.Options{
+		opts = ctrlzap.Options{
 			Development:     true,
 			StacktraceLevel: zapcore.WarnLevel,
 			Level:           zapcore.InfoLevel,
 			DestWriter:      os.Stdout,
 		}
 	case "prod", "production": // the least logging verbosity
-		opts = zap.Options{
+		opts = ctrlzap.Options{
 			Development:     false,
 			StacktraceLevel: zapcore.ErrorLevel,
 			Level:           zapcore.InfoLevel,
 			DestWriter:      os.Stdout,
-			EncoderConfigOptions: []zap.EncoderConfigOption{func(config *zapcore.EncoderConfig) {
+			EncoderConfigOptions: []ctrlzap.EncoderConfigOption{func(config *zapcore.EncoderConfig) {
 				config.EncodeTime = zapcore.ISO8601TimeEncoder // human readable not epoch
 				config.EncodeDuration = zapcore.SecondsDurationEncoder
 				config.LevelKey = "LogLevel"
@@ -63,7 +63,7 @@ func newOptions(mode string) *zap.Options {
 			}},
 		}
 	default:
-		opts = zap.Options{
+		opts = ctrlzap.Options{
 			Development:     false,
 			StacktraceLevel: zapcore.ErrorLevel,
 			Level:           zapcore.InfoLevel,
@@ -73,7 +73,7 @@ func newOptions(mode string) *zap.Options {
 	return &opts
 }
 
-func overrideOptions(orig, override *zap.Options) {
+func overrideOptions(orig, override *ctrlzap.Options) {
 	// Development is boolean, cannot check for nil, so check if it was set
 	isDevelopmentSet := false
 	flag.Visit(func(f *flag.Flag) {
