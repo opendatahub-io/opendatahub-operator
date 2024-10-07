@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"flag"
 	"os"
 	"strings"
 
@@ -35,9 +36,23 @@ func LogWithLevel(logger logr.Logger, level string) logr.Logger {
 	return logger.V(verbosityLevel)
 }
 
+func NewLoggerWithOptions(mode string, override *zap.Options) logr.Logger {
+	opts := newOptions(mode)
+	overrideOptions(opts, override)
+	return newLogger(opts)
+}
+
 // in DSC component, to use different mode for logging, e.g. development, production
 // when not set mode it falls to "default" which is used by startup main.go.
 func NewLogger(mode string) logr.Logger {
+	return newLogger(newOptions(mode))
+}
+
+func newLogger(opts *zap.Options) logr.Logger {
+	return zap.New(zap.UseFlagOptions(opts))
+}
+
+func newOptions(mode string) *zap.Options {
 	var opts zap.Options
 	switch mode {
 	case "devel", "development": //  the most logging verbosity
@@ -72,5 +87,34 @@ func NewLogger(mode string) logr.Logger {
 			DestWriter:      os.Stdout,
 		}
 	}
-	return zap.New(zap.UseFlagOptions(&opts))
+	return &opts
+}
+
+func overrideOptions(orig, override *zap.Options) {
+	// Development is boolean, cannot check for nil, so check if it was set
+	isDevelopmentSet := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "zap-devel" {
+			isDevelopmentSet = true
+		}
+	})
+	if isDevelopmentSet {
+		orig.Development = override.Development
+	}
+
+	if override.StacktraceLevel != nil {
+		orig.StacktraceLevel = override.StacktraceLevel
+	}
+
+	if override.Level != nil {
+		orig.Level = override.Level
+	}
+
+	if override.DestWriter != nil {
+		orig.DestWriter = override.DestWriter
+	}
+
+	if override.EncoderConfigOptions != nil {
+		orig.EncoderConfigOptions = override.EncoderConfigOptions
+	}
 }
