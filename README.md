@@ -222,8 +222,6 @@ This will ensure that the doc for the apis are updated accordingly.
 
 ### Enabled logging
 
-#### Controller level
-
 Global logger configuration can be changed with a command line switch `--log-mode <mode>`
 for example from CSV. Valid values for `<mode>`: "" (as default) || prod || production || devel || development.
 
@@ -231,12 +229,9 @@ Verbosity level is INFO.
 To fine tune zap backend [standard operator sdk zap switches](https://sdk.operatorframework.io/docs/building-operators/golang/references/logging/)
 can be used.
 
-#### Component level
-
-Logger on components can be changed by DSCI devFlags during runtime.
-By default, if not set .spec.devFlags.logmode, it uses INFO level
-Modification applies to all components, not only these "Managed" ones.
-Update DSCI CR with .spec.devFlags.logmode, see example :
+Log level can be changed by DSCI devFlags during runtime by setting
+.spec.devFlags.logLevel. It accepts the same values as `--zap-log-level`
+command line switch. See example :
 
 ```console
 apiVersion: dscinitialization.opendatahub.io/v1
@@ -245,20 +240,17 @@ metadata:
   name: default-dsci
 spec:
   devFlags:
-    logmode: development
+    logLevel: debug
   ...
 ```
 
-Avaiable value for logmode is "devel", "development", "prod", "production".
-The first two work the same set to DEBUG level; the later two work the same as using ERROR level.
-
-| .spec.devFlags.logmode | stacktrace level | verbosity | Output   | Comments       |
-| ---------------------- | ---------------- | --------- | -------- | -------------- |
-| devel                  | WARN             | INFO      | Console  | lowest level, using epoch time  |
-| development            | WARN             | INFO      | Console  | same as devel  |
-| ""                     | ERROR            | INFO      | JSON     | default option |
-| prod                   | ERROR            | INFO      | JSON     | highest level, using human readable timestamp  |
-| production             | ERROR            | INFO      | JSON     | same as prod   |
+| logmode     | stacktrace level | verbosity | Output  | Comments                                      |
+|-------------|------------------|-----------|---------|-----------------------------------------------|
+| devel       | WARN             | INFO      | Console | lowest level, using epoch time                |
+| development | WARN             | INFO      | Console | same as devel                                 |
+| ""          | ERROR            | INFO      | JSON    | default option                                |
+| prod        | ERROR            | INFO      | JSON    | highest level, using human readable timestamp |
+| production  | ERROR            | INFO      | JSON    | same as prod                                  |
 
 ### Example DSCInitialization
 
