@@ -146,7 +146,7 @@ func main() { //nolint:funlen,maintidx
 
 	flag.Parse()
 
-	ctrl.SetLogger(logger.NewLoggerWithOptions(logmode, &opts))
+	ctrl.SetLogger(logger.NewLogger(logmode, &opts))
 
 	// root context
 	ctx := ctrl.SetupSignalHandler()
