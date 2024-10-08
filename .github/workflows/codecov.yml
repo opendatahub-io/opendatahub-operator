@@ -15,9 +15,6 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
 
-      - name: Install dependencies
-        run: go mod download
-
       - name: Run tests
         run: go test -coverprofile=coverage.txt
 
