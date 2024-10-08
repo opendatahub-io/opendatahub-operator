@@ -52,8 +52,6 @@ package datasciencecluster
 
 // +kubebuilder:rbac:groups="template.openshift.io",resources=templates,verbs=*
 
-// +kubebuilder:rbac:groups="tekton.dev",resources=*,verbs=*
-
 // +kubebuilder:rbac:groups="snapshot.storage.k8s.io",resources=volumesnapshots,verbs=create;delete;patch;get
 
 // +kubebuilder:rbac:groups="serving.kserve.io",resources=trainedmodels/status,verbs=update;patch;delete;get
@@ -150,8 +148,6 @@ package datasciencecluster
 
 // +kubebuilder:rbac:groups="extensions",resources=replicasets,verbs=*
 // +kubebuilder:rbac:groups="extensions",resources=ingresses,verbs=list;watch;patch;delete;get
-
-// +kubebuilder:rbac:groups="custom.tekton.dev",resources=pipelineloops,verbs=*
 
 // +kubebuilder:rbac:groups="core",resources=services/finalizers,verbs=create;delete;list;update;watch;patch;get
 // +kubebuilder:rbac:groups="core",resources=services,verbs=get;create;watch;update;patch;list;delete

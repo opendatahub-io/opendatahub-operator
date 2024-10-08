@@ -175,11 +175,11 @@ spec:
     built on top of Kubeflow Notebook Controller with support for OAuth\n* Jupyter
     Notebooks - JupyterLab notebook that provide Python support for GPU workloads\n*
     Data Science Pipelines - Pipeline solution for end to end MLOps workflows that
-    support the Kubeflow Pipelines SDK and Tekton\n* Model Mesh - ModelMesh Serving
-    is the Controller for managing ModelMesh, a general-purpose model serving management/routing
-    layer\n* Distributed Workloads(Incubation) - Stack built to make managing distributed
-    compute infrastructure in the cloud easy and intuitive for Data Scientists. This
-    stack consists of three components \n                                      Codeflare
+    support the Kubeflow Pipelines SDK and Argo Workflows\n* Model Mesh - ModelMesh
+    Serving is the Controller for managing ModelMesh, a general-purpose model serving
+    management/routing layer\n* Distributed Workloads(Incubation) - Stack built to
+    make managing distributed compute infrastructure in the cloud easy and intuitive
+    for Data Scientists. This stack consists of three components \n                                      Codeflare
     , KubeRay and Kueue.\n* Kserve - Kserve is the Controller for for serving machine
     learning (ML) models on arbitrary frameworks"
   displayName: Open Data Hub Operator
@@ -491,12 +491,6 @@ spec:
           - patch
           - update
           - watch
-        - apiGroups:
-          - custom.tekton.dev
-          resources:
-          - pipelineloops
-          verbs:
-          - '*'
         - apiGroups:
           - dashboard.opendatahub.io
           resources:
@@ -1024,12 +1018,6 @@ spec:
           - delete
           - get
           - patch
-        - apiGroups:
-          - tekton.dev
-          resources:
-          - '*'
-          verbs:
-          - '*'
         - apiGroups:
           - template.openshift.io
           resources:
