@@ -1,8 +1,837 @@
 # API Reference
 
 ## Packages
+- [components.opendatahub.io/v1](#componentsopendatahubiov1)
 - [datasciencecluster.opendatahub.io/v1](#datascienceclusteropendatahubiov1)
 - [dscinitialization.opendatahub.io/v1](#dscinitializationopendatahubiov1)
+
+
+## components.opendatahub.io/v1
+
+Package v1 contains API Schema definitions for the components v1 API group
+
+### Resource Types
+- [CodeFlare](#codeflare)
+- [CodeFlareList](#codeflarelist)
+- [Dashboard](#dashboard)
+- [DashboardList](#dashboardlist)
+- [DataSciencePipelines](#datasciencepipelines)
+- [DataSciencePipelinesList](#datasciencepipelineslist)
+- [Kserve](#kserve)
+- [KserveList](#kservelist)
+- [Kueue](#kueue)
+- [KueueList](#kueuelist)
+- [ModelMeshServing](#modelmeshserving)
+- [ModelMeshServingList](#modelmeshservinglist)
+- [ModelRegistry](#modelregistry)
+- [ModelRegistryList](#modelregistrylist)
+- [Ray](#ray)
+- [RayList](#raylist)
+- [TrainingOperator](#trainingoperator)
+- [TrainingOperatorList](#trainingoperatorlist)
+- [TrustyAI](#trustyai)
+- [TrustyAIList](#trustyailist)
+- [Workbenches](#workbenches)
+- [WorkbenchesList](#workbencheslist)
+
+
+
+#### CodeFlare
+
+
+
+CodeFlare is the Schema for the codeflares API
+
+
+
+_Appears in:_
+- [CodeFlareList](#codeflarelist)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `kind` _string_ | `CodeFlare` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[CodeFlareSpec](#codeflarespec)_ |  |  |  |
+| `status` _[CodeFlareStatus](#codeflarestatus)_ |  |  |  |
+
+
+#### CodeFlareList
+
+
+
+CodeFlareList contains a list of CodeFlare
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `kind` _string_ | `CodeFlareList` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `items` _[CodeFlare](#codeflare) array_ |  |  |  |
+
+
+#### CodeFlareSpec
+
+
+
+CodeFlareSpec defines the desired state of CodeFlare
+
+
+
+_Appears in:_
+- [CodeFlare](#codeflare)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `foo` _string_ | Foo is an example field of CodeFlare. Edit codeflare_types.go to remove/update |  |  |
+
+
+#### CodeFlareStatus
+
+
+
+CodeFlareStatus defines the observed state of CodeFlare
+
+
+
+_Appears in:_
+- [CodeFlare](#codeflare)
+
+
+
+#### DSCDashboard
+
+
+
+DSCDashboard contains all the configuration exposed in DSC instance for Dashboard component
+
+
+
+_Appears in:_
+- [DashboardSpec](#dashboardspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `Component` _[Component](#component)_ | configuration fields common across components |  |  |
+
+
+#### Dashboard
+
+
+
+Dashboard is the Schema for the dashboards API
+
+
+
+_Appears in:_
+- [DashboardList](#dashboardlist)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `kind` _string_ | `Dashboard` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[DashboardSpec](#dashboardspec)_ |  |  |  |
+| `status` _[DashboardStatus](#dashboardstatus)_ |  |  |  |
+
+
+#### DashboardList
+
+
+
+DashboardList contains a list of Dashboard
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `kind` _string_ | `DashboardList` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `items` _[Dashboard](#dashboard) array_ |  |  |  |
+
+
+#### DashboardSpec
+
+
+
+DashboardSpec defines the desired state of Dashboard
+
+
+
+_Appears in:_
+- [Dashboard](#dashboard)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `DSCDashboard` _[DSCDashboard](#dscdashboard)_ | dashboard spec exposed to DSC api |  |  |
+
+
+#### DashboardStatus
+
+
+
+DashboardStatus defines the observed state of Dashboard
+
+
+
+_Appears in:_
+- [Dashboard](#dashboard)
+
+
+
+#### DataSciencePipelines
+
+
+
+DataSciencePipelines is the Schema for the datasciencepipelines API
+
+
+
+_Appears in:_
+- [DataSciencePipelinesList](#datasciencepipelineslist)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `kind` _string_ | `DataSciencePipelines` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[DataSciencePipelinesSpec](#datasciencepipelinesspec)_ |  |  |  |
+| `status` _[DataSciencePipelinesStatus](#datasciencepipelinesstatus)_ |  |  |  |
+
+
+#### DataSciencePipelinesList
+
+
+
+DataSciencePipelinesList contains a list of DataSciencePipelines
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `kind` _string_ | `DataSciencePipelinesList` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `items` _[DataSciencePipelines](#datasciencepipelines) array_ |  |  |  |
+
+
+#### DataSciencePipelinesSpec
+
+
+
+DataSciencePipelinesSpec defines the desired state of DataSciencePipelines
+
+
+
+_Appears in:_
+- [DataSciencePipelines](#datasciencepipelines)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `foo` _string_ | Foo is an example field of DataSciencePipelines. Edit datasciencepipelines_types.go to remove/update |  |  |
+
+
+#### DataSciencePipelinesStatus
+
+
+
+DataSciencePipelinesStatus defines the observed state of DataSciencePipelines
+
+
+
+_Appears in:_
+- [DataSciencePipelines](#datasciencepipelines)
+
+
+
+#### Kserve
+
+
+
+Kserve is the Schema for the kserves API
+
+
+
+_Appears in:_
+- [KserveList](#kservelist)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `kind` _string_ | `Kserve` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[KserveSpec](#kservespec)_ |  |  |  |
+| `status` _[KserveStatus](#kservestatus)_ |  |  |  |
+
+
+#### KserveList
+
+
+
+KserveList contains a list of Kserve
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `kind` _string_ | `KserveList` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `items` _[Kserve](#kserve) array_ |  |  |  |
+
+
+#### KserveSpec
+
+
+
+KserveSpec defines the desired state of Kserve
+
+
+
+_Appears in:_
+- [Kserve](#kserve)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `foo` _string_ | Foo is an example field of Kserve. Edit kserve_types.go to remove/update |  |  |
+
+
+#### KserveStatus
+
+
+
+KserveStatus defines the observed state of Kserve
+
+
+
+_Appears in:_
+- [Kserve](#kserve)
+
+
+
+#### Kueue
+
+
+
+Kueue is the Schema for the kueues API
+
+
+
+_Appears in:_
+- [KueueList](#kueuelist)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `kind` _string_ | `Kueue` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[KueueSpec](#kueuespec)_ |  |  |  |
+| `status` _[KueueStatus](#kueuestatus)_ |  |  |  |
+
+
+#### KueueList
+
+
+
+KueueList contains a list of Kueue
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `kind` _string_ | `KueueList` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `items` _[Kueue](#kueue) array_ |  |  |  |
+
+
+#### KueueSpec
+
+
+
+KueueSpec defines the desired state of Kueue
+
+
+
+_Appears in:_
+- [Kueue](#kueue)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `foo` _string_ | Foo is an example field of Kueue. Edit kueue_types.go to remove/update |  |  |
+
+
+#### KueueStatus
+
+
+
+KueueStatus defines the observed state of Kueue
+
+
+
+_Appears in:_
+- [Kueue](#kueue)
+
+
+
+#### ModelMeshServing
+
+
+
+ModelMeshServing is the Schema for the modelmeshservings API
+
+
+
+_Appears in:_
+- [ModelMeshServingList](#modelmeshservinglist)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `kind` _string_ | `ModelMeshServing` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[ModelMeshServingSpec](#modelmeshservingspec)_ |  |  |  |
+| `status` _[ModelMeshServingStatus](#modelmeshservingstatus)_ |  |  |  |
+
+
+#### ModelMeshServingList
+
+
+
+ModelMeshServingList contains a list of ModelMeshServing
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `kind` _string_ | `ModelMeshServingList` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `items` _[ModelMeshServing](#modelmeshserving) array_ |  |  |  |
+
+
+#### ModelMeshServingSpec
+
+
+
+ModelMeshServingSpec defines the desired state of ModelMeshServing
+
+
+
+_Appears in:_
+- [ModelMeshServing](#modelmeshserving)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `foo` _string_ | Foo is an example field of ModelMeshServing. Edit modelmeshserving_types.go to remove/update |  |  |
+
+
+#### ModelMeshServingStatus
+
+
+
+ModelMeshServingStatus defines the observed state of ModelMeshServing
+
+
+
+_Appears in:_
+- [ModelMeshServing](#modelmeshserving)
+
+
+
+#### ModelRegistry
+
+
+
+ModelRegistry is the Schema for the modelregistries API
+
+
+
+_Appears in:_
+- [ModelRegistryList](#modelregistrylist)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `kind` _string_ | `ModelRegistry` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[ModelRegistrySpec](#modelregistryspec)_ |  |  |  |
+| `status` _[ModelRegistryStatus](#modelregistrystatus)_ |  |  |  |
+
+
+#### ModelRegistryList
+
+
+
+ModelRegistryList contains a list of ModelRegistry
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `kind` _string_ | `ModelRegistryList` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `items` _[ModelRegistry](#modelregistry) array_ |  |  |  |
+
+
+#### ModelRegistrySpec
+
+
+
+ModelRegistrySpec defines the desired state of ModelRegistry
+
+
+
+_Appears in:_
+- [ModelRegistry](#modelregistry)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `foo` _string_ | Foo is an example field of ModelRegistry. Edit modelregistry_types.go to remove/update |  |  |
+
+
+#### ModelRegistryStatus
+
+
+
+ModelRegistryStatus defines the observed state of ModelRegistry
+
+
+
+_Appears in:_
+- [ModelRegistry](#modelregistry)
+
+
+
+#### Ray
+
+
+
+Ray is the Schema for the rays API
+
+
+
+_Appears in:_
+- [RayList](#raylist)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `kind` _string_ | `Ray` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[RaySpec](#rayspec)_ |  |  |  |
+| `status` _[RayStatus](#raystatus)_ |  |  |  |
+
+
+#### RayList
+
+
+
+RayList contains a list of Ray
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `kind` _string_ | `RayList` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `items` _[Ray](#ray) array_ |  |  |  |
+
+
+#### RaySpec
+
+
+
+RaySpec defines the desired state of Ray
+
+
+
+_Appears in:_
+- [Ray](#ray)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `foo` _string_ | Foo is an example field of Ray. Edit ray_types.go to remove/update |  |  |
+
+
+#### RayStatus
+
+
+
+RayStatus defines the observed state of Ray
+
+
+
+_Appears in:_
+- [Ray](#ray)
+
+
+
+#### TrainingOperator
+
+
+
+TrainingOperator is the Schema for the trainingoperators API
+
+
+
+_Appears in:_
+- [TrainingOperatorList](#trainingoperatorlist)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `kind` _string_ | `TrainingOperator` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[TrainingOperatorSpec](#trainingoperatorspec)_ |  |  |  |
+| `status` _[TrainingOperatorStatus](#trainingoperatorstatus)_ |  |  |  |
+
+
+#### TrainingOperatorList
+
+
+
+TrainingOperatorList contains a list of TrainingOperator
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `kind` _string_ | `TrainingOperatorList` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `items` _[TrainingOperator](#trainingoperator) array_ |  |  |  |
+
+
+#### TrainingOperatorSpec
+
+
+
+TrainingOperatorSpec defines the desired state of TrainingOperator
+
+
+
+_Appears in:_
+- [TrainingOperator](#trainingoperator)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `foo` _string_ | Foo is an example field of TrainingOperator. Edit trainingoperator_types.go to remove/update |  |  |
+
+
+#### TrainingOperatorStatus
+
+
+
+TrainingOperatorStatus defines the observed state of TrainingOperator
+
+
+
+_Appears in:_
+- [TrainingOperator](#trainingoperator)
+
+
+
+#### TrustyAI
+
+
+
+TrustyAI is the Schema for the trustyais API
+
+
+
+_Appears in:_
+- [TrustyAIList](#trustyailist)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `kind` _string_ | `TrustyAI` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[TrustyAISpec](#trustyaispec)_ |  |  |  |
+| `status` _[TrustyAIStatus](#trustyaistatus)_ |  |  |  |
+
+
+#### TrustyAIList
+
+
+
+TrustyAIList contains a list of TrustyAI
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `kind` _string_ | `TrustyAIList` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `items` _[TrustyAI](#trustyai) array_ |  |  |  |
+
+
+#### TrustyAISpec
+
+
+
+TrustyAISpec defines the desired state of TrustyAI
+
+
+
+_Appears in:_
+- [TrustyAI](#trustyai)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `foo` _string_ | Foo is an example field of TrustyAI. Edit trustyai_types.go to remove/update |  |  |
+
+
+#### TrustyAIStatus
+
+
+
+TrustyAIStatus defines the observed state of TrustyAI
+
+
+
+_Appears in:_
+- [TrustyAI](#trustyai)
+
+
+
+#### Workbenches
+
+
+
+Workbenches is the Schema for the workbenches API
+
+
+
+_Appears in:_
+- [WorkbenchesList](#workbencheslist)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `kind` _string_ | `Workbenches` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[WorkbenchesSpec](#workbenchesspec)_ |  |  |  |
+| `status` _[WorkbenchesStatus](#workbenchesstatus)_ |  |  |  |
+
+
+#### WorkbenchesList
+
+
+
+WorkbenchesList contains a list of Workbenches
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `kind` _string_ | `WorkbenchesList` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `items` _[Workbenches](#workbenches) array_ |  |  |  |
+
+
+#### WorkbenchesSpec
+
+
+
+WorkbenchesSpec defines the desired state of Workbenches
+
+
+
+_Appears in:_
+- [Workbenches](#workbenches)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `foo` _string_ | Foo is an example field of Workbenches. Edit workbenches_types.go to remove/update |  |  |
+
+
+#### WorkbenchesStatus
+
+
+
+WorkbenchesStatus defines the observed state of Workbenches
+
+
+
+_Appears in:_
+- [Workbenches](#workbenches)
+
+
 
 
 ## datasciencecluster.opendatahub.io/codeflare
