@@ -43,9 +43,8 @@ spec:
                 fieldPath: metadata.namespace
           - name: DEFAULT_MANIFESTS_PATH
             value: /opt/manifests
-        args:
-        - --leader-elect
-        - --operator-name=opendatahub
+          - name: ODH_PLATFORM_TYPE
+            value: SelfManagedRHOAI
         image: controller:latest
         imagePullPolicy: Always
         name: manager
