@@ -79,11 +79,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	log := r.Log
 	log.Info("Reconciling DSCInitialization.", "DSCInitialization Request.Name", req.Name)
 
-	currentOperatorRelease, err := cluster.GetRelease(ctx, r.Client)
-	if err != nil {
-		log.Error(err, "failed to get operator release version")
-		return ctrl.Result{}, err
-	}
+	currentOperatorRelease := cluster.GetRelease()
 	// Set platform
 	platform := currentOperatorRelease.Name
 
@@ -142,7 +138,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	if instance.Status.Conditions == nil {
 		reason := status.ReconcileInit
 		message := "Initializing DSCInitialization resource"
-		instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
+		instance, err := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
 			status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
 			saved.Status.Phase = status.PhaseProgressing
 			saved.Status.Release = currentOperatorRelease
@@ -156,9 +152,23 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 	}
 
+	// upgrade case to update release version in status
+	if !instance.Status.Release.Version.Equals(currentOperatorRelease.Version.Version) {
+		message := "Updating DSCInitialization status"
+		instance, err := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
+			saved.Status.Release = currentOperatorRelease
+		})
+		if err != nil {
+			log.Error(err, "Failed to update release version for DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
+			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError",
+				"%s for instance %s", message, instance.Name)
+			return reconcile.Result{}, err
+		}
+	}
+
 	// Check namespace is not exist, then create
 	namespace := instance.Spec.ApplicationsNamespace
-	err = r.createOdhNamespace(ctx, instance, namespace, platform)
+	err := r.createOdhNamespace(ctx, instance, namespace, platform)
 	if err != nil {
 		// no need to log error as it was already logged in createOdhNamespace
 		return reconcile.Result{}, err

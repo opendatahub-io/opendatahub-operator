@@ -38,6 +38,10 @@ type Component struct {
 	DevFlags *DevFlags `json:"devFlags,omitempty"`
 }
 
+func (c *Component) Init(_ context.Context, _ cluster.Platform) error {
+	return nil
+}
+
 func (c *Component) GetManagementState() operatorv1.ManagementState {
 	return c.ManagementState
 }
@@ -77,6 +81,7 @@ type ManifestsConfig struct {
 }
 
 type ComponentInterface interface {
+	Init(ctx context.Context, platform cluster.Platform) error
 	ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
 		owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec, platform cluster.Platform, currentComponentStatus bool) error
 	Cleanup(ctx context.Context, cli client.Client, owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec) error

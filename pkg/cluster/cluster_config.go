@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/blang/semver/v4"
+	"github.com/go-logr/logr"
 	"github.com/operator-framework/api/pkg/lib/version"
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -15,11 +16,65 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
 // +kubebuilder:rbac:groups="config.openshift.io",resources=ingresses,verbs=get
+
+type Platform string
+
+// Release includes information on operator version and platform
+// +kubebuilder:object:generate=true
+type Release struct {
+	Name    Platform                `json:"name,omitempty"`
+	Version version.OperatorVersion `json:"version,omitempty"`
+}
+
+var clusterConfig struct {
+	Namespace string
+	Release   Release
+}
+
+// Init initializes cluster configuration variables on startup
+// init() won't work since it is needed to check the error.
+func Init(ctx context.Context, cli client.Client) error {
+	var err error
+	log := logf.FromContext(ctx)
+
+	clusterConfig.Namespace, err = getOperatorNamespace()
+	if err != nil {
+		log.Error(err, "unable to find operator namespace")
+		// not fatal, fallback to ""
+	}
+
+	clusterConfig.Release, err = getRelease(ctx, cli)
+	if err != nil {
+		return err
+	}
+
+	printClusterConfig(log)
+
+	return nil
+}
+
+func printClusterConfig(log logr.Logger) {
+	log.Info("Cluster config",
+		"Namespace", clusterConfig.Namespace,
+		"Release", clusterConfig.Release)
+}
+
+func GetOperatorNamespace() (string, error) {
+	if clusterConfig.Namespace == "" {
+		return "", errors.New("unable to find operator namespace")
+	}
+	return clusterConfig.Namespace, nil
+}
+
+func GetRelease() Release {
+	return clusterConfig.Release
+}
 
 func GetDomain(ctx context.Context, c client.Client) (string, error) {
 	ingress := &unstructured.Unstructured{}
@@ -40,7 +95,7 @@ func GetDomain(ctx context.Context, c client.Client) (string, error) {
 	return domain, err
 }
 
-func GetOperatorNamespace() (string, error) {
+func getOperatorNamespace() (string, error) {
 	operatorNS, exist := os.LookupEnv("OPERATOR_NAMESPACE")
 	if exist && operatorNS != "" {
 		return operatorNS, nil
@@ -82,8 +137,6 @@ func GetClusterServiceVersion(ctx context.Context, c client.Client, namespace st
 		gvk.ClusterServiceVersion.Kind)
 }
 
-type Platform string
-
 // detectSelfManaged detects if it is Self Managed Rhods or OpenDataHub.
 func detectSelfManaged(ctx context.Context, cli client.Client) (Platform, error) {
 	variants := map[string]Platform{
@@ -115,25 +168,24 @@ func detectManagedRHODS(ctx context.Context, cli client.Client) (Platform, error
 }
 
 func getPlatform(ctx context.Context, cli client.Client) (Platform, error) {
-	// First check if its addon installation to return 'ManagedRhods, nil'
-	if platform, err := detectManagedRHODS(ctx, cli); err != nil {
-		return Unknown, err
-	} else if platform == ManagedRhods {
+	switch os.Getenv("ODH_PLATFORM_TYPE") {
+	case "OpenDataHub", "":
+		return OpenDataHub, nil
+	case "ManagedRHOAI":
 		return ManagedRhods, nil
+	case "SelfManagedRHOAI":
+		return SelfManagedRhods, nil
+	default: // fall back to detect platform if ODH_PLATFORM_TYPE env is not provided
+		if platform, err := detectManagedRHODS(ctx, cli); err != nil {
+			return Unknown, err
+		} else if platform == ManagedRhods {
+			return ManagedRhods, nil
+		}
+		return detectSelfManaged(ctx, cli)
 	}
-
-	// check and return whether ODH or self-managed platform
-	return detectSelfManaged(ctx, cli)
 }
 
-// Release includes information on operator version and platform
-// +kubebuilder:object:generate=true
-type Release struct {
-	Name    Platform                `json:"name,omitempty"`
-	Version version.OperatorVersion `json:"version,omitempty"`
-}
-
-func GetRelease(ctx context.Context, cli client.Client) (Release, error) {
+func getRelease(ctx context.Context, cli client.Client) (Release, error) {
 	initRelease := Release{
 		// dummy version set to name "", version 0.0.0
 		Version: version.OperatorVersion{
@@ -151,6 +203,7 @@ func GetRelease(ctx context.Context, cli client.Client) (Release, error) {
 	if os.Getenv("CI") == "true" {
 		return initRelease, nil
 	}
+
 	// Set Version
 	// Get watchNamespace
 	operatorNamespace, err := GetOperatorNamespace()

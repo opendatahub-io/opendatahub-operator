@@ -21,6 +21,7 @@ import (
 	"flag"
 	"os"
 
+	"github.com/hashicorp/go-multierror"
 	addonv1alpha1 "github.com/openshift/addon-operator/apis/addons/v1alpha1"
 	ocappsv1 "github.com/openshift/api/apps/v1" //nolint:importas //reason: conflicts with appsv1 "k8s.io/api/apps/v1"
 	buildv1 "github.com/openshift/api/build/v1"
@@ -49,10 +50,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
-	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -101,6 +103,22 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(operatorv1.Install(scheme))
 }
 
+func initComponents(ctx context.Context, p cluster.Platform) error {
+	var errs *multierror.Error
+	var dummyDSC = &dscv1.DataScienceCluster{}
+
+	components, err := dummyDSC.GetComponents()
+	if err != nil {
+		return err
+	}
+
+	for _, c := range components {
+		errs = multierror.Append(errs, c.Init(ctx, p))
+	}
+
+	return errs.ErrorOrNil()
+}
+
 func main() { //nolint:funlen,maintidx
 	var metricsAddr string
 	var enableLeaderElection bool
@@ -122,12 +140,16 @@ func main() { //nolint:funlen,maintidx
 	flag.StringVar(&operatorName, "operator-name", "opendatahub", "The name of the operator")
 	flag.StringVar(&logmode, "log-mode", "", "Log mode ('', prod, devel), default to ''")
 
+	opts := zap.Options{}
+	opts.BindFlags(flag.CommandLine)
+
 	flag.Parse()
 
-	ctrl.SetLogger(logger.NewLogger(logmode))
+	ctrl.SetLogger(logger.NewLoggerWithOptions(logmode, &opts))
 
 	// root context
 	ctx := ctrl.SetupSignalHandler()
+	ctx = logf.IntoContext(ctx, setupLog)
 	// Create new uncached client to run initial setup
 	setupCfg, err := config.GetConfig()
 	if err != nil {
@@ -143,14 +165,16 @@ func main() { //nolint:funlen,maintidx
 		setupLog.Error(err, "error getting client for setup")
 		os.Exit(1)
 	}
-	// Get operator platform
-	release, err := cluster.GetRelease(ctx, setupClient)
+
+	err = cluster.Init(ctx, setupClient)
 	if err != nil {
-		setupLog.Error(err, "error getting release")
+		setupLog.Error(err, "unable to initialize cluster config")
 		os.Exit(1)
 	}
+
+	// Get operator platform
+	release := cluster.GetRelease()
 	platform := release.Name
-	setupLog.Info("running on", "platform", platform)
 
 	secretCache := createSecretCacheConfig(platform)
 	deploymentCache := createDeploymentCacheConfig(platform)
@@ -210,12 +234,7 @@ func main() { //nolint:funlen,maintidx
 		os.Exit(1)
 	}
 
-	(&webhook.OpenDataHubValidatingWebhook{
-		Client:  mgr.GetClient(),
-		Decoder: admission.NewDecoder(mgr.GetScheme()),
-	}).SetupWithManager(mgr)
-
-	(&webhook.DSCDefaulter{}).SetupWithManager(mgr)
+	webhook.Init(mgr)
 
 	if err = (&dscictrl.DSCInitializationReconciler{
 		Client:                mgr.GetClient(),
@@ -317,6 +336,10 @@ func main() { //nolint:funlen,maintidx
 	}
 	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up ready check")
+		os.Exit(1)
+	}
+	if err := initComponents(ctx, platform); err != nil {
+		setupLog.Error(err, "unable to init components")
 		os.Exit(1)
 	}
 
