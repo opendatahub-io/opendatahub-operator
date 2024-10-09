@@ -9,16 +9,3 @@ kind: Kustomization
 images:
 - name: controller
   newName: REPLACE_IMAGE
-
-patches:
-- target:
-    kind: Deployment
-    name: controller-manager
-    version: v1
-    group: apps
-  patch: |-
-    - op: add
-      path: /spec/template/spec/containers/0/env/1
-      value:
-        name: OPERATOR_RELEASE_VERSION
-        value: $RELEASE_VERSION

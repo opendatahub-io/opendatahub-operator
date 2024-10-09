@@ -1085,8 +1085,6 @@ spec:
                 env:
                 - name: DISABLE_DSC_CONFIG
                   value: "true"
-                - name: OPERATOR_RELEASE_VERSION
-+                 value: 2.18.2
                 - name: OPERATOR_NAMESPACE
                   valueFrom:
                     fieldRef:

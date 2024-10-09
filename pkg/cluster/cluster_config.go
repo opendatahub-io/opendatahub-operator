@@ -204,15 +204,7 @@ func getRelease(ctx context.Context, cli client.Client) (Release, error) {
 		return initRelease, nil
 	}
 
-	// Set Version, if empty string from OPERATOR_RELEASE_VERSION, use CSV version instead.
-	if os.Getenv("OPERATOR_RELEASE_VERSION") != "" {
-		initRelease.Version.Version, err = semver.Parse(os.Getenv("OPERATOR_RELEASE_VERSION"))
-		if err != nil {
-			return initRelease, err
-		}
-	}
-
-	// fallback to use CSV version
+	// Set Version
 	// Get watchNamespace
 	operatorNamespace, err := GetOperatorNamespace()
 	if err != nil {

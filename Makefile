@@ -208,8 +208,7 @@ prepare: manifests kustomize manager-kustomization
 .PHONY: manager-kustomization
 manager-kustomization: config/manager/kustomization.yaml.in
 	cd config/manager \
-		&& export RELEASE_VERSION=$(VERSION) \
-		&& envsubst < kustomization.yaml.in > kustomization.yaml \
+		&& cp -f kustomization.yaml.in kustomization.yaml \
 		&& $(KUSTOMIZE) edit set image controller=$(IMG)
 
 .PHONY: install
