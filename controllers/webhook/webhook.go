@@ -46,6 +46,15 @@ type OpenDataHubValidatingWebhook struct {
 	Decoder *admission.Decoder
 }
 
+func Init(mgr ctrl.Manager) {
+	(&OpenDataHubValidatingWebhook{
+		Client:  mgr.GetClient(),
+		Decoder: admission.NewDecoder(mgr.GetScheme()),
+	}).SetupWithManager(mgr)
+
+	(&DSCDefaulter{}).SetupWithManager(mgr)
+}
+
 func (w *OpenDataHubValidatingWebhook) SetupWithManager(mgr ctrl.Manager) {
 	hookServer := mgr.GetWebhookServer()
 	odhWebhook := &webhook.Admission{
