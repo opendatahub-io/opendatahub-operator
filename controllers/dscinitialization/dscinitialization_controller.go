@@ -152,6 +152,20 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 	}
 
+	// upgrade case to update release version in status
+	if !instance.Status.Release.Version.Equals(currentOperatorRelease.Version.Version) {
+		message := "Updating DSCInitialization status"
+		instance, err := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
+			saved.Status.Release = currentOperatorRelease
+		})
+		if err != nil {
+			log.Error(err, "Failed to update release version for DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
+			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError",
+				"%s for instance %s", message, instance.Name)
+			return reconcile.Result{}, err
+		}
+	}
+
 	// Check namespace is not exist, then create
 	namespace := instance.Spec.ApplicationsNamespace
 	err := r.createOdhNamespace(ctx, instance, namespace, platform)
