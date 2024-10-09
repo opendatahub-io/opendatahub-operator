@@ -227,6 +227,12 @@ deploy: prepare ## Deploy controller to the K8s cluster specified in ~/.kube/con
 undeploy: prepare ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
+.PHONY: install-nowebhook uninstall-nowebhook
+install-nowebhook: prepare ## Install manifests without webhook configuration and operator deployment (for local run)
+	$(KUSTOMIZE) build config/nowebhook | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
+uninstall-nowebhook: prepare ## Uninstall manifests deployed by install-nowebhook
+	$(KUSTOMIZE) build config/nowebhook | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+
 ## Location to install dependencies to
 LOCALBIN ?= $(shell pwd)/bin
 $(LOCALBIN):
