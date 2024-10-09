@@ -180,9 +180,15 @@ api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-
 build: generate fmt vet ## Build manager binary.
 	go build -o bin/manager main.go
 
+GO_RUN_MAIN = OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) DEFAULT_MANIFESTS_PATH=$(DEFAULT_MANIFESTS_PATH) go run $(GO_RUN_ARGS) ./main.go --log-mode=devel
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
-	OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) DEFAULT_MANIFESTS_PATH=${DEFAULT_MANIFESTS_PATH} go run ./main.go --log-mode=devel
+	$(GO_RUN_MAIN)
+
+.PHONY: run-nowebhook
+run-nowebhook: GO_RUN_ARGS += -tags nowebhook
+run-nowebhook: manifests generate fmt vet ## Run a controller from your host without webhook enabled
+	$(GO_RUN_MAIN)
 
 .PHONY: image-build
 image-build: # unit-test ## Build image with the manager.
