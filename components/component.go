@@ -29,6 +29,7 @@ type Component struct {
 	//               or if it is installed, the operator will try to remove it
 	//
 	// +kubebuilder:validation:Enum=Managed;Removed
+	// +kubebuilder:default=Removed
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 	// Add any other common fields across components below
 
