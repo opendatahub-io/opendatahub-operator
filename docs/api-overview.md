@@ -63,6 +63,8 @@ _Appears in:_
 
 
 
+
+
 #### DevFlags
 
 
@@ -411,22 +413,6 @@ _Appears in:_
 | `trustyai` _[TrustyAI](#trustyai)_ | TrustyAI component configuration. |  |  |
 | `modelregistry` _[ModelRegistry](#modelregistry)_ | ModelRegistry component configuration. |  |  |
 | `trainingoperator` _[TrainingOperator](#trainingoperator)_ | Training Operator component configuration. |  |  |
-
-
-#### ComponentsStatus
-
-
-
-ComponentsStatus defines the custom status of DataScienceCluster components.
-
-
-
-_Appears in:_
-- [DataScienceClusterStatus](#datascienceclusterstatus)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `modelregistry` _[ModelRegistryStatus](#modelregistrystatus)_ | ModelRegistry component status |  |  |
 
 
 #### ControlPlaneSpec

@@ -19,6 +19,7 @@ import (
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -80,6 +81,11 @@ func (d *Dashboard) OverrideManifests(ctx context.Context, platform cluster.Plat
 
 func (d *Dashboard) GetComponentName() string {
 	return ComponentNameUpstream
+}
+
+func (d *Dashboard) UpdateStatus(in *status.ComponentsStatus) error {
+	in.Dashboard = &status.DashboardStatus{}
+	return nil
 }
 
 func (d *Dashboard) ReconcileComponent(ctx context.Context,

@@ -9,12 +9,14 @@ import (
 	"path/filepath"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"github.com/operator-framework/api/pkg/lib/version"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -67,6 +69,29 @@ func (r *TrainingOperator) OverrideManifests(ctx context.Context, _ cluster.Plat
 
 func (r *TrainingOperator) GetComponentName() string {
 	return ComponentName
+}
+
+func (r *TrainingOperator) UpdateStatus(in *status.ComponentsStatus) error {
+	trainingOperatorStatus, err := r.GetReleaseVersion(in, deploy.DefaultManifestPath, ComponentName)
+
+	if err != nil {
+		in.TrainingOperator = &status.TrainingOperatorStatus{}
+		return err
+	}
+
+	in.TrainingOperator = &status.TrainingOperatorStatus{
+		ComponentStatus: status.ComponentStatus{
+			UpstreamReleases: []status.ComponentReleaseStatus{{
+				Name:        cluster.Platform(ComponentName),
+				DisplayName: ComponentName,
+				Version:     version.OperatorVersion{Version: trainingOperatorStatus.ComponentVersion},
+				RepoURL:     trainingOperatorStatus.RepositoryURL,
+			},
+			},
+		},
+	}
+
+	return nil
 }
 
 func (r *TrainingOperator) ReconcileComponent(ctx context.Context, cli client.Client,

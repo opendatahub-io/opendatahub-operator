@@ -7,12 +7,14 @@ import (
 	"path/filepath"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"github.com/operator-framework/api/pkg/lib/version"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -65,6 +67,28 @@ func (k *Kueue) OverrideManifests(ctx context.Context, _ cluster.Platform) error
 
 func (k *Kueue) GetComponentName() string {
 	return ComponentName
+}
+
+func (k *Kueue) UpdateStatus(in *status.ComponentsStatus) error {
+	kueueStatus, err := k.GetReleaseVersion(in, deploy.DefaultManifestPath, ComponentName)
+
+	if err != nil {
+		in.Kueue = &status.KueueStatus{}
+		return err
+	}
+	in.Kueue = &status.KueueStatus{
+		ComponentStatus: status.ComponentStatus{
+			UpstreamReleases: []status.ComponentReleaseStatus{{
+				Name:        cluster.Platform(ComponentName),
+				DisplayName: ComponentName,
+				Version:     version.OperatorVersion{Version: kueueStatus.ComponentVersion},
+				RepoURL:     kueueStatus.RepositoryURL,
+			},
+			},
+		},
+	}
+
+	return nil
 }
 
 func (k *Kueue) ReconcileComponent(ctx context.Context, cli client.Client,

@@ -10,6 +10,7 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
+	"github.com/operator-framework/api/pkg/lib/version"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -30,6 +31,7 @@ var (
 	Path            = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
 	OverlayPath     = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays"
 	ArgoWorkflowCRD = "workflows.argoproj.io"
+	DisplayName     = "Red Hat Build of Kubeflow Pipelines"
 )
 
 // Verifies that Dashboard implements ComponentInterface.
@@ -90,6 +92,29 @@ func (d *DataSciencePipelines) OverrideManifests(ctx context.Context, _ cluster.
 
 func (d *DataSciencePipelines) GetComponentName() string {
 	return ComponentName
+}
+
+func (d *DataSciencePipelines) UpdateStatus(in *status.ComponentsStatus) error {
+	dataSciencePipelinesStatus, err := d.GetReleaseVersion(in, deploy.DefaultManifestPath, ComponentName)
+
+	if err != nil {
+		in.DataSciencePipelines = &status.DataSciencePipelinesStatus{}
+		return err
+	}
+
+	in.DataSciencePipelines = &status.DataSciencePipelinesStatus{
+		ComponentStatus: status.ComponentStatus{
+			UpstreamReleases: []status.ComponentReleaseStatus{{
+				Name:        cluster.Platform(ComponentName),
+				DisplayName: DisplayName,
+				Version:     version.OperatorVersion{Version: dataSciencePipelinesStatus.ComponentVersion},
+				RepoURL:     dataSciencePipelinesStatus.RepositoryURL,
+			},
+			},
+		},
+	}
+
+	return nil
 }
 
 func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,

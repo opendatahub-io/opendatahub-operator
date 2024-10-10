@@ -7,13 +7,16 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/blang/semver/v4"
 	"github.com/go-logr/logr"
+	"github.com/joho/godotenv"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
@@ -80,12 +83,18 @@ type ManifestsConfig struct {
 	SourcePath string `json:"sourcePath,omitempty"`
 }
 
+type ComponentReleaseDetails struct {
+	ComponentVersion semver.Version
+	RepositoryURL    string
+}
+
 type ComponentInterface interface {
 	Init(ctx context.Context, platform cluster.Platform) error
-	ReconcileComponent(ctx context.Context, cli client.Client,
-		owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec, platform cluster.Platform, currentComponentStatus bool) error
+	ReconcileComponent(ctx context.Context, cli client.Client, owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec,
+		platform cluster.Platform, currentComponentStatus bool) error
 	Cleanup(ctx context.Context, cli client.Client, owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec) error
 	GetComponentName() string
+	UpdateStatus(status *status.ComponentsStatus) error
 	GetManagementState() operatorv1.ManagementState
 	OverrideManifests(ctx context.Context, platform cluster.Platform) error
 	UpdatePrometheusConfig(cli client.Client, logger logr.Logger, enable bool, component string) error
@@ -194,4 +203,24 @@ func (c *Component) UpdatePrometheusConfig(_ client.Client, logger logr.Logger, 
 	err = os.WriteFile(prometheusconfigPath, newyamlData, 0)
 
 	return err
+}
+
+func (c *Component) GetReleaseVersion(in *status.ComponentsStatus, defaultManifestPath string, componentName string) (ComponentReleaseDetails, error) {
+	var componentVersion semver.Version
+	var repositoryURL string
+
+	env, err := godotenv.Read(filepath.Join(defaultManifestPath, componentName, ".env"))
+
+	if err != nil {
+		return ComponentReleaseDetails{}, err
+	}
+
+	componentVersion, err = semver.Parse(env["RHOAI_RELEASE_VERSION"])
+
+	if err != nil {
+		return ComponentReleaseDetails{}, err
+	}
+	repositoryURL = env["REPOSITORY_URL"]
+
+	return ComponentReleaseDetails{ComponentVersion: componentVersion, RepositoryURL: repositoryURL}, nil
 }

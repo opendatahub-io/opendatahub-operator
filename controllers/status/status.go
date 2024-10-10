@@ -20,7 +20,11 @@ package status
 
 import (
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
+	"github.com/operator-framework/api/pkg/lib/version"
 	corev1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
 // These constants represent the overall Phase as used by .Status.Phase.
@@ -210,7 +214,93 @@ func RemoveComponentCondition(conditions *[]conditionsv1.Condition, component st
 	conditionsv1.RemoveStatusCondition(conditions, conditionsv1.ConditionType(component+ReadySuffix))
 }
 
-// ModelRegistryStatus struct holds the status for the ModelRegistry component.
+type ComponentObject interface {
+	client.Object
+	GetComponentsStatus() *ComponentsStatus
+}
+
+// Condition represents the state of the operator's
+// reconciliation functionality.
+// +k8s:deepcopy-gen=true
+type ComponentReleaseStatus struct {
+	Name        cluster.Platform        `json:"name,omitempty"`
+	DisplayName string                  `json:"displayname,omitempty"`
+	Version     version.OperatorVersion `json:"version,omitempty"`
+	RepoURL     string                  `json:"repourl,omitempty"`
+}
+
+// +k8s:deepcopy-gen=true
+type ComponentStatus struct {
+	UpstreamReleases []ComponentReleaseStatus `json:"upstreamrelease,omitempty"`
+}
+
+// +k8s:deepcopy-gen=true
+type CodeFlareStatus struct {
+	ComponentStatus `json:",inline"`
+}
+
+// +k8s:deepcopy-gen=true
+type DashboardStatus struct {
+	ComponentStatus `json:",inline"`
+}
+
+// +k8s:deepcopy-gen=true
+type WorkbenchesStatus struct {
+	ComponentStatus `json:",inline"`
+}
+
+// +k8s:deepcopy-gen=true
+type ModelMeshServingStatus struct {
+	ComponentStatus `json:",inline"`
+}
+
+// +k8s:deepcopy-gen=true
+type DataSciencePipelinesStatus struct {
+	ComponentStatus `json:",inline"`
+}
+
+// +k8s:deepcopy-gen=true
+type KserveStatus struct {
+	ComponentStatus `json:",inline"`
+}
+
+// +k8s:deepcopy-gen=true
+type KueueStatus struct {
+	ComponentStatus `json:",inline"`
+}
+
+// +k8s:deepcopy-gen=true
+type RayStatus struct {
+	ComponentStatus `json:",inline"`
+}
+
+// +k8s:deepcopy-gen=true
+type TrustyAIStatus struct {
+	ComponentStatus `json:",inline"`
+}
+
+// +k8s:deepcopy-gen=true
 type ModelRegistryStatus struct {
 	RegistriesNamespace string `json:"registriesNamespace,omitempty"`
+	ComponentStatus     `json:",inline"`
+}
+
+// +k8s:deepcopy-gen=true
+type TrainingOperatorStatus struct {
+	ComponentStatus `json:",inline"`
+}
+
+// +k8s:deepcopy-gen=true
+type ComponentsStatus struct {
+	CodeFlare            *CodeFlareStatus            `json:"codeflare,omitempty"`
+	Dashboard            *DashboardStatus            `json:"dashboard,omitempty"`
+	DataSciencePipelines *DataSciencePipelinesStatus `json:"datasciencepipelines,omitempty"`
+	ModelMeshServing     *ModelMeshServingStatus     `json:"modelmeshserving,omitempty"`
+	ModelRegistry        *ModelRegistryStatus        `json:"modelregistry,omitempty"`
+	Kserve               *KserveStatus               `json:"kserve,omitempty"`
+	Kueue                *KueueStatus                `json:"kueue,omitempty"`
+	Ray                  *RayStatus                  `json:"ray,omitempty"`
+	TrustyAI             *TrustyAIStatus             `json:"trustyai,omitempty"`
+	TrainingOperator     *TrainingOperatorStatus     `json:"trainingoperator,omitempty"`
+	Workbenches          *WorkbenchesStatus          `json:"workbenches,omitempty"`
 }

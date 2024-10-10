@@ -650,11 +650,216 @@ spec:
               components:
                 description: Expose component's specific status
                 properties:
+                  codeflare:
+                    properties:
+                      upstreamrelease:
+                        items:
+                          description: |-
+                            Condition represents the state of the operator's
+                            reconciliation functionality.
+                          properties:
+                            displayname:
+                              type: string
+                            name:
+                              type: string
+                            repourl:
+                              type: string
+                            version:
+                              type: string
+                          type: object
+                        type: array
+                    type: object
+                  dashboard:
+                    properties:
+                      upstreamrelease:
+                        items:
+                          description: |-
+                            Condition represents the state of the operator's
+                            reconciliation functionality.
+                          properties:
+                            displayname:
+                              type: string
+                            name:
+                              type: string
+                            repourl:
+                              type: string
+                            version:
+                              type: string
+                          type: object
+                        type: array
+                    type: object
+                  datasciencepipelines:
+                    properties:
+                      upstreamrelease:
+                        items:
+                          description: |-
+                            Condition represents the state of the operator's
+                            reconciliation functionality.
+                          properties:
+                            displayname:
+                              type: string
+                            name:
+                              type: string
+                            repourl:
+                              type: string
+                            version:
+                              type: string
+                          type: object
+                        type: array
+                    type: object
+                  kserve:
+                    properties:
+                      upstreamrelease:
+                        items:
+                          description: |-
+                            Condition represents the state of the operator's
+                            reconciliation functionality.
+                          properties:
+                            displayname:
+                              type: string
+                            name:
+                              type: string
+                            repourl:
+                              type: string
+                            version:
+                              type: string
+                          type: object
+                        type: array
+                    type: object
+                  kueue:
+                    properties:
+                      upstreamrelease:
+                        items:
+                          description: |-
+                            Condition represents the state of the operator's
+                            reconciliation functionality.
+                          properties:
+                            displayname:
+                              type: string
+                            name:
+                              type: string
+                            repourl:
+                              type: string
+                            version:
+                              type: string
+                          type: object
+                        type: array
+                    type: object
+                  modelmeshserving:
+                    properties:
+                      upstreamrelease:
+                        items:
+                          description: |-
+                            Condition represents the state of the operator's
+                            reconciliation functionality.
+                          properties:
+                            displayname:
+                              type: string
+                            name:
+                              type: string
+                            repourl:
+                              type: string
+                            version:
+                              type: string
+                          type: object
+                        type: array
+                    type: object
                   modelregistry:
-                    description: ModelRegistry component status
                     properties:
                       registriesNamespace:
                         type: string
+                      upstreamrelease:
+                        items:
+                          description: |-
+                            Condition represents the state of the operator's
+                            reconciliation functionality.
+                          properties:
+                            displayname:
+                              type: string
+                            name:
+                              type: string
+                            repourl:
+                              type: string
+                            version:
+                              type: string
+                          type: object
+                        type: array
+                    type: object
+                  ray:
+                    properties:
+                      upstreamrelease:
+                        items:
+                          description: |-
+                            Condition represents the state of the operator's
+                            reconciliation functionality.
+                          properties:
+                            displayname:
+                              type: string
+                            name:
+                              type: string
+                            repourl:
+                              type: string
+                            version:
+                              type: string
+                          type: object
+                        type: array
+                    type: object
+                  trainingoperator:
+                    properties:
+                      upstreamrelease:
+                        items:
+                          description: |-
+                            Condition represents the state of the operator's
+                            reconciliation functionality.
+                          properties:
+                            displayname:
+                              type: string
+                            name:
+                              type: string
+                            repourl:
+                              type: string
+                            version:
+                              type: string
+                          type: object
+                        type: array
+                    type: object
+                  trustyai:
+                    properties:
+                      upstreamrelease:
+                        items:
+                          description: |-
+                            Condition represents the state of the operator's
+                            reconciliation functionality.
+                          properties:
+                            displayname:
+                              type: string
+                            name:
+                              type: string
+                            repourl:
+                              type: string
+                            version:
+                              type: string
+                          type: object
+                        type: array
+                    type: object
+                  workbenches:
+                    properties:
+                      upstreamrelease:
+                        items:
+                          description: |-
+                            Condition represents the state of the operator's
+                            reconciliation functionality.
+                          properties:
+                            displayname:
+                              type: string
+                            name:
+                              type: string
+                            repourl:
+                              type: string
+                            version:
+                              type: string
+                          type: object
+                        type: array
                     type: object
                 type: object
               conditions:

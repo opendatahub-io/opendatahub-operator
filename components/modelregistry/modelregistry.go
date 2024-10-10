@@ -11,6 +11,7 @@ import (
 	"text/template"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"github.com/operator-framework/api/pkg/lib/version"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -19,6 +20,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/conversion"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -94,6 +96,29 @@ func (m *ModelRegistry) OverrideManifests(ctx context.Context, _ cluster.Platfor
 
 func (m *ModelRegistry) GetComponentName() string {
 	return ComponentName
+}
+
+func (m *ModelRegistry) UpdateStatus(in *status.ComponentsStatus) error {
+	modelRegistryStatus, err := m.GetReleaseVersion(in, deploy.DefaultManifestPath, ComponentName)
+
+	if err != nil {
+		in.ModelRegistry = &status.ModelRegistryStatus{}
+		return err
+	}
+
+	in.ModelRegistry = &status.ModelRegistryStatus{
+		ComponentStatus: status.ComponentStatus{
+			UpstreamReleases: []status.ComponentReleaseStatus{{
+				Name:        cluster.Platform(ComponentName),
+				DisplayName: ComponentName,
+				Version:     version.OperatorVersion{Version: modelRegistryStatus.ComponentVersion},
+				RepoURL:     modelRegistryStatus.RepositoryURL,
+			},
+			},
+		},
+	}
+
+	return nil
 }
 
 func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Client,

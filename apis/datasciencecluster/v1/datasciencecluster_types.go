@@ -87,12 +87,6 @@ type Components struct {
 	TrainingOperator trainingoperator.TrainingOperator `json:"trainingoperator,omitempty"`
 }
 
-// ComponentsStatus defines the custom status of DataScienceCluster components.
-type ComponentsStatus struct {
-	// ModelRegistry component status
-	ModelRegistry *status.ModelRegistryStatus `json:"modelregistry,omitempty"`
-}
-
 // DataScienceClusterStatus defines the observed state of DataScienceCluster.
 type DataScienceClusterStatus struct {
 	// Phase describes the Phase of DataScienceCluster reconciliation state
@@ -114,7 +108,7 @@ type DataScienceClusterStatus struct {
 
 	// Expose component's specific status
 	// +optional
-	Components ComponentsStatus `json:"components,omitempty"`
+	Components status.ComponentsStatus `json:"components,omitempty"`
 
 	// Version and release type
 	Release cluster.Release `json:"release,omitempty"`
@@ -166,4 +160,8 @@ func (d *DataScienceCluster) GetComponents() ([]components.ComponentInterface, e
 	}
 
 	return allComponents, nil
+}
+
+func (d *DataScienceCluster) GetComponentsStatus() *status.ComponentsStatus {
+	return &d.Status.Components
 }

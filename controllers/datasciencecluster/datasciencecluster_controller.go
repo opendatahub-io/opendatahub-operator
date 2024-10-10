@@ -332,8 +332,11 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 		})
 		return instance, err
 	}
+
 	// reconciliation succeeded: update status accordingly
 	instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dscv1.DataScienceCluster) {
+		_ = component.UpdateStatus(&saved.Status.Components)
+
 		if saved.Status.InstalledComponents == nil {
 			saved.Status.InstalledComponents = make(map[string]bool)
 		}
@@ -349,7 +352,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 			if enabled {
 				saved.Status.Components.ModelRegistry = &status.ModelRegistryStatus{RegistriesNamespace: mr.RegistriesNamespace}
 			} else {
-				saved.Status.Components.ModelRegistry = nil
+				saved.Status.Components.ModelRegistry = &status.ModelRegistryStatus{}
 			}
 		}
 	})
