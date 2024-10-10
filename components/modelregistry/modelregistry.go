@@ -10,8 +10,11 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/blang/semver/v4"
 	"github.com/go-logr/logr"
+	"github.com/joho/godotenv"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"github.com/operator-framework/api/pkg/lib/version"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -20,6 +23,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/conversion"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -95,6 +99,37 @@ func (m *ModelRegistry) OverrideManifests(ctx context.Context, _ cluster.Platfor
 
 func (m *ModelRegistry) GetComponentName() string {
 	return ComponentName
+}
+
+func (m *ModelRegistry) GetComponentStatus() ([]status.ComponentReleaseStatus, error) {
+	var componentVersion semver.Version
+	var repositoryURL string
+	var upstreamReleases = make([]status.ComponentReleaseStatus, 0)
+
+	env, err := godotenv.Read(filepath.Join(deploy.DefaultManifestPath, ComponentName, ".env"))
+
+	if err != nil {
+		fmt.Print("godotenv", err)
+		return nil, err
+	}
+	if env != nil {
+		componentVersion, err = semver.Parse(env["UPSTREAM_RELEASE_VERSION"])
+
+		if err != nil {
+			fmt.Print("getEnv error", err)
+			return nil, err
+		}
+		repositoryURL = env["REPOSITORY_URL"]
+	}
+	componentReleaseStatus := status.ComponentReleaseStatus{
+		Name:        status.Platform(ComponentName),
+		DisplayName: ComponentName,
+		Version:     version.OperatorVersion{Version: componentVersion},
+		RepoURL:     repositoryURL}
+
+	fmt.Print("release object", componentReleaseStatus)
+	upstreamReleases = append(upstreamReleases, componentReleaseStatus)
+	return upstreamReleases, nil
 }
 
 func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Client, l logr.Logger,
