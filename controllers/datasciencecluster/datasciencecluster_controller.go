@@ -294,6 +294,8 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 	log := r.Log
 	componentName := component.GetComponentName()
 
+	componentStatus := make(map[string]status.ReleaseStatus)
+
 	enabled := component.GetManagementState() == operatorv1.Managed
 	installedComponentValue, isExistStatus := instance.Status.InstalledComponents[componentName]
 
@@ -335,6 +337,29 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 		})
 		return instance, err
 	}
+
+	details, err := component.GetComponentStatus()
+
+	if err != nil {
+		fmt.Print("fetch details error", err)
+	} else {
+		fmt.Print("before marshal/unmarshal", details)
+		fmt.Print("ComponentStatus", componentStatus)
+
+		instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dscv1.DataScienceCluster) {
+			if saved.Status.Components == nil {
+				saved.Status.Components = make(map[string]status.ReleaseStatus)
+			}
+			fmt.Print("after setProperty simply called")
+			saved.Status.Components[componentName] = status.ReleaseStatus{UpstreamReleases: details}
+		})
+		if err != nil {
+			instance = r.reportError(err, instance, "failed to update Component status after reconciling ")
+
+			return instance, err
+		}
+	}
+
 	// reconciliation succeeded: update status accordingly
 	instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dscv1.DataScienceCluster) {
 		if saved.Status.InstalledComponents == nil {
@@ -350,9 +375,9 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 		// TODO: replace this hack with a full refactor of component status in the future
 		if mr, isMR := component.(*modelregistry.ModelRegistry); isMR {
 			if enabled {
-				saved.Status.Components.ModelRegistry = &status.ModelRegistryStatus{RegistriesNamespace: mr.RegistriesNamespace}
+				saved.Status.Components["ModelRegistry"] = status.ReleaseStatus{RegistriesNamespace: mr.RegistriesNamespace}
 			} else {
-				saved.Status.Components.ModelRegistry = nil
+				saved.Status.Components["ModelRegistry"] = status.ReleaseStatus{}
 			}
 		}
 	})
