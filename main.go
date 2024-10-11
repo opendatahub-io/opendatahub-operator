@@ -359,7 +359,11 @@ func createSecretCacheConfig(platform cluster.Platform) map[string]cache.Config 
 	case cluster.ManagedRhods:
 		namespaceConfigs["redhat-ods-monitoring"] = cache.Config{}
 		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
-		namespaceConfigs["redhat-ods-operator"] = cache.Config{}
+		operatorNs, err := cluster.GetOperatorNamespace()
+		if err != nil {
+			operatorNs = "redhat-ods-operator" // fall back case
+		}
+		namespaceConfigs[operatorNs] = cache.Config{}
 	case cluster.SelfManagedRhods:
 		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
 	default:
