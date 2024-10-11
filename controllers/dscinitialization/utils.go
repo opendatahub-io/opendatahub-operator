@@ -192,8 +192,14 @@ func (r *DSCInitializationReconciler) createDefaultRoleBinding(ctx context.Conte
 
 func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.Context, name string, dscInit *dsciv1.DSCInitialization, platform cluster.Platform) error {
 	if platform == cluster.ManagedRhods || platform == cluster.SelfManagedRhods {
+		// Get operator namepsace
+		operatorNs, err := cluster.GetOperatorNamespace()
+		if err != nil {
+			log.Error(err, "error getting operator namespace for networkplicy creation")
+			return err
+		}
 		// Deploy networkpolicy for operator namespace
-		err := deploy.DeployManifestsFromPath(ctx, r.Client, dscInit, networkpolicyPath+"/operator", "redhat-ods-operator", "networkpolicy", true)
+		err = deploy.DeployManifestsFromPath(ctx, r.Client, dscInit, networkpolicyPath+"/operator", operatorNs, "networkpolicy", true)
 		if err != nil {
 			r.Log.Error(err, "error to set networkpolicy in operator namespace", "path", networkpolicyPath)
 			return err
