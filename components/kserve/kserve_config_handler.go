@@ -25,18 +25,13 @@ const (
 func (k *Kserve) setupKserveConfig(ctx context.Context, cli client.Client, logger logr.Logger, dscispec *dsciv1.DSCInitializationSpec) error {
 	// as long as Kserve.Serving is not 'Removed', we will setup the dependencies
 
-	var disableIngressCreation bool
 	defaultDeploymentMode := k.DefaultDeploymentMode
 	if defaultDeploymentMode == "" {
 		defaultDeploymentMode = Serverless
 	}
-	switch k.RawRouteCreation {
-	case operatorv1.Removed, "":
-		disableIngressCreation = true
-	case operatorv1.Managed:
+	disableIngressCreation := true
+	if k.RawRouteCreation == operatorv1.Managed {
 		disableIngressCreation = false
-	default:
-		disableIngressCreation = true
 	}
 	switch k.Serving.ManagementState {
 	case operatorv1.Managed, operatorv1.Unmanaged:
