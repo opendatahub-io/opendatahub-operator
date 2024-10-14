@@ -215,10 +215,8 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return ctrl.Result{}, nil
 	default:
 		createUsergroup, err := cluster.IsDefaultAuthMethod(ctx, r.Client)
-		if err != nil {
-			if !k8serr.IsNotFound(err) { // only keep reconcile if real error but not missing CRD or missing CR
-				return ctrl.Result{}, err
-			}
+		if err != nil && !k8serr.IsNotFound(err) { // only keep reconcile if real error but not missing CRD or missing CR
+			return ctrl.Result{}, err
 		}
 
 		switch platform {
