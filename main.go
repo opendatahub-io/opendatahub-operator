@@ -204,7 +204,7 @@ func main() { //nolint:funlen,maintidx
 			},
 			// For authentication CR "cluster"
 			&configv1.Authentication{}: {
-				Field: fields.Set{"metadata.name": "cluster"}.AsSelector(),
+				Field: fields.Set{"metadata.name": cluster.ClusterAuthenticationObj}.AsSelector(),
 			},
 			// for prometheus and black-box deployment and ones we owns
 			&appsv1.Deployment{}: {Namespaces: deploymentCache},

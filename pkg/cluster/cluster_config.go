@@ -231,9 +231,9 @@ func getRelease(ctx context.Context, cli client.Client) (Release, error) {
 // This will give indication that Operator should create userGroups or not in the cluster.
 func IsDefaultAuthMethod(ctx context.Context, cli client.Client) (bool, error) {
 	authenticationobj := &configv1.Authentication{}
-	if err := cli.Get(ctx, client.ObjectKey{Name: "cluster", Namespace: ""}, authenticationobj); err != nil {
+	if err := cli.Get(ctx, client.ObjectKey{Name: ClusterAuthenticationObj, Namespace: ""}, authenticationobj); err != nil {
 		if errors.Is(err, &meta.NoKindMatchError{}) { // when CRD is missing, conver error type
-			return false, k8serr.NewNotFound(configv1.Resource("authentications"), "cluster")
+			return false, k8serr.NewNotFound(configv1.Resource("authentications"), ClusterAuthenticationObj)
 		}
 		return false, err
 	}
