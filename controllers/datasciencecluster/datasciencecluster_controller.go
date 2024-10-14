@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	"strings"
 	"time"
 
@@ -54,6 +55,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
+	componentsctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	ctrlogger "github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
@@ -242,7 +244,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	var componentErrors *multierror.Error
 
 	for _, component := range allComponents {
-		if instance, err = r.reconcileSubComponent(ctx, instance, platform, component); err != nil {
+		if instance, err = r.reconcileSubComponent(ctx, instance, &dsciInstances.Items[0], platform, component); err != nil {
 			componentErrors = multierror.Append(componentErrors, err)
 		}
 	}
@@ -287,7 +289,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	return ctrl.Result{}, nil
 }
 
-func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context, instance *dscv1.DataScienceCluster,
+func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context, instance *dscv1.DataScienceCluster, dsci *dsciv1.DSCInitialization,
 	platform cluster.Platform, component components.ComponentInterface,
 ) (*dscv1.DataScienceCluster, error) {
 	log := r.Log
@@ -313,7 +315,13 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 	}
 	// Reconcile component
 	componentLogger := newComponentLogger(log, componentName, r.DataScienceCluster.DSCISpec)
-	err := component.ReconcileComponent(ctx, r.Client, componentLogger, instance, r.DataScienceCluster.DSCISpec, platform, installedComponentValue)
+	// TODO: Remove this once all component internal apis are implemented
+	var err error
+	if componentName == "dashboard" {
+		err = componentsctrl.CreateDashboardInstance(ctx, r.Client, dsci, instance)
+	} else {
+		err = component.ReconcileComponent(ctx, r.Client, componentLogger, instance, r.DataScienceCluster.DSCISpec, platform, installedComponentValue)
+	}
 
 	// TODO: replace this hack with a full refactor of component status in the future
 
@@ -514,6 +522,7 @@ func (r *DataScienceClusterReconciler) SetupWithManager(ctx context.Context, mgr
 			&admissionregistrationv1.ValidatingWebhookConfiguration{},
 			builder.WithPredicates(modelMeshwebhookPredicates),
 		).
+		Owns(&componentsv1.Dashboard{}).
 		Owns(
 			&corev1.ServiceAccount{},
 			builder.WithPredicates(saPredicates),

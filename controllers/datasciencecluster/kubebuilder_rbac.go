@@ -32,6 +32,11 @@ package datasciencecluster
 //+kubebuilder:rbac:groups="authorization.k8s.io",resources=subjectaccessreviews,verbs=create;get
 
 /* This is for dashboard */
+
+//+kubebuilder:rbac:groups=components.opendatahub.io,resources=dashboards,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=components.opendatahub.io,resources=dashboards/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=components.opendatahub.io,resources=dashboards/finalizers,verbs=update
+
 // +kubebuilder:rbac:groups="opendatahub.io",resources=odhdashboardconfigs,verbs=create;get;patch;watch;update;delete;list
 // +kubebuilder:rbac:groups="console.openshift.io",resources=odhquickstarts,verbs=create;get;patch;list;delete
 // +kubebuilder:rbac:groups="dashboard.opendatahub.io",resources=odhdocuments,verbs=create;get;patch;list;delete

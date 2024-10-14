@@ -3,6 +3,7 @@ package e2e_test
 import (
 	"context"
 	"fmt"
+	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	"log"
 	"strings"
 	"testing"
@@ -21,12 +22,12 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	componentsold "github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kueue"
@@ -117,28 +118,28 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 		Spec: dscv1.DataScienceClusterSpec{
 			Components: dscv1.Components{
 				// keep dashboard as enabled, because other test is rely on this
-				Dashboard: dashboard.Dashboard{
+				Dashboard: componentsv1.DSCDashboard{
 					Component: components.Component{
 						ManagementState: operatorv1.Managed,
 					},
 				},
 				Workbenches: workbenches.Workbenches{
-					Component: components.Component{
+					Component: componentsold.Component{
 						ManagementState: operatorv1.Managed,
 					},
 				},
 				ModelMeshServing: modelmeshserving.ModelMeshServing{
-					Component: components.Component{
+					Component: componentsold.Component{
 						ManagementState: operatorv1.Managed,
 					},
 				},
 				DataSciencePipelines: datasciencepipelines.DataSciencePipelines{
-					Component: components.Component{
+					Component: componentsold.Component{
 						ManagementState: operatorv1.Managed,
 					},
 				},
 				Kserve: kserve.Kserve{
-					Component: components.Component{
+					Component: componentsold.Component{
 						ManagementState: operatorv1.Managed,
 					},
 					Serving: infrav1.ServingSpec{
@@ -146,32 +147,32 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 					},
 				},
 				CodeFlare: codeflare.CodeFlare{
-					Component: components.Component{
+					Component: componentsold.Component{
 						ManagementState: operatorv1.Managed,
 					},
 				},
 				Ray: ray.Ray{
-					Component: components.Component{
+					Component: componentsold.Component{
 						ManagementState: operatorv1.Managed,
 					},
 				},
 				Kueue: kueue.Kueue{
-					Component: components.Component{
+					Component: componentsold.Component{
 						ManagementState: operatorv1.Managed,
 					},
 				},
 				TrustyAI: trustyai.TrustyAI{
-					Component: components.Component{
+					Component: componentsold.Component{
 						ManagementState: operatorv1.Managed,
 					},
 				},
 				ModelRegistry: modelregistry.ModelRegistry{
-					Component: components.Component{
+					Component: componentsold.Component{
 						ManagementState: operatorv1.Managed,
 					},
 				},
 				TrainingOperator: trainingoperator.TrainingOperator{
-					Component: components.Component{
+					Component: componentsold.Component{
 						ManagementState: operatorv1.Removed,
 					},
 				},

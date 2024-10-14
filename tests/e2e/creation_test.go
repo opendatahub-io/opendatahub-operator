@@ -27,6 +27,7 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
+	componentctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/serverless"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -390,7 +391,7 @@ func (tc *testContext) testOwnerrefrences() error {
 	// Test any one of the apps
 	if tc.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
 		appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(tc.ctx, metav1.ListOptions{
-			LabelSelector: labels.ODH.Component(tc.testDsc.Spec.Components.Dashboard.GetComponentName()),
+			LabelSelector: labels.ODH.Component(componentctrl.ComponentNameUpstream),
 		})
 		if err != nil {
 			return fmt.Errorf("error listing component deployments %w", err)
@@ -506,14 +507,14 @@ func (tc *testContext) testUpdateComponentReconcile() error {
 	// Test Updating Dashboard Replicas
 
 	appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(tc.ctx, metav1.ListOptions{
-		LabelSelector: labels.ODH.Component(tc.testDsc.Spec.Components.Dashboard.GetComponentName()),
+		LabelSelector: labels.ODH.Component(componentctrl.ComponentNameUpstream),
 	})
 	if err != nil {
 		return err
 	}
 
 	if len(appDeployments.Items) != 1 {
-		return fmt.Errorf("error getting deployment for component %s", tc.testDsc.Spec.Components.Dashboard.GetComponentName())
+		return fmt.Errorf("error getting deployment for component %s", componentctrl.ComponentNameUpstream)
 	}
 
 	const expectedReplica int32 = 3
@@ -557,10 +558,10 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 
 	if tc.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
 		appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(tc.ctx, metav1.ListOptions{
-			LabelSelector: labels.ODH.Component(tc.testDsc.Spec.Components.Dashboard.GetComponentName()),
+			LabelSelector: labels.ODH.Component(componentctrl.ComponentNameUpstream),
 		})
 		if err != nil {
-			return fmt.Errorf("error getting enabled component %v", tc.testDsc.Spec.Components.Dashboard.GetComponentName())
+			return fmt.Errorf("error getting enabled component %v", componentctrl.ComponentNameUpstream)
 		}
 		if len(appDeployments.Items) > 0 {
 			dashboardDeploymentName = appDeployments.Items[0].Name
@@ -607,7 +608,7 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 		return fmt.Errorf("error getting component resource after reconcile: %w", err)
 	}
 	return fmt.Errorf("component %v is disabled, should not get its deployment %v from NS %v any more",
-		tc.testDsc.Spec.Components.Dashboard.GetComponentName(),
+		componentctrl.ComponentNameUpstream,
 		dashboardDeploymentName,
 		tc.applicationsNamespace)
 }

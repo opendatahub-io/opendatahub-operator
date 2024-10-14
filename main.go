@@ -62,6 +62,7 @@ import (
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/certconfigmapgenerator"
+	componentsctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
@@ -280,6 +281,11 @@ func main() { //nolint:funlen,maintidx
 		Log:    logger.LogWithLevel(ctrl.Log.WithName(operatorName).WithName("controllers").WithName("CertConfigmapGenerator"), logmode),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CertConfigmapGenerator")
+		os.Exit(1)
+	}
+
+	if err = componentsctrl.NewDashboardReconciler(mgr).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "DashboardReconciler")
 		os.Exit(1)
 	}
 

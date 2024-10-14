@@ -116,6 +116,7 @@ DSCDashboard contains all the configuration exposed in DSC instance for Dashboar
 
 
 _Appears in:_
+- [Components](#components)
 - [DashboardSpec](#dashboardspec)
 
 | Field | Description | Default | Validation |
@@ -873,7 +874,6 @@ Component struct defines the basis for each OpenDataHub component configuration.
 
 _Appears in:_
 - [CodeFlare](#codeflare)
-- [Dashboard](#dashboard)
 - [DataSciencePipelines](#datasciencepipelines)
 - [Kserve](#kserve)
 - [Kueue](#kueue)
@@ -909,46 +909,6 @@ _Appears in:_
 | `manifests` _[ManifestsConfig](#manifestsconfig) array_ | List of custom manifests for the given component |  |  |
 
 
-#### ManifestsConfig
-
-
-
-
-
-
-
-_Appears in:_
-- [DevFlags](#devflags)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `uri` _string_ | uri is the URI point to a git repo with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch> |  |  |
-| `contextDir` _string_ | contextDir is the relative path to the folder containing manifests in a repository, default value "manifests" | manifests |  |
-| `sourcePath` _string_ | sourcePath is the subpath within contextDir where kustomize builds start. Examples include any sub-folder or path: `base`, `overlays/dev`, `default`, `odh` etc. |  |  |
-
-
-
-## datasciencecluster.opendatahub.io/dashboard
-
-Package dashboard provides utility functions to config Open Data Hub Dashboard: A web dashboard that displays
-installed Open Data Hub components with easy access to component UIs and documentation
-
-
-
-#### Dashboard
-
-
-
-Dashboard struct holds the configuration for the Dashboard component.
-
-
-
-_Appears in:_
-- [Components](#components)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `Component` _[Component](#component)_ |  |  |  |
 
 
 
@@ -1229,7 +1189,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `dashboard` _[Dashboard](#dashboard)_ | Dashboard component configuration. |  |  |
+| `dashboard` _[DSCDashboard](#dscdashboard)_ | Dashboard component configuration. |  |  |
 | `workbenches` _[Workbenches](#workbenches)_ | Workbenches component configuration. |  |  |
 | `modelmeshserving` _[ModelMeshServing](#modelmeshserving)_ | ModelMeshServing component configuration.<br />Does not support enabled Kserve at the same time |  |  |
 | `datasciencepipelines` _[DataSciencePipelines](#datasciencepipelines)_ | DataServicePipeline component configuration.<br />Require OpenShift Pipelines Operator to be installed before enable component |  |  |

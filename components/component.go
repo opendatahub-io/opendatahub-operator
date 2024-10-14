@@ -3,6 +3,7 @@ package components
 
 import (
 	"context"
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
 	"os"
 	"path/filepath"
 	"strings"
@@ -57,7 +58,7 @@ func (c *Component) Cleanup(_ context.Context, _ client.Client, _ metav1.Object,
 type DevFlags struct {
 	// List of custom manifests for the given component
 	// +optional
-	Manifests []ManifestsConfig `json:"manifests,omitempty"`
+	Manifests []components.ManifestsConfig `json:"manifests,omitempty"`
 }
 
 type ManifestsConfig struct {
