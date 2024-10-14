@@ -23,7 +23,7 @@ func CreateOrUpdateClusterRole(ctx context.Context, cli client.Client, name stri
 	}
 
 	foundClusterRole := &rbacv1.ClusterRole{}
-	err := cli.Get(ctx, client.ObjectKey{Name: desiredClusterRole.GetName()}, foundClusterRole)
+	err := cli.Get(ctx, client.ObjectKeyFromObject(desiredClusterRole), foundClusterRole)
 	if k8serr.IsNotFound(err) {
 		return desiredClusterRole, cli.Create(ctx, desiredClusterRole)
 	}
@@ -63,7 +63,7 @@ func CreateOrUpdateClusterRoleBinding(ctx context.Context, cli client.Client, na
 	}
 
 	foundClusterRoleBinding := &rbacv1.ClusterRoleBinding{}
-	err := cli.Get(ctx, client.ObjectKey{Name: desiredClusterRoleBinding.GetName()}, foundClusterRoleBinding)
+	err := cli.Get(ctx, client.ObjectKeyFromObject(desiredClusterRoleBinding), foundClusterRoleBinding)
 	if k8serr.IsNotFound(err) {
 		return desiredClusterRoleBinding, cli.Create(ctx, desiredClusterRoleBinding)
 	}

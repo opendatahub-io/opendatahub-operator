@@ -51,7 +51,7 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 
 	// Create Application Namespace if it doesn't exist
 	foundNamespace := &corev1.Namespace{}
-	err := r.Get(ctx, client.ObjectKey{Name: name}, foundNamespace)
+	err := r.Get(ctx, client.ObjectKeyFromObject(desiredNamespace), foundNamespace)
 	if err != nil {
 		if k8serr.IsNotFound(err) {
 			log.Info("Creating namespace", "name", name)
@@ -169,10 +169,7 @@ func (r *DSCInitializationReconciler) createDefaultRoleBinding(ctx context.Conte
 
 	// Create RoleBinding if doesn't exists
 	foundRoleBinding := &rbacv1.RoleBinding{}
-	err := r.Client.Get(ctx, client.ObjectKey{
-		Name:      name,
-		Namespace: name,
-	}, foundRoleBinding)
+	err := r.Client.Get(ctx, client.ObjectKeyFromObject(desiredRoleBinding), foundRoleBinding)
 	if err != nil {
 		if k8serr.IsNotFound(err) {
 			// Set Controller reference
@@ -292,10 +289,7 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.
 		// Create NetworkPolicy if it doesn't exist
 		foundNetworkPolicy := &networkingv1.NetworkPolicy{}
 		justCreated := false
-		err := r.Client.Get(ctx, client.ObjectKey{
-			Name:      name,
-			Namespace: name,
-		}, foundNetworkPolicy)
+		err := r.Client.Get(ctx, client.ObjectKeyFromObject(desiredNetworkPolicy), foundNetworkPolicy)
 		if err != nil {
 			if k8serr.IsNotFound(err) {
 				// Set Controller reference
@@ -397,10 +391,7 @@ func (r *DSCInitializationReconciler) createOdhCommonConfigMap(ctx context.Conte
 
 	// Create Configmap if doesn't exists
 	foundConfigMap := &corev1.ConfigMap{}
-	err := r.Client.Get(ctx, client.ObjectKey{
-		Name:      name,
-		Namespace: name,
-	}, foundConfigMap)
+	err := r.Client.Get(ctx, client.ObjectKeyFromObject(desiredConfigMap), foundConfigMap)
 	if err != nil {
 		if k8serr.IsNotFound(err) {
 			// Set Controller reference
@@ -430,10 +421,7 @@ func (r *DSCInitializationReconciler) createUserGroup(ctx context.Context, dscIn
 		// Otherwise is errors with "error": "Group.user.openshift.io \"odh-admins\" is invalid: users: Invalid value: \"null\": users in body must be of type array: \"null\""}
 		Users: []string{},
 	}
-	err := r.Client.Get(ctx, client.ObjectKey{
-		Name:      userGroup.Name,
-		Namespace: dscInit.Spec.ApplicationsNamespace,
-	}, userGroup)
+	err := r.Client.Get(ctx, client.ObjectKeyFromObject(userGroup), userGroup)
 	if err != nil {
 		if k8serr.IsNotFound(err) {
 			err = r.Client.Create(ctx, userGroup)
