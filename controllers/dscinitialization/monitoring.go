@@ -350,7 +350,10 @@ func configurePrometheus(ctx context.Context, dsciInit *dsciv1.DSCInitialization
 func configureBlackboxExporter(ctx context.Context, dsciInit *dsciv1.DSCInitialization, r *DSCInitializationReconciler) error {
 	log := r.Log
 	consoleRoute := &routev1.Route{}
-	err := r.Client.Get(ctx, client.ObjectKey{Name: "console", Namespace: "openshift-console"}, consoleRoute)
+	err := r.Client.Get(ctx, client.ObjectKey{
+		Name:      "console",
+		Namespace: "openshift-console",
+	}, consoleRoute)
 	if err != nil {
 		if !k8serr.IsNotFound(err) {
 			return err
