@@ -418,7 +418,7 @@ func createMonitoringProxySecret(ctx context.Context, cli client.Client, name st
 	}
 
 	foundProxySecret := &corev1.Secret{}
-	err = cli.Get(ctx, client.ObjectKey{Name: name, Namespace: dsciInit.Spec.Monitoring.Namespace}, foundProxySecret)
+	err = cli.Get(ctx, client.ObjectKeyFromObject(desiredProxySecret), foundProxySecret)
 	if err != nil {
 		if k8serr.IsNotFound(err) {
 			// Set Controller reference

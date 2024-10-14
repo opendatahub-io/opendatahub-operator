@@ -4,7 +4,7 @@ import (
 	"context"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -81,7 +81,7 @@ var _ = Describe("feature cleanup", func() {
 				WithContext(ctx).
 				WithTimeout(fixtures.Timeout).
 				WithPolling(fixtures.Interval).
-				Should(WithTransform(errors.IsNotFound, BeTrue()))
+				Should(WithTransform(k8serr.IsNotFound, BeTrue()))
 		})
 
 	})
@@ -154,11 +154,11 @@ var _ = Describe("feature cleanup", func() {
 				WithContext(ctx).
 				WithTimeout(fixtures.Timeout).
 				WithPolling(fixtures.Interval).
-				Should(WithTransform(errors.IsNotFound, BeTrue()))
+				Should(WithTransform(k8serr.IsNotFound, BeTrue()))
 
 			Consistently(func() error {
 				_, err := fixtures.GetFeatureTracker(ctx, envTestClient, namespace, featureName)
-				if errors.IsNotFound(err) {
+				if k8serr.IsNotFound(err) {
 					return nil
 				}
 				return err
@@ -213,7 +213,7 @@ func createdSecretHasOwnerReferenceToOwningFeature(namespace, featureName string
 
 func namespaceExists(ctx context.Context, cli client.Client, f *feature.Feature) (bool, error) {
 	namespace, err := fixtures.GetNamespace(ctx, cli, "conditional-ns")
-	if errors.IsNotFound(err) {
+	if k8serr.IsNotFound(err) {
 		return false, nil
 	}
 	// ensuring it fails if namespace is still deleting
