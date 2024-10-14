@@ -318,7 +318,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 	// TODO: Remove this once all component internal apis are implemented
 	var err error
 	if componentName == "dashboard" {
-		err = componentsctrl.CreateDashboardInstance(ctx, r.Client, dsci, instance)
+		err = r.apply(ctx, instance, componentsctrl.CreateDashboardInstance(instance))
 	} else {
 		err = component.ReconcileComponent(ctx, r.Client, componentLogger, instance, r.DataScienceCluster.DSCISpec, platform, installedComponentValue)
 	}
@@ -401,6 +401,18 @@ var configMapPredicates = predicate.Funcs{
 		}
 		return true
 	},
+}
+
+func (r *DataScienceClusterReconciler) apply(ctx context.Context, dsc *dscv1.DataScienceCluster, obj client.Object) error {
+	if err := ctrl.SetControllerReference(dsc, obj, r.Client.Scheme()); err != nil {
+		return err
+	}
+
+	if err := r.Client.Patch(ctx, obj, client.Apply, client.FieldOwner(dsc.Name), client.ForceOwnership); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // reduce unnecessary reconcile triggered by odh component's deployment change due to ManagedByODHOperator annotation.

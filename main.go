@@ -284,7 +284,7 @@ func main() { //nolint:funlen,maintidx
 		os.Exit(1)
 	}
 
-	if err = componentsctrl.NewDashboardReconciler(mgr).SetupWithManager(mgr); err != nil {
+	if err = componentsctrl.NewDashboardReconciler(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DashboardReconciler")
 		os.Exit(1)
 	}
