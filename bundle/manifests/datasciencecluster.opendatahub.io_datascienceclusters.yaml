@@ -399,8 +399,6 @@ spec:
                         type: string
                     type: object
                   modelregistry:
-                    default:
-                      ManagementState: Removed
                     description: ModelRegistry component configuration.
                     properties:
                       devFlags:
@@ -432,6 +430,7 @@ spec:
                             type: array
                         type: object
                       managementState:
+                        default: Removed
                         description: |-
                           Set to one of the following values:
 

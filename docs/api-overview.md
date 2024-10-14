@@ -250,7 +250,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `Component` _[Component](#component)_ |  | \{ ManagementState:Removed \} |  |
+| `Component` _[Component](#component)_ |  |  |  |
+| `managementState` _[ManagementState](#managementstate)_ | if managementstate is omitted to show in existing DSC CR(upgrade case) even treated as removed, this will default to "Removed" in .spec.components | Removed |  |
 | `registriesNamespace` _string_ | Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries" | odh-model-registries | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 

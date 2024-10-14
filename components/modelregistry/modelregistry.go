@@ -44,15 +44,16 @@ var _ components.ComponentInterface = (*ModelRegistry)(nil)
 
 // ModelRegistry struct holds the configuration for the ModelRegistry component.
 // The property `registriesNamespace` is immutable when `managementState` is `Managed`
-// if managementstate is omitted to show in existing DSC CR(upgrade case) even treated as removed, this will default to "Removed" in .spec.components
 
 // +kubebuilder:object:generate=true
 // +kubebuilder:validation:XValidation:rule="(self.managementState != 'Managed') || (oldSelf.registriesNamespace == '') || (oldSelf.managementState != 'Managed')|| (self.registriesNamespace == oldSelf.registriesNamespace)",message="RegistriesNamespace is immutable when model registry is Managed"
 //nolint:lll
 
 type ModelRegistry struct {
-	// +kubebuilder:default={"ManagementState": "Removed"}
 	components.Component `json:""`
+	// if managementstate is omitted to show in existing DSC CR(upgrade case) even treated as removed, this will default to "Removed" in .spec.components
+	// +kubebuilder:default="Removed"
+	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 
 	// Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries"
 	// +kubebuilder:default="odh-model-registries"
