@@ -33,13 +33,12 @@ type DashboardSpec struct {
 
 // DashboardStatus defines the observed state of Dashboard
 type DashboardStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	components.Status `json:",inline"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-//+kubebuilder:resource:scope=Cluster
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:resource:scope=Cluster
 
 // Dashboard is the Schema for the dashboards API
 type Dashboard struct {
@@ -50,7 +49,11 @@ type Dashboard struct {
 	Status DashboardStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
+func (c *Dashboard) GetStatus() *components.Status {
+	return &c.Status.Status
+}
+
+// +kubebuilder:object:root=true
 
 // DashboardList contains a list of Dashboard
 type DashboardList struct {

@@ -17,6 +17,7 @@ limitations under the License.
 package v1
 
 import (
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -34,13 +35,12 @@ type DataSciencePipelinesSpec struct {
 
 // DataSciencePipelinesStatus defines the observed state of DataSciencePipelines
 type DataSciencePipelinesStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	components.Status `json:",inline"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-//+kubebuilder:resource:scope=Cluster
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:resource:scope=Cluster
 
 // DataSciencePipelines is the Schema for the datasciencepipelines API
 type DataSciencePipelines struct {
@@ -51,7 +51,11 @@ type DataSciencePipelines struct {
 	Status DataSciencePipelinesStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
+func (c *DataSciencePipelines) GetStatus() *components.Status {
+	return &c.Status.Status
+}
+
+// +kubebuilder:object:root=true
 
 // DataSciencePipelinesList contains a list of DataSciencePipelines
 type DataSciencePipelinesList struct {

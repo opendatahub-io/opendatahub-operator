@@ -17,6 +17,7 @@ limitations under the License.
 package v1
 
 import (
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -34,13 +35,12 @@ type TrustyAISpec struct {
 
 // TrustyAIStatus defines the observed state of TrustyAI
 type TrustyAIStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	components.Status `json:",inline"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-//+kubebuilder:resource:scope=Cluster
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:resource:scope=Cluster
 
 // TrustyAI is the Schema for the trustyais API
 type TrustyAI struct {
@@ -51,7 +51,11 @@ type TrustyAI struct {
 	Status TrustyAIStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
+func (c *TrustyAI) GetStatus() *components.Status {
+	return &c.Status.Status
+}
+
+// +kubebuilder:object:root=true
 
 // TrustyAIList contains a list of TrustyAI
 type TrustyAIList struct {

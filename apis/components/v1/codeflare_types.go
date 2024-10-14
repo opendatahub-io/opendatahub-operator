@@ -17,6 +17,7 @@ limitations under the License.
 package v1
 
 import (
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -34,13 +35,12 @@ type CodeFlareSpec struct {
 
 // CodeFlareStatus defines the observed state of CodeFlare
 type CodeFlareStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	components.Status `json:",inline"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-//+kubebuilder:resource:scope=Cluster
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:resource:scope=Cluster
 
 // CodeFlare is the Schema for the codeflares API
 type CodeFlare struct {
@@ -51,7 +51,11 @@ type CodeFlare struct {
 	Status CodeFlareStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
+func (c *CodeFlare) GetStatus() *components.Status {
+	return &c.Status.Status
+}
+
+// +kubebuilder:object:root=true
 
 // CodeFlareList contains a list of CodeFlare
 type CodeFlareList struct {

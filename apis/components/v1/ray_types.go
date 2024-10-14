@@ -17,6 +17,7 @@ limitations under the License.
 package v1
 
 import (
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -34,13 +35,12 @@ type RaySpec struct {
 
 // RayStatus defines the observed state of Ray
 type RayStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	components.Status `json:",inline"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-//+kubebuilder:resource:scope=Cluster
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:resource:scope=Cluster
 
 // Ray is the Schema for the rays API
 type Ray struct {
@@ -51,7 +51,11 @@ type Ray struct {
 	Status RayStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
+func (c *Ray) GetStatus() *components.Status {
+	return &c.Status.Status
+}
+
+// +kubebuilder:object:root=true
 
 // RayList contains a list of Ray
 type RayList struct {

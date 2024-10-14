@@ -3,6 +3,7 @@ package components
 
 import (
 	operatorv1 "github.com/openshift/api/operator/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // Component struct defines the basis for each OpenDataHub component configuration.
@@ -53,4 +54,15 @@ type ManifestsConfig struct {
 	// +kubebuilder:default:=""
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=3
 	SourcePath string `json:"sourcePath,omitempty"`
+}
+
+// +kubebuilder:object:generate=true
+type Status struct {
+	Phase              string             `json:"phase"`
+	Conditions         []metav1.Condition `json:"conditions,omitempty"`
+	ObservedGeneration int64              `json:"observedGeneration,omitempty"`
+}
+
+type WithStatus interface {
+	GetStatus() *Status
 }
