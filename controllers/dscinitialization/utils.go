@@ -18,6 +18,7 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -36,106 +37,79 @@ var (
 // - ConfigMap  'odh-common-config'
 // - Network Policies 'opendatahub' that allow traffic between the ODH namespaces
 // - RoleBinding 'opendatahub'.
-func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, dscInit *dsciv1.DSCInitialization, name string, platform cluster.Platform) error {
+func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, dscInit *dsciv1.DSCInitialization, platform cluster.Platform) error {
 	log := r.Log
-	// Expected application namespace for the given name
-	desiredNamespace := &corev1.Namespace{
+
+	desiredAppNamespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-			Labels: map[string]string{
-				labels.ODH.OwnedNamespace: "true",
-				labels.SecurityEnforce:    "baseline",
-			},
+			Name: dscInit.Spec.ApplicationsNamespace,
 		},
 	}
-
-	// Create Application Namespace if it doesn't exist
-	foundNamespace := &corev1.Namespace{}
-	err := r.Get(ctx, client.ObjectKey{Name: name}, foundNamespace)
+	result, err := controllerutil.CreateOrUpdate(ctx, r.Client, desiredAppNamespace, func() error {
+		labes := map[string]string{
+			labels.ODH.OwnedNamespace: "true",
+			labels.SecurityEnforce:    "baseline",
+		}
+		// Patch label for Application Namespace in Managed cluster
+		if dscInit.Spec.Monitoring.ManagementState == operatorv1.Managed {
+			labes["openshift.io/cluster-monitoring"] = "true"
+		}
+		desiredAppNamespace.Labels = labes
+		return nil
+	})
 	if err != nil {
-		if k8serr.IsNotFound(err) {
-			log.Info("Creating namespace", "name", name)
-			// Set Controller reference
-			// err = ctrl.SetControllerReference(dscInit, desiredNamespace, r.Scheme)
-			// if err != nil {
-			//	 log.Error(err, "Unable to add OwnerReference to the Namespace")
-			//	 return err
-			// }
-			err = r.Create(ctx, desiredNamespace)
-			if err != nil && !k8serr.IsAlreadyExists(err) {
-				log.Error(err, "Unable to create namespace", "name", name)
-				return err
-			}
-		} else {
-			log.Error(err, "Unable to fetch namespace", "name", name)
-			return err
-		}
-		// Patch Application Namespace if it exists
-	} else if dscInit.Spec.Monitoring.ManagementState == operatorv1.Managed {
-		log.Info("Patching application namespace for Managed cluster", "name", name)
-		labelPatch := `{"metadata":{"labels":{"openshift.io/cluster-monitoring":"true","pod-security.kubernetes.io/enforce":"baseline","opendatahub.io/generated-namespace": "true"}}}`
-		err = r.Patch(ctx, foundNamespace, client.RawPatch(types.MergePatchType,
-			[]byte(labelPatch)))
-		if err != nil {
-			return err
-		}
+		r.Log.Error(err, "Unable to create or reconcile namespace", "name", dscInit.Spec.ApplicationsNamespace)
+		return err
 	}
+	if result == controllerutil.OperationResultCreated {
+		r.Log.Info("Created namespace", "name", dscInit.Spec.ApplicationsNamespace)
+		return nil
+	}
+
 	// Create Monitoring Namespace if it is enabled and not exists
 	if dscInit.Spec.Monitoring.ManagementState == operatorv1.Managed {
-		foundMonitoringNamespace := &corev1.Namespace{}
-		monitoringName := dscInit.Spec.Monitoring.Namespace
-		err := r.Get(ctx, client.ObjectKey{Name: monitoringName}, foundMonitoringNamespace)
+		desireddMonNamespace := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: dscInit.Spec.Monitoring.Namespace,
+			},
+		}
+		result, err := controllerutil.CreateOrUpdate(ctx, r.Client, desireddMonNamespace, func() error {
+			labes := map[string]string{
+				labels.ODH.OwnedNamespace: "true",
+				labels.SecurityEnforce:    "baseline",
+				labels.ClusterMonitoring:  "true",
+			}
+			desireddMonNamespace.Labels = labes
+			return nil
+		})
 		if err != nil {
-			if k8serr.IsNotFound(err) {
-				log.Info("Not found monitoring namespace", "name", monitoringName)
-				desiredMonitoringNamespace := &corev1.Namespace{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: monitoringName,
-						Labels: map[string]string{
-							labels.ODH.OwnedNamespace: "true",
-							labels.SecurityEnforce:    "baseline",
-							labels.ClusterMonitoring:  "true",
-						},
-					},
-				}
-				err = r.Create(ctx, desiredMonitoringNamespace)
-				if err != nil && !k8serr.IsAlreadyExists(err) {
-					log.Error(err, "Unable to create namespace", "name", monitoringName)
-					return err
-				}
-			} else {
-				log.Error(err, "Unable to fetch monitoring namespace", "name", monitoringName)
-				return err
-			}
-		} else { // force to patch monitoring namespace with label for cluster-monitoring
-			log.Info("Patching monitoring namespace", "name", monitoringName)
-			labelPatch := `{"metadata":{"labels":{"openshift.io/cluster-monitoring":"true", "pod-security.kubernetes.io/enforce":"baseline","opendatahub.io/generated-namespace": "true"}}}`
-
-			err = r.Patch(ctx, foundMonitoringNamespace, client.RawPatch(types.MergePatchType, []byte(labelPatch)))
-			if err != nil {
-				return err
-			}
+			r.Log.Error(err, "Unable to create or reconcile namespace", "name", dscInit.Spec.Monitoring.Namespace)
+			return err
+		}
+		if result == controllerutil.OperationResultCreated {
+			r.Log.Info("Created namespace", "name", dscInit.Spec.Monitoring.Namespace)
+			return nil
 		}
 	}
 
 	// Create default NetworkPolicy for the namespace
-	err = r.reconcileDefaultNetworkPolicy(ctx, name, dscInit, platform)
+	err = r.reconcileDefaultNetworkPolicy(ctx, dscInit.Spec.ApplicationsNamespace, dscInit, platform)
 	if err != nil {
-		log.Error(err, "error reconciling network policy ", "name", name)
+		log.Error(err, "error reconciling network policy ", "name", dscInit.Spec.ApplicationsNamespace)
 		return err
 	}
 
 	// Create odh-common-config Configmap for the Namespace
-	err = r.createOdhCommonConfigMap(ctx, name, dscInit)
+	err = r.createOdhCommonConfigMap(ctx, dscInit.Spec.ApplicationsNamespace, dscInit)
 	if err != nil {
 		log.Error(err, "error creating configmap", "name", "odh-common-config")
 		return err
 	}
 
 	// Create default Rolebinding for the namespace
-	err = r.createDefaultRoleBinding(ctx, name, dscInit)
+	err = r.createDefaultRoleBinding(ctx, dscInit.Spec.ApplicationsNamespace, dscInit)
 	if err != nil {
-		log.Error(err, "error creating rolebinding", "name", name)
+		log.Error(err, "error creating rolebinding", "name", dscInit.Spec.ApplicationsNamespace)
 		return err
 	}
 	return nil
