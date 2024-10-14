@@ -250,7 +250,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `Component` _[Component](#component)_ |  |  |  |
+| `Component` _[Component](#component)_ |  | \{ ManagementState:Removed \} |  |
 | `registriesNamespace` _string_ | Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries" | odh-model-registries | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 

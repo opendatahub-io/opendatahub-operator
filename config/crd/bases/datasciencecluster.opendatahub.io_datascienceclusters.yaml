@@ -399,6 +399,8 @@ spec:
                         type: string
                     type: object
                   modelregistry:
+                    default:
+                      ManagementState: Removed
                     description: ModelRegistry component configuration.
                     properties:
                       devFlags:
