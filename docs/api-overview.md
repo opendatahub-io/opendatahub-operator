@@ -668,7 +668,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `manifestsUri` _string_ | Custom manifests uri for odh-manifests |  |  |
+| `manifestsUri` _string_ | ## DEPRECATED ## : ManifestsUri set on DSCI is not maintained.<br />Custom manifests uri for odh-manifests |  |  |
 | `logmode` _string_ |  | production | Enum: [devel development prod production default] <br /> |
 
 
