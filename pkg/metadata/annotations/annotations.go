@@ -16,3 +16,10 @@ const (
 
 // ManagementStateAnnotation set on Component CR only, to show which ManagementState value if defined in DSC for the component.
 const ManagementStateAnnotation = "component.opendatahub.io/management-state"
+
+const (
+	ComponentGeneration = "components.opendatahub.io/generation"
+	ComponentHash       = "components.opendatahub.io/hash"
+	PlatformVersion     = "platform.opendatahub.io/version"
+	PlatformType        = "platform.opendatahub.io/type"
+)

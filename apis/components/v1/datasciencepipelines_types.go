@@ -51,6 +51,10 @@ type DataSciencePipelines struct {
 	Status DataSciencePipelinesStatus `json:"status,omitempty"`
 }
 
+func (c *DataSciencePipelines) GetDevFlags() *components.DevFlags {
+	return nil
+}
+
 func (c *DataSciencePipelines) GetStatus() *components.Status {
 	return &c.Status.Status
 }

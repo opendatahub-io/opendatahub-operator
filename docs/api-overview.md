@@ -220,6 +220,7 @@ _Appears in:_
 | `phase` _string_ |  |  |  |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
+| `url` _string_ |  |  |  |
 
 
 #### DataSciencePipelines
@@ -964,6 +965,8 @@ _Appears in:_
 
 
 
+
+
 #### DevFlags
 
 
@@ -1045,6 +1048,8 @@ _Appears in:_
 | `phase` _string_ |  |  |  |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
+
+
 
 
 

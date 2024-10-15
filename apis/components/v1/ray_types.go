@@ -51,6 +51,10 @@ type Ray struct {
 	Status RayStatus `json:"status,omitempty"`
 }
 
+func (c *Ray) GetDevFlags() *components.DevFlags {
+	return nil
+}
+
 func (c *Ray) GetStatus() *components.Status {
 	return &c.Status.Status
 }
