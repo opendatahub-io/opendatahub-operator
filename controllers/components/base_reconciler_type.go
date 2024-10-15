@@ -48,7 +48,7 @@ type Manifests struct {
 	Paths map[cluster.Platform]string
 }
 
-type BaseReconciler[T ResourceObject] struct {
+type ComponentReconciler[T ResourceObject] struct {
 	Client     *odhClient.Client
 	Scheme     *runtime.Scheme
 	Actions    []Action
@@ -60,13 +60,13 @@ type BaseReconciler[T ResourceObject] struct {
 	Platform   cluster.Platform
 }
 
-func NewBaseReconciler[T ResourceObject](ctx context.Context, mgr manager.Manager, name string) (*BaseReconciler[T], error) {
+func NewComponentReconciler[T ResourceObject](ctx context.Context, mgr manager.Manager, name string) (*ComponentReconciler[T], error) {
 	oc, err := odhClient.NewFromManager(ctx, mgr)
 	if err != nil {
 		return nil, err
 	}
 
-	cc := BaseReconciler[T]{
+	cc := ComponentReconciler[T]{
 		Client:   oc,
 		Scheme:   mgr.GetScheme(),
 		Log:      ctrl.Log.WithName("controllers").WithName(name),
@@ -78,15 +78,15 @@ func NewBaseReconciler[T ResourceObject](ctx context.Context, mgr manager.Manage
 	return &cc, nil
 }
 
-func (r *BaseReconciler[T]) AddAction(action Action) {
+func (r *ComponentReconciler[T]) AddAction(action Action) {
 	r.Actions = append(r.Actions, action)
 }
 
-func (r *BaseReconciler[T]) AddFinalizer(action Action) {
+func (r *ComponentReconciler[T]) AddFinalizer(action Action) {
 	r.Finalizer = append(r.Finalizer, action)
 }
 
-func (r *BaseReconciler[T]) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *ComponentReconciler[T]) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	l := log.FromContext(ctx)
 
 	res := reflect.New(reflect.TypeOf(*new(T)).Elem()).Interface().(T)

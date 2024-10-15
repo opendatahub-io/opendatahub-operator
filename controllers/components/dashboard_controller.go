@@ -60,7 +60,7 @@ var (
 )
 
 func NewDashboardReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	r, err := NewBaseReconciler[*componentsv1.Dashboard](ctx, mgr, ComponentName)
+	r, err := NewComponentReconciler[*componentsv1.Dashboard](ctx, mgr, ComponentName)
 	if err != nil {
 		return err
 	}
