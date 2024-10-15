@@ -52,9 +52,7 @@ import (
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
 	componentsctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -116,10 +114,10 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	instance := &instances.Items[0]
 
-	allComponents, err := instance.GetComponents()
-	if err != nil {
-		return ctrl.Result{}, err
-	}
+	//allComponents, err := instance.GetComponents()
+	//if err != nil {
+	//	return ctrl.Result{}, err
+	//}
 
 	// If DSC CR exist and deletion CM exist
 	// delete DSC CR and let reconcile requeue
@@ -139,17 +137,17 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 				return reconcile.Result{}, err
 			}
 		}
-		for _, component := range allComponents {
-			if err := component.Cleanup(ctx, r.Client, instance, r.DataScienceCluster.DSCISpec); err != nil {
-				return ctrl.Result{}, err
-			}
-		}
+		//for _, component := range allComponents {
+		//	if err := component.Cleanup(ctx, r.Client, instance, r.DataScienceCluster.DSCISpec); err != nil {
+		//		return ctrl.Result{}, err
+		//	}
+		//}
 		return reconcile.Result{Requeue: true}, nil
 	}
 
 	// Verify a valid DSCInitialization instance is created
 	dsciInstances := &dsciv1.DSCInitializationList{}
-	err = r.Client.List(ctx, dsciInstances)
+	err := r.Client.List(ctx, dsciInstances)
 	if err != nil {
 		log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization Request.Name", req.Name)
 		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to retrieve DSCInitialization instance")
@@ -190,11 +188,11 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 	} else {
 		log.Info("Finalization DataScienceCluster start deleting instance", "name", instance.Name, "finalizer", finalizerName)
-		for _, component := range allComponents {
-			if err := component.Cleanup(ctx, r.Client, instance, r.DataScienceCluster.DSCISpec); err != nil {
-				return ctrl.Result{}, err
-			}
-		}
+		//for _, component := range allComponents {
+		//	if err := component.Cleanup(ctx, r.Client, instance, r.DataScienceCluster.DSCISpec); err != nil {
+		//		return ctrl.Result{}, err
+		//	}
+		//}
 		if controllerutil.ContainsFinalizer(instance, finalizerName) {
 			controllerutil.RemoveFinalizer(instance, finalizerName)
 			if err := r.Update(ctx, instance); err != nil {
@@ -243,10 +241,9 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	// Initialize error list, instead of returning errors after every component is deployed
 	var componentErrors *multierror.Error
 
-	for _, component := range allComponents {
-		if instance, err = r.reconcileSubComponent(ctx, instance, &dsciInstances.Items[0], platform, component); err != nil {
-			componentErrors = multierror.Append(componentErrors, err)
-		}
+	// Deploy Dashboard
+	if instance, err = r.reconcileDashboardComponent(ctx, instance); err != nil {
+		componentErrors = multierror.Append(componentErrors, err)
 	}
 
 	// Process errors for components
@@ -289,14 +286,11 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	return ctrl.Result{}, nil
 }
 
-func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context, instance *dscv1.DataScienceCluster, dsci *dsciv1.DSCInitialization,
-	platform cluster.Platform, component components.ComponentInterface,
-) (*dscv1.DataScienceCluster, error) {
-	log := r.Log
-	componentName := component.GetComponentName()
+func (r *DataScienceClusterReconciler) reconcileDashboardComponent(ctx context.Context, instance *dscv1.DataScienceCluster) (*dscv1.DataScienceCluster, error) {
+	componentName := componentsctrl.ComponentName
 
-	enabled := component.GetManagementState() == operatorv1.Managed
-	installedComponentValue, isExistStatus := instance.Status.InstalledComponents[componentName]
+	enabled := instance.Spec.Components.Dashboard.ManagementState == operatorv1.Managed
+	_, isExistStatus := instance.Status.InstalledComponents[componentName]
 
 	// First set conditions to reflect a component is about to be reconciled
 	// only set to init condition e.g Unknonw for the very first time when component is not in the list
@@ -314,17 +308,9 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 		}
 	}
 	// Reconcile component
-	componentLogger := newComponentLogger(log, componentName, r.DataScienceCluster.DSCISpec)
-	// TODO: Remove this once all component internal apis are implemented
-	var err error
-	if componentName == "dashboard" {
-		err = r.apply(ctx, instance, componentsctrl.CreateDashboardInstance(instance))
-	} else {
-		err = component.ReconcileComponent(ctx, r.Client, componentLogger, instance, r.DataScienceCluster.DSCISpec, platform, installedComponentValue)
-	}
+	err := r.apply(ctx, instance, componentsctrl.CreateDashboardInstance(instance))
 
 	// TODO: replace this hack with a full refactor of component status in the future
-
 	if err != nil {
 		// reconciliation failed: log errors, raise event and update status accordingly
 		instance = r.reportError(err, instance, "failed to reconcile "+componentName+" on DataScienceCluster")
@@ -353,14 +339,6 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 			status.RemoveComponentCondition(&saved.Status.Conditions, componentName)
 		}
 
-		// TODO: replace this hack with a full refactor of component status in the future
-		if mr, isMR := component.(*modelregistry.ModelRegistry); isMR {
-			if enabled {
-				saved.Status.Components.ModelRegistry = &status.ModelRegistryStatus{RegistriesNamespace: mr.RegistriesNamespace}
-			} else {
-				saved.Status.Components.ModelRegistry = nil
-			}
-		}
 	})
 	if err != nil {
 		instance = r.reportError(err, instance, "failed to update DataScienceCluster status after reconciling "+componentName)

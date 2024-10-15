@@ -347,10 +347,6 @@ func main() { //nolint:funlen,maintidx
 		setupLog.Error(err, "unable to set up ready check")
 		os.Exit(1)
 	}
-	if err := initComponents(ctx, platform); err != nil {
-		setupLog.Error(err, "unable to init components")
-		os.Exit(1)
-	}
 
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctx); err != nil {

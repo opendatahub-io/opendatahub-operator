@@ -34,7 +34,6 @@ type ResourceObject interface {
 
 type ReconciliationRequest struct {
 	client.Client
-
 	Instance  client.Object
 	DSC       *dscv1.DataScienceCluster
 	DSCI      *dsciv1.DSCInitialization
