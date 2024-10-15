@@ -291,8 +291,8 @@ func main() { //nolint:funlen,maintidx
 		os.Exit(1)
 	}
 
-	if err = componentsctrl.NewDashboardReconciler(ctx, mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "DashboardReconciler")
+	// Initialize component reconcilers
+	if err = CreateComponentReconcilers(ctx, mgr); err != nil {
 		os.Exit(1)
 	}
 
@@ -394,4 +394,13 @@ func createDeploymentCacheConfig(platform cluster.Platform) map[string]cache.Con
 	// for modelregistry namespace
 	namespaceConfigs[modelregistry.DefaultModelRegistriesNamespace] = cache.Config{}
 	return namespaceConfigs
+}
+
+func CreateComponentReconcilers(ctx context.Context, mgr manager.Manager) error {
+	// TODO: add more here or make it go routine
+	if err := componentsctrl.NewDashboardReconciler(ctx, mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "DashboardReconciler")
+		return err
+	}
+	return nil
 }

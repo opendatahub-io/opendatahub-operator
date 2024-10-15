@@ -21,7 +21,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 	"time"
 
@@ -58,7 +57,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
-	ctrlogger "github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	annotations "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
@@ -288,6 +286,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	return ctrl.Result{}, nil
 }
 
+// TODO: make it generic for all components.
 func (r *DataScienceClusterReconciler) reconcileDashboardComponent(ctx context.Context, instance *dscv1.DataScienceCluster) (*dscv1.DataScienceCluster, error) {
 	r.Log.Info("Starting reconciliation of Dashboard component")
 	componentName := componentsctrl.ComponentName
@@ -311,11 +310,6 @@ func (r *DataScienceClusterReconciler) reconcileDashboardComponent(ctx context.C
 
 	// Create the Dashboard instance
 	dashboard := componentsctrl.CreateDashboardInstance(instance)
-	if dashboard == nil {
-		return instance, fmt.Errorf("failed to create Dashboard instance: CreateDashboardInstance returned nil")
-	}
-	r.Log.Info("Created Dashboard instance", "type", reflect.TypeOf(dashboard))
-
 	// Reconcile component
 	err := r.apply(ctx, instance, dashboard)
 
@@ -347,15 +341,6 @@ func (r *DataScienceClusterReconciler) reconcileDashboardComponent(ctx context.C
 	return instance, nil
 }
 
-// newComponentLogger is a wrapper to add DSC name and extract log mode from DSCISpec.
-func newComponentLogger(logger logr.Logger, componentName string, dscispec *dsciv1.DSCInitializationSpec) logr.Logger {
-	mode := ""
-	if dscispec.DevFlags != nil {
-		mode = dscispec.DevFlags.LogMode
-	}
-	return ctrlogger.NewNamedLogger(logger, "DSC.Components."+componentName, mode)
-}
-
 func (r *DataScienceClusterReconciler) reportError(err error, instance *dscv1.DataScienceCluster, message string) *dscv1.DataScienceCluster {
 	log := r.Log
 	log.Error(err, message, "instance.Name", instance.Name)
@@ -381,7 +366,7 @@ var configMapPredicates = predicate.Funcs{
 
 func (r *DataScienceClusterReconciler) apply(ctx context.Context, dsc *dscv1.DataScienceCluster, obj client.Object) error {
 	if obj.GetObjectKind().GroupVersionKind().Empty() {
-		return fmt.Errorf("no groupversionkind defined")
+		return errors.New("no groupversionkind defined")
 	}
 	if err := ctrl.SetControllerReference(dsc, obj, r.Scheme); err != nil {
 		return err

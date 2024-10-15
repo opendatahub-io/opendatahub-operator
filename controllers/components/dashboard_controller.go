@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"k8s.io/utils/pointer"
+	"path/filepath"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -45,6 +46,7 @@ import (
 	odhrec "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	ctrlogger "github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
@@ -257,9 +259,7 @@ func (a *InitializeAction) Execute(ctx context.Context, rr *odhtypes.Reconciliat
 	}
 	DefaultPath = manifestMap[rr.Platform]
 
-	rr.Manifests = odhtypes.Manifests{
-		Paths: manifestMap,
-	}
+	rr.Manifests = manifestMap
 
 	if err := deploy.ApplyParams(DefaultPath, imageParamMap); err != nil {
 		log.Error(err, "failed to update image", "path", DefaultPath)
@@ -289,9 +289,15 @@ func (a *SupportDevFlagsAction) Execute(ctx context.Context, rr *odhtypes.Reconc
 			return err
 		}
 		if manifestConfig.SourcePath != "" {
-			// r.entryPath = filepath.Join(deploy.DefaultManifestPath, ComponentNameUpstream, manifestConfig.SourcePath)
+			rr.Manifests[rr.Platform] = filepath.Join(deploy.DefaultManifestPath, ComponentNameUpstream, manifestConfig.SourcePath)
 		}
 	}
+
+	if rr.DSCI.Spec.DevFlags != nil {
+		mode := rr.DSCI.Spec.DevFlags.LogMode
+		a.Log = ctrlogger.NewNamedLogger(logf.FromContext(ctx), ComponentName, mode)
+	}
+
 	return nil
 }
 
@@ -354,7 +360,7 @@ func (a *DeployComponentAction) Execute(ctx context.Context, rr *odhtypes.Reconc
 	//	return fmt.Errorf("failed to update params.env  from %s : %w", r.entryPath, err)
 	// }
 
-	path := rr.Manifests.Paths[rr.Platform]
+	path := rr.Manifests[rr.Platform]
 	name := ComponentNameUpstream
 
 	// common: Deploy odh-dashboard manifests

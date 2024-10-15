@@ -96,14 +96,12 @@ func (r *ComponentReconciler[T]) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	rr := types.ReconciliationRequest{
-		Client:   r.Client,
-		Instance: res,
-		DSC:      &dscl.Items[0],
-		DSCI:     &dscil.Items[0],
-		Platform: r.Platform,
-		Manifests: types.Manifests{
-			Paths: make(map[cluster.Platform]string),
-		},
+		Client:    r.Client,
+		Instance:  res,
+		DSC:       &dscl.Items[0],
+		DSCI:      &dscil.Items[0],
+		Platform:  r.Platform,
+		Manifests: make(map[cluster.Platform]string),
 	}
 
 	// Handle deletion

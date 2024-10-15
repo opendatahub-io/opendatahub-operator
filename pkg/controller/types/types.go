@@ -25,9 +25,5 @@ type ReconciliationRequest struct {
 	DSC       *dscv1.DataScienceCluster
 	DSCI      *dsciv1.DSCInitialization
 	Platform  cluster.Platform
-	Manifests Manifests
-}
-
-type Manifests struct {
-	Paths map[cluster.Platform]string
+	Manifests map[cluster.Platform]string
 }
