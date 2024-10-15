@@ -98,7 +98,9 @@ func NewDeleteResourcesAction(ctx context.Context, opts ...DeleteResourcesAction
 //
 
 const (
-	UpdateStatusActionName = "update-status"
+	UpdateStatusActionName    = "update-status"
+	DeploymentsNotReadyReason = "DeploymentsNotReady"
+	ReadyReason               = "Ready"
 )
 
 type UpdateStatusAction struct {
@@ -123,7 +125,7 @@ func WithUpdateStatusLabels(values map[string]string) UpdateStatusActionOpts {
 }
 
 func (a *UpdateStatusAction) Execute(ctx context.Context, rr *ReconciliationRequest) error {
-	if len(a.labels) > 0 {
+	if len(a.labels) == 0 {
 		return nil
 	}
 
@@ -155,13 +157,13 @@ func (a *UpdateStatusAction) Execute(ctx context.Context, rr *ReconciliationRequ
 	conditionReady := metav1.Condition{
 		Type:    status.ConditionTypeReady,
 		Status:  metav1.ConditionTrue,
-		Reason:  "Ready",
+		Reason:  ReadyReason,
 		Message: fmt.Sprintf("%d/%d deployments ready", ready, len(deployments.Items)),
 	}
 
 	if len(deployments.Items) > 0 && ready != len(deployments.Items) {
 		conditionReady.Status = metav1.ConditionFalse
-		conditionReady.Reason = "DeploymentsNotReady"
+		conditionReady.Reason = DeploymentsNotReadyReason
 	}
 
 	status.SetStatusCondition(obj, conditionReady)

@@ -3,9 +3,11 @@ package components_test
 import (
 	"context"
 	"github.com/onsi/gomega/gstruct"
+	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/rs/xid"
@@ -22,7 +24,11 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func NewFakeClient(scheme *runtime.Scheme, objs ...ctrlClient.Object) ctrlClient.WithWatch {
+func NewFakeClient(objs ...ctrlClient.Object) ctrlClient.WithWatch {
+	scheme := runtime.NewScheme()
+	utilruntime.Must(corev1.AddToScheme(scheme))
+	utilruntime.Must(appsv1.AddToScheme(scheme))
+
 	fakeMapper := meta.NewDefaultRESTMapper(scheme.PreferredVersionAllGroups())
 	for gvk := range scheme.AllKnownTypes() {
 		switch {
@@ -45,12 +51,7 @@ func TestDeleteResourcesAction(t *testing.T) {
 	ctx := context.Background()
 	ns := xid.New().String()
 
-	scheme := runtime.NewScheme()
-	utilruntime.Must(corev1.AddToScheme(scheme))
-	utilruntime.Must(appsv1.AddToScheme(scheme))
-
 	client := NewFakeClient(
-		scheme,
 		&appsv1.Deployment{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: appsv1.SchemeGroupVersion.String(),
@@ -105,5 +106,159 @@ func TestDeleteResourcesAction(t *testing.T) {
 				"Name": Equal("my-deployment-2"),
 			}),
 		}),
+	)
+}
+
+func TestUpdateStatusActionNotReady(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := context.Background()
+	ns := xid.New().String()
+
+	client := NewFakeClient(
+		&appsv1.Deployment{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: appsv1.SchemeGroupVersion.String(),
+				Kind:       "Deployment",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "my-deployment",
+				Namespace: ns,
+				Labels: map[string]string{
+					labels.K8SCommon.PartOf: "foo",
+				},
+			},
+			Status: appsv1.DeploymentStatus{
+				Replicas:      1,
+				ReadyReplicas: 0,
+			},
+		},
+		&appsv1.Deployment{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: appsv1.SchemeGroupVersion.String(),
+				Kind:       "Deployment",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "my-deployment-2",
+				Namespace: ns,
+				Labels: map[string]string{
+					labels.K8SCommon.PartOf: "foo",
+				},
+			},
+			Status: appsv1.DeploymentStatus{
+				Replicas:      1,
+				ReadyReplicas: 1,
+			},
+		},
+	)
+
+	action := components.NewUpdateStatusAction(
+		ctx,
+		components.WithUpdateStatusLabel(labels.K8SCommon.PartOf, "foo"))
+
+	rr := components.ReconciliationRequest{
+		Client:   client,
+		Instance: &componentsv1.Dashboard{},
+		DSCI:     &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
+		DSC:      &dscv1.DataScienceCluster{},
+		Platform: cluster.OpenDataHub,
+	}
+
+	err := action.Execute(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(rr.Instance).Should(
+		WithTransform(
+			func(in components.ResourceObject) metav1.Condition {
+				c := meta.FindStatusCondition(in.GetStatus().Conditions, status.ConditionTypeReady)
+				if c == nil {
+					return metav1.Condition{}
+				}
+
+				return *c
+			},
+			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+				"Status": Equal(metav1.ConditionFalse),
+				"Reason": Equal(components.DeploymentsNotReadyReason),
+			}),
+		),
+	)
+}
+
+func TestUpdateStatusActionReady(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := context.Background()
+	ns := xid.New().String()
+
+	client := NewFakeClient(
+		&appsv1.Deployment{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: appsv1.SchemeGroupVersion.String(),
+				Kind:       "Deployment",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "my-deployment",
+				Namespace: ns,
+				Labels: map[string]string{
+					labels.K8SCommon.PartOf: "foo",
+				},
+			},
+			Status: appsv1.DeploymentStatus{
+				Replicas:      1,
+				ReadyReplicas: 1,
+			},
+		},
+		&appsv1.Deployment{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: appsv1.SchemeGroupVersion.String(),
+				Kind:       "Deployment",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "my-deployment-2",
+				Namespace: ns,
+				Labels: map[string]string{
+					labels.K8SCommon.PartOf: "foo",
+				},
+			},
+			Status: appsv1.DeploymentStatus{
+				Replicas:      1,
+				ReadyReplicas: 1,
+			},
+		},
+	)
+
+	action := components.NewUpdateStatusAction(
+		ctx,
+		components.WithUpdateStatusLabel(labels.K8SCommon.PartOf, "foo"))
+
+	rr := components.ReconciliationRequest{
+		Client:   client,
+		Instance: &componentsv1.Dashboard{},
+		DSCI:     &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
+		DSC:      &dscv1.DataScienceCluster{},
+		Platform: cluster.OpenDataHub,
+	}
+
+	err := action.Execute(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(rr.Instance).Should(
+		WithTransform(
+			func(in components.ResourceObject) metav1.Condition {
+				c := meta.FindStatusCondition(in.GetStatus().Conditions, status.ConditionTypeReady)
+				if c == nil {
+					return metav1.Condition{}
+				}
+
+				return *c
+			},
+			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+				"Status": Equal(metav1.ConditionTrue),
+				"Reason": Equal(components.ReadyReason),
+			}),
+		),
 	)
 }
