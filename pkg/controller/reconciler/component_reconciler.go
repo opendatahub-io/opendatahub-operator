@@ -1,4 +1,4 @@
-package components
+package types
 
 import (
 	"context"
@@ -15,48 +15,19 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
-type Action interface {
-	Execute(ctx context.Context, rr *ReconciliationRequest) error
-}
-
-type BaseAction struct {
-	Log logr.Logger
-}
-
-type ResourceObject interface {
-	client.Object
-	components.WithStatus
-}
-
-type WithLogger interface {
-	GetLogger() logr.Logger
-}
-
-type ReconciliationRequest struct {
-	client.Client
-	Instance  client.Object
-	DSC       *dscv1.DataScienceCluster
-	DSCI      *dsciv1.DSCInitialization
-	Platform  cluster.Platform
-	Manifests Manifests
-}
-
-type Manifests struct {
-	Paths map[cluster.Platform]string
-}
-
-type ComponentReconciler[T ResourceObject] struct {
+type ComponentReconciler[T types.ResourceObject] struct {
 	Client     *odhClient.Client
 	Scheme     *runtime.Scheme
-	Actions    []Action
-	Finalizer  []Action
+	Actions    []actions.Action
+	Finalizer  []actions.Action
 	Log        logr.Logger
 	Manager    manager.Manager
 	Controller controller.Controller
@@ -64,7 +35,7 @@ type ComponentReconciler[T ResourceObject] struct {
 	Platform   cluster.Platform
 }
 
-func NewComponentReconciler[T ResourceObject](ctx context.Context, mgr manager.Manager, name string) (*ComponentReconciler[T], error) {
+func NewComponentReconciler[T types.ResourceObject](ctx context.Context, mgr manager.Manager, name string) (*ComponentReconciler[T], error) {
 	oc, err := odhClient.NewFromManager(ctx, mgr)
 	if err != nil {
 		return nil, err
@@ -86,11 +57,11 @@ func (r *ComponentReconciler[T]) GetLogger() logr.Logger {
 	return r.Log
 }
 
-func (r *ComponentReconciler[T]) AddAction(action Action) {
+func (r *ComponentReconciler[T]) AddAction(action actions.Action) {
 	r.Actions = append(r.Actions, action)
 }
 
-func (r *ComponentReconciler[T]) AddFinalizer(action Action) {
+func (r *ComponentReconciler[T]) AddFinalizer(action actions.Action) {
 	r.Finalizer = append(r.Finalizer, action)
 }
 
@@ -124,13 +95,13 @@ func (r *ComponentReconciler[T]) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, errors.New("unable to find DSCInitialization")
 	}
 
-	rr := ReconciliationRequest{
+	rr := types.ReconciliationRequest{
 		Client:   r.Client,
 		Instance: res,
 		DSC:      &dscl.Items[0],
 		DSCI:     &dscil.Items[0],
 		Platform: r.Platform,
-		Manifests: Manifests{
+		Manifests: types.Manifests{
 			Paths: make(map[cluster.Platform]string),
 		},
 	}

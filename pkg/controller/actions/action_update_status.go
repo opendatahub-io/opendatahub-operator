@@ -1,101 +1,17 @@
-package components
+package actions
 
 import (
 	"context"
 	"fmt"
-	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
-
-const (
-	ActionGroup = "action"
-)
-
-//
-// Delete Resources Action
-//
-
-const (
-	DeleteResourcesActionName = "delete-resources"
-)
-
-type DeleteResourcesAction struct {
-	BaseAction
-	types  []client.Object
-	labels map[string]string
-}
-
-type DeleteResourcesActionOpts func(*DeleteResourcesAction)
-
-func WithDeleteResourcesTypes(values ...client.Object) DeleteResourcesActionOpts {
-	return func(action *DeleteResourcesAction) {
-		action.types = append(action.types, values...)
-	}
-}
-
-func WithDeleteResourcesLabel(k string, v string) DeleteResourcesActionOpts {
-	return func(action *DeleteResourcesAction) {
-		action.labels[k] = v
-	}
-}
-
-func WithDeleteResourcesLabels(values map[string]string) DeleteResourcesActionOpts {
-	return func(action *DeleteResourcesAction) {
-		for k, v := range values {
-			action.labels[k] = v
-		}
-	}
-}
-
-func (r *DeleteResourcesAction) Execute(ctx context.Context, rr *ReconciliationRequest) error {
-	for i := range r.types {
-		opts := make([]client.DeleteAllOfOption, 0)
-
-		if len(r.labels) > 0 {
-			opts = append(opts, client.MatchingLabels(r.labels))
-		}
-
-		namespaced, err := rr.Client.IsObjectNamespaced(r.types[i])
-		if err != nil {
-			return err
-		}
-
-		if namespaced {
-			opts = append(opts, client.InNamespace(rr.DSCI.Spec.ApplicationsNamespace))
-		}
-
-		err = rr.Client.DeleteAllOf(ctx, r.types[i], opts...)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func NewDeleteResourcesAction(ctx context.Context, opts ...DeleteResourcesActionOpts) *DeleteResourcesAction {
-	action := DeleteResourcesAction{
-		BaseAction: BaseAction{
-			Log: log.FromContext(ctx).WithName(ActionGroup).WithName(DeleteResourcesActionName),
-		},
-		types:  make([]client.Object, 0),
-		labels: map[string]string{},
-	}
-
-	for _, opt := range opts {
-		opt(&action)
-	}
-
-	return &action
-}
-
-//
-// Update Status Action
-//
 
 const (
 	UpdateStatusActionName    = "update-status"
@@ -124,12 +40,12 @@ func WithUpdateStatusLabels(values map[string]string) UpdateStatusActionOpts {
 	}
 }
 
-func (a *UpdateStatusAction) Execute(ctx context.Context, rr *ReconciliationRequest) error {
+func (a *UpdateStatusAction) Execute(ctx context.Context, rr *types.ReconciliationRequest) error {
 	if len(a.labels) == 0 {
 		return nil
 	}
 
-	obj, ok := rr.Instance.(ResourceObject)
+	obj, ok := rr.Instance.(types.ResourceObject)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a ResourceObject", rr.Instance)
 	}

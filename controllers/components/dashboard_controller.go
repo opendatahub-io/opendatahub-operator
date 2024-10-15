@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -40,6 +41,9 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
+	odhrec "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
+	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
@@ -59,32 +63,32 @@ var (
 )
 
 func NewDashboardReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	r, err := NewComponentReconciler[*componentsv1.Dashboard](ctx, mgr, ComponentName)
+	r, err := odhrec.NewComponentReconciler[*componentsv1.Dashboard](ctx, mgr, ComponentName)
 	if err != nil {
 		return err
 	}
 
 	actionCtx := logf.IntoContext(ctx, r.Log)
 	// Add Dashboard-specific actions
-	r.AddAction(&InitializeAction{BaseAction{Log: mgr.GetLogger().WithName("actions").WithName("initialize")}})
-	r.AddAction(&SupportDevFlagsAction{BaseAction{Log: mgr.GetLogger().WithName("actions").WithName("devFlags")}})
-	r.AddAction(&CleanupOAuthClientAction{BaseAction{Log: mgr.GetLogger().WithName("actions").WithName("cleanup")}})
-	r.AddAction(&DeployComponentAction{BaseAction{Log: mgr.GetLogger().WithName("actions").WithName("deploy")}})
+	r.AddAction(&InitializeAction{actions.BaseAction{Log: mgr.GetLogger().WithName("actions").WithName("initialize")}})
+	r.AddAction(&SupportDevFlagsAction{actions.BaseAction{Log: mgr.GetLogger().WithName("actions").WithName("devFlags")}})
+	r.AddAction(&CleanupOAuthClientAction{actions.BaseAction{Log: mgr.GetLogger().WithName("actions").WithName("cleanup")}})
+	r.AddAction(&DeployComponentAction{actions.BaseAction{Log: mgr.GetLogger().WithName("actions").WithName("deploy")}})
 
-	r.AddAction(NewUpdateStatusAction(
+	r.AddAction(actions.NewUpdateStatusAction(
 		actionCtx,
 		//TODO: upstream vs downstream name
 		//TODO: label should include generic names
-		WithUpdateStatusLabel("app.opendatahub.io/dashboard", "true"),
+		actions.WithUpdateStatusLabel("app.opendatahub.io/dashboard", "true"),
 	))
 
-	r.AddFinalizer(NewDeleteResourcesAction(
+	r.AddFinalizer(actions.NewDeleteResourcesAction(
 		actionCtx,
 		// include only the types that must be deleted
-		WithDeleteResourcesTypes(&corev1.Secret{}),
+		actions.WithDeleteResourcesTypes(&corev1.Secret{}),
 		//TODO: upstream vs downstream name
 		//TODO: label should include generic names
-		WithDeleteResourcesLabel("app.opendatahub.io/dashboard", "true"),
+		actions.WithDeleteResourcesLabel("app.opendatahub.io/dashboard", "true"),
 	))
 
 	eh := handler.EnqueueRequestsFromMapFunc(watchDashboardResources)
@@ -248,10 +252,10 @@ func updateKustomizeVariable(ctx context.Context, cli client.Client, platform cl
 // Action implementations
 
 type InitializeAction struct {
-	BaseAction
+	actions.BaseAction
 }
 
-func (a *InitializeAction) Execute(ctx context.Context, rr *ReconciliationRequest) error {
+func (a *InitializeAction) Execute(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	// Implement initialization logic
 	log := logf.FromContext(ctx).WithName(ComponentNameUpstream)
 
@@ -266,7 +270,7 @@ func (a *InitializeAction) Execute(ctx context.Context, rr *ReconciliationReques
 	}
 	DefaultPath = manifestMap[rr.Platform]
 
-	rr.Manifests = Manifests{
+	rr.Manifests = odhtypes.Manifests{
 		Paths: manifestMap,
 	}
 
@@ -278,10 +282,10 @@ func (a *InitializeAction) Execute(ctx context.Context, rr *ReconciliationReques
 }
 
 type SupportDevFlagsAction struct {
-	BaseAction
+	actions.BaseAction
 }
 
-func (a *SupportDevFlagsAction) Execute(ctx context.Context, rr *ReconciliationRequest) error {
+func (a *SupportDevFlagsAction) Execute(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	dashboard, ok := rr.Instance.(*componentsv1.Dashboard)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentsv1.Dashboard)", rr.Instance)
@@ -305,10 +309,10 @@ func (a *SupportDevFlagsAction) Execute(ctx context.Context, rr *ReconciliationR
 }
 
 type CleanupOAuthClientAction struct {
-	BaseAction
+	actions.BaseAction
 }
 
-func (a *CleanupOAuthClientAction) Execute(ctx context.Context, rr *ReconciliationRequest) error {
+func (a *CleanupOAuthClientAction) Execute(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	// Remove previous oauth-client secrets
 	// Check if component is going from state of `Not Installed --> Installed`
 	// Assumption: Component is currently set to enabled
@@ -336,10 +340,10 @@ func (a *CleanupOAuthClientAction) Execute(ctx context.Context, rr *Reconciliati
 }
 
 type DeployComponentAction struct {
-	BaseAction
+	actions.BaseAction
 }
 
-func (a *DeployComponentAction) Execute(ctx context.Context, rr *ReconciliationRequest) error {
+func (a *DeployComponentAction) Execute(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	// Implement component deployment logic
 	// 1. platform specific RBAC
 	if rr.Platform == cluster.OpenDataHub || rr.Platform == "" {
