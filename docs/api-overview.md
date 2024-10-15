@@ -670,6 +670,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `manifestsUri` _string_ | Custom manifests uri for odh-manifests |  |  |
 | `logmode` _string_ |  | production | Enum: [devel development prod production default] <br /> |
+| `logLevel` _string_ | Override Zap log level. Can be "debug", "info", "error" or a number (more verbose). |  |  |
 
 
 #### Monitoring

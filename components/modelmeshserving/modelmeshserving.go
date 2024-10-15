@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -103,12 +102,12 @@ func (m *ModelMeshServing) GetComponentName() string {
 
 func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 	cli client.Client,
-	l logr.Logger,
 	owner metav1.Object,
 	dscispec *dsciv1.DSCInitializationSpec,
 	platform cluster.Platform,
 	_ bool,
 ) error {
+	l := logf.FromContext(ctx)
 	enabled := m.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 

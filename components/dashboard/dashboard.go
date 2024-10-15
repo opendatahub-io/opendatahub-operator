@@ -84,13 +84,13 @@ func (d *Dashboard) GetComponentName() string {
 
 func (d *Dashboard) ReconcileComponent(ctx context.Context,
 	cli client.Client,
-	l logr.Logger,
 	owner metav1.Object,
 	dscispec *dsciv1.DSCInitializationSpec,
 	platform cluster.Platform,
 	currentComponentExist bool,
 ) error {
 	entryPath := DefaultPath
+	l := logf.FromContext(ctx)
 	enabled := d.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 
