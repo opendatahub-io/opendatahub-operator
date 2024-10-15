@@ -105,6 +105,11 @@ CodeFlareStatus defines the observed state of CodeFlare
 _Appears in:_
 - [CodeFlare](#codeflare)
 
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `phase` _string_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
+| `observedGeneration` _integer_ |  |  |  |
 
 
 #### DSCDashboard
@@ -193,6 +198,11 @@ DashboardStatus defines the observed state of Dashboard
 _Appears in:_
 - [Dashboard](#dashboard)
 
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `phase` _string_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
+| `observedGeneration` _integer_ |  |  |  |
 
 
 #### DataSciencePipelines
@@ -264,6 +274,11 @@ DataSciencePipelinesStatus defines the observed state of DataSciencePipelines
 _Appears in:_
 - [DataSciencePipelines](#datasciencepipelines)
 
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `phase` _string_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
+| `observedGeneration` _integer_ |  |  |  |
 
 
 #### Kserve
@@ -335,6 +350,11 @@ KserveStatus defines the observed state of Kserve
 _Appears in:_
 - [Kserve](#kserve)
 
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `phase` _string_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
+| `observedGeneration` _integer_ |  |  |  |
 
 
 #### Kueue
@@ -406,6 +426,11 @@ KueueStatus defines the observed state of Kueue
 _Appears in:_
 - [Kueue](#kueue)
 
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `phase` _string_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
+| `observedGeneration` _integer_ |  |  |  |
 
 
 #### ModelMeshServing
@@ -477,6 +502,11 @@ ModelMeshServingStatus defines the observed state of ModelMeshServing
 _Appears in:_
 - [ModelMeshServing](#modelmeshserving)
 
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `phase` _string_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
+| `observedGeneration` _integer_ |  |  |  |
 
 
 #### ModelRegistry
@@ -548,6 +578,11 @@ ModelRegistryStatus defines the observed state of ModelRegistry
 _Appears in:_
 - [ModelRegistry](#modelregistry)
 
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `phase` _string_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
+| `observedGeneration` _integer_ |  |  |  |
 
 
 #### Ray
@@ -619,6 +654,11 @@ RayStatus defines the observed state of Ray
 _Appears in:_
 - [Ray](#ray)
 
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `phase` _string_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
+| `observedGeneration` _integer_ |  |  |  |
 
 
 #### TrainingOperator
@@ -690,6 +730,11 @@ TrainingOperatorStatus defines the observed state of TrainingOperator
 _Appears in:_
 - [TrainingOperator](#trainingoperator)
 
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `phase` _string_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
+| `observedGeneration` _integer_ |  |  |  |
 
 
 #### TrustyAI
@@ -761,6 +806,11 @@ TrustyAIStatus defines the observed state of TrustyAI
 _Appears in:_
 - [TrustyAI](#trustyai)
 
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `phase` _string_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
+| `observedGeneration` _integer_ |  |  |  |
 
 
 #### Workbenches
@@ -832,6 +882,11 @@ WorkbenchesStatus defines the observed state of Workbenches
 _Appears in:_
 - [Workbenches](#workbenches)
 
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `phase` _string_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
+| `observedGeneration` _integer_ |  |  |  |
 
 
 
@@ -907,6 +962,36 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `manifests` _[ManifestsConfig](#manifestsconfig) array_ | List of custom manifests for the given component |  |  |
+
+
+
+
+#### Status
+
+
+
+
+
+
+
+_Appears in:_
+- [CodeFlareStatus](#codeflarestatus)
+- [DashboardStatus](#dashboardstatus)
+- [DataSciencePipelinesStatus](#datasciencepipelinesstatus)
+- [KserveStatus](#kservestatus)
+- [KueueStatus](#kueuestatus)
+- [ModelMeshServingStatus](#modelmeshservingstatus)
+- [ModelRegistryStatus](#modelregistrystatus)
+- [RayStatus](#raystatus)
+- [TrainingOperatorStatus](#trainingoperatorstatus)
+- [TrustyAIStatus](#trustyaistatus)
+- [WorkbenchesStatus](#workbenchesstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `phase` _string_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
+| `observedGeneration` _integer_ |  |  |  |
 
 
 

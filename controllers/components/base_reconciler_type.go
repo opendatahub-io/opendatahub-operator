@@ -42,7 +42,7 @@ type ReconciliationRequest struct {
 }
 
 type Manifests struct {
-	Paths map[string]string
+	Paths map[cluster.Platform]string
 }
 
 type BaseReconciler[T ResourceObject] struct {
@@ -80,7 +80,7 @@ func (r *BaseReconciler[T]) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	l := log.FromContext(ctx)
 
 	res := reflect.New(reflect.TypeOf(*new(T)).Elem()).Interface().(T)
-	if err := r.Client.Get(ctx, req.NamespacedName, res); err != nil {
+	if err := r.Client.Get(ctx, client.ObjectKey{Name: req.Name}, res); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
@@ -109,7 +109,7 @@ func (r *BaseReconciler[T]) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		DSCI:     &dscil.Items[0],
 		Platform: r.Platform,
 		Manifests: Manifests{
-			Paths: make(map[string]string),
+			Paths: make(map[cluster.Platform]string),
 		},
 	}
 

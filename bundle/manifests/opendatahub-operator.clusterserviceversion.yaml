@@ -103,15 +103,15 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.19.0
-    createdAt: "2024-10-14T22:53:40Z"
+    createdAt: "2024-10-15T03:57:32Z"
     olm.skipRange: '>=1.0.0 <2.19.0'
     operators.operatorframework.io/builder: operator-sdk-v1.31.0
-    operators.operatorframework.io/internal-objects: '[featuretrackers.features.opendatahub.io,
-      codeflares.components.opendatahub.io, dashboards.components.opendatahub.io,
-      datasciencepipelines.components.opendatahub.io, kserves.components.opendatahub.io,
-      kueues.components.opendatahub.io, modelmeshservings.components.opendatahub.io,
-      modelregistries.components.opendatahub.io, rays.components.opendatahub.io, trainingoperators.components.opendatahub.io,
-      trustyais.components.opendatahub.io,  workbenches.components.opendatahub.io]'
+    operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
+      "codeflares.components.opendatahub.io", "dashboards.components.opendatahub.io",
+      "datasciencepipelines.components.opendatahub.io", "kserves.components.opendatahub.io",
+      "kueues.components.opendatahub.io", "modelmeshservings.components.opendatahub.io",
+      "modelregistries.components.opendatahub.io", "rays.components.opendatahub.io",
+      "trainingoperators.components.opendatahub.io", "trustyais.components.opendatahub.io",  "workbenches.components.opendatahub.io"]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/opendatahub-io/opendatahub-operator
   name: opendatahub-operator.v2.19.0

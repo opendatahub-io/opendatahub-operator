@@ -67,4 +67,10 @@ var (
 		Version: "v1alpha",
 		Kind:    "OdhDashboardConfig",
 	}
+
+	Dashboard = schema.GroupVersionKind{
+		Group:   "components.opendatahub.io",
+		Version: "v1",
+		Kind:    "Dashboard",
+	}
 )

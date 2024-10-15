@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	"reflect"
 	"strings"
 	"time"
 
@@ -287,47 +288,46 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 }
 
 func (r *DataScienceClusterReconciler) reconcileDashboardComponent(ctx context.Context, instance *dscv1.DataScienceCluster) (*dscv1.DataScienceCluster, error) {
+	r.Log.Info("Starting reconciliation of Dashboard component")
 	componentName := componentsctrl.ComponentName
 
 	enabled := instance.Spec.Components.Dashboard.ManagementState == operatorv1.Managed
 	_, isExistStatus := instance.Status.InstalledComponents[componentName]
 
-	// First set conditions to reflect a component is about to be reconciled
-	// only set to init condition e.g Unknonw for the very first time when component is not in the list
 	if !isExistStatus {
 		message := "Component is disabled"
 		if enabled {
 			message = "Component is enabled"
 		}
-		instance, err := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dscv1.DataScienceCluster) {
+		var err error
+		instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dscv1.DataScienceCluster) {
 			status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileInit, message, corev1.ConditionUnknown)
 		})
 		if err != nil {
-			_ = r.reportError(err, instance, "failed to update DataScienceCluster conditions before first time reconciling "+componentName)
-			// try to continue with reconciliation, as further updates can fix the status
+			return instance, fmt.Errorf("failed to update DataScienceCluster conditions before first time reconciling %s: %w", componentName, err)
 		}
 	}
-	// Reconcile component
-	err := r.apply(ctx, instance, componentsctrl.CreateDashboardInstance(instance))
 
-	// TODO: replace this hack with a full refactor of component status in the future
+	// Create the Dashboard instance
+	dashboard := componentsctrl.CreateDashboardInstance(instance)
+	if dashboard == nil {
+		return instance, fmt.Errorf("failed to create Dashboard instance: CreateDashboardInstance returned nil")
+	}
+	r.Log.Info("Created Dashboard instance", "type", reflect.TypeOf(dashboard))
+
+	// Reconcile component
+	err := r.apply(ctx, instance, dashboard)
+
 	if err != nil {
-		// reconciliation failed: log errors, raise event and update status accordingly
-		instance = r.reportError(err, instance, "failed to reconcile "+componentName+" on DataScienceCluster")
+		r.Log.Error(err, "Failed to reconcile Dashboard component")
+		instance = r.reportError(err, instance, fmt.Sprintf("failed to reconcile %s on DataScienceCluster", componentName))
 		instance, _ = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dscv1.DataScienceCluster) {
-			if enabled {
-				if strings.Contains(err.Error(), datasciencepipelines.ArgoWorkflowCRD+" CRD already exists") {
-					datasciencepipelines.SetExistingArgoCondition(&saved.Status.Conditions, status.ArgoWorkflowExist, fmt.Sprintf("Component update failed: %v", err))
-				} else {
-					status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileFailed, fmt.Sprintf("Component reconciliation failed: %v", err), corev1.ConditionFalse)
-				}
-			} else {
-				status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileFailed, fmt.Sprintf("Component removal failed: %v", err), corev1.ConditionFalse)
-			}
+			status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileFailed, fmt.Sprintf("Component reconciliation failed: %v", err), corev1.ConditionFalse)
 		})
 		return instance, err
 	}
-	// reconciliation succeeded: update status accordingly
+
+	r.Log.Info("Dashboard component reconciled successfully")
 	instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dscv1.DataScienceCluster) {
 		if saved.Status.InstalledComponents == nil {
 			saved.Status.InstalledComponents = make(map[string]bool)
@@ -338,12 +338,9 @@ func (r *DataScienceClusterReconciler) reconcileDashboardComponent(ctx context.C
 		} else {
 			status.RemoveComponentCondition(&saved.Status.Conditions, componentName)
 		}
-
 	})
 	if err != nil {
-		instance = r.reportError(err, instance, "failed to update DataScienceCluster status after reconciling "+componentName)
-
-		return instance, err
+		return instance, fmt.Errorf("failed to update DataScienceCluster status after reconciling %s: %w", componentName, err)
 	}
 
 	return instance, nil
@@ -382,7 +379,10 @@ var configMapPredicates = predicate.Funcs{
 }
 
 func (r *DataScienceClusterReconciler) apply(ctx context.Context, dsc *dscv1.DataScienceCluster, obj client.Object) error {
-	if err := ctrl.SetControllerReference(dsc, obj, r.Client.Scheme()); err != nil {
+	if obj.GetObjectKind().GroupVersionKind().Empty() {
+		return fmt.Errorf("no groupversionkind defined")
+	}
+	if err := ctrl.SetControllerReference(dsc, obj, r.Scheme); err != nil {
 		return err
 	}
 

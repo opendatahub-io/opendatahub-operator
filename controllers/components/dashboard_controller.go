@@ -20,6 +20,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -109,11 +111,20 @@ func NewDashboardReconciler(mgr ctrl.Manager) error {
 
 func CreateDashboardInstance(dsc *dscv1.DataScienceCluster) *componentsv1.Dashboard {
 	return &componentsv1.Dashboard{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Dashboard",
+			APIVersion: "components.opendatahub.io/v1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: DashboardInstanceName,
 		},
 		Spec: componentsv1.DashboardSpec{
-			DSCDashboard: dsc.Spec.Components.Dashboard,
+			DSCDashboard: componentsv1.DSCDashboard{
+				Component: components.Component{
+					ManagementState: dsc.Spec.Components.Dashboard.ManagementState,
+					DevFlags:        dsc.Spec.Components.Dashboard.DevFlags,
+				},
+			},
 		},
 	}
 }
@@ -126,7 +137,6 @@ func CreateDashboardInstance(dsc *dscv1.DataScienceCluster) *componentsv1.Dashbo
 // +kubebuilder:rbac:groups="dashboard.opendatahub.io",resources=odhdocuments,verbs=create;get;patch;list;delete
 // +kubebuilder:rbac:groups="dashboard.opendatahub.io",resources=odhapplications,verbs=create;get;patch;list;delete
 // +kubebuilder:rbac:groups="dashboard.opendatahub.io",resources=acceleratorprofiles,verbs=create;get;patch;list;delete
-
 // +kubebuilder:rbac:groups="operators.coreos.com",resources=clusterserviceversions,verbs=get;list;watch;delete;update
 // +kubebuilder:rbac:groups="operators.coreos.com",resources=customresourcedefinitions,verbs=create;get;patch;delete
 // +kubebuilder:rbac:groups="operators.coreos.com",resources=subscriptions,verbs=get;list;watch;delete
@@ -160,6 +170,7 @@ func CreateDashboardInstance(dsc *dscv1.DataScienceCluster) *componentsv1.Dashbo
 // +kubebuilder:rbac:groups="*",resources=replicasets,verbs=*
 
 func watchDashboardResources(ctx context.Context, a client.Object) []reconcile.Request {
+
 	if a.GetLabels()["app.opendatahub.io/dashboard"] == "true" {
 		return []reconcile.Request{{
 			NamespacedName: types.NamespacedName{Name: DashboardInstanceName},
@@ -170,10 +181,16 @@ func watchDashboardResources(ctx context.Context, a client.Object) []reconcile.R
 
 var dashboardPredicates = predicate.Funcs{
 	CreateFunc: func(e event.CreateEvent) bool {
+		if e.Object.GetObjectKind().GroupVersionKind().Kind == gvk.Dashboard.Kind {
+			return true
+		}
 		// Reconcile not needed during creation
 		return false
 	},
 	DeleteFunc: func(e event.DeleteEvent) bool {
+		if e.Object.GetObjectKind().GroupVersionKind().Kind == gvk.Dashboard.Kind {
+			return true
+		}
 		labelList := e.Object.GetLabels()
 		if value, exist := labelList[labels.ODH.Component(ComponentNameUpstream)]; exist && value == "true" {
 			return true
@@ -181,6 +198,9 @@ var dashboardPredicates = predicate.Funcs{
 		return false
 	},
 	UpdateFunc: func(e event.UpdateEvent) bool {
+		if e.ObjectOld.GetObjectKind().GroupVersionKind().Kind == gvk.Dashboard.Kind {
+			return true
+		}
 		labelList := e.ObjectOld.GetLabels()
 		if value, exist := labelList[labels.ODH.Component(ComponentNameUpstream)]; exist && value == "true" {
 			return true
@@ -235,12 +255,17 @@ func (a *InitializeAction) Execute(ctx context.Context, rr *ReconciliationReques
 	imageParamMap := map[string]string{
 		"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
 	}
-	DefaultPath = map[cluster.Platform]string{
+	manifestMap := map[cluster.Platform]string{
 		cluster.SelfManagedRhods: PathDownstream + "/onprem",
 		cluster.ManagedRhods:     PathDownstream + "/addon",
 		cluster.OpenDataHub:      PathUpstream,
 		cluster.Unknown:          PathUpstream,
-	}[rr.Platform]
+	}
+	DefaultPath = manifestMap[rr.Platform]
+
+	rr.Manifests = Manifests{
+		Paths: manifestMap,
+	}
 
 	if err := deploy.ApplyParams(DefaultPath, imageParamMap); err != nil {
 		log.Error(err, "failed to update image", "path", DefaultPath)
@@ -255,6 +280,9 @@ type SupportDevFlagsAction struct {
 
 func (a *SupportDevFlagsAction) Execute(ctx context.Context, rr *ReconciliationRequest) error {
 	dashboard := rr.Instance.(*componentsv1.Dashboard)
+	if dashboard.Spec.DevFlags == nil {
+		return nil
+	}
 	// Implement devflags support logic
 	// If dev flags are set, update default manifests path
 	if len(dashboard.Spec.DevFlags.Manifests) != 0 {
@@ -337,7 +365,7 @@ func (a *DeployComponentAction) Execute(ctx context.Context, rr *ReconciliationR
 			return fmt.Errorf("failed to create access-secret for anaconda: %w", err)
 		}
 		// Deploy RHOAI manifests
-		if err := deploy.DeployManifestsFromPath(ctx, rr.Client, rr.Instance, "", rr.DSCI.Spec.ApplicationsNamespace, ComponentNameDownstream, true); err != nil {
+		if err := deploy.DeployManifestsFromPath(ctx, rr.Client, rr.Instance, rr.Manifests.Paths[rr.Platform], rr.DSCI.Spec.ApplicationsNamespace, ComponentNameDownstream, true); err != nil {
 			return fmt.Errorf("failed to apply manifests from %s: %w", PathDownstream, err)
 		}
 		a.Log.Info("apply manifests done")
@@ -350,7 +378,7 @@ func (a *DeployComponentAction) Execute(ctx context.Context, rr *ReconciliationR
 
 	default:
 		// Deploy ODH manifests
-		if err := deploy.DeployManifestsFromPath(ctx, rr.Client, rr.Instance, "", rr.DSCI.Spec.ApplicationsNamespace, ComponentNameUpstream, true); err != nil {
+		if err := deploy.DeployManifestsFromPath(ctx, rr.Client, rr.Instance, rr.Manifests.Paths[cluster.OpenDataHub], rr.DSCI.Spec.ApplicationsNamespace, ComponentNameUpstream, true); err != nil {
 			return err
 		}
 		a.Log.Info("apply manifests done")
