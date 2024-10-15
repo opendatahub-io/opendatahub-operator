@@ -1,22 +1,12 @@
 # Build the manager binary
-ARG GOLANG_VERSION=1.21
-ARG USE_LOCAL=true
-ARG OVERWRITE_MANIFESTS=""
-
-
 ################################################################################
-FROM registry.access.redhat.com/ubi8/go-toolset@sha256:742ae6ec1aef3e7faae488c47695fb64964d342aefecf52d23bd9d5e6731d0b6 as builder_local_true
-# Get all manifests from local to builder_local_true
+FROM registry.access.redhat.com/ubi8/go-toolset@sha256:742ae6ec1aef3e7faae488c47695fb64964d342aefecf52d23bd9d5e6731d0b6 as builder
 USER root
 WORKDIR /opt
 # copy local manifests to build
 COPY opt/manifests/ /opt/manifests/
 COPY prefetched-manifests/ /opt/manifests/
-RUN ls -l /opt/manifests/
-################################################################################
-FROM builder_local_${USE_LOCAL} as builder
-USER root
-WORKDIR /workspace
+
 # Copy the Go Modules manifests
 COPY go.mod go.mod
 COPY go.sum go.sum
