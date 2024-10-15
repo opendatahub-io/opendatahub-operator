@@ -53,12 +53,12 @@ USER 1001
 
 ENTRYPOINT ["/manager"]
 
-LABEL com.redhat.component="odh-codeflare-operator-container" \
-      description="odh-operator" \
-      name="managed-open-data-hub/odh-codeflare-operator-container-rhel8" \
-      summary="odh-codeflare-operator-container" \
+LABEL com.redhat.component="odh-operator-container" \
+      description="rhoai-operator" \
+      name="managed-open-data-hub/odh-rhel8-operator" \
+      summary="odh-operator" \
       maintainer="['managed-open-data-hub@redhat.com']" \
       io.openshift.expose-services="" \
-      io.k8s.display-name="odh-codeflare-operator-container" \
-      io.k8s.description="odh-codeflare-operator"
+      io.k8s.display-name="odh-operator" \
+      io.k8s.description="odh-operator"
       com.redhat.license_terms="https://www.redhat.com/licenses/Red_Hat_Standard_EULA_20191108.pdf"
