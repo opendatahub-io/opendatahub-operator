@@ -21,7 +21,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	"reflect"
 	"strings"
 	"time"
@@ -51,12 +50,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	componentsctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	ctrlogger "github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	annotations "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -65,7 +66,7 @@ import (
 
 // DataScienceClusterReconciler reconciles a DataScienceCluster object.
 type DataScienceClusterReconciler struct {
-	client.Client
+	*odhClient.Client
 	Scheme *runtime.Scheme
 	Log    logr.Logger
 	// Recorder to generate events
@@ -115,10 +116,10 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	instance := &instances.Items[0]
 
-	//allComponents, err := instance.GetComponents()
-	//if err != nil {
+	// allComponents, err := instance.GetComponents()
+	// if err != nil {
 	//	return ctrl.Result{}, err
-	//}
+	// }
 
 	// If DSC CR exist and deletion CM exist
 	// delete DSC CR and let reconcile requeue
@@ -138,11 +139,11 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 				return reconcile.Result{}, err
 			}
 		}
-		//for _, component := range allComponents {
+		// for _, component := range allComponents {
 		//	if err := component.Cleanup(ctx, r.Client, instance, r.DataScienceCluster.DSCISpec); err != nil {
 		//		return ctrl.Result{}, err
 		//	}
-		//}
+		// }
 		return reconcile.Result{Requeue: true}, nil
 	}
 
@@ -189,11 +190,11 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 	} else {
 		log.Info("Finalization DataScienceCluster start deleting instance", "name", instance.Name, "finalizer", finalizerName)
-		//for _, component := range allComponents {
+		// for _, component := range allComponents {
 		//	if err := component.Cleanup(ctx, r.Client, instance, r.DataScienceCluster.DSCISpec); err != nil {
 		//		return ctrl.Result{}, err
 		//	}
-		//}
+		// }
 		if controllerutil.ContainsFinalizer(instance, finalizerName) {
 			controllerutil.RemoveFinalizer(instance, finalizerName)
 			if err := r.Update(ctx, instance); err != nil {
@@ -386,7 +387,7 @@ func (r *DataScienceClusterReconciler) apply(ctx context.Context, dsc *dscv1.Dat
 		return err
 	}
 
-	if err := r.Client.Patch(ctx, obj, client.Apply, client.FieldOwner(dsc.Name), client.ForceOwnership); err != nil {
+	if err := r.Client.Apply(ctx, obj, client.FieldOwner(dsc.Name), client.ForceOwnership); err != nil {
 		return err
 	}
 

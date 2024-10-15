@@ -20,28 +20,29 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 var (
@@ -58,8 +59,11 @@ var (
 	DefaultPath             = ""
 )
 
-func NewDashboardReconciler(mgr ctrl.Manager) error {
-	r := NewBaseReconciler[*componentsv1.Dashboard](mgr, ComponentName)
+func NewDashboardReconciler(ctx context.Context, mgr ctrl.Manager) error {
+	r, err := NewBaseReconciler[*componentsv1.Dashboard](ctx, mgr, ComponentName)
+	if err != nil {
+		return err
+	}
 
 	// Add Dashboard-specific actions
 	r.AddAction(&InitializeAction{BaseAction{Log: mgr.GetLogger().WithName("actions").WithName("initialize")}})
@@ -85,7 +89,7 @@ func NewDashboardReconciler(mgr ctrl.Manager) error {
 		return watchDashboardResources(ctx, a)
 	})
 
-	err := ctrl.NewControllerManagedBy(mgr).
+	err = ctrl.NewControllerManagedBy(mgr).
 		For(&componentsv1.Dashboard{}).
 		// dependants
 		Watches(&appsv1.Deployment{}, eh).

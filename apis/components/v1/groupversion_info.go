@@ -15,8 +15,8 @@ limitations under the License.
 */
 
 // Package v1 contains API Schema definitions for the components v1 API group
-//+kubebuilder:object:generate=true
-//+groupName=components.opendatahub.io
+// +kubebuilder:object:generate=true
+// +groupName=components.opendatahub.io
 package v1
 
 import (

@@ -19,7 +19,6 @@ package main
 import (
 	"context"
 	"flag"
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	"os"
 
 	"github.com/hashicorp/go-multierror"
@@ -57,6 +56,7 @@ import (
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 
+	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
@@ -68,6 +68,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/webhook"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
@@ -240,8 +241,14 @@ func main() { //nolint:funlen,maintidx
 
 	webhook.Init(mgr)
 
+	oc, err := odhClient.NewFromManager(ctx, mgr)
+	if err != nil {
+		setupLog.Error(err, "unable to create client")
+		os.Exit(1)
+	}
+
 	if err = (&dscictrl.DSCInitializationReconciler{
-		Client:                mgr.GetClient(),
+		Client:                oc,
 		Scheme:                mgr.GetScheme(),
 		Log:                   logger.LogWithLevel(ctrl.Log.WithName(operatorName).WithName("controllers").WithName("DSCInitialization"), logmode),
 		Recorder:              mgr.GetEventRecorderFor("dscinitialization-controller"),
@@ -252,7 +259,7 @@ func main() { //nolint:funlen,maintidx
 	}
 
 	if err = (&dscctrl.DataScienceClusterReconciler{
-		Client: mgr.GetClient(),
+		Client: oc,
 		Scheme: mgr.GetScheme(),
 		Log:    logger.LogWithLevel(ctrl.Log.WithName(operatorName).WithName("controllers").WithName("DataScienceCluster"), logmode),
 		DataScienceCluster: &dscctrl.DataScienceClusterConfig{
@@ -267,7 +274,7 @@ func main() { //nolint:funlen,maintidx
 	}
 
 	if err = (&secretgenerator.SecretGeneratorReconciler{
-		Client: mgr.GetClient(),
+		Client: oc,
 		Scheme: mgr.GetScheme(),
 		Log:    logger.LogWithLevel(ctrl.Log.WithName(operatorName).WithName("controllers").WithName("SecretGenerator"), logmode),
 	}).SetupWithManager(mgr); err != nil {
@@ -276,7 +283,7 @@ func main() { //nolint:funlen,maintidx
 	}
 
 	if err = (&certconfigmapgenerator.CertConfigmapGeneratorReconciler{
-		Client: mgr.GetClient(),
+		Client: oc,
 		Scheme: mgr.GetScheme(),
 		Log:    logger.LogWithLevel(ctrl.Log.WithName(operatorName).WithName("controllers").WithName("CertConfigmapGenerator"), logmode),
 	}).SetupWithManager(mgr); err != nil {
@@ -284,7 +291,7 @@ func main() { //nolint:funlen,maintidx
 		os.Exit(1)
 	}
 
-	if err = componentsctrl.NewDashboardReconciler(mgr); err != nil {
+	if err = componentsctrl.NewDashboardReconciler(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DashboardReconciler")
 		os.Exit(1)
 	}

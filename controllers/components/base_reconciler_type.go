@@ -4,19 +4,22 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
+
 	"github.com/go-logr/logr"
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
-	"reflect"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 )
 
 type Action interface {
@@ -46,7 +49,7 @@ type Manifests struct {
 }
 
 type BaseReconciler[T ResourceObject] struct {
-	Client     client.Client
+	Client     *odhClient.Client
 	Scheme     *runtime.Scheme
 	Actions    []Action
 	Finalizer  []Action
@@ -57,15 +60,22 @@ type BaseReconciler[T ResourceObject] struct {
 	Platform   cluster.Platform
 }
 
-func NewBaseReconciler[T ResourceObject](mgr manager.Manager, name string) *BaseReconciler[T] {
-	return &BaseReconciler[T]{
-		Client:   mgr.GetClient(),
+func NewBaseReconciler[T ResourceObject](ctx context.Context, mgr manager.Manager, name string) (*BaseReconciler[T], error) {
+	oc, err := odhClient.NewFromManager(ctx, mgr)
+	if err != nil {
+		return nil, err
+	}
+
+	cc := BaseReconciler[T]{
+		Client:   oc,
 		Scheme:   mgr.GetScheme(),
 		Log:      ctrl.Log.WithName("controllers").WithName(name),
 		Manager:  mgr,
 		Recorder: mgr.GetEventRecorderFor(name),
 		Platform: cluster.GetRelease().Name,
 	}
+
+	return &cc, nil
 }
 
 func (r *BaseReconciler[T]) AddAction(action Action) {
