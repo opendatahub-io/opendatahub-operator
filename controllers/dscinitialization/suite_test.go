@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	configv1 "github.com/openshift/api/config/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	userv1 "github.com/openshift/api/user/v1"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -116,6 +117,7 @@ var _ = BeforeSuite(func() {
 	utilruntime.Must(routev1.Install(testScheme))
 	utilruntime.Must(userv1.Install(testScheme))
 	utilruntime.Must(monitoringv1.AddToScheme(testScheme))
+	utilruntime.Must(configv1.Install(testScheme))
 	// +kubebuilder:scaffold:scheme
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: testScheme})

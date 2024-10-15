@@ -12,4 +12,7 @@ const (
 
 	// DefaultNotebooksNamespace defines default namespace for notebooks.
 	DefaultNotebooksNamespace = "rhods-notebooks"
+
+	// Default cluster-scope Authentication CR name.
+	ClusterAuthenticationObj = "cluster"
 )
