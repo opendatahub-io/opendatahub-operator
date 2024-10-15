@@ -35,7 +35,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -127,12 +126,7 @@ func CreateDashboardInstance(dsc *dscv1.DataScienceCluster) *componentsv1.Dashbo
 			Name: DashboardInstanceName,
 		},
 		Spec: componentsv1.DashboardSpec{
-			DSCDashboard: componentsv1.DSCDashboard{
-				Component: components.Component{
-					ManagementState: dsc.Spec.Components.Dashboard.ManagementState,
-					DevFlags:        dsc.Spec.Components.Dashboard.DevFlags,
-				},
-			},
+			DSCDashboard: dsc.Spec.Components.Dashboard,
 		},
 	}
 }
