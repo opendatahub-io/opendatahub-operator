@@ -9,8 +9,11 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/blang/semver/v4"
 	"github.com/go-logr/logr"
+	"github.com/joho/godotenv"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"github.com/operator-framework/api/pkg/lib/version"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -19,6 +22,7 @@ import (
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -80,6 +84,35 @@ func (d *Dashboard) OverrideManifests(ctx context.Context, platform cluster.Plat
 
 func (d *Dashboard) GetComponentName() string {
 	return ComponentNameUpstream
+}
+
+func (d *Dashboard) GetComponentStatus() ([]status.ComponentReleaseStatus, error) {
+	var componentVersion semver.Version
+	var upstreamReleases = make([]status.ComponentReleaseStatus, 0)
+	fmt.Print("manifest path", d.DevFlags.Manifests)
+	env, err := godotenv.Read(filepath.Join(deploy.DefaultManifestPath, ComponentNameUpstream, ".env"))
+
+	if err != nil {
+		fmt.Print("godotenv", err)
+		return nil, err
+	}
+	if env != nil {
+		componentVersion, err = semver.Parse(env["INTERNAL_RELEASE_VERSION"])
+
+		if err != nil {
+			fmt.Print("getEnv error", err)
+			return nil, err
+		}
+	}
+	releaseStatus := status.ComponentReleaseStatus{
+		Name:        status.Platform(ComponentNameUpstream),
+		DisplayName: ComponentNameDownstream,
+		Version:     version.OperatorVersion{Version: componentVersion},
+		RepoURL:     d.DevFlags.Manifests[0].URI}
+	fmt.Print("release object", releaseStatus)
+	// returnDetails.UpstreamReleases = upstreamReleases
+	upstreamReleases = append(upstreamReleases, releaseStatus)
+	return upstreamReleases, nil
 }
 
 func (d *Dashboard) ReconcileComponent(ctx context.Context,
