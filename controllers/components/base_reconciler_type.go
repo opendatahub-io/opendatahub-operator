@@ -89,7 +89,11 @@ func (r *ComponentReconciler[T]) AddFinalizer(action Action) {
 func (r *ComponentReconciler[T]) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	l := log.FromContext(ctx)
 
-	res := reflect.New(reflect.TypeOf(*new(T)).Elem()).Interface().(T)
+	t := reflect.TypeOf(*new(T)).Elem()
+	res, ok := reflect.New(t).Interface().(T)
+	if !ok {
+		return ctrl.Result{}, fmt.Errorf("unable to construct instance of %v", t)
+	}
 	if err := r.Client.Get(ctx, client.ObjectKey{Name: req.Name}, res); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}

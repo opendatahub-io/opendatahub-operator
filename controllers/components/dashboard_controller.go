@@ -70,7 +70,16 @@ func NewDashboardReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	r.AddAction(&SupportDevFlagsAction{BaseAction{Log: mgr.GetLogger().WithName("actions").WithName("devFlags")}})
 	r.AddAction(&CleanupOAuthClientAction{BaseAction{Log: mgr.GetLogger().WithName("actions").WithName("cleanup")}})
 	r.AddAction(&DeployComponentAction{BaseAction{Log: mgr.GetLogger().WithName("actions").WithName("deploy")}})
-	r.AddAction(&UpdateStatusAction{BaseAction{Log: mgr.GetLogger().WithName("actions").WithName("update-status")}})
+	r.AddAction(&UpdateStatusAction{
+		BaseAction: BaseAction{
+			Log: mgr.GetLogger().WithName("actions").WithName("update-status"),
+		},
+		Labels: map[string]string{
+			//TODO: upstream vs downstream name
+			//TODO: label should include generic names
+			"app.opendatahub.io/dashboard": "true",
+		},
+	})
 
 	r.AddFinalizer(&DeleteResourcesAction{
 		BaseAction: BaseAction{
@@ -81,13 +90,13 @@ func NewDashboardReconciler(ctx context.Context, mgr ctrl.Manager) error {
 			&corev1.Secret{},
 		},
 		Labels: map[string]string{
+			//TODO: upstream vs downstream name
+			//TODO: label should include generic names
 			"app.opendatahub.io/dashboard": "true",
 		},
 	})
 
-	eh := handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {
-		return watchDashboardResources(ctx, a)
-	})
+	eh := handler.EnqueueRequestsFromMapFunc(watchDashboardResources)
 
 	err = ctrl.NewControllerManagedBy(mgr).
 		For(&componentsv1.Dashboard{}).
@@ -173,8 +182,7 @@ func CreateDashboardInstance(dsc *dscv1.DataScienceCluster) *componentsv1.Dashbo
 
 // +kubebuilder:rbac:groups="*",resources=replicasets,verbs=*
 
-func watchDashboardResources(ctx context.Context, a client.Object) []reconcile.Request {
-
+func watchDashboardResources(_ context.Context, a client.Object) []reconcile.Request {
 	if a.GetLabels()["app.opendatahub.io/dashboard"] == "true" {
 		return []reconcile.Request{{
 			NamespacedName: types.NamespacedName{Name: DashboardInstanceName},
@@ -283,7 +291,11 @@ type SupportDevFlagsAction struct {
 }
 
 func (a *SupportDevFlagsAction) Execute(ctx context.Context, rr *ReconciliationRequest) error {
-	dashboard := rr.Instance.(*componentsv1.Dashboard)
+	dashboard, ok := rr.Instance.(*componentsv1.Dashboard)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentsv1.Dashboard)", rr.Instance)
+	}
+
 	if dashboard.Spec.DevFlags == nil {
 		return nil
 	}
@@ -391,13 +403,5 @@ func (a *DeployComponentAction) Execute(ctx context.Context, rr *ReconciliationR
 			return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentNameUpstream, err)
 		}
 	}
-	return nil
-}
-
-type UpdateStatusAction struct {
-	BaseAction
-}
-
-func (a *UpdateStatusAction) Execute(ctx context.Context, rr *ReconciliationRequest) error {
 	return nil
 }
