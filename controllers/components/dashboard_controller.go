@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"k8s.io/utils/pointer"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -47,9 +48,12 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
-var (
-	DashboardInstanceName = "default-dashboard"
+const (
 	ComponentName         = "dashboard"
+	DashboardInstanceName = "default-dashboard"
+)
+
+var (
 	ComponentNameUpstream = ComponentName
 	PathUpstream          = deploy.DefaultManifestPath + "/" + ComponentNameUpstream + "/odh"
 
@@ -76,18 +80,7 @@ func NewDashboardReconciler(ctx context.Context, mgr ctrl.Manager) error {
 
 	r.AddAction(actions.NewUpdateStatusAction(
 		actionCtx,
-		//TODO: upstream vs downstream name
-		//TODO: label should include generic names
-		actions.WithUpdateStatusLabel("app.opendatahub.io/dashboard", "true"),
-	))
-
-	r.AddFinalizer(actions.NewDeleteResourcesAction(
-		actionCtx,
-		// include only the types that must be deleted
-		actions.WithDeleteResourcesTypes(&corev1.Secret{}),
-		//TODO: upstream vs downstream name
-		//TODO: label should include generic names
-		actions.WithDeleteResourcesLabel("app.opendatahub.io/dashboard", "true"),
+		actions.WithUpdateStatusLabel(labels.ComponentName, ComponentName),
 	))
 
 	eh := handler.EnqueueRequestsFromMapFunc(watchDashboardResources)
@@ -361,36 +354,51 @@ func (a *DeployComponentAction) Execute(ctx context.Context, rr *odhtypes.Reconc
 	//	return fmt.Errorf("failed to update params.env  from %s : %w", r.entryPath, err)
 	// }
 
+	path := rr.Manifests.Paths[rr.Platform]
+	name := ComponentNameUpstream
+
 	// common: Deploy odh-dashboard manifests
 	// TODO: check if we can have the same component name odh-dashboard for both, or still keep rhods-dashboard for RHOAI
 	switch rr.Platform {
 	case cluster.SelfManagedRhods, cluster.ManagedRhods:
 		// anaconda
-		if err := cluster.CreateSecret(ctx, rr.Client, "anaconda-ce-access", rr.DSCI.Spec.ApplicationsNamespace); err != nil {
+		err := cluster.CreateSecret(
+			ctx,
+			rr.Client,
+			"anaconda-ce-access",
+			rr.DSCI.Spec.ApplicationsNamespace,
+			// set owner reference so it gets deleted when the Dashboard resource get deleted as well
+			cluster.WithOwnerReference(metav1.OwnerReference{
+				APIVersion:         rr.Instance.GetObjectKind().GroupVersionKind().GroupVersion().String(),
+				Kind:               rr.Instance.GetObjectKind().GroupVersionKind().Kind,
+				Name:               rr.Instance.GetName(),
+				UID:                rr.Instance.GetUID(),
+				Controller:         pointer.Bool(true),
+				BlockOwnerDeletion: pointer.Bool(true),
+			}),
+			cluster.WithLabels(
+				labels.ComponentName, ComponentName,
+				labels.ODH.Component(name), "true",
+				labels.K8SCommon.PartOf, name,
+			),
+		)
+
+		if err != nil {
 			return fmt.Errorf("failed to create access-secret for anaconda: %w", err)
 		}
-		// Deploy RHOAI manifests
-		if err := deploy.DeployManifestsFromPath(ctx, rr.Client, rr.Instance, rr.Manifests.Paths[rr.Platform], rr.DSCI.Spec.ApplicationsNamespace, ComponentNameDownstream, true); err != nil {
-			return fmt.Errorf("failed to apply manifests from %s: %w", PathDownstream, err)
-		}
-		a.Log.Info("apply manifests done")
 
-		if err := cluster.WaitForDeploymentAvailable(ctx, rr.Client, ComponentNameDownstream, rr.DSCI.Spec.ApplicationsNamespace, 20, 3); err != nil {
-			return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentNameDownstream, err)
-		}
-
-		return nil
-
-	default:
-		// Deploy ODH manifests
-		if err := deploy.DeployManifestsFromPath(ctx, rr.Client, rr.Instance, rr.Manifests.Paths[cluster.OpenDataHub], rr.DSCI.Spec.ApplicationsNamespace, ComponentNameUpstream, true); err != nil {
-			return err
-		}
-		a.Log.Info("apply manifests done")
-
-		if err := cluster.WaitForDeploymentAvailable(ctx, rr.Client, ComponentNameUpstream, rr.DSCI.Spec.ApplicationsNamespace, 20, 3); err != nil {
-			return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentNameUpstream, err)
-		}
+		name = ComponentNameDownstream
 	}
+
+	err = deploy.DeployManifestsFromPathWithLabels(ctx, rr.Client, rr.Instance, path, rr.DSCI.Spec.ApplicationsNamespace, name, true, map[string]string{
+		labels.ComponentName: ComponentName,
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to apply manifests from %s: %w", name, err)
+	}
+
+	a.Log.Info("apply manifests done")
+
 	return nil
 }

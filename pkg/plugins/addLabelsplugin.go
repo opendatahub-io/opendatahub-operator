@@ -16,11 +16,15 @@ import (
 //   - It adds labels to the "spec/template/metadata/labels" and "spec/selector/matchLabels" paths
 //     for resources of kind "Deployment".
 func CreateAddLabelsPlugin(componentName string) *builtins.LabelTransformerPlugin {
+	return CreateSetLabelsPlugin(map[string]string{
+		labels.ODH.Component(componentName): "true",
+		labels.K8SCommon.PartOf:             componentName,
+	})
+}
+
+func CreateSetLabelsPlugin(labels map[string]string) *builtins.LabelTransformerPlugin {
 	return &builtins.LabelTransformerPlugin{
-		Labels: map[string]string{
-			labels.ODH.Component(componentName): "true",
-			labels.K8SCommon.PartOf:             componentName,
-		},
+		Labels: labels,
 		FieldSpecs: []types.FieldSpec{
 			{
 				Gvk:                resid.Gvk{Kind: "Deployment"},
