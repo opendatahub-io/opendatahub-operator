@@ -156,5 +156,17 @@ func (r *ComponentReconciler[T]) Reconcile(ctx context.Context, req ctrl.Request
 		}
 	}
 
+	// update status
+	err := r.Client.ApplyStatus(
+		ctx,
+		rr.Instance,
+		client.FieldOwner(rr.Instance.GetName()),
+		client.ForceOwnership,
+	)
+
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
 	return ctrl.Result{}, nil
 }
