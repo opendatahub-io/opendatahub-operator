@@ -3,25 +3,63 @@ package components
 import (
 	"context"
 	"fmt"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	appsv1 "k8s.io/api/apps/v1"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+const (
+	ActionGroup = "action"
+)
+
+//
+// Delete Resources Action
+//
+
+const (
+	DeleteResourcesActionName = "delete-resources"
+)
+
 type DeleteResourcesAction struct {
 	BaseAction
-	Types  []client.Object
-	Labels map[string]string
+	types  []client.Object
+	labels map[string]string
+}
+
+type DeleteResourcesActionOpts func(*DeleteResourcesAction)
+
+func WithDeleteResourcesTypes(values ...client.Object) DeleteResourcesActionOpts {
+	return func(action *DeleteResourcesAction) {
+		action.types = append(action.types, values...)
+	}
+}
+
+func WithDeleteResourcesLabel(k string, v string) DeleteResourcesActionOpts {
+	return func(action *DeleteResourcesAction) {
+		action.labels[k] = v
+	}
+}
+
+func WithDeleteResourcesLabels(values map[string]string) DeleteResourcesActionOpts {
+	return func(action *DeleteResourcesAction) {
+		for k, v := range values {
+			action.labels[k] = v
+		}
+	}
 }
 
 func (r *DeleteResourcesAction) Execute(ctx context.Context, rr *ReconciliationRequest) error {
-	for i := range r.Types {
-		opts := make([]client.DeleteAllOfOption, 0, 1)
-		opts = append(opts, client.MatchingLabels(r.Labels))
+	for i := range r.types {
+		opts := make([]client.DeleteAllOfOption, 0)
 
-		namespaced, err := rr.Client.IsObjectNamespaced(r.Types[i])
+		if len(r.labels) > 0 {
+			opts = append(opts, client.MatchingLabels(r.labels))
+		}
+
+		namespaced, err := rr.Client.IsObjectNamespaced(r.types[i])
 		if err != nil {
 			return err
 		}
@@ -30,7 +68,7 @@ func (r *DeleteResourcesAction) Execute(ctx context.Context, rr *ReconciliationR
 			opts = append(opts, client.InNamespace(rr.DSCI.Spec.ApplicationsNamespace))
 		}
 
-		err = rr.Client.DeleteAllOf(ctx, r.Types[i], opts...)
+		err = rr.Client.DeleteAllOf(ctx, r.types[i], opts...)
 		if err != nil {
 			return err
 		}
@@ -39,12 +77,56 @@ func (r *DeleteResourcesAction) Execute(ctx context.Context, rr *ReconciliationR
 	return nil
 }
 
+func NewDeleteResourcesAction(ctx context.Context, opts ...DeleteResourcesActionOpts) *DeleteResourcesAction {
+	action := DeleteResourcesAction{
+		BaseAction: BaseAction{
+			Log: log.FromContext(ctx).WithName(ActionGroup).WithName(DeleteResourcesActionName),
+		},
+		types:  make([]client.Object, 0),
+		labels: map[string]string{},
+	}
+
+	for _, opt := range opts {
+		opt(&action)
+	}
+
+	return &action
+}
+
+//
+// Update Status Action
+//
+
+const (
+	UpdateStatusActionName = "update-status"
+)
+
 type UpdateStatusAction struct {
 	BaseAction
-	Labels map[string]string
+	labels map[string]string
+}
+
+type UpdateStatusActionOpts func(*UpdateStatusAction)
+
+func WithUpdateStatusLabel(k string, v string) UpdateStatusActionOpts {
+	return func(action *UpdateStatusAction) {
+		action.labels[k] = v
+	}
+}
+
+func WithUpdateStatusLabels(values map[string]string) UpdateStatusActionOpts {
+	return func(action *UpdateStatusAction) {
+		for k, v := range values {
+			action.labels[k] = v
+		}
+	}
 }
 
 func (a *UpdateStatusAction) Execute(ctx context.Context, rr *ReconciliationRequest) error {
+	if len(a.labels) > 0 {
+		return nil
+	}
+
 	obj, ok := rr.Instance.(ResourceObject)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a ResourceObject", rr.Instance)
@@ -56,7 +138,7 @@ func (a *UpdateStatusAction) Execute(ctx context.Context, rr *ReconciliationRequ
 		ctx,
 		deployments,
 		client.InNamespace(rr.DSCI.Spec.ApplicationsNamespace),
-		client.MatchingLabels(a.Labels),
+		client.MatchingLabels(a.labels),
 	)
 
 	if err != nil {
@@ -70,22 +152,34 @@ func (a *UpdateStatusAction) Execute(ctx context.Context, rr *ReconciliationRequ
 		}
 	}
 
-	status := metav1.ConditionTrue
-	reason := "Ready"
-
-	if len(deployments.Items) > 0 && ready != len(deployments.Items) {
-		status = metav1.ConditionFalse
-		reason = "Ready"
+	conditionReady := metav1.Condition{
+		Type:    status.ConditionTypeReady,
+		Status:  metav1.ConditionTrue,
+		Reason:  "Ready",
+		Message: fmt.Sprintf("%d/%d deployments ready", ready, len(deployments.Items)),
 	}
 
-	s := obj.GetStatus()
+	if len(deployments.Items) > 0 && ready != len(deployments.Items) {
+		conditionReady.Status = metav1.ConditionFalse
+		conditionReady.Reason = "DeploymentsNotReady"
+	}
 
-	meta.SetStatusCondition(&s.Conditions, metav1.Condition{
-		Type:    "Ready",
-		Status:  status,
-		Reason:  reason,
-		Message: fmt.Sprintf("%d/%d deployments ready", ready, len(deployments.Items)),
-	})
+	status.SetStatusCondition(obj, conditionReady)
 
 	return nil
+}
+
+func NewUpdateStatusAction(ctx context.Context, opts ...UpdateStatusActionOpts) *UpdateStatusAction {
+	action := UpdateStatusAction{
+		BaseAction: BaseAction{
+			Log: log.FromContext(ctx).WithName(ActionGroup).WithName(UpdateStatusActionName),
+		},
+		labels: map[string]string{},
+	}
+
+	for _, opt := range opts {
+		opt(&action)
+	}
+
+	return &action
 }

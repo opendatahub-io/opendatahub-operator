@@ -35,6 +35,10 @@ type ResourceObject interface {
 	components.WithStatus
 }
 
+type WithLogger interface {
+	GetLogger() logr.Logger
+}
+
 type ReconciliationRequest struct {
 	client.Client
 	Instance  client.Object
@@ -76,6 +80,10 @@ func NewComponentReconciler[T ResourceObject](ctx context.Context, mgr manager.M
 	}
 
 	return &cc, nil
+}
+
+func (r *ComponentReconciler[T]) GetLogger() logr.Logger {
+	return r.Log
 }
 
 func (r *ComponentReconciler[T]) AddAction(action Action) {

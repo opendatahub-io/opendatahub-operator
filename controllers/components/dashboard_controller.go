@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -65,36 +64,28 @@ func NewDashboardReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		return err
 	}
 
+	actionCtx := logf.IntoContext(ctx, r.Log)
 	// Add Dashboard-specific actions
 	r.AddAction(&InitializeAction{BaseAction{Log: mgr.GetLogger().WithName("actions").WithName("initialize")}})
 	r.AddAction(&SupportDevFlagsAction{BaseAction{Log: mgr.GetLogger().WithName("actions").WithName("devFlags")}})
 	r.AddAction(&CleanupOAuthClientAction{BaseAction{Log: mgr.GetLogger().WithName("actions").WithName("cleanup")}})
 	r.AddAction(&DeployComponentAction{BaseAction{Log: mgr.GetLogger().WithName("actions").WithName("deploy")}})
-	r.AddAction(&UpdateStatusAction{
-		BaseAction: BaseAction{
-			Log: mgr.GetLogger().WithName("actions").WithName("update-status"),
-		},
-		Labels: map[string]string{
-			//TODO: upstream vs downstream name
-			//TODO: label should include generic names
-			"app.opendatahub.io/dashboard": "true",
-		},
-	})
 
-	r.AddFinalizer(&DeleteResourcesAction{
-		BaseAction: BaseAction{
-			Log: mgr.GetLogger().WithName("finalizers").WithName("cleanup"),
-		},
+	r.AddAction(NewUpdateStatusAction(
+		actionCtx,
+		//TODO: upstream vs downstream name
+		//TODO: label should include generic names
+		WithUpdateStatusLabel("app.opendatahub.io/dashboard", "true"),
+	))
+
+	r.AddFinalizer(NewDeleteResourcesAction(
+		actionCtx,
 		// include only the types that must be deleted
-		Types: []client.Object{
-			&corev1.Secret{},
-		},
-		Labels: map[string]string{
-			//TODO: upstream vs downstream name
-			//TODO: label should include generic names
-			"app.opendatahub.io/dashboard": "true",
-		},
-	})
+		WithDeleteResourcesTypes(&corev1.Secret{}),
+		//TODO: upstream vs downstream name
+		//TODO: label should include generic names
+		WithDeleteResourcesLabel("app.opendatahub.io/dashboard", "true"),
+	))
 
 	eh := handler.EnqueueRequestsFromMapFunc(watchDashboardResources)
 
