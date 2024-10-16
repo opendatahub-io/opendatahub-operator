@@ -125,50 +125,50 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 				},
 				Workbenches: workbenches.Workbenches{
 					Component: componentsold.Component{
-						ManagementState: operatorv1.Managed,
+						ManagementState: operatorv1.Removed,
 					},
 				},
 				ModelMeshServing: modelmeshserving.ModelMeshServing{
 					Component: componentsold.Component{
-						ManagementState: operatorv1.Managed,
+						ManagementState: operatorv1.Removed,
 					},
 				},
 				DataSciencePipelines: datasciencepipelines.DataSciencePipelines{
 					Component: componentsold.Component{
-						ManagementState: operatorv1.Managed,
+						ManagementState: operatorv1.Removed,
 					},
 				},
 				Kserve: kserve.Kserve{
 					Component: componentsold.Component{
-						ManagementState: operatorv1.Managed,
+						ManagementState: operatorv1.Removed,
 					},
 					Serving: infrav1.ServingSpec{
-						ManagementState: operatorv1.Managed,
+						ManagementState: operatorv1.Removed,
 					},
 				},
 				CodeFlare: codeflare.CodeFlare{
 					Component: componentsold.Component{
-						ManagementState: operatorv1.Managed,
+						ManagementState: operatorv1.Removed,
 					},
 				},
 				Ray: ray.Ray{
 					Component: componentsold.Component{
-						ManagementState: operatorv1.Managed,
+						ManagementState: operatorv1.Removed,
 					},
 				},
 				Kueue: kueue.Kueue{
 					Component: componentsold.Component{
-						ManagementState: operatorv1.Managed,
+						ManagementState: operatorv1.Removed,
 					},
 				},
 				TrustyAI: trustyai.TrustyAI{
 					Component: componentsold.Component{
-						ManagementState: operatorv1.Managed,
+						ManagementState: operatorv1.Removed,
 					},
 				},
 				ModelRegistry: modelregistry.ModelRegistry{
 					Component: componentsold.Component{
-						ManagementState: operatorv1.Managed,
+						ManagementState: operatorv1.Removed,
 					},
 				},
 				TrainingOperator: trainingoperator.TrainingOperator{

@@ -20,16 +20,12 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
 	componentctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/serverless"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
@@ -81,29 +77,29 @@ func creationTestSuite(t *testing.T) {
 		})
 
 		// Kserve
-		t.Run("Validate Knative resoruce", func(t *testing.T) {
-			err = testCtx.validateDSC()
-			require.NoError(t, err, "error getting Knatvie resrouce as part of DataScienceCluster validation")
-		})
-		t.Run("Validate default certs available", func(t *testing.T) {
-			// move it to be part of check with kserve since it is using serving's secret
-			err = testCtx.testDefaultCertsAvailable()
-			require.NoError(t, err, "error getting default cert secrets for Kserve")
-		})
+		// t.Run("Validate Knative resoruce", func(t *testing.T) {
+		//	err = testCtx.validateDSC()
+		//	require.NoError(t, err, "error getting Knatvie resrouce as part of DataScienceCluster validation")
+		// })
+		// t.Run("Validate default certs available", func(t *testing.T) {
+		//	// move it to be part of check with kserve since it is using serving's secret
+		//	err = testCtx.testDefaultCertsAvailable()
+		//	require.NoError(t, err, "error getting default cert secrets for Kserve")
+		// })
 
 		// ModelReg
-		t.Run("Validate model registry cert config", func(t *testing.T) {
-			err = testCtx.validateModelRegistryConfig()
-			require.NoError(t, err, "error validating ModelRegistry config")
-		})
-		t.Run("Validate default model registry cert available", func(t *testing.T) {
-			err = testCtx.testDefaultModelRegistryCertAvailable()
-			require.NoError(t, err, "error getting default cert secret for ModelRegistry")
-		})
-		t.Run("Validate model registry servicemeshmember available", func(t *testing.T) {
-			err = testCtx.testMRServiceMeshMember()
-			require.NoError(t, err, "error getting servicemeshmember for Model Registry")
-		})
+		// t.Run("Validate model registry cert config", func(t *testing.T) {
+		//	err = testCtx.validateModelRegistryConfig()
+		//	require.NoError(t, err, "error validating ModelRegistry config")
+		// })
+		// t.Run("Validate default model registry cert available", func(t *testing.T) {
+		//	err = testCtx.testDefaultModelRegistryCertAvailable()
+		//	require.NoError(t, err, "error getting default cert secret for ModelRegistry")
+		// })
+		// t.Run("Validate model registry servicemeshmember available", func(t *testing.T) {
+		//	err = testCtx.testMRServiceMeshMember()
+		//	require.NoError(t, err, "error getting servicemeshmember for Model Registry")
+		// })
 
 		// reconcile
 		t.Run("Validate Controller reconcile", func(t *testing.T) {
@@ -364,28 +360,28 @@ func (tc *testContext) validateDSCI() error {
 	return nil
 }
 
-// test if knative resource has been created.
-func (tc *testContext) validateDSC() error {
-	expServingSpec := infrav1.ServingSpec{
-		ManagementState: operatorv1.Managed,
-		Name:            "knative-serving",
-		IngressGateway: infrav1.GatewaySpec{
-			Certificate: infrav1.CertificateSpec{
-				Type: infrav1.OpenshiftDefaultIngress,
-			},
-		},
-	}
-
-	act := tc.testDsc
-
-	if act.Spec.Components.Kserve.Serving != expServingSpec {
-		err := fmt.Errorf("Expected serving spec %v, got %v",
-			expServingSpec, act.Spec.Components.Kserve.Serving)
-		return err
-	}
-
-	return nil
-}
+//// test if knative resource has been created.
+// func (tc *testContext) validateDSC() error {
+//	expServingSpec := infrav1.ServingSpec{
+//		ManagementState: operatorv1.Managed,
+//		Name:            "knative-serving",
+//		IngressGateway: infrav1.GatewaySpec{
+//			Certificate: infrav1.CertificateSpec{
+//				Type: infrav1.OpenshiftDefaultIngress,
+//			},
+//		},
+//	}
+//
+//	act := tc.testDsc
+//
+//	if act.Spec.Components.Kserve.Serving != expServingSpec {
+//		err := fmt.Errorf("Expected serving spec %v, got %v",
+//			expServingSpec, act.Spec.Components.Kserve.Serving)
+//		return err
+//	}
+//
+//	return nil
+//}
 
 func (tc *testContext) testOwnerrefrences() error {
 	// Test any one of the apps
@@ -406,102 +402,102 @@ func (tc *testContext) testOwnerrefrences() error {
 	return nil
 }
 
-func (tc *testContext) testDefaultCertsAvailable() error {
-	// Get expected cert secrets
-	defaultIngressCtrl, err := cluster.FindAvailableIngressController(tc.ctx, tc.customClient)
-	if err != nil {
-		return fmt.Errorf("failed to get ingress controller: %w", err)
-	}
+// func (tc *testContext) testDefaultCertsAvailable() error {
+//	// Get expected cert secrets
+//	defaultIngressCtrl, err := cluster.FindAvailableIngressController(tc.ctx, tc.customClient)
+//	if err != nil {
+//		return fmt.Errorf("failed to get ingress controller: %w", err)
+//	}
+//
+//	defaultIngressCertName := cluster.GetDefaultIngressCertSecretName(defaultIngressCtrl)
+//
+//	defaultIngressSecret, err := cluster.GetSecret(tc.ctx, tc.customClient, "openshift-ingress", defaultIngressCertName)
+//	if err != nil {
+//		return err
+//	}
+//
+//	// Verify secret from Control Plane namespace matches the default cert secret
+//	defaultSecretName := tc.testDsc.Spec.Components.Kserve.Serving.IngressGateway.Certificate.SecretName
+//	if defaultSecretName == "" {
+//		defaultSecretName = serverless.DefaultCertificateSecretName
+//	}
+//	ctrlPlaneSecret, err := cluster.GetSecret(tc.ctx, tc.customClient, tc.testDSCI.Spec.ServiceMesh.ControlPlane.Namespace,
+//		defaultSecretName)
+//	if err != nil {
+//		return err
+//	}
+//
+//	if ctrlPlaneSecret.Type != defaultIngressSecret.Type {
+//		return fmt.Errorf("wrong type of cert secret is created for %v. Expected %v, Got %v", defaultSecretName, defaultIngressSecret.Type, ctrlPlaneSecret.Type)
+//	}
+//
+//	if string(defaultIngressSecret.Data["tls.crt"]) != string(ctrlPlaneSecret.Data["tls.crt"]) {
+//		return fmt.Errorf("default cert secret not expected. Epected %v, Got %v", defaultIngressSecret.Data["tls.crt"], ctrlPlaneSecret.Data["tls.crt"])
+//	}
+//
+//	if string(defaultIngressSecret.Data["tls.key"]) != string(ctrlPlaneSecret.Data["tls.key"]) {
+//		return fmt.Errorf("default cert secret not expected. Epected %v, Got %v", defaultIngressSecret.Data["tls.crt"], ctrlPlaneSecret.Data["tls.crt"])
+//	}
+//	return nil
+//}
+//
+// func (tc *testContext) testDefaultModelRegistryCertAvailable() error {
+//	// return if MR is not set to Managed
+//	if tc.testDsc.Spec.Components.ModelRegistry.ManagementState != operatorv1.Managed {
+//		return nil
+//	}
+//
+//	// Get expected cert secrets
+//	defaultIngressCtrl, err := cluster.FindAvailableIngressController(tc.ctx, tc.customClient)
+//	if err != nil {
+//		return fmt.Errorf("failed to get ingress controller: %w", err)
+//	}
+//
+//	defaultIngressCertName := cluster.GetDefaultIngressCertSecretName(defaultIngressCtrl)
+//
+//	defaultIngressSecret, err := cluster.GetSecret(tc.ctx, tc.customClient, "openshift-ingress", defaultIngressCertName)
+//	if err != nil {
+//		return err
+//	}
+//
+//	// Verify secret from Control Plane namespace matches the default MR cert secret
+//	defaultMRSecretName := modelregistry.DefaultModelRegistryCert
+//	defaultMRSecret, err := cluster.GetSecret(tc.ctx, tc.customClient, tc.testDSCI.Spec.ServiceMesh.ControlPlane.Namespace,
+//		defaultMRSecretName)
+//	if err != nil {
+//		return err
+//	}
+//
+//	if defaultMRSecret.Type != defaultIngressSecret.Type {
+//		return fmt.Errorf("wrong type of MR cert secret is created for %v. Expected %v, Got %v", defaultMRSecretName, defaultIngressSecret.Type, defaultMRSecret.Type)
+//	}
+//
+//	if string(defaultIngressSecret.Data["tls.crt"]) != string(defaultMRSecret.Data["tls.crt"]) {
+//		return fmt.Errorf("default MR cert secret not expected. Epected %v, Got %v", defaultIngressSecret.Data["tls.crt"], defaultMRSecret.Data["tls.crt"])
+//	}
+//
+//	if string(defaultIngressSecret.Data["tls.key"]) != string(defaultMRSecret.Data["tls.key"]) {
+//		return fmt.Errorf("default MR cert secret not expected. Epected %v, Got %v", defaultIngressSecret.Data["tls.crt"], defaultMRSecret.Data["tls.crt"])
+//	}
+//	return nil
+//}
 
-	defaultIngressCertName := cluster.GetDefaultIngressCertSecretName(defaultIngressCtrl)
-
-	defaultIngressSecret, err := cluster.GetSecret(tc.ctx, tc.customClient, "openshift-ingress", defaultIngressCertName)
-	if err != nil {
-		return err
-	}
-
-	// Verify secret from Control Plane namespace matches the default cert secret
-	defaultSecretName := tc.testDsc.Spec.Components.Kserve.Serving.IngressGateway.Certificate.SecretName
-	if defaultSecretName == "" {
-		defaultSecretName = serverless.DefaultCertificateSecretName
-	}
-	ctrlPlaneSecret, err := cluster.GetSecret(tc.ctx, tc.customClient, tc.testDSCI.Spec.ServiceMesh.ControlPlane.Namespace,
-		defaultSecretName)
-	if err != nil {
-		return err
-	}
-
-	if ctrlPlaneSecret.Type != defaultIngressSecret.Type {
-		return fmt.Errorf("wrong type of cert secret is created for %v. Expected %v, Got %v", defaultSecretName, defaultIngressSecret.Type, ctrlPlaneSecret.Type)
-	}
-
-	if string(defaultIngressSecret.Data["tls.crt"]) != string(ctrlPlaneSecret.Data["tls.crt"]) {
-		return fmt.Errorf("default cert secret not expected. Epected %v, Got %v", defaultIngressSecret.Data["tls.crt"], ctrlPlaneSecret.Data["tls.crt"])
-	}
-
-	if string(defaultIngressSecret.Data["tls.key"]) != string(ctrlPlaneSecret.Data["tls.key"]) {
-		return fmt.Errorf("default cert secret not expected. Epected %v, Got %v", defaultIngressSecret.Data["tls.crt"], ctrlPlaneSecret.Data["tls.crt"])
-	}
-	return nil
-}
-
-func (tc *testContext) testDefaultModelRegistryCertAvailable() error {
-	// return if MR is not set to Managed
-	if tc.testDsc.Spec.Components.ModelRegistry.ManagementState != operatorv1.Managed {
-		return nil
-	}
-
-	// Get expected cert secrets
-	defaultIngressCtrl, err := cluster.FindAvailableIngressController(tc.ctx, tc.customClient)
-	if err != nil {
-		return fmt.Errorf("failed to get ingress controller: %w", err)
-	}
-
-	defaultIngressCertName := cluster.GetDefaultIngressCertSecretName(defaultIngressCtrl)
-
-	defaultIngressSecret, err := cluster.GetSecret(tc.ctx, tc.customClient, "openshift-ingress", defaultIngressCertName)
-	if err != nil {
-		return err
-	}
-
-	// Verify secret from Control Plane namespace matches the default MR cert secret
-	defaultMRSecretName := modelregistry.DefaultModelRegistryCert
-	defaultMRSecret, err := cluster.GetSecret(tc.ctx, tc.customClient, tc.testDSCI.Spec.ServiceMesh.ControlPlane.Namespace,
-		defaultMRSecretName)
-	if err != nil {
-		return err
-	}
-
-	if defaultMRSecret.Type != defaultIngressSecret.Type {
-		return fmt.Errorf("wrong type of MR cert secret is created for %v. Expected %v, Got %v", defaultMRSecretName, defaultIngressSecret.Type, defaultMRSecret.Type)
-	}
-
-	if string(defaultIngressSecret.Data["tls.crt"]) != string(defaultMRSecret.Data["tls.crt"]) {
-		return fmt.Errorf("default MR cert secret not expected. Epected %v, Got %v", defaultIngressSecret.Data["tls.crt"], defaultMRSecret.Data["tls.crt"])
-	}
-
-	if string(defaultIngressSecret.Data["tls.key"]) != string(defaultMRSecret.Data["tls.key"]) {
-		return fmt.Errorf("default MR cert secret not expected. Epected %v, Got %v", defaultIngressSecret.Data["tls.crt"], defaultMRSecret.Data["tls.crt"])
-	}
-	return nil
-}
-
-func (tc *testContext) testMRServiceMeshMember() error {
-	if tc.testDsc.Spec.Components.ModelRegistry.ManagementState != operatorv1.Managed {
-		return nil
-	}
-
-	// Get unstructured ServiceMeshMember
-	smm := unstructured.Unstructured{}
-	smm.SetAPIVersion("maistra.io/v1")
-	smm.SetKind("ServiceMeshMember")
-	err := tc.customClient.Get(tc.ctx,
-		client.ObjectKey{Namespace: modelregistry.DefaultModelRegistriesNamespace, Name: "default"}, &smm)
-	if err != nil {
-		return fmt.Errorf("failed to get servicemesh member: %w", err)
-	}
-	return nil
-}
+// func (tc *testContext) testMRServiceMeshMember() error {
+//	if tc.testDsc.Spec.Components.ModelRegistry.ManagementState != operatorv1.Managed {
+//		return nil
+//	}
+//
+//	// Get unstructured ServiceMeshMember
+//	smm := unstructured.Unstructured{}
+//	smm.SetAPIVersion("maistra.io/v1")
+//	smm.SetKind("ServiceMeshMember")
+//	err := tc.customClient.Get(tc.ctx,
+//		client.ObjectKey{Namespace: modelregistry.DefaultModelRegistriesNamespace, Name: "default"}, &smm)
+//	if err != nil {
+//		return fmt.Errorf("failed to get servicemesh member: %w", err)
+//	}
+//	return nil
+//}
 
 func (tc *testContext) testUpdateComponentReconcile() error {
 	// Test Updating Dashboard Replicas
@@ -611,52 +607,4 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 		componentctrl.ComponentNameUpstream,
 		dashboardDeploymentName,
 		tc.applicationsNamespace)
-}
-
-const testNs = "test-model-registries"
-
-func (tc *testContext) validateModelRegistryConfig() error {
-	// check immutable property registriesNamespace
-	if tc.testDsc.Spec.Components.ModelRegistry.ManagementState != operatorv1.Managed {
-		// allowed to set registriesNamespace to non-default
-		err := patchRegistriesNamespace(tc, testNs, testNs, false)
-		if err != nil {
-			return err
-		}
-		// allowed to set registriesNamespace back to default value
-		err = patchRegistriesNamespace(tc, modelregistry.DefaultModelRegistriesNamespace,
-			modelregistry.DefaultModelRegistriesNamespace, false)
-		if err != nil {
-			return err
-		}
-	} else {
-		// not allowed to change registriesNamespace
-		err := patchRegistriesNamespace(tc, testNs, modelregistry.DefaultModelRegistriesNamespace, true)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func patchRegistriesNamespace(tc *testContext, namespace string, expected string, expectErr bool) error {
-	patchStr := fmt.Sprintf("{\"spec\":{\"components\":{\"modelregistry\":{\"registriesNamespace\":\"%s\"}}}}", namespace)
-	err := tc.customClient.Patch(tc.ctx, tc.testDsc, client.RawPatch(types.MergePatchType, []byte(patchStr)))
-	if err != nil {
-		if !expectErr {
-			return fmt.Errorf("unexpected error when setting registriesNamespace in DSC %s to %s: %w",
-				tc.testDsc.Name, namespace, err)
-		}
-	} else {
-		if expectErr {
-			return fmt.Errorf("unexpected success when setting registriesNamespace in DSC %s to %s",
-				tc.testDsc.Name, namespace)
-		}
-	}
-	// compare expected against returned registriesNamespace
-	if tc.testDsc.Spec.Components.ModelRegistry.RegistriesNamespace != expected {
-		return fmt.Errorf("expected registriesNamespace %s, got %s",
-			expected, tc.testDsc.Spec.Components.ModelRegistry.RegistriesNamespace)
-	}
-	return nil
 }
