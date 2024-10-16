@@ -21,7 +21,6 @@ import (
 	"flag"
 	"os"
 
-	"github.com/hashicorp/go-multierror"
 	addonv1alpha1 "github.com/openshift/addon-operator/apis/addons/v1alpha1"
 	ocappsv1 "github.com/openshift/api/apps/v1" //nolint:importas //reason: conflicts with appsv1 "k8s.io/api/apps/v1"
 	buildv1 "github.com/openshift/api/build/v1"
@@ -81,7 +80,6 @@ var (
 )
 
 func init() { //nolint:gochecknoinits
-
 	utilruntime.Must(componentsv1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
@@ -106,22 +104,6 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(apiregistrationv1.AddToScheme(scheme))
 	utilruntime.Must(monitoringv1.AddToScheme(scheme))
 	utilruntime.Must(operatorv1.Install(scheme))
-}
-
-func initComponents(ctx context.Context, p cluster.Platform) error {
-	var errs *multierror.Error
-	var dummyDSC = &dscv1.DataScienceCluster{}
-
-	components, err := dummyDSC.GetComponents()
-	if err != nil {
-		return err
-	}
-
-	for _, c := range components {
-		errs = multierror.Append(errs, c.Init(ctx, p))
-	}
-
-	return errs.ErrorOrNil()
 }
 
 func main() { //nolint:funlen,maintidx

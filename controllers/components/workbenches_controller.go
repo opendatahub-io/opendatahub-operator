@@ -27,7 +27,7 @@ import (
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 )
 
-// WorkbenchesReconciler reconciles a Workbenches object
+// WorkbenchesReconciler reconciles a Workbenches object.
 type WorkbenchesReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme

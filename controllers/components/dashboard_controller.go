@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"k8s.io/utils/pointer"
 	"path/filepath"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -177,11 +176,7 @@ func watchDashboardResources(_ context.Context, a client.Object) []reconcile.Req
 
 var dashboardPredicates = predicate.Funcs{
 	CreateFunc: func(e event.CreateEvent) bool {
-		if e.Object.GetObjectKind().GroupVersionKind().Kind == gvk.Dashboard.Kind {
-			return true
-		}
-		// Reconcile not needed during creation
-		return false
+		return e.Object.GetObjectKind().GroupVersionKind().Kind == gvk.Dashboard.Kind
 	},
 	DeleteFunc: func(e event.DeleteEvent) bool {
 		if e.Object.GetObjectKind().GroupVersionKind().Kind == gvk.Dashboard.Kind {
@@ -368,6 +363,8 @@ func (a *DeployComponentAction) Execute(ctx context.Context, rr *odhtypes.Reconc
 	switch rr.Platform {
 	case cluster.SelfManagedRhods, cluster.ManagedRhods:
 		// anaconda
+		blckownerDel := true
+		ctrlr := true
 		err := cluster.CreateSecret(
 			ctx,
 			rr.Client,
@@ -379,8 +376,8 @@ func (a *DeployComponentAction) Execute(ctx context.Context, rr *odhtypes.Reconc
 				Kind:               rr.Instance.GetObjectKind().GroupVersionKind().Kind,
 				Name:               rr.Instance.GetName(),
 				UID:                rr.Instance.GetUID(),
-				Controller:         pointer.Bool(true),
-				BlockOwnerDeletion: pointer.Bool(true),
+				Controller:         &ctrlr,
+				BlockOwnerDeletion: &blckownerDel,
 			}),
 			cluster.WithLabels(
 				labels.ComponentName, ComponentName,
@@ -394,6 +391,7 @@ func (a *DeployComponentAction) Execute(ctx context.Context, rr *odhtypes.Reconc
 		}
 
 		name = ComponentNameDownstream
+	default:
 	}
 
 	err = deploy.DeployManifestsFromPathWithLabels(ctx, rr.Client, rr.Instance, path, rr.DSCI.Spec.ApplicationsNamespace, name, true, map[string]string{

@@ -4,7 +4,7 @@
 package dashboard
 
 //
-//import (
+// import (
 //	"context"
 //	"errors"
 //	"fmt"
@@ -24,7 +24,7 @@ package dashboard
 //	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 //)
 //
-//var (
+// var (
 //	ComponentNameUpstream = "dashboard"
 //	PathUpstream          = deploy.DefaultManifestPath + "/" + ComponentNameUpstream + "/odh"
 //
@@ -37,15 +37,15 @@ package dashboard
 //)
 //
 //// Verifies that Dashboard implements ComponentInterface.
-//var _ components.ComponentInterface = (*Dashboard)(nil)
+// var _ components.ComponentInterface = (*Dashboard)(nil)
 //
 //// Dashboard struct holds the configuration for the Dashboard component.
 //// +kubebuilder:object:generate=true
-//type Dashboard struct {
+// type Dashboard struct {
 //	components.Component `json:""`
 //}
 //
-//func (d *Dashboard) Init(ctx context.Context, platform cluster.Platform) error {
+// func (d *Dashboard) Init(ctx context.Context, platform cluster.Platform) error {
 //	log := logf.FromContext(ctx).WithName(ComponentNameUpstream)
 //
 //	imageParamMap := map[string]string{
@@ -65,7 +65,7 @@ package dashboard
 //	return nil
 //}
 //
-//func (d *Dashboard) OverrideManifests(ctx context.Context, platform cluster.Platform) error {
+// func (d *Dashboard) OverrideManifests(ctx context.Context, platform cluster.Platform) error {
 //	// If devflags are set, update default manifests path
 //	if len(d.DevFlags.Manifests) != 0 {
 //		manifestConfig := d.DevFlags.Manifests[0]
@@ -79,18 +79,18 @@ package dashboard
 //	return nil
 //}
 //
-//func (d *Dashboard) GetComponentName() string {
+// func (d *Dashboard) GetComponentName() string {
 //	return ComponentNameUpstream
 //}
 //
-//func (d *Dashboard) ReconcileComponent(ctx context.Context,
+// func (d *Dashboard) ReconcileComponent(ctx context.Context,
 //	cli client.Client,
 //	l logr.Logger,
 //	owner metav1.Object,
 //	dscispec *dsciv1.DSCInitializationSpec,
 //	platform cluster.Platform,
 //	currentComponentExist bool,
-//) error {
+// ) error {
 //	entryPath := DefaultPath
 //	enabled := d.GetManagementState() == operatorv1.Managed
 //	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
@@ -184,7 +184,7 @@ package dashboard
 //	}
 //}
 //
-//func updateKustomizeVariable(ctx context.Context, cli client.Client, platform cluster.Platform, dscispec *dsciv1.DSCInitializationSpec) (map[string]string, error) {
+// func updateKustomizeVariable(ctx context.Context, cli client.Client, platform cluster.Platform, dscispec *dsciv1.DSCInitializationSpec) (map[string]string, error) {
 //	adminGroups := map[cluster.Platform]string{
 //		cluster.SelfManagedRhods: "rhods-admins",
 //		cluster.ManagedRhods:     "dedicated-admins",
@@ -217,7 +217,7 @@ package dashboard
 //	}, nil
 //}
 //
-//func (d *Dashboard) cleanOauthClient(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec, currentComponentExist bool, l logr.Logger) error {
+// func (d *Dashboard) cleanOauthClient(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec, currentComponentExist bool, l logr.Logger) error {
 //	// Remove previous oauth-client secrets
 //	// Check if component is going from state of `Not Installed --> Installed`
 //	// Assumption: Component is currently set to enabled

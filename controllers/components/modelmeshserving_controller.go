@@ -27,7 +27,7 @@ import (
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 )
 
-// ModelMeshServingReconciler reconciles a ModelMeshServing object
+// ModelMeshServingReconciler reconciles a ModelMeshServing object.
 type ModelMeshServingReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme

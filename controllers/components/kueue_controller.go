@@ -27,7 +27,7 @@ import (
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 )
 
-// KueueReconciler reconciles a Kueue object
+// KueueReconciler reconciles a Kueue object.
 type KueueReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme

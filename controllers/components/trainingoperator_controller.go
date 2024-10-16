@@ -27,7 +27,7 @@ import (
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 )
 
-// TrainingOperatorReconciler reconciles a TrainingOperator object
+// TrainingOperatorReconciler reconciles a TrainingOperator object.
 type TrainingOperatorReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme

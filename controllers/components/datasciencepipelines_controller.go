@@ -27,7 +27,7 @@ import (
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 )
 
-// DataSciencePipelinesReconciler reconciles a DataSciencePipelines object
+// DataSciencePipelinesReconciler reconciles a DataSciencePipelines object.
 type DataSciencePipelinesReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme

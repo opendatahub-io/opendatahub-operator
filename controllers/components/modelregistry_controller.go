@@ -27,7 +27,7 @@ import (
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 )
 
-// ModelRegistryReconciler reconciles a ModelRegistry object
+// ModelRegistryReconciler reconciles a ModelRegistry object.
 type ModelRegistryReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme

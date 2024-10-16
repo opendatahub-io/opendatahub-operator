@@ -13,18 +13,19 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
-func NewFakeClient(objs ...ctrlClient.Object) ctrlClient.WithWatch {
+func NewFakeClient(objs ...ctrlClient.Object) ctrlClient.WithWatch { //nolint:ireturn
 	scheme := runtime.NewScheme()
 	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(appsv1.AddToScheme(scheme))
 
 	fakeMapper := meta.NewDefaultRESTMapper(scheme.PreferredVersionAllGroups())
 	for gvk := range scheme.AllKnownTypes() {
-		switch {
-		// TODO: add cases for cluster scoped
-		default:
-			fakeMapper.Add(gvk, meta.RESTScopeNamespace)
-		}
+		fakeMapper.Add(gvk, meta.RESTScopeNamespace)
+		// switch {
+		//// TODO: add cases for cluster scoped
+		//default:
+		//	fakeMapper.Add(gvk, meta.RESTScopeNamespace)
+		//}
 	}
 
 	return fake.NewClientBuilder().

@@ -27,7 +27,7 @@ import (
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 )
 
-// TrustyAIReconciler reconciles a TrustyAI object
+// TrustyAIReconciler reconciles a TrustyAI object.
 type TrustyAIReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme

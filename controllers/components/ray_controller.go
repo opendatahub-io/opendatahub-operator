@@ -27,7 +27,7 @@ import (
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 )
 
-// RayReconciler reconciles a Ray object
+// RayReconciler reconciles a Ray object.
 type RayReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme

@@ -8,6 +8,7 @@ import (
 	"github.com/rs/xid"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
@@ -22,142 +23,101 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestUpdateStatusActionNotReady(t *testing.T) {
-	g := NewWithT(t)
+func TestUpdateStatusAction(t *testing.T) {
+	_ = NewWithT(t)
 
-	ctx := context.Background()
-	ns := xid.New().String()
-
-	client := NewFakeClient(
-		&appsv1.Deployment{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: gvk.Deployment.GroupVersion().String(),
-				Kind:       gvk.Deployment.Kind,
+	testCases := []struct {
+		name                 string
+		deployments          []appsv1.Deployment
+		expectedStatus       metav1.ConditionStatus
+		expectedReason       string
+		additionalAssertions func(*testing.T, *types.ReconciliationRequest)
+	}{
+		{
+			name: "Not Ready - One deployment not ready",
+			deployments: []appsv1.Deployment{
+				createDeployment("my-deployment", 1, 0),
+				createDeployment("my-deployment-2", 1, 1),
 			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "my-deployment",
-				Namespace: ns,
-				Labels: map[string]string{
-					labels.K8SCommon.PartOf: "foo",
-				},
-			},
-			Status: appsv1.DeploymentStatus{
-				Replicas:      1,
-				ReadyReplicas: 0,
-			},
+			expectedStatus: metav1.ConditionFalse,
+			expectedReason: actions.DeploymentsNotReadyReason,
 		},
-		&appsv1.Deployment{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: gvk.Deployment.GroupVersion().String(),
-				Kind:       gvk.Deployment.Kind,
+		{
+			name: "Ready - All deployments ready",
+			deployments: []appsv1.Deployment{
+				createDeployment("my-deployment", 1, 1),
+				createDeployment("my-deployment-2", 2, 2),
 			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "my-deployment-2",
-				Namespace: ns,
-				Labels: map[string]string{
-					labels.K8SCommon.PartOf: "foo",
-				},
-			},
-			Status: appsv1.DeploymentStatus{
-				Replicas:      1,
-				ReadyReplicas: 1,
-			},
+			expectedStatus: metav1.ConditionTrue,
+			expectedReason: actions.ReadyReason,
 		},
-	)
-
-	action := actions.NewUpdateStatusAction(
-		ctx,
-		actions.WithUpdateStatusLabel(labels.K8SCommon.PartOf, "foo"))
-
-	rr := types.ReconciliationRequest{
-		Client:   client,
-		Instance: &componentsv1.Dashboard{},
-		DSCI:     &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
-		DSC:      &dscv1.DataScienceCluster{},
-		Platform: cluster.OpenDataHub,
 	}
 
-	err := action.Execute(ctx, &rr)
-	g.Expect(err).ShouldNot(HaveOccurred())
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			ctx := context.Background()
+			ns := xid.New().String()
 
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(rr.Instance).Should(
-		WithTransform(
-			ExtractStatusCondition(status.ConditionTypeReady),
-			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
-				"Status": Equal(metav1.ConditionFalse),
-				"Reason": Equal(actions.DeploymentsNotReadyReason),
-			}),
-		),
-	)
+			cli := NewFakeClient(createObjectList(tc.deployments)...)
+
+			action := actions.NewUpdateStatusAction(
+				ctx,
+				actions.WithUpdateStatusLabel(labels.K8SCommon.PartOf, "foo"))
+
+			rr := types.ReconciliationRequest{
+				Client:   cli,
+				Instance: &componentsv1.Dashboard{},
+				DSCI:     &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
+				DSC:      &dscv1.DataScienceCluster{},
+				Platform: cluster.OpenDataHub,
+			}
+
+			err := action.Execute(ctx, &rr)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			g.Expect(rr.Instance).Should(
+				WithTransform(
+					ExtractStatusCondition(status.ConditionTypeReady),
+					gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+						"Status": Equal(tc.expectedStatus),
+						"Reason": Equal(tc.expectedReason),
+					}),
+				),
+			)
+
+			if tc.additionalAssertions != nil {
+				tc.additionalAssertions(t, &rr)
+			}
+		})
+	}
 }
 
-func TestUpdateStatusActionReady(t *testing.T) {
-	g := NewWithT(t)
+// Helper functions
 
-	ctx := context.Background()
-	ns := xid.New().String()
-
-	client := NewFakeClient(
-		&appsv1.Deployment{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: gvk.Deployment.GroupVersion().String(),
-				Kind:       gvk.Deployment.Kind,
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "my-deployment",
-				Namespace: ns,
-				Labels: map[string]string{
-					labels.K8SCommon.PartOf: "foo",
-				},
-			},
-			Status: appsv1.DeploymentStatus{
-				Replicas:      1,
-				ReadyReplicas: 1,
+func createDeployment(name string, replicas, readyReplicas int32) appsv1.Deployment {
+	return appsv1.Deployment{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: gvk.Deployment.GroupVersion().String(),
+			Kind:       gvk.Deployment.Kind,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+			Labels: map[string]string{
+				labels.K8SCommon.PartOf: "foo",
 			},
 		},
-		&appsv1.Deployment{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: gvk.Deployment.GroupVersion().String(),
-				Kind:       gvk.Deployment.Kind,
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "my-deployment-2",
-				Namespace: ns,
-				Labels: map[string]string{
-					labels.K8SCommon.PartOf: "foo",
-				},
-			},
-			Status: appsv1.DeploymentStatus{
-				Replicas:      1,
-				ReadyReplicas: 1,
-			},
+		Status: appsv1.DeploymentStatus{
+			Replicas:      replicas,
+			ReadyReplicas: readyReplicas,
 		},
-	)
-
-	action := actions.NewUpdateStatusAction(
-		ctx,
-		actions.WithUpdateStatusLabel(labels.K8SCommon.PartOf, "foo"))
-
-	rr := types.ReconciliationRequest{
-		Client:   client,
-		Instance: &componentsv1.Dashboard{},
-		DSCI:     &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
-		DSC:      &dscv1.DataScienceCluster{},
-		Platform: cluster.OpenDataHub,
 	}
+}
 
-	err := action.Execute(ctx, &rr)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(rr.Instance).Should(
-		WithTransform(
-			ExtractStatusCondition(status.ConditionTypeReady),
-			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
-				"Status": Equal(metav1.ConditionTrue),
-				"Reason": Equal(actions.ReadyReason),
-			}),
-		),
-	)
+func createObjectList(deployments []appsv1.Deployment) []client.Object {
+	objects := make([]client.Object, len(deployments))
+	for i := range deployments {
+		objects[i] = &deployments[i]
+	}
+	return objects
 }
