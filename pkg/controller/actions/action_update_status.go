@@ -3,6 +3,7 @@ package actions
 import (
 	"context"
 	"fmt"
+	"k8s.io/apimachinery/pkg/api/meta"
 
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -70,6 +71,9 @@ func (a *UpdateStatusAction) Execute(ctx context.Context, rr *types.Reconciliati
 		}
 	}
 
+	s := obj.GetStatus()
+	s.Phase = "Ready"
+
 	conditionReady := metav1.Condition{
 		Type:    status.ConditionTypeReady,
 		Status:  metav1.ConditionTrue,
@@ -80,9 +84,11 @@ func (a *UpdateStatusAction) Execute(ctx context.Context, rr *types.Reconciliati
 	if len(deployments.Items) > 0 && ready != len(deployments.Items) {
 		conditionReady.Status = metav1.ConditionFalse
 		conditionReady.Reason = DeploymentsNotReadyReason
+
+		s.Phase = "NotReady"
 	}
 
-	status.SetStatusCondition(obj, conditionReady)
+	meta.SetStatusCondition(&s.Conditions, conditionReady)
 
 	return nil
 }

@@ -50,8 +50,7 @@ import (
 )
 
 const (
-	ComponentName         = "dashboard"
-	DashboardInstanceName = "default-dashboard"
+	ComponentName = "dashboard"
 )
 
 var (
@@ -117,7 +116,7 @@ func CreateDashboardInstance(dsc *dscv1.DataScienceCluster) *componentsv1.Dashbo
 			APIVersion: "components.opendatahub.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: DashboardInstanceName,
+			Name: componentsv1.DashboardInstanceName,
 		},
 		Spec: componentsv1.DashboardSpec{
 			DSCDashboard: dsc.Spec.Components.Dashboard,
@@ -168,7 +167,7 @@ func CreateDashboardInstance(dsc *dscv1.DataScienceCluster) *componentsv1.Dashbo
 func watchDashboardResources(_ context.Context, a client.Object) []reconcile.Request {
 	if a.GetLabels()["app.opendatahub.io/dashboard"] == "true" {
 		return []reconcile.Request{{
-			NamespacedName: types.NamespacedName{Name: DashboardInstanceName},
+			NamespacedName: types.NamespacedName{Name: componentsv1.DashboardInstanceName},
 		}}
 	}
 	return nil

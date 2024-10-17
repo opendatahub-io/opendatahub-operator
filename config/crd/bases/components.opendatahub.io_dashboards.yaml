@@ -14,7 +14,16 @@ spec:
     singular: dashboard
   scope: Cluster
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - description: Ready
+      jsonPath: .status.conditions[?(@.type=="Ready")].status
+      name: Ready
+      type: string
+    - description: Reason
+      jsonPath: .status.conditions[?(@.type=="Ready")].reason
+      name: Reason
+      type: string
+    name: v1
     schema:
       openAPIV3Schema:
         description: Dashboard is the Schema for the dashboards API
@@ -148,6 +157,9 @@ spec:
             - phase
             type: object
         type: object
+        x-kubernetes-validations:
+        - message: Dashboard name must be default-dashboard
+          rule: self.metadata.name == 'default-dashboard'
     served: true
     storage: true
     subresources:
