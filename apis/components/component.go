@@ -58,7 +58,7 @@ type ManifestsConfig struct {
 
 // +kubebuilder:object:generate=true
 type Status struct {
-	Phase              string             `json:"phase"`
+	Phase              string             `json:"phase,omitempty"`
 	Conditions         []metav1.Condition `json:"conditions,omitempty"`
 	ObservedGeneration int64              `json:"observedGeneration,omitempty"`
 }

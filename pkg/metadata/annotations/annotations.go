@@ -14,5 +14,5 @@ const (
 	SecretOauthClientAnnotation = "secret-generator.opendatahub.io/oauth-client-route"
 )
 
-// ManagementStateAnnotation defines what ManagementState value if defined in DSC for the component.
+// ManagementStateAnnotation set on Component CR only, to show which ManagementState value if defined in DSC for the component.
 const ManagementStateAnnotation = "component.opendatahub.io/management-state"

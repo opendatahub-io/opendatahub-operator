@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	routev1 "github.com/openshift/api/route/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -30,6 +31,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -42,6 +44,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/dependent"
 	odhrec "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -64,6 +67,8 @@ var (
 	PathManagedDownstream   = PathDownstream + "/addon"
 	OverridePath            = ""
 	DefaultPath             = ""
+
+	dashboardID = types.NamespacedName{Name: componentsv1.DashboardInstanceName}
 )
 
 func NewDashboardReconciler(ctx context.Context, mgr ctrl.Manager) error {
@@ -84,23 +89,38 @@ func NewDashboardReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		actions.WithUpdateStatusLabel(labels.ComponentName, ComponentName),
 	))
 
-	eh := handler.EnqueueRequestsFromMapFunc(watchDashboardResources)
+	var componentLabelPredicate predicate.Predicate
+	var componentEventHandler handler.EventHandler
+
+	switch r.Platform {
+	case cluster.SelfManagedRhods, cluster.ManagedRhods:
+		componentLabelPredicate = dashboardWatchPredicate(ComponentNameUpstream)
+		componentEventHandler = watchDashboardResources(ComponentNameUpstream)
+	default:
+		componentLabelPredicate = dashboardWatchPredicate(ComponentNameDownstream)
+		componentEventHandler = watchDashboardResources(ComponentNameDownstream)
+	}
 
 	err = ctrl.NewControllerManagedBy(mgr).
-		For(&componentsv1.Dashboard{}).
-		// dependants
-		Watches(&appsv1.Deployment{}, eh).
-		Watches(&appsv1.ReplicaSet{}, eh).
-		Watches(&corev1.Namespace{}, eh).
-		Watches(&corev1.ConfigMap{}, eh).
-		Watches(&corev1.PersistentVolumeClaim{}, eh).
-		Watches(&rbacv1.ClusterRoleBinding{}, eh).
-		Watches(&rbacv1.ClusterRole{}, eh).
-		Watches(&rbacv1.Role{}, eh).
-		Watches(&rbacv1.RoleBinding{}, eh).
-		Watches(&corev1.ServiceAccount{}, eh).
-		// shared filter
-		WithEventFilter(dashboardPredicates).
+		// API
+		For(&componentsv1.Dashboard{}, builder.WithPredicates(predicate.Or(
+			predicate.GenerationChangedPredicate{},
+			predicate.LabelChangedPredicate{}))).
+		// operands
+		Watches(&corev1.ConfigMap{}, componentEventHandler, builder.WithPredicates(componentLabelPredicate)).
+		Watches(&corev1.Secret{}, componentEventHandler, builder.WithPredicates(componentLabelPredicate)).
+		Watches(&rbacv1.ClusterRoleBinding{}, componentEventHandler, builder.WithPredicates(componentLabelPredicate)).
+		Watches(&rbacv1.ClusterRole{}, componentEventHandler, builder.WithPredicates(componentLabelPredicate)).
+		Watches(&rbacv1.Role{}, componentEventHandler, builder.WithPredicates(componentLabelPredicate)).
+		Watches(&rbacv1.RoleBinding{}, componentEventHandler, builder.WithPredicates(componentLabelPredicate)).
+		Watches(&corev1.ServiceAccount{}, componentEventHandler, builder.WithPredicates(componentLabelPredicate)).
+		// Include status changes as we need to determine the component
+		// readiness by observing the status of the deployments
+		Watches(&appsv1.Deployment{}, componentEventHandler, builder.WithPredicates(componentLabelPredicate)).
+		// Ignore status changes
+		Watches(&routev1.Route{}, componentEventHandler, builder.WithPredicates(predicate.And(
+			componentLabelPredicate,
+			dependent.New()))).
 		Complete(r)
 
 	if err != nil {
@@ -133,13 +153,9 @@ func GetDashboard(dsc *dscv1.DataScienceCluster) *componentsv1.Dashboard {
 	dashboardAnnotations := make(map[string]string)
 
 	switch dsc.Spec.Components.Dashboard.ManagementState {
-	case operatorv1.Managed:
-		dashboardAnnotations[annotation.ManagementStateAnnotation] = string(operatorv1.Managed)
-	case operatorv1.Removed:
-		dashboardAnnotations[annotation.ManagementStateAnnotation] = string(operatorv1.Removed)
-	case operatorv1.Unmanaged:
-		dashboardAnnotations[annotation.ManagementStateAnnotation] = string(operatorv1.Unmanaged)
-	default:
+	case operatorv1.Managed, operatorv1.Removed:
+		dashboardAnnotations[annotation.ManagementStateAnnotation] = string(dsc.Spec.Components.Dashboard.ManagementState)
+	default: // Force and Unmanaged case for unknown values, we do not support these yet
 		dashboardAnnotations[annotation.ManagementStateAnnotation] = "Unknown"
 	}
 
@@ -158,80 +174,50 @@ func GetDashboard(dsc *dscv1.DataScienceCluster) *componentsv1.Dashboard {
 	}
 }
 
-// +kubebuilder:rbac:groups=components.opendatahub.io,resources=dashboards,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=components.opendatahub.io,resources=dashboards/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=components.opendatahub.io,resources=dashboards/finalizers,verbs=update
-// +kubebuilder:rbac:groups="opendatahub.io",resources=odhdashboardconfigs,verbs=create;get;patch;watch;update;delete;list
-// +kubebuilder:rbac:groups="console.openshift.io",resources=odhquickstarts,verbs=create;get;patch;list;delete
-// +kubebuilder:rbac:groups="dashboard.opendatahub.io",resources=odhdocuments,verbs=create;get;patch;list;delete
-// +kubebuilder:rbac:groups="dashboard.opendatahub.io",resources=odhapplications,verbs=create;get;patch;list;delete
-// +kubebuilder:rbac:groups="dashboard.opendatahub.io",resources=acceleratorprofiles,verbs=create;get;patch;list;delete
-// +kubebuilder:rbac:groups="operators.coreos.com",resources=clusterserviceversions,verbs=get;list;watch;delete;update
-// +kubebuilder:rbac:groups="operators.coreos.com",resources=customresourcedefinitions,verbs=create;get;patch;delete
-// +kubebuilder:rbac:groups="operators.coreos.com",resources=subscriptions,verbs=get;list;watch;delete
-// +kubebuilder:rbac:groups="operators.coreos.com",resources=operatorconditions,verbs=get;list;watch
-// +kubebuilder:rbac:groups="user.openshift.io",resources=groups,verbs=get;create;list;watch;patch;delete
-// +kubebuilder:rbac:groups="console.openshift.io",resources=consolelinks,verbs=create;get;patch;delete
-// +kubebuilder:rbac:groups="authorization.openshift.io",resources=roles,verbs=*
-// +kubebuilder:rbac:groups="authorization.openshift.io",resources=rolebindings,verbs=*
-// +kubebuilder:rbac:groups="authorization.openshift.io",resources=clusterroles,verbs=*
-// +kubebuilder:rbac:groups="authorization.openshift.io",resources=clusterrolebindings,verbs=*
+//nolint:ireturn
+func watchDashboardResources(componentName string) handler.EventHandler {
+	return handler.EnqueueRequestsFromMapFunc(func(_ context.Context, a client.Object) []reconcile.Request {
+		switch {
+		case a.GetLabels()[labels.ODH.Component(componentName)] == "true":
+			return []reconcile.Request{{NamespacedName: dashboardID}}
+		case a.GetLabels()[labels.ComponentName] == ComponentName:
+			return []reconcile.Request{{NamespacedName: dashboardID}}
+		}
 
-// +kubebuilder:rbac:groups="argoproj.io",resources=workflows,verbs=*
-
-// +kubebuilder:rbac:groups="apps",resources=statefulsets,verbs=*
-
-// +kubebuilder:rbac:groups="apps",resources=replicasets,verbs=*
-
-// +kubebuilder:rbac:groups="apps",resources=deployments/finalizers,verbs=*
-// +kubebuilder:rbac:groups="core",resources=deployments,verbs=*
-// +kubebuilder:rbac:groups="apps",resources=deployments,verbs=*
-// +kubebuilder:rbac:groups="*",resources=deployments,verbs=*
-// +kubebuilder:rbac:groups="extensions",resources=deployments,verbs=*
-
-// +kubebuilder:rbac:groups="apiextensions.k8s.io",resources=customresourcedefinitions,verbs=get;list;watch;create;patch;delete
-
-// +kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=validatingwebhookconfigurations,verbs=get;list;watch;create;update;delete;patch
-// +kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=mutatingwebhookconfigurations,verbs=create;delete;list;update;watch;patch;get
-
-// +kubebuilder:rbac:groups="*",resources=statefulsets,verbs=create;update;get;list;watch;patch;delete
-
-// +kubebuilder:rbac:groups="*",resources=replicasets,verbs=*
-
-func watchDashboardResources(_ context.Context, a client.Object) []reconcile.Request {
-	if a.GetLabels()["app.opendatahub.io/dashboard"] == "true" {
-		return []reconcile.Request{{
-			NamespacedName: types.NamespacedName{Name: componentsv1.DashboardInstanceName},
-		}}
-	}
-	return nil
+		return nil
+	})
 }
 
-var dashboardPredicates = predicate.Funcs{
-	CreateFunc: func(e event.CreateEvent) bool {
-		// Cannot use Kind, since Kind is empty for e.Object
-		return e.Object.GetName() == componentsv1.DashboardInstanceName
-	},
-	DeleteFunc: func(e event.DeleteEvent) bool {
-		if e.Object.GetName() == componentsv1.DashboardInstanceName {
-			return true
-		}
-		labelList := e.Object.GetLabels()
-		if value, exist := labelList[labels.ODH.Component(ComponentNameUpstream)]; exist && value == "true" {
-			return true
-		}
-		return false
-	},
-	UpdateFunc: func(e event.UpdateEvent) bool {
-		if e.ObjectOld.GetName() == "default-dashboard" {
-			return true
-		}
-		labelList := e.ObjectOld.GetLabels()
-		if value, exist := labelList[labels.ODH.Component(ComponentNameUpstream)]; exist && value == "true" {
-			return true
-		}
-		return false
-	},
+func dashboardWatchPredicate(componentName string) predicate.Funcs {
+	label := labels.ODH.Component(componentName)
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return false
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			labelList := e.Object.GetLabels()
+
+			if value, exist := labelList[labels.ComponentName]; exist && value == ComponentName {
+				return true
+			}
+			if value, exist := labelList[label]; exist && value == "true" {
+				return true
+			}
+
+			return false
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			for _, labelList := range []map[string]string{e.ObjectOld.GetLabels(), e.ObjectNew.GetLabels()} {
+				if value, exist := labelList[labels.ComponentName]; exist && value == ComponentName {
+					return true
+				}
+				if value, exist := labelList[label]; exist && value == "true" {
+					return true
+				}
+			}
+			return false
+		},
+	}
 }
 
 func updateKustomizeVariable(ctx context.Context, cli client.Client, platform cluster.Platform, dscispec *dsciv1.DSCInitializationSpec) (map[string]string, error) {
@@ -274,13 +260,20 @@ type InitializeAction struct {
 }
 
 func (a *InitializeAction) Execute(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	// 1. Append or Update variable for component to consume
+	// 1. Update manifests
+	rr.Manifests = map[cluster.Platform]string{
+		cluster.SelfManagedRhods: PathDownstream + "/onprem",
+		cluster.ManagedRhods:     PathDownstream + "/addon",
+		cluster.OpenDataHub:      PathUpstream,
+		cluster.Unknown:          PathUpstream,
+	}
+	// 2. Append or Update variable for component to consume
 	extraParamsMap, err := updateKustomizeVariable(ctx, rr.Client, rr.Platform, &rr.DSCI.Spec)
 	if err != nil {
 		return errors.New("failed to set variable for extraParamsMap")
 	}
 
-	// 2. update params.env regardless devFlags is provided of not
+	// 3. update params.env regardless devFlags is provided of not
 	// We need this for downstream
 	if err := deploy.ApplyParams(rr.Manifests[rr.Platform], nil, extraParamsMap); err != nil {
 		return fmt.Errorf("failed to update params.env from %s : %w", rr.Manifests[rr.Platform], err)
@@ -370,18 +363,6 @@ func (a *DeployComponentAction) Execute(ctx context.Context, rr *odhtypes.Reconc
 		}
 	}
 
-	// 2. Append or Update variable for component to consume
-	extraParamsMap, err := updateKustomizeVariable(ctx, rr.Client, rr.Platform, &rr.DSCI.Spec)
-	if err != nil {
-		return errors.New("failed to set variable for extraParamsMap")
-	}
-
-	// 3. update params.env regardless devFlags is provided of not
-	// We need this for downstream
-	if err := deploy.ApplyParams(rr.Manifests[rr.Platform], nil, extraParamsMap); err != nil {
-		return fmt.Errorf("failed to update params.env  from %s : %w", rr.Manifests[rr.Platform], err)
-	}
-
 	path := rr.Manifests[rr.Platform]
 	name := ComponentNameUpstream
 
@@ -421,7 +402,7 @@ func (a *DeployComponentAction) Execute(ctx context.Context, rr *odhtypes.Reconc
 	default:
 	}
 
-	err = deploy.DeployManifestsFromPathWithLabels(ctx, rr.Client, rr.Instance, path, rr.DSCI.Spec.ApplicationsNamespace, name, true, map[string]string{
+	err := deploy.DeployManifestsFromPathWithLabels(ctx, rr.Client, rr.Instance, path, rr.DSCI.Spec.ApplicationsNamespace, name, true, map[string]string{
 		labels.ComponentName: ComponentName,
 	})
 

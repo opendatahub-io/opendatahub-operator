@@ -172,7 +172,6 @@ rules:
   - components.opendatahub.io
   resources:
   - codeflares
-  - dashboards
   - datasciencepipelines
   - kserves
   - kueues
@@ -194,7 +193,6 @@ rules:
   - components.opendatahub.io
   resources:
   - codeflares/finalizers
-  - dashboards/finalizers
   - datasciencepipelines/finalizers
   - kserves/finalizers
   - kueues/finalizers
@@ -210,7 +208,6 @@ rules:
   - components.opendatahub.io
   resources:
   - codeflares/status
-  - dashboards/status
   - datasciencepipelines/status
   - kserves/status
   - kueues/status

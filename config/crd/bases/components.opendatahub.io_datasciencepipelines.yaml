@@ -110,8 +110,6 @@ spec:
                 type: integer
               phase:
                 type: string
-            required:
-            - phase
             type: object
         type: object
     served: true
