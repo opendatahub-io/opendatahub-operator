@@ -1,0 +1,46 @@
+map:
+  notebooks:
+    git.url: https://github.com/red-hat-data-services/notebooks
+    git.commit: github.ref_name
+    src: manifests
+    dest: jupyterhub/notebooks
+    ref_type: branch
+  kserve:
+    git.url: https://github.com/red-hat-data-services/kserve
+    git.commit: github.ref_name
+    src: config
+    dest: kserve
+    ref_type: branch
+  odh-kf-notebook-controller:
+    src: components/notebook-controller/config
+    dest: odh-notebook-controller/kf-notebook-controller
+  odh-notebook-controller:
+    src: components/odh-notebook-controller/config
+    dest: odh-notebook-controller/odh-notebook-controller
+  odh-data-science-pipelines-operator-controller:
+    src: config
+    dest: data-science-pipelines-operator
+  odh-codeflare-operator:
+    src: config
+    dest: codeflare
+  odh-kuberay-operator-controller:
+    src: ray-operator/config
+    dest: ray
+  odh-kueue-controller:
+    src: config
+    dest: kueue
+  odh-trustyai-service-operator:
+    src: config
+    dest: trustyai-service-operator
+  odh-model-controller:
+    src: config
+    dest: odh-model-controller
+  odh-modelmesh:
+    src: config
+    dest: model-mesh
+  odh-dashboard:
+    src: manifests
+    dest: dashboard
+  odh-training-operator:
+    src: manifests
+    dest: trainingoperator
