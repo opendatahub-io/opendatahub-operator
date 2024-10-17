@@ -19,7 +19,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -126,8 +125,6 @@ func generateCertificate(addr string) ([]byte, []byte, error) {
 
 // PropagateDefaultIngressCertificate copies ingress cert secrets from openshift-ingress ns to given namespace.
 func PropagateDefaultIngressCertificate(ctx context.Context, c client.Client, secretName, namespace string) error {
-	// Add IngressController to scheme
-	runtime.Must(operatorv1.Install(c.Scheme()))
 	defaultIngressCtrl, err := FindAvailableIngressController(ctx, c)
 	if err != nil {
 		return fmt.Errorf("failed to get ingress controller: %w", err)

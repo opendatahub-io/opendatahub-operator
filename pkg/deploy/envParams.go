@@ -46,8 +46,7 @@ func writeParamsToTmp(params map[string]string, tmpDir string) (string, error) {
 		}
 	}
 	if err := writer.Flush(); err != nil {
-		fmt.Printf("Failed to write to file: %v", err)
-		return "", err
+		return "", fmt.Errorf("failed to write to file: %w", err)
 	}
 
 	return tmp.Name(), nil
@@ -116,9 +115,8 @@ func ApplyParams(componentPath string, imageParamsMap map[string]string, extraPa
 	}
 
 	if err = os.Rename(tmp, paramsFile); err != nil {
-		fmt.Printf("Failed rename %s to %s\n", tmp, paramsFile)
 		_ = os.Remove(tmp)
-		return err
+		return fmt.Errorf("failed rename %s to %s: %w", tmp, paramsFile, err)
 	}
 
 	return nil

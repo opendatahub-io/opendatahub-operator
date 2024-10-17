@@ -163,12 +163,12 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				TrainingOperator: trainingoperator.TrainingOperator{
+				ModelRegistry: modelregistry.ModelRegistry{
 					Component: components.Component{
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				ModelRegistry: modelregistry.ModelRegistry{
+				TrainingOperator: trainingoperator.TrainingOperator{
 					Component: components.Component{
 						ManagementState: operatorv1.Removed,
 					},
