@@ -444,10 +444,10 @@ spec:
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
                       registriesNamespace:
-                        default: odh-model-registries
+                        default: rhoai-model-registries
                         description: Namespace for model registries to be installed,
                           configurable only once when model registry is enabled, defaults
-                          to "odh-model-registries"
+                          to "rhoai-model-registries"
                         maxLength: 63
                         pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
                         type: string

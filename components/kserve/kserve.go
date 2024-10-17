@@ -12,7 +12,6 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
@@ -57,22 +56,6 @@ type Kserve struct {
 	DefaultDeploymentMode DefaultDeploymentMode `json:"defaultDeploymentMode,omitempty"`
 }
 
-func (k *Kserve) Init(ctx context.Context, _ cluster.Platform) error {
-	log := logf.FromContext(ctx).WithName(ComponentName)
-
-	// dependentParamMap for odh-model-controller to use.
-	var dependentParamMap = map[string]string{
-		"odh-model-controller": "RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
-	}
-
-	// Update image parameters for odh-model-controller
-	if err := deploy.ApplyParams(DependentPath, dependentParamMap); err != nil {
-		log.Error(err, "failed to update image", "path", DependentPath)
-	}
-
-	return nil
-}
-
 func (k *Kserve) OverrideManifests(ctx context.Context, _ cluster.Platform) error {
 	// Download manifests if defined by devflags
 	// Go through each manifest and set the overlays if defined
@@ -103,7 +86,6 @@ func (k *Kserve) OverrideManifests(ctx context.Context, _ cluster.Platform) erro
 			Path = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
 		}
 	}
-
 	return nil
 }
 
@@ -112,7 +94,14 @@ func (k *Kserve) GetComponentName() string {
 }
 
 func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
-	l logr.Logger, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, platform cluster.Platform, _ bool) error {
+	logger logr.Logger, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, platform cluster.Platform, _ bool) error {
+	l := k.ConfigComponentLogger(logger, ComponentName, dscispec)
+
+	// dependentParamMap for odh-model-controller to use.
+	var dependentParamMap = map[string]string{
+		"odh-model-controller": "RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
+	}
+
 	enabled := k.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 
@@ -151,6 +140,12 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 		// For odh-model-controller
 		if err := cluster.UpdatePodSecurityRolebinding(ctx, cli, dscispec.ApplicationsNamespace, "odh-model-controller"); err != nil {
 			return err
+		}
+		// Update image parameters for odh-model-controller
+		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (k.DevFlags == nil || len(k.DevFlags.Manifests) == 0) {
+			if err := deploy.ApplyParams(DependentPath, dependentParamMap); err != nil {
+				return fmt.Errorf("failed to update image %s: %w", DependentPath, err)
+			}
 		}
 	}
 

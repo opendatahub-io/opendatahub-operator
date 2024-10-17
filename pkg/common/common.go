@@ -65,7 +65,6 @@ func MatchLineInFile(fileName string, replacements map[string]string) error {
 	if err != nil {
 		return fmt.Errorf("failed to write to file: %w", err)
 	}
-
 	return nil
 }
 
@@ -93,7 +92,6 @@ func TrimToRFC1123Name(input string) string {
 
 func isAlphanumeric(char byte) bool {
 	regex := regexp.MustCompile(`^[A-Za-z0-9]$`)
-
 	return regex.Match([]byte{char})
 }
 

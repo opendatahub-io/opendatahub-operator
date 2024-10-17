@@ -117,7 +117,6 @@ func DownloadManifests(ctx context.Context, componentName string, manifestConfig
 				if err != nil {
 					return fmt.Errorf("error creating directory:%w", err)
 				}
-
 				continue
 			}
 
@@ -138,12 +137,10 @@ func DownloadManifests(ctx context.Context, componentName string, manifestConfig
 						return fmt.Errorf("error downloading file contents: %w", err)
 					}
 				}
-
 				continue
 			}
 		}
 	}
-
 	return err
 }
 

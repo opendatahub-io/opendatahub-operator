@@ -1,0 +1,17 @@
+# this is role for cluster-monitoring to read rhods prometheus service by cluster-monitoring service account
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: rhods-prometheus-cluster-monitoring-viewer
+  namespace: redhat-ods-monitoring
+rules:
+  - verbs:
+      - get
+      - watch
+      - list
+    apiGroups:
+      - ''
+    resources:
+      - pods
+      - services
+      - endpoints

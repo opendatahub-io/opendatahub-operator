@@ -15,6 +15,7 @@ import (
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	ctrlogger "github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 )
 
 // Component struct defines the basis for each OpenDataHub component configuration.
@@ -36,10 +37,6 @@ type Component struct {
 	// +optional
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=2
 	DevFlags *DevFlags `json:"devFlags,omitempty"`
-}
-
-func (c *Component) Init(_ context.Context, _ cluster.Platform) error {
-	return nil
 }
 
 func (c *Component) GetManagementState() operatorv1.ManagementState {
@@ -81,7 +78,6 @@ type ManifestsConfig struct {
 }
 
 type ComponentInterface interface {
-	Init(ctx context.Context, platform cluster.Platform) error
 	ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
 		owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec, platform cluster.Platform, currentComponentStatus bool) error
 	Cleanup(ctx context.Context, cli client.Client, owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec) error
@@ -89,6 +85,15 @@ type ComponentInterface interface {
 	GetManagementState() operatorv1.ManagementState
 	OverrideManifests(ctx context.Context, platform cluster.Platform) error
 	UpdatePrometheusConfig(cli client.Client, logger logr.Logger, enable bool, component string) error
+	ConfigComponentLogger(logger logr.Logger, component string, dscispec *dsciv1.DSCInitializationSpec) logr.Logger
+}
+
+// extend origal ConfigLoggers to include component name.
+func (c *Component) ConfigComponentLogger(logger logr.Logger, component string, dscispec *dsciv1.DSCInitializationSpec) logr.Logger {
+	if dscispec.DevFlags != nil {
+		return ctrlogger.ConfigLoggers(dscispec.DevFlags.LogMode).WithName("DSC.Components." + component)
+	}
+	return logger.WithName("DSC.Components." + component)
 }
 
 // UpdatePrometheusConfig update prometheus-configs.yaml to include/exclude <component>.rules
@@ -108,8 +113,6 @@ func (c *Component) UpdatePrometheusConfig(_ client.Client, logger logr.Logger, 
 			PrometheusYML          string `yaml:"prometheus.yml"`
 			OperatorRules          string `yaml:"operator-recording.rules"`
 			DeadManSnitchRules     string `yaml:"deadmanssnitch-alerting.rules"`
-			CFRRules               string `yaml:"codeflare-recording.rules"`
-			CRARules               string `yaml:"codeflare-alerting.rules"`
 			DashboardRRules        string `yaml:"rhods-dashboard-recording.rules"`
 			DashboardARules        string `yaml:"rhods-dashboard-alerting.rules"`
 			DSPRRules              string `yaml:"data-science-pipelines-operator-recording.rules"`
@@ -118,17 +121,17 @@ func (c *Component) UpdatePrometheusConfig(_ client.Client, logger logr.Logger, 
 			MMARules               string `yaml:"model-mesh-alerting.rules"`
 			OdhModelRRules         string `yaml:"odh-model-controller-recording.rules"`
 			OdhModelARules         string `yaml:"odh-model-controller-alerting.rules"`
+			CFORRules              string `yaml:"codeflare-recording.rules"`
+			CFOARules              string `yaml:"codeflare-alerting.rules"`
 			RayARules              string `yaml:"ray-alerting.rules"`
+			KueueARules            string `yaml:"kueue-alerting.rules"`
+			TrainingOperatorARules string `yaml:"trainingoperator-alerting.rules"`
 			WorkbenchesRRules      string `yaml:"workbenches-recording.rules"`
 			WorkbenchesARules      string `yaml:"workbenches-alerting.rules"`
-			KserveRRules           string `yaml:"kserve-recording.rules"`
-			KserveARules           string `yaml:"kserve-alerting.rules"`
 			TrustyAIRRules         string `yaml:"trustyai-recording.rules"`
 			TrustyAIARules         string `yaml:"trustyai-alerting.rules"`
-			KueueRRules            string `yaml:"kueue-recording.rules"`
-			KueueARules            string `yaml:"kueue-alerting.rules"`
-			TrainingOperatorRRules string `yaml:"trainingoperator-recording.rules"`
-			TrainingOperatorARules string `yaml:"trainingoperator-alerting.rules"`
+			KserveRRules           string `yaml:"kserve-recording.rules"`
+			KserveARules           string `yaml:"kserve-alerting.rules"`
 			ModelRegistryRRules    string `yaml:"model-registry-operator-recording.rules"`
 			ModelRegistryARules    string `yaml:"model-registry-operator-alerting.rules"`
 		} `yaml:"data"`
@@ -170,7 +173,6 @@ func (c *Component) UpdatePrometheusConfig(_ client.Client, logger logr.Logger, 
 			for i, item := range ruleList {
 				if rule, isStr := item.(string); isStr && rule == component+"*.rules" {
 					ruleList = append(ruleList[:i], ruleList[i+1:]...)
-
 					break
 				}
 			}
@@ -192,6 +194,5 @@ func (c *Component) UpdatePrometheusConfig(_ client.Client, logger logr.Logger, 
 
 	// Write the modified content back to the file
 	err = os.WriteFile(prometheusconfigPath, newyamlData, 0)
-
 	return err
 }

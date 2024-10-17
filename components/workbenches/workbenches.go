@@ -12,7 +12,6 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
@@ -39,26 +38,6 @@ var _ components.ComponentInterface = (*Workbenches)(nil)
 // +kubebuilder:object:generate=true
 type Workbenches struct {
 	components.Component `json:""`
-}
-
-func (w *Workbenches) Init(ctx context.Context, _ cluster.Platform) error {
-	log := logf.FromContext(ctx).WithName(ComponentName)
-
-	var imageParamMap = map[string]string{
-		"odh-notebook-controller-image":    "RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE",
-		"odh-kf-notebook-controller-image": "RELATED_IMAGE_ODH_KF_NOTEBOOK_CONTROLLER_IMAGE",
-	}
-
-	// for kf-notebook-controller image
-	if err := deploy.ApplyParams(notebookControllerPath, imageParamMap); err != nil {
-		log.Error(err, "failed to update image", "path", notebookControllerPath)
-	}
-	// for odh-notebook-controller image
-	if err := deploy.ApplyParams(kfnotebookControllerPath, imageParamMap); err != nil {
-		log.Error(err, "failed to update image", "path", kfnotebookControllerPath)
-	}
-
-	return nil
 }
 
 func (w *Workbenches) OverrideManifests(ctx context.Context, platform cluster.Platform) error {
@@ -111,8 +90,14 @@ func (w *Workbenches) GetComponentName() string {
 	return ComponentName
 }
 
-func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client, l logr.Logger,
+func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
 	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, platform cluster.Platform, _ bool) error {
+	l := w.ConfigComponentLogger(logger, ComponentName, dscispec)
+	var imageParamMap = map[string]string{
+		"odh-notebook-controller-image":    "RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE",
+		"odh-kf-notebook-controller-image": "RELATED_IMAGE_ODH_KF_NOTEBOOK_CONTROLLER_IMAGE",
+	}
+
 	// Set default notebooks namespace
 	// Create rhods-notebooks namespace in managed platforms
 	enabled := w.GetManagementState() == operatorv1.Managed
@@ -139,6 +124,19 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 		}
 	}
 
+	// Update image parameters for nbc
+	if enabled {
+		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (w.DevFlags == nil || len(w.DevFlags.Manifests) == 0) {
+			// for kf-notebook-controller image
+			if err := deploy.ApplyParams(notebookControllerPath, imageParamMap); err != nil {
+				return fmt.Errorf("failed to update image %s: %w", notebookControllerPath, err)
+			}
+			// for odh-notebook-controller image
+			if err := deploy.ApplyParams(kfnotebookControllerPath, imageParamMap); err != nil {
+				return fmt.Errorf("failed to update image %s: %w", kfnotebookControllerPath, err)
+			}
+		}
+	}
 	if err := deploy.DeployManifestsFromPath(ctx, cli, owner,
 		notebookControllerPath,
 		dscispec.ApplicationsNamespace,

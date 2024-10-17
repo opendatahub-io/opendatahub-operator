@@ -64,16 +64,16 @@ To deploy ODH components seamlessly, ODH operator will watch two CRDs:
             managementState: Managed
           modelregistry:
             managementState: Managed
-            registriesNamespace: "odh-model-registries"
+            registriesNamespace: "rhoai-model-registries"
           ray:
             managementState: Managed
           kueue:
             managementState: Managed
           trainingoperator:
-            managementState: Managed
-          workbenches:
-            managementState: Managed
+            managementState: Removed
           trustyai:
+            managementState: Removed
+          workbenches:
             managementState: Managed
     ```
 

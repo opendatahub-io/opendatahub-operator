@@ -15,7 +15,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
@@ -31,7 +30,7 @@ const DefaultModelRegistryCert = "default-modelregistry-cert"
 
 var (
 	ComponentName                   = "model-registry-operator"
-	DefaultModelRegistriesNamespace = "odh-model-registries"
+	DefaultModelRegistriesNamespace = "rhoai-model-registries"
 	Path                            = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays/odh"
 	// we should not apply this label to the namespace, as it triggered namspace deletion during operator uninstall
 	// modelRegistryLabels = cluster.WithLabels(
@@ -52,27 +51,11 @@ var _ components.ComponentInterface = (*ModelRegistry)(nil)
 type ModelRegistry struct {
 	components.Component `json:""`
 
-	// Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries"
-	// +kubebuilder:default="odh-model-registries"
+	// Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "rhoai-model-registries"
+	// +kubebuilder:default="rhoai-model-registries"
 	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
 	// +kubebuilder:validation:MaxLength=63
 	RegistriesNamespace string `json:"registriesNamespace,omitempty"`
-}
-
-func (m *ModelRegistry) Init(ctx context.Context, _ cluster.Platform) error {
-	log := logf.FromContext(ctx).WithName(ComponentName)
-
-	var imageParamMap = map[string]string{
-		"IMAGES_MODELREGISTRY_OPERATOR": "RELATED_IMAGE_ODH_MODEL_REGISTRY_OPERATOR_IMAGE",
-		"IMAGES_GRPC_SERVICE":           "RELATED_IMAGE_ODH_MLMD_GRPC_SERVER_IMAGE",
-		"IMAGES_REST_SERVICE":           "RELATED_IMAGE_ODH_MODEL_REGISTRY_IMAGE",
-	}
-
-	if err := deploy.ApplyParams(Path, imageParamMap); err != nil {
-		log.Error(err, "failed to update image", "path", Path)
-	}
-
-	return nil
 }
 
 func (m *ModelRegistry) OverrideManifests(ctx context.Context, _ cluster.Platform) error {
@@ -97,8 +80,14 @@ func (m *ModelRegistry) GetComponentName() string {
 	return ComponentName
 }
 
-func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Client, l logr.Logger,
+func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
 	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, platform cluster.Platform, _ bool) error {
+	l := m.ConfigComponentLogger(logger, ComponentName, dscispec)
+	var imageParamMap = map[string]string{
+		"IMAGES_MODELREGISTRY_OPERATOR": "RELATED_IMAGE_ODH_MODEL_REGISTRY_OPERATOR_IMAGE",
+		"IMAGES_GRPC_SERVICE":           "RELATED_IMAGE_ODH_MLMD_GRPC_SERVER_IMAGE",
+		"IMAGES_REST_SERVICE":           "RELATED_IMAGE_ODH_MODEL_REGISTRY_IMAGE",
+	}
 	enabled := m.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 
@@ -119,11 +108,14 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 			}
 		}
 
-		extraParamsMap := map[string]string{
-			"DEFAULT_CERT": DefaultModelRegistryCert,
-		}
-		if err := deploy.ApplyParams(Path, nil, extraParamsMap); err != nil {
-			return fmt.Errorf("failed to update image from %s : %w", Path, err)
+		// Update image parameters only when we do not have customized manifests set
+		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (m.DevFlags == nil || len(m.DevFlags.Manifests) == 0) {
+			extraParamsMap := map[string]string{
+				"DEFAULT_CERT": DefaultModelRegistryCert,
+			}
+			if err := deploy.ApplyParams(Path, imageParamMap, extraParamsMap); err != nil {
+				return fmt.Errorf("failed to update image from %s : %w", Path, err)
+			}
 		}
 
 		// Create model registries namespace

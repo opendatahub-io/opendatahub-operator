@@ -4,7 +4,6 @@ import (
 	"context"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
-	userv1 "github.com/openshift/api/user/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -13,6 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -20,10 +20,9 @@ import (
 
 const (
 	workingNamespace     = "test-operator-ns"
-	applicationName      = "default-dsci"
 	applicationNamespace = "test-application-ns"
-	usergroupName        = "odh-admins"
 	configmapName        = "odh-common-config"
+	applicationName      = "default-dsci"
 	monitoringNamespace  = "test-monitoring-ns"
 	readyPhase           = "Ready"
 )
@@ -34,7 +33,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 
 		BeforeEach(func(ctx context.Context) {
 			// when
-			desiredDsci := createDSCI(operatorv1.Managed, operatorv1.Managed, monitoringNamespace)
+			desiredDsci := createDSCI(applicationName, operatorv1.Managed, operatorv1.Managed, monitoringNamespace)
 			Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
 			foundDsci := &dsciv1.DSCInitialization{}
 			Eventually(dscInitializationIsReady(applicationName, workingNamespace, foundDsci)).
@@ -55,6 +54,15 @@ var _ = Describe("DataScienceCluster initialization", func() {
 				WithPolling(interval).
 				Should(BeTrue())
 			Expect(foundApplicationNamespace.Name).To(Equal(applicationNamespace))
+		})
+
+		It("Should create default monitoring namespace", func(ctx context.Context) {
+			// then
+			foundMonitoringNamespace := &corev1.Namespace{}
+			Eventually(namespaceExists(monitoringNamespace, foundMonitoringNamespace), timeout, interval).
+				WithContext(ctx).
+				Should(BeTrue())
+			Expect(foundMonitoringNamespace.Name).Should(Equal(monitoringNamespace))
 		})
 
 		// Currently commented out in the DSCI reconcile - setting test to Pending
@@ -111,14 +119,6 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			Expect(foundConfigMap.Data).To(Equal(expectedConfigmapData))
 		})
 
-		It("Should not create user group when we do not have authentications CR in the cluster", func(ctx context.Context) {
-			userGroup := &userv1.Group{}
-			Eventually(objectExists(usergroupName, "", userGroup)).
-				WithContext(ctx).
-				WithTimeout(timeout).
-				WithPolling(interval).
-				Should(BeFalse())
-		})
 	})
 
 	Context("Monitoring Resource", func() {
@@ -127,7 +127,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 		const applicationName = "default-dsci"
 		It("Should not create monitoring namespace if monitoring is disabled", func(ctx context.Context) {
 			// when
-			desiredDsci := createDSCI(operatorv1.Removed, operatorv1.Managed, monitoringNamespace2)
+			desiredDsci := createDSCI(applicationName, operatorv1.Removed, operatorv1.Managed, monitoringNamespace2)
 			Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
 			foundDsci := &dsciv1.DSCInitialization{}
 			Eventually(dscInitializationIsReady(applicationName, workingNamespace, foundDsci)).
@@ -145,7 +145,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 		})
 		It("Should create default monitoring namespace if monitoring enabled", func(ctx context.Context) {
 			// when
-			desiredDsci := createDSCI(operatorv1.Managed, operatorv1.Managed, monitoringNamespace2)
+			desiredDsci := createDSCI(applicationName, operatorv1.Managed, operatorv1.Managed, monitoringNamespace2)
 			Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
 			foundDsci := &dsciv1.DSCInitialization{}
 			Eventually(dscInitializationIsReady(applicationName, workingNamespace, foundDsci)).
@@ -166,9 +166,8 @@ var _ = Describe("DataScienceCluster initialization", func() {
 
 	Context("Handling existing resources", func() {
 		AfterEach(cleanupResources)
-		const applicationName = "default-dsci"
-
 		It("Should not update rolebinding if it exists", func(ctx context.Context) {
+			applicationName := envtestutil.AppendRandomNameTo("rolebinding-test")
 
 			// given
 			desiredRoleBinding := &rbacv1.RoleBinding{
@@ -196,7 +195,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 				Should(BeTrue())
 
 			// when
-			desiredDsci := createDSCI(operatorv1.Managed, operatorv1.Managed, monitoringNamespace)
+			desiredDsci := createDSCI(applicationName, operatorv1.Managed, operatorv1.Managed, monitoringNamespace)
 			Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
 			foundDsci := &dsciv1.DSCInitialization{}
 			Eventually(dscInitializationIsReady(applicationName, workingNamespace, foundDsci)).
@@ -239,7 +238,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 				Should(BeTrue())
 
 			// when
-			desiredDsci := createDSCI(operatorv1.Managed, operatorv1.Managed, monitoringNamespace)
+			desiredDsci := createDSCI(applicationName, operatorv1.Managed, operatorv1.Managed, monitoringNamespace)
 			Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
 			foundDsci := &dsciv1.DSCInitialization{}
 			Eventually(dscInitializationIsReady(applicationName, workingNamespace, foundDsci)).
@@ -278,7 +277,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 				Should(BeTrue())
 
 			// when
-			desiredDsci := createDSCI(operatorv1.Managed, operatorv1.Managed, monitoringNamespace)
+			desiredDsci := createDSCI(applicationName, operatorv1.Managed, operatorv1.Managed, monitoringNamespace)
 			Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
 			foundDsci := &dsciv1.DSCInitialization{}
 			Eventually(dscInitializationIsReady(applicationName, workingNamespace, foundDsci)).
@@ -351,22 +350,22 @@ func namespaceExists(ns string, obj client.Object) func(ctx context.Context) boo
 	}
 }
 
-func objectExists(name string, namespace string, obj client.Object) func(ctx context.Context) bool {
+func objectExists(ns string, name string, obj client.Object) func(ctx context.Context) bool { //nolint:unparam
 	return func(ctx context.Context) bool {
-		err := k8sClient.Get(ctx, client.ObjectKey{Name: name, Namespace: namespace}, obj)
+		err := k8sClient.Get(ctx, client.ObjectKey{Name: ns, Namespace: name}, obj)
 
 		return err == nil
 	}
 }
 
-func createDSCI(enableMonitoring operatorv1.ManagementState, enableTrustedCABundle operatorv1.ManagementState, monitoringNS string) *dsciv1.DSCInitialization {
+func createDSCI(appName string, enableMonitoring operatorv1.ManagementState, enableTrustedCABundle operatorv1.ManagementState, monitoringNS string) *dsciv1.DSCInitialization {
 	return &dsciv1.DSCInitialization{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DSCInitialization",
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      applicationName,
+			Name:      appName,
 			Namespace: workingNamespace,
 		},
 		Spec: dsciv1.DSCInitializationSpec{

@@ -1,0 +1,46 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dedicated-admins-mgmt-role
+rules:
+  - apiGroups:
+      - ''
+    verbs:
+      - create
+      - edit
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+    resources:
+      - configmaps
+      - secrets
+  - apiGroups:
+      - image.openshift.io
+    verbs:
+      - create
+      - edit
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+    resources:
+      - imagestreams
+  - apiGroups:
+      - build.openshift.io
+    verbs:
+      - create
+      - edit
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+    resources:
+      - builds
+      - buildconfigs

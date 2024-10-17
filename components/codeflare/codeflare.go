@@ -12,7 +12,6 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
@@ -34,20 +33,6 @@ var _ components.ComponentInterface = (*CodeFlare)(nil)
 // +kubebuilder:object:generate=true
 type CodeFlare struct {
 	components.Component `json:""`
-}
-
-func (c *CodeFlare) Init(ctx context.Context, _ cluster.Platform) error {
-	log := logf.FromContext(ctx).WithName(ComponentName)
-
-	var imageParamMap = map[string]string{
-		"codeflare-operator-controller-image": "RELATED_IMAGE_ODH_CODEFLARE_OPERATOR_IMAGE", // no need mcad, embedded in cfo
-	}
-
-	if err := deploy.ApplyParams(ParamsPath, imageParamMap); err != nil {
-		log.Error(err, "failed to update image", "path", CodeflarePath+"/bases")
-	}
-
-	return nil
 }
 
 func (c *CodeFlare) OverrideManifests(ctx context.Context, _ cluster.Platform) error {
@@ -74,11 +59,16 @@ func (c *CodeFlare) GetComponentName() string {
 
 func (c *CodeFlare) ReconcileComponent(ctx context.Context,
 	cli client.Client,
-	l logr.Logger,
+	logger logr.Logger,
 	owner metav1.Object,
 	dscispec *dsciv1.DSCInitializationSpec,
 	platform cluster.Platform,
 	_ bool) error {
+	l := c.ConfigComponentLogger(logger, ComponentName, dscispec)
+	var imageParamMap = map[string]string{
+		"codeflare-operator-controller-image": "RELATED_IMAGE_ODH_CODEFLARE_OPERATOR_IMAGE", // no need mcad, embedded in cfo
+	}
+
 	enabled := c.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 
@@ -100,9 +90,11 @@ func (c *CodeFlare) ReconcileComponent(ctx context.Context,
 				dependentOperator, ComponentName)
 		}
 
-		// It updates stock manifests, overridden manifests should contain proper namespace
-		if err := deploy.ApplyParams(ParamsPath, nil, map[string]string{"namespace": dscispec.ApplicationsNamespace}); err != nil {
-			return fmt.Errorf("failed update image from %s : %w", CodeflarePath+"/bases", err)
+		// Update image parameters only when we do not have customized manifests set
+		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (c.DevFlags == nil || len(c.DevFlags.Manifests) == 0) {
+			if err := deploy.ApplyParams(ParamsPath, imageParamMap, map[string]string{"namespace": dscispec.ApplicationsNamespace}); err != nil {
+				return fmt.Errorf("failed update image from %s : %w", CodeflarePath+"/bases", err)
+			}
 		}
 	}
 

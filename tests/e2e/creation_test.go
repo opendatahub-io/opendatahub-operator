@@ -45,6 +45,7 @@ func creationTestSuite(t *testing.T) {
 			err = testCtx.testDSCICreation()
 			require.NoError(t, err, "error creating DSCI CR")
 		})
+
 		t.Run("Creation of more than one of DSCInitialization instance", func(t *testing.T) {
 			testCtx.testDSCIDuplication(t)
 		})
@@ -65,6 +66,7 @@ func creationTestSuite(t *testing.T) {
 		t.Run("Creation of more than one of DataScienceCluster instance", func(t *testing.T) {
 			testCtx.testDSCDuplication(t)
 		})
+
 		t.Run("Validate Ownerrefrences exist", func(t *testing.T) {
 			err = testCtx.testOwnerrefrences()
 			require.NoError(t, err, "error getting all DataScienceCluster's Ownerrefrences")
@@ -78,7 +80,6 @@ func creationTestSuite(t *testing.T) {
 			err = testCtx.validateDSCReady()
 			require.NoError(t, err, "DataScienceCluster instance is not Ready")
 		})
-
 		// Kserve
 		t.Run("Validate Knative resoruce", func(t *testing.T) {
 			err = testCtx.validateDSC()
@@ -178,7 +179,6 @@ func (tc *testContext) testDSCCreation(t *testing.T) error {
 				if creationErr != nil {
 					log.Printf("error creating DSC resource %v: %v, trying again",
 						tc.testDsc.Name, creationErr)
-
 					return false, nil
 				}
 				return true, nil
@@ -197,8 +197,7 @@ func (tc *testContext) validateDSCReady() error {
 	return waitDSCReady(tc)
 }
 
-// Verify DSC instance is in Ready phase when all components are up and running
-
+// Verify DSC instance is in Ready phase when all components are up and running.
 func waitDSCReady(tc *testContext) error {
 	// wait for 2 mins which is on the safe side, normally it should get ready once all components are ready
 	err := tc.wait(func(ctx context.Context) (bool, error) {
@@ -226,24 +225,19 @@ func (tc *testContext) requireInstalled(t *testing.T, gvk schema.GroupVersionKin
 
 	err := tc.customClient.List(tc.ctx, list)
 	require.NoErrorf(t, err, "Could not get %s list", gvk.Kind)
-
 	require.NotEmptyf(t, list.Items, "%s has not been installed", gvk.Kind)
 }
 
 func (tc *testContext) testDuplication(t *testing.T, gvk schema.GroupVersionKind, o any) {
 	t.Helper()
 	tc.requireInstalled(t, gvk)
-
 	u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(o)
 	require.NoErrorf(t, err, "Could not unstructure %s", gvk.Kind)
-
 	obj := &unstructured.Unstructured{
 		Object: u,
 	}
 	obj.SetGroupVersionKind(gvk)
-
 	err = tc.customClient.Create(tc.ctx, obj)
-
 	require.Errorf(t, err, "Could create second %s", gvk.Kind)
 }
 
@@ -304,8 +298,14 @@ func (tc *testContext) testAllComponentCreation(t *testing.T) error { //nolint:f
 func (tc *testContext) testComponentCreation(component components.ComponentInterface) error {
 	err := wait.PollUntilContextTimeout(tc.ctx, generalRetryInterval, componentReadyTimeout, true, func(ctx context.Context) (bool, error) {
 		// TODO: see if checking deployment is a good test, CF does not create deployment
+		var componentName = component.GetComponentName()
+		if component.GetComponentName() == "dashboard" { // special case for RHOAI dashboard name
+			componentName = "rhods-dashboard"
+		}
+
 		appList, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(ctx, metav1.ListOptions{
-			LabelSelector: labels.ODH.Component(component.GetComponentName()),
+
+			LabelSelector: labels.ODH.Component(componentName),
 		})
 		if err != nil {
 			log.Printf("error listing component deployments :%v", err)
@@ -387,10 +387,10 @@ func (tc *testContext) validateDSC() error {
 }
 
 func (tc *testContext) testOwnerrefrences() error {
-	// Test any one of the apps
+	// Test Dashboard component
 	if tc.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
 		appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(tc.ctx, metav1.ListOptions{
-			LabelSelector: labels.ODH.Component(tc.testDsc.Spec.Components.Dashboard.GetComponentName()),
+			LabelSelector: labels.ODH.Component("rhods-dashboard"),
 		})
 		if err != nil {
 			return fmt.Errorf("error listing component deployments %w", err)
@@ -401,7 +401,6 @@ func (tc *testContext) testOwnerrefrences() error {
 				appDeployments.Items[0].OwnerReferences)
 		}
 	}
-
 	return nil
 }
 
@@ -504,9 +503,8 @@ func (tc *testContext) testMRServiceMeshMember() error {
 
 func (tc *testContext) testUpdateComponentReconcile() error {
 	// Test Updating Dashboard Replicas
-
 	appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(tc.ctx, metav1.ListOptions{
-		LabelSelector: labels.ODH.Component(tc.testDsc.Spec.Components.Dashboard.GetComponentName()),
+		LabelSelector: labels.ODH.Component("rhods-dashboard"),
 	})
 	if err != nil {
 		return err
@@ -557,10 +555,10 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 
 	if tc.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
 		appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(tc.ctx, metav1.ListOptions{
-			LabelSelector: labels.ODH.Component(tc.testDsc.Spec.Components.Dashboard.GetComponentName()),
+			LabelSelector: labels.ODH.Component("rhods-dashboard"),
 		})
 		if err != nil {
-			return fmt.Errorf("error getting enabled component %v", tc.testDsc.Spec.Components.Dashboard.GetComponentName())
+			return fmt.Errorf("error getting enabled component %v", "rhods-dashboard")
 		}
 		if len(appDeployments.Items) > 0 {
 			dashboardDeploymentName = appDeployments.Items[0].Name
@@ -589,7 +587,6 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 		if err != nil {
 			return fmt.Errorf("error updating component from 'enabled: true' to 'enabled: false': %w", err)
 		}
-
 		return nil
 	})
 	if err != nil {
@@ -603,7 +600,6 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 		if k8serr.IsNotFound(err) {
 			return nil // correct result: should not find deployment after we disable it already
 		}
-
 		return fmt.Errorf("error getting component resource after reconcile: %w", err)
 	}
 	return fmt.Errorf("component %v is disabled, should not get its deployment %v from NS %v any more",
