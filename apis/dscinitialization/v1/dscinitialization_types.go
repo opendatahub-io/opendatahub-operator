@@ -34,6 +34,8 @@ type DSCInitializationSpec struct {
 	// Namespace for applications to be installed, non-configurable, default to "redhat-ods-applications"
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="ApplicationsNamespace is immutable"
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=1
+	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
+	// +kubebuilder:validation:MaxLength=63
 	ApplicationsNamespace string `json:"applicationsNamespace"`
 	// Enable monitoring on specified namespace
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=2
@@ -68,8 +70,10 @@ type Monitoring struct {
 	//               or if it is installed, the operator will try to remove it.
 	// +kubebuilder:validation:Enum=Managed;Removed
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
-	// +kubebuilder:default=redhat-ods-monitoring
 	// Namespace for monitoring if it is enabled
+	// +kubebuilder:default=redhat-ods-monitoring
+	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
+	// +kubebuilder:validation:MaxLength=63
 	Namespace string `json:"namespace,omitempty"`
 }
 
