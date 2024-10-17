@@ -51,5 +51,5 @@ LABEL com.redhat.component="odh-operator-container" \
       maintainer="['managed-open-data-hub@redhat.com']" \
       io.openshift.expose-services="" \
       io.k8s.display-name="odh-operator" \
-      io.k8s.description="odh-operator"
+      io.k8s.description="odh-operator" \
       com.redhat.license_terms="https://www.redhat.com/licenses/Red_Hat_Standard_EULA_20191108.pdf"
