@@ -4,6 +4,7 @@ import (
 	"context"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	userv1 "github.com/openshift/api/user/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -21,6 +22,7 @@ import (
 const (
 	workingNamespace     = "test-operator-ns"
 	applicationNamespace = "test-application-ns"
+	usergroupName        = "odh-admins"
 	configmapName        = "odh-common-config"
 	applicationName      = "default-dsci"
 	monitoringNamespace  = "test-monitoring-ns"
@@ -117,6 +119,15 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			Expect(foundConfigMap.Namespace).To(Equal(applicationNamespace))
 			expectedConfigmapData := map[string]string{"namespace": applicationNamespace}
 			Expect(foundConfigMap.Data).To(Equal(expectedConfigmapData))
+		})
+
+		It("Should not create user group when we do not have authentications CR in the cluster", func(ctx context.Context) {
+			userGroup := &userv1.Group{}
+			Eventually(objectExists(usergroupName, "", userGroup)).
+				WithContext(ctx).
+				WithTimeout(timeout).
+				WithPolling(interval).
+				Should(BeFalse())
 		})
 
 	})
@@ -350,7 +361,7 @@ func namespaceExists(ns string, obj client.Object) func(ctx context.Context) boo
 	}
 }
 
-func objectExists(ns string, name string, obj client.Object) func(ctx context.Context) bool { //nolint:unparam
+func objectExists(ns string, name string, obj client.Object) func(ctx context.Context) bool {
 	return func(ctx context.Context) bool {
 		err := k8sClient.Get(ctx, client.ObjectKey{Name: ns, Namespace: name}, obj)
 
