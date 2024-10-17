@@ -32,6 +32,9 @@ type Client struct {
 }
 
 func (c *Client) Apply(ctx context.Context, obj ctrlCli.Object, opts ...ctrlCli.PatchOption) error {
+	// remove not required fields
+	obj.SetManagedFields(nil)
+
 	err := c.Client.Patch(ctx, obj, ctrlCli.Apply, opts...)
 	if err != nil {
 		return fmt.Errorf("unable to pactch object %s: %w", obj, err)
@@ -41,9 +44,12 @@ func (c *Client) Apply(ctx context.Context, obj ctrlCli.Object, opts ...ctrlCli.
 }
 
 func (c *Client) ApplyStatus(ctx context.Context, obj ctrlCli.Object, opts ...ctrlCli.SubResourcePatchOption) error {
+	// remove not required fields
+	obj.SetManagedFields(nil)
+
 	err := c.Client.Status().Patch(ctx, obj, ctrlCli.Apply, opts...)
 	if err != nil {
-		return fmt.Errorf("unable to pactch object %s: %w", obj, err)
+		return fmt.Errorf("unable to pactch object status %s: %w", obj, err)
 	}
 
 	return nil
