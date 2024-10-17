@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	routev1 "github.com/openshift/api/route/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -30,6 +31,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -42,6 +44,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/dependent"
 	odhrec "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -64,6 +67,8 @@ var (
 	PathManagedDownstream   = PathDownstream + "/addon"
 	OverridePath            = ""
 	DefaultPath             = ""
+
+	dashboardID = types.NamespacedName{Name: componentsv1.DashboardInstanceName}
 )
 
 func NewDashboardReconciler(ctx context.Context, mgr ctrl.Manager) error {
@@ -84,23 +89,39 @@ func NewDashboardReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		actions.WithUpdateStatusLabel(labels.ComponentName, ComponentName),
 	))
 
-	eh := handler.EnqueueRequestsFromMapFunc(watchDashboardResources)
+	var componentLabelPredicate predicate.Predicate
+	var componentEventHandler handler.EventHandler
+
+	switch r.Platform {
+	case cluster.SelfManagedRhods, cluster.ManagedRhods:
+		componentLabelPredicate = dashboardWatchPredicate(ComponentNameUpstream)
+		componentEventHandler = watchDashboardResources(ComponentNameUpstream)
+	default:
+		componentLabelPredicate = dashboardWatchPredicate(ComponentNameDownstream)
+		componentEventHandler = watchDashboardResources(ComponentNameDownstream)
+	}
 
 	err = ctrl.NewControllerManagedBy(mgr).
-		For(&componentsv1.Dashboard{}).
-		// dependants
-		Watches(&appsv1.Deployment{}, eh).
-		Watches(&appsv1.ReplicaSet{}, eh).
-		Watches(&corev1.Namespace{}, eh).
-		Watches(&corev1.ConfigMap{}, eh).
-		Watches(&corev1.PersistentVolumeClaim{}, eh).
-		Watches(&rbacv1.ClusterRoleBinding{}, eh).
-		Watches(&rbacv1.ClusterRole{}, eh).
-		Watches(&rbacv1.Role{}, eh).
-		Watches(&rbacv1.RoleBinding{}, eh).
-		Watches(&corev1.ServiceAccount{}, eh).
-		// shared filter
-		WithEventFilter(dashboardPredicates).
+		// API
+		For(&componentsv1.Dashboard{}, builder.WithPredicates(predicate.Or(
+			predicate.GenerationChangedPredicate{},
+			predicate.LabelChangedPredicate{},
+			predicate.AnnotationChangedPredicate{}))).
+		// operands
+		Watches(&corev1.ConfigMap{}, componentEventHandler, builder.WithPredicates(componentLabelPredicate)).
+		Watches(&corev1.Secret{}, componentEventHandler, builder.WithPredicates(componentLabelPredicate)).
+		Watches(&rbacv1.ClusterRoleBinding{}, componentEventHandler, builder.WithPredicates(componentLabelPredicate)).
+		Watches(&rbacv1.ClusterRole{}, componentEventHandler, builder.WithPredicates(componentLabelPredicate)).
+		Watches(&rbacv1.Role{}, componentEventHandler, builder.WithPredicates(componentLabelPredicate)).
+		Watches(&rbacv1.RoleBinding{}, componentEventHandler, builder.WithPredicates(componentLabelPredicate)).
+		Watches(&corev1.ServiceAccount{}, componentEventHandler, builder.WithPredicates(componentLabelPredicate)).
+		// Include status changes as we need to determine the component
+		// readiness by observing the status of the deployments
+		Watches(&appsv1.Deployment{}, componentEventHandler, builder.WithPredicates(componentLabelPredicate)).
+		// Ignore status changes
+		Watches(&routev1.Route{}, componentEventHandler, builder.WithPredicates(predicate.And(
+			componentLabelPredicate,
+			dependent.New()))).
 		Complete(r)
 
 	if err != nil {
@@ -198,40 +219,60 @@ func GetDashboard(dsc *dscv1.DataScienceCluster) *componentsv1.Dashboard {
 
 // +kubebuilder:rbac:groups="*",resources=replicasets,verbs=*
 
-func watchDashboardResources(_ context.Context, a client.Object) []reconcile.Request {
-	if a.GetLabels()["app.opendatahub.io/dashboard"] == "true" {
-		return []reconcile.Request{{
-			NamespacedName: types.NamespacedName{Name: componentsv1.DashboardInstanceName},
-		}}
-	}
-	return nil
+//nolint:ireturn
+func watchDashboardResources(componentName string) handler.EventHandler {
+	return handler.EnqueueRequestsFromMapFunc(func(_ context.Context, a client.Object) []reconcile.Request {
+		switch {
+		case a.GetLabels()[labels.ODH.Component(componentName)] == "true":
+			return []reconcile.Request{{NamespacedName: dashboardID}}
+		case a.GetLabels()[labels.ComponentName] == ComponentName:
+			return []reconcile.Request{{NamespacedName: dashboardID}}
+		}
+
+		return nil
+	})
 }
 
-var dashboardPredicates = predicate.Funcs{
-	CreateFunc: func(e event.CreateEvent) bool {
-		// Cannot use Kind, since Kind is empty for e.Object
-		return e.Object.GetName() == componentsv1.DashboardInstanceName
-	},
-	DeleteFunc: func(e event.DeleteEvent) bool {
-		if e.Object.GetName() == componentsv1.DashboardInstanceName {
+func dashboardWatchPredicate(componentName string) predicate.Funcs {
+	label := labels.ODH.Component(componentName)
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
 			return true
-		}
-		labelList := e.Object.GetLabels()
-		if value, exist := labelList[labels.ODH.Component(ComponentNameUpstream)]; exist && value == "true" {
-			return true
-		}
-		return false
-	},
-	UpdateFunc: func(e event.UpdateEvent) bool {
-		if e.ObjectOld.GetName() == "default-dashboard" {
-			return true
-		}
-		labelList := e.ObjectOld.GetLabels()
-		if value, exist := labelList[labels.ODH.Component(ComponentNameUpstream)]; exist && value == "true" {
-			return true
-		}
-		return false
-	},
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			labelList := e.Object.GetLabels()
+
+			if value, exist := labelList[labels.ComponentName]; exist && value == ComponentName {
+				return true
+			}
+			if value, exist := labelList[label]; exist && value == "true" {
+				return true
+			}
+
+			return false
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldLabels := e.ObjectOld.GetLabels()
+
+			if value, exist := oldLabels[labels.ComponentName]; exist && value == ComponentName {
+				return true
+			}
+			if value, exist := oldLabels[label]; exist && value == "true" {
+				return true
+			}
+
+			newLabels := e.ObjectNew.GetLabels()
+
+			if value, exist := newLabels[labels.ComponentName]; exist && value == ComponentName {
+				return true
+			}
+			if value, exist := newLabels[label]; exist && value == "true" {
+				return true
+			}
+
+			return false
+		},
+	}
 }
 
 func updateKustomizeVariable(ctx context.Context, cli client.Client, platform cluster.Platform, dscispec *dsciv1.DSCInitializationSpec) (map[string]string, error) {
