@@ -344,15 +344,16 @@ func (a *DeployComponentAction) Execute(ctx context.Context, rr *odhtypes.Reconc
 	}
 
 	// 2. Append or Update variable for component to consume
-	_, err := updateKustomizeVariable(ctx, rr.Client, rr.Platform, &rr.DSCI.Spec)
+	extraParamsMap, err := updateKustomizeVariable(ctx, rr.Client, rr.Platform, &rr.DSCI.Spec)
 	if err != nil {
 		return errors.New("failed to set variable for extraParamsMap")
 	}
 
 	// 3. update params.env regardless devFlags is provided of not
-	// if err := deploy.ApplyParams(r.entryPath, nil, extraParamsMap); err != nil {
-	//	return fmt.Errorf("failed to update params.env  from %s : %w", r.entryPath, err)
-	// }
+	// We need this for downstream
+	if err := deploy.ApplyParams(rr.Manifests[rr.Platform], nil, extraParamsMap); err != nil {
+		return fmt.Errorf("failed to update params.env  from %s : %w", rr.Manifests[rr.Platform], err)
+	}
 
 	path := rr.Manifests[rr.Platform]
 	name := ComponentNameUpstream
