@@ -1,3 +1,4 @@
+//nolint:unused
 package e2e_test
 
 import (
@@ -34,8 +35,8 @@ func creationTestSuite(t *testing.T) {
 	require.NoError(t, err)
 
 	// TODO: Uncomment this when we have Kserve api implemented
-	//err = testCtx.setUp(t)
-	//require.NoError(t, err, "error setting up environment")
+	// err = testCtx.setUp(t)
+	// require.NoError(t, err, "error setting up environment")
 
 	t.Run(testCtx.testDsc.Name, func(t *testing.T) {
 		// DSCI
@@ -47,10 +48,10 @@ func creationTestSuite(t *testing.T) {
 			testCtx.testDSCIDuplication(t)
 		})
 		// Validates Servicemesh fields
-		//t.Run("Validate DSCInitialization instance", func(t *testing.T) {
+		// t.Run("Validate DSCInitialization instance", func(t *testing.T) {
 		//	err = testCtx.validateDSCI()
 		//	require.NoError(t, err, "error validating DSCInitialization instance")
-		//})
+		// })
 		t.Run("Check owned namespaces exist", func(t *testing.T) {
 			err = testCtx.testOwnedNamespacesAllExist()
 			require.NoError(t, err, "error owned namespace is missing")
@@ -66,30 +67,29 @@ func creationTestSuite(t *testing.T) {
 		})
 
 		//// Kserve
-		//t.Run("Validate Knative resoruce", func(t *testing.T) {
+		// t.Run("Validate Knative resoruce", func(t *testing.T) {
 		//	err = testCtx.validateDSC()
 		//	require.NoError(t, err, "error getting Knatvie resrouce as part of DataScienceCluster validation")
-		//})
-		//t.Run("Validate default certs available", func(t *testing.T) {
+		// })
+		// t.Run("Validate default certs available", func(t *testing.T) {
 		//	// move it to be part of check with kserve since it is using serving's secret
 		//	err = testCtx.testDefaultCertsAvailable()
 		//	require.NoError(t, err, "error getting default cert secrets for Kserve")
-		//})
+		// })
 		//
 		//// ModelReg
-		//t.Run("Validate model registry cert config", func(t *testing.T) {
+		// t.Run("Validate model registry cert config", func(t *testing.T) {
 		//	err = testCtx.validateModelRegistryConfig()
 		//	require.NoError(t, err, "error validating ModelRegistry config")
-		//})
-		//t.Run("Validate default model registry cert available", func(t *testing.T) {
+		// })
+		// t.Run("Validate default model registry cert available", func(t *testing.T) {
 		//	err = testCtx.testDefaultModelRegistryCertAvailable()
 		//	require.NoError(t, err, "error getting default cert secret for ModelRegistry")
-		//})
-		//t.Run("Validate model registry servicemeshmember available", func(t *testing.T) {
+		// })
+		// t.Run("Validate model registry servicemeshmember available", func(t *testing.T) {
 		//	err = testCtx.testMRServiceMeshMember()
 		//	require.NoError(t, err, "error getting servicemeshmember for Model Registry")
-		//})
-
+		// })
 	})
 }
 

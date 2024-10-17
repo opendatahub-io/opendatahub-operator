@@ -175,10 +175,10 @@ func watchDashboardResources(_ context.Context, a client.Object) []reconcile.Req
 var dashboardPredicates = predicate.Funcs{
 	CreateFunc: func(e event.CreateEvent) bool {
 		// Cannot use Kind, since Kind is empty for e.Object
-		return e.Object.GetName() == "default-dashboard"
+		return e.Object.GetName() == componentsv1.DashboardInstanceName
 	},
 	DeleteFunc: func(e event.DeleteEvent) bool {
-		if e.Object.GetName() == "default-dashboard" {
+		if e.Object.GetName() == componentsv1.DashboardInstanceName {
 			return true
 		}
 		labelList := e.Object.GetLabels()

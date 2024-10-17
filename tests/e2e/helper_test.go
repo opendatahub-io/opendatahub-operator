@@ -1,3 +1,4 @@
+//nolint:unused
 package e2e_test
 
 import (
