@@ -6,8 +6,9 @@ metadata:
     capabilities: Full Lifecycle
     categories: AI/Machine Learning, Big Data
     certified: "False"
-    containerImage: quay.io/opendatahub/opendatahub-operator:v2.0.0
-    createdAt: "2023-8-23T00:00:00Z"
+    containerImage: REPLACE_IMAGE:latest
+    createdAt: "2023-10-10T00:00:00Z"
+    description: Operator for deployment and management of Red Hat OpenShift AI
     features.operators.openshift.io/disconnected: "true"
     features.operators.openshift.io/fips-compliant: "false"
     features.operators.openshift.io/proxy-aware: "false"
@@ -59,6 +60,10 @@ metadata:
             "modelmeshserving": {
               "managementState": "Managed"
             },
+            "modelregistry": {
+              "managementState": "Removed",
+              "registriesNamespace": "rhoai-model-registries"
+            },
             "ray": {
               "managementState": "Managed"
             },
@@ -74,7 +79,10 @@ metadata:
           }
         }
       }
+    operatorframework.io/suggested-namespace: redhat-ods-operator
+    operators.openshift.io/infrastructure-features: '["disconnected"]'
     repository: https://github.com/red-hat-data-services/rhods-operator
+    support: Red Hat OpenShift AI
   name: rhods-operator.v2.0.0
   namespace: placeholder
 spec:
@@ -144,6 +152,7 @@ spec:
   - supported: true
     type: AllNamespaces
   keywords:
+  - Operator
   - OpenShift
   - Open Data Hub
   - ODH
@@ -160,10 +169,22 @@ spec:
   - kserve
   - distributed-workloads
   - trustyai
+  - modelregistry
+  - RHOAI
+  - ODH
+  - OAI
+  - AI
+  - ML
+  - Machine Learning
+  - Data Science
   links:
   - name: Red Hat OpenShift AI
-    url: https://www.redhat.com/en/technologies/cloud-computing/openshift/openshift-ai
+    url: https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/2.15.0
+  maintainers:
+  - email: managed-open-data-hub@redhat.com
+    name: Red Hat Openshift AI
+  maturity: stable
   minKubeVersion: 1.25.0
   provider:
     name: Red Hat
-  version: 2.0.0
+  version: 2.15.0
