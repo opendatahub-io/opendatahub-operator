@@ -1,4 +1,0 @@
-- op: replace
-  path: /spec/istio/authConfigLabels
-  value:
-    security.opendatahub.io/authorization-group: default

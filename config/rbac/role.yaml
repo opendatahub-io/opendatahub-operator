@@ -522,6 +522,7 @@ rules:
   resources:
   - modelregistries/finalizers
   verbs:
+  - get
   - update
 - apiGroups:
   - modelregistry.opendatahub.io

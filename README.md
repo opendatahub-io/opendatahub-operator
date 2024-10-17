@@ -145,7 +145,7 @@ e.g `make image-build -e IMAGE_BUILD_FLAGS="--build-arg USE_LOCAL=true"`
   make image -e IMG=quay.io/<username>/opendatahub-operator:<custom-tag>
   ```
 
-  or (for example to user vhire)
+  or (for example to user <username>)
 
   ```commandline
   make image -e IMAGE_OWNER=vhire
@@ -332,6 +332,8 @@ spec:
       managementState: Managed
     trainingoperator:
       managementState: Managed
+    trustyai:
+      managementState: Managed
     workbenches:
       managementState: Managed
 ```
@@ -342,7 +344,7 @@ spec:
 apiVersion: datasciencecluster.opendatahub.io/v1
 kind: DataScienceCluster
 metadata:
-  name: example
+  name: default-dsc
 spec:
   components:
     dashboard:

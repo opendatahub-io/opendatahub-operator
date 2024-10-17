@@ -103,7 +103,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: REPLACE_IMAGE:latest
-    createdAt: "2024-10-18T09:38:18Z"
+    createdAt: "2024-10-18T10:04:32Z"
     description: Operator for deployment and management of Red Hat OpenShift AI
     features.operators.openshift.io/disconnected: "true"
     features.operators.openshift.io/fips-compliant: "false"
@@ -783,6 +783,7 @@ spec:
           resources:
           - modelregistries/finalizers
           verbs:
+          - get
           - update
         - apiGroups:
           - modelregistry.opendatahub.io
@@ -1171,6 +1172,8 @@ spec:
                 command:
                 - /manager
                 env:
+                - name: DISABLE_DSC_CONFIG
+                  value: "false"
                 - name: OPERATOR_NAMESPACE
                   valueFrom:
                     fieldRef:

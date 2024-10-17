@@ -1,8 +1,0 @@
-resources:
-- configdefaults.yaml
-- configobservability.yaml
-- configspire.yaml
-- featureflags.yaml
-- configartifactbucket.yaml
-- configartifactpvc.yaml
-- configtrustedsources.yaml

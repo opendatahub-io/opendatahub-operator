@@ -1,8 +1,0 @@
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: ds-pipelines-viewer-{{.Name}}
-  namespace: {{.Namespace}}
-  labels:
-    app: ds-pipeline-ui-{{.Name}}
-    component: data-science-pipelines

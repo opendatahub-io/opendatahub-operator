@@ -23,10 +23,7 @@ IMAGE_BUILDER ?= podman
 OPERATOR_NAMESPACE ?= redhat-ods-operator
 DEFAULT_MANIFESTS_PATH ?= opt/manifests
 
-MANIFEST_REPO ?= red-hat-data-services
-MANIFEST_RELEASE ?= master
-
-CHANNELS="alpha,stable"
+CHANNELS="alpha,fast"
 
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
@@ -247,7 +244,7 @@ KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/k
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
 $(KUSTOMIZE): $(LOCALBIN)
-	test -s $(KUSTOMIZE) || { curl -s $(KUSTOMIZE_INSTALL_SCRIPT) | sh -s -- $(subst v,,$(KUSTOMIZE_VERSION)) $(LOCALBIN); }
+	test -s $(KUSTOMIZE) || { curl -s $(KUSTOMIZE_INSTALL_SCRIPT) | bash -s -- $(subst v,,$(KUSTOMIZE_VERSION)) $(LOCALBIN); }
 
 .PHONY: controller-gen
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.

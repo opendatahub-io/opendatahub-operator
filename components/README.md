@@ -55,6 +55,7 @@ can be found [here](https://github.com/opendatahub-io/opendatahub-operator/tree/
 - Components should add `unit` tests for any component specific functions added to the codebase
 - Components should update [e2e tests](https://github.com/opendatahub-io/opendatahub-operator/tree/main/tests/e2e) to
   capture deployments introduced by the new component
+
 ## Integrated Components
 
 - [Dashboard](https://github.com/opendatahub-io/opendatahub-operator/tree/main/components/dashboard)
@@ -64,4 +65,6 @@ can be found [here](https://github.com/opendatahub-io/opendatahub-operator/tree/
 - [KServe](https://github.com/opendatahub-io/opendatahub-operator/tree/main/components/kserve)
 - [ModelMesh Serving](https://github.com/opendatahub-io/opendatahub-operator/tree/main/components/modelmeshserving)
 - [Workbenches](https://github.com/opendatahub-io/opendatahub-operator/tree/main/components/workbenches)
+- [TrustyAI](https://github.com/opendatahub-io/opendatahub-operator/tree/main/components/trustyai)
+- [ModelRegistry](https://github.com/opendatahub-io/opendatahub-operator/tree/main/components/modelregistry)
 - [Kueue](https://github.com/opendatahub-io/kueue)

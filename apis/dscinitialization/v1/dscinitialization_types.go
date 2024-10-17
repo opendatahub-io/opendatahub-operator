@@ -30,8 +30,8 @@ import (
 
 // DSCInitializationSpec defines the desired state of DSCInitialization.
 type DSCInitializationSpec struct {
-	// +kubebuilder:default:=redhat-ods-applications
 	// Namespace for applications to be installed, non-configurable, default to "redhat-ods-applications"
+	// +kubebuilder:default:=redhat-ods-applications
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="ApplicationsNamespace is immutable"
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=1
 	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
@@ -83,7 +83,7 @@ type DevFlags struct {
 	// Custom manifests uri for odh-manifests
 	// +optional
 	ManifestsUri string `json:"manifestsUri,omitempty"`
-	// +kubebuilder:validation:Enum=devel;development;prod;production
+	// +kubebuilder:validation:Enum=devel;development;prod;production;default
 	// +kubebuilder:default="production"
 	LogMode string `json:"logmode,omitempty"`
 }

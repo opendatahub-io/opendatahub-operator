@@ -74,6 +74,7 @@ spec:
                     - development
                     - prod
                     - production
+                    - default
                     type: string
                   manifestsUri:
                     description: Custom manifests uri for odh-manifests

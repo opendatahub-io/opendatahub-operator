@@ -1,7 +1,0 @@
-varReference:
-- path: data
-  kind: ConfigMap
-- path: spec/template/spec/containers/env/value
-  kind: Deployment
-- path: spec/template/spec/containers/image
-  kind: Deployment
