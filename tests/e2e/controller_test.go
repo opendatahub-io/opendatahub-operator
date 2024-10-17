@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	"os"
 	"testing"
 
@@ -104,6 +105,7 @@ func TestOdhOperator(t *testing.T) {
 	utilruntime.Must(monitoringv1.AddToScheme(scheme))
 	utilruntime.Must(ofapi.AddToScheme(scheme))
 	utilruntime.Must(operatorv1.AddToScheme(scheme))
+	utilruntime.Must(componentsv1.AddToScheme(scheme))
 
 	log.SetLogger(zap.New(zap.UseDevMode(true)))
 
@@ -112,7 +114,9 @@ func TestOdhOperator(t *testing.T) {
 		return
 	}
 	// Run create and delete tests for all the components
-	t.Run("create Opendatahub components", creationTestSuite)
+	t.Run("create DSCI and DSC CRs", creationTestSuite)
+	// Validate deployment of each component in separate test suite
+	t.Run("validate installation of Dashboard Component", dashboardTestSuite)
 
 	// Run deletion if skipDeletion is not set
 	if !skipDeletion {

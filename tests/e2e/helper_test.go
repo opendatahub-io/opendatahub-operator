@@ -103,7 +103,7 @@ func setupDSCICR(name string) *dsciv1.DSCInitialization {
 					Name:              "data-science-smcp",
 					Namespace:         "istio-system",
 				},
-				ManagementState: "Managed",
+				ManagementState: "Removed",
 			},
 		},
 	}

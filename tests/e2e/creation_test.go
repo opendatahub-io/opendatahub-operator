@@ -2,7 +2,6 @@ package e2e_test
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"reflect"
@@ -11,7 +10,6 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
-	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -19,13 +17,15 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/util/retry"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
-	componentctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/serverless"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
@@ -33,8 +33,9 @@ func creationTestSuite(t *testing.T) {
 	testCtx, err := NewTestContext()
 	require.NoError(t, err)
 
-	err = testCtx.setUp(t)
-	require.NoError(t, err, "error setting up environment")
+	// TODO: Uncomment this when we have Kserve api implemented
+	//err = testCtx.setUp(t)
+	//require.NoError(t, err, "error setting up environment")
 
 	t.Run(testCtx.testDsc.Name, func(t *testing.T) {
 		// DSCI
@@ -45,10 +46,11 @@ func creationTestSuite(t *testing.T) {
 		t.Run("Creation of more than one of DSCInitialization instance", func(t *testing.T) {
 			testCtx.testDSCIDuplication(t)
 		})
-		t.Run("Validate DSCInitialization instance", func(t *testing.T) {
-			err = testCtx.validateDSCI()
-			require.NoError(t, err, "error validating DSCInitialization instance")
-		})
+		// Validates Servicemesh fields
+		//t.Run("Validate DSCInitialization instance", func(t *testing.T) {
+		//	err = testCtx.validateDSCI()
+		//	require.NoError(t, err, "error validating DSCInitialization instance")
+		//})
 		t.Run("Check owned namespaces exist", func(t *testing.T) {
 			err = testCtx.testOwnedNamespacesAllExist()
 			require.NoError(t, err, "error owned namespace is missing")
@@ -62,55 +64,32 @@ func creationTestSuite(t *testing.T) {
 		t.Run("Creation of more than one of DataScienceCluster instance", func(t *testing.T) {
 			testCtx.testDSCDuplication(t)
 		})
-		t.Run("Validate Ownerrefrences exist", func(t *testing.T) {
-			err = testCtx.testOwnerrefrences()
-			require.NoError(t, err, "error getting all DataScienceCluster's Ownerrefrences")
-		})
-		t.Run("Validate all deployed components", func(t *testing.T) {
-			// this will take about 5-6 mins to complete
-			err = testCtx.testAllComponentCreation(t)
-			require.NoError(t, err, "error testing deployments for DataScienceCluster: "+testCtx.testDsc.Name)
-		})
-		t.Run("Validate DSC Ready", func(t *testing.T) {
-			err = testCtx.validateDSCReady()
-			require.NoError(t, err, "DataScienceCluster instance is not Ready")
-		})
 
-		// Kserve
-		// t.Run("Validate Knative resoruce", func(t *testing.T) {
+		//// Kserve
+		//t.Run("Validate Knative resoruce", func(t *testing.T) {
 		//	err = testCtx.validateDSC()
 		//	require.NoError(t, err, "error getting Knatvie resrouce as part of DataScienceCluster validation")
-		// })
-		// t.Run("Validate default certs available", func(t *testing.T) {
+		//})
+		//t.Run("Validate default certs available", func(t *testing.T) {
 		//	// move it to be part of check with kserve since it is using serving's secret
 		//	err = testCtx.testDefaultCertsAvailable()
 		//	require.NoError(t, err, "error getting default cert secrets for Kserve")
-		// })
-
-		// ModelReg
-		// t.Run("Validate model registry cert config", func(t *testing.T) {
+		//})
+		//
+		//// ModelReg
+		//t.Run("Validate model registry cert config", func(t *testing.T) {
 		//	err = testCtx.validateModelRegistryConfig()
 		//	require.NoError(t, err, "error validating ModelRegistry config")
-		// })
-		// t.Run("Validate default model registry cert available", func(t *testing.T) {
+		//})
+		//t.Run("Validate default model registry cert available", func(t *testing.T) {
 		//	err = testCtx.testDefaultModelRegistryCertAvailable()
 		//	require.NoError(t, err, "error getting default cert secret for ModelRegistry")
-		// })
-		// t.Run("Validate model registry servicemeshmember available", func(t *testing.T) {
+		//})
+		//t.Run("Validate model registry servicemeshmember available", func(t *testing.T) {
 		//	err = testCtx.testMRServiceMeshMember()
 		//	require.NoError(t, err, "error getting servicemeshmember for Model Registry")
-		// })
+		//})
 
-		// reconcile
-		t.Run("Validate Controller reconcile", func(t *testing.T) {
-			// only test Dashboard component for now
-			err = testCtx.testUpdateComponentReconcile()
-			require.NoError(t, err, "error testing updates for DSC managed resource")
-		})
-		t.Run("Validate Component Enabled field", func(t *testing.T) {
-			err = testCtx.testUpdateDSCComponentEnabled()
-			require.NoError(t, err, "error testing component enabled field")
-		})
 	})
 }
 
@@ -360,251 +339,170 @@ func (tc *testContext) validateDSCI() error {
 	return nil
 }
 
-//// test if knative resource has been created.
-// func (tc *testContext) validateDSC() error {
-//	expServingSpec := infrav1.ServingSpec{
-//		ManagementState: operatorv1.Managed,
-//		Name:            "knative-serving",
-//		IngressGateway: infrav1.GatewaySpec{
-//			Certificate: infrav1.CertificateSpec{
-//				Type: infrav1.OpenshiftDefaultIngress,
-//			},
-//		},
-//	}
-//
-//	act := tc.testDsc
-//
-//	if act.Spec.Components.Kserve.Serving != expServingSpec {
-//		err := fmt.Errorf("Expected serving spec %v, got %v",
-//			expServingSpec, act.Spec.Components.Kserve.Serving)
-//		return err
-//	}
-//
-//	return nil
-//}
+// test if knative resource has been created.
+func (tc *testContext) validateDSC() error {
+	expServingSpec := infrav1.ServingSpec{
+		ManagementState: operatorv1.Managed,
+		Name:            "knative-serving",
+		IngressGateway: infrav1.GatewaySpec{
+			Certificate: infrav1.CertificateSpec{
+				Type: infrav1.OpenshiftDefaultIngress,
+			},
+		},
+	}
 
-func (tc *testContext) testOwnerrefrences() error {
-	// Test any one of the apps
-	if tc.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
-		appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(tc.ctx, metav1.ListOptions{
-			LabelSelector: labels.ODH.Component(componentctrl.ComponentNameUpstream),
-		})
-		if err != nil {
-			return fmt.Errorf("error listing component deployments %w", err)
-		}
-		// test any one deployment for ownerreference
-		if len(appDeployments.Items) != 0 && appDeployments.Items[0].OwnerReferences[0].Kind != "DataScienceCluster" {
-			return fmt.Errorf("expected ownerreference not found. Got ownereferrence: %v",
-				appDeployments.Items[0].OwnerReferences)
-		}
+	act := tc.testDsc
+
+	if act.Spec.Components.Kserve.Serving != expServingSpec {
+		err := fmt.Errorf("Expected serving spec %v, got %v",
+			expServingSpec, act.Spec.Components.Kserve.Serving)
+		return err
 	}
 
 	return nil
 }
 
-// func (tc *testContext) testDefaultCertsAvailable() error {
-//	// Get expected cert secrets
-//	defaultIngressCtrl, err := cluster.FindAvailableIngressController(tc.ctx, tc.customClient)
-//	if err != nil {
-//		return fmt.Errorf("failed to get ingress controller: %w", err)
-//	}
-//
-//	defaultIngressCertName := cluster.GetDefaultIngressCertSecretName(defaultIngressCtrl)
-//
-//	defaultIngressSecret, err := cluster.GetSecret(tc.ctx, tc.customClient, "openshift-ingress", defaultIngressCertName)
-//	if err != nil {
-//		return err
-//	}
-//
-//	// Verify secret from Control Plane namespace matches the default cert secret
-//	defaultSecretName := tc.testDsc.Spec.Components.Kserve.Serving.IngressGateway.Certificate.SecretName
-//	if defaultSecretName == "" {
-//		defaultSecretName = serverless.DefaultCertificateSecretName
-//	}
-//	ctrlPlaneSecret, err := cluster.GetSecret(tc.ctx, tc.customClient, tc.testDSCI.Spec.ServiceMesh.ControlPlane.Namespace,
-//		defaultSecretName)
-//	if err != nil {
-//		return err
-//	}
-//
-//	if ctrlPlaneSecret.Type != defaultIngressSecret.Type {
-//		return fmt.Errorf("wrong type of cert secret is created for %v. Expected %v, Got %v", defaultSecretName, defaultIngressSecret.Type, ctrlPlaneSecret.Type)
-//	}
-//
-//	if string(defaultIngressSecret.Data["tls.crt"]) != string(ctrlPlaneSecret.Data["tls.crt"]) {
-//		return fmt.Errorf("default cert secret not expected. Epected %v, Got %v", defaultIngressSecret.Data["tls.crt"], ctrlPlaneSecret.Data["tls.crt"])
-//	}
-//
-//	if string(defaultIngressSecret.Data["tls.key"]) != string(ctrlPlaneSecret.Data["tls.key"]) {
-//		return fmt.Errorf("default cert secret not expected. Epected %v, Got %v", defaultIngressSecret.Data["tls.crt"], ctrlPlaneSecret.Data["tls.crt"])
-//	}
-//	return nil
-//}
-//
-// func (tc *testContext) testDefaultModelRegistryCertAvailable() error {
-//	// return if MR is not set to Managed
-//	if tc.testDsc.Spec.Components.ModelRegistry.ManagementState != operatorv1.Managed {
-//		return nil
-//	}
-//
-//	// Get expected cert secrets
-//	defaultIngressCtrl, err := cluster.FindAvailableIngressController(tc.ctx, tc.customClient)
-//	if err != nil {
-//		return fmt.Errorf("failed to get ingress controller: %w", err)
-//	}
-//
-//	defaultIngressCertName := cluster.GetDefaultIngressCertSecretName(defaultIngressCtrl)
-//
-//	defaultIngressSecret, err := cluster.GetSecret(tc.ctx, tc.customClient, "openshift-ingress", defaultIngressCertName)
-//	if err != nil {
-//		return err
-//	}
-//
-//	// Verify secret from Control Plane namespace matches the default MR cert secret
-//	defaultMRSecretName := modelregistry.DefaultModelRegistryCert
-//	defaultMRSecret, err := cluster.GetSecret(tc.ctx, tc.customClient, tc.testDSCI.Spec.ServiceMesh.ControlPlane.Namespace,
-//		defaultMRSecretName)
-//	if err != nil {
-//		return err
-//	}
-//
-//	if defaultMRSecret.Type != defaultIngressSecret.Type {
-//		return fmt.Errorf("wrong type of MR cert secret is created for %v. Expected %v, Got %v", defaultMRSecretName, defaultIngressSecret.Type, defaultMRSecret.Type)
-//	}
-//
-//	if string(defaultIngressSecret.Data["tls.crt"]) != string(defaultMRSecret.Data["tls.crt"]) {
-//		return fmt.Errorf("default MR cert secret not expected. Epected %v, Got %v", defaultIngressSecret.Data["tls.crt"], defaultMRSecret.Data["tls.crt"])
-//	}
-//
-//	if string(defaultIngressSecret.Data["tls.key"]) != string(defaultMRSecret.Data["tls.key"]) {
-//		return fmt.Errorf("default MR cert secret not expected. Epected %v, Got %v", defaultIngressSecret.Data["tls.crt"], defaultMRSecret.Data["tls.crt"])
-//	}
-//	return nil
-//}
+func (tc *testContext) testDefaultCertsAvailable() error {
+	// Get expected cert secrets
+	defaultIngressCtrl, err := cluster.FindAvailableIngressController(tc.ctx, tc.customClient)
+	if err != nil {
+		return fmt.Errorf("failed to get ingress controller: %w", err)
+	}
 
-// func (tc *testContext) testMRServiceMeshMember() error {
-//	if tc.testDsc.Spec.Components.ModelRegistry.ManagementState != operatorv1.Managed {
-//		return nil
-//	}
-//
-//	// Get unstructured ServiceMeshMember
-//	smm := unstructured.Unstructured{}
-//	smm.SetAPIVersion("maistra.io/v1")
-//	smm.SetKind("ServiceMeshMember")
-//	err := tc.customClient.Get(tc.ctx,
-//		client.ObjectKey{Namespace: modelregistry.DefaultModelRegistriesNamespace, Name: "default"}, &smm)
-//	if err != nil {
-//		return fmt.Errorf("failed to get servicemesh member: %w", err)
-//	}
-//	return nil
-//}
+	defaultIngressCertName := cluster.GetDefaultIngressCertSecretName(defaultIngressCtrl)
 
-func (tc *testContext) testUpdateComponentReconcile() error {
-	// Test Updating Dashboard Replicas
-
-	appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(tc.ctx, metav1.ListOptions{
-		LabelSelector: labels.ODH.Component(componentctrl.ComponentNameUpstream),
-	})
+	defaultIngressSecret, err := cluster.GetSecret(tc.ctx, tc.customClient, "openshift-ingress", defaultIngressCertName)
 	if err != nil {
 		return err
 	}
 
-	if len(appDeployments.Items) != 1 {
-		return fmt.Errorf("error getting deployment for component %s", componentctrl.ComponentNameUpstream)
+	// Verify secret from Control Plane namespace matches the default cert secret
+	defaultSecretName := tc.testDsc.Spec.Components.Kserve.Serving.IngressGateway.Certificate.SecretName
+	if defaultSecretName == "" {
+		defaultSecretName = serverless.DefaultCertificateSecretName
 	}
-
-	const expectedReplica int32 = 3
-
-	testDeployment := appDeployments.Items[0]
-	patchedReplica := &autoscalingv1.Scale{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      testDeployment.Name,
-			Namespace: testDeployment.Namespace,
-		},
-		Spec: autoscalingv1.ScaleSpec{
-			Replicas: expectedReplica,
-		},
-		Status: autoscalingv1.ScaleStatus{},
-	}
-	updatedDep, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).UpdateScale(tc.ctx, testDeployment.Name, patchedReplica, metav1.UpdateOptions{})
+	ctrlPlaneSecret, err := cluster.GetSecret(tc.ctx, tc.customClient, tc.testDSCI.Spec.ServiceMesh.ControlPlane.Namespace,
+		defaultSecretName)
 	if err != nil {
-		return fmt.Errorf("error patching component resources : %w", err)
-	}
-	if updatedDep.Spec.Replicas != patchedReplica.Spec.Replicas {
-		return fmt.Errorf("failed to patch replicas : expect to be %v but got %v", patchedReplica.Spec.Replicas, updatedDep.Spec.Replicas)
+		return err
 	}
 
-	// Sleep for 40 seconds to allow the operator to reconcile
-	// we expect it should not revert back to original value because of AllowList
-	time.Sleep(4 * generalRetryInterval)
-	reconciledDep, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).Get(tc.ctx, testDeployment.Name, metav1.GetOptions{})
-	if err != nil {
-		return fmt.Errorf("error getting component resource after reconcile: %w", err)
-	}
-	if *reconciledDep.Spec.Replicas != expectedReplica {
-		return fmt.Errorf("failed to revert back replicas : expect to be %v but got %v", expectedReplica, *reconciledDep.Spec.Replicas)
+	if ctrlPlaneSecret.Type != defaultIngressSecret.Type {
+		return fmt.Errorf("wrong type of cert secret is created for %v. Expected %v, Got %v", defaultSecretName, defaultIngressSecret.Type, ctrlPlaneSecret.Type)
 	}
 
+	if string(defaultIngressSecret.Data["tls.crt"]) != string(ctrlPlaneSecret.Data["tls.crt"]) {
+		return fmt.Errorf("default cert secret not expected. Epected %v, Got %v", defaultIngressSecret.Data["tls.crt"], ctrlPlaneSecret.Data["tls.crt"])
+	}
+
+	if string(defaultIngressSecret.Data["tls.key"]) != string(ctrlPlaneSecret.Data["tls.key"]) {
+		return fmt.Errorf("default cert secret not expected. Epected %v, Got %v", defaultIngressSecret.Data["tls.crt"], ctrlPlaneSecret.Data["tls.crt"])
+	}
 	return nil
 }
 
-func (tc *testContext) testUpdateDSCComponentEnabled() error {
-	// Test Updating dashboard to be disabled
-	var dashboardDeploymentName string
+func (tc *testContext) testDefaultModelRegistryCertAvailable() error {
+	// return if MR is not set to Managed
+	if tc.testDsc.Spec.Components.ModelRegistry.ManagementState != operatorv1.Managed {
+		return nil
+	}
 
-	if tc.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
-		appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(tc.ctx, metav1.ListOptions{
-			LabelSelector: labels.ODH.Component(componentctrl.ComponentNameUpstream),
-		})
+	// Get expected cert secrets
+	defaultIngressCtrl, err := cluster.FindAvailableIngressController(tc.ctx, tc.customClient)
+	if err != nil {
+		return fmt.Errorf("failed to get ingress controller: %w", err)
+	}
+
+	defaultIngressCertName := cluster.GetDefaultIngressCertSecretName(defaultIngressCtrl)
+
+	defaultIngressSecret, err := cluster.GetSecret(tc.ctx, tc.customClient, "openshift-ingress", defaultIngressCertName)
+	if err != nil {
+		return err
+	}
+
+	// Verify secret from Control Plane namespace matches the default MR cert secret
+	defaultMRSecretName := modelregistry.DefaultModelRegistryCert
+	defaultMRSecret, err := cluster.GetSecret(tc.ctx, tc.customClient, tc.testDSCI.Spec.ServiceMesh.ControlPlane.Namespace,
+		defaultMRSecretName)
+	if err != nil {
+		return err
+	}
+
+	if defaultMRSecret.Type != defaultIngressSecret.Type {
+		return fmt.Errorf("wrong type of MR cert secret is created for %v. Expected %v, Got %v", defaultMRSecretName, defaultIngressSecret.Type, defaultMRSecret.Type)
+	}
+
+	if string(defaultIngressSecret.Data["tls.crt"]) != string(defaultMRSecret.Data["tls.crt"]) {
+		return fmt.Errorf("default MR cert secret not expected. Epected %v, Got %v", defaultIngressSecret.Data["tls.crt"], defaultMRSecret.Data["tls.crt"])
+	}
+
+	if string(defaultIngressSecret.Data["tls.key"]) != string(defaultMRSecret.Data["tls.key"]) {
+		return fmt.Errorf("default MR cert secret not expected. Epected %v, Got %v", defaultIngressSecret.Data["tls.crt"], defaultMRSecret.Data["tls.crt"])
+	}
+	return nil
+}
+
+func (tc *testContext) testMRServiceMeshMember() error {
+	if tc.testDsc.Spec.Components.ModelRegistry.ManagementState != operatorv1.Managed {
+		return nil
+	}
+
+	// Get unstructured ServiceMeshMember
+	smm := unstructured.Unstructured{}
+	smm.SetAPIVersion("maistra.io/v1")
+	smm.SetKind("ServiceMeshMember")
+	err := tc.customClient.Get(tc.ctx,
+		client.ObjectKey{Namespace: modelregistry.DefaultModelRegistriesNamespace, Name: "default"}, &smm)
+	if err != nil {
+		return fmt.Errorf("failed to get servicemesh member: %w", err)
+	}
+	return nil
+}
+
+const testNs = "test-model-registries"
+
+func (tc *testContext) validateModelRegistryConfig() error {
+	// check immutable property registriesNamespace
+	if tc.testDsc.Spec.Components.ModelRegistry.ManagementState != operatorv1.Managed {
+		// allowed to set registriesNamespace to non-default
+		err := patchRegistriesNamespace(tc, testNs, testNs, false)
 		if err != nil {
-			return fmt.Errorf("error getting enabled component %v", componentctrl.ComponentNameUpstream)
+			return err
 		}
-		if len(appDeployments.Items) > 0 {
-			dashboardDeploymentName = appDeployments.Items[0].Name
-			if appDeployments.Items[0].Status.ReadyReplicas == 0 {
-				return fmt.Errorf("error getting enabled component: %s its deployment 'ReadyReplicas'", dashboardDeploymentName)
-			}
+		// allowed to set registriesNamespace back to default value
+		err = patchRegistriesNamespace(tc, modelregistry.DefaultModelRegistriesNamespace,
+			modelregistry.DefaultModelRegistriesNamespace, false)
+		if err != nil {
+			return err
 		}
 	} else {
-		return errors.New("dashboard spec should be in 'enabled: true' state in order to perform test")
-	}
-
-	// Disable component Dashboard
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		// refresh the instance in case it was updated during the reconcile
-		err := tc.customClient.Get(tc.ctx, types.NamespacedName{Name: tc.testDsc.Name}, tc.testDsc)
+		// not allowed to change registriesNamespace
+		err := patchRegistriesNamespace(tc, testNs, modelregistry.DefaultModelRegistriesNamespace, true)
 		if err != nil {
-			return fmt.Errorf("error getting resource %w", err)
+			return err
 		}
-		// Disable the Component
-		tc.testDsc.Spec.Components.Dashboard.ManagementState = operatorv1.Removed
-
-		// Try to update
-		err = tc.customClient.Update(tc.ctx, tc.testDsc)
-		// Return err itself here (not wrapped inside another error)
-		// so that RetryOnConflict can identify it correctly.
-		if err != nil {
-			return fmt.Errorf("error updating component from 'enabled: true' to 'enabled: false': %w", err)
-		}
-
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("error after retry %w", err)
 	}
+	return nil
+}
 
-	// Sleep for 80 seconds to allow the operator to reconcile
-	time.Sleep(8 * generalRetryInterval)
-	_, err = tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).Get(tc.ctx, dashboardDeploymentName, metav1.GetOptions{})
+func patchRegistriesNamespace(tc *testContext, namespace string, expected string, expectErr bool) error {
+	patchStr := fmt.Sprintf("{\"spec\":{\"components\":{\"modelregistry\":{\"registriesNamespace\":\"%s\"}}}}", namespace)
+	err := tc.customClient.Patch(tc.ctx, tc.testDsc, client.RawPatch(types.MergePatchType, []byte(patchStr)))
 	if err != nil {
-		if k8serr.IsNotFound(err) {
-			return nil // correct result: should not find deployment after we disable it already
+		if !expectErr {
+			return fmt.Errorf("unexpected error when setting registriesNamespace in DSC %s to %s: %w",
+				tc.testDsc.Name, namespace, err)
 		}
-
-		return fmt.Errorf("error getting component resource after reconcile: %w", err)
+	} else {
+		if expectErr {
+			return fmt.Errorf("unexpected success when setting registriesNamespace in DSC %s to %s",
+				tc.testDsc.Name, namespace)
+		}
 	}
-	return fmt.Errorf("component %v is disabled, should not get its deployment %v from NS %v any more",
-		componentctrl.ComponentNameUpstream,
-		dashboardDeploymentName,
-		tc.applicationsNamespace)
+	// compare expected against returned registriesNamespace
+	if tc.testDsc.Spec.Components.ModelRegistry.RegistriesNamespace != expected {
+		return fmt.Errorf("expected registriesNamespace %s, got %s",
+			expected, tc.testDsc.Spec.Components.ModelRegistry.RegistriesNamespace)
+	}
+	return nil
 }

@@ -40,7 +40,6 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	odhrec "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -175,10 +174,11 @@ func watchDashboardResources(_ context.Context, a client.Object) []reconcile.Req
 
 var dashboardPredicates = predicate.Funcs{
 	CreateFunc: func(e event.CreateEvent) bool {
-		return e.Object.GetObjectKind().GroupVersionKind().Kind == gvk.Dashboard.Kind
+		// Cannot use Kind, since Kind is empty for e.Object
+		return e.Object.GetName() == "default-dashboard"
 	},
 	DeleteFunc: func(e event.DeleteEvent) bool {
-		if e.Object.GetObjectKind().GroupVersionKind().Kind == gvk.Dashboard.Kind {
+		if e.Object.GetName() == "default-dashboard" {
 			return true
 		}
 		labelList := e.Object.GetLabels()
@@ -188,7 +188,7 @@ var dashboardPredicates = predicate.Funcs{
 		return false
 	},
 	UpdateFunc: func(e event.UpdateEvent) bool {
-		if e.ObjectOld.GetObjectKind().GroupVersionKind().Kind == gvk.Dashboard.Kind {
+		if e.ObjectOld.GetName() == "default-dashboard" {
 			return true
 		}
 		labelList := e.ObjectOld.GetLabels()
