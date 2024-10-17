@@ -1,0 +1,104 @@
+name: Insta Merge Operator Nudges
+
+on:
+  pull_request_target:
+    branches:
+      - 'rhoai-2.1[6-9]+'  # Trigger the workflow on pushes to any rhoai-* branch
+    types:
+      - opened
+      - reopened
+      - edited
+    paths:
+      - build/operator-nudging.yaml
+
+env:
+  GITHUB_ORG: red-hat-data-services
+  GITHUB_RKA_ORG: rhoai-rhtap
+  RESOLVE_CONFLICTS_FOR: build/operator-nudging.yaml
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: write
+  security-events: write
+  statuses: write
+
+jobs:
+  insta-merge:
+    #    we also have the author and title check to be on safer side since we are using pull_request_target event,
+    if: ${{ github.event.sender.login == 'konflux-internal-p02[bot]'  && ( startsWith(github.event.pull_request.title, 'Update ') || startsWith(github.event.pull_request.title, 'chore(deps)') ) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get changed files using command
+        id: changes
+        run: |
+          echo $(git diff --name-only --diff-filter=ACMRT ${{ github.event.pull_request.base.sha }} ${{ github.sha }} )
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v45
+      - name: List all changed files
+        env:
+          ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
+        run: |
+          echo $ALL_CHANGED_FILES
+          for file in ${ALL_CHANGED_FILES}; do
+            echo "$file was changed"
+          done
+
+      - name: Merge Feasibility Check
+        if: ${{ steps.changed-files.outputs.all_changed_files == 'build/operator-nudging.yaml' }}
+        id: merge-feasibility-check
+        run: |
+          # Declare variables
+          BASE_BRANCH=${GITHUB_BASE_REF:-${GITHUB_REF#refs/heads/}}
+          HEAD_BRANCH=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+          VERSION=v${BASE_BRANCH/rhoai-/}
+          SUFFIX=${VERSION/./-}
+          echo "SUFFIX=$SUFFIX"
+          echo "HEAD_BRANCH=$HEAD_BRANCH"
+
+          TITLE="${{ github.event.pull_request.title }}"
+          
+          if [[ $TITLE == chore\(deps\)* ]]
+          then 
+            TITLE=${TITLE/chore\(deps\): u/U}
+          fi
+          REGEX="^Update.*-$SUFFIX to [0-9a-z]{1,40}$"
+
+          FEASIBLE=No
+          #Check if PR title is as per the convention
+          if [[ "$TITLE" =~ $REGEX ]]
+          then
+            FEASIBLE=Yes
+            echo "It's a valid PR to merge!"
+          else
+            echo "Insta-merge not configured to merge this PR, skipping."
+          fi
+          echo "FEASIBLE=$FEASIBLE" >> $GITHUB_OUTPUT
+          echo "BASE_BRANCH=$BASE_BRANCH" >> $GITHUB_OUTPUT
+          echo "HEAD_BRANCH=$HEAD_BRANCH" >> $GITHUB_OUTPUT
+
+      - name: Generate github-app token
+        id: app-token
+        uses: getsentry/action-github-app-token@v2
+        with:
+          app_id: ${{ secrets.RHOAI_DEVOPS_APP_ID }}
+          private_key: ${{ secrets.RHOAI_DEVOPS_APP_PRIVATE_KEY }}
+
+      - uses: Wandalen/wretry.action@v3.5.0
+        if: ${{ steps.merge-feasibility-check.outputs.FEASIBLE == 'Yes' }}
+        with:
+          action: red-hat-data-services/insta-merge@main
+          retry_condition: steps._this.outputs.code == 0
+          attempt_limit: 5
+          github_token: ${{ steps.app-token.outputs.token }}
+          with: |
+            upstream_repo: "https://github.com/${GITHUB_ORG}/rhods-operator.git"
+            upstream_branch: "${{ steps.merge-feasibility-check.outputs.BASE_BRANCH }}"
+            downstream_repo: "https://github.com/${GITHUB_ORG}/rhods-operator.git"
+            downstream_branch: "${{ steps.merge-feasibility-check.outputs.HEAD_BRANCH }}"
+            token: ${{ steps.app-token.outputs.token }}
+            resolve_conflicts_for: "${RESOLVE_CONFLICTS_FOR}"
+            merge_args: "--no-edit"
+            pr_url: "${{ github.event.pull_request.html_url }}"

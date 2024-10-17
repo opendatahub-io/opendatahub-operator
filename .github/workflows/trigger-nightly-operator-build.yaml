@@ -1,0 +1,155 @@
+name: Trigger Nightly Operator Build
+
+on:
+  workflow_dispatch:
+#  push:
+#    branches:
+#      - 'rhoai-2.16'
+#    paths:
+#      - build/operator-nudging.yaml
+
+
+env:
+  GITHUB_ORG: red-hat-data-services
+  GITHUB_RKA_ORG: rhoai-rhtap
+  RESOLVE_CONFLICTS_FOR: build/operator-nudging.yaml
+
+permissions:
+  contents: write
+
+jobs:
+  operator-processor:
+    if: ${{ github.ref_name != 'main' && (github.event_name == 'workflow_dispatch' || ( github.event_name == 'push' && github.event.commits[0].author.name == 'konflux-internal-p02' )) }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout RBC repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GITHUB_ORG }}/RHOAI-Build-Config
+          ref: ${{ github.ref_name }}
+          path: RBC
+          sparse-checkout: |
+            bundle/bundle-patch.yaml
+          sparse-checkout-cone-mode: false
+      - name: Git checkout utils
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GITHUB_RKA_ORG }}/RHOAI-Konflux-Automation
+          ref: main
+          path: utils
+          sparse-checkout: |
+            utils/operator-processor
+          sparse-checkout-cone-mode: false
+      - name: Git checkout operator repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GITHUB_ORG }}/rhods-operator
+          ref: ${{ github.ref_name }}
+          path: rhods-operator
+          sparse-checkout: |
+            build
+            prefetched-manifests
+            .tekton
+          sparse-checkout-cone-mode: false
+      - name: Install dependencies
+        run: |
+          os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+          arch="$(uname -m | sed 's/x86_64/amd64/')"
+          yq_version="v4.44.3"
+          yq_filename="yq-$yq_version"
+          echo "-> Downloading yq" >&2
+          curl -sSfLo "$yq_filename" "https://github.com/mikefarah/yq/releases/download/$yq_version/yq_${os}_${arch}"
+          chmod +x $yq_filename
+          ln -s $yq_filename yq
+          cp $yq_filename /usr/local/bin/yq
+  
+          pip install -r utils/utils/operator-processor/requirements.txt
+
+      - name: Execute Operator Processor
+        env:
+          BRANCH: ${{ github.ref_name }}
+          RHOAI_QUAY_API_TOKEN: ${{ secrets.RHOAI_QUAY_API_TOKEN }}
+        run: |
+          RHOAI_VERSION=v${BRANCH/rhoai-/}
+          COMPONENT_SUFFIX=${RHOAI_VERSION/./-}
+          ODH_OPERATOR_COMPONENT_NAME=odh-operator-${COMPONENT_SUFFIX}
+          PUSH_PIPELINE_PATH=rhods-operator/.tekton/${ODH_OPERATOR_COMPONENT_NAME}-push.yaml
+          
+          PATCH_YAML_PATH=RBC/bundle/bundle-patch.yaml
+          OPERANDS_MAP_PATH=rhods-operator/build/operands-map.yaml
+          NUDGING_YAML_PATH=rhods-operator/build/operator-nudging.yaml
+          MANIFEST_CONFIG_PATH=rhods-operator/build/manifests-config.yaml
+          
+          python3 utils/utils/operator-processor/operator-processor.py  -op process-operator-yamls --patch-yaml-path ${PATCH_YAML_PATH} --operands-map-path ${OPERANDS_MAP_PATH} --nudging-yaml-path ${NUDGING_YAML_PATH} --manifest-config-path ${MANIFEST_CONFIG_PATH} --rhoai-version ${BRANCH} --push-pipeline-yaml-path ${PUSH_PIPELINE_PATH} --push-pipeline-operation disable
+          
+          echo "----- NUDGING_YAML ------"
+          cat $NUDGING_YAML_PATH
+          echo "----- OPERANDS_MAP ------"
+          cat $OPERANDS_MAP_PATH
+          echo "----- MANIFEST_CONFIG ------"
+          cat $MANIFEST_CONFIG_PATH
+          echo "current dir = $(pwd)"
+      - name: Fetch all manifests
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          #!/bin/bash
+          set -e
+          echo "current dir = $(pwd)"
+          MANIFEST_CONFIG_PATH=${{ github.workspace }}/rhods-operator/build/manifests-config.yaml
+          mkdir -p rhods-operator/prefetched-manifests
+          mkdir -p manifests
+          cd manifests
+          while IFS= read -r value;
+          do
+              value=${value/- /}
+              component=$value
+              if [[ -n $component ]]
+              then	
+                  git_url=$(value="$value" yq '.map[strenv(value)]["git.url"]' ${MANIFEST_CONFIG_PATH})
+                  git_commit=$(value="$value" yq '.map[strenv(value)]["git.commit"]' ${MANIFEST_CONFIG_PATH})
+                  if [[ "$git_commit" == "github.ref_name" ]]; then git_commit=${BRANCH}; echo "changed the value to $BRANCH"; fi
+                  
+                  src=$(value="$value" yq '.map[strenv(value)]["src"]' ${MANIFEST_CONFIG_PATH})
+                  dest=$(value="$value" yq '.map[strenv(value)]["dest"]' ${MANIFEST_CONFIG_PATH})
+                  
+                  echo "component = $component"
+                  echo "git_url = $git_url"
+                  echo "git_commit = $git_commit"
+                  echo "src = $src"
+                  echo "dest = $dest"
+          
+                  mkdir -p $component
+                  cd $component
+          
+                  git config --global init.defaultBranch ${BRANCH}
+                  git init
+                  git remote add origin $git_url
+                  git config core.sparseCheckout true
+                  git config core.sparseCheckoutCone false
+                  echo "$src" >> .git/info/sparse-checkout
+                  git fetch --depth=1 origin $git_commit
+                  git checkout $git_commit
+          
+                  cd ../
+                  echo "current dir = $(pwd)"
+                  
+                  mkdir -p ${{ github.workspace }}/rhods-operator/prefetched-manifests/$dest
+                  cp -r $component/$src/* ${{ github.workspace }}/rhods-operator/prefetched-manifests/$dest
+              fi
+          done < <(yq e '.map | keys' ${MANIFEST_CONFIG_PATH} )
+          
+          cd ${{ github.workspace }}/rhods-operator/prefetched-manifests
+          tree
+          # Update the schedule file to trigger the nightly build 
+          echo $(date +'%d-%m-%Y %H:%M:%S:%3N') > ${{ github.workspace }}/rhods-operator/build/schedule/operator-tekton-trigger.txt
+      - name: Commit and push the changes to release branch
+        uses: actions-js/push@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ github.ref_name }}
+          message: "Updating the operator repo with latest images and manifests"
+          repository: ${{ env.GITHUB_ORG }}/rhods-operator
+          directory: ${{ github.workspace }}/rhods-operator
+          author_name: Openshift-AI DevOps
+          author_email: openshift-ai-devops@redhat.com
