@@ -118,13 +118,14 @@ func detectManagedRHODS(ctx context.Context, cli client.Client) (Platform, error
 
 func getPlatform(ctx context.Context, cli client.Client) (Platform, error) {
 	switch os.Getenv("ODH_PLATFORM_TYPE") {
-	case "OpenDataHub", "":
+	case "OpenDataHub":
 		return OpenDataHub, nil
 	case "ManagedRHOAI":
 		return ManagedRhods, nil
 	case "SelfManagedRHOAI":
 		return SelfManagedRhods, nil
-	default: // fall back to detect platform if ODH_PLATFORM_TYPE env is not provided
+	default:
+		// fall back to detect platform if ODH_PLATFORM_TYPE env is not provided in CSV or set to ""
 		if platform, err := detectManagedRHODS(ctx, cli); err != nil {
 			return Unknown, err
 		} else if platform == ManagedRhods {
