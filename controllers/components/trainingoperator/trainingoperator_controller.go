@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package components
+package trainingoperator
 
 import (
 	"context"
@@ -27,26 +27,26 @@ import (
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 )
 
-// TrustyAIReconciler reconciles a TrustyAI object.
-type TrustyAIReconciler struct {
+// TrainingOperatorReconciler reconciles a TrainingOperator object.
+type TrainingOperatorReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 }
 
-//+kubebuilder:rbac:groups=components.opendatahub.io,resources=trustyais,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=components.opendatahub.io,resources=trustyais/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=components.opendatahub.io,resources=trustyais/finalizers,verbs=update
+//+kubebuilder:rbac:groups=components.opendatahub.io,resources=trainingoperators,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=components.opendatahub.io,resources=trainingoperators/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=components.opendatahub.io,resources=trainingoperators/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 // TODO(user): Modify the Reconcile function to compare the state specified by
-// the TrustyAI object against the actual cluster state, and then
+// the TrainingOperator object against the actual cluster state, and then
 // perform operations to make the cluster state reflect the state specified by
 // the user.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.2/pkg/reconcile
-func (r *TrustyAIReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *TrainingOperatorReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 
 	// TODO(user): your logic here
@@ -55,8 +55,8 @@ func (r *TrustyAIReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *TrustyAIReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *TrainingOperatorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&componentsv1.TrustyAI{}).
+		For(&componentsv1.TrainingOperator{}).
 		Complete(r)
 }

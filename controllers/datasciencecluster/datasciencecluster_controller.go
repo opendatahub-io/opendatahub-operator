@@ -53,7 +53,7 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
-	componentsctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components"
+	dashboardctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
@@ -289,7 +289,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 // TODO: make it generic for all components.
 func (r *DataScienceClusterReconciler) reconcileDashboardComponent(ctx context.Context, instance *dscv1.DataScienceCluster) (*dscv1.DataScienceCluster, error) {
 	r.Log.Info("Starting reconciliation of Dashboard component")
-	componentName := componentsctrl.ComponentName
+	componentName := dashboardctrl.ComponentName
 
 	enabled := instance.Spec.Components.Dashboard.ManagementState == operatorv1.Managed
 	_, isExistStatus := instance.Status.InstalledComponents[componentName]
@@ -309,7 +309,7 @@ func (r *DataScienceClusterReconciler) reconcileDashboardComponent(ctx context.C
 	}
 
 	// Create the Dashboard instance
-	dashboard := componentsctrl.CreateDashboardInstance(instance)
+	dashboard := dashboardctrl.CreateDashboardInstance(instance)
 	// Reconcile component
 	err := r.apply(ctx, instance, dashboard)
 

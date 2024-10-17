@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package components
+package ray
 
 import (
 	"context"
@@ -27,26 +27,26 @@ import (
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 )
 
-// ModelMeshServingReconciler reconciles a ModelMeshServing object.
-type ModelMeshServingReconciler struct {
+// RayReconciler reconciles a Ray object.
+type RayReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 }
 
-//+kubebuilder:rbac:groups=components.opendatahub.io,resources=modelmeshservings,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=components.opendatahub.io,resources=modelmeshservings/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=components.opendatahub.io,resources=modelmeshservings/finalizers,verbs=update
+//+kubebuilder:rbac:groups=components.opendatahub.io,resources=rays,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=components.opendatahub.io,resources=rays/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=components.opendatahub.io,resources=rays/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 // TODO(user): Modify the Reconcile function to compare the state specified by
-// the ModelMeshServing object against the actual cluster state, and then
+// the Ray object against the actual cluster state, and then
 // perform operations to make the cluster state reflect the state specified by
 // the user.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.2/pkg/reconcile
-func (r *ModelMeshServingReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *RayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 
 	// TODO(user): your logic here
@@ -55,8 +55,8 @@ func (r *ModelMeshServingReconciler) Reconcile(ctx context.Context, req ctrl.Req
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *ModelMeshServingReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *RayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&componentsv1.ModelMeshServing{}).
+		For(&componentsv1.Ray{}).
 		Complete(r)
 }

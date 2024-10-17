@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package components
+package modelregistry
 
 import (
 	"context"
@@ -27,26 +27,26 @@ import (
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 )
 
-// TrainingOperatorReconciler reconciles a TrainingOperator object.
-type TrainingOperatorReconciler struct {
+// ModelRegistryReconciler reconciles a ModelRegistry object.
+type ModelRegistryReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 }
 
-//+kubebuilder:rbac:groups=components.opendatahub.io,resources=trainingoperators,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=components.opendatahub.io,resources=trainingoperators/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=components.opendatahub.io,resources=trainingoperators/finalizers,verbs=update
+//+kubebuilder:rbac:groups=components.opendatahub.io,resources=modelregistries,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=components.opendatahub.io,resources=modelregistries/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=components.opendatahub.io,resources=modelregistries/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 // TODO(user): Modify the Reconcile function to compare the state specified by
-// the TrainingOperator object against the actual cluster state, and then
+// the ModelRegistry object against the actual cluster state, and then
 // perform operations to make the cluster state reflect the state specified by
 // the user.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.2/pkg/reconcile
-func (r *TrainingOperatorReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *ModelRegistryReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 
 	// TODO(user): your logic here
@@ -55,8 +55,8 @@ func (r *TrainingOperatorReconciler) Reconcile(ctx context.Context, req ctrl.Req
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *TrainingOperatorReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *ModelRegistryReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&componentsv1.TrainingOperator{}).
+		For(&componentsv1.ModelRegistry{}).
 		Complete(r)
 }

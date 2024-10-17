@@ -61,7 +61,7 @@ import (
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/certconfigmapgenerator"
-	componentsctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components"
+	dashboardctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/dashboard"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
@@ -380,7 +380,7 @@ func createDeploymentCacheConfig(platform cluster.Platform) map[string]cache.Con
 
 func CreateComponentReconcilers(ctx context.Context, mgr manager.Manager) error {
 	// TODO: add more here or make it go routine
-	if err := componentsctrl.NewDashboardReconciler(ctx, mgr); err != nil {
+	if err := dashboardctrl.NewDashboardReconciler(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DashboardReconciler")
 		return err
 	}
