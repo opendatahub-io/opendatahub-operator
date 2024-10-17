@@ -138,16 +138,16 @@ spec:
       managementState: Managed
     modelregistry:
       managementState: Managed
-      registriesNamespace: "odh-model-registries"
+      registriesNamespace: "rhoai-model-registries"
     ray:
       managementState: Managed
     kueue:
       managementState: Managed
     trainingoperator:
-      managementState: Managed
+      managementState: Removed
     workbenches:
       managementState: Managed
     trustyai:
-      managementState: Managed
+      managementState: Removed
 EOF
 ```

@@ -19,12 +19,11 @@ import (
 )
 
 func (r *DSCInitializationReconciler) configureServiceMesh(ctx context.Context, instance *dsciv1.DSCInitialization) error {
-	log := r.Log
 	serviceMeshManagementState := operatorv1.Removed
 	if instance.Spec.ServiceMesh != nil {
 		serviceMeshManagementState = instance.Spec.ServiceMesh.ManagementState
 	} else {
-		log.Info("ServiceMesh is not configured in DSCI, same as default to 'Removed'")
+		r.Log.Info("ServiceMesh is not configured in DSCI, same as default to 'Removed'")
 	}
 
 	switch serviceMeshManagementState {
@@ -43,16 +42,16 @@ func (r *DSCInitializationReconciler) configureServiceMesh(ctx context.Context, 
 		for _, capability := range capabilities {
 			capabilityErr := capability.Apply(ctx, r.Client)
 			if capabilityErr != nil {
-				log.Error(capabilityErr, "failed applying service mesh resources")
+				r.Log.Error(capabilityErr, "failed applying service mesh resources")
 				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed applying service mesh resources")
 				return capabilityErr
 			}
 		}
 
 	case operatorv1.Unmanaged:
-		log.Info("ServiceMesh CR is not configured by the operator, we won't do anything")
+		r.Log.Info("ServiceMesh CR is not configured by the operator, we won't do anything")
 	case operatorv1.Removed:
-		log.Info("existing ServiceMesh CR (owned by operator) will be removed")
+		r.Log.Info("existing ServiceMesh CR (owned by operator) will be removed")
 		if err := r.removeServiceMesh(ctx, instance); err != nil {
 			return err
 		}
@@ -62,7 +61,6 @@ func (r *DSCInitializationReconciler) configureServiceMesh(ctx context.Context, 
 }
 
 func (r *DSCInitializationReconciler) removeServiceMesh(ctx context.Context, instance *dsciv1.DSCInitialization) error {
-	log := r.Log
 	// on condition of Managed, do not handle Removed when set to Removed it trigger DSCI reconcile to clean up
 	if instance.Spec.ServiceMesh == nil {
 		return nil
@@ -82,7 +80,7 @@ func (r *DSCInitializationReconciler) removeServiceMesh(ctx context.Context, ins
 		for _, capability := range capabilities {
 			capabilityErr := capability.Delete(ctx, r.Client)
 			if capabilityErr != nil {
-				log.Error(capabilityErr, "failed deleting service mesh resources")
+				r.Log.Error(capabilityErr, "failed deleting service mesh resources")
 				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "failed deleting service mesh resources")
 
 				return capabilityErr

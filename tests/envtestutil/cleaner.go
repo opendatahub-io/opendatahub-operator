@@ -32,7 +32,6 @@ func CreateCleaner(c client.Client, config *rest.Config, timeout, interval time.
 	if err != nil {
 		panic(err)
 	}
-
 	return &Cleaner{
 		clientset: k8sClient,
 		client:    c,
@@ -124,7 +123,6 @@ func (c *Cleaner) DeleteAll(ctx context.Context, objects ...client.Object) {
 			if err := c.client.Get(ctx, key, obj); err != nil {
 				return k8serr.ReasonForError(err)
 			}
-
 			return ""
 		}, c.timeout, c.interval).Should(Equal(metav1.StatusReasonNotFound))
 	}
@@ -134,6 +132,5 @@ func ignoreMethodNotAllowed(err error) error {
 	if k8serr.ReasonForError(err) == metav1.StatusReasonMethodNotAllowed {
 		return nil
 	}
-
 	return err
 }

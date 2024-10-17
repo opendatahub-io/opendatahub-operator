@@ -92,14 +92,14 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 				Kueue: kueue.Kueue{
 					Component: components.Component{ManagementState: operatorv1.Managed},
 				},
+				TrainingOperator: trainingoperator.TrainingOperator{
+					Component: components.Component{ManagementState: operatorv1.Removed},
+				},
 				TrustyAI: trustyai.TrustyAI{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+					Component: components.Component{ManagementState: operatorv1.Removed},
 				},
 				ModelRegistry: modelregistry.ModelRegistry{
-					Component: components.Component{ManagementState: operatorv1.Managed},
-				},
-				TrainingOperator: trainingoperator.TrainingOperator{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+					Component: components.Component{ManagementState: operatorv1.Removed},
 				},
 			},
 		},
@@ -268,6 +268,7 @@ func CleanupExistingResource(ctx context.Context,
 			"jupyterhub-use-s3-bucket-data",
 		})
 	multiErr = multierror.Append(multiErr, deleteResources(ctx, cli, &odhDocJPH))
+
 	// only apply on RHOAI since ODH has a different way to create this CR by dashboard
 	if platform == cluster.SelfManagedRhods || platform == cluster.ManagedRhods {
 		if err := upgradeODCCR(ctx, cli, "odh-dashboard-config", dscApplicationsNamespace, oldReleaseVersion); err != nil {

@@ -8,73 +8,18 @@ import (
 	"strings"
 
 	"github.com/blang/semver/v4"
-	"github.com/go-logr/logr"
-	configv1 "github.com/openshift/api/config/v1"
 	"github.com/operator-framework/api/pkg/lib/version"
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
-type Platform string
-
-// Release includes information on operator version and platform
-// +kubebuilder:object:generate=true
-type Release struct {
-	Name    Platform                `json:"name,omitempty"`
-	Version version.OperatorVersion `json:"version,omitempty"`
-}
-
-var clusterConfig struct {
-	Namespace string
-	Release   Release
-}
-
-// Init initializes cluster configuration variables on startup
-// init() won't work since it is needed to check the error.
-func Init(ctx context.Context, cli client.Client) error {
-	var err error
-	log := logf.FromContext(ctx)
-
-	clusterConfig.Namespace, err = getOperatorNamespace()
-	if err != nil {
-		log.Error(err, "unable to find operator namespace")
-		// not fatal, fallback to ""
-	}
-
-	clusterConfig.Release, err = getRelease(ctx, cli)
-	if err != nil {
-		return err
-	}
-
-	printClusterConfig(log)
-
-	return nil
-}
-
-func printClusterConfig(log logr.Logger) {
-	log.Info("Cluster config",
-		"Namespace", clusterConfig.Namespace,
-		"Release", clusterConfig.Release)
-}
-
-func GetOperatorNamespace() (string, error) {
-	if clusterConfig.Namespace == "" {
-		return "", errors.New("unable to find operator namespace")
-	}
-	return clusterConfig.Namespace, nil
-}
-
-func GetRelease() Release {
-	return clusterConfig.Release
-}
+// +kubebuilder:rbac:groups="config.openshift.io",resources=ingresses,verbs=get
 
 func GetDomain(ctx context.Context, c client.Client) (string, error) {
 	ingress := &unstructured.Unstructured{}
@@ -95,7 +40,7 @@ func GetDomain(ctx context.Context, c client.Client) (string, error) {
 	return domain, err
 }
 
-func getOperatorNamespace() (string, error) {
+func GetOperatorNamespace() (string, error) {
 	operatorNS, exist := os.LookupEnv("OPERATOR_NAMESPACE")
 	if exist && operatorNS != "" {
 		return operatorNS, nil
@@ -137,6 +82,8 @@ func GetClusterServiceVersion(ctx context.Context, c client.Client, namespace st
 		gvk.ClusterServiceVersion.Kind)
 }
 
+type Platform string
+
 // detectSelfManaged detects if it is Self Managed Rhods or OpenDataHub.
 func detectSelfManaged(ctx context.Context, cli client.Client) (Platform, error) {
 	variants := map[string]Platform{
@@ -160,36 +107,33 @@ func detectSelfManaged(ctx context.Context, cli client.Client) (Platform, error)
 // detectManagedRHODS checks if catsrc CR add-on exists ManagedRhods.
 func detectManagedRHODS(ctx context.Context, cli client.Client) (Platform, error) {
 	catalogSource := &ofapiv1alpha1.CatalogSource{}
-	operatorNs, err := GetOperatorNamespace()
-	if err != nil {
-		operatorNs = "redhat-ods-operator"
-	}
-	err = cli.Get(ctx, client.ObjectKey{Name: "addon-managed-odh-catalog", Namespace: operatorNs}, catalogSource)
+	err := cli.Get(ctx, client.ObjectKey{Name: "addon-managed-odh-catalog", Namespace: "redhat-ods-operator"}, catalogSource)
 	if err != nil {
 		return Unknown, client.IgnoreNotFound(err)
 	}
 	return ManagedRhods, nil
 }
 
-func getPlatform(ctx context.Context, cli client.Client) (Platform, error) {
-	switch os.Getenv("ODH_PLATFORM_TYPE") {
-	case "OpenDataHub", "":
-		return OpenDataHub, nil
-	case "ManagedRHOAI":
+func GetPlatform(ctx context.Context, cli client.Client) (Platform, error) {
+	// First check if its addon installation to return 'ManagedRhods, nil'
+	if platform, err := detectManagedRHODS(ctx, cli); err != nil {
+		return Unknown, err
+	} else if platform == ManagedRhods {
 		return ManagedRhods, nil
-	case "SelfManagedRHOAI":
-		return SelfManagedRhods, nil
-	default: // fall back to detect platform if ODH_PLATFORM_TYPE env is not provided
-		if platform, err := detectManagedRHODS(ctx, cli); err != nil {
-			return Unknown, err
-		} else if platform == ManagedRhods {
-			return ManagedRhods, nil
-		}
-		return detectSelfManaged(ctx, cli)
 	}
+
+	// check and return whether ODH or self-managed platform
+	return detectSelfManaged(ctx, cli)
 }
 
-func getRelease(ctx context.Context, cli client.Client) (Release, error) {
+// Release includes information on operator version and platform
+// +kubebuilder:object:generate=true
+type Release struct {
+	Name    Platform                `json:"name,omitempty"`
+	Version version.OperatorVersion `json:"version,omitempty"`
+}
+
+func GetRelease(ctx context.Context, cli client.Client) (Release, error) {
 	initRelease := Release{
 		// dummy version set to name "", version 0.0.0
 		Version: version.OperatorVersion{
@@ -197,7 +141,7 @@ func getRelease(ctx context.Context, cli client.Client) (Release, error) {
 		},
 	}
 	// Set platform
-	platform, err := getPlatform(ctx, cli)
+	platform, err := GetPlatform(ctx, cli)
 	if err != nil {
 		return initRelease, err
 	}
@@ -207,7 +151,6 @@ func getRelease(ctx context.Context, cli client.Client) (Release, error) {
 	if os.Getenv("CI") == "true" {
 		return initRelease, nil
 	}
-
 	// Set Version
 	// Get watchNamespace
 	operatorNamespace, err := GetOperatorNamespace()
@@ -225,21 +168,4 @@ func getRelease(ctx context.Context, cli client.Client) (Release, error) {
 	}
 	initRelease.Version = csv.Spec.Version
 	return initRelease, nil
-}
-
-// IsDefaultAuthMethod returns true if the default authentication method is IntegratedOAuth or empty.
-// This will give indication that Operator should create userGroups or not in the cluster.
-func IsDefaultAuthMethod(ctx context.Context, cli client.Client) (bool, error) {
-	authenticationobj := &configv1.Authentication{}
-	if err := cli.Get(ctx, client.ObjectKey{Name: ClusterAuthenticationObj, Namespace: ""}, authenticationobj); err != nil {
-		if errors.Is(err, &meta.NoKindMatchError{}) { // when CRD is missing, conver error type
-			return false, k8serr.NewNotFound(configv1.Resource("authentications"), ClusterAuthenticationObj)
-		}
-		return false, err
-	}
-
-	// for now, HPC support "" "None" "IntegratedOAuth"(default) "OIDC"
-	// other offering support "" "None" "IntegratedOAuth"(default)
-	// we only create userGroups for "IntegratedOAuth" or "" and leave other or new supported type value in the future
-	return authenticationobj.Spec.Type == configv1.AuthenticationTypeIntegratedOAuth || authenticationobj.Spec.Type == "", nil
 }

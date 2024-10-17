@@ -20,8 +20,6 @@ type ControlPlaneSpec struct {
 	Name string `json:"name,omitempty"`
 	// Namespace is a namespace where Service Mesh is deployed. Defaults to "istio-system".
 	// +kubebuilder:default=istio-system
-	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
-	// +kubebuilder:validation:MaxLength=63
 	Namespace string `json:"namespace,omitempty"`
 	// MetricsCollection specifies if metrics from components on the Mesh namespace
 	// should be collected. Setting the value to "Istio" will collect metrics from the
@@ -47,8 +45,6 @@ type GatewaySpec struct {
 type AuthSpec struct {
 	// Namespace where it is deployed. If not provided, the default is to
 	// use '-auth-provider' suffix on the ApplicationsNamespace of the DSCI.
-	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
-	// +kubebuilder:validation:MaxLength=63
 	Namespace string `json:"namespace,omitempty"`
 	// Audiences is a list of the identifiers that the resource server presented
 	// with the token identifies as. Audience-aware token authenticators will verify

@@ -53,11 +53,9 @@ spec:
             description: DSCInitializationSpec defines the desired state of DSCInitialization.
             properties:
               applicationsNamespace:
-                default: opendatahub
+                default: redhat-ods-applications
                 description: Namespace for applications to be installed, non-configurable,
-                  default to "opendatahub"
-                maxLength: 63
-                pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
+                  default to "redhat-ods-applications"
                 type: string
                 x-kubernetes-validations:
                 - message: ApplicationsNamespace is immutable
@@ -74,7 +72,6 @@ spec:
                     - development
                     - prod
                     - production
-                    - default
                     type: string
                   manifestsUri:
                     description: Custom manifests uri for odh-manifests
@@ -96,10 +93,8 @@ spec:
                     pattern: ^(Managed|Unmanaged|Force|Removed)$
                     type: string
                   namespace:
-                    default: opendatahub
+                    default: redhat-ods-monitoring
                     description: Namespace for monitoring if it is enabled
-                    maxLength: 63
-                    pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
                     type: string
                 type: object
               serviceMesh:
@@ -131,8 +126,6 @@ spec:
                         description: |-
                           Namespace where it is deployed. If not provided, the default is to
                           use '-auth-provider' suffix on the ApplicationsNamespace of the DSCI.
-                        maxLength: 63
-                        pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
                         type: string
                     type: object
                   controlPlane:
@@ -159,8 +152,6 @@ spec:
                         default: istio-system
                         description: Namespace is a namespace where Service Mesh is
                           deployed. Defaults to "istio-system".
-                        maxLength: 63
-                        pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
                         type: string
                     type: object
                   managementState:

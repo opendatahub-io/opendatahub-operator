@@ -12,7 +12,6 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
@@ -34,19 +33,6 @@ type Ray struct {
 	components.Component `json:""`
 }
 
-func (r *Ray) Init(ctx context.Context, _ cluster.Platform) error {
-	log := logf.FromContext(ctx).WithName(ComponentName)
-
-	var imageParamMap = map[string]string{
-		"odh-kuberay-operator-controller-image": "RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE",
-	}
-	if err := deploy.ApplyParams(RayPath, imageParamMap); err != nil {
-		log.Error(err, "failed to update image", "path", RayPath)
-	}
-
-	return nil
-}
-
 func (r *Ray) OverrideManifests(ctx context.Context, _ cluster.Platform) error {
 	// If devflags are set, update default manifests path
 	if len(r.DevFlags.Manifests) != 0 {
@@ -61,7 +47,6 @@ func (r *Ray) OverrideManifests(ctx context.Context, _ cluster.Platform) error {
 		}
 		RayPath = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
 	}
-
 	return nil
 }
 
@@ -69,8 +54,14 @@ func (r *Ray) GetComponentName() string {
 	return ComponentName
 }
 
-func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, l logr.Logger,
+func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
 	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, platform cluster.Platform, _ bool) error {
+	l := r.ConfigComponentLogger(logger, ComponentName, dscispec)
+
+	var imageParamMap = map[string]string{
+		"odh-kuberay-operator-controller-image": "RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE",
+	}
+
 	enabled := r.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 
@@ -81,8 +72,10 @@ func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, l logr.
 				return err
 			}
 		}
-		if err := deploy.ApplyParams(RayPath, nil, map[string]string{"namespace": dscispec.ApplicationsNamespace}); err != nil {
-			return fmt.Errorf("failed to update namespace from %s : %w", RayPath, err)
+		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (r.DevFlags == nil || len(r.DevFlags.Manifests) == 0) {
+			if err := deploy.ApplyParams(RayPath, imageParamMap, map[string]string{"namespace": dscispec.ApplicationsNamespace}); err != nil {
+				return fmt.Errorf("failed to update image from %s : %w", RayPath, err)
+			}
 		}
 	}
 	// Deploy Ray Operator
@@ -110,6 +103,5 @@ func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client, l logr.
 		}
 		l.Info("updating SRE monitoring done")
 	}
-
 	return nil
 }

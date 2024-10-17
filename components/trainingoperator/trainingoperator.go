@@ -1,6 +1,5 @@
 // Package trainingoperator provides utility functions to config trainingoperator as part of the stack
 // which makes managing distributed compute infrastructure in the cloud easy and intuitive for Data Scientists
-// +groupName=datasciencecluster.opendatahub.io
 package trainingoperator
 
 import (
@@ -12,7 +11,6 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
@@ -32,20 +30,6 @@ var _ components.ComponentInterface = (*TrainingOperator)(nil)
 // +kubebuilder:object:generate=true
 type TrainingOperator struct {
 	components.Component `json:""`
-}
-
-func (r *TrainingOperator) Init(ctx context.Context, _ cluster.Platform) error {
-	log := logf.FromContext(ctx).WithName(ComponentName)
-
-	var imageParamMap = map[string]string{
-		"odh-training-operator-controller-image": "RELATED_IMAGE_ODH_TRAINING_OPERATOR_IMAGE",
-	}
-
-	if err := deploy.ApplyParams(TrainingOperatorPath, imageParamMap); err != nil {
-		log.Error(err, "failed to update image", "path", TrainingOperatorPath)
-	}
-
-	return nil
 }
 
 func (r *TrainingOperator) OverrideManifests(ctx context.Context, _ cluster.Platform) error {
@@ -70,8 +54,13 @@ func (r *TrainingOperator) GetComponentName() string {
 	return ComponentName
 }
 
-func (r *TrainingOperator) ReconcileComponent(ctx context.Context, cli client.Client, l logr.Logger,
+func (r *TrainingOperator) ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
 	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, platform cluster.Platform, _ bool) error {
+	l := r.ConfigComponentLogger(logger, ComponentName, dscispec)
+	var imageParamMap = map[string]string{
+		"odh-training-operator-controller-image": "RELATED_IMAGE_ODH_TRAINING_OPERATOR_IMAGE",
+	}
+
 	enabled := r.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 
@@ -80,6 +69,11 @@ func (r *TrainingOperator) ReconcileComponent(ctx context.Context, cli client.Cl
 			// Download manifests and update paths
 			if err := r.OverrideManifests(ctx, platform); err != nil {
 				return err
+			}
+		}
+		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (r.DevFlags == nil || len(r.DevFlags.Manifests) == 0) {
+			if err := deploy.ApplyParams(TrainingOperatorPath, imageParamMap); err != nil {
+				return fmt.Errorf("failed to update image from %s : %w", TrainingOperatorPath, err)
 			}
 		}
 	}

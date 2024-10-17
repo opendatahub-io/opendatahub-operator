@@ -12,7 +12,6 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
@@ -34,35 +33,6 @@ var _ components.ComponentInterface = (*ModelMeshServing)(nil)
 // +kubebuilder:object:generate=true
 type ModelMeshServing struct {
 	components.Component `json:""`
-}
-
-func (m *ModelMeshServing) Init(ctx context.Context, _ cluster.Platform) error {
-	log := logf.FromContext(ctx).WithName(ComponentName)
-
-	var imageParamMap = map[string]string{
-		"odh-mm-rest-proxy":             "RELATED_IMAGE_ODH_MM_REST_PROXY_IMAGE",
-		"odh-modelmesh-runtime-adapter": "RELATED_IMAGE_ODH_MODELMESH_RUNTIME_ADAPTER_IMAGE",
-		"odh-modelmesh":                 "RELATED_IMAGE_ODH_MODELMESH_IMAGE",
-		"odh-modelmesh-controller":      "RELATED_IMAGE_ODH_MODELMESH_CONTROLLER_IMAGE",
-		"odh-model-controller":          "RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
-	}
-
-	// odh-model-controller to use
-	var dependentImageParamMap = map[string]string{
-		"odh-model-controller": "RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
-	}
-
-	// Update image parameters
-	if err := deploy.ApplyParams(Path, imageParamMap); err != nil {
-		log.Error(err, "failed to update image", "path", Path)
-	}
-
-	// Update image parameters for odh-model-controller
-	if err := deploy.ApplyParams(DependentPath, dependentImageParamMap); err != nil {
-		log.Error(err, "failed to update image", "path", DependentPath)
-	}
-
-	return nil
 }
 
 func (m *ModelMeshServing) OverrideManifests(ctx context.Context, _ cluster.Platform) error {
@@ -103,12 +73,26 @@ func (m *ModelMeshServing) GetComponentName() string {
 
 func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 	cli client.Client,
-	l logr.Logger,
+	logger logr.Logger,
 	owner metav1.Object,
 	dscispec *dsciv1.DSCInitializationSpec,
 	platform cluster.Platform,
 	_ bool,
 ) error {
+	l := m.ConfigComponentLogger(logger, ComponentName, dscispec)
+	var imageParamMap = map[string]string{
+		"odh-mm-rest-proxy":             "RELATED_IMAGE_ODH_MM_REST_PROXY_IMAGE",
+		"odh-modelmesh-runtime-adapter": "RELATED_IMAGE_ODH_MODELMESH_RUNTIME_ADAPTER_IMAGE",
+		"odh-modelmesh":                 "RELATED_IMAGE_ODH_MODELMESH_IMAGE",
+		"odh-modelmesh-controller":      "RELATED_IMAGE_ODH_MODELMESH_CONTROLLER_IMAGE",
+		"odh-model-controller":          "RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
+	}
+
+	// odh-model-controller to use
+	var dependentImageParamMap = map[string]string{
+		"odh-model-controller": "RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
+	}
+
 	enabled := m.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 
@@ -128,6 +112,12 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 			"prometheus-custom"); err != nil {
 			return err
 		}
+		// Update image parameters
+		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (m.DevFlags == nil || len(m.DevFlags.Manifests) == 0) {
+			if err := deploy.ApplyParams(Path, imageParamMap); err != nil {
+				return fmt.Errorf("failed update image from %s : %w", Path, err)
+			}
+		}
 	}
 
 	if err := deploy.DeployManifestsFromPath(ctx, cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
@@ -139,6 +129,12 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 		if err := cluster.UpdatePodSecurityRolebinding(ctx, cli, dscispec.ApplicationsNamespace,
 			"odh-model-controller"); err != nil {
 			return err
+		}
+		// Update image parameters for odh-model-controller
+		if dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "" {
+			if err := deploy.ApplyParams(DependentPath, dependentImageParamMap); err != nil {
+				return err
+			}
 		}
 	}
 	if err := deploy.DeployManifestsFromPath(ctx, cli, owner, DependentPath, dscispec.ApplicationsNamespace, m.GetComponentName(), enabled); err != nil {
@@ -174,6 +170,5 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 		}
 		l.Info("updating SRE monitoring done")
 	}
-
 	return nil
 }

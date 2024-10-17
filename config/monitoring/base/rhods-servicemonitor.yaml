@@ -1,0 +1,61 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: rhods-monitor-federation
+  namespace: redhat-ods-monitoring
+  labels:
+    monitor-component: rhods-resources
+    team: rhods
+spec:
+  endpoints:
+    - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      bearerTokenSecret:
+        key: ""
+      honorLabels: true
+      params:
+        'match[]':
+          - '{__name__= "rhods_total_users"}'
+          - '{__name__= "rhods_active_users"}'
+          - '{__name__= "rhods_aggregate_availability"}'
+          - ALERTS{alertname!="DeadManSnitch", alertstate="firing"}
+      path: /federate
+      port: https
+      scheme: https
+      tlsConfig:
+        caFile: /etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt
+        serverName: prometheus.redhat-ods-monitoring.svc
+      scrapeTimeout: 10s
+      interval: 30s
+  namespaceSelector:
+    matchNames:
+      - <odh_monitoring_project>
+  selector:
+    matchLabels:
+      app: prometheus
+---
+# servicemonitoring for rhods operator
+# this is not in use, we need to implement operator metrics in logic first
+# apiVersion: monitoring.coreos.com/v1
+# kind: ServiceMonitor
+# metadata:
+#   labels:
+#     control-plane: controller-manager
+#   name: rhods-controller-manager-metrics-monitor
+#   namespace: redhat-ods-operator
+# spec:
+#   endpoints:
+#     - path: /metrics
+#       port: metrics
+#       scheme: https
+#       bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+#       tlsConfig:
+#         insecureSkipVerify: true
+#       params:
+#         'match[]':
+#           - '{__name__= "redhat-ods-operator-controller-manager-metrics-service"}'
+#   namespaceSelector:
+#     matchNames:
+#       - redhat-ods-operator
+#   selector:
+#     matchLabels:
+#       control-plane: controller-manager

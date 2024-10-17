@@ -53,7 +53,6 @@ func subjectExistInRoleBinding(subjectList []rbacv1.Subject, serviceAccountName,
 			return true
 		}
 	}
-
 	return false
 }
 
@@ -72,7 +71,7 @@ func CreateSecret(ctx context.Context, cli client.Client, name, namespace string
 	}
 
 	foundSecret := &corev1.Secret{}
-	err := cli.Get(ctx, client.ObjectKeyFromObject(desiredSecret), foundSecret)
+	err := cli.Get(ctx, client.ObjectKey{Name: name, Namespace: namespace}, foundSecret)
 	if err != nil {
 		if k8serr.IsNotFound(err) {
 			err = cli.Create(ctx, desiredSecret)
@@ -83,7 +82,6 @@ func CreateSecret(ctx context.Context, cli client.Client, name, namespace string
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -100,7 +98,11 @@ func CreateOrUpdateConfigMap(ctx context.Context, c client.Client, desiredCfgMap
 	}
 
 	existingCfgMap := &corev1.ConfigMap{}
-	err := c.Get(ctx, client.ObjectKeyFromObject(desiredCfgMap), existingCfgMap)
+	err := c.Get(ctx, client.ObjectKey{
+		Name:      desiredCfgMap.Name,
+		Namespace: desiredCfgMap.Namespace,
+	}, existingCfgMap)
+
 	if k8serr.IsNotFound(err) {
 		return c.Create(ctx, desiredCfgMap)
 	} else if err != nil {
@@ -140,7 +142,7 @@ func CreateNamespace(ctx context.Context, cli client.Client, namespace string, m
 	}
 
 	foundNamespace := &corev1.Namespace{}
-	if getErr := cli.Get(ctx, client.ObjectKeyFromObject(desiredNamespace), foundNamespace); client.IgnoreNotFound(getErr) != nil {
+	if getErr := cli.Get(ctx, client.ObjectKey{Name: namespace}, foundNamespace); client.IgnoreNotFound(getErr) != nil {
 		return nil, getErr
 	}
 

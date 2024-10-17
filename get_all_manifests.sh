@@ -1,25 +1,27 @@
 #!/usr/bin/env bash
 set -e
 
-GITHUB_URL="https://github.com"
+GITHUB_URL="https://github.com/"
+# update to use different git repo for legacy manifests
+MANIFEST_ORG="red-hat-data-services"
 
-# component: notebook, dsp, kserve, dashbaord, cf/ray/kueue/trainingoperator, trustyai, modelmesh, modelregistry.
+# component: notebook, dsp, kserve, dashbaord, cf/ray/kueue/trainingoperator, trustyai, modelmesh, modelregistry
 # in the format of "repo-org:repo-name:ref-name:source-folder:target-folder".
 declare -A COMPONENT_MANIFESTS=(
-    ["codeflare"]="opendatahub-io:codeflare-operator:main:config:codeflare"
-    ["ray"]="opendatahub-io:kuberay:dev:ray-operator/config:ray"
-    ["kueue"]="opendatahub-io:kueue:dev:config:kueue"
-    ["data-science-pipelines-operator"]="opendatahub-io:data-science-pipelines-operator:main:config:data-science-pipelines-operator"
-    ["odh-dashboard"]="opendatahub-io:odh-dashboard:main:manifests:dashboard"
-    ["kf-notebook-controller"]="opendatahub-io:kubeflow:v1.7-branch:components/notebook-controller/config:odh-notebook-controller/kf-notebook-controller"
-    ["odh-notebook-controller"]="opendatahub-io:kubeflow:v1.7-branch:components/odh-notebook-controller/config:odh-notebook-controller/odh-notebook-controller"
-    ["notebooks"]="opendatahub-io:notebooks:main:manifests:notebooks"
-    ["trustyai"]="trustyai-explainability:trustyai-service-operator:main:config:trustyai-service-operator"
-    ["model-mesh"]="opendatahub-io:modelmesh-serving:release-0.12.0-rc0:config:model-mesh"
-    ["odh-model-controller"]="opendatahub-io:odh-model-controller:release-0.12.0:config:odh-model-controller"
-    ["kserve"]="opendatahub-io:kserve:release-v0.12.1:config:kserve"
-    ["modelregistry"]="opendatahub-io:model-registry-operator:main:config:model-registry-operator"
-    ["trainingoperator"]="opendatahub-io:training-operator:dev:manifests:trainingoperator"
+    ["codeflare"]="red-hat-data-services:codeflare-operator:rhoai-2.14:config:codeflare"
+    ["ray"]="red-hat-data-services:kuberay:rhoai-2.14:ray-operator/config:ray"
+    ["kueue"]="red-hat-data-services:kueue:rhoai-2.14:config:kueue"
+    ["data-science-pipelines-operator"]="red-hat-data-services:data-science-pipelines-operator:rhoai-2.14:config:data-science-pipelines-operator"
+    ["kf-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-2.14:components/notebook-controller/config:odh-notebook-controller/kf-notebook-controller"
+    ["odh-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-2.14:components/odh-notebook-controller/config:odh-notebook-controller/odh-notebook-controller"
+    ["notebooks"]="red-hat-data-services:notebooks:rhoai-2.14:manifests:notebooks"
+    ["trustyai"]="red-hat-data-services:trustyai-service-operator:rhoai-2.14:config:trustyai-service-operator"
+    ["model-mesh"]="red-hat-data-services:modelmesh-serving:rhoai-2.14:config:model-mesh"
+    ["odh-model-controller"]="red-hat-data-services:odh-model-controller:rhoai-2.14:config:odh-model-controller"
+    ["kserve"]="red-hat-data-services:kserve:rhoai-2.14:config:kserve"
+    ["odh-dashboard"]="red-hat-data-services:odh-dashboard:rhoai-2.14:manifests:dashboard"
+    ["trainingoperator"]="red-hat-data-services:training-operator:rhoai-2.14:manifests:trainingoperator"
+    ["modelregistry"]="red-hat-data-services:model-registry-operator:rhoai-2.14:config:model-registry-operator"
 )
 
 # Allow overwriting repo using flags component=repo
