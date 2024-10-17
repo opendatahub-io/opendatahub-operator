@@ -25,13 +25,14 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
+	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	componentsold "github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kueue"
@@ -68,38 +69,38 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 		},
 		Spec: dscv1.DataScienceClusterSpec{
 			Components: dscv1.Components{
-				Dashboard: dashboard.Dashboard{
+				Dashboard: componentsv1.DSCDashboard{
 					Component: components.Component{ManagementState: operatorv1.Managed},
 				},
 				Workbenches: workbenches.Workbenches{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+					Component: componentsold.Component{ManagementState: operatorv1.Managed},
 				},
 				ModelMeshServing: modelmeshserving.ModelMeshServing{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+					Component: componentsold.Component{ManagementState: operatorv1.Managed},
 				},
 				DataSciencePipelines: datasciencepipelines.DataSciencePipelines{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+					Component: componentsold.Component{ManagementState: operatorv1.Managed},
 				},
 				Kserve: kserve.Kserve{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+					Component: componentsold.Component{ManagementState: operatorv1.Managed},
 				},
 				CodeFlare: codeflare.CodeFlare{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+					Component: componentsold.Component{ManagementState: operatorv1.Managed},
 				},
 				Ray: ray.Ray{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+					Component: componentsold.Component{ManagementState: operatorv1.Managed},
 				},
 				Kueue: kueue.Kueue{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+					Component: componentsold.Component{ManagementState: operatorv1.Managed},
 				},
 				TrustyAI: trustyai.TrustyAI{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+					Component: componentsold.Component{ManagementState: operatorv1.Managed},
 				},
 				ModelRegistry: modelregistry.ModelRegistry{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+					Component: componentsold.Component{ManagementState: operatorv1.Managed},
 				},
 				TrainingOperator: trainingoperator.TrainingOperator{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+					Component: componentsold.Component{ManagementState: operatorv1.Managed},
 				},
 			},
 		},

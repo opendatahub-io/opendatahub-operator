@@ -40,11 +40,12 @@ import (
 	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
+	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	componentsold "github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
@@ -261,48 +262,48 @@ func newDSC(name string, namespace string) *dscv1.DataScienceCluster {
 		},
 		Spec: dscv1.DataScienceClusterSpec{
 			Components: dscv1.Components{
-				Dashboard: dashboard.Dashboard{
+				Dashboard: componentsv1.DSCDashboard{
 					Component: components.Component{
 						ManagementState: operatorv1.Removed,
 					},
 				},
 				Workbenches: workbenches.Workbenches{
-					Component: components.Component{
+					Component: componentsold.Component{
 						ManagementState: operatorv1.Removed,
 					},
 				},
 				ModelMeshServing: modelmeshserving.ModelMeshServing{
-					Component: components.Component{
+					Component: componentsold.Component{
 						ManagementState: operatorv1.Removed,
 					},
 				},
 				DataSciencePipelines: datasciencepipelines.DataSciencePipelines{
-					Component: components.Component{
+					Component: componentsold.Component{
 						ManagementState: operatorv1.Removed,
 					},
 				},
 				Kserve: kserve.Kserve{
-					Component: components.Component{
+					Component: componentsold.Component{
 						ManagementState: operatorv1.Removed,
 					},
 				},
 				CodeFlare: codeflare.CodeFlare{
-					Component: components.Component{
+					Component: componentsold.Component{
 						ManagementState: operatorv1.Removed,
 					},
 				},
 				Ray: ray.Ray{
-					Component: components.Component{
+					Component: componentsold.Component{
 						ManagementState: operatorv1.Removed,
 					},
 				},
 				TrustyAI: trustyai.TrustyAI{
-					Component: components.Component{
+					Component: componentsold.Component{
 						ManagementState: operatorv1.Removed,
 					},
 				},
 				ModelRegistry: modelregistry.ModelRegistry{
-					Component: components.Component{
+					Component: componentsold.Component{
 						ManagementState: operatorv1.Removed,
 					},
 				},
@@ -320,7 +321,7 @@ func newMRDSC1(name string, mrNamespace string, state operatorv1.ManagementState
 		Spec: dscv1.DataScienceClusterSpec{
 			Components: dscv1.Components{
 				ModelRegistry: modelregistry.ModelRegistry{
-					Component: components.Component{
+					Component: componentsold.Component{
 						ManagementState: state,
 					},
 					RegistriesNamespace: mrNamespace,
@@ -339,7 +340,7 @@ func newMRDSC2(name string) *dscv1.DataScienceCluster {
 		Spec: dscv1.DataScienceClusterSpec{
 			Components: dscv1.Components{
 				Workbenches: workbenches.Workbenches{
-					Component: components.Component{
+					Component: componentsold.Component{
 						ManagementState: operatorv1.Removed,
 					},
 				},
