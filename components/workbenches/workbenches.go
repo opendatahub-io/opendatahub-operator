@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -111,8 +110,9 @@ func (w *Workbenches) GetComponentName() string {
 	return ComponentName
 }
 
-func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client, l logr.Logger,
+func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, platform cluster.Platform, _ bool) error {
+	l := logf.FromContext(ctx)
 	// Set default notebooks namespace
 	// Create rhods-notebooks namespace in managed platforms
 	enabled := w.GetManagementState() == operatorv1.Managed

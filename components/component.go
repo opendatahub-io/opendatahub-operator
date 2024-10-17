@@ -82,7 +82,7 @@ type ManifestsConfig struct {
 
 type ComponentInterface interface {
 	Init(ctx context.Context, platform cluster.Platform) error
-	ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
+	ReconcileComponent(ctx context.Context, cli client.Client,
 		owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec, platform cluster.Platform, currentComponentStatus bool) error
 	Cleanup(ctx context.Context, cli client.Client, owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec) error
 	GetComponentName() string

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -95,12 +94,12 @@ func (d *DataSciencePipelines) GetComponentName() string {
 
 func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 	cli client.Client,
-	l logr.Logger,
 	owner metav1.Object,
 	dscispec *dsciv1.DSCInitializationSpec,
 	platform cluster.Platform,
 	_ bool,
 ) error {
+	l := logf.FromContext(ctx)
 	enabled := d.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 
