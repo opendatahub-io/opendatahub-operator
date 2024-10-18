@@ -14,5 +14,5 @@ const (
 	SecretOauthClientAnnotation = "secret-generator.opendatahub.io/oauth-client-route"
 )
 
-// DeletionAnnotation for component CRs.
-const DeletionAnnotation = "component.opendatahub.io/deletion"
+// ManagementStateAnnotation defines what ManagementState value if defined in DSC for the component.
+const ManagementStateAnnotation = "component.opendatahub.io/management-state"

@@ -110,29 +110,33 @@ func NewDashboardReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	return nil
 }
 
-func GetDashboardInstance(dsc *dscv1.DataScienceCluster) *componentsv1.Dashboard {
-	dashboardInstance := &componentsv1.Dashboard{
+func GetDashboard(dsc *dscv1.DataScienceCluster) *componentsv1.Dashboard {
+	dashboardAnnotations := make(map[string]string)
+
+	switch dsc.Spec.Components.Dashboard.ManagementState {
+	case operatorv1.Managed:
+		dashboardAnnotations[annotation.ManagementStateAnnotation] = string(operatorv1.Managed)
+	case operatorv1.Removed:
+		dashboardAnnotations[annotation.ManagementStateAnnotation] = string(operatorv1.Removed)
+	case operatorv1.Unmanaged:
+		dashboardAnnotations[annotation.ManagementStateAnnotation] = string(operatorv1.Unmanaged)
+	default:
+		dashboardAnnotations[annotation.ManagementStateAnnotation] = "Unknown"
+	}
+
+	return &componentsv1.Dashboard{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Dashboard",
 			APIVersion: "components.opendatahub.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: componentsv1.DashboardInstanceName,
+			Name:        componentsv1.DashboardInstanceName,
+			Annotations: dashboardAnnotations,
 		},
 		Spec: componentsv1.DashboardSpec{
 			DSCDashboard: dsc.Spec.Components.Dashboard,
 		},
 	}
-
-	dashboardAnnotation := dashboardInstance.GetAnnotations()
-	if dsc.Spec.Components.Dashboard.ManagementState == operatorv1.Removed {
-		dashboardAnnotation[annotation.DeletionAnnotation] = "false"
-	} else {
-		dashboardAnnotation[annotation.DeletionAnnotation] = "true"
-	}
-
-	dashboardInstance.SetAnnotations(dashboardAnnotation)
-	return dashboardInstance
 }
 
 // +kubebuilder:rbac:groups=components.opendatahub.io,resources=dashboards,verbs=get;list;watch;create;update;patch;delete
