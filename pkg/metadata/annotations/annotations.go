@@ -13,3 +13,6 @@ const (
 	SecretLengthAnnotation      = "secret-generator.opendatahub.io/complexity"
 	SecretOauthClientAnnotation = "secret-generator.opendatahub.io/oauth-client-route"
 )
+
+// DeletionAnnotation for component CRs.
+const DeletionAnnotation = "component.opendatahub.io/deletion"

@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
@@ -10,8 +11,11 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -58,11 +62,11 @@ func dashboardTestSuite(t *testing.T) {
 			err = dashboardCtx.testUpdateOnDashboardResources()
 			require.NoError(t, err, "error testing updates for Dashboard's managed resources")
 		})
-		// TODO: Uncomment this when we set up component removed logic
-		// t.Run("Validate Disabling Component", func(t *testing.T) {
-		//	err = dashboardCtx.testUpdateDashboardComponentDisabled()
-		//	require.NoError(t, err, "error testing component enabled field")
-		// })
+
+		t.Run("Validate Disabling Component", func(t *testing.T) {
+			err = dashboardCtx.testUpdateDashboardComponentDisabled()
+			require.NoError(t, err, "error testing component enabled field")
+		})
 	})
 }
 
@@ -189,71 +193,71 @@ func (tc *DashboardTestCtx) testUpdateOnDashboardResources() error {
 	return nil
 }
 
-// func (tc *DashboardTestCtx) testUpdateDashboardComponentDisabled() error {
-//	// Test Updating dashboard to be disabled
-//	var dashboardDeploymentName string
-//
-//	if tc.testCtx.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
-//		appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-//			LabelSelector: labels.ODH.Component("dashboard"),
-//		})
-//		if err != nil {
-//			return fmt.Errorf("error getting enabled component %v", "dashboard")
-//		}
-//		if len(appDeployments.Items) > 0 {
-//			dashboardDeploymentName = appDeployments.Items[0].Name
-//			if appDeployments.Items[0].Status.ReadyReplicas == 0 {
-//				return fmt.Errorf("error getting enabled component: %s its deployment 'ReadyReplicas'", dashboardDeploymentName)
-//			}
-//		}
-//	} else {
-//		return errors.New("dashboard spec should be in 'enabled: true' state in order to perform test")
-//	}
-//
-//	// Disable component Dashboard
-//	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-//		// refresh the instance in case it was updated during the reconcile
-//		err := tc.testCtx.customClient.Get(tc.testCtx.ctx, types.NamespacedName{Name: tc.testCtx.testDsc.Name}, tc.testCtx.testDsc)
-//		if err != nil {
-//			return fmt.Errorf("error getting resource %w", err)
-//		}
-//		// Disable the Component
-//		tc.testCtx.testDsc.Spec.Components.Dashboard.ManagementState = operatorv1.Removed
-//
-//		// Try to update
-//		err = tc.testCtx.customClient.Update(tc.testCtx.ctx, tc.testCtx.testDsc)
-//		// Return err itself here (not wrapped inside another error)
-//		// so that RetryOnConflict can identify it correctly.
-//		if err != nil {
-//			return fmt.Errorf("error updating component from 'enabled: true' to 'enabled: false': %w", err)
-//		}
-//
-//		return nil
-//	})
-//	if err != nil {
-//		return fmt.Errorf("error after retry %w", err)
-//	}
-//
-//	// Verify dashboard CR is deleted
-//	dashboard := &componentsv1.Dashboard{}
-//	err = tc.testCtx.customClient.Get(tc.testCtx.ctx, client.ObjectKey{Name: tc.testDashboardInstance.Name}, dashboard)
-//	if err == nil {
-//		return errors.New(fmt.Sprintf("component %v is disabled, should not get the Dashboard CR %v", "dashboard", tc.testDashboardInstance.Name))
-//	} else if !k8serr.IsNotFound(err) {
-//		return err
-//	}
-//
-//	// Sleep for 20 seconds to allow the operator to reconcile
-//	time.Sleep(2 * generalRetryInterval)
-//	_, err = tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).Get(tc.testCtx.ctx, dashboardDeploymentName, metav1.GetOptions{})
-//	if err != nil {
-//		if k8serr.IsNotFound(err) {
-//			return nil // correct result: should not find deployment after we disable it already
-//		}
-//		return fmt.Errorf("error getting component resource after reconcile: %w", err)
-//	}
-//	return fmt.Errorf("component %v is disabled, should not get its deployment %v from NS %v any more",
-//		"dashboard",
-//		dashboardDeploymentName,
-//		tc.testCtx.applicationsNamespace)
-//}
+func (tc *DashboardTestCtx) testUpdateDashboardComponentDisabled() error {
+	// Test Updating dashboard to be disabled
+	var dashboardDeploymentName string
+
+	if tc.testCtx.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
+		appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
+			LabelSelector: labels.ODH.Component("dashboard"),
+		})
+		if err != nil {
+			return fmt.Errorf("error getting enabled component %v", "dashboard")
+		}
+		if len(appDeployments.Items) > 0 {
+			dashboardDeploymentName = appDeployments.Items[0].Name
+			if appDeployments.Items[0].Status.ReadyReplicas == 0 {
+				return fmt.Errorf("error getting enabled component: %s its deployment 'ReadyReplicas'", dashboardDeploymentName)
+			}
+		}
+	} else {
+		return errors.New("dashboard spec should be in 'enabled: true' state in order to perform test")
+	}
+
+	// Disable component Dashboard
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		// refresh the instance in case it was updated during the reconcile
+		err := tc.testCtx.customClient.Get(tc.testCtx.ctx, types.NamespacedName{Name: tc.testCtx.testDsc.Name}, tc.testCtx.testDsc)
+		if err != nil {
+			return fmt.Errorf("error getting resource %w", err)
+		}
+		// Disable the Component
+		tc.testCtx.testDsc.Spec.Components.Dashboard.ManagementState = operatorv1.Removed
+
+		// Try to update
+		err = tc.testCtx.customClient.Update(tc.testCtx.ctx, tc.testCtx.testDsc)
+		// Return err itself here (not wrapped inside another error)
+		// so that RetryOnConflict can identify it correctly.
+		if err != nil {
+			return fmt.Errorf("error updating component from 'enabled: true' to 'enabled: false': %w", err)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("error after retry %w", err)
+	}
+
+	// Verify dashboard CR is deleted
+	dashboard := &componentsv1.Dashboard{}
+	err = tc.testCtx.customClient.Get(tc.testCtx.ctx, client.ObjectKey{Name: tc.testDashboardInstance.Name}, dashboard)
+	if err == nil {
+		return fmt.Errorf("component %v is disabled, should not get the Dashboard CR %v", "dashboard", tc.testDashboardInstance.Name)
+	} else if !k8serr.IsNotFound(err) {
+		return err
+	}
+
+	// Sleep for 20 seconds to allow the operator to reconcile
+	time.Sleep(2 * generalRetryInterval)
+	_, err = tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).Get(tc.testCtx.ctx, dashboardDeploymentName, metav1.GetOptions{})
+	if err != nil {
+		if k8serr.IsNotFound(err) {
+			return nil // correct result: should not find deployment after we disable it already
+		}
+		return fmt.Errorf("error getting component resource after reconcile: %w", err)
+	}
+	return fmt.Errorf("component %v is disabled, should not get its deployment %v from NS %v any more",
+		"dashboard",
+		dashboardDeploymentName,
+		tc.testCtx.applicationsNamespace)
+}

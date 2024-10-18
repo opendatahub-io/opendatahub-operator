@@ -309,7 +309,7 @@ func (r *DataScienceClusterReconciler) reconcileDashboardComponent(ctx context.C
 	}
 
 	// Create the Dashboard instance
-	dashboard := dashboardctrl.CreateDashboardInstance(instance)
+	dashboard := dashboardctrl.GetDashboardInstance(instance)
 	// Reconcile component
 	err := r.apply(ctx, instance, dashboard)
 
@@ -372,6 +372,10 @@ func (r *DataScienceClusterReconciler) apply(ctx context.Context, dsc *dscv1.Dat
 		return err
 	}
 
+	objDeletionAnn, exists := obj.GetAnnotations()[annotations.DeletionAnnotation]
+	if exists && objDeletionAnn == "true" {
+		return r.Client.Delete(ctx, obj)
+	}
 	if err := r.Client.Apply(ctx, obj, client.FieldOwner(dsc.Name), client.ForceOwnership); err != nil {
 		return err
 	}

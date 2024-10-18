@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -45,6 +46,7 @@ import (
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	ctrlogger "github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
+	annotation "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
@@ -108,8 +110,8 @@ func NewDashboardReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	return nil
 }
 
-func CreateDashboardInstance(dsc *dscv1.DataScienceCluster) *componentsv1.Dashboard {
-	return &componentsv1.Dashboard{
+func GetDashboardInstance(dsc *dscv1.DataScienceCluster) *componentsv1.Dashboard {
+	dashboardInstance := &componentsv1.Dashboard{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Dashboard",
 			APIVersion: "components.opendatahub.io/v1",
@@ -121,6 +123,16 @@ func CreateDashboardInstance(dsc *dscv1.DataScienceCluster) *componentsv1.Dashbo
 			DSCDashboard: dsc.Spec.Components.Dashboard,
 		},
 	}
+
+	dashboardAnnotation := dashboardInstance.GetAnnotations()
+	if dsc.Spec.Components.Dashboard.ManagementState == operatorv1.Removed {
+		dashboardAnnotation[annotation.DeletionAnnotation] = "false"
+	} else {
+		dashboardAnnotation[annotation.DeletionAnnotation] = "true"
+	}
+
+	dashboardInstance.SetAnnotations(dashboardAnnotation)
+	return dashboardInstance
 }
 
 // +kubebuilder:rbac:groups=components.opendatahub.io,resources=dashboards,verbs=get;list;watch;create;update;patch;delete
