@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-logr/logr"
 	oauthv1 "github.com/openshift/api/oauth/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -37,6 +36,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -52,13 +52,11 @@ const (
 type SecretGeneratorReconciler struct {
 	Client client.Client
 	Scheme *runtime.Scheme
-	Log    logr.Logger
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *SecretGeneratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	log := r.Log
-	log.Info("Adding controller for Secret Generation.")
+func (r *SecretGeneratorReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
+	logf.FromContext(ctx).Info("Adding controller for Secret Generation.")
 
 	// Watch only new secrets with the corresponding annotation
 	predicates := predicate.Funcs{
@@ -106,7 +104,7 @@ func (r *SecretGeneratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // based on the specified type and complexity. This will avoid possible race
 // conditions when a deployment mounts the secret before it is reconciled.
 func (r *SecretGeneratorReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
-	log := r.Log
+	log := logf.FromContext(ctx).WithName("SecretGenerator")
 	foundSecret := &corev1.Secret{}
 	err := r.Client.Get(ctx, request.NamespacedName, foundSecret)
 	if err != nil {
@@ -209,7 +207,7 @@ func (r *SecretGeneratorReconciler) getRoute(ctx context.Context, name string, n
 }
 
 func (r *SecretGeneratorReconciler) createOAuthClient(ctx context.Context, name string, secretName string, uri string) error {
-	log := r.Log
+	log := logf.FromContext(ctx)
 	// Create OAuthClient resource
 	oauthClient := &oauthv1.OAuthClient{
 		TypeMeta: metav1.TypeMeta{

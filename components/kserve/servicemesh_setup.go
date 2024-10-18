@@ -7,8 +7,8 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -37,6 +37,7 @@ func (k *Kserve) removeServiceMeshConfigurations(ctx context.Context, cli client
 }
 
 func (k *Kserve) defineServiceMeshFeatures(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec) feature.FeaturesProvider {
+	log := logf.FromContext(ctx)
 	return func(registry feature.FeaturesRegistry) error {
 		authorinoInstalled, err := cluster.SubscriptionExists(ctx, cli, "authorino-operator")
 		if err != nil {
@@ -68,7 +69,7 @@ func (k *Kserve) defineServiceMeshFeatures(ctx context.Context, cli client.Clien
 				return kserveExtAuthzErr
 			}
 		} else {
-			ctrl.Log.Info("WARN: Authorino operator is not installed on the cluster, skipping authorization capability")
+			log.Info("WARN: Authorino operator is not installed on the cluster, skipping authorization capability")
 		}
 
 		return nil
