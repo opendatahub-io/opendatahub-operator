@@ -80,6 +80,7 @@ type Monitoring struct {
 // DevFlags defines list of fields that can be used by developers to test customizations. This is not recommended
 // to be used in production environment.
 type DevFlags struct {
+	// ## DEPRECATED ## : ManifestsUri set on DSCI is not maintained.
 	// Custom manifests uri for odh-manifests
 	// +optional
 	ManifestsUri string `json:"manifestsUri,omitempty"`
