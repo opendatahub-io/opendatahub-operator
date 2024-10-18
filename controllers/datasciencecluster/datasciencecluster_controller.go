@@ -312,8 +312,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 		}
 	}
 	// Reconcile component
-	componentLogger := newComponentLogger(log, componentName)
-	componentCtx := logf.IntoContext(ctx, componentLogger)
+	componentCtx := newComponentContext(ctx, log, componentName)
 	err := component.ReconcileComponent(componentCtx, r.Client, instance, r.DataScienceCluster.DSCISpec, platform, installedComponentValue)
 
 	// TODO: replace this hack with a full refactor of component status in the future
@@ -364,8 +363,8 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 	return instance, nil
 }
 
-func newComponentLogger(logger logr.Logger, componentName string) logr.Logger {
-	return logger.WithName(componentName).WithValues("component", componentName)
+func newComponentContext(ctx context.Context, log logr.Logger, componentName string) context.Context {
+	return logf.IntoContext(ctx, log.WithName(componentName).WithValues("component", componentName))
 }
 
 func (r *DataScienceClusterReconciler) reportError(err error, instance *dscv1.DataScienceCluster, message string) *dscv1.DataScienceCluster {
