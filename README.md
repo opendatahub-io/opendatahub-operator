@@ -148,7 +148,7 @@ e.g `make image-build -e IMAGE_BUILD_FLAGS="--build-arg USE_LOCAL=true"`
   or (for example to user <username>)
 
   ```commandline
-  make image -e IMAGE_OWNER=vhire
+  make image -e IMAGE_OWNER=<username>
   ```
 
   The default image used is `quay.io/opendatahub/opendatahub-operator:dev-0.0.1` when not supply argument for `make image`
@@ -185,7 +185,7 @@ e.g `make image-build -e IMAGE_BUILD_FLAGS="--build-arg USE_LOCAL=true"`
 **Deploying operator using OLM**
 
 - To create a new bundle in defined operator namespace, run following command:
-
+  
   ```commandline
   export OPERATOR_NAMESPACE=<namespace-to-install-operator>
   make bundle
@@ -202,7 +202,7 @@ e.g `make image-build -e IMAGE_BUILD_FLAGS="--build-arg USE_LOCAL=true"`
 - Run the Bundle on a cluster:
 
   ```commandline
-  operator-sdk run bundle quay.io/<username>/opendatahub-operator-bundle:<VERSION> --namespace $OPERATOR_NAMESPACE
+  operator-sdk run bundle quay.io/<username>/opendatahub-operator-bundle:<VERSION> --namespace $OPERATOR_NAMESPACE --decompression-image quay.io/project-codeflare/busybox:1.36
   ```
 ### Test with customized manifests
 
@@ -304,7 +304,7 @@ components. At a given time, ODH supports only **one** instance of the CR, which
 apiVersion: datasciencecluster.opendatahub.io/v1
 kind: DataScienceCluster
 metadata:
-  name: example
+  name: default-dsc
 spec:
   components:
     codeflare:

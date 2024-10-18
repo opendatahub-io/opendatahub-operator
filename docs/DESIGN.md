@@ -63,7 +63,7 @@ To deploy ODH components seamlessly, ODH operator will watch two CRDs:
           modelmeshserving:
             managementState: Managed
           modelregistry:
-            managementState: Managed
+            managementState: Removed
             registriesNamespace: "rhoai-model-registries"
           ray:
             managementState: Managed
@@ -71,10 +71,10 @@ To deploy ODH components seamlessly, ODH operator will watch two CRDs:
             managementState: Managed
           trainingoperator:
             managementState: Removed
-          trustyai:
-            managementState: Removed
           workbenches:
             managementState: Managed
+          trustyai:
+            managementState: Removed
     ```
 
 2. Enable only Dashboard and Workbenches(Jupyter Notebooks)
