@@ -16,7 +16,16 @@ spec:
     singular: datasciencecluster
   scope: Cluster
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - description: Status
+      jsonPath: .status.phase
+      name: Status
+      type: string
+    - description: The age of the resource
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
     schema:
       openAPIV3Schema:
         description: DataScienceCluster is the Schema for the datascienceclusters
