@@ -13,3 +13,6 @@ const (
 	SecretLengthAnnotation      = "secret-generator.opendatahub.io/complexity"
 	SecretOauthClientAnnotation = "secret-generator.opendatahub.io/oauth-client-route"
 )
+
+// ManagementStateAnnotation defines what ManagementState value if defined in DSC for the component.
+const ManagementStateAnnotation = "component.opendatahub.io/management-state"

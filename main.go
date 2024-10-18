@@ -21,7 +21,6 @@ import (
 	"flag"
 	"os"
 
-	"github.com/hashicorp/go-multierror"
 	addonv1alpha1 "github.com/openshift/addon-operator/apis/addons/v1alpha1"
 	ocappsv1 "github.com/openshift/api/apps/v1" //nolint:importas //reason: conflicts with appsv1 "k8s.io/api/apps/v1"
 	buildv1 "github.com/openshift/api/build/v1"
@@ -56,16 +55,19 @@ import (
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 
+	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/certconfigmapgenerator"
+	dashboardctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/dashboard"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/webhook"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
@@ -78,6 +80,7 @@ var (
 )
 
 func init() { //nolint:gochecknoinits
+	utilruntime.Must(componentsv1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(dsciv1.AddToScheme(scheme))
@@ -103,20 +106,8 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(operatorv1.Install(scheme))
 }
 
-func initComponents(ctx context.Context, p cluster.Platform) error {
-	var errs *multierror.Error
-	var dummyDSC = &dscv1.DataScienceCluster{}
-
-	components, err := dummyDSC.GetComponents()
-	if err != nil {
-		return err
-	}
-
-	for _, c := range components {
-		errs = multierror.Append(errs, c.Init(ctx, p))
-	}
-
-	return errs.ErrorOrNil()
+func initComponents(_ context.Context, p cluster.Platform) error {
+	return dashboardctrl.Init(p)
 }
 
 func main() { //nolint:funlen,maintidx
@@ -175,6 +166,11 @@ func main() { //nolint:funlen,maintidx
 	// Get operator platform
 	release := cluster.GetRelease()
 	platform := release.Name
+
+	if err := initComponents(ctx, platform); err != nil {
+		setupLog.Error(err, "unable to init components")
+		os.Exit(1)
+	}
 
 	secretCache := createSecretCacheConfig(platform)
 	deploymentCache := createDeploymentCacheConfig(platform)
@@ -236,8 +232,14 @@ func main() { //nolint:funlen,maintidx
 
 	webhook.Init(mgr)
 
+	oc, err := odhClient.NewFromManager(ctx, mgr)
+	if err != nil {
+		setupLog.Error(err, "unable to create client")
+		os.Exit(1)
+	}
+
 	if err = (&dscictrl.DSCInitializationReconciler{
-		Client:                mgr.GetClient(),
+		Client:                oc,
 		Scheme:                mgr.GetScheme(),
 		Log:                   logger.LogWithLevel(ctrl.Log.WithName(operatorName).WithName("controllers").WithName("DSCInitialization"), logmode),
 		Recorder:              mgr.GetEventRecorderFor("dscinitialization-controller"),
@@ -248,7 +250,7 @@ func main() { //nolint:funlen,maintidx
 	}
 
 	if err = (&dscctrl.DataScienceClusterReconciler{
-		Client: mgr.GetClient(),
+		Client: oc,
 		Scheme: mgr.GetScheme(),
 		Log:    logger.LogWithLevel(ctrl.Log.WithName(operatorName).WithName("controllers").WithName("DataScienceCluster"), logmode),
 		DataScienceCluster: &dscctrl.DataScienceClusterConfig{
@@ -263,7 +265,7 @@ func main() { //nolint:funlen,maintidx
 	}
 
 	if err = (&secretgenerator.SecretGeneratorReconciler{
-		Client: mgr.GetClient(),
+		Client: oc,
 		Scheme: mgr.GetScheme(),
 		Log:    logger.LogWithLevel(ctrl.Log.WithName(operatorName).WithName("controllers").WithName("SecretGenerator"), logmode),
 	}).SetupWithManager(mgr); err != nil {
@@ -272,11 +274,16 @@ func main() { //nolint:funlen,maintidx
 	}
 
 	if err = (&certconfigmapgenerator.CertConfigmapGeneratorReconciler{
-		Client: mgr.GetClient(),
+		Client: oc,
 		Scheme: mgr.GetScheme(),
 		Log:    logger.LogWithLevel(ctrl.Log.WithName(operatorName).WithName("controllers").WithName("CertConfigmapGenerator"), logmode),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CertConfigmapGenerator")
+		os.Exit(1)
+	}
+
+	// Initialize component reconcilers
+	if err = CreateComponentReconcilers(ctx, mgr); err != nil {
 		os.Exit(1)
 	}
 
@@ -338,10 +345,6 @@ func main() { //nolint:funlen,maintidx
 		setupLog.Error(err, "unable to set up ready check")
 		os.Exit(1)
 	}
-	if err := initComponents(ctx, platform); err != nil {
-		setupLog.Error(err, "unable to init components")
-		os.Exit(1)
-	}
 
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctx); err != nil {
@@ -382,4 +385,13 @@ func createDeploymentCacheConfig(platform cluster.Platform) map[string]cache.Con
 	// for modelregistry namespace
 	namespaceConfigs[modelregistry.DefaultModelRegistriesNamespace] = cache.Config{}
 	return namespaceConfigs
+}
+
+func CreateComponentReconcilers(ctx context.Context, mgr manager.Manager) error {
+	// TODO: add more here or make it go routine
+	if err := dashboardctrl.NewDashboardReconciler(ctx, mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "DashboardReconciler")
+		return err
+	}
+	return nil
 }

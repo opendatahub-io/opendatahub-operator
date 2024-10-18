@@ -1,3 +1,5 @@
+//go:build !nowebhook
+
 /*
 Copyright 2023.
 

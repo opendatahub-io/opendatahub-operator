@@ -2,6 +2,7 @@ package labels
 
 const (
 	ODHAppPrefix      = "app.opendatahub.io"
+	ComponentName     = "components.opendatahub.io/name"
 	InjectTrustCA     = "config.openshift.io/inject-trusted-cabundle"
 	SecurityEnforce   = "pod-security.kubernetes.io/enforce"
 	ClusterMonitoring = "openshift.io/cluster-monitoring"

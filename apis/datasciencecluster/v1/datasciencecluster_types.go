@@ -24,9 +24,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kueue"
@@ -49,7 +49,7 @@ type DataScienceClusterSpec struct {
 
 type Components struct {
 	// Dashboard component configuration.
-	Dashboard dashboard.Dashboard `json:"dashboard,omitempty"`
+	Dashboard componentsv1.DSCDashboard `json:"dashboard,omitempty"`
 
 	// Workbenches component configuration.
 	Workbenches workbenches.Workbenches `json:"workbenches,omitempty"`
