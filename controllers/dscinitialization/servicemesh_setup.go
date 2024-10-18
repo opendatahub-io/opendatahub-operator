@@ -9,6 +9,7 @@ import (
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
@@ -19,7 +20,7 @@ import (
 )
 
 func (r *DSCInitializationReconciler) configureServiceMesh(ctx context.Context, instance *dsciv1.DSCInitialization) error {
-	log := r.Log
+	log := logf.FromContext(ctx)
 	serviceMeshManagementState := operatorv1.Removed
 	if instance.Spec.ServiceMesh != nil {
 		serviceMeshManagementState = instance.Spec.ServiceMesh.ManagementState
@@ -62,7 +63,7 @@ func (r *DSCInitializationReconciler) configureServiceMesh(ctx context.Context, 
 }
 
 func (r *DSCInitializationReconciler) removeServiceMesh(ctx context.Context, instance *dsciv1.DSCInitialization) error {
-	log := r.Log
+	log := logf.FromContext(ctx)
 	// on condition of Managed, do not handle Removed when set to Removed it trigger DSCI reconcile to clean up
 	if instance.Spec.ServiceMesh == nil {
 		return nil
