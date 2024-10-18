@@ -67,8 +67,13 @@ spec:
                   Internal development useful field to test customizations.
                   This is not recommended to be used in production environment.
                 properties:
+                  logLevel:
+                    description: Override Zap log level. Can be "debug", "info", "error"
+                      or a number (more verbose).
+                    type: string
                   logmode:
                     default: production
+                    description: '## DEPRECATED ##: Ignored, use LogLevel instead'
                     enum:
                     - devel
                     - development
