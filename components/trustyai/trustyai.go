@@ -14,13 +14,16 @@ import (
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/monitoring"
 )
 
 var (
-	ComponentName = "trustyai"
-	Path          = deploy.DefaultManifestPath + "/" + "trustyai-service-operator/base"
+	ComponentName     = "trustyai"
+	ComponentPathName = "trustyai-service-operator"
+	PathUpstream      = deploy.DefaultManifestPath + "/" + ComponentPathName + "/overlays/odh"
+	PathDownstream    = deploy.DefaultManifestPath + "/" + ComponentPathName + "/overlays/rhoai"
+	OverridePath      = ""
 )
 
 // Verifies that TrustyAI implements ComponentInterface.
@@ -32,11 +35,11 @@ type TrustyAI struct {
 	components.Component `json:""`
 }
 
-func (t *TrustyAI) OverrideManifests(_ string) error {
+func (t *TrustyAI) OverrideManifests(ctx context.Context, _ cluster.Platform) error {
 	// If devflags are set, update default manifests path
 	if len(t.DevFlags.Manifests) != 0 {
 		manifestConfig := t.DevFlags.Manifests[0]
-		if err := deploy.DownloadManifests(ComponentName, manifestConfig); err != nil {
+		if err := deploy.DownloadManifests(ctx, ComponentPathName, manifestConfig); err != nil {
 			return err
 		}
 		// If overlay is defined, update paths
@@ -44,7 +47,7 @@ func (t *TrustyAI) OverrideManifests(_ string) error {
 		if manifestConfig.SourcePath != "" {
 			defaultKustomizePath = manifestConfig.SourcePath
 		}
-		Path = filepath.Join(deploy.DefaultManifestPath, ComponentName, defaultKustomizePath)
+		OverridePath = filepath.Join(deploy.DefaultManifestPath, ComponentPathName, defaultKustomizePath)
 	}
 	return nil
 }
@@ -54,52 +57,58 @@ func (t *TrustyAI) GetComponentName() string {
 }
 
 func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
-	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, _ bool) error {
+	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, platform cluster.Platform, _ bool) error {
 	var imageParamMap = map[string]string{
 		"trustyaiServiceImage":  "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE",
 		"trustyaiOperatorImage": "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE",
 	}
+	entryPath := map[cluster.Platform]string{
+		cluster.SelfManagedRhods: PathDownstream,
+		cluster.ManagedRhods:     PathDownstream,
+		cluster.OpenDataHub:      PathUpstream,
+		cluster.Unknown:          PathUpstream,
+	}[platform]
+
 	l := t.ConfigComponentLogger(logger, ComponentName, dscispec)
 
 	enabled := t.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 
-	platform, err := deploy.GetPlatform(cli)
-	if err != nil {
-		return err
-	}
-
 	if enabled {
 		if t.DevFlags != nil {
 			// Download manifests and update paths
-			if err = t.OverrideManifests(string(platform)); err != nil {
+			if err := t.OverrideManifests(ctx, platform); err != nil {
 				return err
+			}
+			if OverridePath != "" {
+				entryPath = OverridePath
 			}
 		}
 		if (dscispec.DevFlags == nil || dscispec.DevFlags.ManifestsUri == "") && (t.DevFlags == nil || len(t.DevFlags.Manifests) == 0) {
-			if err := deploy.ApplyParams(Path, imageParamMap, false); err != nil {
-				return fmt.Errorf("failed to update image %s: %w", Path, err)
+			if err := deploy.ApplyParams(entryPath, imageParamMap); err != nil {
+				return fmt.Errorf("failed to update image %s: %w", entryPath, err)
 			}
 		}
 	}
 	// Deploy TrustyAI Operator
-	if err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, t.GetComponentName(), enabled); err != nil {
+	if err := deploy.DeployManifestsFromPath(ctx, cli, owner, entryPath, dscispec.ApplicationsNamespace, t.GetComponentName(), enabled); err != nil {
 		return err
 	}
 	l.Info("apply manifests done")
 
-	// CloudService Monitoring handling
-	if platform == deploy.ManagedRhods {
-		if enabled {
-			if err := monitoring.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 10, 1); err != nil {
-				return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
-			}
-			l.Info("deployment is done, updating monitoring rules")
+	// Wait for deployment available
+	if enabled {
+		if err := cluster.WaitForDeploymentAvailable(ctx, cli, ComponentName, dscispec.ApplicationsNamespace, 10, 2); err != nil {
+			return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 		}
-		if err := t.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
+	}
+
+	// CloudService Monitoring handling
+	if platform == cluster.ManagedRhods {
+		if err := t.UpdatePrometheusConfig(cli, l, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
 		}
-		if err = deploy.DeployManifestsFromPath(cli, owner,
+		if err := deploy.DeployManifestsFromPath(ctx, cli, owner,
 			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
 			dscispec.Monitoring.Namespace,
 			"prometheus", true); err != nil {

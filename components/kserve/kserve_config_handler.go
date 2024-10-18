@@ -3,15 +3,18 @@ package kserve
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
+	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
@@ -20,7 +23,7 @@ const (
 	KserveConfigMapName string = "inferenceservice-config"
 )
 
-func (k *Kserve) setupKserveConfig(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec) error {
+func (k *Kserve) setupKserveConfig(ctx context.Context, cli client.Client, logger logr.Logger, dscispec *dsciv1.DSCInitializationSpec) error {
 	// as long as Kserve.Serving is not 'Removed', we will setup the dependencies
 
 	switch k.Serving.ManagementState {
@@ -38,10 +41,10 @@ func (k *Kserve) setupKserveConfig(ctx context.Context, cli client.Client, dscis
 		}
 	case operatorv1.Removed:
 		if k.DefaultDeploymentMode == Serverless {
-			return fmt.Errorf("setting defaultdeployment mode as Serverless is incompatible with having Serving 'Removed'")
+			return errors.New("setting defaultdeployment mode as Serverless is incompatible with having Serving 'Removed'")
 		}
 		if k.DefaultDeploymentMode == "" {
-			fmt.Println("Serving is removed, Kserve will default to rawdeployment")
+			logger.Info("Serving is removed, Kserve will default to rawdeployment")
 		}
 		if err := k.setDefaultDeploymentMode(ctx, cli, dscispec, RawDeployment); err != nil {
 			return err
@@ -57,7 +60,7 @@ func (k *Kserve) setDefaultDeploymentMode(ctx context.Context, cli client.Client
 		Name:      KserveConfigMapName,
 	}, inferenceServiceConfigMap)
 	if err != nil {
-		return fmt.Errorf("error getting configmap 'inferenceservice-config'. %w", err)
+		return fmt.Errorf("error getting configmap %v: %w", KserveConfigMapName, err)
 	}
 
 	// set data.deploy.defaultDeploymentMode to the model specified in the Kserve spec
@@ -116,48 +119,54 @@ func (k *Kserve) setDefaultDeploymentMode(ctx context.Context, cli client.Client
 	return nil
 }
 
-func (k *Kserve) configureServerless(cli client.Client, instance *dsciv1.DSCInitializationSpec) error {
+func (k *Kserve) configureServerless(ctx context.Context, cli client.Client, logger logr.Logger, owner metav1.Object, instance *dsciv1.DSCInitializationSpec) error {
 	switch k.Serving.ManagementState {
 	case operatorv1.Unmanaged: // Bring your own CR
-		fmt.Println("Serverless CR is not configured by the operator, we won't do anything")
+		logger.Info("Serverless CR is not configured by the operator, we won't do anything")
 
 	case operatorv1.Removed: // we remove serving CR
-		fmt.Println("existing Serverless CR (owned by operator) will be removed")
-		if err := k.removeServerlessFeatures(instance); err != nil {
+		logger.Info("existing Serverless CR (owned by operator) will be removed")
+		if err := k.removeServerlessFeatures(ctx, cli, owner, instance); err != nil {
 			return err
 		}
 
 	case operatorv1.Managed: // standard workflow to create CR
+		if instance.ServiceMesh == nil {
+			return errors.New("ServiceMesh needs to be configured and 'Managed' in DSCI CR, " +
+				"it is required by KServe serving")
+		}
+
 		switch instance.ServiceMesh.ManagementState {
 		case operatorv1.Unmanaged, operatorv1.Removed:
-			return fmt.Errorf("ServiceMesh is need to set to 'Managed' in DSCI CR, it is required by KServe serving field")
+			return fmt.Errorf("ServiceMesh is currently set to '%s'. It needs to be set to 'Managed' in DSCI CR, "+
+				"as it is required by the KServe serving field", instance.ServiceMesh.ManagementState)
 		}
 
 		// check on dependent operators if all installed in cluster
-		dependOpsErrors := checkDependentOperators(cli).ErrorOrNil()
+		dependOpsErrors := checkDependentOperators(ctx, cli).ErrorOrNil()
 		if dependOpsErrors != nil {
 			return dependOpsErrors
 		}
 
-		serverlessFeatures := feature.ComponentFeaturesHandler(k.GetComponentName(), instance, k.configureServerlessFeatures())
+		serverlessFeatures := feature.ComponentFeaturesHandler(owner, k.GetComponentName(), instance.ApplicationsNamespace, k.configureServerlessFeatures(instance))
 
-		if err := serverlessFeatures.Apply(); err != nil {
+		if err := serverlessFeatures.Apply(ctx, cli); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (k *Kserve) removeServerlessFeatures(instance *dsciv1.DSCInitializationSpec) error {
-	serverlessFeatures := feature.ComponentFeaturesHandler(k.GetComponentName(), instance, k.configureServerlessFeatures())
+func (k *Kserve) removeServerlessFeatures(ctx context.Context, cli client.Client, owner metav1.Object, instance *dsciv1.DSCInitializationSpec) error {
+	serverlessFeatures := feature.ComponentFeaturesHandler(owner, k.GetComponentName(), instance.ApplicationsNamespace, k.configureServerlessFeatures(instance))
 
-	return serverlessFeatures.Delete()
+	return serverlessFeatures.Delete(ctx, cli)
 }
 
-func checkDependentOperators(cli client.Client) *multierror.Error {
+func checkDependentOperators(ctx context.Context, cli client.Client) *multierror.Error {
 	var multiErr *multierror.Error
 
-	if found, err := deploy.OperatorExists(cli, ServiceMeshOperator); err != nil {
+	if found, err := cluster.OperatorExists(ctx, cli, ServiceMeshOperator); err != nil {
 		multiErr = multierror.Append(multiErr, err)
 	} else if !found {
 		err = fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",
@@ -165,7 +174,7 @@ func checkDependentOperators(cli client.Client) *multierror.Error {
 		multiErr = multierror.Append(multiErr, err)
 	}
 
-	if found, err := deploy.OperatorExists(cli, ServerlessOperator); err != nil {
+	if found, err := cluster.OperatorExists(ctx, cli, ServerlessOperator); err != nil {
 		multiErr = multierror.Append(multiErr, err)
 	} else if !found {
 		err = fmt.Errorf("operator %s not found. Please install the operator before enabling %s component",

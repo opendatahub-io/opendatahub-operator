@@ -2,7 +2,7 @@ apiVersion: operator.authorino.kuadrant.io/v1beta1
 kind: Authorino
 metadata:
   name: {{ .AuthProviderName }}
-  namespace: {{ .Auth.Namespace }}
+  namespace: {{ .AuthNamespace }}
 spec:
   authConfigLabelSelectors: security.opendatahub.io/authorization-group=default
   clusterWide: true

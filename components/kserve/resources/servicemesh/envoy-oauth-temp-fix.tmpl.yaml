@@ -75,6 +75,6 @@ spec:
               local xauth = headers:get("x-authorization")
               if xauth then
                 headers:replace("authorization", xauth)
-                headers.remove("x-authorization")
+                headers:remove("x-authorization")
               end
             end

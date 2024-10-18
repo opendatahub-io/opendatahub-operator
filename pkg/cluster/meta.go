@@ -29,6 +29,8 @@ func WithOwnerReference(ownerReferences ...metav1.OwnerReference) MetaOptions {
 	}
 }
 
+// OwnedBy sets the owner reference for the object being created. It requires scheme to be passed
+// as TypeMeta might not be set for the owning object, see: https://github.com/kubernetes-sigs/controller-runtime/issues/1517
 func OwnedBy(owner metav1.Object, scheme *runtime.Scheme) MetaOptions {
 	return func(obj metav1.Object) error {
 		return controllerutil.SetOwnerReference(owner, obj, scheme)
@@ -48,15 +50,35 @@ func WithLabels(labels ...string) MetaOptions {
 	}
 }
 
-func extractKeyValues(kv []string) (map[string]string, error) {
-	lenKV := len(kv)
+func InNamespace(ns string) MetaOptions {
+	return func(obj metav1.Object) error {
+		obj.SetNamespace(ns)
+		return nil
+	}
+}
+
+func WithAnnotations(annotationKeyValue ...string) MetaOptions {
+	return func(obj metav1.Object) error {
+		annotationsMap, err := extractKeyValues(annotationKeyValue)
+		if err != nil {
+			return fmt.Errorf("failed to set labels: %w", err)
+		}
+
+		obj.SetAnnotations(annotationsMap)
+
+		return nil
+	}
+}
+
+func extractKeyValues(keyValues []string) (map[string]string, error) {
+	lenKV := len(keyValues)
 	if lenKV%2 != 0 {
 		return nil, fmt.Errorf("passed elements should be in key/value pairs, but got %d elements", lenKV)
 	}
 
-	kvMap := make(map[string]string, lenKV%2)
+	kvMap := make(map[string]string)
 	for i := 0; i < lenKV; i += 2 {
-		kvMap[kv[i]] = kv[i+1]
+		kvMap[keyValues[i]] = keyValues[i+1]
 	}
 
 	return kvMap, nil

@@ -1,7 +1,7 @@
 package envtestutil
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"path/filepath"
 )
@@ -25,5 +25,5 @@ func FindProjectRoot() (string, error) {
 		currentDir = parentDir
 	}
 
-	return "", fmt.Errorf("project root not found")
+	return "", errors.New("project root not found")
 }

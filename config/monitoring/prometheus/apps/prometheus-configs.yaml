@@ -1,0 +1,1693 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus
+  namespace: <odh_monitoring_project>
+data:
+  prometheus.yml: |
+    rule_files:
+      - operator-recording.rules
+      - deadmanssnitch-alerting.rules
+
+    global:
+      scrape_interval:     10s
+      evaluation_interval: 10s
+
+    scrape_configs:
+    - job_name: 'Federate Prometheus'
+      scrape_interval: 30s
+      scheme: https
+      tls_config:
+        server_name: prometheus-k8s.openshift-monitoring.svc
+        ca_file: /etc/prometheus/ca/service-ca.crt
+      bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+      honor_labels: true
+      metrics_path: '/federate'
+      params:
+        'match[]':
+          - '{__name__= "haproxy_backend_http_responses_total"}'
+          - '{__name__= "controller_runtime_reconcile_total"}'
+          - '{__name__= "container_cpu_usage_seconds_total"}'
+          - '{__name__= "container_memory_rss"}'
+          - '{__name__= "kubelet_volume_stats_used_bytes"}'
+          - '{__name__= "kubelet_volume_stats_capacity_bytes"}'
+          - '{__name__= "kube_pod_container_status_waiting_reason"}'
+          - '{__name__= "kube_pod_container_status_restarts_total"}'
+          - '{__name__= "kube_pod_container_status_terminated_reason"}'
+          - '{__name__= "openshift_build_status_phase_total"}'
+          - '{__name__= "kube_statefulset_replicas"}'
+      static_configs:
+        - targets:
+          - "prometheus-k8s.openshift-monitoring.svc.cluster.local:9091"
+
+    - job_name: 'user_facing_endpoints_status_workbenches'
+      scrape_interval: 10s
+      metrics_path: /probe
+      scheme: https
+      tls_config:
+        insecure_skip_verify: true
+      params:
+        module: [http_2xx]
+      authorization:
+        credentials_file: /run/secrets/kubernetes.io/serviceaccount/token
+      static_configs:
+      - targets: [notebook-controller-service.<odh_application_namespace>.svc:8080/metrics,odh-notebook-controller-service.<odh_application_namespace>.svc:8080/metrics]
+        labels:
+          name: notebook-spawner
+      relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter.<odh_monitoring_project>.svc.cluster.local:9114
+
+    - job_name: 'user_facing_endpoints_status_rhods_dashboard'
+      scrape_interval: 10s
+      metrics_path: /probe
+      scheme: https
+      tls_config:
+        insecure_skip_verify: true
+      params:
+        module: [http_2xx]
+      authorization:
+        credentials_file: /run/secrets/kubernetes.io/serviceaccount/token
+      static_configs:
+      - targets: [rhods-dashboard-<odh_application_namespace>.<console_domain>]
+        labels:
+          name: rhods-dashboard
+      relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter.<odh_monitoring_project>.svc.cluster.local:9114
+    
+    - job_name: 'user_facing_endpoints_status_codeflare'
+      scrape_interval: 10s
+      metrics_path: /probe
+      scheme: https
+      tls_config:
+        insecure_skip_verify: true
+      params:
+        module: [http_2xx]
+      authorization:
+        credentials_file: /run/secrets/kubernetes.io/serviceaccount/token
+      static_configs:
+      - targets: [codeflare-operator-manager-metrics.<odh_application_namespace>.svc:8080/metrics]
+        labels:
+          name: codeflare-operator
+      relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter.<odh_monitoring_project>.svc.cluster.local:9114
+
+    - job_name: 'user_facing_endpoints_status_dsp'
+      scrape_interval: 10s
+      metrics_path: /probe
+      scheme: https
+      tls_config:
+        insecure_skip_verify: true
+      params:
+        module: [http_2xx]
+      authorization:
+        credentials_file: /run/secrets/kubernetes.io/serviceaccount/token
+      static_configs:
+      - targets: [data-science-pipelines-operator-service.<odh_application_namespace>.svc:8080/metrics]
+        labels:
+          name: data-science-pipelines-operator
+      relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter.<odh_monitoring_project>.svc.cluster.local:9114
+
+    - job_name: 'Kubeflow Notebook Controller Service Metrics'
+      honor_labels: true
+      metrics_path: /metrics
+      scheme: http
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - <odh_application_namespace>
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          regex: ^(notebook-controller-service)$
+          target_label: kubernetes_name
+          action: keep
+        - source_labels: [__address__]
+          regex: (.+):(\d+)
+          target_label: __address__
+          replacement: ${1}:8080
+
+    - job_name: 'ODH Notebook Controller Service Metrics'
+      honor_labels: true
+      metrics_path: /metrics
+      scheme: http
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - <odh_application_namespace>
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          regex: ^(odh-notebook-controller-service)$
+          target_label: kubernetes_name
+          action: keep
+        - source_labels: [__address__]
+          regex: (.+):(\d+)
+          target_label: __address__
+          replacement: ${1}:8080
+    
+    - job_name: 'ODH Model Controller'
+      honor_labels: true
+      metrics_path: /metrics
+      scheme: http
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - <odh_application_namespace>
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          regex: ^(odh-model-controller-metrics-service)$
+          target_label: kubernetes_name
+          action: keep
+        - source_labels: [__address__]
+          regex: (.+):(\d+)
+          target_label: __address__
+          replacement: ${1}:8080
+
+    - job_name: 'Modelmesh Controller'
+      honor_labels: true
+      metrics_path: /metrics
+      scheme: http
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - <odh_application_namespace>
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          regex: ^(modelmesh-controller)$
+          target_label: kubernetes_name
+          action: keep
+        - source_labels: [__address__]
+          regex: (.+):(\d+)
+          target_label: __address__
+          replacement: ${1}:8080
+
+    - job_name: 'Kserve Controller Manager'
+      honor_labels: true
+      metrics_path: /metrics
+      scheme: http
+      kubernetes_sd_configs:
+        - role: pod
+          namespaces:
+            names:
+              - <odh_application_namespace>
+          selectors: 
+          - role: pod 
+            label: 'app.kubernetes.io/part-of=kserve'
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_label_control_plane]
+          regex: ^(kserve-controller-manager)$
+          target_label: kubernetes_name
+          action: keep
+        - source_labels: [__address__]
+          regex: (.+):(\d+)
+          target_label: __address__
+          replacement: ${1}:8080
+
+    - job_name: 'Data Science Pipelines Operator'
+      honor_labels: true
+      metrics_path: /metrics
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - <odh_application_namespace>
+      relabel_configs:
+        - source_labels: [__address__]
+          regex: (.+):(\d+)
+          target_label: __address__
+          replacement: ${1}:8080
+        - source_labels: [__meta_kubernetes_service_name]
+          regex: ^(data-science-pipelines-operator-service)$
+          target_label: kubernetes_name
+          action: keep
+      metric_relabel_configs:
+        - target_label: namespace
+          replacement: <odh_application_namespace>
+
+    - job_name: 'Data Science Pipelines Application'
+      honor_labels: true
+      metrics_path: /metrics
+      scheme: http
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - <odh_application_namespace>
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          regex: ^(ds-pipeline-.*)$
+          target_label: kubernetes_name
+          action: keep
+        - source_labels: [__address__]
+          regex: (.+):8888
+          target_label: __address__
+          action: keep
+        - source_labels: [__meta_kubernetes_service_name]
+          target_label: dspa_service
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+
+    - job_name: 'KubeRay Operator'
+      honor_labels: true
+      metrics_path: /metrics
+      scheme: http
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - <odh_application_namespace>
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          regex: ^(kuberay-operator)$
+          target_label: kubernetes_name
+          action: keep
+        - source_labels: [__address__]
+          regex: (.+):(\d+)
+          target_label: __address__
+          replacement: ${1}:8080
+
+    - job_name: 'CodeFlare Operator'
+      honor_labels: true
+      metrics_path: /metrics
+      scheme: http
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - <odh_application_namespace>
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          regex: ^(codeflare-operator-manager-metrics)$
+          target_label: kubernetes_name
+          action: keep
+        - source_labels: [__address__]
+          regex: (.+):(\d+)
+          target_label: __address__
+          replacement: ${1}:8080
+    
+    - job_name: 'KubeFlow Training Operator'
+      honor_labels: true
+      metrics_path: /metrics
+      scheme: http
+      kubernetes_sd_configs:
+        - role: pod
+          namespaces:
+            names:
+              - <odh_application_namespace>
+          selectors:
+          - role: pod
+            label: 'app.kubernetes.io/name=training-operator'
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_label_control_plane]
+          regex: ^(kubeflow-training-operator)$
+          target_label: kubernetes_name
+          action: keep
+        - source_labels: [__address__]
+          regex: (.+):(\d+)
+          target_label: __address__
+          replacement: ${1}:8080
+
+    - job_name: 'Kueue Operator'
+      honor_labels: true
+      metrics_path: /metrics
+      scheme: http
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - <odh_application_namespace>
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          regex: ^(kueue-metrics-service)$
+          target_label: kubernetes_name
+          action: keep
+        - source_labels: [__address__]
+          regex: (.+):(\d+)
+          target_label: __address__
+          replacement: ${1}:8080
+
+    - job_name: 'TrustyAI Controller Manager'
+      honor_labels: true
+      metrics_path: /metrics
+      scheme: http
+      kubernetes_sd_configs:
+        - role: pod
+          namespaces:
+            names:
+              - <odh_application_namespace>
+          selectors:
+            - role: pod
+              label: 'app.opendatahub.io/trustyai=true'
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_part_of]
+          regex: ^(trustyai)$
+          target_label: kubernetes_name
+          action: keep
+        - source_labels: [__address__]
+          regex: (.*)
+          target_label: __address__
+          replacement: ${1}:8080
+
+    - job_name: 'Model Registry Operator'
+      honor_labels: true
+      metrics_path: /metrics
+      scheme: https
+      tls_config:
+        insecure_skip_verify: true
+      params:
+        module: [http_2xx]
+      authorization:
+        credentials_file: /run/secrets/kubernetes.io/serviceaccount/token
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - <odh_application_namespace>
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          regex: ^(model-registry-operator-controller-manager-metrics-service)$
+          target_label: kubernetes_name
+          action: keep
+        - source_labels: [__address__]
+          regex: (.+):(\d+)
+          target_label: __address__
+          replacement: ${1}:8443
+
+    - job_name: 'RHOAI Metrics'
+      honor_labels: true
+      scheme: http
+      kubernetes_sd_configs:
+        - role: pod
+          namespaces:
+            names:
+              - redhat-ods-operator
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_labelpresent_control_plane]
+          regex: ^(true)$ 
+          target_label: kubernetes_name
+          action: keep
+        - source_labels: [__address__]
+          regex: (.*)
+          target_label: __address__
+          replacement: ${1}:8080
+
+    alerting:
+      alertmanagers:
+      - scheme: http
+        static_configs:
+        - targets:
+          - "localhost:9093"
+
+  operator-recording.rules: |
+    groups:
+      - name: SLOs - RHODS Operator v2
+        interval: 15m
+        rules:
+        - expr: |
+            rate(controller_runtime_reconcile_total{controller="dscinitialization-controller", job="RHOAI Metrics", result!="success"}[15m])
+          labels:
+            instance: dscinitialization-controller
+          record: controller_runtime_reconcile_total:rate15m
+        - expr: |
+            rate(controller_runtime_reconcile_total{controller="datasciencecluster-controller", job="RHOAI Metrics", result!="success"}[15m])
+          labels:
+            instance: datasciencecluster-controller
+          record: controller_runtime_reconcile_total:rate15m
+
+  deadmanssnitch-alerting.rules: |
+    groups:
+      - name: DeadManSnitch
+        interval: 1m
+        rules:
+        - alert: DeadManSnitch
+          expr: vector(1)
+          labels:
+            severity: critical
+            namespace: redhat-ods-monitoring
+          annotations:
+            description: This is a DeadManSnitch to ensure RHODS monitoring and alerting pipeline is online.
+            summary: Alerting DeadManSnitch
+
+  codeflare-recording.rules: |
+    groups:
+      - name: SLOs - MCAD Controller
+        rules:
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"mcad-controller-.*", job="user_facing_endpoints_status_codeflare"}[1d])
+          labels:
+            instance: mcad-controller
+          record: probe_success:burnrate1d
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"mcad-controller-.*", job="user_facing_endpoints_status_codeflare"}[1h])
+          labels:
+            instance: mcad-controller
+          record: probe_success:burnrate1h
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"mcad-controller-.*", job="user_facing_endpoints_status_codeflare"}[2h])
+          labels:
+            instance: mcad-controller
+          record: probe_success:burnrate2h
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"mcad-controller-.*", job="user_facing_endpoints_status_codeflare"}[30m])
+          labels:
+            instance: mcad-controller
+          record: probe_success:burnrate30m
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"mcad-controller-.*", job="user_facing_endpoints_status_codeflare"}[3d])
+          labels:
+            instance: mcad-controller
+          record: probe_success:burnrate3d
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"mcad-controller-.*", job="user_facing_endpoints_status_codeflare"}[5m])
+          labels:
+            instance: mcad-controller
+          record: probe_success:burnrate5m
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"mcad-controller-.*", job="user_facing_endpoints_status_codeflare"}[6h])
+          labels:
+            instance: mcad-controller
+          record: probe_success:burnrate6h
+
+      - name: SLOs - CodeFlare Operator
+        rules:
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"codeflare-operator-.*", job="user_facing_endpoints_status_codeflare"}[1d])
+          labels:
+            instance: codeflare-operator
+          record: probe_success:burnrate1d
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"codeflare-operator-.*", job="user_facing_endpoints_status_codeflare"}[1h])
+          labels:
+            instance: codeflare-operator
+          record: probe_success:burnrate1h
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"codeflare-operator-.*", job="user_facing_endpoints_status_codeflare"}[2h])
+          labels:
+            instance: codeflare-operator
+          record: probe_success:burnrate2h
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"codeflare-operator-.*", job="user_facing_endpoints_status_codeflare"}[30m])
+          labels:
+            instance: codeflare-operator
+          record: probe_success:burnrate30m
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"codeflare-operator-.*", job="user_facing_endpoints_status_codeflare"}[3d])
+          labels:
+            instance: codeflare-operator
+          record: probe_success:burnrate3d
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"codeflare-operator-.*", job="user_facing_endpoints_status_codeflare"}[5m])
+          labels:
+            instance: codeflare-operator
+          record: probe_success:burnrate5m
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"codeflare-operator-.*", job="user_facing_endpoints_status_codeflare"}[6h])
+          labels:
+            instance: codeflare-operator
+          record: probe_success:burnrate6h
+
+  codeflare-alerting.rules: |
+    groups:
+      - name: SLOs-probe_success_codeflare
+        rules:
+        - alert: CodeFlare Operator Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/codeflare-operator-availability.md'
+            summary: CodeFlare Operator Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate5m{instance=~"codeflare-operator"}) by (instance) > (14.40 * (1-0.99950))
+            and
+            sum(probe_success:burnrate1h{instance=~"codeflare-operator"}) by (instance) > (14.40 * (1-0.99950))
+          for: 2m
+          labels:
+            severity: info
+            namespace: redhat-ods-applications
+        - alert: CodeFlare Operator Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/codeflare-operator-probe-success-burn-rate.md'
+            summary: CodeFlare Operator Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate30m{instance=~"codeflare-operator"}) by (instance) > (6.00 * (1-0.99950))
+            and
+            sum(probe_success:burnrate6h{instance=~"codeflare-operator"}) by (instance) > (6.00 * (1-0.99950))
+          for: 15m
+          labels:
+            severity: info
+            namespace: redhat-ods-applications
+        - alert: CodeFlare Operator Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/codeflare-operator-probe-success-burn-rate.md'
+            summary: CodeFlare Operator Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate2h{instance=~"codeflare-operator"}) by (instance) > (3.00 * (1-0.99950))
+            and
+            sum(probe_success:burnrate1d{instance=~"codeflare-operator"}) by (instance) > (3.00 * (1-0.99950))
+          for: 1h
+          labels:
+            severity: info
+            namespace: redhat-ods-applications
+
+      - name: Distributed Workloads CodeFlare
+        interval: 1m
+        rules:
+          - alert: CodeFlare Operator is not running
+            expr: absent(up{job=~'CodeFlare Operator'}) or up{job=~'CodeFlare Operator'} != 1
+            labels:
+              severity: info
+              namespace: redhat-ods-applications
+            annotations:
+              description: This alert fires when the CodeFlare Operator is not running.
+              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/codeflare-operator-availability.md'
+              summary: Alerting for CodeFlare Operator
+          - alert: CodeFlare Operator taking too long to be up
+            expr: absent_over_time(up{job="CodeFlare Operator"}[2m]) == 1
+            labels:
+              severity: info
+              namespace: redhat-ods-applications
+            annotations:
+              description: This alert fires when the CodeFlare Operator takes over 2 min. to come back online. Either CodeFlare Operator is not running and failing to become ready, is misconfigured, or the metrics endpoint is not responding.
+              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/codeflare-operator-absent-over-time.md'
+              summary: Alerting for CodeFlare Operator
+
+  trainingoperator-alerting.rules: |
+    groups:
+    - name: KubeFlow Training Operator
+      interval: 1m
+      rules:
+        - alert: KubeFlow Training Operator is not running
+          expr: absent(up{job=~'KubeFlow Training Operator'}) or up{job=~'KubeFlow Training Operator'} != 1
+          labels:
+            severity: warning
+          annotations:
+            description: This alert fires when the KubeFlow Training Operator is not running.
+            triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/training-operator-availability.md'
+            summary: Alerting for KubeFlow Training Operator
+
+  rhods-dashboard-recording.rules: |
+    groups:
+      - name: SLOs - ODH Dashboard
+        rules:
+        - expr: |
+            sum(rate(haproxy_backend_http_responses_total{route="rhods-dashboard",code=~"5.."}[1d]))
+            /
+            sum(rate(haproxy_backend_http_responses_total{route="rhods-dashboard"}[1d]))
+          labels:
+            route: rhods-dashboard
+          record: haproxy_backend_http_responses_total:burnrate1d
+        - expr: |
+            sum(rate(haproxy_backend_http_responses_total{route="rhods-dashboard",code=~"5.."}[1h]))
+            /
+            sum(rate(haproxy_backend_http_responses_total{route="rhods-dashboard"}[1h]))
+          labels:
+            route: rhods-dashboard
+          record: haproxy_backend_http_responses_total:burnrate1h
+        - expr: |
+            sum(rate(haproxy_backend_http_responses_total{route="rhods-dashboard",code=~"5.."}[2h]))
+            /
+            sum(rate(haproxy_backend_http_responses_total{route="rhods-dashboard"}[2h]))
+          labels:
+            route: rhods-dashboard
+          record: haproxy_backend_http_responses_total:burnrate2h
+        - expr: |
+            sum(rate(haproxy_backend_http_responses_total{route="rhods-dashboard",code=~"5.."}[30m]))
+            /
+            sum(rate(haproxy_backend_http_responses_total{route="rhods-dashboard"}[30m]))
+          labels:
+            route: rhods-dashboard
+          record: haproxy_backend_http_responses_total:burnrate30m
+        - expr: |
+            sum(rate(haproxy_backend_http_responses_total{route="rhods-dashboard",code=~"5.."}[3d]))
+            /
+            sum(rate(haproxy_backend_http_responses_total{route="rhods-dashboard"}[3d]))
+          labels:
+            route: rhods-dashboard
+          record: haproxy_backend_http_responses_total:burnrate3d
+        - expr: |
+            sum(rate(haproxy_backend_http_responses_total{route="rhods-dashboard",code=~"5.."}[5m]))
+            /
+            sum(rate(haproxy_backend_http_responses_total{route="rhods-dashboard"}[5m]))
+          labels:
+            route: rhods-dashboard
+          record: haproxy_backend_http_responses_total:burnrate5m
+        - expr: |
+            sum(rate(haproxy_backend_http_responses_total{route="rhods-dashboard",code=~"5.."}[6h]))
+            /
+            sum(rate(haproxy_backend_http_responses_total{route="rhods-dashboard"}[6h]))
+          labels:
+            route: rhods-dashboard
+          record: haproxy_backend_http_responses_total:burnrate6h
+
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"rhods-dashboard-.*", job="user_facing_endpoints_status_rhods_dashboard"}[1d])
+          labels:
+            instance: rhods-dashboard
+          record: probe_success:burnrate1d
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"rhods-dashboard-.*", job="user_facing_endpoints_status_rhods_dashboard"}[1h])
+          labels:
+            instance: rhods-dashboard
+          record: probe_success:burnrate1h
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"rhods-dashboard-.*", job="user_facing_endpoints_status_rhods_dashboard"}[2h])
+          labels:
+            instance: rhods-dashboard
+          record: probe_success:burnrate2h
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"rhods-dashboard-.*", job="user_facing_endpoints_status_rhods_dashboard"}[30m])
+          labels:
+            instance: rhods-dashboard
+          record: probe_success:burnrate30m
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"rhods-dashboard-.*", job="user_facing_endpoints_status_rhods_dashboard"}[3d])
+          labels:
+            instance: rhods-dashboard
+          record: probe_success:burnrate3d
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"rhods-dashboard-.*", job="user_facing_endpoints_status_rhods_dashboard"}[5m])
+          labels:
+            instance: rhods-dashboard
+          record: probe_success:burnrate5m
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"rhods-dashboard-.*", job="user_facing_endpoints_status_rhods_dashboard"}[6h])
+          labels:
+            instance: rhods-dashboard
+          record: probe_success:burnrate6h
+  rhods-dashboard-alerting.rules: |
+    groups:
+      - name: SLOs-haproxy_backend_http_responses_dashboard
+        rules:
+        - alert: RHODS Dashboard Route Error Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.route }} (current value: {{ $value }}).'
+            triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-error-burn-rate.md'
+            summary: RHODS Dashboard Route Error Burn Rate
+          expr: |
+            sum(haproxy_backend_http_responses_total:burnrate5m{route=~"rhods-dashboard"}) by (route) > (14.40 * (1-0.99950))
+            and
+            sum(haproxy_backend_http_responses_total:burnrate1h{route=~"rhods-dashboard"}) by (route) > (14.40 * (1-0.99950))
+          for: 2m
+          labels:
+            severity: critical
+            namespace: redhat-ods-applications
+        - alert: RHODS Dashboard Route Error Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.route }} (current value: {{ $value }}).'
+            triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-error-burn-rate.md'
+            summary: RHODS Dashboard Route Error Burn Rate
+          expr: |
+            sum(haproxy_backend_http_responses_total:burnrate30m{route=~"rhods-dashboard"}) by (route) > (6.00 * (1-0.99950))
+            and
+            sum(haproxy_backend_http_responses_total:burnrate6h{route=~"rhods-dashboard"}) by (route) > (6.00 * (1-0.99950))
+          for: 15m
+          labels:
+            severity: critical
+            namespace: redhat-ods-applications
+        - alert: RHODS Dashboard Route Error Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.route }} (current value: {{ $value }}).'
+            triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-error-burn-rate.md'
+            summary: RHODS Dashboard Route Error Burn Rate
+          expr: |
+            sum(haproxy_backend_http_responses_total:burnrate2h{route=~"rhods-dashboard"}) by (route) > (3.00 * (1-0.99950))
+            and
+            sum(haproxy_backend_http_responses_total:burnrate1d{route=~"rhods-dashboard"}) by (route) > (3.00 * (1-0.99950))
+          for: 1h
+          labels:
+            severity: warning
+            namespace: redhat-ods-applications
+        - alert: RHODS Dashboard Route Error Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.route }} (current value: {{ $value }}).'
+            triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-error-burn-rate.md'
+            summary: RHODS Dashboard Route Error Burn Rate
+          expr: |
+            sum(haproxy_backend_http_responses_total:burnrate6h{route=~"rhods-dashboard"}) by (route) > (1.00 * (1-0.99950))
+            and
+            sum(haproxy_backend_http_responses_total:burnrate3d{route=~"rhods-dashboard"}) by (route) > (1.00 * (1-0.99950))
+          for: 3h
+          labels:
+            severity: warning
+            namespace: redhat-ods-applications
+      - name: SLOs-probe_success_dashboard
+        rules:
+        - alert: RHODS Dashboard Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.name }} (current value: {{ $value }}).'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-dashboard-probe-success-burn-rate.md"
+            summary: RHODS Dashboard Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate5m{name=~"rhods-dashboard"}) by (name) > (14.40 * (1-0.98))
+            and
+            sum(probe_success:burnrate1h{name=~"rhods-dashboard"}) by (name) > (14.40 * (1-0.98))
+          for: 2m
+          labels:
+            severity: critical
+            namespace: redhat-ods-applications
+        - alert: RHODS Dashboard Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.name }} (current value: {{ $value }}).'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-dashboard-probe-success-burn-rate.md"
+            summary: RHODS Dashboard Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate30m{name=~"rhods-dashboard"}) by (name) > (6.00 * (1-0.98))
+            and
+            sum(probe_success:burnrate6h{name=~"rhods-dashboard"}) by (name) > (6.00 * (1-0.98))
+          for: 15m
+          labels:
+            severity: critical
+            namespace: redhat-ods-applications
+        - alert: RHODS Dashboard Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.name }} (current value: {{ $value }}).'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-dashboard-probe-success-burn-rate.md"
+            summary: RHODS Dashboard Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate2h{name=~"rhods-dashboard"}) by (name) > (3.00 * (1-0.98))
+            and
+            sum(probe_success:burnrate1d{name=~"rhods-dashboard"}) by (name) > (3.00 * (1-0.98))
+          for: 1h
+          labels:
+            severity: warning
+            namespace: redhat-ods-applications
+        - alert: RHODS Dashboard Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.name }} (current value: {{ $value }}).'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-dashboard-probe-success-burn-rate.md"
+            summary: RHODS Dashboard Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate6h{name=~"rhods-dashboard"}) by (name) > (1.00 * (1-0.98))
+            and
+            sum(probe_success:burnrate3d{name=~"rhods-dashboard"}) by (name) > (1.00 * (1-0.98))
+          for: 3h
+          labels:
+            severity: warning
+            namespace: redhat-ods-applications
+
+  data-science-pipelines-operator-recording.rules: |
+    groups:
+      - name: SLOs - Data Science Pipelines Operator
+        rules:
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"data-science-pipelines-operator-.*", job="user_facing_endpoints_status_dsp"}[1d])
+          labels:
+            instance: data-science-pipelines-operator
+          record: probe_success:burnrate1d
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"data-science-pipelines-operator-.*", job="user_facing_endpoints_status_dsp"}[1h])
+          labels:
+            instance: data-science-pipelines-operator
+          record: probe_success:burnrate1h
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"data-science-pipelines-operator-.*", job="user_facing_endpoints_status_dsp"}[2h])
+          labels:
+            instance: data-science-pipelines-operator
+          record: probe_success:burnrate2h
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"data-science-pipelines-operator-.*", job="user_facing_endpoints_status_dsp"}[30m])
+          labels:
+            instance: data-science-pipelines-operator
+          record: probe_success:burnrate30m
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"data-science-pipelines-operator-.*", job="user_facing_endpoints_status_dsp"}[3d])
+          labels:
+            instance: data-science-pipelines-operator
+          record: probe_success:burnrate3d
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"data-science-pipelines-operator-.*", job="user_facing_endpoints_status_dsp"}[5m])
+          labels:
+            instance: data-science-pipelines-operator
+          record: probe_success:burnrate5m
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"data-science-pipelines-operator-.*", job="user_facing_endpoints_status_dsp"}[6h])
+          labels:
+            instance: data-science-pipelines-operator
+          record: probe_success:burnrate6h
+
+      - name: SLOs - Data Science Pipelines Application
+        rules:
+        - expr: |
+            sum(rate(haproxy_backend_http_responses_total{route=~"ds-pipeline-.*",code=~"5.."}[1d])) by (exported_namespace)
+            /
+            sum(rate(haproxy_backend_http_responses_total{route=~"ds-pipeline-.*"}[1d])) by (exported_namespace)
+          labels:
+            component: dsp
+          record: haproxy_backend_http_responses_total:burnrate1d
+        - expr: |
+            sum(rate(haproxy_backend_http_responses_total{route=~"ds-pipeline-.*",code=~"5.."}[1h])) by (exported_namespace)
+            /
+            sum(rate(haproxy_backend_http_responses_total{route=~"ds-pipeline-.*"}[1h])) by (exported_namespace)
+          labels:
+            component: dsp
+          record: haproxy_backend_http_responses_total:burnrate1h
+        - expr: |
+            sum(rate(haproxy_backend_http_responses_total{route=~"ds-pipeline-.*",code=~"5.."}[2h])) by (exported_namespace)
+            /
+            sum(rate(haproxy_backend_http_responses_total{route=~"ds-pipeline-.*"}[2h])) by (exported_namespace)
+          labels:
+            component: dsp
+          record: haproxy_backend_http_responses_total:burnrate2h
+        - expr: |
+            sum(rate(haproxy_backend_http_responses_total{route=~"ds-pipeline-.*",code=~"5.."}[30m])) by (exported_namespace)
+            /
+            sum(rate(haproxy_backend_http_responses_total{route=~"ds-pipeline-.*"}[30m])) by (exported_namespace)
+          labels:
+            component: dsp
+          record: haproxy_backend_http_responses_total:burnrate30m
+        - expr: |
+            sum(rate(haproxy_backend_http_responses_total{route=~"ds-pipeline-.*",code=~"5.."}[3d])) by (exported_namespace)
+            /
+            sum(rate(haproxy_backend_http_responses_total{route=~"ds-pipeline-.*"}[3d])) by (exported_namespace)
+          labels:
+            component: dsp
+          record: haproxy_backend_http_responses_total:burnrate3d
+        - expr: |
+            sum(rate(haproxy_backend_http_responses_total{route=~"ds-pipeline-.*",code=~"5.."}[5m])) by (exported_namespace)
+            /
+            sum(rate(haproxy_backend_http_responses_total{route=~"ds-pipeline-.*"}[5m])) by (exported_namespace)
+          labels:
+            component: dsp
+          record: haproxy_backend_http_responses_total:burnrate5m
+        - expr: |
+            sum(rate(haproxy_backend_http_responses_total{route=~"ds-pipeline-.*",code=~"5.."}[6h])) by (exported_namespace)
+            /
+            sum(rate(haproxy_backend_http_responses_total{route=~"ds-pipeline-.*"}[6h])) by (exported_namespace)
+          labels:
+            component: dsp
+          record: haproxy_backend_http_responses_total:burnrate6h
+
+  data-science-pipelines-operator-alerting.rules: |
+    groups:
+      - name: SLOs-haproxy_backend_http_responses_dsp
+        rules:
+        - alert: Data Science Pipelines Application Route Error Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.route }} (current value: {{ $value }}).'
+            triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-error-burn-rate.md'
+            summary: Data Science Pipelines Application Route Error Burn Rate
+          expr: |
+            sum(haproxy_backend_http_responses_total:burnrate5m{component="dsp"}) by (exported_namespace) > (14.40 * (1-0.99950))
+            and
+            sum(haproxy_backend_http_responses_total:burnrate1h{component="dsp"}) by (exported_namespace) > (14.40 * (1-0.99950))
+          for: 2m
+          labels:
+            severity: info
+            namespace: redhat-ods-applications
+        - alert: Data Science Pipelines Application Route Error Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.route }} (current value: {{ $value }}).'
+            triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-error-burn-rate.md'
+            summary: Data Science Pipelines Application Route Error Burn Rate
+          expr: |
+            sum(haproxy_backend_http_responses_total:burnrate30m{component="dsp"}) by (exported_namespace) > (6.00 * (1-0.99950))
+            and
+            sum(haproxy_backend_http_responses_total:burnrate6h{component="dsp"}) by (exported_namespace) > (6.00 * (1-0.99950))
+          for: 15m
+          labels:
+            severity: info
+            namespace: redhat-ods-applications
+        - alert: Data Science Pipelines Application Route Error Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.route }} (current value: {{ $value }}).'
+            triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-error-burn-rate.md'
+            summary: Data Science Pipelines Application Route Error Burn Rate
+          expr: |
+            sum(haproxy_backend_http_responses_total:burnrate2h{component="dsp"}) by (exported_namespace) > (3.00 * (1-0.99950))
+            and
+            sum(haproxy_backend_http_responses_total:burnrate1d{component="dsp"}) by (exported_namespace) > (3.00 * (1-0.99950))
+          for: 1h
+          labels:
+            severity: info
+            namespace: redhat-ods-applications
+        - alert: Data Science Pipelines Application Route Error Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.route }} (current value: {{ $value }}).'
+            triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-error-burn-rate.md'
+            summary: Data Science Pipelines Application Route Error Burn Rate
+          expr: |
+            sum(haproxy_backend_http_responses_total:burnrate6h{component="dsp"}) by (exported_namespace) > (1.00 * (1-0.99950))
+            and
+            sum(haproxy_backend_http_responses_total:burnrate3d{component="dsp"}) by (exported_namespace) > (1.00 * (1-0.99950))
+          for: 3h
+          labels:
+            severity: info
+            namespace: redhat-ods-applications
+      - name: SLOs-probe_success_dsp
+        rules:
+        - alert: Data Science Pipelines Operator Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-operator-probe-success-burn-rate.md"
+            summary: Data Science Pipelines Operator Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate5m{instance=~"data-science-pipelines-operator"}) by (instance) > (14.40 * (1-0.98000))
+            and
+            sum(probe_success:burnrate1h{instance=~"data-science-pipelines-operator"}) by (instance) > (14.40 * (1-0.98000))
+          for: 2m
+          labels:
+            severity: critical
+            namespace: redhat-ods-applications
+        - alert: Data Science Pipelines Operator Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-operator-probe-success-burn-rate.md"
+            summary: Data Science Pipelines Operator Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate30m{instance=~"data-science-pipelines-operator"}) by (instance) > (6.00 * (1-0.98000))
+            and
+            sum(probe_success:burnrate6h{instance=~"data-science-pipelines-operator"}) by (instance) > (6.00 * (1-0.98000))
+          for: 15m
+          labels:
+            severity: critical
+            namespace: redhat-ods-applications
+        - alert: Data Science Pipelines Operator Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-operator-probe-success-burn-rate.md"
+            summary: Data Science Pipelines Operator Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate2h{instance=~"data-science-pipelines-operator"}) by (instance) > (3.00 * (1-0.98000))
+            and
+            sum(probe_success:burnrate1d{instance=~"data-science-pipelines-operator"}) by (instance) > (3.00 * (1-0.98000))
+          for: 1h
+          labels:
+            severity: warning
+            namespace: redhat-ods-applications
+      - name: RHODS Data Science Pipelines
+        rules:
+        - alert: Data Science Pipeline Application Unavailable
+          annotations:
+            message: 'Data Science Pipelines Application is down!'
+            triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-component-readiness-status.md'
+            summary: The Data Science Pipelines Application CustomResource "{{ $labels.dspa_name }}" in namespace "{{ $labels.dspa_namespace }}" has been NotReady for more than 5 minutes
+          expr: min(max_over_time(data_science_pipelines_application_ready[3m])) by (dspa_name, dspa_namespace) == 0
+          for: 2m
+          labels:
+            severity: info
+            namespace: redhat-ods-applications
+        - alert: Data Science Pipeline APIServer Unavailable
+          annotations:
+            message: 'Data Science Pipelines APIServer component is down!'
+            triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-component-readiness-status.md'
+            summary: A Data Science Pipelines APIServer pod owned by DSPA "{{ $labels.dspa_name }}" in namespace "{{ $labels.dspa_namespace }}" has been NotReady for more than 5 minutes
+          expr: min(max_over_time(data_science_pipelines_application_apiserver_ready[3m])) by (dspa_name, dspa_namespace) == 0
+          for: 2m
+          labels:
+            severity: info
+            namespace: redhat-ods-applications
+        - alert: Data Science Pipeline PersistenceAgent Unavailable
+          annotations:
+            message: 'Data Science Pipelines PersistenceAgent component is down!'
+            triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-component-readiness-status.md'
+            summary: A Data Science Pipelines PersistenceAgent pod owned by DSPA "{{ $labels.dspa_name }}" in namespace "{{ $labels.dspa_namespace }}" has been NotReady for more than 5 minutes
+          expr: min(max_over_time(data_science_pipelines_application_persistenceagent_ready[3m])) by (dspa_name, dspa_namespace) == 0
+          for: 2m
+          labels:
+            severity: info
+            namespace: redhat-ods-applications
+        - alert: Data Science Pipeline ScheduledWorkflows Unavailable
+          annotations:
+            message: 'Data Science Pipelines ScheduledWorkflows component is down!'
+            triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-component-readiness-status.md'
+            summary: A Data Science Pipelines ScheduledWorkflow controller pod owned by DSPA "{{ $labels.dspa_name }}" in namespace "{{ $labels.dspa_namespace }}" has been NotReady for more than 5 minutes
+          expr: min(max_over_time(data_science_pipelines_application_scheduledworkflow_ready[3m])) by (dspa_name, dspa_namespace) == 0
+          for: 2m
+          labels:
+            severity: info
+            namespace: redhat-ods-applications
+
+  model-mesh-recording.rules: |
+    groups:
+      - name: SLOs - Modelmesh Controller
+        rules:
+        - expr: |
+            absent(up{job=~'Modelmesh Controller'}) * 0 or vector(1)
+          labels:
+            instance: modelmesh-controller
+          record: probe_success
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="modelmesh-controller"}[1d]))
+          labels:
+            instance: modelmesh-controller
+          record: probe_success:burnrate1d
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="modelmesh-controller"}[1h]))
+          labels:
+            instance: modelmesh-controller
+          record: probe_success:burnrate1h
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="modelmesh-controller"}[2h]))
+          labels:
+            instance: modelmesh-controller
+          record: probe_success:burnrate2h
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="modelmesh-controller"}[30m]))
+          labels:
+            instance: modelmesh-controller
+          record: probe_success:burnrate30m
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="modelmesh-controller"}[3d]))
+          labels:
+            instance: modelmesh-controller
+          record: probe_success:burnrate3d
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="modelmesh-controller"}[5m]))
+          labels:
+            instance: modelmesh-controller
+          record: probe_success:burnrate5m
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="modelmesh-controller"}[6h]))
+          labels:
+            instance: modelmesh-controller
+          record: probe_success:burnrate6h
+
+  model-mesh-alerting.rules: |
+    groups:
+      - name: SLOs-probe_success_modelmesh
+        rules:
+        - alert: Modelmesh Controller Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-modelmesh-controller-probe-success-burn-rate.md"
+            summary: Modelmesh Controller Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate5m{instance=~"modelmesh-controller"}) by (instance) > (14.40 * (1-0.98000))
+            and
+            sum(probe_success:burnrate1h{instance=~"modelmesh-controller"}) by (instance) > (14.40 * (1-0.98000))
+          for: 2m
+          labels:
+            severity: critical
+            namespace: redhat-ods-applications
+        - alert: Modelmesh Controller Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-modelmesh-controller-probe-success-burn-rate.md"
+            summary: Modelmesh Controller Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate30m{instance=~"modelmesh-controller"}) by (instance) > (6.00 * (1-0.98000))
+            and
+            sum(probe_success:burnrate6h{instance=~"modelmesh-controller"}) by (instance) > (6.00 * (1-0.98000))
+          for: 15m
+          labels:
+            severity: critical
+            namespace: redhat-ods-applications
+        - alert: Modelmesh Controller Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-modelmesh-controller-probe-success-burn-rate.md"
+            summary: Modelmesh Controller Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate2h{instance=~"modelmesh-controller"}) by (instance) > (3.00 * (1-0.98000))
+            and
+            sum(probe_success:burnrate1d{instance=~"modelmesh-controller"}) by (instance) > (3.00 * (1-0.98000))
+          for: 1h
+          labels:
+            severity: warning
+            namespace: redhat-ods-applications
+
+  odh-model-controller-recording.rules: |
+    groups:
+      - name: SLOs - ODH Model Controller
+        rules:
+        - expr: |
+            absent(up{job=~'ODH Model Controller'}) * 0 or vector(1)
+          labels:
+            instance: odh-model-controller
+          record: probe_success
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="odh-model-controller"}[1d]))
+          labels:
+            instance: odh-model-controller
+          record: probe_success:burnrate1d
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="odh-model-controller"}[1h]))
+          labels:
+            instance: odh-model-controller
+          record: probe_success:burnrate1h
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="odh-model-controller"}[2h]))
+          labels:
+            instance: odh-model-controller
+          record: probe_success:burnrate2h
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="odh-model-controller"}[30m]))
+          labels:
+            instance: odh-model-controller
+          record: probe_success:burnrate30m
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="odh-model-controller"}[3d]))
+          labels:
+            instance: odh-model-controller
+          record: probe_success:burnrate3d
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="odh-model-controller"}[5m]))
+          labels:
+            instance: odh-model-controller
+          record: probe_success:burnrate5m
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="odh-model-controller"}[6h]))
+          labels:
+            instance: odh-model-controller
+          record: probe_success:burnrate6h
+
+  odh-model-controller-alerting.rules: |
+    groups:
+      - name: SLOs-probe_success_model_controller
+        rules:
+        - alert: ODH Model Controller Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-odh-controller-probe-success-burn-rate.md"
+            summary: ODH Model Controller Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate5m{instance=~"odh-model-controller"}) by (instance) > (14.40 * (1-0.98000))
+            and
+            sum(probe_success:burnrate1h{instance=~"odh-model-controller"}) by (instance) > (14.40 * (1-0.98000))
+          for: 2m
+          labels:
+            severity: critical
+            namespace: redhat-ods-applications
+        - alert: ODH Model Controller Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-odh-controller-probe-success-burn-rate.md"
+            summary: ODH Model Controller Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate30m{instance=~"odh-model-controller"}) by (instance) > (6.00 * (1-0.98000))
+            and
+            sum(probe_success:burnrate6h{instance=~"odh-model-controller"}) by (instance) > (6.00 * (1-0.98000))
+          for: 15m
+          labels:
+            severity: critical
+            namespace: redhat-ods-applications
+        - alert: ODH Model Controller Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-odh-controller-probe-success-burn-rate.md"
+            summary: ODH Model Controller Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate2h{instance=~"odh-model-controller"}) by (instance) > (3.00 * (1-0.98000))
+            and
+            sum(probe_success:burnrate1d{instance=~"odh-model-controller"}) by (instance) > (3.00 * (1-0.98000))
+          for: 1h
+          labels:
+            severity: warning
+            namespace: redhat-ods-applications
+
+  kserve-recording.rules: |
+    groups:
+      - name: SLOs - Kserve Controller Manager
+        rules:
+        - expr: |
+            absent(up{job=~'Kserve Controller Manager'}) * 0 or vector(1)
+          labels:
+            instance: kserve-controller-manager
+          record: probe_success
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="kserve-controller-manager"}[1d]))
+          labels:
+            instance: kserve-controller-manager
+          record: probe_success:burnrate1d
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="kserve-controller-manager"}[1h]))
+          labels:
+            instance: kserve-controller-manager
+          record: probe_success:burnrate1h
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="kserve-controller-manager"}[2h]))
+          labels:
+            instance: kserve-controller-manager
+          record: probe_success:burnrate2h
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="kserve-controller-manager"}[30m]))
+          labels:
+            instance: kserve-controller-manager
+          record: probe_success:burnrate30m
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="kserve-controller-manager"}[3d]))
+          labels:
+            instance: kserve-controller-manager
+          record: probe_success:burnrate3d
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="kserve-controller-manager"}[5m]))
+          labels:
+            instance: kserve-controller-manager
+          record: probe_success:burnrate5m
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="kserve-controller-manager"}[6h]))
+          labels:
+            instance: kserve-controller-manager
+          record: probe_success:burnrate6h
+
+  kserve-alerting.rules: |
+    groups:
+      - name: SLOs-probe_success_kserve
+        rules:
+        - alert: Kserve Controller Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-kserve-controller-probe-success-burn-rate.md"
+            summary: Kserve Controller Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate5m{instance=~"kserve-controller-manager"}) by (instance) > (14.40 * (1-0.98000))
+            and
+            sum(probe_success:burnrate1h{instance=~"kserve-controller-manager"}) by (instance) > (14.40 * (1-0.98000))
+          for: 2m
+          labels:
+            severity: critical
+        - alert: Kserve Controller Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-kserve-controller-probe-success-burn-rate.md"
+            summary: Kserve Controller Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate30m{instance=~"kserve-controller-manager"}) by (instance) > (6.00 * (1-0.98000))
+            and
+            sum(probe_success:burnrate6h{instance=~"kserve-controller-manager"}) by (instance) > (6.00 * (1-0.98000))
+          for: 15m
+          labels:
+            severity: critical
+        - alert: Kserve Controller Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-kserve-controller-probe-success-burn-rate.md"
+            summary: Kserve Controller Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate2h{instance=~"kserve-controller-manager"}) by (instance) > (3.00 * (1-0.98000))
+            and
+            sum(probe_success:burnrate1d{instance=~"kserve-controller-manager"}) by (instance) > (3.00 * (1-0.98000))
+          for: 1h
+          labels:
+            severity: warning
+
+  ray-alerting.rules: |
+    groups:
+    - name: Distributed Workloads Kuberay
+      interval: 1m
+      rules:
+        - alert: KubeRay Operator is not running
+          expr: absent(up{job=~'KubeRay Operator'}) or up{job=~'KubeRay Operator'} != 1
+          labels:
+            severity: warning
+          annotations:
+            description: This alert fires when the KubeRay Operator is not running.
+            triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/kuberay-operator-availability.md'
+            summary: Alerting for KubeRay Operator
+
+  kueue-alerting.rules: |
+    groups:
+    - name: Distributed Workloads Kueue
+      interval: 1m
+      rules:
+        - alert: Kueue Operator is not running
+          expr: absent(up{job=~'Kueue Operator'}) or up{job=~'Kueue Operator'} != 1
+          labels:
+            severity: warning
+          annotations:
+            description: This alert fires when the Kueue Operator is not running.
+            triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/kueue-operator-availability.md'
+            summary: Alerting for Kueue Operator
+
+  workbenches-recording.rules: |
+    groups:
+      - name: SLOs - Notebook Controller
+        rules:
+        - expr: |
+            1 - min(avg_over_time(probe_success{name=~"notebook-spawner", job="user_facing_endpoints_status_workbenches"}[1d]))
+          labels:
+            instance: notebook-spawner
+          record: probe_success:burnrate1d
+        - expr: |
+            1 - min(avg_over_time(probe_success{name=~"notebook-spawner",job="user_facing_endpoints_status_workbenches"}[1h]))
+          labels:
+            instance: notebook-spawner
+          record: probe_success:burnrate1h
+        - expr: |
+            1 - min(avg_over_time(probe_success{name=~"notebook-spawner", job="user_facing_endpoints_status_workbenches"}[2h]))
+          labels:
+            instance: notebook-spawner
+          record: probe_success:burnrate2h
+        - expr: |
+            1 - min(avg_over_time(probe_success{name=~"notebook-spawner",job="user_facing_endpoints_status_workbenches"}[30m]))
+          labels:
+            instance: notebook-spawner
+          record: probe_success:burnrate30m
+        - expr: |
+            1 - min(avg_over_time(probe_success{name=~"notebook-spawner", job="user_facing_endpoints_status_workbenches"}[3d]))
+          labels:
+            instance: notebook-spawner
+          record: probe_success:burnrate3d
+        - expr: |
+            1 - min(avg_over_time(probe_success{name=~"notebook-spawner", job="user_facing_endpoints_status_workbenches"}[5m]))
+          labels:
+            instance: notebook-spawner
+          record: probe_success:burnrate5m
+        - expr: |
+            1 - min(avg_over_time(probe_success{name=~"notebook-spawner",job="user_facing_endpoints_status_workbenches"}[6h]))
+          labels:
+            instance: notebook-spawner
+          record: probe_success:burnrate6h
+
+      - name: Usage Metrics
+        rules:
+        - expr: count(kube_statefulset_replicas{namespace=~"rhods-notebooks", statefulset=~"jupyter-nb-.*"})
+          record: rhods_total_users
+          labels:
+            instance: jupyter-notebooks
+        - expr: count(kube_statefulset_replicas{namespace=~"rhods-notebooks", statefulset=~"jupyter-nb-.*"} ==1)
+          record: rhods_active_users
+          labels:
+            instance: jupyter-notebooks
+        - record: cluster:usage:consumption:rhods:cpu:seconds:rate1h
+          expr: sum(rate(container_cpu_usage_seconds_total{container="",pod=~"jupyter-nb.*",namespace="rhods-notebooks"}[1h]))
+          labels:
+            instance: jupyter-notebooks
+        - record: cluster:usage:consumption:rhods:pod:up
+          expr: count(kube_pod_container_status_ready{namespace="rhods-notebooks", pod=~"jupyter-nb.*",container=~"jupyter-nb-.*"}==1)
+          labels:
+            instance: jupyter-notebooks
+        - record: cluster:usage:consumption:rhods:active_users
+          expr: count(kube_statefulset_replicas{namespace=~"rhods-notebooks", statefulset=~"jupyter-nb-.*"} ==1)
+          labels:
+            instance: jupyter-notebooks
+        - record: cluster:usage:consumption:rhods:cpu_requests_runtime
+          expr: sum(kube_pod_container_resource_requests{namespace="rhods-notebooks",resource="cpu", container=~"jupyter-nb-.*"} * on(pod) kube_pod_status_phase{phase="Running", namespace="rhods-notebooks"})
+          labels:
+            instance: jupyter-notebooks
+        - record: cluster:usage:consumption:rhods:cpu_limits_runtime
+          expr: sum(kube_pod_container_resource_limits{namespace="rhods-notebooks",resource="cpu", container=~"jupyter-nb-.*"} * on(pod) kube_pod_status_phase{phase="Running", namespace="rhods-notebooks"})
+          labels:
+            instance: jupyter-notebooks
+        
+      - name: Availability Metrics
+        rules:
+        - expr: ((min(probe_success{name=~"rhods-dashboard|notebook-spawner"}) by (name) or on() vector(0)) or label_replace(min(probe_success{name=~"rhods-dashboard|notebook-spawner"}), "name", "combined", "name", ".*"))
+          record: rhods_aggregate_availability
+          labels:
+            instance: jupyter-notebooks
+
+  workbenches-alerting.rules: |
+    groups:
+      - name: RHODS-PVC-Usage
+        rules:
+        - alert: User notebook pvc usage above 90%
+          annotations:
+            message: 'The user notebook {{ $labels.persistentvolumeclaim }} is using 90% of its Volume. You might want to decrease the amount of data stored on the server or you can reach out to your cluster admin to increase the storage capacity to prevent disruptions and loss of data. Please back up your data before increasing the storage limit.'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/tree/main/RHODS"
+            summary: User notebook pvc usage above 90%
+          expr: kubelet_volume_stats_used_bytes{persistentvolumeclaim=~".*jupyterhub-nb-.*"} / kubelet_volume_stats_capacity_bytes{persistentvolumeclaim=~"jupyterhub-nb-.*"} > 0.9 and kubelet_volume_stats_used_bytes{persistentvolumeclaim=~".*jupyterhub-nb-.*"} / kubelet_volume_stats_capacity_bytes{persistentvolumeclaim=~"jupyterhub-nb-.*"} < 0.99
+          for: 2m
+          labels:
+            severity: warning
+            route: user-notifications
+        - alert: User notebook pvc usage at 100%
+          annotations:
+            message: 'The user notebook {{ $labels.persistentvolumeclaim }} is using 100% of its Volume. You might want to decrease the amount of data stored on the server or you can reach out to your cluster admin to increase the storage capacity to prevent disruptions and loss of data. Please back up your data before increasing the storage limit.'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/tree/main/RHODS"
+            summary: User notebook pvc usage at 100%
+          expr: kubelet_volume_stats_used_bytes{persistentvolumeclaim=~".*jupyterhub-nb-.*"}/kubelet_volume_stats_capacity_bytes{persistentvolumeclaim=~"jupyterhub-nb-.*"} > 0.99
+          for: 2m
+          labels:
+            severity: warning
+            route: user-notifications
+
+      - name: RHODS Notebook controllers
+        rules:
+        - alert: Kubeflow notebook controller pod is not running
+          annotations:
+            message: 'Kubeflow Notebook controller is down!'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Jupyter/rhods-kfnbc-notebook-controller-alert.md"
+            summary: Kubeflow notebook controller pod is not running
+          expr: absent(up{job=~'Kubeflow Notebook Controller Service Metrics'})
+          for: 5m
+          labels:
+            severity: warning
+            namespace: redhat-ods-applications
+        - alert: ODH notebook controller pod is not running
+          annotations:
+            message: 'ODH notebook controller is down!'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Jupyter/rhods-odh-notebook-controller-alert.md"
+            summary: ODH notebook controller pod is not running
+          expr: absent(up{job=~'ODH Notebook Controller Service Metrics'})
+          for: 5m
+          labels:
+            severity: warning
+            namespace: redhat-ods-applications
+
+      - name: SLOs-probe_success_workbench
+        rules:
+        - alert: RHODS Jupyter Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Jupyter/rhods-jupyter-probe-success-burn-rate.md"
+            summary: RHODS Jupyter Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate5m{instance=~"notebook-spawner"}) by (instance) > (14.40 * (1-0.98000))
+            and
+            sum(probe_success:burnrate1h{instance=~"notebook-spawner"}) by (instance) > (14.40 * (1-0.98000))
+          for: 2m
+          labels:
+            severity: critical
+            instance: notebook-spawner
+        - alert: RHODS Jupyter Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Jupyter/rhods-jupyter-probe-success-burn-rate.md"
+            summary: RHODS Jupyter Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate30m{instance=~"notebook-spawner"}) by (instance) > (6.00 * (1-0.98000))
+            and
+            sum(probe_success:burnrate6h{instance=~"notebook-spawner"}) by (instance) > (6.00 * (1-0.98000))
+          for: 15m
+          labels:
+            severity: critical
+            instance: notebook-spawner
+        - alert: RHODS Jupyter Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Jupyter/rhods-jupyter-probe-success-burn-rate.md"
+            summary: RHODS Jupyter Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate2h{instance=~"notebook-spawner"}) by (instance) > (3.00 * (1-0.98000))
+            and
+            sum(probe_success:burnrate1d{instance=~"notebook-spawner"}) by (instance) > (3.00 * (1-0.98000))
+          for: 1h
+          labels:
+            severity: warning
+            instance: notebook-spawner
+        - alert: RHODS Jupyter Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Jupyter/rhods-jupyter-probe-success-burn-rate.md"
+            summary: RHODS Jupyter Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate6h{instance=~"notebook-spawner"}) by (instance) > (1.00 * (1-0.98000))
+            and
+            sum(probe_success:burnrate3d{instance=~"notebook-spawner"}) by (instance) > (1.00 * (1-0.98000))
+          for: 3h
+          labels:
+            severity: warning
+            instance: notebook-spawner
+
+  trustyai-recording.rules: |
+    groups:
+      - name: SLOs - TrustyAI Controller Manager
+        rules:
+        - expr: |
+            absent(up{job=~'TrustyAI Controller Manager'}) * 0 or vector(1)
+          labels:
+            instance: trustyai-service-operator-controller-manager
+          record: probe_success
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="trustyai-service-operator-controller-manager"}[1d]))
+          labels:
+            instance: trustyai-service-operator-controller-manager
+          record: probe_success:burnrate1d
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="trustyai-service-operator-controller-manager"}[1h]))
+          labels:
+            instance: trustyai-service-operator-controller-manager
+          record: probe_success:burnrate1h
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="trustyai-service-operator-controller-manager"}[2h]))
+          labels:
+            instance: trustyai-service-operator-controller-manager
+          record: probe_success:burnrate2h
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="trustyai-service-operator-controller-manager"}[30m]))
+          labels:
+            instance: trustyai-service-operator-controller-manager
+          record: probe_success:burnrate30m
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="trustyai-service-operator-controller-manager"}[3d]))
+          labels:
+            instance: trustyai-service-operator-controller-manager
+          record: probe_success:burnrate3d
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="trustyai-service-operator-controller-manager"}[5m]))
+          labels:
+            instance: trustyai-service-operator-controller-manager
+          record: probe_success:burnrate5m
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="trustyai-service-operator-controller-manager"}[6h]))
+          labels:
+            instance: trustyai-service-operator-controller-manager
+          record: probe_success:burnrate6h
+  trustyai-alerting.rules: |
+    groups:
+      - name: SLOs-probe_success_trustyai
+        rules:
+        - alert: TrustyAI Controller Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhoai-trustyai-controller-probe-success-burn-rate.md"
+            summary: TrustyAI Controller Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate5m{instance=~"trustyai-service-operator-controller-manager"}) by (instance) > (14.40 * (1-0.98000))
+            and
+            sum(probe_success:burnrate1h{instance=~"trustyai-service-operator-controller-manager"}) by (instance) > (14.40 * (1-0.98000))
+          for: 2m
+          labels:
+            severity: critical
+            instance: trustyai-service-operator-controller-manager
+        - alert: TrustyAI Controller Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhoai-trustyai-controller-probe-success-burn-rate.md"
+            summary: TrustyAI Controller Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate30m{instance=~"trustyai-service-operator-controller-manager"}) by (instance) > (6.00 * (1-0.98000))
+            and
+            sum(probe_success:burnrate6h{instance=~"trustyai-service-operator-controller-manager"}) by (instance) > (6.00 * (1-0.98000))
+          for: 15m
+          labels:
+            severity: critical
+            instance: trustyai-service-operator-controller-manager
+        - alert: TrustyAI Controller Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhoai-trustyai-controller-probe-success-burn-rate.md"
+            summary: TrustyAI Controller Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate2h{instance=~"trustyai-service-operator-controller-manager"}) by (instance) > (3.00 * (1-0.98000))
+            and
+            sum(probe_success:burnrate1d{instance=~"trustyai-service-operator-controller-manager"}) by (instance) > (3.00 * (1-0.98000))
+          for: 1h
+          labels:
+            severity: warning
+            instance: trustyai-service-operator-controller-manager
+
+  model-registry-operator-recording.rules: |
+    groups:
+      - name: SLOs - Model Registry Operator
+        rules:
+        - expr: |
+            absent(up{job=~'Model Registry Operator'}) * 0 or vector(1)
+          labels:
+            instance: model-registry-operator
+          record: probe_success
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="model-registry-operator"}[1d]))
+          labels:
+            instance: model-registry-operator
+          record: probe_success:burnrate1d
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="model-registry-operator"}[1h]))
+          labels:
+            instance: model-registry-operator
+          record: probe_success:burnrate1h
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="model-registry-operator"}[2h]))
+          labels:
+            instance: model-registry-operator
+          record: probe_success:burnrate2h
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="model-registry-operator"}[30m]))
+          labels:
+            instance: model-registry-operator
+          record: probe_success:burnrate30m
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="model-registry-operator"}[3d]))
+          labels:
+            instance: model-registry-operator
+          record: probe_success:burnrate3d
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="model-registry-operator"}[5m]))
+          labels:
+            instance: model-registry-operator
+          record: probe_success:burnrate5m
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="model-registry-operator"}[6h]))
+          labels:
+            instance: model-registry-operator
+          record: probe_success:burnrate6h
+
+  model-registry-operator-alerting.rules: |
+    groups:
+      - name: SLOs-probe_success_model_controller
+        rules:
+        - alert: Model Registry Operator Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhoai-model-registry-operator-probe-success-burn-rate.md"
+            summary: Model Registry Operator Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate5m{instance=~"model-registry-operator"}) by (instance) > (14.40 * (1-0.98000))
+            and
+            sum(probe_success:burnrate1h{instance=~"model-registry-operator"}) by (instance) > (14.40 * (1-0.98000))
+          for: 2m
+          labels:
+            severity: critical
+            namespace: redhat-ods-applications
+        - alert: Model Registry Operator Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhoai-model-registry-operator-probe-success-burn-rate.md"
+            summary: Model Registry Operator Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate30m{instance=~"model-registry-operator"}) by (instance) > (6.00 * (1-0.98000))
+            and
+            sum(probe_success:burnrate6h{instance=~"model-registry-operator"}) by (instance) > (6.00 * (1-0.98000))
+          for: 15m
+          labels:
+            severity: critical
+            namespace: redhat-ods-applications
+        - alert: Model Registry Operator Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+            triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhoai-model-registry-operator-probe-success-burn-rate.md"
+            summary: Model Registry Operator Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate2h{instance=~"model-registry-operator"}) by (instance) > (3.00 * (1-0.98000))
+            and
+            sum(probe_success:burnrate1d{instance=~"model-registry-operator"}) by (instance) > (3.00 * (1-0.98000))
+          for: 1h
+          labels:
+            severity: warning
+            namespace: redhat-ods-applications

@@ -1,0 +1,84 @@
+rule_files:
+  - model_mesh_alerts.yaml
+
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    input_series:
+      - series: probe_success:burnrate5m{instance="modelmesh-controller"}
+        values: "0x60"
+      - series: probe_success:burnrate1h{instance="modelmesh-controller"}
+        values: "0x60"
+      - series: probe_success:burnrate30m{instance="modelmesh-controller"}
+        values: "0x60"
+      - series: probe_success:burnrate6h{instance="modelmesh-controller"}
+        values: "0x60"
+      - series: probe_success:burnrate2h{instance="modelmesh-controller"}
+        values: "0x60"
+      - series: probe_success:burnrate1d{instance="modelmesh-controller"}
+        values: "0x60"
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: Modelmesh Controller Probe Success Burn Rate
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: probe_success:burnrate5m{instance="modelmesh-controller"}
+        values: "1+1x60"
+      - series: probe_success:burnrate1h{instance="modelmesh-controller"}
+        values: "1+1x60"
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: Modelmesh Controller Probe Success Burn Rate
+        exp_alerts:
+          - exp_labels:
+              alertname: Modelmesh Controller Probe Success Burn Rate
+              namespace: "redhat-ods-applications"
+              instance: "modelmesh-controller"
+              severity: critical
+            exp_annotations:
+              summary: "Modelmesh Controller Probe Success Burn Rate"
+              message: "High error budget burn for modelmesh-controller (current value: 3)."
+              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-modelmesh-controller-probe-success-burn-rate.md'
+
+  - interval: 1m
+    input_series:
+      - series: probe_success:burnrate30m{instance="modelmesh-controller"}
+        values: "1+1x60"
+      - series: probe_success:burnrate6h{instance="modelmesh-controller"}
+        values: "1+1x60"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: Modelmesh Controller Probe Success Burn Rate
+        exp_alerts:
+          - exp_labels:
+              alertname: Modelmesh Controller Probe Success Burn Rate
+              namespace: "redhat-ods-applications"
+              instance: "modelmesh-controller"
+              severity: critical
+            exp_annotations:
+              summary: "Modelmesh Controller Probe Success Burn Rate"
+              message: "High error budget burn for modelmesh-controller (current value: 16)."
+              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-modelmesh-controller-probe-success-burn-rate.md'
+ 
+  - interval: 1m
+    input_series:
+      - series: probe_success:burnrate2h{instance="modelmesh-controller"}
+        values: "1+1x60"
+      - series: probe_success:burnrate1d{instance="modelmesh-controller"}
+        values: "1+1x60"
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: Modelmesh Controller Probe Success Burn Rate
+        exp_alerts:
+          - exp_labels:
+              alertname: Modelmesh Controller Probe Success Burn Rate
+              namespace: "redhat-ods-applications"
+              instance: "modelmesh-controller"
+              severity: warning
+            exp_annotations:
+              summary: "Modelmesh Controller Probe Success Burn Rate"
+              message: "High error budget burn for modelmesh-controller (current value: 61)."
+              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-modelmesh-controller-probe-success-burn-rate.md'

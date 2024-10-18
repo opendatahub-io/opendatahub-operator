@@ -1,0 +1,47 @@
+rule_files:
+  - "kuberay_alerts.yaml"
+
+evaluation_interval: 1m
+
+tests:
+  # Operator running
+  - interval: 1m
+    input_series:
+      - series: up{job="KubeRay Operator"}
+        values: "1"
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: KubeRay Operator is not running
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: KubeRay Operator is not running
+        exp_alerts:
+          - exp_labels:
+              alertname: KubeRay Operator is not running
+              severity: warning
+            exp_annotations:
+              description: This alert fires when the KubeRay Operator is not running.
+              summary: Alerting for KubeRay Operator
+              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/kuberay-operator-availability.md'
+  
+  - interval: 1m
+    input_series:
+      - series: up{job="KubeRay Operator"}
+        values: "0"
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: KubeRay Operator is not running
+        exp_alerts:
+          - exp_labels:
+              alertname: KubeRay Operator is not running
+              severity: warning
+              job: "KubeRay Operator"
+            exp_annotations:
+              description: This alert fires when the KubeRay Operator is not running.
+              summary: Alerting for KubeRay Operator
+              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/kuberay-operator-availability.md'
+

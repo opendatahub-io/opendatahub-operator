@@ -1,0 +1,14 @@
+name: "Create release pr"
+description: "Updates get_all_manifests.sh with relavent tags and creates a pr"
+runs:
+  using: "composite"
+  steps:
+    - name: Update branches in get_all_manifest.sh
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const script = require('./.github/scripts/get-release-branches.js')
+          script({github, core})
+    - name: Update versions
+      shell: bash
+      run: ./.github/scripts/update-manifests-tags.sh

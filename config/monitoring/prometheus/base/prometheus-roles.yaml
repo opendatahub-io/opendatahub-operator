@@ -1,0 +1,52 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: prometheus-scraper
+rules:
+- apiGroups:
+  - authentication.k8s.io
+  resources:
+  - tokenreviews
+  verbs:
+  - create
+- apiGroups:
+  - authorization.k8s.io
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - get
+- apiGroups:
+  - route.openshift.io
+  resources:
+  - routers/metrics
+  - routers/federate
+  verbs:
+  - get
+- apiGroups:
+  - image.openshift.io
+  resources:
+  - registry/metrics
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - endpoints
+  - pods
+  - services
+  - namespaces
+  verbs:
+  - list
+  - get
+  - watch
+- nonResourceURLs:
+  - "/metrics"
+  verbs:
+  - get
