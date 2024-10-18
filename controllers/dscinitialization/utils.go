@@ -195,7 +195,7 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.
 		// Get operator namepsace
 		operatorNs, err := cluster.GetOperatorNamespace()
 		if err != nil {
-			log.Error(err, "error getting operator namespace for networkplicy creation")
+			r.Log.Error(err, "error getting operator namespace for networkplicy creation")
 			return err
 		}
 		// Deploy networkpolicy for operator namespace
