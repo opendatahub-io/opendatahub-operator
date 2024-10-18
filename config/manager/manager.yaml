@@ -26,7 +26,7 @@ spec:
         name: opendatahub-operator
     spec:
       securityContext:
-        runAsNonRoot: true
+        runAsUser: 1001
         # TODO(user): For common cases that do not require escalating privileges
         # it is recommended to ensure that all your Pods/Containers are restrictive.
         # More info: https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted
