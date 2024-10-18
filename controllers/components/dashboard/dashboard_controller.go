@@ -314,13 +314,20 @@ type InitializeAction struct {
 }
 
 func (a *InitializeAction) Execute(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	// 1. Append or Update variable for component to consume
+	// 1. Update manifests
+	rr.Manifests = map[cluster.Platform]string{
+		cluster.SelfManagedRhods: PathDownstream + "/onprem",
+		cluster.ManagedRhods:     PathDownstream + "/addon",
+		cluster.OpenDataHub:      PathUpstream,
+		cluster.Unknown:          PathUpstream,
+	}
+	// 2. Append or Update variable for component to consume
 	extraParamsMap, err := updateKustomizeVariable(ctx, rr.Client, rr.Platform, &rr.DSCI.Spec)
 	if err != nil {
 		return errors.New("failed to set variable for extraParamsMap")
 	}
 
-	// 2. update params.env regardless devFlags is provided of not
+	// 3. update params.env regardless devFlags is provided of not
 	// We need this for downstream
 	if err := deploy.ApplyParams(rr.Manifests[rr.Platform], nil, extraParamsMap); err != nil {
 		return fmt.Errorf("failed to update params.env from %s : %w", rr.Manifests[rr.Platform], err)
@@ -410,18 +417,6 @@ func (a *DeployComponentAction) Execute(ctx context.Context, rr *odhtypes.Reconc
 		}
 	}
 
-	// 2. Append or Update variable for component to consume
-	extraParamsMap, err := updateKustomizeVariable(ctx, rr.Client, rr.Platform, &rr.DSCI.Spec)
-	if err != nil {
-		return errors.New("failed to set variable for extraParamsMap")
-	}
-
-	// 3. update params.env regardless devFlags is provided of not
-	// We need this for downstream
-	if err := deploy.ApplyParams(rr.Manifests[rr.Platform], nil, extraParamsMap); err != nil {
-		return fmt.Errorf("failed to update params.env  from %s : %w", rr.Manifests[rr.Platform], err)
-	}
-
 	path := rr.Manifests[rr.Platform]
 	name := ComponentNameUpstream
 
@@ -461,7 +456,7 @@ func (a *DeployComponentAction) Execute(ctx context.Context, rr *odhtypes.Reconc
 	default:
 	}
 
-	err = deploy.DeployManifestsFromPathWithLabels(ctx, rr.Client, rr.Instance, path, rr.DSCI.Spec.ApplicationsNamespace, name, true, map[string]string{
+	err := deploy.DeployManifestsFromPathWithLabels(ctx, rr.Client, rr.Instance, path, rr.DSCI.Spec.ApplicationsNamespace, name, true, map[string]string{
 		labels.ComponentName: ComponentName,
 	})
 
