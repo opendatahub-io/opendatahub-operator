@@ -105,8 +105,7 @@ func NewDashboardReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		// API
 		For(&componentsv1.Dashboard{}, builder.WithPredicates(predicate.Or(
 			predicate.GenerationChangedPredicate{},
-			predicate.LabelChangedPredicate{},
-			predicate.AnnotationChangedPredicate{}))).
+			predicate.LabelChangedPredicate{}))).
 		// operands
 		Watches(&corev1.ConfigMap{}, componentEventHandler, builder.WithPredicates(componentLabelPredicate)).
 		Watches(&corev1.Secret{}, componentEventHandler, builder.WithPredicates(componentLabelPredicate)).
@@ -237,7 +236,7 @@ func dashboardWatchPredicate(componentName string) predicate.Funcs {
 	label := labels.ODH.Component(componentName)
 	return predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
-			return true
+			return false
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
 			labelList := e.Object.GetLabels()
