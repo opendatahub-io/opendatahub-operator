@@ -648,14 +648,28 @@ spec:
             description: DataScienceClusterStatus defines the observed state of DataScienceCluster.
             properties:
               components:
+                additionalProperties:
+                  properties:
+                    registriesNamespace:
+                      type: string
+                    upstreamReleases:
+                      items:
+                        description: |-
+                          Condition represents the state of the operator's
+                          reconciliation functionality.
+                        properties:
+                          displayname:
+                            type: string
+                          name:
+                            type: string
+                          repourl:
+                            type: string
+                          version:
+                            type: string
+                        type: object
+                      type: array
+                  type: object
                 description: Expose component's specific status
-                properties:
-                  modelregistry:
-                    description: ModelRegistry component status
-                    properties:
-                      registriesNamespace:
-                        type: string
-                    type: object
                 type: object
               conditions:
                 description: Conditions describes the state of the DataScienceCluster

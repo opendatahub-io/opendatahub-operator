@@ -8,8 +8,11 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/blang/semver/v4"
+	"github.com/joho/godotenv"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
+	"github.com/operator-framework/api/pkg/lib/version"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -90,6 +93,37 @@ func (d *DataSciencePipelines) OverrideManifests(ctx context.Context, _ cluster.
 
 func (d *DataSciencePipelines) GetComponentName() string {
 	return ComponentName
+}
+
+func (d *DataSciencePipelines) GetComponentStatus() ([]status.ComponentReleaseStatus, error) {
+	var componentVersion semver.Version
+	var repositoryURL string
+	var upstreamReleases = make([]status.ComponentReleaseStatus, 0)
+
+	env, err := godotenv.Read(filepath.Join(deploy.DefaultManifestPath, ComponentName, ".env"))
+
+	if err != nil {
+		fmt.Print("godotenv", err)
+		return nil, err
+	}
+	if env != nil {
+		componentVersion, err = semver.Parse(env["UPSTREAM_RELEASE_VERSION"])
+
+		if err != nil {
+			fmt.Print("getEnv error", err)
+			return nil, err
+		}
+		repositoryURL = env["REPOSITORY_URL"]
+	}
+	componentReleaseStatus := status.ComponentReleaseStatus{
+		Name:        status.Platform(ComponentName),
+		DisplayName: ComponentName,
+		Version:     version.OperatorVersion{Version: componentVersion},
+		RepoURL:     repositoryURL}
+
+	fmt.Print("release object", componentReleaseStatus)
+	upstreamReleases = append(upstreamReleases, componentReleaseStatus)
+	return upstreamReleases, nil
 }
 
 func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,

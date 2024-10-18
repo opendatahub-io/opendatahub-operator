@@ -20,6 +20,7 @@ package status
 
 import (
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
+	"github.com/operator-framework/api/pkg/lib/version"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -210,7 +211,20 @@ func RemoveComponentCondition(conditions *[]conditionsv1.Condition, component st
 	conditionsv1.RemoveStatusCondition(conditions, conditionsv1.ConditionType(component+ReadySuffix))
 }
 
-// ModelRegistryStatus struct holds the status for the ModelRegistry component.
-type ModelRegistryStatus struct {
-	RegistriesNamespace string `json:"registriesNamespace,omitempty"`
+type Platform string
+
+// Condition represents the state of the operator's
+// reconciliation functionality.
+// +k8s:deepcopy-gen=true
+type ComponentReleaseStatus struct {
+	Name        Platform                `json:"name,omitempty"`
+	DisplayName string                  `json:"displayname,omitempty"`
+	Version     version.OperatorVersion `json:"version,omitempty"`
+	RepoURL     string                  `json:"repourl,omitempty"`
+}
+
+// +k8s:deepcopy-gen=true
+type ReleaseStatus struct {
+	RegistriesNamespace string                   `json:"registriesNamespace,omitempty"`
+	UpstreamReleases    []ComponentReleaseStatus `json:"upstreamReleases,omitempty"`
 }
