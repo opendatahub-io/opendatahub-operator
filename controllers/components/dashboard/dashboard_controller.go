@@ -110,6 +110,25 @@ func NewDashboardReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	return nil
 }
 
+func Init(platform cluster.Platform) error {
+	imageParamMap := map[string]string{
+		"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
+	}
+
+	DefaultPath = map[cluster.Platform]string{
+		cluster.SelfManagedRhods: PathDownstream + "/onprem",
+		cluster.ManagedRhods:     PathDownstream + "/addon",
+		cluster.OpenDataHub:      PathUpstream,
+		cluster.Unknown:          PathUpstream,
+	}[platform]
+
+	if err := deploy.ApplyParams(DefaultPath, imageParamMap); err != nil {
+		return fmt.Errorf("failed to update images on path %s: %w", DefaultPath, err)
+	}
+
+	return nil
+}
+
 func GetDashboard(dsc *dscv1.DataScienceCluster) *componentsv1.Dashboard {
 	dashboardAnnotations := make(map[string]string)
 
@@ -255,24 +274,16 @@ type InitializeAction struct {
 }
 
 func (a *InitializeAction) Execute(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	// Implement initialization logic
-	log := logf.FromContext(ctx).WithName(ComponentNameUpstream)
-
-	imageParamMap := map[string]string{
-		"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
+	// 1. Append or Update variable for component to consume
+	extraParamsMap, err := updateKustomizeVariable(ctx, rr.Client, rr.Platform, &rr.DSCI.Spec)
+	if err != nil {
+		return errors.New("failed to set variable for extraParamsMap")
 	}
-	manifestMap := map[cluster.Platform]string{
-		cluster.SelfManagedRhods: PathDownstream + "/onprem",
-		cluster.ManagedRhods:     PathDownstream + "/addon",
-		cluster.OpenDataHub:      PathUpstream,
-		cluster.Unknown:          PathUpstream,
-	}
-	DefaultPath = manifestMap[rr.Platform]
 
-	rr.Manifests = manifestMap
-
-	if err := deploy.ApplyParams(DefaultPath, imageParamMap); err != nil {
-		log.Error(err, "failed to update image", "path", DefaultPath)
+	// 2. update params.env regardless devFlags is provided of not
+	// We need this for downstream
+	if err := deploy.ApplyParams(rr.Manifests[rr.Platform], nil, extraParamsMap); err != nil {
+		return fmt.Errorf("failed to update params.env from %s : %w", rr.Manifests[rr.Platform], err)
 	}
 
 	return nil

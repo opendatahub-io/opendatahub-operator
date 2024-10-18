@@ -106,6 +106,10 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(operatorv1.Install(scheme))
 }
 
+func initComponents(_ context.Context, p cluster.Platform) error {
+	return dashboardctrl.Init(p)
+}
+
 func main() { //nolint:funlen,maintidx
 	var metricsAddr string
 	var enableLeaderElection bool
@@ -162,6 +166,11 @@ func main() { //nolint:funlen,maintidx
 	// Get operator platform
 	release := cluster.GetRelease()
 	platform := release.Name
+
+	if err := initComponents(ctx, platform); err != nil {
+		setupLog.Error(err, "unable to init components")
+		os.Exit(1)
+	}
 
 	secretCache := createSecretCacheConfig(platform)
 	deploymentCache := createDeploymentCacheConfig(platform)
