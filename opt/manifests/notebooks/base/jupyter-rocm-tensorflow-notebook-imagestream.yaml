@@ -1,0 +1,30 @@
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  labels:
+    opendatahub.io/notebook-image: "true"
+  annotations:
+    opendatahub.io/notebook-image-url: "https://github.com/red-hat-data-services/notebooks/blob/main/jupyter/rocm/tensorflow"
+    opendatahub.io/notebook-image-name: "ROCm-TensorFlow"
+    opendatahub.io/notebook-image-desc: "Jupyter ROCm optimized TensorFlow notebook image for ODH notebooks."
+    opendatahub.io/notebook-image-order: "92"
+    opendatahub.io/recommended-accelerators: '[amd.com/gpu"]'
+  name: jupyter-rocm-tensorflow
+spec:
+  lookupPolicy:
+    local: true
+  tags:
+    # N Version of the image
+    - annotations:
+        opendatahub.io/notebook-software: '[{"name":"Python","version":"v3.11"},{"name":"ROCm-TensorFlow","version":"2.14"}]'
+        opendatahub.io/notebook-python-dependencies: '[{"name":"ROCm-TensorFlow","version":"2.14"},{"name":"Tensorboard","version":"2.14"},{"name":"Kafka-Python-ng","version":"2.2"},{"name":"Matplotlib","version":"3.9"},{"name":"Numpy","version":"1.26"},{"name":"Pandas","version":"2.2"},{"name":"Scikit-learn","version":"1.5"},{"name":"Scipy","version":"1.14"},{"name":"Elyra","version":"4.0"},{"name":"PyMongo","version":"4.8"},{"name":"Pyodbc","version":"5.1"}, {"name":"Codeflare-SDK","version":"0.21"}, {"name":"Sklearn-onnx","version":"1.17"}, {"name":"Psycopg","version":"3.2"}, {"name":"MySQL Connector/Python","version":"9.0"}]'
+        openshift.io/imported-from: quay.io/modh/rocm-notebooks
+        opendatahub.io/workbench-image-recommended: 'true'
+        opendatahub.io/notebook-build-commit: $(odh-rocm-tensorflow-notebook-image-commit-n)
+      from:
+        kind: DockerImage
+        name: $(odh-rocm-tensorflow-notebook-image-n)
+      name: "2024.2"
+      referencePolicy:
+        type: Source

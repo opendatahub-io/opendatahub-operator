@@ -1,0 +1,84 @@
+apiVersion: console.openshift.io/v1
+kind: OdhQuickStart
+metadata:
+  name: create-jupyter-notebook-anaconda
+  annotations:
+    opendatahub.io/categories: 'Package management,Notebook environments'
+spec:
+  displayName: Creating an Anaconda-enabled Jupyter notebook
+  appName: anaconda-ce
+  durationMinutes: 5
+  icon: 'images/anaconda-ce.svg'
+  description: Create an Anaconda-enabled Jupyter notebook and access Anaconda packages that are curated for security and compatibility.
+  introduction: |-
+    ### This quick start shows you how to create an Anaconda-enabled Jupyter notebook.
+    Red Hat® OpenShift® AI lets you run Jupyter notebooks on our Red Hat® OpenShift Dedicated environment.
+
+    With Anaconda Professional you can access and use Anaconda packages that are curated for security and compatibility.
+
+    This quick start will get you working in a notebook in just a few minutes.
+  tasks:
+    - title: Launch Jupyter
+      description: |-
+        ### To find the Jupyter Launch action:
+        1. Click **Applications** &#x2192; **Enabled**.
+        2. Find the Jupyter card.
+        3. Click **Launch** on the Jupyter card to access the Jupyter **Start a notebook server** page.
+
+        A new browser tab will open displaying the **Start a notebook server** page.
+      review:
+        instructions: |-
+          #### To verify you have launched Jupyter:
+          Is a new **Jupyter** browser tab visible with the **Start a notebook server** page open?
+        failedTaskHelp: This task is not verified yet. Try the task again.
+      summary:
+        success: You have launched Jupyter.
+        failed: Try the steps again.
+    - title: Configure and start an environment
+      description: |-
+        ### Configure and start an environment:
+        1. Select the Anaconda notebook image from the dropdown menu. This notebook uses Anaconda for all its packages, including Python.
+        2. Select a container size; small, medium or large based on your computation needs.
+        3. Click the **Start** button.
+
+        The page will reload and indicate that the system is starting up.
+      review:
+        instructions: |-
+          #### To verify that you have launched the Jupyter notebook:
+          Do you see a message in the page that says **The server is starting up**?
+        failedTaskHelp: This task is not verified yet. Try the task again.
+      summary:
+        success: Your server has started and the JupyterLab interface will load shortly. When the page displays a **Stop** option, proceed to the next step.
+        failed: Try the steps again.
+    - title: Create your first notebook
+      description: |-
+        ### To create a notebook, follow these steps:
+        1. In the JupyterLab interface, click **File** &#x2192; **New** &#x2192; **Notebook**.
+        2. In the **Select Kernel** dialog, select **Python 3** and click **Select**.
+
+        You have now launched a Jupyter notebook and can begin writing Python.
+      review:
+        instructions: |-
+          #### Verify that your Jupyter notebook launched with a Python 3 kernel:
+          Is Python 3 displaying in the upper right notification bar of your notebook?
+        failedTaskHelp:
+          This task is not verified yet. Try the task again.
+      summary:
+        success: You have a running Jupyter notebook.
+        failed: Try the steps again.
+    - title: Ensure you are subscribed to use Anaconda Professional packages.
+      description: |-
+        ### To verify that you are subscribed to Anaconda Professional in the notebook, follow these steps:
+        1. In a notebook cell, type and run `!conda token set $ANACONDA_TOKEN` (replacing $ANACONDA_TOKEN with your own Anaconda Professional token.)
+        1. Run `!conda info` in a notebook cell.
+      review:
+        instructions: |-
+          #### Verify that your Anaconda package manager points to the right repositories
+          Do the repositories in `conda info` point to `repo.anaconda.cloud` instead of `repo.anaconda.com`?
+        failedTaskHelp:
+          This task is not verified yet. Try the task again.
+      summary:
+        success: You have successfully subscribed to Anaconda Professional.
+        failed: Try the steps again.
+  conclusion: You are now able to install Anaconda Professional packages within your Jupyter notebook using the command `conda install $PACKAGE`.  If you want to learn how to deploy a model, take the next quick start.
+  nextQuickStart: [deploy-python-model]

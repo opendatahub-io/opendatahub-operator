@@ -1,0 +1,12 @@
+- op: replace
+  path: /metadata/name
+  value: rhods-dashboard
+- op: replace
+  path: /roleRef/name
+  value: rhods-dashboard
+- op: replace
+  path: /subjects/0/name
+  value: rhods-dashboard
+- op: add
+  path: /subjects/0/namespace
+  value: redhat-ods-applications

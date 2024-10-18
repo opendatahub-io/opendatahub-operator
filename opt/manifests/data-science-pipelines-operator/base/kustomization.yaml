@@ -1,0 +1,210 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: opendatahub
+namePrefix: data-science-pipelines-operator-
+resources:
+  - ../crd
+  - ../rbac
+  - ../manager
+  - ../prometheus
+  - ../configmaps
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+configMapGenerator:
+  - name: dspo-parameters
+    envs:
+      - params.env
+vars:
+  - name: IMAGES_APISERVER
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_APISERVER
+  - name: IMAGES_ARTIFACT
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_ARTIFACT
+  - name: IMAGES_OAUTHPROXY
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_OAUTHPROXY
+  - name: IMAGES_PERSISTENTAGENT
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_PERSISTENTAGENT
+  - name: IMAGES_SCHEDULEDWORKFLOW
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_SCHEDULEDWORKFLOW
+  - name: IMAGES_CACHE
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_CACHE
+  - name: IMAGES_MOVERESULTSIMAGE
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_MOVERESULTSIMAGE
+  - name: IMAGES_MARIADB
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_MARIADB
+  - name: IMAGES_MLMDENVOY
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_MLMDENVOY
+  - name: IMAGES_MLMDGRPC
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_MLMDGRPC
+  - name: IMAGES_MLMDWRITER
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_MLMDWRITER
+  - name: IMAGES_DSPO
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_DSPO
+  - name: ZAP_LOG_LEVEL
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.ZAP_LOG_LEVEL
+  - name: DSPO_REQUEUE_TIME
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.DSPO_REQUEUE_TIME
+  - name: MAX_CONCURRENT_RECONCILES
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.MAX_CONCURRENT_RECONCILES
+  - name: DSPO_HEALTHCHECK_DATABASE_CONNECTIONTIMEOUT
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.DSPO_HEALTHCHECK_DATABASE_CONNECTIONTIMEOUT
+  - name: DSPO_HEALTHCHECK_OBJECTSTORE_CONNECTIONTIMEOUT
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.DSPO_HEALTHCHECK_OBJECTSTORE_CONNECTIONTIMEOUT
+  - name: IMAGESV2_ARGO_APISERVER
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGESV2_ARGO_APISERVER
+  - name: IMAGESV2_ARGO_PERSISTENCEAGENT
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGESV2_ARGO_PERSISTENCEAGENT
+  - name: IMAGESV2_ARGO_SCHEDULEDWORKFLOW
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGESV2_ARGO_SCHEDULEDWORKFLOW
+  - name: IMAGESV2_ARGO_MLMDENVOY
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGESV2_ARGO_MLMDENVOY
+  - name: IMAGESV2_ARGO_MLMDGRPC
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGESV2_ARGO_MLMDGRPC
+  - name: IMAGESV2_ARGO_ARGOEXEC
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGESV2_ARGO_ARGOEXEC
+  - name: IMAGESV2_ARGO_WORKFLOWCONTROLLER
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGESV2_ARGO_WORKFLOWCONTROLLER
+  - name: V2_LAUNCHER_IMAGE
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.V2_LAUNCHER_IMAGE
+  - name: V2_DRIVER_IMAGE
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.V2_DRIVER_IMAGE
+  - name: DSPO_APISERVER_INCLUDE_OWNERREFERENCE
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.DSPO_APISERVER_INCLUDE_OWNERREFERENCE
+configurations:
+  - params.yaml

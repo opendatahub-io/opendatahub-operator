@@ -1,0 +1,65 @@
+kind: Template
+apiVersion: template.openshift.io/v1
+metadata:
+  name: ovms
+  labels:
+    opendatahub.io/dashboard: 'true'
+    opendatahub.io/ootb: 'true'
+  annotations:
+    tags: 'ovms,servingruntime'
+    description: 'OpenVino Model Serving Definition'
+    opendatahub.io/modelServingSupport: '["multi"]'
+    opendatahub.io/apiProtocol: 'REST'
+objects:
+  - apiVersion: serving.kserve.io/v1alpha1
+    kind: ServingRuntime
+    metadata:
+      name: ovms
+      annotations:
+        openshift.io/display-name: 'OpenVINO Model Server'
+        opendatahub.io/recommended-accelerators: '["nvidia.com/gpu"]'
+      labels:
+        opendatahub.io/dashboard: 'true'
+    spec:
+      builtInAdapter:
+        env:
+          - name: OVMS_FORCE_TARGET_DEVICE
+            value: AUTO
+        memBufferBytes: 134217728
+        modelLoadingTimeoutMillis: 90000
+        runtimeManagementPort: 8888
+        serverType: ovms
+      containers:
+        - args:
+            - '--port=8001'
+            - '--rest_port=8888'
+            - '--config_path=/models/model_config_list.json'
+            - '--file_system_poll_wait_seconds=0'
+            - '--grpc_bind_address=0.0.0.0'
+            - '--rest_bind_address=0.0.0.0'
+          image: $(ovms-image)
+          name: ovms
+          resources:
+            limits:
+              cpu: '0'
+              memory: 0Gi
+            requests:
+              cpu: '0'
+              memory: 0Gi
+      grpcDataEndpoint: 'port:8001'
+      grpcEndpoint: 'port:8085'
+      multiModel: true
+      protocolVersions:
+        - grpc-v1
+      replicas: 1
+      supportedModelFormats:
+        - autoSelect: true
+          name: openvino_ir
+          version: opset1
+        - autoSelect: true
+          name: onnx
+          version: '1'
+        - autoSelect: true
+          name: tensorflow
+          version: '2'
+parameters: []

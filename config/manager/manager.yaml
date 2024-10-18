@@ -23,7 +23,6 @@ spec:
         kubectl.kubernetes.io/default-container: manager
       labels:
         control-plane: controller-manager
-        name: opendatahub-operator
     spec:
       securityContext:
         runAsNonRoot: true
@@ -38,18 +37,17 @@ spec:
       - command:
         - /manager
         env:
-          - name: DISABLE_DSC_CONFIG
-            value: 'true'
-        args:
-        - --leader-elect
-        - --operator-name=opendatahub
+          - name: OPERATOR_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: DEFAULT_MANIFESTS_PATH
+            value: /opt/manifests
+          # - name: ODH_PLATFORM_TYPE
+          #   value: SelfManagedRHOAI
         image: controller:latest
         imagePullPolicy: Always
         name: manager
-        ports:
-          - containerPort: 8080
-            protocol: TCP
-            name: http
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:

@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ds-pipeline-server-config-{{.Name}}
+  namespace: {{.Namespace}}
+  labels:
+    app: {{.APIServerDefaultResourceName}}
+    component: data-science-pipelines
+data:
+  config.json: |
+{{ if eq .DSPVersion "v2" }}
+    {
+      "DBConfig": {
+        "MySQLConfig": {
+          "ExtraParams": {{ .DBConnection.ExtraParams }},
+          "GroupConcatMaxLen": "4194304"
+         },
+        "PostgreSQLConfig": {},
+        "ConMaxLifeTime": "120s"
+      },
+      "ObjectStoreConfig": {
+        "PipelinePath": "pipelines"
+      },
+      "DBDriverName": "mysql",
+      "ARCHIVE_CONFIG_LOG_FILE_NAME": "main.log",
+      "ARCHIVE_CONFIG_LOG_PATH_PREFIX": "/artifacts",
+      "InitConnectionTimeout": "6m"
+    }
+{{ else }}
+    {
+      "DBConfig": {
+        "DriverName": "mysql",
+        "ConMaxLifeTime": "120s",
+        "ExtraParams": {{ .DBConnection.ExtraParams }}
+      },
+      "ObjectStoreConfig": {
+        "PipelinePath": "pipelines"
+      },
+      "InitConnectionTimeout": "6m"
+    }
+{{ end }}

@@ -1,0 +1,84 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ds-pipelines-{{.Name}}
+  namespace: {{.Namespace}}
+spec:
+  podSelector:
+    matchLabels:
+      app: {{.APIServerDefaultResourceName}}
+      component: data-science-pipelines
+  policyTypes:
+    - Ingress
+  ingress:
+    # Match all sources for oauth endpoint
+    - ports:
+        - protocol: TCP
+          port: 8443
+    # We only allow DSPA components to communicate
+    # by bypassing oauth proxy, all external
+    # traffic should go through oauth proxy
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: openshift-user-workload-monitoring
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: redhat-ods-monitoring
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openshift-pipelines
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/managed-by: tekton-pipelines
+              pipelines.kubeflow.org/v2_component: 'true'
+        - podSelector:
+            matchLabels:
+              app: mariadb-{{.Name}}
+              component: data-science-pipelines
+        - podSelector:
+            matchLabels:
+              app: minio-{{.Name}}
+              component: data-science-pipelines
+        - podSelector:
+            matchLabels:
+              app: ds-pipeline-ui-{{.Name}}
+              component: data-science-pipelines
+        - podSelector:
+            matchLabels:
+              app: ds-pipeline-persistenceagent-{{.Name}}
+              component: data-science-pipelines
+        - podSelector:
+            matchLabels:
+              app: ds-pipeline-scheduledworkflow-{{.Name}}
+              component: data-science-pipelines
+        - podSelector:
+            matchLabels:
+              app: ds-pipeline-metadata-envoy-{{.Name}}
+              component: data-science-pipelines
+        - podSelector:
+            matchLabels:
+              app: ds-pipeline-metadata-grpc-{{.Name}}
+              component: data-science-pipelines
+        - podSelector:
+            matchLabels:
+              app: ds-pipeline-metadata-writer-{{.Name}}
+              component: data-science-pipelines
+        - podSelector:
+            matchLabels:
+              opendatahub.io/workbenches: 'true'
+      ports:
+        - protocol: TCP
+          port: 8888
+        - protocol: TCP
+          port: 8887
+    - ports:
+        - protocol: TCP
+          port: 8080
+      from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: data-science-pipelines-operator-driver
+          namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openshift-pipelines

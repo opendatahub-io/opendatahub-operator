@@ -1,0 +1,85 @@
+# replacements from configmap using params.env for use in opendatahub-operator
+- source:
+    kind: ConfigMap
+    name: model-registry-operator-parameters
+    fieldPath: data.IMAGES_MODELREGISTRY_OPERATOR
+  targets:
+    - select:
+        kind: Deployment
+        name: controller-manager
+      fieldPaths:
+        - spec.template.spec.containers.[name=manager].image
+- source:
+    kind: ConfigMap
+    name: model-registry-operator-parameters
+    fieldPath: data.IMAGES_GRPC_SERVICE
+  targets:
+    - select:
+        kind: Deployment
+        name: controller-manager
+      fieldPaths:
+        - spec.template.spec.containers.[name=manager].env.[name=GRPC_IMAGE].value
+- source:
+    kind: ConfigMap
+    name: model-registry-operator-parameters
+    fieldPath: data.IMAGES_REST_SERVICE
+  targets:
+    - select:
+        kind: Deployment
+        name: controller-manager
+      fieldPaths:
+        - spec.template.spec.containers.[name=manager].env.[name=REST_IMAGE].value
+- source:
+    kind: ConfigMap
+    name: model-registry-operator-parameters
+    fieldPath: data.CREATE_AUTH_RESOURCES
+  targets:
+    - select:
+        kind: Deployment
+        name: controller-manager
+      fieldPaths:
+        - spec.template.spec.containers.[name=manager].env.[name=CREATE_AUTH_RESOURCES].value
+- source:
+    kind: ConfigMap
+    name: model-registry-operator-parameters
+    fieldPath: data.DEFAULT_CERT
+  targets:
+    - select:
+        kind: Deployment
+        name: controller-manager
+      fieldPaths:
+        - spec.template.spec.containers.[name=manager].env.[name=DEFAULT_CERT].value
+# Metrics service name replacements for auth proxy serving cert
+- source:
+    kind: Service
+    name: controller-manager-metrics-service
+    fieldPath: metadata.name
+  targets:
+    - select:
+        kind: Service
+        name: controller-manager-metrics-service
+      fieldPaths:
+        - metadata.annotations.[service.beta.openshift.io/serving-cert-secret-name]
+    - select:
+        kind: Deployment
+        name: controller-manager
+      fieldPaths:
+        # uses regex since kustomize v4.5.3, hence the full match below
+        - spec.template.spec.volumes.[name=^server-cert$].secret.secretName
+# Webhook service name replacement for webhook-server port serving cert
+- source:
+    kind: Service
+    name: webhook-service
+    fieldPath: metadata.name
+  targets:
+    - select:
+        kind: Service
+        name: webhook-service
+      fieldPaths:
+        - metadata.annotations.[service.beta.openshift.io/serving-cert-secret-name]
+    - select:
+        kind: Deployment
+        name: controller-manager
+      fieldPaths:
+        # uses regex since kustomize v4.5.3, hence the full match below
+        - spec.template.spec.volumes.[name=^cert$].secret.secretName

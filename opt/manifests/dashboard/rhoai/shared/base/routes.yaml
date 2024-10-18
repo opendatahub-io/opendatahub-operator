@@ -1,0 +1,6 @@
+- op: replace
+  path: /metadata/name
+  value: rhods-dashboard
+- op: replace
+  path: /spec/to/name
+  value: rhods-dashboard

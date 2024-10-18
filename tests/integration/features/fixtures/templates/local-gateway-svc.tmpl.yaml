@@ -1,7 +1,8 @@
 apiVersion: v1
 kind: Service
 metadata:
-  labels:
+  annotations:
+    test: "original-value"
     experimental.istio.io/disable-gateway-port-translation: "true"
   name: knative-local-gateway
   namespace: {{ .ControlPlane.Namespace }}

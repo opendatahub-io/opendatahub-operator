@@ -1,0 +1,121 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ds-pipeline-metadata-grpc-{{.Name}}
+  namespace: {{.Namespace}}
+  labels:
+    app: ds-pipeline-metadata-grpc-{{.Name}}
+    component: data-science-pipelines
+    dspa: {{.Name}}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ds-pipeline-metadata-grpc-{{.Name}}
+      component: data-science-pipelines
+      dspa: {{.Name}}
+  template:
+    metadata:
+      labels:
+        app: ds-pipeline-metadata-grpc-{{.Name}}
+        component: data-science-pipelines
+        dspa: {{.Name}}
+    spec:
+      containers:
+        - args:
+            - --grpc_port={{.MLMD.GRPC.Port}}
+            - --mysql_config_database=$(MYSQL_DATABASE)
+            - --mysql_config_host=$(MYSQL_HOST)
+            - --mysql_config_port=$(MYSQL_PORT)
+            - --mysql_config_user=$(DBCONFIG_USER)
+            - --mysql_config_password=$(DBCONFIG_PASSWORD)
+            - --enable_database_upgrade=true
+            {{ if .PodToPodTLS }}
+            - --metadata_store_server_config_file=/mlmd-tls-config/config.proto
+            {{ end }}
+            {{ if .CustomCABundle }}
+            - --mysql_config_sslrootcert={{ .PiplinesCABundleMountPath }}
+            {{ end }}
+          command:
+            - /bin/metadata_store_server
+          env:
+            - name: DBCONFIG_USER
+              value: "{{.DBConnection.Username}}"
+            - name: DBCONFIG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: "{{.DBConnection.CredentialsSecret.Key}}"
+                  name: "{{.DBConnection.CredentialsSecret.Name}}"
+            - name: MYSQL_DATABASE
+              value: "{{.DBConnection.DBName}}"
+            - name: MYSQL_HOST
+              value: "{{.DBConnection.Host}}"
+            - name: MYSQL_PORT
+              value: "{{.DBConnection.Port}}"
+          image: {{.MLMD.GRPC.Image}}
+          name: container
+          ports:
+            - containerPort: {{.MLMD.GRPC.Port}}
+              name: grpc-api
+          livenessProbe:
+            initialDelaySeconds: 30
+            periodSeconds: 5
+            tcpSocket:
+              port: grpc-api
+            timeoutSeconds: 2
+          readinessProbe:
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            tcpSocket:
+              port: grpc-api
+            timeoutSeconds: 2
+          resources:
+            {{ if .MLMD.GRPC.Resources.Requests }}
+            requests:
+              {{ if .MLMD.GRPC.Resources.Requests.CPU }}
+              cpu: {{.MLMD.GRPC.Resources.Requests.CPU}}
+              {{ end }}
+              {{ if .MLMD.GRPC.Resources.Requests.Memory }}
+              memory: {{.MLMD.GRPC.Resources.Requests.Memory}}
+              {{ end }}
+            {{ end }}
+            {{ if .MLMD.GRPC.Resources.Limits }}
+            limits:
+              {{ if .MLMD.GRPC.Resources.Limits.CPU }}
+              cpu: {{.MLMD.GRPC.Resources.Limits.CPU}}
+              {{ end }}
+              {{ if .MLMD.GRPC.Resources.Limits.Memory }}
+              memory: {{.MLMD.GRPC.Resources.Limits.Memory}}
+              {{ end }}
+            {{ end }}
+          volumeMounts:
+            {{ if .CustomCABundle }}
+            - mountPath: {{ .CustomCABundleRootMountPath }}
+              name: ca-bundle
+            {{ end }}
+            {{ if .PodToPodTLS }}
+            - name: ds-pipeline-metadata-grpc-tls-config-{{.Name}}
+              mountPath: /mlmd-tls-config
+            - name: ds-pipeline-metadata-grpc-tls-certs-{{.Name}}
+              mountPath: "/etc/tls"
+            {{ end }}
+      serviceAccountName: ds-pipeline-metadata-grpc-{{.Name}}
+      volumes:
+        {{ if .CustomCABundle }}
+        - name: ca-bundle
+          configMap:
+            name: {{ .CustomCABundle.ConfigMapName }}
+        {{ end }}
+        {{ if .PodToPodTLS }}
+        - name: ds-pipeline-metadata-grpc-tls-config-{{.Name}}
+          secret:
+            secretName: ds-pipeline-metadata-grpc-tls-config-secret-{{.Name}}
+        - name: ds-pipeline-metadata-grpc-tls-certs-{{.Name}}
+          secret:
+            secretName: ds-pipeline-metadata-grpc-tls-certs-{{.Name}}
+            items:
+            - key: tls.key
+              path: tls.key
+            - key: tls.crt
+              path: tls.crt
+        {{ end }}

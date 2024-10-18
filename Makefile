@@ -3,7 +3,7 @@
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
-VERSION ?= 2.11.0
+VERSION ?= 2.15.0
 # IMAGE_TAG_BASE defines the opendatahub.io namespace and part of the image name for remote images.
 # This variable is used to construct full image tags for bundle and catalog images.
 #
@@ -20,10 +20,14 @@ IMG ?= $(IMAGE_TAG_BASE):$(IMG_TAG)
 BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
 
 IMAGE_BUILDER ?= podman
-OPERATOR_NAMESPACE ?= opendatahub-operator-system
+OPERATOR_NAMESPACE ?= redhat-ods-operator
+DEFAULT_MANIFESTS_PATH ?= opt/manifests
 
+MANIFEST_REPO ?= red-hat-data-services
+MANIFEST_RELEASE ?= master
 
-CHANNELS="fast"
+CHANNELS="alpha,stable"
+
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
 # To re-generate a bundle for other specific channels without changing the standard setup, you can:
@@ -33,7 +37,7 @@ ifneq ($(origin CHANNELS), undefined)
 BUNDLE_CHANNELS := --channels=$(CHANNELS)
 endif
 
-DEFAULT_CHANNEL="fast"
+DEFAULT_CHANNEL="stable"
 # DEFAULT_CHANNEL defines the default channel used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g DEFAULT_CHANNEL = "stable")
 # To re-generate a bundle for any other default channel without changing the default setup, you can:
@@ -64,15 +68,15 @@ GOLANGCI_LINT ?= $(LOCALBIN)/golangci-lint
 CRD_REF_DOCS ?= $(LOCALBIN)/crd-ref-docs
 YQ ?= $(LOCALBIN)/yq
 ## Tool Versions
-KUSTOMIZE_VERSION ?= v3.8.7
-CONTROLLER_GEN_VERSION ?= v0.9.2
+KUSTOMIZE_VERSION ?= v5.0.2
+CONTROLLER_GEN_VERSION ?= v0.16.1
 OPERATOR_SDK_VERSION ?= v1.31.0
-GOLANGCI_LINT_VERSION ?= v1.54.0
+GOLANGCI_LINT_VERSION ?= v1.60.2
 YQ_VERSION ?= v4.12.2
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.24.2
-ENVTEST_PACKAGE_VERSION = v0.0.0-20240320141353-395cfc7486e6
-CRD_REF_DOCS_VERSION = 0.0.11
+ENVTEST_K8S_VERSION = 1.31.0
+ENVTEST_PACKAGE_VERSION = v0.0.0-20240813183042-b901db121e1f
+CRD_REF_DOCS_VERSION = 0.1.0
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -87,15 +91,15 @@ SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
 # E2E tests additional flags
-E2E_TEST_FLAGS = "--skip-deletion=false" -timeout 20m # See README.md, default go test timeout 10m
+E2E_TEST_FLAGS = "--skip-deletion=false" -timeout 25m # See README.md, default go test timeout 10m
 
 # Default image-build is to not use local odh-manifests folder
 # set to "true" to use local instead
 # see target "image-build"
 IMAGE_BUILD_FLAGS ?= --build-arg USE_LOCAL=false
 
-# Read any custom variables overrides from a local.mk file.  This will only be read if it exists in the 
-# same directory as this Makefile.  Variables can be specified in the standard format supported by 
+# Read any custom variables overrides from a local.mk file.  This will only be read if it exists in the
+# same directory as this Makefile.  Variables can be specified in the standard format supported by
 # GNU Make since `include` processes any valid Makefile
 # Standard variables override would include anything you would pass at runtime that is different
 # from the defaults specified in this file
@@ -104,7 +108,7 @@ OPERATOR_MAKE_ENV_FILE = local.mk
 
 
 .PHONY: default
-default: manifests lint unit-test build
+default: manifests generate lint unit-test build
 
 ##@ General
 
@@ -166,22 +170,29 @@ lint: golangci-lint ## Run golangci-lint against code.
 .PHONY: get-manifests
 get-manifests: ## Fetch components manifests from remote git repo
 	./get_all_manifests.sh
-CLEANFILES += odh-manifests/*
+CLEANFILES += opt/manifests/*
 
 .PHONY: api-docs
 api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-ref-docs
 	$(CRD_REF_DOCS) --source-path ./ --output-path ./docs/api-overview.md --renderer markdown --config ./crd-ref-docs.config.yaml && \
-	egrep -v '\.io/[^v][^1].*)$$' ./docs/api-overview.md > temp.md && mv ./temp.md ./docs/api-overview.md
-	
+	grep -Ev '\.io/[^v][^1].*)$$' ./docs/api-overview.md > temp.md && mv ./temp.md ./docs/api-overview.md
+
 ##@ Build
 
 .PHONY: build
 build: generate fmt vet ## Build manager binary.
 	go build -o bin/manager main.go
 
+RUN_ARGS = --log-mode=devel
+GO_RUN_MAIN = OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) DEFAULT_MANIFESTS_PATH=$(DEFAULT_MANIFESTS_PATH) go run $(GO_RUN_ARGS) ./main.go $(RUN_ARGS)
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
-	go run ./main.go
+	$(GO_RUN_MAIN)
+
+.PHONY: run-nowebhook
+run-nowebhook: GO_RUN_ARGS += -tags nowebhook
+run-nowebhook: manifests generate fmt vet ## Run a controller from your host without webhook enabled
+	$(GO_RUN_MAIN)
 
 .PHONY: image-build
 image-build: # unit-test ## Build image with the manager.
@@ -263,12 +274,15 @@ golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
 $(GOLANGCI_LINT): $(LOCALBIN)
 	test -s $(GOLANGCI_LINT) || { curl -sSfL $(GOLANGCI_LINT_INSTALL_SCRIPT) | bash -s $(GOLANGCI_LINT_VERSION); }
 
-CRD_REF_DOCS_DL_URL ?= 'https://github.com/elastic/crd-ref-docs/releases/download/v$(CRD_REF_DOCS_VERSION)/crd-ref-docs'
+
+OS=$(shell uname -s)
+ARCH=$(shell uname -m)
 .PHONY: crd-ref-docs
-crd-ref-docs: $(CRD_REF_DOCS) ## Download crd-ref-docs locally if necessary.
+crd-ref-docs: $(CRD_REF_DOCS)
 $(CRD_REF_DOCS): $(LOCALBIN)
-	test -s $(CRD_REF_DOCS) || curl -sSLo $(CRD_REF_DOCS) $(CRD_REF_DOCS_DL_URL) && \
-	chmod +x $(CRD_REF_DOCS) ;\
+	test -s $(CRD_REF_DOCS) || ( \
+		curl -sSL https://github.com/elastic/crd-ref-docs/releases/download/v$(CRD_REF_DOCS_VERSION)/crd-ref-docs_$(CRD_REF_DOCS_VERSION)_$(OS)_$(ARCH).tar.gz | tar -xzf - -C $(LOCALBIN) crd-ref-docs \
+	)
 
 BUNDLE_DIR ?= "bundle"
 .PHONY: bundle
@@ -277,6 +291,7 @@ bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then val
 	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS)
 	$(OPERATOR_SDK) bundle validate ./$(BUNDLE_DIR)
 	mv bundle.Dockerfile Dockerfiles/
+	rm -f bundle/manifests/redhat-ods-operator-webhook-service_v1_service.yaml
 
 .PHONY: bundle-build
 bundle-build: bundle
@@ -335,15 +350,14 @@ catalog-build: opm ## Build a catalog image.
 catalog-push: ## Push a catalog image.
 	$(MAKE) image-push IMG=$(CATALOG_IMG)
 
-TOOLBOX_GOLANG_VERSION := 1.20
-TOOLBOX_OPERATOR_SDK_VERSION := 1.24.1
+TOOLBOX_GOLANG_VERSION := 1.21
 
 # Generate a Toolbox container for locally testing changes easily
 .PHONY: toolbox
 toolbox: ## Create a toolbox instance with the proper Golang and Operator SDK versions
 	$(IMAGE_BUILDER) build \
 		--build-arg GOLANG_VERSION=$(TOOLBOX_GOLANG_VERSION) \
-		--build-arg OPERATOR_SDK_VERSION=$(TOOLBOX_OPERATOR_SDK_VERSION) \
+		--build-arg OPERATOR_SDK_VERSION=$(OPERATOR_SDK_VERSION) \
 		-f Dockerfiles/toolbox.Dockerfile -t opendatahub-toolbox .
 	$(IMAGE_BUILDER) stop opendatahub-toolbox ||:
 	toolbox rm opendatahub-toolbox ||:
@@ -362,7 +376,7 @@ test: unit-test e2e-test
 
 .PHONY: unit-test
 unit-test: envtest
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $(TEST_SRC) -v  -coverprofile cover.out
+	OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $(TEST_SRC) -v  -coverprofile cover.out
 CLEANFILES += cover.out
 
 .PHONY: e2e-test

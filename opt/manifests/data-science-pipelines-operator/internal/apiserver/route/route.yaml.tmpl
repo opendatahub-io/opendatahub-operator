@@ -1,0 +1,20 @@
+kind: Route
+apiVersion: route.openshift.io/v1
+metadata:
+  name: {{.APIServerDefaultResourceName}}
+  namespace: {{.Namespace}}
+  labels:
+    app: {{.APIServerDefaultResourceName}}
+    component: data-science-pipelines
+  annotations:
+    kubernetes.io/tls-acme: "true"
+spec:
+  to:
+    kind: Service
+    name: {{.APIServerDefaultResourceName}}
+    weight: 100
+  port:
+    targetPort: oauth
+  tls:
+    termination: Reencrypt
+    insecureEdgeTerminationPolicy: Redirect

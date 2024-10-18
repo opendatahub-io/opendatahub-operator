@@ -1,0 +1,29 @@
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  labels:
+    opendatahub.io/notebook-image: "true"
+  annotations:
+    opendatahub.io/notebook-image-url: "https://github.com/opendatahub-io/notebooks/blob/main/jupyter/intel/pytorch"
+    opendatahub.io/notebook-image-name: "Intel-PyTorch"
+    opendatahub.io/notebook-image-desc: "Jupyter Intel® optimized PyTorch notebook image for ODH notebooks."
+    opendatahub.io/notebook-image-order: "12"
+  name: jupyter-intel-pytorch
+spec:
+  lookupPolicy:
+    local: true
+  tags:
+    # N Version of the image
+    - annotations:
+        opendatahub.io/notebook-software: '[{"name":"Python","version":"v3.9"},{"name":"Intel-PyTorch","version":"2.1"}]'
+        opendatahub.io/notebook-python-dependencies: '[{"name":"Intel-PyTorch","version":"2.1"},{"name":"Tensorboard","version":"2.14"},{"name":"Kafka-Python","version":"2.0"},{"name":"Matplotlib","version":"3.6"},{"name":"Numpy","version":"1.26"},{"name":"Pandas","version":"1.5"},{"name":"Scikit-learn","version":"1.4"},{"name":"Scipy","version":"1.11"},{"name":"Elyra","version":"3.15"},{"name":"PyMongo","version":"4.5"},{"name":"Pyodbc","version":"4.0"}, {"name":"Codeflare-SDK","version":"0.13"}, {"name":"Sklearn-onnx","version":"1.15"}, {"name":"Psycopg","version":"3.1"}, {"name":"MySQL Connector/Python","version":"8.0"}]'
+        openshift.io/imported-from: quay.io/opendatahub/workbench-images
+        opendatahub.io/workbench-image-recommended: 'true'
+        opendatahub.io/notebook-build-commit: 'c010eb0'
+      from:
+        kind: DockerImage
+        name: quay.io/opendatahub/workbench-images@sha256:99e4822a580e8687f178e772af6b3dea507b50b4023792aa2dea0c2475c74ba6
+      name: "2024.1"
+      referencePolicy:
+        type: Source

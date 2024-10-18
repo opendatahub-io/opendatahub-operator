@@ -1,0 +1,119 @@
+apiVersion: dashboard.opendatahub.io/v1
+kind: OdhDocument
+metadata:
+  name: anaconda-background
+  annotations:
+    opendatahub.io/categories: 'Package management,Notebook environments'
+spec:
+  appName: anaconda-ce
+  type: tutorial
+  displayName: Exploring Anaconda for data science 
+  description: |-
+    Learn about Anaconda, a freemium open source distribution of the Python and R programming languages.
+  url: https://anaconda.org/training/anaconda_introduction/notebook
+  durationMinutes: 5
+---
+apiVersion: dashboard.opendatahub.io/v1
+kind: OdhDocument
+metadata:
+  name: python-accelerate-numba-tutorial
+  annotations:
+    opendatahub.io/categories: 'Model optimization,Model development'
+spec:
+  appName: anaconda-ce
+  type: tutorial
+  displayName: Accelerating scientific workloads in Python with Numba
+  description: |-
+    Watch a video about how to make your Python code run faster.
+  url: https://www.youtube.com/watch?v=6oXedk2tGfk
+  durationMinutes: 42
+---
+apiVersion: dashboard.opendatahub.io/v1
+kind: OdhDocument
+metadata:
+  name: python-effective-pandas-tutorial
+  annotations:
+    opendatahub.io/categories: 'Model development,Data visualization,Data analysis'
+spec:
+  appName: anaconda-ce
+  type: tutorial
+  displayName: Using Pandas for data analysis in Python 
+  description: |-
+    Learn how to use pandas, a data analysis library for the Python programming language. 
+  url: https://github.com/TomAugspurger/effective-pandas
+  durationMinutes: 90
+---
+apiVersion: dashboard.opendatahub.io/v1
+kind: OdhDocument
+metadata:
+  name: python-gpu-numba-tutorial
+  annotations:
+    opendatahub.io/categories: 'Model optimization,Model development'
+spec:
+  appName: anaconda-ce
+  type: tutorial
+  displayName: GPU Computing in Python with Numba
+  description: |-
+    Learn how to create GPU accelerated functions using Numba.
+  url: https://github.com/ContinuumIO/gtc2018-numba
+  durationMinutes: 90
+---
+apiVersion: dashboard.opendatahub.io/v1
+kind: OdhDocument
+metadata:
+  name: python-interactive-visualization-tutorial
+  annotations:
+    opendatahub.io/categories: 'Data visualization,Model development'
+spec:
+  appName: anaconda-ce
+  type: tutorial
+  displayName: Building interactive visualizations and dashboards in Python
+  description: |-
+    Explore a variety of data across multiple notebooks and learn how to deploy full dashboards and applications.
+  url: https://holoviz.org/tutorial/index.html
+  durationMinutes: 210
+---
+apiVersion: dashboard.opendatahub.io/v1
+kind: OdhDocument
+metadata:
+  name: python-scalable-computing-dask-tutorial
+  annotations:
+    opendatahub.io/categories: 'Data analysis,Model optimization'
+spec:
+  appName: anaconda-ce
+  displayName: Using Dask for parallel data analysis 
+  description: |-
+    Analyze medium-sized datasets in parallel locally using Dask, a parallel computing library that scales the existing Python ecosystem.
+  url: https://tutorial.dask.org/
+  type: tutorial
+  durationMinutes: 230
+---
+apiVersion: dashboard.opendatahub.io/v1
+kind: OdhDocument
+metadata:
+  name: python-scikit-learn-tutorial
+  annotations:
+    opendatahub.io/categories: 'Model development,Getting started'
+spec:
+  appName: anaconda-ce
+  type: tutorial
+  displayName: Building machine learning models with scikit-learn 
+  description: |-
+    Learn how to build machine learning models with scikit-learn for supervised learning, unsupervised learning, and classification problems.
+  url: https://scikit-learn.org/stable/tutorial/index.html
+  durationMinutes: 90
+---
+apiVersion: dashboard.opendatahub.io/v1
+kind: OdhDocument
+metadata:
+  name: python-visualization-tutorial
+  annotations:
+    opendatahub.io/categories: 'Data visualization,Getting started'
+spec:
+  appName: anaconda-ce
+  type: tutorial
+  displayName: Choosing Python tools for data visualization
+  description: |-
+    Use the PyViz.org website to help you decide on the best open source Python data visualization tools for you.
+  url: https://pyviz.org
+  durationMinutes: 30

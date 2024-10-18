@@ -1,0 +1,65 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../prometheus
+  - ./default
+  - ./scripts
+  - ./quickstart.yaml
+  - ./rbac
+
+namespace: opendatahub
+configMapGenerator:
+  - envs:
+      - params.env
+    name: mesh-parameters
+generatorOptions:
+  disableNameSuffixHash: true
+
+
+vars:
+  - fieldref:
+      fieldPath: metadata.namespace
+    name: mesh-namespace
+    objref:
+      apiVersion: v1
+      kind: ConfigMap
+      name: mesh-parameters
+  - fieldref:
+      fieldPath: data.odh-modelmesh
+    name: odh-modelmesh
+    objref:
+      apiVersion: v1
+      kind: ConfigMap
+      name: mesh-parameters
+  - fieldref:
+      fieldPath: data.odh-mm-rest-proxy
+    name: odh-mm-rest-proxy
+    objref:
+      apiVersion: v1
+      kind: ConfigMap
+      name: mesh-parameters
+  - fieldref:
+      fieldPath: data.odh-modelmesh-runtime-adapter
+    name: odh-modelmesh-runtime-adapter
+    objref:
+      apiVersion: v1
+      kind: ConfigMap
+      name: mesh-parameters
+  - fieldref:
+      fieldPath: data.odh-modelmesh-controller
+    name: odh-modelmesh-controller
+    objref:
+      apiVersion: v1
+      kind: ConfigMap
+      name: mesh-parameters
+
+commonLabels:
+  app: model-mesh
+  app.kubernetes.io/part-of: model-mesh
+
+patchesStrategicMerge:
+  - ./crd/clusterservingruntime_patch_delete.yaml
+
+configurations:
+  - params.yaml

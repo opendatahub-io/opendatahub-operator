@@ -1,0 +1,209 @@
+apiVersion: dashboard.opendatahub.io/v1
+kind: OdhApplication
+metadata:
+  name: pachyderm
+  annotations:
+    opendatahub.io/categories: 'Data management,Data preprocessing,Model training'
+spec:
+  displayName: Pachyderm
+  provider: Pachyderm
+  description: |-
+    Pachyderm is the data foundation for machine learning. It provides industry-leading pipelines, data versioning, and lineage for data science teams to automate the machine learning lifecycle.
+  kfdefApplications: []
+  route: ''
+  img: >-
+    <svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 104.5805 179.9943"><defs><linearGradient id="linear-gradient" x1="-504.5674" y1="719.5639" x2="-505.4725" y2="719.4784" gradientTransform="matrix(23.339, 0, 0, -5.0865, 11847.2887, 3820.1285)" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fe9b7c"/><stop offset="1" stop-color="#d06868"/></linearGradient><radialGradient id="radial-gradient" cx="-404.6182" cy="876.3906" r="0.6007" gradientTransform="matrix(0, 5.0865, 15.6171, 0, -13626.9803, 2217.2094)" gradientUnits="userSpaceOnUse"><stop offset="0" stop-opacity="0.5"/><stop offset="1" stop-opacity="0"/></radialGradient><linearGradient id="linear-gradient-2" x1="-521.7454" y1="837.4899" x2="-521.4484" y2="838.3675" gradientTransform="matrix(88.6318, 0, 0, -138.6841, 46417.2108, 116344.9321)" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#4c416c"/><stop offset="1" stop-color="#4f7995"/></linearGradient><mask id="mask" x="4.5309" y="41.222" width="88.6318" height="138.6841" maskUnits="userSpaceOnUse"><g transform="translate(-140.8856 -18.5196)"><g id="mask-6"><path id="path-5" d="M217.5932,75.5414c-6.3239-3.48-4.4581-12.84-4.4581-12.84s.3392-2.3659-1.3646-2.7031-2.2151-.8434-2.0429,2.1982-1.6756,11.4922,3.4378,15.8827c3.7355,3.2072,9.0307,2.5288,12.7818,7.5962,3.7348,5.0449-1.4324,12.1385-2.5676,12.6757-3.5765,1.692-3.4058,2.3678-6.3016,2.7076s-10.542-.5-14.8,1.0233-3.085,3.0437-7.1719,5.5811-10.8991,5.9214-13.7931,9.134a11.1669,11.1669,0,0,0-2.3372,4.1368c-2.7439.82-8.8441,1.6368-13.6506,4.3225-2.8162,1.5737-10.2318,6.6367-13.6213,11.5a36.5827,36.5827,0,0,0-5.4422,14.1982,80.568,80.568,0,0,0-.8452,11.6606,49.0648,49.0648,0,0,0,1.0778,9.25,38.17,38.17,0,0,1,.5073,5.6107c0,1.6281-.5073,2.0236-.5073,3.1563a2.0789,2.0789,0,0,0,.628,1.76c.2731.2756,0-.8533,0-1.1536s.4045-1.0954.528-.8381-.0186.02-.1281,1.3145.9692,3.737.9692,2.6288a12.423,12.423,0,0,1,.2572-3.2917c.2573-.6629.2713-.1552.2713,0s-.0677.5237.0986.4479.4609-.3772.1663-1.883-.4693-1.5058-.5731-2.1413c-.3543-2.1684-.35-3.2581-.5621-4.7232a98.53,98.53,0,0,1-.3486-12.3358c.2581-3.8782,1.26-4.3279,1.7-5.0706.701-1.1834,1.3942,7.1537,4.4385,14.53,2.58,6.2508,6.1369,6.2486,7.5007,7.6s-1.1878,7.2672-.1629,11.4912c.92,3.7929-.3368,6.2527.0046,7.2664s4.4307,2.1926,7.4971,2.1926c3.0664-.0025,6.8138-.85,6.8129-2.2017-.0023-3.5487-1.3647-2.8719-1.7069-5.0684s3.1856-5.416,3.5724-8.1137c.6783-4.7321-.0036-5.7455-1.0281-9.2936-.0653-.2257-.514-4.3933-.514-4.3933s5.6225.8414,9.3686-1.6957a24.19,24.19,0,0,0,8.5108-11.1585,51.6855,51.6855,0,0,0,4.0911,4.0531,10.7012,10.7012,0,0,0,4.4308,2.3629c1.5336.5062,5.6024,1.5174,5.6024,1.5174a26.6072,26.6072,0,0,1-3.2143,3.2127c-.8429.5981-3.2555,2.537-2.7439,3.5506a14.975,14.975,0,0,0,3.9214,4.8981c3.0883,2.0258,5.644,2.7,6.4958,2.5307s1.85-5.7467,3.0415-6.7615,3.4249-4.3958,3.2534-6.0855c-.168-1.6559-.5164-8.111-4.7767-10.4741-2.3131-1.2829-5.1937-2.01-6.3075-6.4176-1.0247-4.055-7.5-6.7547-7.5-6.7547a92.2746,92.2746,0,0,1,6.407-7.6955,5.9275,5.9275,0,0,0,2.9376.7612c1.8547-.0847,1.2881-2.1132.2218-4.8981l.307.5041s3.3033-1.9951,4.4266-4.2274c1.191-2.3665,4.254-7.776,6.8089-8.6227,2.9485-.9769,8.1748-3.7227,7.663-4.7363-.7181-1.4225-5.2821-1.5175-5.2821-1.5175s5.8329-2.1753,6.1312-2.7077c2.3746-4.239,5.72-12.15,3.7342-21.1258C231.0525,77.0538,220.6607,77.2292,217.5932,75.5414Z" fill="#fff" fill-rule="evenodd"/></g></g></mask><mask id="mask-2" x="4.5315" y="102.0804" width="73.2655" height="77.8251" maskUnits="userSpaceOnUse"><g transform="translate(-140.8856 -18.5196)"><g id="mask-8"><path id="path-7" d="M151.7041,136.7561a36.5788,36.5788,0,0,0-5.4424,14.1982,80.5014,80.5014,0,0,0-.8446,11.6606,60.64,60.64,0,0,0,1.0289,10.3074c.855,4.7311,1.8806,10.1382,2.562,9.9687.33-.0823-.1364-5.1485-.8584-10.1387a98.5677,98.5677,0,0,1-.3486-12.3358c.2581-3.8782,1.26-4.3277,1.7-5.0706.701-1.1834,1.3942,7.1537,4.4386,14.53,2.58,6.2508,6.1368,6.2485,7.5007,7.6s-1.188,7.2672-.1632,11.4912c.9205,3.7929-.3366,6.2527.0048,7.2663s4.4307,2.1941,7.4971,2.1921,6.8138-.849,6.8129-2.2011c-.0023-3.5487-1.3647-2.8719-1.7068-5.0684s3.1855-5.416,3.5723-8.1135c.6783-4.7323-.0038-5.7456-1.0281-9.2938-.0653-.2257-.5138-4.3933-.5138-4.3933s5.6223.8414,9.3684-1.6957a24.1918,24.1918,0,0,0,8.5108-11.1585,51.6855,51.6855,0,0,0,4.0911,4.0531,10.7,10.7,0,0,0,4.4308,2.3629c1.5336.5062,5.6024,1.5174,5.6024,1.5174a26.6072,26.6072,0,0,1-3.2143,3.2127c-.8429.5981-3.2555,2.5368-2.7439,3.5506a14.9777,14.9777,0,0,0,3.9214,4.8981c3.0881,2.0258,5.644,2.7,6.4958,2.5305s1.85-5.7465,3.0415-6.7613,3.4247-4.3958,3.2534-6.0855c-.168-1.6559-.5164-8.111-4.7767-10.4743-2.3133-1.2827-5.1937-2.01-6.3075-6.4172-1.0247-4.0552-7.5-6.7549-7.5-6.7549a96.0528,96.0528,0,0,1,6.6389-7.9466L179.8879,120.6c-1.9976.9685-9.1131,1.6111-14.5627,4.6563C162.509,126.83,155.0934,131.893,151.7041,136.7561Z" fill="#fff" fill-rule="evenodd"/></g></g></mask><mask id="mask-4" x="0" y="90.4107" width="84.5164" height="89.4949" maskUnits="userSpaceOnUse"><g transform="translate(-140.8856 -18.5196)"><g id="mask-8-3" data-name="mask-8"><path id="path-7-3" data-name="path-7" d="M151.7041,136.7561a36.5788,36.5788,0,0,0-5.4424,14.1982,80.5014,80.5014,0,0,0-.8446,11.6606,60.64,60.64,0,0,0,1.0289,10.3074c.855,4.7311,1.8806,10.1382,2.562,9.9687.33-.0823-.1364-5.1485-.8584-10.1387a98.5677,98.5677,0,0,1-.3486-12.3358c.2581-3.8782,1.26-4.3277,1.7-5.0706.701-1.1834,1.3942,7.1537,4.4386,14.53,2.58,6.2508,6.1368,6.2485,7.5007,7.6s-1.188,7.2672-.1632,11.4912c.9205,3.7929-.3366,6.2527.0048,7.2663s4.4307,2.1941,7.4971,2.1921,6.8138-.849,6.8129-2.2011c-.0023-3.5487-1.3647-2.8719-1.7068-5.0684s3.1855-5.416,3.5723-8.1135c.6783-4.7323-.0038-5.7456-1.0281-9.2938-.0653-.2257-.5138-4.3933-.5138-4.3933s5.6223.8414,9.3684-1.6957a24.1918,24.1918,0,0,0,8.5108-11.1585,51.6855,51.6855,0,0,0,4.0911,4.0531,10.7,10.7,0,0,0,4.4308,2.3629c1.5336.5062,5.6024,1.5174,5.6024,1.5174a26.6072,26.6072,0,0,1-3.2143,3.2127c-.8429.5981-3.2555,2.5368-2.7439,3.5506a14.9777,14.9777,0,0,0,3.9214,4.8981c3.0881,2.0258,5.644,2.7,6.4958,2.5305s1.85-5.7465,3.0415-6.7613,3.4247-4.3958,3.2534-6.0855c-.168-1.6559-.5164-8.111-4.7767-10.4743-2.3133-1.2827-5.1937-2.01-6.3075-6.4172-1.0247-4.0552-7.5-6.7549-7.5-6.7549a96.0528,96.0528,0,0,1,6.6389-7.9466L179.8879,120.6c-1.9976.9685-9.1131,1.6111-14.5627,4.6563C162.509,126.83,155.0934,131.893,151.7041,136.7561Z" fill="#fff" fill-rule="evenodd"/></g></g></mask><mask id="mask-6-2" x="4.5315" y="102.0804" width="73.2655" height="77.9139" maskUnits="userSpaceOnUse"><g transform="translate(-140.8856 -18.5196)"><g id="mask-8-5" data-name="mask-8"><path id="path-7-5" data-name="path-7" d="M151.7041,136.7561a36.5788,36.5788,0,0,0-5.4424,14.1982,80.5014,80.5014,0,0,0-.8446,11.6606,60.64,60.64,0,0,0,1.0289,10.3074c.855,4.7311,1.8806,10.1382,2.562,9.9687.33-.0823-.1364-5.1485-.8584-10.1387a98.5677,98.5677,0,0,1-.3486-12.3358c.2581-3.8782,1.26-4.3277,1.7-5.0706.701-1.1834,1.3942,7.1537,4.4386,14.53,2.58,6.2508,6.1368,6.2485,7.5007,7.6s-1.188,7.2672-.1632,11.4912c.9205,3.7929-.3366,6.2527.0048,7.2663s4.4307,2.1941,7.4971,2.1921,6.8138-.849,6.8129-2.2011c-.0023-3.5487-1.3647-2.8719-1.7068-5.0684s3.1855-5.416,3.5723-8.1135c.6783-4.7323-.0038-5.7456-1.0281-9.2938-.0653-.2257-.5138-4.3933-.5138-4.3933s5.6223.8414,9.3684-1.6957a24.1918,24.1918,0,0,0,8.5108-11.1585,51.6855,51.6855,0,0,0,4.0911,4.0531,10.7,10.7,0,0,0,4.4308,2.3629c1.5336.5062,5.6024,1.5174,5.6024,1.5174a26.6072,26.6072,0,0,1-3.2143,3.2127c-.8429.5981-3.2555,2.5368-2.7439,3.5506a14.9777,14.9777,0,0,0,3.9214,4.8981c3.0881,2.0258,5.644,2.7,6.4958,2.5305s1.85-5.7465,3.0415-6.7613,3.4247-4.3958,3.2534-6.0855c-.168-1.6559-.5164-8.111-4.7767-10.4743-2.3133-1.2827-5.1937-2.01-6.3075-6.4172-1.0247-4.0552-7.5-6.7549-7.5-6.7549a96.0528,96.0528,0,0,1,6.6389-7.9466L179.8879,120.6c-1.9976.9685-9.1131,1.6111-14.5627,4.6563C162.509,126.83,155.0934,131.893,151.7041,136.7561Z" fill="#fff" fill-rule="evenodd"/></g></g></mask><mask id="mask-7" x="1.5699" y="99.3277" width="76.2271" height="80.5779" maskUnits="userSpaceOnUse"><g transform="translate(-140.8856 -18.5196)"><g id="mask-8-6" data-name="mask-8"><path id="path-7-6" data-name="path-7" d="M151.7041,136.7561a36.5788,36.5788,0,0,0-5.4424,14.1982,80.5014,80.5014,0,0,0-.8446,11.6606,60.64,60.64,0,0,0,1.0289,10.3074c.855,4.7311,1.8806,10.1382,2.562,9.9687.33-.0823-.1364-5.1485-.8584-10.1387a98.5677,98.5677,0,0,1-.3486-12.3358c.2581-3.8782,1.26-4.3277,1.7-5.0706.701-1.1834,1.3942,7.1537,4.4386,14.53,2.58,6.2508,6.1368,6.2485,7.5007,7.6s-1.188,7.2672-.1632,11.4912c.9205,3.7929-.3366,6.2527.0048,7.2663s4.4307,2.1941,7.4971,2.1921,6.8138-.849,6.8129-2.2011c-.0023-3.5487-1.3647-2.8719-1.7068-5.0684s3.1855-5.416,3.5723-8.1135c.6783-4.7323-.0038-5.7456-1.0281-9.2938-.0653-.2257-.5138-4.3933-.5138-4.3933s5.6223.8414,9.3684-1.6957a24.1918,24.1918,0,0,0,8.5108-11.1585,51.6855,51.6855,0,0,0,4.0911,4.0531,10.7,10.7,0,0,0,4.4308,2.3629c1.5336.5062,5.6024,1.5174,5.6024,1.5174a26.6072,26.6072,0,0,1-3.2143,3.2127c-.8429.5981-3.2555,2.5368-2.7439,3.5506a14.9777,14.9777,0,0,0,3.9214,4.8981c3.0881,2.0258,5.644,2.7,6.4958,2.5305s1.85-5.7465,3.0415-6.7613,3.4247-4.3958,3.2534-6.0855c-.168-1.6559-.5164-8.111-4.7767-10.4743-2.3133-1.2827-5.1937-2.01-6.3075-6.4172-1.0247-4.0552-7.5-6.7549-7.5-6.7549a96.0528,96.0528,0,0,1,6.6389-7.9466L179.8879,120.6c-1.9976.9685-9.1131,1.6111-14.5627,4.6563C162.509,126.83,155.0934,131.893,151.7041,136.7561Z" fill="#fff" fill-rule="evenodd"/></g></g></mask><mask id="mask-9" x="37.6177" y="41.2219" width="55.545" height="75.4617" maskUnits="userSpaceOnUse"><g transform="translate(-140.8856 -18.5196)"><g id="mask-11"><path id="path-10" d="M213.1656,78.0791c3.7353,3.2072,9.03,2.529,12.7816,7.5962,3.7346,5.0449-1.4324,12.1383-2.5676,12.6757-3.5765,1.692-3.4057,2.368-6.3016,2.7076a39.35,39.35,0,0,1-4.1722.0779c-3.44-.0354-7.7877-.0708-10.6278.9454-4.2579,1.5237-3.0848,3.0437-7.1719,5.5811s-10.8991,5.9214-13.7931,9.134-3.4023,7.7755-2.2084,9.6335,4.7724,3.8837,14.483,4.0466,12.0986,4.8928,15.8461,4.7216c1.8546-.0848,1.2885-2.113.2222-4.8977l.3068.5038s3.3029-1.9951,4.4264-4.2276c1.1911-2.3666,4.254-7.776,6.8089-8.6227,2.9485-.9769,8.1748-3.7227,7.663-4.7363-.7182-1.4225-5.2821-1.5175-5.2821-1.5175s5.8329-2.1754,6.1312-2.7078c2.3746-4.2389,5.72-12.15,3.7342-21.1255-2.392-10.8136-12.7836-10.6382-15.8511-12.326-6.324-3.48-4.4581-12.84-4.4581-12.84s.3392-2.3659-1.3646-2.7031a9.6,9.6,0,0,0-1.3729-.2567c-.6053,0-.7819.4779-.67,2.4551C209.9,65.2382,208.052,73.6886,213.1656,78.0791Z" fill="#fff" fill-rule="evenodd"/></g></g></mask><linearGradient id="linear-gradient-3" x1="-517.8562" y1="834.7153" x2="-518.1259" y2="833.707" gradientTransform="matrix(55.545, 0, 0, -75.4617, 28980.4814, 63048.4773)" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#5190a5"/><stop offset="1" stop-color="#4e6586"/></linearGradient><mask id="mask-11-3" x="35.0887" y="0" width="69.4918" height="116.6836" maskUnits="userSpaceOnUse"><g transform="translate(-140.8856 -18.5196)"><g id="mask-11-4" data-name="mask-11"><path id="path-10-3" data-name="path-10" d="M213.1656,78.0791c3.7353,3.2072,9.03,2.529,12.7816,7.5962,3.7346,5.0449-1.4324,12.1383-2.5676,12.6757-3.5765,1.692-3.4057,2.368-6.3016,2.7076a39.35,39.35,0,0,1-4.1722.0779c-3.44-.0354-7.7877-.0708-10.6278.9454-4.2579,1.5237-3.0848,3.0437-7.1719,5.5811s-10.8991,5.9214-13.7931,9.134-3.4023,7.7755-2.2084,9.6335,4.7724,3.8837,14.483,4.0466,12.0986,4.8928,15.8461,4.7216c1.8546-.0848,1.2885-2.113.2222-4.8977l.3068.5038s3.3029-1.9951,4.4264-4.2276c1.1911-2.3666,4.254-7.776,6.8089-8.6227,2.9485-.9769,8.1748-3.7227,7.663-4.7363-.7182-1.4225-5.2821-1.5175-5.2821-1.5175s5.8329-2.1754,6.1312-2.7078c2.3746-4.2389,5.72-12.15,3.7342-21.1255-2.392-10.8136-12.7836-10.6382-15.8511-12.326-6.324-3.48-4.4581-12.84-4.4581-12.84s.3392-2.3659-1.3646-2.7031a9.6,9.6,0,0,0-1.3729-.2567c-.6053,0-.7819.4779-.67,2.4551C209.9,65.2382,208.052,73.6886,213.1656,78.0791Z" fill="#fff" fill-rule="evenodd"/></g></g></mask><linearGradient id="linear-gradient-4" x1="-504.2538" y1="813.5107" x2="-505.0052" y2="812.9511" gradientTransform="matrix(22.8904, 0, 0, -21.4781, 11779.373, 17572.4879)" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#efe8cd"/><stop offset="1" stop-color="#d3caaf"/></linearGradient></defs><g id="Group-18"><g id="Group-5-Copy-8"><g id="Group-Copy-11"><g id="Group-30"><polygon id="Fill-3" points="73.424 157.665 68.825 162.785 68.825 179.177 73.424 174.107 73.424 157.665" fill="#d06868" fill-rule="evenodd"/><g id="Fill-8"><polygon id="path-3" points="73.424 157.716 56.218 157.732 50.085 162.802 68.825 162.785 73.424 157.716" fill-rule="evenodd" fill="url(#linear-gradient)"/><polygon id="path-3-2" data-name="path-3" points="73.424 157.716 56.218 157.732 50.085 162.802 68.825 162.785 73.424 157.716" fill-rule="evenodd" fill="url(#radial-gradient)"/></g><polygon id="Fill-5" points="68.825 162.734 50.085 162.751 50.085 179.194 68.825 179.177 68.825 162.734" fill="#a5597e" fill-rule="evenodd"/></g><path id="Tusk-2" d="M216,115.7616c-.0015-.8807-.6939-4.5778,2.9628-4.6745,2.9225-.0774,9.0181.9511,14.2462-.3865,5.5591-1.4224,11.2636-6.72,11.95-6.1053s-5.9956,8.7648-14.4556,11.043c-4.95,1.3327-11.5744.7938-14.7037.1233-1.2194-.2613.6109.7912-3.8094.009" transform="translate(-140.8856 -18.5196)" fill="#c1bba7" fill-rule="evenodd"/><g id="Group-71"><g id="Group-20"><path id="Fill-1" d="M171.8423,192.8467a49.587,49.587,0,0,0,5.9628.5033,11.5986,11.5986,0,0,0,5.11-1.1863c.6811-.3383,1.02-2.7043-.684-3.8862-1.1171-.7746-.3116-8.0853-2.0513-10.8138-2.0463-3.2095,1.525-12.8439,1.525-12.8439l-11.75,6.7669s2.5639,13.3482,2.7351,14.5311-1.5291,6.4223-.8473,6.9289" transform="translate(-140.8856 -18.5196)" fill="#4b2357" fill-rule="evenodd"/><path id="Fill-16" d="M200.97,148.4711a19.6844,19.6844,0,0,0,1.0622,10.3114c2.1182,5.4269,6.9315,7.1722,7.0637,9.7261.0587,1.1361-.5471,2.3619-.9123,4.2683-.4557,2.379,1.1422,4.6985.123,6.6562-.8911,1.712-12.5939,1.2028-11.17-1.5645a22.3754,22.3754,0,0,0,1.8762-7.2924c.0553-.6738-7.1883-8.21-6.6312-12.9126s-2.58-5.9862-2.58-5.9862Z" transform="translate(-140.8856 -18.5196)" fill="#4b2a5c" fill-rule="evenodd"/></g><g id="Fill-52"><path id="path-5-3" data-name="path-5" d="M217.5932,75.5414c-6.3239-3.48-4.4581-12.84-4.4581-12.84s.3392-2.3659-1.3646-2.7031-2.2151-.8434-2.0429,2.1982-1.6756,11.4922,3.4378,15.8827c3.7355,3.2072,9.0307,2.5288,12.7818,7.5962,3.7348,5.0449-1.4324,12.1385-2.5676,12.6757-3.5765,1.692-3.4058,2.3678-6.3016,2.7076s-10.542-.5-14.8,1.0233-3.085,3.0437-7.1719,5.5811-10.8991,5.9214-13.7931,9.134a11.1669,11.1669,0,0,0-2.3372,4.1368c-2.7439.82-8.8441,1.6368-13.6506,4.3225-2.8162,1.5737-10.2318,6.6367-13.6213,11.5a36.5827,36.5827,0,0,0-5.4422,14.1982,80.568,80.568,0,0,0-.8452,11.6606,49.0648,49.0648,0,0,0,1.0778,9.25,38.17,38.17,0,0,1,.5073,5.6107c0,1.6281-.5073,2.0236-.5073,3.1563a2.0789,2.0789,0,0,0,.628,1.76c.2731.2756,0-.8533,0-1.1536s.4045-1.0954.528-.8381-.0186.02-.1281,1.3145.9692,3.737.9692,2.6288a12.423,12.423,0,0,1,.2572-3.2917c.2573-.6629.2713-.1552.2713,0s-.0677.5237.0986.4479.4609-.3772.1663-1.883-.4693-1.5058-.5731-2.1413c-.3543-2.1684-.35-3.2581-.5621-4.7232a98.53,98.53,0,0,1-.3486-12.3358c.2581-3.8782,1.26-4.3279,1.7-5.0706.701-1.1834,1.3942,7.1537,4.4385,14.53,2.58,6.2508,6.1369,6.2486,7.5007,7.6s-1.1878,7.2672-.1629,11.4912c.92,3.7929-.3368,6.2527.0046,7.2664s4.4307,2.1926,7.4971,2.1926c3.0664-.0025,6.8138-.85,6.8129-2.2017-.0023-3.5487-1.3647-2.8719-1.7069-5.0684s3.1856-5.416,3.5724-8.1137c.6783-4.7321-.0036-5.7455-1.0281-9.2936-.0653-.2257-.514-4.3933-.514-4.3933s5.6225.8414,9.3686-1.6957a24.19,24.19,0,0,0,8.5108-11.1585,51.6855,51.6855,0,0,0,4.0911,4.0531,10.7012,10.7012,0,0,0,4.4308,2.3629c1.5336.5062,5.6024,1.5174,5.6024,1.5174a26.6072,26.6072,0,0,1-3.2143,3.2127c-.8429.5981-3.2555,2.537-2.7439,3.5506a14.975,14.975,0,0,0,3.9214,4.8981c3.0883,2.0258,5.644,2.7,6.4958,2.5307s1.85-5.7467,3.0415-6.7615,3.4249-4.3958,3.2534-6.0855c-.168-1.6559-.5164-8.111-4.7767-10.4741-2.3131-1.2829-5.1937-2.01-6.3075-6.4176-1.0247-4.055-7.5-6.7547-7.5-6.7547a92.2746,92.2746,0,0,1,6.407-7.6955,5.9275,5.9275,0,0,0,2.9376.7612c1.8547-.0847,1.2881-2.1132.2218-4.8981l.307.5041s3.3033-1.9951,4.4266-4.2274c1.191-2.3665,4.254-7.776,6.8089-8.6227,2.9485-.9769,8.1748-3.7227,7.663-4.7363-.7181-1.4225-5.2821-1.5175-5.2821-1.5175s5.8329-2.1753,6.1312-2.7077c2.3746-4.239,5.72-12.15,3.7342-21.1258C231.0525,77.0538,220.6607,77.2292,217.5932,75.5414Z" transform="translate(-140.8856 -18.5196)" fill-rule="evenodd" fill="url(#linear-gradient-2)"/></g><g mask="url(#mask)"><g id="Group-36"><g mask="url(#mask-2)"><path id="Fill-21" d="M146.4943,158.4446s1.5332-16.0537,9.1993-17.0676c7.6586-1.0129,8.883-.9625,12.2114,1.9265,4.0886,3.5487,2.5348,5.1676,3.4357,5.1676s5.4986-2.9372,4.6336-8.3447c-.8365-5.2292,4.8677-10.7195,16.9954-10.2264s-13.9371-3.5628-13.9371-3.5628L153.99,136.1384s-6.9847,9.1253-7.155,16.0537Z" transform="translate(-140.8856 -18.5196)" fill="#4f6486" fill-rule="evenodd"/></g><g mask="url(#mask-2)"><path id="Fill-27" d="M188.4272,170.6145s-12.3375-.0759-12.2557-1.6677.66-3.8543.1616-6.032c-.1-.4368,5.606.8544,8.9414-1.8489,6.6208-5.3658.49-10.2211.49-10.2211s7.5813,4.0388,8.1184,6.0269c.9653,3.5715-5.456,13.7428-5.456,13.7428" transform="translate(-140.8856 -18.5196)" fill="#4c3d6a" fill-rule="evenodd"/></g><g mask="url(#mask-4)"><path id="Fill-24" d="M146.3609,172.8379s.2428-9.2148.3319-13.688c.1651-8.28,1.4393-13.7452,4.4177-18.0844,2.553-3.7192,12.463-.4944,16.1806-5.4178,7.66-10.1439,19.5869-6.4338,19.5869-6.4338l21.8088,4.7179s-5.2758,9.5247-8.0187,8.29c-1.8745-.8438-6.1329-3.0418-6.1329-3.0418a7.4876,7.4876,0,0,0,3.4245,3.2077c5.453,2.3625,7.3283,4.3889,8.523,7.768.4994,1.4125,2.4769,4.0137,3.866,4.5988a13.258,13.258,0,0,1,3.4413,2.0918c.1937.1641-.519,1.0081-.3434,1.177.1575.1514,1.5239-.62,1.6672-.4659.1564.1683-.8751,1.4224-.7354,1.5924s1.4773-.6162,1.6-.4466c.1744.2408-1.3257,1.1044-1.1835,1.3423.1016.17,1.5067-.1668,1.5923,0a6.5327,6.5327,0,0,1,.6651,1.9325c.3421,2.1966,1.5356,3.7166-1.6971,9.9713-2.3678,4.5809,10.0467-6.7658,10.0467-6.7658L195.2126,108.93l-54.327,26.9032,4.1126,37.1743Z" transform="translate(-140.8856 -18.5196)" fill="#4f728f" fill-rule="evenodd"/></g><g mask="url(#mask-2)"><path id="Fill-30" d="M212.4422,145.5893s-5.8874-15.6274-5.8032-17.2328-16.0126,1.7-16.0126,1.7L200.85,133.43c6.1342,2.0241-2.55,7.6061-2.55,7.6061l11.2469,5.0625Z" transform="translate(-140.8856 -18.5196)" fill="#4c416d" fill-rule="evenodd"/></g><g mask="url(#mask-6-2)"><path id="Fill-33" d="M158.3007,195.8125s-9.6471-34.2136-9.563-35.819-.5085-12.9448,1.3573-8.7881c.6822,1.52,4.272,20.4446,11.7683,21.2848,4.4013.4933,1.6046,11.8108,2.2238,14.1935,1.537,5.9135-2.0368,11.83-2.0368,11.83Z" transform="translate(-140.8856 -18.5196)" fill="#4c3d6a" fill-rule="evenodd"/></g><g mask="url(#mask-7)"><path id="Fill-21-Copy" d="M146.4943,148.4711c1.0407-6.08,8.3584-15.3209,15.585-19.3877s10.3778-5.8668,19.2484-5.8668-6.7554-5.3693-6.7554-5.3693L147.535,129.0834s-4.9091.9955-5.0795,7.924Z" transform="translate(-140.8856 -18.5196)" fill="#5191a6" fill-rule="evenodd"/></g></g></g><g mask="url(#mask)"><g id="Head"><g mask="url(#mask-9)"><path id="Fill-39" d="M213.1656,78.0791c3.7353,3.2072,9.03,2.529,12.7816,7.5962,3.7346,5.0449-1.4324,12.1383-2.5676,12.6757-3.5765,1.692-3.4057,2.368-6.3016,2.7076a39.35,39.35,0,0,1-4.1722.0779c-3.44-.0354-7.7877-.0708-10.6278.9454-4.2579,1.5237-3.0848,3.0437-7.1719,5.5811s-10.8991,5.9214-13.7931,9.134-3.4023,7.7755-2.2084,9.6335,4.7724,3.8837,14.483,4.0466,12.0986,4.8928,15.8461,4.7216c1.8546-.0848,1.2885-2.113.2222-4.8977l.3068.5038s3.3029-1.9951,4.4264-4.2276c1.1911-2.3666,4.254-7.776,6.8089-8.6227,2.9485-.9769,8.1748-3.7227,7.663-4.7363-.7182-1.4225-5.2821-1.5175-5.2821-1.5175s5.8329-2.1754,6.1312-2.7078c2.3746-4.2389,5.72-12.15,3.7342-21.1255-2.392-10.8136-12.7836-10.6382-15.8511-12.326-6.324-3.48-4.4581-12.84-4.4581-12.84s.3392-2.3659-1.3646-2.7031a9.6,9.6,0,0,0-1.3729-.2567c-.6053,0-.7819.4779-.67,2.4551C209.9,65.2382,208.052,73.6886,213.1656,78.0791Z" transform="translate(-140.8856 -18.5196)" fill-rule="evenodd" fill="url(#linear-gradient-3)"/></g><g mask="url(#mask-9)"><path id="Fill-42" d="M209.9625,130.8046s3.3031-1.995,4.4266-4.2273c1.191-2.3667,4.254-7.7761,6.8089-8.6227,2.9485-.9769,8.1748-3.7228,7.663-4.7363-.7182-1.4226-5.2821-1.5177-5.2821-1.5177s5.8329-2.1752,6.1312-2.7077c2.3746-4.2388,5.6306-8.013,2.4594-16.6466-2.0478-5.5752-13.1257-12.6657-16.1932-14.3535-6.3238-3.48-4.949-13.3469-4.949-13.3469s-.0017-2.8728-1.7055-3.21-1.0225-.3373-.85,2.7044-.42,9.5479,4.6937,13.9383c3.7355,3.2072,9.2878,4.9794,13.0389,10.0464,3.7347,5.0451,9.2061,10.4714,4.099,16.22-2.62,2.9489-12.09,8.2879-15.1557,9.4728a27.1587,27.1587,0,0,1-8.5169,1.5263c-4.4654-.7354-7.499-5.0648-9.8831-3.5424-4.054,2.5886,5.2851,6.2491,2.3911,9.4617s-13.7831,2.7135-13.9663,4.9093c-.169,2.028.5133,3.21,10.2237,3.3733s10.29,5.8235,14.0377,5.6521-2.39-8.2788-2.5646-14.5311-7.5005-7.2617-7.5005-7.2617" transform="translate(-140.8856 -18.5196)" fill="#4e567c" fill-rule="evenodd"/></g><g mask="url(#mask-11-3)"><path id="Fill-45" d="M198.1077,107.5766c2.7235-3.55,3.7455-3.8892,6.4709-4.3977,1.8393-.3434,7.0981-.1233,11.4714-.5341.2772-.0261.5992.992.9721.992s-.05-1.9487.3619-2.0254,1.2546,2.1411,1.6379,2.0254-.51-2.124,0-2.2719,1.5349,1.8622,1.829,1.707-.5778-1.707-.2905-2.0961.5367.5846.5845.5589c4.7225-2.5407,6.6006-6.3705,6.7657-9.1857.1685-2.8728-3.2412-6.9264-3.2412-6.9264L199.2775,72.0887s.5849-9.8853,10.7253-11.3288c3.5771-.5092-.3742,5.5679,3.756,12.8406,2.1353,3.76,7.33,3.0719,12.3053,6.332.3447.2259.887-.3822,1.11-.2132s-.5552.7442.3151,1.4427,1.2445-.4681,1.569-.152-.883.9263,0,1.6745,1.34-.2524,1.6387.1214-.6121.8231-.22,1.2612c1.2313,1.3772,1.2729,1.8613,1.8612,4.2235,1.8459,7.411,1.0954,5.8216,3.5832,8.7849,4.71,5.61-21.9673,13.7017-21.9673,13.7017l31.5129-4.92-1.9216-6.7246L200.0949,18.52,175.9743,127.869s4.5935-9.6353,10.5535-13.5257C193.7281,109.6433,195.3844,111.127,198.1077,107.5766Z" transform="translate(-140.8856 -18.5196)" fill="#5da7b5" fill-rule="evenodd"/></g><g mask="url(#mask-9)"><path id="Fill-48" d="M211.9223,131.7328l-2.4563-1.66s-1.6287-6.3163-2.4906-8.3073c-1.0235-2.3653-1.0983-3.5389-4.0911-4.2222-8.86-2.0222-3.5806-4.56-3.5806-4.56s5.7932,1.5173,7.1586,5.5722c.5741,1.7047,1.0262,6.2518,3.5816,6.25s3.4046-3.8887,5.6184-5.2421,3.746-3.0442,5.79-3.3835a73.28,73.28,0,0,1,7.4956-.3425Z" transform="translate(-140.8856 -18.5196)" fill="#4c416d" fill-rule="evenodd"/></g><g mask="url(#mask-9)"><path id="Fill-63" d="M209.0116,109.0905c2.5545-1.3535,3.0661-.5088,4.5986-1.5237s-5.6235-2.7-8.0076-1.3468c-1.3632.7738-1.9438,5.6455-.5068,6.4218C208.8448,114.6673,206.9026,110.2081,209.0116,109.0905Z" transform="translate(-140.8856 -18.5196)" fill="#4e567c" fill-rule="evenodd"/></g></g></g></g><path id="Path-15" d="M176.4384,168.4887c1.1333-4.8838,1.5335-5.5646-1.5469-9.1629q-3.0806-3.5982-3.4178-5.357-.1331,2.41,2.9725,5.8813c3.1055,3.4713.2063,9.5317,1.5676,13.5453a44.4373,44.4373,0,0,1,1.6871,5.8925,59.4027,59.4027,0,0,0-.9874-6.1265A10.0969,10.0969,0,0,1,176.4384,168.4887Z" transform="translate(-140.8856 -18.5196)" fill="#4f6486" fill-rule="evenodd"/><path id="Fill-55" d="M217.0221,114.831a44.879,44.879,0,0,0,5.9622-.5107c1.8736-.5081,4.5993-.679,4.5985-1.8619l-2.9392-.8576-4.6343,1.6064-.1661.448Z" transform="translate(-140.8856 -18.5196)" fill="#4b2a5c" fill-rule="evenodd"/><path id="Tusk" d="M233.4329,101.8933c-4.1634,3.34-10.0164,5.2461-12.6022,6.5984h0c-3.2356,1.6919-1.19,4.2255-.8486,4.9011h0a42.0065,42.0065,0,0,0,13.1133-6.5988h0c6.6934-5.492,9.53-14.7077,8.6785-14.8763h0a.17.17,0,0,0-.033-.0031h0c-.8963.0007-3.937,6.472-8.308,9.9787" transform="translate(-140.8856 -18.5196)" fill-rule="evenodd" fill="url(#linear-gradient-4)"/><path id="Fill-61" d="M219.982,113.3928c-1.2584-1.9427-.9182-2.7878-.9182-2.7878a3.8279,3.8279,0,0,0,3.748.3356,33.94,33.94,0,0,0,10.5584-5.7521c4.4271-3.5516,7.49-9.4679,7.49-9.4679s-1.0711,5.5814-7.7646,11.0735a42.006,42.006,0,0,1-13.1133,6.5987" transform="translate(-140.8856 -18.5196)" fill="#d3cbaf" fill-rule="evenodd"/><g id="Eye"><path id="Fill-66" d="M207.3038,107.6056a1.1413,1.1413,0,1,1,1.1421,1.1325,1.1371,1.1371,0,0,1-1.1421-1.1325" transform="translate(-140.8856 -18.5196)" fill="#020408" fill-rule="evenodd"/><path id="Fill-68" d="M209.01,107.0628a.3407.3407,0,1,1-.3409-.3379.3394.3394,0,0,1,.3409.3379" transform="translate(-140.8856 -18.5196)" fill="#d5b8d8" fill-rule="evenodd"/></g></g><polygon id="Fill-14" points="70.868 10.005 82.833 21.058 82.203 27.403 69.525 15.691 70.868 10.005" fill="#fe9b7c" fill-rule="evenodd"/><polygon id="Fill-10" points="70.9 9.971 69.525 15.691 58.262 27.686 59.606 22 70.9 9.971" fill="#d06868" fill-rule="evenodd"/><polygon id="Fill-12" points="69.556 15.657 82.234 27.37 70.941 39.399 58.262 27.686 69.556 15.657" fill="#a5597e" fill-rule="evenodd"/></g></g></svg>
+
+  docsLink: https://docs.pachyderm.com/
+  category: Self-managed
+  support: third party support
+  quickStart: pachyderm-beginner-tutorial-notebook
+  getStartedLink: https://docs.pachyderm.com/products/mldm/latest/get-started/
+  csvName: pachyderm-operator
+  getStartedMarkDown: >-
+    # Pachyderm
+
+    [Pachyderm](https://www.pachyderm.com/) provides the data layer that allows data science teams to productionize and scale their machine learning lifecycle. With Pachyderm’s industry-leading data versioning, pipelines, and lineage, teams gain data-driven automation, petabyte scalability, and end-to-end reproducibility. Teams using Pachyderm get their ML projects to market faster, lower data processing and storage costs, and can more easily meet regulatory compliance requirements.
+
+    Read about how our Customers leveraged Pachyderm to face their ML/AI challenges and operationalize their pipelines: [Case studies](https://www.pachyderm.com/customers/).
+
+    ## Features include
+
+    - **Data-driven pipelines**
+        - Our containerized (language-agnostic) pipelines execute whenever new data is committed
+        - Pachyderm is "Kubernetes native" and autoscale with parallel processing of data without writing additional code
+        - Incremental processing saves compute by only processing differences and automatically skipping duplicate data
+
+    - **Automated data versioning**
+        Pachyderm’s Data Versioning gives teams an automated and performant way to keep track of all data changes.
+        - Our file-based, git-like versioning core feature provides a complete audit trail for all data and artifacts across pipeline stages, including intermediate results
+        - Our optimized storage framework supports petabytes of unstructured data while minimizing storage costs
+
+    - **Immutable data lineage**
+        We provide an immutable record for all activities and assets in the ML lifecycle:
+        - We track every version of your code, models, and data and manage relationships between historical data states so you can maintain the reproducibility of data and code for compliance
+        - Our Global IDs feature makes it easy for teams to track any result all the way back to its raw input, including all analysis, parameters, code, and intermediate results
+
+    ## Before Installing Pachyderm Operator
+
+    Before you start the operator installation process, you will need to:
+
+    - Familiarize yourself with Pachyderm's **[main concepts](https://docs.pachyderm.com/products/mldm/latest/learn/basic-concepts/)**, and Pachyderm's command-line tool `pachctl`. You will interact with Pachyderm using `pachctl` from the cells of your notebooks. Read through our written demo [Open CV](https://docs.pachyderm.com/products/mldm/latest/get-started/beginner-tutorial/) to get used to the main commands.
+    - Prepare the installation of Pachyderm by creating an **external object store** (Pachyderm supports all s3-compatible storage solutions) for your data. Make sure to match your cluster's region.
+
+        * Ceph Nano users: Retrieve the `Cluster IP` of your service (in Networking > Services),  your `AWS_ACCESS_KEY_ID` (base 64), and `AWS_SECRET_ACCESS_KEY` (base 64).
+
+        * AWS users: Retrieve the `arn` of your S3 bucket, create a User, then add an inline policy to grant this user a set of permissions on this bucket.
+
+            Copy/Paste the following in the JSON tab of the policy. Replace <arn:AWS:...> with the arn of your bucket.
+            ```
+                {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+                                "s3:ListBucket"
+                            ],
+                            "Resource": [
+                                "<arn:aws:...>"
+                            ]
+                        },
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+                                "s3:PutObject",
+                                "s3:GetObject",
+                                "s3:DeleteObject"
+                            ],
+                            "Resource": [
+                                "<arn:aws:...>/*"
+                            ]
+                        }
+                    ]
+                }
+            ```
+
+
+    - In Red Hat OpenShift Console, we will guide you through the creation of a new namespace for your cluster as well as a secret holding your bucket's credentials.
+
+        * **A- Create a Project/Namespace**
+        In the Administrator view, on the left menu, create a new project from the Home > Project page.
+
+        * **B- Create the Secret that will hold your user credentials and bucket name**, granting your cluster access to your bucket.
+
+            Select Workloads > Secrets > Create a secret from YAML on the left menu.
+
+            Choose your secret name, then fill in:
+
+            - your namespace/project name
+            - your IAM user access key and IAM user secret
+            - your bucket's name
+            - your bucket's region.
+
+            **Attention Ceph Users!** You need to add an endpoint to the stringData section of your secret: `custom-endpoint:"http://ClusterIP:80"`
+
+                ```
+                apiVersion: v1
+                kind: Secret
+                metadata:
+                    name: <name-your-secret>
+                    namespace: <your-namespace>
+                type: Opaque
+                stringData:
+                    access-id: <IAM-user-access-key>
+                    access-secret: <IAM-user-secret>
+                    bucket: <bucket-name>
+                    region: <bucket-region>
+                ```
+        For more information on creating a namespace, see [Red Hat Marketplace Docs](https://marketplace.redhat.com/en-us/documentation/clusters).
+
+    ## Install The Operator
+
+    Pachyderm Operator has a **Red Hat marketplace listing**.
+
+    - [Subscribe to the operator on Marketplace.](https://marketplace.redhat.com/en-us/products/pachyderm)
+
+    - [Install the operator and validate.](https://marketplace.redhat.com/en-us/documentation/operators)
+
+    ## Deploy Pachyderm
+
+    Make sure to select the project you created above on the top of the screen.
+
+    On the left menu, select Operator > Installed Operators.
+    Find Pachyderm's Operator then:
+
+    - Click on Pachyderm operator from the list
+    - Move to *Pachyderm* tab
+    - Click on *Create Pachyderm*
+    - Select the *YAML view* and insert the following values:
+
+        - Your namespace in `metadata.namespace`.
+        - Your secret name in `storage.amazon.credentialSecretName`.
+
+    - Click *Create*.
+    - On the left menu, select *Workloads > Pods*.
+    After a couple of minutes, all the pods of your project should be running. At a minimum, you should see a pod for pachd alongside etcd, postgres, and pg-bouncer:
+
+        ```
+        NAME                           READY   STATUS    RESTARTS   AGE
+        etcd-0                         1/1     Running   0          18h
+        pachd-5db79fb9dd-b2gdq         1/1     Running   2          18h
+        postgres-0                     1/1     Running   0          18h
+        pg-bouncer-76d9cd855c-nfnhx    1/1     Running   0          18h
+        ```
+
+    You just installed Pachyderm.
+    ## Post Deployment
+
+    1. Launch the **Jupyter** application: From the `Enabled` menu, click `Launch application` from the **Jupyter** tile.
+
+    1. Run a **Jupyter Lab server**: Select the Image and Container size of your choice (At a minimum, we recommend the *Standard Data Science* Image and *Medium* container size.) then start your Jupyter Lab server.
+
+    1. Configure your Notebook to connect to your cluster:
+
+        - Before experimenting with Pachyderm in notebook, run the following command line in a new cell:
+
+            The command installs Pachyderm’s CLI (`pachchtl`) in your notebook environment.
+
+            **Note**: The version of `pachctl` must match the version of Pachyderm deployed by the Operator. You can find Pachyderm’s version by clicking on the tab *Pachyderm*  in the Operator details page.
+            At a minimum, you should always use the identical major & minor versions of `pachctl` and Pachyderm (`pachd`). Note that the following package `/v2.0.5/pachctl_2.0.5_linux_amd64.tar.gz` (see command line below) refers to version 2.0.5 of Pachyderm. Depending on the version currently deployed by the Operator, you might need to update the version of `pachctl` (i.e.change `2.0.5` to `2.1.0` for example) in the command line.
+
+            ```
+            ! curl -o /tmp/pachctl.tar.gz -L https://github.com/pachyderm/pachyderm/releases/download/v2.0.5/pachctl_2.0.5_linux_amd64.tar.gz && tar -xvf /tmp/pachctl.tar.gz  -C /tmp && cp /tmp/pachctl_2.0.5_linux_amd64/pachctl  /opt/app-root/bin/
+            ```
+
+        - Create a new context for your CLI to connect to your cluster:
+
+            In the following command, update **“pachyderm-operator-install”** in the pachd_address with your project name. The pattern should be: `pachd.`your-project-name`.svc.cluster.local:30650`.
+
+            ```
+            !echo '{"pachd_address":"pachd.pachyderm-operator-install.svc.cluster.local:30650"}' | pachctl config set context pachyderm --overwrite
+            ```
+
+        - Finally, switch `pachctl` context to your newly created context:
+            ```
+            !pachctl config set active-context pachyderm
+            ```
+
+        - Verify that your active context is the new context pachyderm
+            ```
+            !pachctl config get active-context
+            ```
+
+        - You are all set. Run:
+            ```
+            !pachctl version
+            ```
+
+            This should print the versions of pachctl and Pachyderm deployed.
+            For example:
+            ```
+            COMPONENT           VERSION
+            pachctl             2.0.5
+            pachd               2.0.5
+            ```
+
+    You are ready to run your first pipelines in a notebook. Check our **Quick Start** in the `Enabled` menu of your OpenShift AI Console. You can later extend this first notebook by following the steps in this written [tutorial](https://docs.pachyderm.com/products/mldm/latest/get-started/beginner-tutorial/) on our documentation website.
+
+    Note that you might need to install additional libraries depending on the notebook you chose. For example, our [Housing prices notebook](https://github.com/pachyderm/examples/blob/master/housing-prices-intermediate/housing-prices.ipynb) requires the additional installation of [Pachyderm's python client](https://python-pachyderm.readthedocs.io/en/stable/): `pip install python-pachyderm`.

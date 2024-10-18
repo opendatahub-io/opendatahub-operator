@@ -1,0 +1,11 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: odh-model-controller-rolebinding-$(mesh-namespace)
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: odh-model-controller-role
+subjects:
+  - kind: ServiceAccount
+    name: odh-model-controller

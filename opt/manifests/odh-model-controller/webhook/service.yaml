@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: odh-model-controller-webhook-service
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: odh-model-controller-webhook-cert
+spec:
+  ports:
+    - port: 443
+      targetPort: webhook-server
+  selector:
+    control-plane: odh-model-controller

@@ -1,0 +1,50 @@
+---
+namePrefix: trustyai-service-operator-
+
+resources:
+  - ../crd
+  - ../rbac
+  - ../manager
+
+commonLabels:
+  app.kubernetes.io/part-of: trustyai
+
+configMapGenerator:
+  - env: params.env
+    name: config
+
+configurations:
+  - params.yaml
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+vars:
+  - name: trustyaiServiceImage
+    objref:
+      kind: ConfigMap
+      name: config
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.trustyaiServiceImage
+  - name: trustyaiOperatorImage
+    objref:
+      kind: ConfigMap
+      name: config
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.trustyaiOperatorImage
+  - name: oauthProxyImage
+    objref:
+      kind: ConfigMap
+      name: config
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.oauthProxyImage
+  - name: kServeServerless
+    objref:
+      kind: ConfigMap
+      name: config
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.kServeServerless

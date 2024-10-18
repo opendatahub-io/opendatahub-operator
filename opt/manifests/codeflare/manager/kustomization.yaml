@@ -1,0 +1,25 @@
+resources:
+- manager.yaml
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+configMapGenerator:
+- name: stack-config
+  envs:
+    - params.env
+configurations:
+  - params.yaml
+
+replacements:
+- source:
+    kind: ConfigMap
+    name: stack-config
+    version: v1
+    fieldPath: data.codeflare-operator-controller-image
+  targets:
+  - select:
+      kind: Deployment
+      name: manager
+    fieldPaths:
+    - spec.template.spec.containers.0.image

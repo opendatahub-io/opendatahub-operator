@@ -1,0 +1,59 @@
+apiVersion: dashboard.opendatahub.io/v1
+kind: OdhDocument
+metadata:
+  name: jupyter-install-python-packages
+  annotations:
+    opendatahub.io/categories: 'Package management,Notebook environments,Getting started'
+spec:
+  displayName: How to install Python packages on your notebook server
+  appName: jupyter
+  type: how-to
+  description: |-
+    Install additional python packages into your notebook server.
+  url: https://access.redhat.com/documentation/en-us/red_hat_openshift_data_science/1/html-single/working_on_data_science_projects/index#installing-python-packages-on-your-notebook-server_nb-server/index
+  durationMinutes: 15
+---
+apiVersion: dashboard.opendatahub.io/v1
+kind: OdhDocument
+metadata:
+  name: jupyter-update-server-settings
+  annotations:
+    opendatahub.io/categories: 'Notebook environments,Getting started'
+spec:
+  displayName: How to update notebook server settings
+  type: how-to
+  appName: jupyter
+  description: |-
+    Update the settings or the notebook image on your notebook server.
+  url: https://access.redhat.com/documentation/en-us/red_hat_openshift_data_science/1/html-single/working_on_data_science_projects/index#updating-notebook-server-settings-by-restarting-your-server_nb-server/index
+  durationMinutes: 15
+---
+apiVersion: dashboard.opendatahub.io/v1
+kind: OdhDocument
+metadata:
+  name: jupyter-use-s3-bucket-data
+  annotations:
+    opendatahub.io/categories: 'Data management,Notebook environments'
+spec:
+  displayName: How to use data from Amazon S3 buckets
+  appName: jupyter
+  type: how-to
+  description: |-
+    Connect to data in S3 Storage using environment variables.
+  url: https://access.redhat.com/documentation/en-us/red_hat_openshift_data_science/1/html-single/integrating_data_from_amazon_s3/index
+  durationMinutes: 15
+---
+apiVersion: dashboard.opendatahub.io/v1
+kind: OdhDocument
+metadata:
+  name: jupyter-view-installed-packages
+  annotations:
+    opendatahub.io/categories: 'Package management,Notebook environments,Getting started'
+spec:
+  displayName: How to view installed packages on your notebook server
+  appName: jupyter
+  type: how-to
+  description: |-
+    See which packages are installed into your running notebook server.
+  url: https://access.redhat.com/documentation/en-us/red_hat_openshift_data_science/1/html-single/working_on_data_science_projects/index#viewing-python-packages-installed-on-your-notebook-server_nb-server/index
+  durationMinutes: 15

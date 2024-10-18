@@ -1,0 +1,13 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: opendatahub-operator
+  labels:
+    operators.coreos.com/opendatahub-operator.openshift-operators: ''
+  namespace: openshift-operators
+spec:
+  channel: fast
+  name: opendatahub-operator
+  installPlanApproval: Automatic
+  source: community-operators
+  sourceNamespace: openshift-marketplace

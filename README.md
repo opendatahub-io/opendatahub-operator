@@ -1,5 +1,5 @@
 
-This operator is the primary operator for Open Data Hub. It is responsible for enabling Data science applications like 
+This operator is the primary operator for Open Data Hub. It is responsible for enabling Data science applications like
 Jupyter Notebooks, Modelmesh serving, Datascience pipelines etc. The operator makes use of `DataScienceCluster` CRD to deploy
 and configure these applications.
 
@@ -48,8 +48,7 @@ Additionally installing `Authorino operator` & `Service Mesh operator` enhances 
 
   Please note that the latest releases are made in the `Fast` channel.
 
-- It can also be build
-and installed from source manually, see the Developer guide for further instructions.
+- It can also be build and installed from source manually, see the Developer guide for further instructions.
 
   1. Subscribe to operator by creating following subscription
 
@@ -77,7 +76,7 @@ and installed from source manually, see the Developer guide for further instruct
 
 #### Pre-requisites
 
-- Go version **go1.20**
+- Go version **go1.21**
 - operator-sdk version can be updated to **v1.31.1**
 
 #### Download manifests
@@ -91,11 +90,11 @@ Each component is associated with its manifest location in the `COMPONENT_MANIFE
 #### Workflow
 
 1. The script clones the remote repository `<repo-org>/<repo-name>` from the specified `<branch-name>`.
-2. It then copies the content from the relative path `<source-folder>` to the local `odh-manifests/<target-folder>` folder.
+2. It then copies the content from the relative path `<source-folder>` to the local `opt/manifests/<target-folder>` folder.
 
 #### Local Storage
 
-The script utilizes a local, empty folder named `odh-manifests` to host all required manifests, sourced either directly from the component’s source repository or the default `odh-manifests` git repository.
+The script utilizes a local, empty folder named `opt/manifests` to host all required manifests, sourced directly from each component’s source repository.
 
 #### Adding New Components
 
@@ -123,7 +122,7 @@ If the flag name matches components key defined in `COMPONENT_MANIFESTS` it will
 make get-manifests
 ```
 
-This first cleanup your local `odh-manifests` folder.
+This first cleanup your local `opt/manifests` folder.
 Ensure back up before run this command if you have local changes of manifests want to reuse later.
 
 ##### for build operator image
@@ -135,7 +134,7 @@ make image-build
 By default, building an image without any local changes(as a clean build)
 This is what the production build system is doing.
 
-In order to build an image with local `odh-manifests` folder, to set `IMAGE_BUILD_FLAGS ="--build-arg USE_LOCAL=true"` in make.
+In order to build an image with local `opt/manifests` folder, to set `IMAGE_BUILD_FLAGS ="--build-arg USE_LOCAL=true"` in make.
 e.g `make image-build -e IMAGE_BUILD_FLAGS="--build-arg USE_LOCAL=true"`
 
 #### Build Image
@@ -145,7 +144,7 @@ e.g `make image-build -e IMAGE_BUILD_FLAGS="--build-arg USE_LOCAL=true"`
   ```commandline
   make image -e IMG=quay.io/<username>/opendatahub-operator:<custom-tag>
   ```
-  
+
   or (for example to user vhire)
 
   ```commandline
@@ -186,7 +185,7 @@ e.g `make image-build -e IMAGE_BUILD_FLAGS="--build-arg USE_LOCAL=true"`
 **Deploying operator using OLM**
 
 - To create a new bundle in defined operator namespace, run following command:
-  
+
   ```commandline
   export OPERATOR_NAMESPACE=<namespace-to-install-operator>
   make bundle
@@ -195,13 +194,13 @@ e.g `make image-build -e IMAGE_BUILD_FLAGS="--build-arg USE_LOCAL=true"`
   **Note** : Skip the above step if you want to run the existing operator bundle.
 
 - Build Bundle Image:
-  
+
   ```commandline
   make bundle-build bundle-push BUNDLE_IMG=quay.io/<username>/opendatahub-operator-bundle:<VERSION>
   ```
 
 - Run the Bundle on a cluster:
-  
+
   ```commandline
   operator-sdk run bundle quay.io/<username>/opendatahub-operator-bundle:<VERSION> --namespace $OPERATOR_NAMESPACE
   ```
@@ -228,13 +227,20 @@ This will ensure that the doc for the apis are updated accordingly.
 Logger on all controllers can only be changed from CSV with parameters: --log-mode devel
 valid value: "" (as default) || prod || production || devel || development
 
-This mainly impacts logging for pod startup, generating common resource, monitoring deployment.
+This mainly impacts logging for operator pod startup, generating common resource, monitoring deployment.
+
+| --log-mode value | mapping Log level   | Comments       |
+| ---------------- | ------------------- | -------------- |
+| devel            | debug  / 0          | lowest level   |
+| ""               | info / 1            | default option |
+| default          | info / 1            | default option |
+| prod             | error / 2           | highest level  |
 
 #### Component level
 
 Logger on components can be changed by DSCI devFlags during runtime.
 By default, if not set .spec.devFlags.logmode, it uses INFO level
-Modification applies to all components, not only these "Managed" ones
+Modification applies to all components, not only these "Managed" ones.
 Update DSCI CR with .spec.devFlags.logmode, see example :
 
 ```console
@@ -249,7 +255,15 @@ spec:
 ```
 
 Avaiable value for logmode is "devel", "development", "prod", "production".
-The first two work the same set to DEBUG level; the later two work the same, using ERROR level.
+The first two work the same set to DEBUG level; the later two work the same as using ERROR level.
+
+| .spec.devFlags.logmode | stacktrace level | verbosity | Output   | Comments       |
+| ---------------------- | ---------------- | --------- | -------- | -------------- |
+| devel                  | WARN             | INFO      | Console  | lowest level, using epoch time  |
+| development            | WARN             | INFO      | Console  | same as devel  |
+| ""                     | ERROR            | INFO      | JSON     | default option |
+| prod                   | ERROR            | INFO      | JSON     | highest level, using human readable timestamp  |
+| production             | ERROR            | INFO      | JSON     | same as prod   |
 
 ### Example DSCInitialization
 
@@ -281,7 +295,7 @@ Apply this example with modification for your usage.
 
 ### Example DataScienceCluster
 
-When the operator is installed successfully in the cluster, a user can create a `DataScienceCluster` CR to enable ODH 
+When the operator is installed successfully in the cluster, a user can create a `DataScienceCluster` CR to enable ODH
 components. At a given time, ODH supports only **one** instance of the CR, which can be updated to get custom list of components.
 
 1. Enable all components
@@ -290,7 +304,7 @@ components. At a given time, ODH supports only **one** instance of the CR, which
 apiVersion: datasciencecluster.opendatahub.io/v1
 kind: DataScienceCluster
 metadata:
-  name: default-dsc
+  name: example
 spec:
   components:
     codeflare:
@@ -304,7 +318,7 @@ spec:
       serving:
         ingressGateway:
           certificate:
-            type: SelfSigned
+            type: OpenshiftDefaultIngress
         managementState: Managed
         name: knative-serving
     kueue:
@@ -313,11 +327,10 @@ spec:
       managementState: Managed
     modelregistry:
       managementState: Managed
+      registriesNamespace: "rhoai-model-registries"
     ray:
       managementState: Managed
     trainingoperator:
-      managementState: Managed
-    trustyai:
       managementState: Managed
     workbenches:
       managementState: Managed
@@ -338,7 +351,7 @@ spec:
       managementState: Managed
 ```
 
-**Note:** Default value for a component is `false`.
+**Note:** Default value for managementState in component is `false`.
 
 ### Run functional Tests
 
@@ -368,7 +381,7 @@ following environment variables must be set when running locally:
 export KUBECONFIG=/path/to/kubeconfig
 ```
 
-Ensure when testing RHODS operator in dev mode, no ODH CSV exists
+Ensure when testing RHOAI operator in dev mode, no ODH CSV exists
 Once the above variables are set, run the following:
 
 ```shell

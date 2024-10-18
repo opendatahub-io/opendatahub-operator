@@ -1,0 +1,23 @@
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: ds-pipelines-envoy-{{ .Name }}
+  namespace: {{ .Namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app: ds-pipeline-metadata-envoy-{{ .Name }}
+      component: data-science-pipelines
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8443
+    - ports:
+        - protocol: TCP
+          port: 9090
+      from:
+        - podSelector:
+            matchLabels:
+              component: data-science-pipelines
+  policyTypes:
+    - Ingress

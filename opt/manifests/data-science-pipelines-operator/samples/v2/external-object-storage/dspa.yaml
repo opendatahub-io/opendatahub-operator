@@ -1,0 +1,22 @@
+apiVersion: datasciencepipelinesapplications.opendatahub.io/v1alpha1
+kind: DataSciencePipelinesApplication
+metadata:
+  name: sample
+spec:
+  dspVersion: v2
+  apiServer:
+    enableSamplePipeline: true
+  objectStorage:
+    externalStorage:
+      bucket: rhods-dsp-dev
+      host: s3.us-east-2.amazonaws.com
+      region: us-east-2
+      s3CredentialsSecret:
+        accessKey: k8saccesskey
+        secretKey: k8ssecretkey
+        secretName: aws-bucket-creds
+      scheme: https
+  # Optional
+  mlpipelineUI:
+    # Image field is required
+    image: gcr.io/ml-pipeline/frontend:2.0.2

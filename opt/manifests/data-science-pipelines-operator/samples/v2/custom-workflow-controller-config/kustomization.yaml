@@ -1,0 +1,3 @@
+resources:
+- dspa.yaml
+- custom-workflow-controller-configmap.yaml

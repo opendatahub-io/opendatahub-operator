@@ -1,22 +1,23 @@
+// Package trustedcabundle provides utility functions to create and check trusted CA bundle configmap from DSCI CRD
 package trustedcabundle
 
 import (
 	"context"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	annotation "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
@@ -26,16 +27,14 @@ const (
 	CADataFieldName = "odh-ca-bundle.crt"
 )
 
-func ShouldInjectTrustedBundle(ns client.Object) bool {
-	if !strings.HasPrefix(ns.GetName(), "openshift-") && !strings.HasPrefix(ns.GetName(), "kube-") &&
-		ns.GetName() != "default" && ns.GetName() != "openshift" && !HasCABundleAnnotationDisabled(ns) {
-		return true
-	}
-	return false
+func ShouldInjectTrustedBundle(ns *corev1.Namespace) bool {
+	isActive := ns.Status.Phase == corev1.NamespaceActive
+	return isActive && cluster.IsNotReservedNamespace(ns) && !HasCABundleAnnotationDisabled(ns)
 }
 
-// return true if namespace has annotation "security.opendatahub.io/inject-trusted-ca-bundle: false"
-// return false if annotation is "true" or not set.
+// HasCABundleAnnotationDisabled checks if a namespace has the annotation "security.opendatahub.io/inject-trusted-ca-bundle" set to "false".
+//
+// It returns false if the annotation is set to "true", not set, or cannot be parsed as a boolean.
 func HasCABundleAnnotationDisabled(ns client.Object) bool {
 	if value, found := ns.GetAnnotations()[annotation.InjectionOfCABundleAnnotatoion]; found {
 		shouldInject, err := strconv.ParseBool(value)
@@ -44,7 +43,7 @@ func HasCABundleAnnotationDisabled(ns client.Object) bool {
 	return false
 }
 
-// createOdhTrustedCABundleConfigMap creates a configMap 'odh-trusted-ca-bundle' in given namespace with labels and data
+// CreateOdhTrustedCABundleConfigMap creates a configMap 'odh-trusted-ca-bundle' in given namespace with labels and data
 // or update existing odh-trusted-ca-bundle configmap if already exists with new content of .data.odh-ca-bundle.crt
 // this is certificates for the cluster trusted CA Cert Bundle.
 func CreateOdhTrustedCABundleConfigMap(ctx context.Context, cli client.Client, namespace string, customCAData string) error {
@@ -76,9 +75,9 @@ func CreateOdhTrustedCABundleConfigMap(ctx context.Context, cli client.Client, n
 		Name:      CAConfigMapName,
 		Namespace: namespace,
 	}, foundConfigMap); err != nil {
-		if apierrs.IsNotFound(err) {
+		if k8serr.IsNotFound(err) {
 			err = cli.Create(ctx, desiredConfigMap)
-			if err != nil && !apierrs.IsAlreadyExists(err) {
+			if err != nil && !k8serr.IsAlreadyExists(err) {
 				return err
 			}
 			return nil
@@ -109,17 +108,17 @@ func DeleteOdhTrustedCABundleConfigMap(ctx context.Context, cli client.Client, n
 // IsTrustedCABundleUpdated check if data in CM "odh-trusted-ca-bundle" from applciation namespace matches DSCI's TrustedCABundle.CustomCABundle
 // return false when these two are matching => skip update
 // return true when not match => need upate.
-func IsTrustedCABundleUpdated(ctx context.Context, cli client.Client, dscInit *dsci.DSCInitialization) (bool, error) {
-	usernamespace := &corev1.Namespace{}
-	if err := cli.Get(ctx, client.ObjectKey{Name: dscInit.Spec.ApplicationsNamespace}, usernamespace); err != nil {
-		if apierrs.IsNotFound(err) {
+func IsTrustedCABundleUpdated(ctx context.Context, cli client.Client, dscInit *dsciv1.DSCInitialization) (bool, error) {
+	userNamespace := &corev1.Namespace{}
+	if err := cli.Get(ctx, client.ObjectKey{Name: dscInit.Spec.ApplicationsNamespace}, userNamespace); err != nil {
+		if k8serr.IsNotFound(err) {
 			// if namespace is not found, return true. This is to ensure we reconcile, and check for other namespaces.
 			return true, nil
 		}
 		return false, err
 	}
 
-	if !ShouldInjectTrustedBundle(usernamespace) {
+	if !ShouldInjectTrustedBundle(userNamespace) {
 		return false, nil
 	}
 
@@ -134,7 +133,15 @@ func IsTrustedCABundleUpdated(ctx context.Context, cli client.Client, dscInit *d
 	return foundConfigMap.Data[CADataFieldName] != dscInit.Spec.TrustedCABundle.CustomCABundle, nil
 }
 
-func ConfigureTrustedCABundle(ctx context.Context, cli client.Client, log logr.Logger, dscInit *dsci.DSCInitialization, managementStateChanged bool) error {
+func ConfigureTrustedCABundle(ctx context.Context, cli client.Client, log logr.Logger, dscInit *dsciv1.DSCInitialization, managementStateChanged bool) error {
+	if dscInit.Spec.TrustedCABundle == nil {
+		log.Info("Trusted CA Bundle is not configed in DSCI, same as default to `Removed` state. Reconciling to delete all " + CAConfigMapName)
+		if err := RemoveCABundleCMInAllNamespaces(ctx, cli); err != nil {
+			return fmt.Errorf("error deleting configmap %s from all valid namespaces %w", CAConfigMapName, err)
+		}
+		return nil
+	}
+
 	switch dscInit.Spec.TrustedCABundle.ManagementState {
 	case operatorv1.Managed:
 		log.Info("Trusted CA Bundle injection is set to `Managed` state. Reconciling to add/update " + CAConfigMapName)
@@ -144,18 +151,15 @@ func ConfigureTrustedCABundle(ctx context.Context, cli client.Client, log logr.L
 		}
 
 		if istrustedCABundleUpdated || managementStateChanged {
-			if err := AddCABundleConfigMapInAllNamespaces(ctx, cli, dscInit); err != nil {
-				log.Error(err, "error adding configmap to all namespaces", "name", CAConfigMapName)
-				return err
+			if err := AddCABundleCMInAllNamespaces(ctx, cli, log, dscInit); err != nil {
+				return fmt.Errorf("failed adding configmap %s to all namespaces: %w", CAConfigMapName, err)
 			}
 		}
 	case operatorv1.Removed:
 		log.Info("Trusted CA Bundle injection is set to `Removed` state. Reconciling to delete all " + CAConfigMapName)
-		if err := RemoveCABundleConfigMapInAllNamespaces(ctx, cli).ErrorOrNil(); err != nil {
-			log.Error(err, "error deleting configmap from all namespaces", "name", CAConfigMapName)
-			return err
+		if err := RemoveCABundleCMInAllNamespaces(ctx, cli); err != nil {
+			return fmt.Errorf("error deleting configmap %s from all namespaces %w", CAConfigMapName, err)
 		}
-
 	case operatorv1.Unmanaged:
 		log.Info("Trusted CA Bundle injection is set to `Unmanaged` state. " + CAConfigMapName + " configmaps are no longer managed by operator")
 	}
@@ -163,54 +167,38 @@ func ConfigureTrustedCABundle(ctx context.Context, cli client.Client, log logr.L
 	return nil
 }
 
-// when DSCI TrustedCABundle.ManagementState is set to `Managed`.
-func AddCABundleConfigMapInAllNamespaces(ctx context.Context, cli client.Client, dscInit *dsci.DSCInitialization) error {
-	namespaceList := &corev1.NamespaceList{}
-	if err := cli.List(ctx, namespaceList); err != nil {
-		return err
-	}
-
-	for i := range namespaceList.Items {
-		ns := &namespaceList.Items[i]
-		// check namespace status if not Active, then skip
-		if ns.Status.Phase != corev1.NamespaceActive {
-			continue
-		}
-
-		if ShouldInjectTrustedBundle(ns) {
-			if err := wait.PollUntilContextTimeout(ctx, time.Second*1, time.Second*10, false, func(ctx context.Context) (bool, error) {
+// AddCABundleCMInAllNamespaces create or update trustCABundle configmap in namespaces.
+func AddCABundleCMInAllNamespaces(ctx context.Context, cli client.Client, log logr.Logger, dscInit *dsciv1.DSCInitialization) error {
+	var multiErr *multierror.Error
+	processErr := cluster.ExecuteOnAllNamespaces(ctx, cli, func(ns *corev1.Namespace) error {
+		if ShouldInjectTrustedBundle(ns) { // only work on namespace that meet requirements and status active
+			pollErr := wait.PollUntilContextTimeout(ctx, time.Second*1, time.Second*10, false, func(ctx context.Context) (bool, error) {
 				if cmErr := CreateOdhTrustedCABundleConfigMap(ctx, cli, ns.Name, dscInit.Spec.TrustedCABundle.CustomCABundle); cmErr != nil {
 					// Logging the error for debugging
-					fmt.Printf("error creating cert configmap in namespace %v: %v", ns.Name, cmErr)
+					log.Info("error creating cert configmap in namespace", "namespace", ns.Name, "error", cmErr)
 					return false, nil
 				}
 				return true, nil
-			}); err != nil {
-				return err
-			}
+			})
+			multiErr = multierror.Append(multiErr, pollErr)
 		}
+		return nil // Always return nil to continue processing
+	})
+	if processErr != nil {
+		return processErr
 	}
-	return nil
+	return multierror.Append(multiErr, processErr).ErrorOrNil()
 }
 
-// when DSCI TrustedCABundle.ManagementState is set to `Removed`.
-func RemoveCABundleConfigMapInAllNamespaces(ctx context.Context, cli client.Client) *multierror.Error {
+// RemoveCABundleCMInAllNamespaces delete trustCABundle configmap from namespaces.
+func RemoveCABundleCMInAllNamespaces(ctx context.Context, cli client.Client) error {
 	var multiErr *multierror.Error
-
-	namespaceList := &corev1.NamespaceList{}
-	if err := cli.List(ctx, namespaceList); err != nil {
-		return multierror.Append(multiErr, err)
-	}
-
-	for i := range namespaceList.Items {
-		ns := &namespaceList.Items[i]
-		// check namespace status if not Active, then skip
-		if ns.Status.Phase != corev1.NamespaceActive {
-			continue
+	processErr := cluster.ExecuteOnAllNamespaces(ctx, cli, func(ns *corev1.Namespace) error {
+		if !ShouldInjectTrustedBundle(ns) { // skip deletion if namespace does not match critieria
+			return nil
 		}
-		if err := DeleteOdhTrustedCABundleConfigMap(ctx, cli, ns.Name); err != nil {
-			multiErr = multierror.Append(multiErr, err)
-		}
-	}
-	return multiErr
+		multiErr = multierror.Append(multiErr, DeleteOdhTrustedCABundleConfigMap(ctx, cli, ns.Name))
+		return nil // Always return nil to continue processing
+	})
+	return multierror.Append(multiErr, processErr).ErrorOrNil()
 }

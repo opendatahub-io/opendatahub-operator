@@ -1,0 +1,30 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../crd/
+  - ../manager/
+  - ../webhook
+
+configMapGenerator:
+  - files:
+      - ./config-defaults.yaml
+    name: model-serving-config-defaults
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+transformers:
+  - metadataLabelTransformer.yaml
+
+configurations:
+  - params.yaml
+
+patches:
+  # Since OpenShift serving-certificates are being used,
+  # remove CA bundle placeholders
+  - patch: |-
+      - op: remove
+        path: "/webhooks/0/clientConfig/caBundle"
+    target:
+      kind: ValidatingWebhookConfiguration

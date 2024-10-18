@@ -1,0 +1,438 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: nvidia-nim-periodic-validator
+  labels:
+    opendatahub.io/modified: "false"
+spec:
+  schedule: "0 0 * * *"
+  concurrencyPolicy: "Replace"
+  startingDeadlineSeconds: 200
+  suspend: true
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            parent: "nvidia-nim-periodic-validator"
+        spec:
+          serviceAccount: "rhods-dashboard"
+          containers:
+          - name: nvidia-nim-validator
+            image: registry.redhat.io/openshift4/ose-cli@sha256:75bf9b911b6481dcf29f7942240d1555adaa607eec7fc61bedb7f624f87c36d4
+            command:
+              - /bin/sh
+              - -c
+              - >
+                #!/bin/sh
+
+                RESULT_CONFIGMAP_NAME='nvidia-nim-validation-result'
+                DATA_CONFIGMAP_NAME='nvidia-nim-images-data'
+                IMAGE_PULL_SECRET_NAME='nvidia-nim-image-pull'
+                SERVING_RUNTIME_TEMPLATE_NAME='nvidia-nim-serving-template'
+                SERVING_RUNTIME_TEMPLATE_YAML='
+                  {
+                    "apiVersion": "template.openshift.io/v1",
+                    "kind": "Template",
+                    "metadata": {
+                      "annotations": {
+                        "opendatahub.io/apiProtocol": "REST",
+                        "opendatahub.io/modelServingSupport": "[\"single\"]"
+                      },
+                      "name": "nvidia-nim-serving-template"
+                    },
+                    "objects": [
+                      {
+                        "apiVersion": "serving.kserve.io/v1alpha1",
+                        "kind": "ServingRuntime",
+                        "labels": {
+                          "opendatahub.io/dashboard": "true"
+                        },
+                        "metadata": {
+                          "annotations": {
+                            "opendatahub.io/recommended-accelerators": "[\"nvidia.com/gpu\"]",
+                            "openshift.io/display-name": "NVIDIA NIM"
+                          },
+                          "name": "nvidia-nim-runtime"
+                        },
+                        "spec": {
+                          "containers": [
+                            {
+                              "env": [
+                                {
+                                  "name": "NIM_CACHE_PATH",
+                                  "value": "/mnt/models/cache"
+                                },
+                                {
+                                  "name": "NGC_API_KEY",
+                                  "valueFrom": {
+                                    "secretKeyRef": {
+                                      "key": "NGC_API_KEY",
+                                      "name": "nvidia-nim-secrets"
+                                    }
+                                  }
+                                }
+                              ],
+                              "image": null,
+                              "name": "kserve-container",
+                              "ports": [
+                                {
+                                  "containerPort": 8000,
+                                  "protocol": "TCP"
+                                }
+                              ],
+                              "resources": {
+                                "limits": {
+                                  "cpu": "2",
+                                  "memory": "8Gi",
+                                  "nvidia.com/gpu": 2
+                                },
+                                "requests": {
+                                  "cpu": "1",
+                                  "memory": "4Gi",
+                                  "nvidia.com/gpu": 2
+                                }
+                              },
+                              "volumeMounts": [
+                                {
+                                  "mountPath": "/dev/shm",
+                                  "name": "shm"
+                                },
+                                {
+                                  "mountPath": "/mnt/models/cache",
+                                  "name": "nim-pvc"
+                                }
+                              ]
+                            }
+                          ],
+                          "imagePullSecrets": [
+                            {
+                              "name": "ngc-secret"
+                            }
+                          ],
+                          "multiModel": false,
+                          "protocolVersions": [
+                            "grpc-v2",
+                            "v2"
+                          ],
+                          "supportedModelFormats": [],
+                          "volumes": [
+                            {
+                              "name": "nim-pvc",
+                              "persistentVolumeClaim": {
+                                "claimName": "nim-pvc"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }'
+
+                function verify_result_configmap_exists() {
+                  if ! oc get configmap "${RESULT_CONFIGMAP_NAME}" &>/dev/null; then
+                    echo "Result ConfigMap doesn't exist, creating"
+
+                    oc create configmap "${RESULT_CONFIGMAP_NAME}" --from-literal validation_result="false"
+                  fi
+                }
+
+                function write_result_configmap_value() {
+                  oc patch configmap "${RESULT_CONFIGMAP_NAME}" -p '"data": { "validation_result": "'${1}'" }'
+                }
+
+                function write_last_valid_time() {
+                  oc patch configmap "${RESULT_CONFIGMAP_NAME}" -p '"data": { "last_valid_time": "'$(date -Is)'" }'
+                }
+
+                function create_image_pull_secret() {
+                  if ! oc get secret "${IMAGE_PULL_SECRET_NAME}" &>/dev/null; then
+                    echo "Image pull Secret doesn't exist, creating"
+
+                    api_key=$(get_api_key)
+
+                    oc create secret docker-registry "${IMAGE_PULL_SECRET_NAME}" \
+                     --docker-server=nvcr.io \
+                     --docker-username='$oauthtoken' \
+                     --docker-password=${api_key}
+                   fi
+                }
+
+                function delete_image_pull_secret() {
+                  echo "Deleting image pull Secret"
+
+                  oc delete secret "${IMAGE_PULL_SECRET_NAME}" --ignore-not-found=true
+                }
+
+                function verify_image_data_configmap() {
+                  if ! oc get configmap "${DATA_CONFIGMAP_NAME}" &>/dev/null; then
+                    echo "Image data ConfigMap doesn't exist, creating"
+
+                    oc create configmap "${DATA_CONFIGMAP_NAME}"
+                  fi
+                }
+
+                function write_image_data_configmap() {
+                  echo "Patching image data ConfigMap"
+
+                  oc get configmap "${DATA_CONFIGMAP_NAME}" -o json | jq --argjson data "$1" '.data = ($data)' | oc apply -f -
+                }
+
+                function delete_image_data_configmap() {
+                  echo "Deleting image data ConfigMap"
+
+                  oc delete configmap "${DATA_CONFIGMAP_NAME}" --ignore-not-found=true
+                }
+
+                function create_serving_runtime_template() {
+                  if ! oc get template "${SERVING_RUNTIME_TEMPLATE_NAME}" &>/dev/null; then
+                    echo "Template for NIM ServingRuntime doesn't exist, creating"
+
+                    echo ${SERVING_RUNTIME_TEMPLATE_YAML} | oc create -f -
+                  fi
+                }
+
+                function delete_serving_runtime_template() {
+                  echo "Deleting Template for ServingRuntime"
+
+                  oc delete template "${SERVING_RUNTIME_TEMPLATE_NAME}" --ignore-not-found=true
+                }
+
+                function check_kserve() {
+                  dsc=$(oc get -o=json datasciencecluster)
+
+                  if [ ! -z "$dsc" ]; then
+                    enabled=$(jq -n --argjson data "$dsc" 'first($data.items[] | .status | select(.phase == "Ready") | .installedComponents | .kserve == true)')
+                    echo $enabled
+                  fi
+                }
+
+                function success() {
+                  echo "Validation succeeded, enabling NIM"
+
+                  create_image_pull_secret
+                  verify_image_data_configmap
+                  write_image_data_configmap "$1"
+                  create_serving_runtime_template
+                  verify_result_configmap_exists
+                  write_result_configmap_value true
+                  write_last_valid_time
+                }
+
+                function failure() {
+                  echo "Validation failed, disabling NIM"
+
+                  delete_image_pull_secret
+                  delete_image_data_configmap
+                  delete_serving_runtime_template
+                  verify_result_configmap_exists
+                  write_result_configmap_value false
+                }
+
+                function get_api_key() {
+                  cat "/etc/secret-volume/api_key"
+                }
+
+                function get_ngc_token() {
+                  tempfile=$(mktemp)
+
+                  http_code=$(curl -s --write-out "%{http_code}" -o $tempfile "https://authn.nvidia.com/token?service=ngc&" \
+                  -H "Authorization: ApiKey $1")
+
+                  if [ "${http_code}" == 200 ]; then
+                    token=$(jq -r '.token' $tempfile)
+                    echo $token
+                  fi
+                }
+
+                function get_nim_images() {
+                  tempfile=$(mktemp)
+
+                  http_code=$(curl -s --write-out "%{http_code}" -o $tempfile \
+                  https://api.ngc.nvidia.com/v2/search/catalog/resources/CONTAINER?q=%7B%22query%22%3A+%22orgName%3Anim%22%7D)
+
+                  if [ "${http_code}" == 200 ]; then
+                    nim_images=$(jq -r \
+                    '.results[] | select(.groupValue == "CONTAINER") | .resources[] | (.resourceId + ":" + (.attributes[] | select(.key == "latestTag") | .value))' \
+                    $tempfile)
+                    echo $nim_images
+                  fi
+                }
+
+                function get_nim_image_details() {
+                  IFS=':' read -r -a refs <<< "$1"
+
+                  if [ ${#refs[@]} -ne 2 ]; then
+                    return
+                  fi
+
+                  name="${refs[0]}"
+                  tag="${refs[1]}"
+
+                  IFS='/' read -r -a parts <<< "$name"
+
+                  if [ ${#parts[@]} -ne 3 ]; then
+                    return
+                  fi
+                  org="${parts[0]}"
+                  team="${parts[1]}"
+                  image="${parts[2]}"
+
+                  tempfile=$(mktemp)
+
+                  http_code=$(curl -s --write-out "%{http_code}" -o $tempfile \
+                  https://api.ngc.nvidia.com/v2/org/$org/team/$team/repos/$image?resolve-labels=true \
+                  -H "Authorization: Bearer $2")
+
+                  if [ "${http_code}" == 200 ]; then
+                    raw_data=$(jq -r \
+                    '{name, displayName, shortDescription, namespace, tags, latestTag, updatedDate}' \
+                    $tempfile)
+                    image_data=$(jq -n --arg name "$image" --arg data "$raw_data" '{($name): ($data)}')
+                    echo $image_data
+                  fi
+                }
+
+                function get_image_data() {
+                  images=("$@")
+
+                  api_key=$(get_api_key)
+                  token=$(get_ngc_token $api_key)
+
+                  if [ ! -z "$token" ]; then
+                    images_data=()
+                    i=0
+                    for image in "${images[@]}";
+                    do
+                      images_data[i]=$(get_nim_image_details $image $token)
+                      i=$((i+1))
+                    done
+
+                    data='{}'
+                    for image_data in "${images_data[@]}";
+                    do
+                      data="$(jq --argjson data "$image_data" '. += $data' <<< "$data")"
+                    done
+
+                    echo $data
+                  fi
+                }
+
+                function get_image_registry_token() {
+                  tempfile=$(mktemp)
+
+                  http_code=$(curl -s --write-out "%{http_code}" -o $tempfile \
+                  "https://nvcr.io/proxy_auth?account=\$oauthtoken&offline_token=true&scope=repository:$1:pull" \
+                  -H "Authorization: Basic $2")
+
+                  if [ "${http_code}" == 200 ]; then
+                    token=$(jq -r '.token' $tempfile)
+                    echo $token
+                  fi
+                }
+
+                function get_image_manifest() {
+                  tempfile=$(mktemp)
+
+                  http_code=$(curl -s --write-out "%{http_code}" -o $tempfile \
+                  "https://nvcr.io/v2/$1/manifests/$2" \
+                  -H "Authorization: Bearer $3")
+
+                  if [ "${http_code}" == 200 ]; then
+                    cat $tempfile
+                  fi
+                }
+
+                function verify_api_key() {
+                  api_key=$(get_api_key)
+                  basic=$(printf "\$oauthtoken:$api_key" | base64 -w 0)
+
+                  token=$(get_image_registry_token $1 $basic)
+
+                  if [ ! -z "$token" ]; then
+                    manifest=$(get_image_manifest $1 $2 $token)
+
+                    if [ ! -z "$manifest" ]; then
+                      echo $manifest
+                    fi
+                  fi
+                }
+
+                echo "Install jq"
+
+                dnf install -y jq
+
+                echo "Check KServe readiness"
+
+                kserve_enabled=$(check_kserve)
+
+                if [ "${kserve_enabled}" != "true" ]; then
+                  echo "KServe is not enabled"
+
+                  failure
+                  exit 0
+                fi
+
+                echo "Get NIM images"
+
+                nim_images=$(get_nim_images)
+
+                if [ ! -z "$nim_images" ]; then
+                  images=($nim_images)
+
+                  IFS=':' read -r -a refs <<< "${images[0]}"
+
+                  if [ ${#refs[@]} -ne 2 ]; then
+                    echo "Failed to parse NIM image name"
+
+                    failure
+                  fi
+
+                  echo "Verify Api Key"
+
+                  verification=$(verify_api_key "${refs[0]}" "${refs[1]}")
+
+                  if [ ! -z "$verification" ]; then
+                    echo "Get images data"
+
+                    nim_data=$(get_image_data "${images[@]}")
+
+                    if [ ! -z "$nim_data" ]; then
+                      echo "Enable NIM app"
+
+                      success "$nim_data"
+                    else
+                      echo "Failed to retrieve NIM image details"
+
+                      failure
+                    fi
+                  else
+                    echo "Api key verification failed"
+
+                    failure
+                  fi
+                else
+                  echo "Failed to get NIM images"
+
+                  failure
+                fi
+
+                exit 0
+            volumeMounts:
+                - name: secret-volume
+                  mountPath: /etc/secret-volume
+                  readOnly: true
+            resources:
+              limits:
+                cpu: 100m
+                memory: 256Mi
+              requests:
+                cpu: 100m
+                memory: 256Mi
+          volumes:
+            - name: secret-volume
+              secret:
+                secretName: nvidia-nim-access
+          restartPolicy: Never

@@ -1,0 +1,811 @@
+{{ if (eq .DSPVersion "v2") }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+    name: sample-pipeline-{{.Name}}
+    namespace: {{.Namespace}}
+    labels:
+        app: ds-pipeline-{{.Name}}
+        component: data-science-pipelines
+data:
+    iris-pipeline-compiled.yaml: |-
+      # PIPELINE DEFINITION
+      # Name: iris-training-pipeline
+      # Inputs:
+      #    neighbors: int [Default: 3.0]
+      #    standard_scaler: bool [Default: True]
+      # Outputs:
+      #    train-model-metrics: system.ClassificationMetrics
+      components:
+        comp-create-dataset:
+          executorLabel: exec-create-dataset
+          outputDefinitions:
+            artifacts:
+              iris_dataset:
+                artifactType:
+                  schemaTitle: system.Dataset
+                  schemaVersion: 0.0.1
+        comp-normalize-dataset:
+          executorLabel: exec-normalize-dataset
+          inputDefinitions:
+            artifacts:
+              input_iris_dataset:
+                artifactType:
+                  schemaTitle: system.Dataset
+                  schemaVersion: 0.0.1
+            parameters:
+              standard_scaler:
+                parameterType: BOOLEAN
+          outputDefinitions:
+            artifacts:
+              normalized_iris_dataset:
+                artifactType:
+                  schemaTitle: system.Dataset
+                  schemaVersion: 0.0.1
+        comp-train-model:
+          executorLabel: exec-train-model
+          inputDefinitions:
+            artifacts:
+              normalized_iris_dataset:
+                artifactType:
+                  schemaTitle: system.Dataset
+                  schemaVersion: 0.0.1
+            parameters:
+              n_neighbors:
+                parameterType: NUMBER_INTEGER
+          outputDefinitions:
+            artifacts:
+              metrics:
+                artifactType:
+                  schemaTitle: system.ClassificationMetrics
+                  schemaVersion: 0.0.1
+              model:
+                artifactType:
+                  schemaTitle: system.Model
+                  schemaVersion: 0.0.1
+      deploymentSpec:
+        executors:
+          exec-create-dataset:
+            container:
+              args:
+              - --executor_input
+              - '{{"{{"}}${{"}}"}}'
+              - --function_to_execute
+              - create_dataset
+              command:
+              - sh
+              - -c
+              - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+                \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+                \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0'\
+                \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+                \  python3 -m pip install --quiet --no-warn-script-location 'pandas==2.2.0'\
+                \ && \"$0\" \"$@\"\n"
+              - sh
+              - -ec
+              - 'program_path=$(mktemp -d)
+
+
+                printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+                _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+                '
+              - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+                \ *\n\ndef create_dataset(iris_dataset: Output[Dataset]):\n    import pandas\
+                \ as pd\n\n    csv_url = 'https://archive.ics.uci.edu/ml/machine-learning-databases/iris/iris.data'\n\
+                \    col_names = [\n        'Sepal_Length', 'Sepal_Width', 'Petal_Length',\
+                \ 'Petal_Width', 'Labels'\n    ]\n    df = pd.read_csv(csv_url, names=col_names)\n\
+                \n    with open(iris_dataset.path, 'w') as f:\n        df.to_csv(f)\n\n"
+              image: quay.io/opendatahub/ds-pipelines-sample-base:v1.0
+          exec-normalize-dataset:
+            container:
+              args:
+              - --executor_input
+              - '{{"{{"}}${{"}}"}}'
+              - --function_to_execute
+              - normalize_dataset
+              command:
+              - sh
+              - -c
+              - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+                \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+                \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0'\
+                \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+                \  python3 -m pip install --quiet --no-warn-script-location 'pandas==2.2.0'\
+                \ 'scikit-learn==1.4.0' && \"$0\" \"$@\"\n"
+              - sh
+              - -ec
+              - 'program_path=$(mktemp -d)
+
+
+                printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+                _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+                '
+              - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+                \ *\n\ndef normalize_dataset(\n    input_iris_dataset: Input[Dataset],\n\
+                \    normalized_iris_dataset: Output[Dataset],\n    standard_scaler: bool,\n\
+                ):\n\n    import pandas as pd\n    from sklearn.preprocessing import MinMaxScaler\n\
+                \    from sklearn.preprocessing import StandardScaler\n\n    with open(input_iris_dataset.path)\
+                \ as f:\n        df = pd.read_csv(f)\n    labels = df.pop('Labels')\n\n\
+                \    scaler = StandardScaler() if standard_scaler else MinMaxScaler()\n\n\
+                \    df = pd.DataFrame(scaler.fit_transform(df))\n    df['Labels'] = labels\n\
+                \    normalized_iris_dataset.metadata['state'] = \"Normalized\"\n    with\
+                \ open(normalized_iris_dataset.path, 'w') as f:\n        df.to_csv(f)\n\n"
+              image: quay.io/opendatahub/ds-pipelines-sample-base:v1.0
+          exec-train-model:
+            container:
+              args:
+              - --executor_input
+              - '{{"{{"}}${{"}}"}}'
+              - --function_to_execute
+              - train_model
+              command:
+              - sh
+              - -c
+              - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+                \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+                \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0'\
+                \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+                \  python3 -m pip install --quiet --no-warn-script-location 'pandas==2.2.0'\
+                \ 'scikit-learn==1.4.0' && \"$0\" \"$@\"\n"
+              - sh
+              - -ec
+              - 'program_path=$(mktemp -d)
+
+
+                printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+                _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+                '
+              - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+                \ *\n\ndef train_model(\n    normalized_iris_dataset: Input[Dataset],\n\
+                \    model: Output[Model],\n    metrics: Output[ClassificationMetrics],\n\
+                \    n_neighbors: int,\n):\n    import pickle\n\n    import pandas as pd\n\
+                \    from sklearn.model_selection import train_test_split\n    from sklearn.neighbors\
+                \ import KNeighborsClassifier\n\n    from sklearn.metrics import roc_curve\n\
+                \    from sklearn.model_selection import train_test_split, cross_val_predict\n\
+                \    from sklearn.metrics import confusion_matrix\n\n\n    with open(normalized_iris_dataset.path)\
+                \ as f:\n        df = pd.read_csv(f)\n\n    y = df.pop('Labels')\n    X\
+                \ = df\n\n    X_train, X_test, y_train, y_test = train_test_split(X, y,\
+                \ random_state=0)\n\n    clf = KNeighborsClassifier(n_neighbors=n_neighbors)\n\
+                \    clf.fit(X_train, y_train)\n\n    predictions = cross_val_predict(\n\
+                \        clf, X_train, y_train, cv=3)\n    metrics.log_confusion_matrix(\n\
+                \        ['Iris-Setosa', 'Iris-Versicolour', 'Iris-Virginica'],\n      \
+                \  confusion_matrix(\n            y_train,\n            predictions).tolist()\
+                \  # .tolist() to convert np array to list.\n    )\n\n    model.metadata['framework']\
+                \ = 'scikit-learn'\n    with open(model.path, 'wb') as f:\n        pickle.dump(clf,\
+                \ f)\n\n"
+              image: quay.io/opendatahub/ds-pipelines-sample-base:v1.0
+      pipelineInfo:
+        name: iris-training-pipeline
+      root:
+        dag:
+          outputs:
+            artifacts:
+              train-model-metrics:
+                artifactSelectors:
+                - outputArtifactKey: metrics
+                  producerSubtask: train-model
+          tasks:
+            create-dataset:
+              cachingOptions:
+                enableCache: true
+              componentRef:
+                name: comp-create-dataset
+              taskInfo:
+                name: create-dataset
+            normalize-dataset:
+              cachingOptions:
+                enableCache: true
+              componentRef:
+                name: comp-normalize-dataset
+              dependentTasks:
+              - create-dataset
+              inputs:
+                artifacts:
+                  input_iris_dataset:
+                    taskOutputArtifact:
+                      outputArtifactKey: iris_dataset
+                      producerTask: create-dataset
+                parameters:
+                  standard_scaler:
+                    runtimeValue:
+                      constant: true
+              taskInfo:
+                name: normalize-dataset
+            train-model:
+              cachingOptions:
+                enableCache: true
+              componentRef:
+                name: comp-train-model
+              dependentTasks:
+              - normalize-dataset
+              inputs:
+                artifacts:
+                  normalized_iris_dataset:
+                    taskOutputArtifact:
+                      outputArtifactKey: normalized_iris_dataset
+                      producerTask: normalize-dataset
+                parameters:
+                  n_neighbors:
+                    componentInputParameter: neighbors
+              taskInfo:
+                name: train-model
+        inputDefinitions:
+          parameters:
+            neighbors:
+              defaultValue: 3.0
+              isOptional: true
+              parameterType: NUMBER_INTEGER
+            standard_scaler:
+              defaultValue: true
+              isOptional: true
+              parameterType: BOOLEAN
+        outputDefinitions:
+          artifacts:
+            train-model-metrics:
+              artifactType:
+                schemaTitle: system.ClassificationMetrics
+                schemaVersion: 0.0.1
+      schemaVersion: 2.1.0
+      sdkVersion: kfp-2.7.0
+{{ else }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+    name: sample-pipeline-{{.Name}}
+    namespace: {{.Namespace}}
+    labels:
+        app: ds-pipeline-{{.Name}}
+        component: data-science-pipelines
+data:
+    iris-pipeline-compiled.yaml: |-
+      apiVersion: tekton.dev/v1beta1
+      kind: PipelineRun
+      metadata:
+        name: iris-pipeline
+        annotations:
+          tekton.dev/output_artifacts: '{"data-prep": [{"key": "artifacts/$PIPELINERUN/data-prep/X_test.tgz",
+            "name": "data-prep-X_test", "path": "/tmp/outputs/X_test/data"}, {"key": "artifacts/$PIPELINERUN/data-prep/X_train.tgz",
+            "name": "data-prep-X_train", "path": "/tmp/outputs/X_train/data"}, {"key": "artifacts/$PIPELINERUN/data-prep/y_test.tgz",
+            "name": "data-prep-y_test", "path": "/tmp/outputs/y_test/data"}, {"key": "artifacts/$PIPELINERUN/data-prep/y_train.tgz",
+            "name": "data-prep-y_train", "path": "/tmp/outputs/y_train/data"}], "evaluate-model":
+            [{"key": "artifacts/$PIPELINERUN/evaluate-model/mlpipeline-metrics.tgz", "name":
+            "mlpipeline-metrics", "path": "/tmp/outputs/mlpipeline_metrics/data"}], "train-model":
+            [{"key": "artifacts/$PIPELINERUN/train-model/model.tgz", "name": "train-model-model",
+            "path": "/tmp/outputs/model/data"}]}'
+          tekton.dev/input_artifacts: '{"evaluate-model": [{"name": "data-prep-X_test",
+            "parent_task": "data-prep"}, {"name": "data-prep-y_test", "parent_task": "data-prep"},
+            {"name": "train-model-model", "parent_task": "train-model"}], "train-model":
+            [{"name": "data-prep-X_train", "parent_task": "data-prep"}, {"name": "data-prep-y_train",
+            "parent_task": "data-prep"}], "validate-model": [{"name": "train-model-model",
+            "parent_task": "train-model"}]}'
+          tekton.dev/artifact_bucket: mlpipeline
+          tekton.dev/artifact_endpoint: ${MINIO_SERVICE_SERVICE_HOST}:${MINIO_SERVICE_SERVICE_PORT}
+          tekton.dev/artifact_endpoint_scheme: http://
+          tekton.dev/artifact_items: '{"data-prep": [["X_test", "$(workspaces.data-prep.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/X_test"],
+            ["X_train", "$(workspaces.data-prep.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/X_train"],
+            ["y_test", "$(workspaces.data-prep.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/y_test"],
+            ["y_train", "$(workspaces.data-prep.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/y_train"]],
+            "evaluate-model": [["mlpipeline-metrics", "/tmp/outputs/mlpipeline_metrics/data"]],
+            "train-model": [["model", "$(workspaces.train-model.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/model"]],
+            "validate-model": []}'
+          sidecar.istio.io/inject: "false"
+          tekton.dev/template: ''
+          pipelines.kubeflow.org/big_data_passing_format: $(workspaces.$TASK_NAME.path)/artifacts/$ORIG_PR_NAME/$TASKRUN_NAME/$TASK_PARAM_NAME
+          pipelines.kubeflow.org/pipeline_spec: '{"inputs": [{"default": "iris-model", "name":
+            "model_obc", "optional": true, "type": "String"}], "name": "Iris Pipeline"}'
+        labels:
+          pipelines.kubeflow.org/pipelinename: ''
+          pipelines.kubeflow.org/generation: ''
+      spec:
+        params:
+        - name: model_obc
+          value: iris-model
+        pipelineSpec:
+          params:
+          - name: model_obc
+            default: iris-model
+          tasks:
+          - name: data-prep
+            taskSpec:
+              steps:
+              - name: main
+                args:
+                - --X-train
+                - $(workspaces.data-prep.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/X_train
+                - --X-test
+                - $(workspaces.data-prep.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/X_test
+                - --y-train
+                - $(workspaces.data-prep.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/y_train
+                - --y-test
+                - $(workspaces.data-prep.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/y_test
+                command:
+                - sh
+                - -c
+                - (PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location
+                  'pandas' 'scikit-learn' || PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m
+                  pip install --quiet --no-warn-script-location 'pandas' 'scikit-learn'
+                  --user) && "$0" "$@"
+                - sh
+                - -ec
+                - |
+                  program_path=$(mktemp)
+                  printf "%s" "$0" > "$program_path"
+                  python3 -u "$program_path" "$@"
+                - |
+                  def _make_parent_dirs_and_return_path(file_path: str):
+                      import os
+                      os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                      return file_path
+
+                  def data_prep(
+                      X_train_file,
+                      X_test_file,
+                      y_train_file,
+                      y_test_file,
+                  ):
+                      import pickle
+
+                      import pandas as pd
+
+                      from sklearn import datasets
+                      from sklearn.model_selection import train_test_split
+
+                      def get_iris_data():
+                          iris = datasets.load_iris()
+                          data = pd.DataFrame(
+                              {
+                                  "sepalLength": iris.data[:, 0],
+                                  "sepalWidth": iris.data[:, 1],
+                                  "petalLength": iris.data[:, 2],
+                                  "petalWidth": iris.data[:, 3],
+                                  "species": iris.target,
+                              }
+                          )
+
+                          print("Initial Dataset:")
+                          print(data.head())
+
+                          return data
+
+                      def create_training_set(dataset, test_size = 0.3):
+                          # Features
+                          X = dataset[["sepalLength", "sepalWidth", "petalLength", "petalWidth"]]
+                          # Labels
+                          y = dataset["species"]
+
+                          # Split dataset into training set and test set
+                          X_train, X_test, y_train, y_test = train_test_split(
+                              X, y, test_size=test_size, random_state=11
+                          )
+
+                          return X_train, X_test, y_train, y_test
+
+                      def save_pickle(object_file, target_object):
+                          with open(object_file, "wb") as f:
+                              pickle.dump(target_object, f)
+
+                      dataset = get_iris_data()
+                      X_train, X_test, y_train, y_test = create_training_set(dataset)
+
+                      save_pickle(X_train_file, X_train)
+                      save_pickle(X_test_file, X_test)
+                      save_pickle(y_train_file, y_train)
+                      save_pickle(y_test_file, y_test)
+
+                  import argparse
+                  _parser = argparse.ArgumentParser(prog='Data prep', description='')
+                  _parser.add_argument("--X-train", dest="X_train_file", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
+                  _parser.add_argument("--X-test", dest="X_test_file", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
+                  _parser.add_argument("--y-train", dest="y_train_file", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
+                  _parser.add_argument("--y-test", dest="y_test_file", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
+                  _parsed_args = vars(_parser.parse_args())
+
+                  _outputs = data_prep(**_parsed_args)
+                image: registry.access.redhat.com/ubi8/python-38
+                env:
+                - name: ORIG_PR_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.labels['custom.tekton.dev/originalPipelineRun']
+              - image: registry.access.redhat.com/ubi8/ubi-minimal
+                name: output-taskrun-name
+                command:
+                - sh
+                - -ec
+                - echo -n "$(context.taskRun.name)" > "$(results.taskrun-name.path)"
+              - image: registry.access.redhat.com/ubi8/ubi-minimal
+                name: copy-results-artifacts
+                command:
+                - sh
+                - -ec
+                - |
+                  set -exo pipefail
+                  TOTAL_SIZE=0
+                  copy_artifact() {
+                  if [ -d "$1" ]; then
+                    tar -czvf "$1".tar.gz "$1"
+                    SUFFIX=".tar.gz"
+                  fi
+                  ARTIFACT_SIZE=`wc -c "$1"${SUFFIX} | awk '{print $1}'`
+                  TOTAL_SIZE=$( expr $TOTAL_SIZE + $ARTIFACT_SIZE)
+                  touch "$2"
+                  if [[ $TOTAL_SIZE -lt 3072 ]]; then
+                    if [ -d "$1" ]; then
+                      tar -tzf "$1".tar.gz > "$2"
+                    elif ! awk "/[^[:print:]]/{f=1} END{exit !f}" "$1"; then
+                      cp "$1" "$2"
+                    fi
+                  fi
+                  }
+                  copy_artifact $(workspaces.data-prep.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/X_train $(results.X-train.path)
+                  copy_artifact $(workspaces.data-prep.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/X_test $(results.X-test.path)
+                  copy_artifact $(workspaces.data-prep.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/y_train $(results.y-train.path)
+                  copy_artifact $(workspaces.data-prep.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/y_test $(results.y-test.path)
+                onError: continue
+                env:
+                - name: ORIG_PR_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.labels['custom.tekton.dev/originalPipelineRun']
+              results:
+              - name: X-test
+                description: /tmp/outputs/X_test/data
+              - name: X-train
+                description: /tmp/outputs/X_train/data
+              - name: taskrun-name
+              - name: y-test
+                description: /tmp/outputs/y_test/data
+              - name: y-train
+                description: /tmp/outputs/y_train/data
+              metadata:
+                labels:
+                  pipelines.kubeflow.org/cache_enabled: "true"
+                annotations:
+                  pipelines.kubeflow.org/component_spec_digest: '{"name": "Data prep", "outputs":
+                    [{"name": "X_train"}, {"name": "X_test"}, {"name": "y_train"}, {"name":
+                    "y_test"}], "version": "Data prep@sha256=5aeb512900f57983c9f643ec30ddb4ccc66490a443269b51ce0a67d57cb373b0"}'
+              workspaces:
+              - name: data-prep
+            workspaces:
+            - name: data-prep
+              workspace: iris-pipeline
+          - name: train-model
+            params:
+            - name: data-prep-trname
+              value: $(tasks.data-prep.results.taskrun-name)
+            taskSpec:
+              steps:
+              - name: main
+                args:
+                - --X-train
+                - $(workspaces.train-model.path)/artifacts/$ORIG_PR_NAME/$(params.data-prep-trname)/X_train
+                - --y-train
+                - $(workspaces.train-model.path)/artifacts/$ORIG_PR_NAME/$(params.data-prep-trname)/y_train
+                - --model
+                - $(workspaces.train-model.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/model
+                command:
+                - sh
+                - -c
+                - (PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location
+                  'pandas' 'scikit-learn' || PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m
+                  pip install --quiet --no-warn-script-location 'pandas' 'scikit-learn'
+                  --user) && "$0" "$@"
+                - sh
+                - -ec
+                - |
+                  program_path=$(mktemp)
+                  printf "%s" "$0" > "$program_path"
+                  python3 -u "$program_path" "$@"
+                - |
+                  def _make_parent_dirs_and_return_path(file_path: str):
+                      import os
+                      os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                      return file_path
+
+                  def train_model(
+                      X_train_file,
+                      y_train_file,
+                      model_file,
+                  ):
+                      import pickle
+
+                      from sklearn.ensemble import RandomForestClassifier
+
+                      def load_pickle(object_file):
+                          with open(object_file, "rb") as f:
+                              target_object = pickle.load(f)
+
+                          return target_object
+
+                      def save_pickle(object_file, target_object):
+                          with open(object_file, "wb") as f:
+                              pickle.dump(target_object, f)
+
+                      def train_iris(X_train, y_train):
+                          model = RandomForestClassifier(n_estimators=100)
+                          model.fit(X_train, y_train)
+
+                          return model
+
+                      X_train = load_pickle(X_train_file)
+                      y_train = load_pickle(y_train_file)
+
+                      model = train_iris(X_train, y_train)
+
+                      save_pickle(model_file, model)
+
+                  import argparse
+                  _parser = argparse.ArgumentParser(prog='Train model', description='')
+                  _parser.add_argument("--X-train", dest="X_train_file", type=str, required=True, default=argparse.SUPPRESS)
+                  _parser.add_argument("--y-train", dest="y_train_file", type=str, required=True, default=argparse.SUPPRESS)
+                  _parser.add_argument("--model", dest="model_file", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
+                  _parsed_args = vars(_parser.parse_args())
+
+                  _outputs = train_model(**_parsed_args)
+                image: registry.access.redhat.com/ubi8/python-38
+                env:
+                - name: ORIG_PR_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.labels['custom.tekton.dev/originalPipelineRun']
+              - image: registry.access.redhat.com/ubi8/ubi-minimal
+                name: output-taskrun-name
+                command:
+                - sh
+                - -ec
+                - echo -n "$(context.taskRun.name)" > "$(results.taskrun-name.path)"
+              - image: registry.access.redhat.com/ubi8/ubi-minimal
+                name: copy-results-artifacts
+                command:
+                - sh
+                - -ec
+                - |
+                  set -exo pipefail
+                  TOTAL_SIZE=0
+                  copy_artifact() {
+                  if [ -d "$1" ]; then
+                    tar -czvf "$1".tar.gz "$1"
+                    SUFFIX=".tar.gz"
+                  fi
+                  ARTIFACT_SIZE=`wc -c "$1"${SUFFIX} | awk '{print $1}'`
+                  TOTAL_SIZE=$( expr $TOTAL_SIZE + $ARTIFACT_SIZE)
+                  touch "$2"
+                  if [[ $TOTAL_SIZE -lt 3072 ]]; then
+                    if [ -d "$1" ]; then
+                      tar -tzf "$1".tar.gz > "$2"
+                    elif ! awk "/[^[:print:]]/{f=1} END{exit !f}" "$1"; then
+                      cp "$1" "$2"
+                    fi
+                  fi
+                  }
+                  copy_artifact $(workspaces.train-model.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/model $(results.model.path)
+                onError: continue
+                env:
+                - name: ORIG_PR_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.labels['custom.tekton.dev/originalPipelineRun']
+              params:
+              - name: data-prep-trname
+              results:
+              - name: model
+                description: /tmp/outputs/model/data
+              - name: taskrun-name
+              metadata:
+                labels:
+                  pipelines.kubeflow.org/cache_enabled: "true"
+                annotations:
+                  pipelines.kubeflow.org/component_spec_digest: '{"name": "Train model",
+                    "outputs": [{"name": "model"}], "version": "Train model@sha256=cb1fbd399ee5849dcdfaafced23a0496cae1d5861795062b22512b766ec418ce"}'
+              workspaces:
+              - name: train-model
+            workspaces:
+            - name: train-model
+              workspace: iris-pipeline
+            runAfter:
+            - data-prep
+            - data-prep
+          - name: evaluate-model
+            params:
+            - name: data-prep-trname
+              value: $(tasks.data-prep.results.taskrun-name)
+            - name: train-model-trname
+              value: $(tasks.train-model.results.taskrun-name)
+            taskSpec:
+              steps:
+              - name: main
+                args:
+                - --X-test
+                - $(workspaces.evaluate-model.path)/artifacts/$ORIG_PR_NAME/$(params.data-prep-trname)/X_test
+                - --y-test
+                - $(workspaces.evaluate-model.path)/artifacts/$ORIG_PR_NAME/$(params.data-prep-trname)/y_test
+                - --model
+                - $(workspaces.evaluate-model.path)/artifacts/$ORIG_PR_NAME/$(params.train-model-trname)/model
+                - --mlpipeline-metrics
+                - /tmp/outputs/mlpipeline_metrics/data
+                command:
+                - sh
+                - -c
+                - (PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location
+                  'pandas' 'scikit-learn' || PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m
+                  pip install --quiet --no-warn-script-location 'pandas' 'scikit-learn'
+                  --user) && "$0" "$@"
+                - sh
+                - -ec
+                - |
+                  program_path=$(mktemp)
+                  printf "%s" "$0" > "$program_path"
+                  python3 -u "$program_path" "$@"
+                - |
+                  def _make_parent_dirs_and_return_path(file_path: str):
+                      import os
+                      os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                      return file_path
+
+                  def evaluate_model(
+                      X_test_file,
+                      y_test_file,
+                      model_file,
+                      mlpipeline_metrics_file,
+                  ):
+                      import json
+                      import pickle
+
+                      from sklearn.metrics import accuracy_score
+
+                      def load_pickle(object_file):
+                          with open(object_file, "rb") as f:
+                              target_object = pickle.load(f)
+
+                          return target_object
+
+                      X_test = load_pickle(X_test_file)
+                      y_test = load_pickle(y_test_file)
+                      model = load_pickle(model_file)
+
+                      y_pred = model.predict(X_test)
+
+                      accuracy_score_metric = accuracy_score(y_test, y_pred)
+                      print(f"Accuracy: {accuracy_score_metric}")
+
+                      metrics = {
+                          "metrics": [
+                              {
+                                  "name": "accuracy-score",
+                                  "numberValue": accuracy_score_metric,
+                                  "format": "PERCENTAGE",
+                              },
+                          ]
+                      }
+
+                      with open(mlpipeline_metrics_file, "w") as f:
+                          json.dump(metrics, f)
+
+                  import argparse
+                  _parser = argparse.ArgumentParser(prog='Evaluate model', description='')
+                  _parser.add_argument("--X-test", dest="X_test_file", type=str, required=True, default=argparse.SUPPRESS)
+                  _parser.add_argument("--y-test", dest="y_test_file", type=str, required=True, default=argparse.SUPPRESS)
+                  _parser.add_argument("--model", dest="model_file", type=str, required=True, default=argparse.SUPPRESS)
+                  _parser.add_argument("--mlpipeline-metrics", dest="mlpipeline_metrics_file", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
+                  _parsed_args = vars(_parser.parse_args())
+
+                  _outputs = evaluate_model(**_parsed_args)
+                image: registry.access.redhat.com/ubi8/python-38
+                env:
+                - name: ORIG_PR_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.labels['custom.tekton.dev/originalPipelineRun']
+              params:
+              - name: data-prep-trname
+              - name: train-model-trname
+              stepTemplate:
+                volumeMounts:
+                - name: mlpipeline-metrics
+                  mountPath: /tmp/outputs/mlpipeline_metrics
+              volumes:
+              - name: mlpipeline-metrics
+                emptyDir: {}
+              metadata:
+                labels:
+                  pipelines.kubeflow.org/cache_enabled: "true"
+                annotations:
+                  pipelines.kubeflow.org/component_spec_digest: '{"name": "Evaluate model",
+                    "outputs": [{"name": "mlpipeline_metrics", "type": "Metrics"}], "version":
+                    "Evaluate model@sha256=f398e65faecc6f5a4ba11a2c78d8a2274e3ede205a0e199c8bb615531a3abd4a"}'
+              workspaces:
+              - name: evaluate-model
+            workspaces:
+            - name: evaluate-model
+              workspace: iris-pipeline
+            runAfter:
+            - data-prep
+            - data-prep
+            - train-model
+          - name: validate-model
+            params:
+            - name: train-model-trname
+              value: $(tasks.train-model.results.taskrun-name)
+            taskSpec:
+              steps:
+              - name: main
+                args:
+                - --model
+                - $(workspaces.validate-model.path)/artifacts/$ORIG_PR_NAME/$(params.train-model-trname)/model
+                command:
+                - sh
+                - -c
+                - (PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location
+                  'pandas' 'scikit-learn' || PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m
+                  pip install --quiet --no-warn-script-location 'pandas' 'scikit-learn'
+                  --user) && "$0" "$@"
+                - sh
+                - -ec
+                - |
+                  program_path=$(mktemp)
+                  printf "%s" "$0" > "$program_path"
+                  python3 -u "$program_path" "$@"
+                - |
+                  def validate_model(model_file):
+                      import pickle
+
+                      def load_pickle(object_file):
+                          with open(object_file, "rb") as f:
+                              target_object = pickle.load(f)
+
+                          return target_object
+
+                      model = load_pickle(model_file)
+
+                      input_values = [[5, 3, 1.6, 0.2]]
+
+                      print(f"Performing test prediction on {input_values}")
+                      result = model.predict(input_values)
+
+                      print(f"Response: {result}")
+
+                  import argparse
+                  _parser = argparse.ArgumentParser(prog='Validate model', description='')
+                  _parser.add_argument("--model", dest="model_file", type=str, required=True, default=argparse.SUPPRESS)
+                  _parsed_args = vars(_parser.parse_args())
+
+                  _outputs = validate_model(**_parsed_args)
+                image: registry.access.redhat.com/ubi8/python-38
+                env:
+                - name: ORIG_PR_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.labels['custom.tekton.dev/originalPipelineRun']
+              params:
+              - name: train-model-trname
+              metadata:
+                labels:
+                  pipelines.kubeflow.org/cache_enabled: "true"
+                annotations:
+                  pipelines.kubeflow.org/component_spec_digest: '{"name": "Validate model",
+                    "outputs": [], "version": "Validate model@sha256=53d18ff94fc8f164e7d8455f2c87fa7fdac17e7502502aaa52012e4247d089ee"}'
+              workspaces:
+              - name: validate-model
+            workspaces:
+            - name: validate-model
+              workspace: iris-pipeline
+            runAfter:
+            - train-model
+          workspaces:
+          - name: iris-pipeline
+        workspaces:
+        - name: iris-pipeline
+          volumeClaimTemplate:
+            spec:
+              accessModes:
+              - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 2Gi
+{{ end }}

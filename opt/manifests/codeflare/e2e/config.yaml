@@ -1,0 +1,11 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: codeflare-operator-config
+data:
+  config.yaml: |
+    kuberay:
+      rayDashboardOAuthEnabled: false
+      ingressDomain: "kind"
+    appwrapper:
+      enabled: true

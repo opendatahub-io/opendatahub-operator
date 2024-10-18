@@ -1,0 +1,26 @@
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: fetch-accelerators-role
+rules:
+  - apiGroups:
+      - dashboard.opendatahub.io
+    verbs:
+      - get
+      - list
+      - watch
+    resources:
+      - acceleratorprofiles
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: accelerators
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: fetch-accelerators-role
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: system:authenticated

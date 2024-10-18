@@ -1,0 +1,86 @@
+apiVersion: console.openshift.io/v1
+kind: OdhQuickStart
+metadata:
+  name: deploy-python-model
+  annotations:
+    opendatahub.io/categories: 'Model serving,Getting started'
+spec:
+  displayName: Deploying a sample Python application using Flask and OpenShift
+  appName: jupyter
+  durationMinutes: 10
+  icon: 'images/jupyter.svg'
+  description: Deploy a Python model by using Flask and OpenShift
+  prerequisites: [You completed the "Create a Jupyter notebook" quick start.]
+  introduction: |-
+    ### This quick start shows you how to deploy a Python model.
+    Open Data Hub lets you run Jupyter notebooks in a scalable OpenShift hybrid cloud environment.
+
+    This quick start shows how to create a development sandbox by taking your model out of a Jupyter notebook and putting it into a Flask application that runs on OpenShift Dedicated. 
+  tasks:
+    - title: Create a new GitHub repository from the s2i Flask template
+      description: |-
+       The s2i Flask template provides a simple s2i Python project with notebooks included.
+        ### To create a new repository from the s2i Flask template:
+        1. Navigate to `https://github.com/opendatahub-io/odh-s2i-project-simple`.
+        2. Click **Use this template**.
+        3. Type a *Repository name* for your new repository.
+        4. Select the **Public** radio button to ensure that the repository is visible.
+        5. Click **Create repository from template**.
+      review:
+        instructions: |-
+          #### Verify that you created a new repository:
+          In GitHub's **Your repositories** section, do you see the repository that you created from the s2i Flask template?
+        failedTaskHelp: This task is not verified yet. Try the task again.
+      summary:
+        success: You have created a new GitHub repository.
+        failed: Try the steps again.
+    - title: Deploy the sample Flask Python model
+      description: |-
+        ### Deploy the sample Flask application on OpenShift:
+        1. Click the **code** button from your newly created repository and copy the URL for your project.
+        2. Navigate to your OpenShift Dedicated web console and ensure you are in the **Developer** perspective.
+        3. Use the **Project** dropdown to select your OpenShift project, or create a new one.
+        4. Click **+Add**.
+        5. Click the **From Git** card.
+        6. Paste the URL for your project (copied in step 1) into the **Git Repo URL** field. Some of the other fields on the page are auto-filled.
+        7. Under **Builder Image**, click **Python**.
+        8. Click **Create**.  
+        9. In the **Topology** view, watch the deployment build and start.
+
+        The application will deploy and indicate that the system is running.
+
+      review:
+        instructions: |-
+          #### To verify that you have deployed the Flask Python model:
+          In the **Topology** view, click on the application and then check under **Builds**. You should see something like `Build #1 is complete (a minute ago)` alongside a green check mark.
+        failedTaskHelp: This task is not verified yet. Try the task again.
+      summary:
+        success: The deployed application has started.
+        failed: Try the steps again.
+    - title: Test the prediction function in the deployed model
+      description: |-
+        ### To test the sample Flask application:
+        1. In the **Topology** view, click the application.
+        2. Under **Routes**, copy the URL.
+        3. In a Jupyter notebook, navigate to a terminal view.
+        4. Run the following `curl` command, using the URL that you copied in step 2.
+        ```
+        curl -X POST -d '{"hello" ":" "world"}' <URL>/prediction
+        ```
+        For example:
+        ```
+        curl -X POST -d '{"hello" ":" "world"}' http://example.apps.organization.abc3.p4.openshiftapps.com/prediction
+        ```
+
+        This command should return `{"prediction":"not implemented"}` as output.
+      review:
+        instructions: |-
+          #### Verify that your deployed application is working:
+          Did you receive the response `{"prediction" '':'' "not implemented"}`?
+        failedTaskHelp:
+          This task is not verified yet. Make sure your application built correctly. Make sure you remembered to add `/prediction` to the end of the application URL to get to the endpoint.
+      summary:
+        success: You have verified that the sample model deployment is executing!
+        failed: Try the steps again.
+  conclusion: You are now able to deploy a sample model stored in GitHub.
+  nextQuickStart: []

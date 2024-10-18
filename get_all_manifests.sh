@@ -1,25 +1,27 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
 
 GITHUB_URL="https://github.com/"
+# update to use different git repo for legacy manifests
+MANIFEST_ORG="red-hat-data-services"
 
-# component: notebook, dsp, kserve, dashbaord, cf/ray/kueue/trainingoperator, trustyai, modelmesh, modelregistry.
-# in the format of "repo-org:repo-name:branch-name:source-folder:target-folder".
+# component: notebook, dsp, kserve, dashbaord, cf/ray/kueue/trainingoperator, trustyai, modelmesh, modelregistry
+# in the format of "repo-org:repo-name:ref-name:source-folder:target-folder".git 
 declare -A COMPONENT_MANIFESTS=(
-    ["codeflare"]="opendatahub-io:codeflare-operator:v1.4.0-odh:config:codeflare"
-    ["ray"]="opendatahub-io:kuberay:v1.1.0-odh:ray-operator/config:ray"
-    ["kueue"]="opendatahub-io:kueue:v0.6.2-odh:config:kueue"
-    ["data-science-pipelines-operator"]="opendatahub-io:data-science-pipelines-operator:v2.1.0:config:data-science-pipelines-operator"
-    ["odh-dashboard"]="opendatahub-io:odh-dashboard:v2.22.1-incubation-release:manifests:dashboard"
-    ["kf-notebook-controller"]="opendatahub-io:kubeflow:v1.7.0-9:components/notebook-controller/config:odh-notebook-controller/kf-notebook-controller"
-    ["odh-notebook-controller"]="opendatahub-io:kubeflow:v1.7.0-9:components/odh-notebook-controller/config:odh-notebook-controller/odh-notebook-controller"
-    ["notebooks"]="opendatahub-io:notebooks:v1.17.0-1:manifests:notebooks"
-    ["trustyai"]="trustyai-explainability:trustyai-service-operator:release/1.19.0:config:trustyai-service-operator"
-    ["model-mesh"]="opendatahub-io:modelmesh-serving:v0.11.1.3:config:model-mesh"
-    ["odh-model-controller"]="opendatahub-io:odh-model-controller:v0.11.1.3:config:odh-model-controller"
-    ["kserve"]="opendatahub-io:kserve:v0.11.1.3:config:kserve"
-    ["modelregistry"]="opendatahub-io:model-registry-operator:v0.1.4:config:model-registry-operator"
-    ["trainingoperator"]="opendatahub-io:training-operator:v1.8.0-odh:manifests:trainingoperator"
+    ["codeflare"]="red-hat-data-services:codeflare-operator:rhoai-2.14:config:codeflare"
+    ["ray"]="red-hat-data-services:kuberay:rhoai-2.14:ray-operator/config:ray"
+    ["kueue"]="red-hat-data-services:kueue:rhoai-2.14:config:kueue"
+    ["data-science-pipelines-operator"]="red-hat-data-services:data-science-pipelines-operator:rhoai-2.14:config:data-science-pipelines-operator"
+    ["kf-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-2.14:components/notebook-controller/config:odh-notebook-controller/kf-notebook-controller"
+    ["odh-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-2.14:components/odh-notebook-controller/config:odh-notebook-controller/odh-notebook-controller"
+    ["notebooks"]="red-hat-data-services:notebooks:rhoai-2.14:manifests:notebooks"
+    ["trustyai"]="red-hat-data-services:trustyai-service-operator:rhoai-2.14:config:trustyai-service-operator"
+    ["model-mesh"]="red-hat-data-services:modelmesh-serving:rhoai-2.14:config:model-mesh"
+    ["odh-model-controller"]="red-hat-data-services:odh-model-controller:rhoai-2.14:config:odh-model-controller"
+    ["kserve"]="red-hat-data-services:kserve:rhoai-2.14:config:kserve"
+    ["odh-dashboard"]="red-hat-data-services:odh-dashboard:rhoai-2.14:manifests:dashboard"
+    ["trainingoperator"]="red-hat-data-services:training-operator:rhoai-2.14:manifests:trainingoperator"
+    ["modelregistry"]="red-hat-data-services:model-registry-operator:rhoai-2.14:config:model-registry-operator"
 )
 
 # Allow overwriting repo using flags component=repo
@@ -49,6 +51,25 @@ fi
 TMP_DIR=$(mktemp -d -t "odh-manifests.XXXXXXXXXX")
 trap '{ rm -rf -- "$TMP_DIR"; }' EXIT
 
+function git_fetch_ref()
+{
+
+    local repo=$1
+    local ref=$2
+    local dir=$3
+    local git_fetch="git fetch -q --depth 1 $repo"
+
+    mkdir -p $dir
+    pushd $dir &>/dev/null
+    git init -q
+    # try tag first, avoid printing fatal: couldn't find remote ref
+    if ! $git_fetch refs/tags/$ref 2>/dev/null ; then
+        $git_fetch refs/heads/$ref
+    fi
+    git reset -q --hard FETCH_HEAD
+    popd &>/dev/null
+}
+
 
 for key in "${!COMPONENT_MANIFESTS[@]}"; do
     echo -e "\033[32mCloning repo \033[33m${key}\033[32m:\033[0m ${COMPONENT_MANIFESTS[$key]}"
@@ -56,16 +77,16 @@ for key in "${!COMPONENT_MANIFESTS[@]}"; do
 
     repo_org="${repo_info[0]}"
     repo_name="${repo_info[1]}"
-    repo_branch="${repo_info[2]}"
+    repo_ref="${repo_info[2]}"
     source_path="${repo_info[3]}"
     target_path="${repo_info[4]}"
 
     repo_url="${GITHUB_URL}/${repo_org}/${repo_name}"
     repo_dir=${TMP_DIR}/${key}
-    mkdir -p ${repo_dir}
-    git clone -q --depth 1 --branch ${repo_branch} ${repo_url} ${repo_dir}
 
-    mkdir -p ./odh-manifests/${target_path}
-    cp -rf ${repo_dir}/${source_path}/* ./odh-manifests/${target_path}
+    git_fetch_ref ${repo_url} ${repo_ref} ${repo_dir}
+
+    mkdir -p ./opt/manifests/${target_path}
+    cp -rf ${repo_dir}/${source_path}/* ./opt/manifests/${target_path}
 
 done

@@ -1,0 +1,29 @@
+apiVersion: dashboard.opendatahub.io/v1
+kind: OdhDocument
+metadata:
+  name: pachyderm-beginner-tutorial
+  annotations:
+    opendatahub.io/categories: 'Data preprocessing,Data management,Model training,Getting started'
+spec:
+  appName: pachyderm
+  type: tutorial
+  displayName: Getting started with Pachyderm concepts
+  description: |-
+    Learn Pachyderm's main concepts by creating pipelines that perform edge detection on a few images.
+  url: https://docs.pachyderm.com/products/mldm/latest/get-started/beginner-tutorial/
+  durationMinutes: 15
+---
+apiVersion: dashboard.opendatahub.io/v1
+kind: OdhDocument
+metadata:
+  name: pachyderm-house-pricing-tutorial
+  annotations:
+    opendatahub.io/categories: 'Data management,Data preprocessing,Model training'
+spec:
+  appName: pachyderm
+  type: tutorial
+  displayName: Training a regression model in Pachyderm
+  description: |-
+    Learn how to create a sample housing data repo using a Pachyderm cluster to run experiments, analyze data, and set up regression.
+  url: https://github.com/pachyderm/examples/blob/master/housing-prices-intermediate/housing-prices.ipynb
+  durationMinutes: 30

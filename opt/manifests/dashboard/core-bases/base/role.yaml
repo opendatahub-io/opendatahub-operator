@@ -1,0 +1,147 @@
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: odh-dashboard
+rules:
+  - verbs:
+      - create
+      - get
+      - list
+      - update
+      - patch
+      - delete
+    apiGroups:
+      - dashboard.opendatahub.io
+    resources:
+      - acceleratorprofiles
+  - apiGroups:
+      - route.openshift.io
+    resources:
+      - routes
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - kfdef.apps.kubeflow.org
+    resources:
+      - kfdefs
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - batch
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+    resources:
+      - cronjobs
+      - jobs
+      - jobs/status
+  - apiGroups:
+      - image.openshift.io
+    verbs:
+      - create
+      - get
+      - list
+      - update
+      - patch
+      - delete
+    resources:
+      - imagestreams
+  - apiGroups:
+      - build.openshift.io
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - patch
+      - delete
+    resources:
+      - builds
+      - buildconfigs
+      - buildconfigs/instantiate
+  - apiGroups:
+      - apps
+    verbs:
+      - patch
+      - update
+    resources:
+      - deployments
+  - apiGroups:
+      - apps.openshift.io
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+    resources:
+      - deploymentconfigs
+      - deploymentconfigs/instantiate
+  - apiGroups:
+      - opendatahub.io
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+    resources:
+      - odhdashboardconfigs
+  - apiGroups:
+      - kubeflow.org
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+    resources:
+      - notebooks
+  - verbs:
+      - get
+      - list
+    apiGroups:
+      - dashboard.opendatahub.io
+    resources:
+      - odhapplications
+  - verbs:
+      - get
+      - list
+    apiGroups:
+      - dashboard.opendatahub.io
+    resources:
+      - odhdocuments
+  - verbs:
+      - get
+      - list
+    apiGroups:
+      - console.openshift.io
+    resources:
+      - odhquickstarts
+  - apiGroups:
+      - template.openshift.io
+    verbs:
+      - '*'
+    resources:
+      - templates
+  - apiGroups:
+      - serving.kserve.io
+    verbs:
+      - '*'
+    resources:
+      - servingruntimes

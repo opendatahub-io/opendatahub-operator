@@ -1,0 +1,55 @@
+apiVersion: console.openshift.io/v1
+kind: OdhQuickStart
+metadata:
+  name: create-jupyter-notebook
+  annotations:
+    opendatahub.io/categories: 'Getting started,Notebook environments'
+spec:
+  displayName: Creating a Jupyter notebook
+  appName: jupyter
+  durationMinutes: 10
+  icon: 'images/jupyter.svg'
+  description: This quick start walks you through creating a Jupyter notebook.
+  introduction: |-
+    ### This quick start shows you how to create a Jupyter notebook.
+    Open Data Hub lets you run Jupyter notebooks in a scalable OpenShift hybrid cloud environment.
+
+    The Jupyter spawner supports your Data Scientist explorations and model deployments.
+
+    We just know you will absolutely love this amazing environment.  This quick start gets you working in a notebook in just a few minutes.
+  tasks:
+    - title: Launch a notebook
+      description: |-
+        ### Prerequisites
+        - You have logged in to Open Data Hub.
+        - You know the names and values that you want to use for environment variables in your notebook server environment, for example, `AWS_SECRET_ACCESS_KEY`.
+        - If you want to work with a very large data set, work with your administrator to proactively increase the storage capacity of your notebook server.
+        ### Launch a notebook
+        1. On the **Enabled applications** page, locate the **Jupyter** card.
+        2. Click **Launch application**.
+           a) If prompted, select your identity provider.
+           b) Enter your credentials and click **Log in** (or equivalent for your identity provider).
+           c) If you see an **Access permission needed** message, you are not in the default user group or the default administrator group for Open Data Hub. Contact your administrator so that they can add you to the correct group.
+        3. If you have previously launched Jupyter, skip to Step 4.
+           If you have not launched Jupyter previously, start a notebook server.
+           a) Select the **Notebook image** to use for your server.
+           b) If the notebook image contains multiple versions, select the version of the notebook image from the **Versions** section.
+           c) Select the **Container size** for your server.
+        4. (Optional) Select the **Number of GPUs** (graphics processing units) for your server.
+        5. (Optional) Select and specify values for any new **Environment variables**.  
+           The interface stores these variables so that you need to enter them only once. Example variable names for common environment variables are automatically provided for frequently integrated environments and frameworks, such as Amazon Web Services (AWS).
+        6. Click **Start server**.
+           The **Starting server** progress indicator appears. 
+        7. (Optional) Click **Expand event log** to view additional information on the server creation process. 
+           Depending on the deployment size and resources you requested, starting the server can take up to several minutes. After the server starts, the JupyterLab interface opens.
+      review:
+        instructions: |-
+          #### Verify that your Jupyter notebook launched:
+          Does an untitled Jupyter notebook open in JupyterLab?
+        failedTaskHelp:
+          This task is not verified yet. Try the task again.
+      summary:
+        success: You have created a Jupyter notebook!
+        failed: Try the steps again.
+  conclusion: Now you can launch Jupyter notebooks and write Python code.  If you want to learn how to deploy a model written in Python, take the next quick start.
+  nextQuickStart: [deploy-python-model]

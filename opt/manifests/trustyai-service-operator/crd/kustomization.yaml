@@ -1,0 +1,10 @@
+resources:
+  - bases/trustyai.opendatahub.io_trustyaiservices.yaml
+#+kubebuilder:scaffold:crdkustomizeresource
+
+patchesStrategicMerge:
+#+kubebuilder:scaffold:crdkustomizewebhookpatch
+#+kubebuilder:scaffold:crdkustomizecainjectionpatch
+
+configurations:
+  - kustomizeconfig.yaml

@@ -1,0 +1,12 @@
+namespace: openshift-operators
+
+resources:
+- config.yaml
+- ../default
+
+patches:
+  - target:
+      kind: Deployment
+      name: manager
+      namespace: system
+    path: patch_resources.yaml

@@ -1,0 +1,137 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ds-pipeline-metadata-envoy-{{.Name}}
+  namespace: {{.Namespace}}
+  labels:
+    app: ds-pipeline-metadata-envoy-{{.Name}}
+    component: data-science-pipelines
+    dspa: {{.Name}}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ds-pipeline-metadata-envoy-{{.Name}}
+      component: data-science-pipelines
+      dspa: {{.Name}}
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+      labels:
+        app: ds-pipeline-metadata-envoy-{{.Name}}
+        component: data-science-pipelines
+        dspa: {{.Name}}
+    spec:
+      containers:
+        - image: {{.MLMD.Envoy.Image}}
+          name: container
+          command: ["/usr/local/bin/envoy"]
+          args: [
+            "-c",
+            "/etc/envoy.yaml"
+          ]
+          ports:
+            - containerPort: 9090
+              name: md-envoy
+            - containerPort: 9901
+              name: envoy-admin
+          livenessProbe:
+            initialDelaySeconds: 30
+            periodSeconds: 5
+            tcpSocket:
+              port: md-envoy
+            timeoutSeconds: 2
+          readinessProbe:
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            tcpSocket:
+              port: md-envoy
+            timeoutSeconds: 2
+          resources:
+            {{ if .MLMD.Envoy.Resources.Requests }}
+            requests:
+              {{ if .MLMD.Envoy.Resources.Requests.CPU }}
+              cpu: {{.MLMD.Envoy.Resources.Requests.CPU}}
+              {{ end }}
+              {{ if .MLMD.Envoy.Resources.Requests.Memory }}
+              memory: {{.MLMD.Envoy.Resources.Requests.Memory}}
+              {{ end }}
+            {{ end }}
+            {{ if .MLMD.Envoy.Resources.Limits }}
+            limits:
+              {{ if .MLMD.Envoy.Resources.Limits.CPU }}
+              cpu: {{.MLMD.Envoy.Resources.Limits.CPU}}
+              {{ end }}
+              {{ if .MLMD.Envoy.Resources.Limits.Memory }}
+              memory: {{.MLMD.Envoy.Resources.Limits.Memory}}
+              {{ end }}
+            {{ end }}
+          volumeMounts:
+            - mountPath: /etc/envoy.yaml
+              name: envoy-config
+              subPath: envoy.yaml
+            {{ if .PodToPodTLS }}
+            - name: proxy-tls-upstream
+              mountPath: "/etc/ssl/certs/"
+            {{ end }}
+        {{ if .MLMD.Envoy.DeployRoute }}
+        - name: oauth-proxy
+          args:
+            - --https-address=:8443
+            - --provider=openshift
+            - --openshift-service-account=ds-pipeline-metadata-envoy-{{.Name}}
+            - --upstream=http://localhost:9090
+            - --tls-cert=/etc/tls/private/tls.crt
+            - --tls-key=/etc/tls/private/tls.key
+            - --cookie-secret=SECRET
+            - '--openshift-delegate-urls={"/": {"group":"route.openshift.io","resource":"routes","verb":"get","name":"ds-pipeline-metadata-envoy-{{.Name}}","namespace":"{{.Namespace}}"}}'
+            - '--openshift-sar={"namespace":"{{.Namespace}}","resource":"routes","resourceName":"ds-pipeline-metadata-envoy-{{.Name}}","verb":"get","resourceAPIGroup":"route.openshift.io"}'
+            - --skip-auth-regex='(^/metrics|^/apis/v1beta1/healthz)'
+          image: {{.OAuthProxy}}
+          ports:
+            - containerPort: 8443
+              name: oauth2-proxy
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /oauth/healthz
+              port: oauth2-proxy
+              scheme: HTTPS
+            initialDelaySeconds: 30
+            timeoutSeconds: 1
+            periodSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /oauth/healthz
+              port: oauth2-proxy
+              scheme: HTTPS
+            initialDelaySeconds: 5
+            timeoutSeconds: 1
+            periodSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+          resources:
+            limits:
+              cpu: 100m
+              memory: 256Mi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+          volumeMounts:
+            - mountPath: /etc/tls/private
+              name: proxy-tls
+        {{ end }}
+      serviceAccountName: ds-pipeline-metadata-envoy-{{.Name}}
+      volumes:
+        - name: envoy-config
+          configMap:
+            name: ds-pipeline-metadata-envoy-config-{{.Name}}
+        - name: proxy-tls
+          secret:
+            secretName: ds-pipelines-envoy-proxy-tls-{{.Name}}
+        - name: proxy-tls-upstream
+          configMap:
+            name: dsp-trusted-ca-{{.Name}}

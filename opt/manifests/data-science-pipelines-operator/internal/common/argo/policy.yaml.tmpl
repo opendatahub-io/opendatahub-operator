@@ -1,0 +1,65 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ds-pipelines-{{.Name}}
+  namespace: {{.Namespace}}
+spec:
+  podSelector:
+    matchLabels:
+      app: {{.APIServerDefaultResourceName}}
+      component: data-science-pipelines
+  policyTypes:
+    - Ingress
+  ingress:
+    # Match all sources for oauth endpoint
+    - ports:
+        - protocol: TCP
+          port: 8443
+    # The components that are permitted to directly communicate with API Server
+    # Note: all other external traffic should go through oauth proxy
+    - ports:
+        - protocol: TCP
+          port: 8888
+        - protocol: TCP
+          port: 8887
+      from:
+        - namespaceSelector:
+            matchLabels:
+              name: openshift-user-workload-monitoring
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: redhat-ods-monitoring
+        - podSelector:
+            matchLabels:
+              app: mariadb-{{.Name}}
+              component: data-science-pipelines
+        - podSelector:
+            matchLabels:
+              app: minio-{{.Name}}
+              component: data-science-pipelines
+        - podSelector:
+            matchLabels:
+              app: ds-pipeline-ui-{{.Name}}
+              component: data-science-pipelines
+        - podSelector:
+            matchLabels:
+              app: ds-pipeline-persistenceagent-{{.Name}}
+              component: data-science-pipelines
+        - podSelector:
+            matchLabels:
+              app: ds-pipeline-scheduledworkflow-{{.Name}}
+              component: data-science-pipelines
+        - podSelector:
+            matchLabels:
+              app: ds-pipeline-metadata-envoy-{{.Name}}
+              component: data-science-pipelines
+        - podSelector:
+            matchLabels:
+              app: ds-pipeline-metadata-grpc-{{.Name}}
+              component: data-science-pipelines
+        - podSelector:
+            matchLabels:
+              pipelines.kubeflow.org/v2_component: 'true'
+        - podSelector:
+            matchLabels:
+              opendatahub.io/workbenches: 'true'

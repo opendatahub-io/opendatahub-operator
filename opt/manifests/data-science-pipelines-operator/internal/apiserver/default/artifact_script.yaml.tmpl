@@ -1,0 +1,44 @@
+apiVersion: v1
+data:
+  artifact_script: |-
+    #!/usr/bin/env sh
+    push_artifact() {
+        workspace_dir=$(echo $(context.taskRun.name) | sed -e "s/$(context.pipeline.name)-//g")
+        workspace_dest=/workspace/${workspace_dir}/artifacts/$(context.pipelineRun.name)/$(context.taskRun.name)
+        artifact_name=$(basename $2)
+
+        aws_cp() {
+{{ if .CustomCABundle }}
+          aws s3 --endpoint {{.ObjectStorageConnection.Endpoint}} --ca-bundle {{ .PiplinesCABundleMountPath }} cp $1.tgz s3://{{.ObjectStorageConnection.Bucket}}/artifacts/$PIPELINERUN/$PIPELINETASK/$1.tgz
+{{ else }}
+          aws s3 --endpoint {{.ObjectStorageConnection.Endpoint}} cp $1.tgz s3://{{.ObjectStorageConnection.Bucket}}/artifacts/$PIPELINERUN/$PIPELINETASK/$1.tgz
+{{ end }}
+        }
+
+        if [ -f "$workspace_dest/$artifact_name" ]; then
+            echo sending to: ${workspace_dest}/${artifact_name}
+            tar -cvzf $1.tgz -C ${workspace_dest} ${artifact_name}
+            aws_cp $1
+        elif [ -f "$2" ]; then
+            tar -cvzf $1.tgz -C $(dirname $2) ${artifact_name}
+            aws_cp $1
+        else
+            echo "$2 file does not exist. Skip artifact tracking for $1"
+        fi
+    }
+    push_log() {
+        cat /var/log/containers/$PODNAME*$NAMESPACE*step-main*.log > step-main.log
+        push_artifact main-log step-main.log
+    }
+    strip_eof() {
+        if [ -f "$2" ]; then
+            awk 'NF' $2 | head -c -1 > $1_temp_save && cp $1_temp_save $2
+        fi
+    }
+kind: ConfigMap
+metadata:
+  name: ds-pipeline-artifact-script-{{ .Name }}
+  namespace: {{.Namespace}}
+  labels:
+    app: ds-pipeline-{{.Name}}
+    component: data-science-pipelines

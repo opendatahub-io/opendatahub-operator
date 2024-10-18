@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mariadb-{{.Name}}
+  namespace: {{.Namespace}}
+  labels:
+    app: mariadb-{{.Name}}
+    component: data-science-pipelines
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- if .MariaDB.StorageClassName }}
+  storageClassName: {{.MariaDB.StorageClassName}}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{.MariaDB.PVCSize}}

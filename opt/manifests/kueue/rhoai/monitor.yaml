@@ -1,0 +1,13 @@
+# Prometheus Pod Monitor (Metrics)
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: controller-manager-metrics-monitor
+  namespace: system
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kueue
+      app.kubernetes.io/component: controller
+  podMetricsEndpoints:
+    - port: metrics

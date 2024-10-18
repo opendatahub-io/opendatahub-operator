@@ -1,0 +1,100 @@
+# ODHDashboardConfig to enable the notebook-controller feature and add notebook sizes
+apiVersion: opendatahub.io/v1alpha
+kind: OdhDashboardConfig
+metadata:
+  creationTimestamp: null
+  name: odh-dashboard-config
+spec:
+  dashboardConfig:
+    disableBYONImageStream: false
+    disableClusterManager: false
+    disableISVBadges: false
+    disableInfo: false
+    disableSupport: false
+    disableTracking: false
+    enablement: true
+    disableHome: false
+    disableProjects: false
+    disablePipelines: false
+    disableModelServing: false
+    disableProjectSharing: false
+    disableCustomServingRuntimes: false
+    disableBiasMetrics: false
+    disablePerformanceMetrics: false
+    disableAcceleratorProfiles: false
+    disableKServe: false
+    disableKServeAuth: false
+    disableKServeMetrics: false
+    disableModelMesh: false
+    disableDistributedWorkloads: false
+    disableModelRegistry: false
+    disableConnectionTypes: true
+    disableStorageClasses: false
+    disableNIMModelServing: true
+  groupsConfig:
+    adminGroups: "$(admin_groups)"
+    allowedGroups: "system:authenticated"
+  notebookController:
+    enabled: true
+    pvcSize: "20Gi"
+    notebookNamespace: rhods-notebooks
+  notebookSizes:
+    - name: Small
+      resources:
+        requests:
+          memory: 8Gi
+          cpu: "1"
+        limits:
+          memory: 8Gi
+          cpu: "2"
+    - name: Medium
+      resources:
+        requests:
+          memory: 24Gi
+          cpu: "3"
+        limits:
+          memory: 24Gi
+          cpu: "6"
+    - name: Large
+      resources:
+        requests:
+          memory: 56Gi
+          cpu: "7"
+        limits:
+          memory: 56Gi
+          cpu: "14"
+    - name: X Large
+      resources:
+        requests:
+          memory: 120Gi
+          cpu: "15"
+        limits:
+          memory: 120Gi
+          cpu: "30"
+  modelServerSizes:
+  - name: Small
+    resources:
+      limits:
+        cpu: "2"
+        memory: 8Gi
+      requests:
+        cpu: "1"
+        memory: 4Gi
+  - name: Medium
+    resources:
+      limits:
+        cpu: "8"
+        memory: 10Gi
+      requests:
+        cpu: "4"
+        memory: 8Gi
+  - name: Large
+    resources:
+      limits:
+        cpu: "10"
+        memory: 20Gi
+      requests:
+        cpu: "6"
+        memory: 16Gi
+  templateOrder: []
+  templateDisablement: []

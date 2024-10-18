@@ -1,0 +1,31 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: argo
+resources:
+# Deploy Argo Controller and Server
+# TODO: Only deploy server (not WC?)
+# - https://github.com/argoproj/argo-workflows/releases/download/v3.4.12/install.yaml
+
+# The following manifests are used in ALL Executors
+- clusterrole.argo-aggregate-to-admin.yaml
+- clusterrole.argo-aggregate-to-edit.yaml
+- clusterrole.argo-aggregate-to-view.yaml
+- clusterrole.argo-cluster-role.yaml
+- clusterrolebinding.argo-binding.yaml
+- configmap.workflow-controller-configmap.yaml
+# - deployment.workflow-controller.yaml
+# - priorityclass.yaml
+- role.argo.yaml
+- rolebinding.argo-binding.yaml
+- serviceaccount.argo.yaml
+
+# CRDs only needed for PNS executors
+- crd.applications.yaml
+- crd.clusterworkflowtemplates.yaml
+- crd.cronworkflows.yaml
+- crd.viewers.yaml
+- crd.workfloweventbinding.yaml
+- crd.workflows.yaml
+- crd.workflowtaskresult.yaml
+- crd.workflowtaskset.yaml
+- crd.workflowtemplate.yaml

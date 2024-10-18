@@ -1,0 +1,54 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/component: controller
+    app.kubernetes.io/instance: default
+    app.kubernetes.io/part-of: kfp-tekton
+  name: exithandler-controller-cluster-access
+rules:
+- apiGroups:
+  - tekton.dev
+  resources:
+  - runs
+  - customruns
+  - taskruns
+  - pipelineruns
+  - runs/status
+  - customruns/status
+  - taskruns/status
+  - pipelineruns/status
+  - runs/finalizers
+  - customruns/finalizers
+  verbs:
+  - get
+  - list
+  - create
+  - update
+  - delete
+  - patch
+  - watch
+- apiGroups:
+  - custom.tekton.dev
+  resources:
+  - exithandlers
+  verbs:
+  - get
+  - list
+  - create
+  - update
+  - delete
+  - patch
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - get
+  - list
+  - create
+  - update
+  - delete
+  - patch
+  - watch

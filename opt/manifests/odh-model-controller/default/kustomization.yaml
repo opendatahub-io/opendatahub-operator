@@ -1,0 +1,8 @@
+bases:
+  - ../rbac
+  - ../manager
+  - ../webhook
+  - ../runtimes
+
+resources:
+  - networkpolicy.yaml

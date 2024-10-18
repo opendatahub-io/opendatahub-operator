@@ -1,0 +1,10 @@
+resources:
+- clusterrole.clusteraccess.yaml
+- clusterrolebinding.clusteraccess.yaml
+- deployment.yaml
+- mutatingwebhookconfig.yaml
+- role.yaml
+- rolebinding.yaml
+- service.yaml
+- serviceaccount.yaml
+- validatingwebhookconfig.yaml

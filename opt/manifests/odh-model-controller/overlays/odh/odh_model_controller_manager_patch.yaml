@@ -1,0 +1,12 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: odh-model-controller
+spec:
+  template:
+    spec:
+      containers:
+        - args:
+            - --leader-elect
+          image: $(odh-model-controller) 
+          name: manager

@@ -1,0 +1,46 @@
+rule_files:
+  - "training_operator_alerts.yaml"
+
+evaluation_interval: 1m
+
+tests:
+  # Operator running
+  - interval: 1m
+    input_series:
+      - series: up{job="KubeFlow Training Operator"}
+        values: "1"
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: KubeFlow Training Operator is not running
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: KubeFlow Training Operator is not running
+        exp_alerts:
+          - exp_labels:
+              alertname: KubeFlow Training Operator is not running
+              severity: warning
+            exp_annotations:
+              description: "This alert fires when the KubeFlow Training Operator is not running."
+              summary: Alerting for KubeFlow Training Operator
+              triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/training-operator-availability.md"
+  
+  - interval: 1m
+    input_series:
+      - series: up{job="KubeFlow Training Operator"}
+        values: "0" 
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: KubeFlow Training Operator is not running
+        exp_alerts:
+          - exp_labels:
+              alertname: KubeFlow Training Operator is not running
+              severity: warning
+              job: "KubeFlow Training Operator"
+            exp_annotations:
+              description: "This alert fires when the KubeFlow Training Operator is not running."
+              summary: Alerting for KubeFlow Training Operator
+              triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/training-operator-availability.md"

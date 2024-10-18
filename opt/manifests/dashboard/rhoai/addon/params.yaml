@@ -1,0 +1,9 @@
+varReference:
+  - path: spec/template/spec/containers/image
+    kind: Deployment
+  - path: spec/applicationMenu/section
+    kind: ConsoleLink
+  - path: spec/href
+    kind: ConsoleLink
+  - path: spec/groupsConfig/adminGroups
+    kind: OdhDashboardConfig

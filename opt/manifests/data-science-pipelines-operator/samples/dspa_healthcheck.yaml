@@ -1,0 +1,26 @@
+apiVersion: datasciencepipelinesapplications.opendatahub.io/v1alpha1
+kind: DataSciencePipelinesApplication
+metadata:
+  name: sample
+spec:
+  apiServer:
+    deploy: true
+    enableSamplePipeline: false
+    # If developing against a cluster using self-signed certs, then uncomment this field.
+    # cABundle:
+      # configMapName: kube-root-ca.crt
+      # configMapKey: ca.crt
+  # One of minio or externalStorage must be specified for objectStorage
+  # This example illustrates minimal deployment with minio
+  # This is NOT supported and should be used for dev testing/experimentation only.
+  # See dspa_simple_external_storage.yaml for an example with external connection.
+  objectStorage:
+    disableHealthCheck: false
+    enableExternalRoute: true
+    minio:
+      # Image field is required
+      image: 'quay.io/opendatahub/minio:RELEASE.2019-08-14T20-37-41Z-license-compliance'
+  # Optional
+  mlpipelineUI:
+    # Image field is required
+    image: 'quay.io/opendatahub/odh-ml-pipelines-frontend-container:beta-ui'
