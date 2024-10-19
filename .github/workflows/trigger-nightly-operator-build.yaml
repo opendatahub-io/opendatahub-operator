@@ -1,13 +1,12 @@
 name: Trigger Nightly Operator Build
+run-name: Trigger Nightly Operator Build [${{ inputs.distinct_id && inputs.distinct_id || '' }}]
 
 on:
   workflow_dispatch:
-#  push:
-#    branches:
-#      - 'rhoai-2.16'
-#    paths:
-#      - build/operator-nudging.yaml
-
+    inputs:
+      distinct_id:
+        description: 'Distinct ID'
+        required: false
 
 env:
   GITHUB_ORG: red-hat-data-services
