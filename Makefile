@@ -188,8 +188,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 
 .PHONY: run-nowebhook
 run-nowebhook: GO_RUN_ARGS += -tags nowebhook
-run-nowebhook: manifests generate fmt vet ## Run a controller from your host without webhook enabled
-	$(GO_RUN_MAIN)
+run-nowebhook: run ## Run a controller from your host without webhook enabled
 
 .PHONY: image-build
 image-build: # unit-test ## Build image with the manager.
