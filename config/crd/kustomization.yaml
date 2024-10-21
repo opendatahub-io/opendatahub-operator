@@ -24,17 +24,6 @@ resources:
 #- patches/webhook_in_dscinitiatlizations.yaml
 #- patches/webhook_in_dscinitializations.yaml
 #- patches/webhook_in_datascienceclusters.yaml
-#- patches/webhook_in_dashboards.yaml
-#- patches/webhook_in_workbenches.yaml
-#- patches/webhook_in_modelmeshservings.yaml
-#- patches/webhook_in_datasciencepipelines.yaml
-#- patches/webhook_in_kserves.yaml
-#- patches/webhook_in_kueues.yaml
-#- patches/webhook_in_codeflares.yaml
-#- patches/webhook_in_rays.yaml
-#- patches/webhook_in_trustyais.yaml
-#- patches/webhook_in_modelregistries.yaml
-#- patches/webhook_in_trainingoperators.yaml
 #+kubebuilder:scaffold:crdkustomizewebhookpatch
 
 # [CERTMANAGER] To enable cert-manager, uncomment all the sections with [CERTMANAGER] prefix.
@@ -42,17 +31,6 @@ resources:
 #- patches/cainjection_in_dscinitiatlizations.yaml
 #- patches/cainjection_in_dscinitializations.yaml
 #- patches/cainjection_in_datascienceclusters.yaml
-#- patches/cainjection_in_dashboards.yaml
-#- patches/cainjection_in_workbenches.yaml
-#- patches/cainjection_in_modelmeshservings.yaml
-#- patches/cainjection_in_datasciencepipelines.yaml
-#- patches/cainjection_in_kserves.yaml
-#- patches/cainjection_in_kueues.yaml
-#- patches/cainjection_in_codeflares.yaml
-#- patches/cainjection_in_rays.yaml
-#- patches/cainjection_in_trustyais.yaml
-#- patches/cainjection_in_modelregistries.yaml
-#- patches/cainjection_in_trainingoperators.yaml
 #+kubebuilder:scaffold:crdkustomizecainjectionpatch
 
 # the following config is for teaching kustomize how to do kustomization for CRDs.
