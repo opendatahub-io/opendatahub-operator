@@ -18,6 +18,7 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -37,7 +38,7 @@ var (
 // - Network Policies 'opendatahub' that allow traffic between the ODH namespaces
 // - RoleBinding 'opendatahub'.
 func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, dscInit *dsciv1.DSCInitialization, name string, platform cluster.Platform) error {
-	log := r.Log
+	log := logf.FromContext(ctx)
 	// Expected application namespace for the given name
 	desiredNamespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -142,7 +143,7 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 }
 
 func (r *DSCInitializationReconciler) createDefaultRoleBinding(ctx context.Context, name string, dscInit *dsciv1.DSCInitialization) error {
-	log := r.Log
+	log := logf.FromContext(ctx)
 	// Expected namespace for the given name
 	desiredRoleBinding := &rbacv1.RoleBinding{
 		TypeMeta: metav1.TypeMeta{
@@ -190,7 +191,7 @@ func (r *DSCInitializationReconciler) createDefaultRoleBinding(ctx context.Conte
 }
 
 func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.Context, name string, dscInit *dsciv1.DSCInitialization, platform cluster.Platform) error {
-	log := r.Log
+	log := logf.FromContext(ctx)
 	if platform == cluster.ManagedRhods || platform == cluster.SelfManagedRhods {
 		// Get operator namepsace
 		operatorNs, err := cluster.GetOperatorNamespace()
@@ -375,7 +376,7 @@ func GenerateRandomHex(length int) ([]byte, error) {
 }
 
 func (r *DSCInitializationReconciler) createOdhCommonConfigMap(ctx context.Context, name string, dscInit *dsciv1.DSCInitialization) error {
-	log := r.Log
+	log := logf.FromContext(ctx)
 	// Expected configmap for the given namespace
 	desiredConfigMap := &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
