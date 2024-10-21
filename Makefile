@@ -188,8 +188,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 
 .PHONY: run-nowebhook
 run-nowebhook: GO_RUN_ARGS += -tags nowebhook
-run-nowebhook: manifests generate fmt vet ## Run a controller from your host without webhook enabled
-	$(GO_RUN_MAIN)
+run-nowebhook: run ## Run a controller from your host without webhook enabled
 
 .PHONY: image-build
 image-build: # unit-test ## Build image with the manager.
@@ -380,6 +379,7 @@ CLEANFILES += cover.out
 e2e-test: ## Run e2e tests for the controller
 	go test ./tests/e2e/ -run ^TestOdhOperator -v --operator-namespace=${OPERATOR_NAMESPACE} ${E2E_TEST_FLAGS}
 
+.PHONY: clean
 clean: $(GOLANGCI_LINT)
 	$(GOLANGCI_LINT) cache clean
 	chmod u+w -R $(LOCALBIN) # envtest makes its dir RO
