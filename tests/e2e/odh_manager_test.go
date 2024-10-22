@@ -37,4 +37,11 @@ func (tc *testContext) validateOwnedCRDs(t *testing.T) {
 		require.NoErrorf(t, tc.validateCRD("featuretrackers.features.opendatahub.io"),
 			"error in validating CRD : featuretrackers.features.opendatahub.io")
 	})
+
+	// Validate component CRDs
+	t.Run("Validate Dashboard CRD", func(t *testing.T) {
+		t.Parallel()
+		require.NoErrorf(t, tc.validateCRD("dashboards.components.opendatahub.io"),
+			"error in validating CRD : featuretrackers.features.opendatahub.io")
+	})
 }

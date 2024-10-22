@@ -49,14 +49,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
+	dashboardctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	ctrlogger "github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
+	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	annotations "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
@@ -64,7 +64,7 @@ import (
 
 // DataScienceClusterReconciler reconciles a DataScienceCluster object.
 type DataScienceClusterReconciler struct {
-	client.Client
+	*odhClient.Client
 	Scheme *runtime.Scheme
 	Log    logr.Logger
 	// Recorder to generate events
@@ -83,7 +83,7 @@ const (
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:maintidx,gocyclo
+func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:maintidx
 	log := r.Log
 	log.Info("Reconciling DataScienceCluster resources", "Request.Name", req.Name)
 
@@ -114,10 +114,10 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	instance := &instances.Items[0]
 
-	allComponents, err := instance.GetComponents()
-	if err != nil {
-		return ctrl.Result{}, err
-	}
+	// allComponents, err := instance.GetComponents()
+	// if err != nil {
+	//	return ctrl.Result{}, err
+	// }
 
 	// If DSC CR exist and deletion CM exist
 	// delete DSC CR and let reconcile requeue
@@ -137,17 +137,17 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 				return reconcile.Result{}, err
 			}
 		}
-		for _, component := range allComponents {
-			if err := component.Cleanup(ctx, r.Client, instance, r.DataScienceCluster.DSCISpec); err != nil {
-				return ctrl.Result{}, err
-			}
-		}
+		// for _, component := range allComponents {
+		//	if err := component.Cleanup(ctx, r.Client, instance, r.DataScienceCluster.DSCISpec); err != nil {
+		//		return ctrl.Result{}, err
+		//	}
+		// }
 		return reconcile.Result{Requeue: true}, nil
 	}
 
 	// Verify a valid DSCInitialization instance is created
 	dsciInstances := &dsciv1.DSCInitializationList{}
-	err = r.Client.List(ctx, dsciInstances)
+	err := r.Client.List(ctx, dsciInstances)
 	if err != nil {
 		log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization Request.Name", req.Name)
 		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to retrieve DSCInitialization instance")
@@ -188,11 +188,11 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 	} else {
 		log.Info("Finalization DataScienceCluster start deleting instance", "name", instance.Name, "finalizer", finalizerName)
-		for _, component := range allComponents {
-			if err := component.Cleanup(ctx, r.Client, instance, r.DataScienceCluster.DSCISpec); err != nil {
-				return ctrl.Result{}, err
-			}
-		}
+		// for _, component := range allComponents {
+		//	if err := component.Cleanup(ctx, r.Client, instance, r.DataScienceCluster.DSCISpec); err != nil {
+		//		return ctrl.Result{}, err
+		//	}
+		// }
 		if controllerutil.ContainsFinalizer(instance, finalizerName) {
 			controllerutil.RemoveFinalizer(instance, finalizerName)
 			if err := r.Update(ctx, instance); err != nil {
@@ -241,10 +241,9 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	// Initialize error list, instead of returning errors after every component is deployed
 	var componentErrors *multierror.Error
 
-	for _, component := range allComponents {
-		if instance, err = r.reconcileSubComponent(ctx, instance, platform, component); err != nil {
-			componentErrors = multierror.Append(componentErrors, err)
-		}
+	// Deploy Dashboard
+	if instance, err = r.reconcileDashboardComponent(ctx, instance); err != nil {
+		componentErrors = multierror.Append(componentErrors, err)
 	}
 
 	// Process errors for components
@@ -287,53 +286,44 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	return ctrl.Result{}, nil
 }
 
-func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context, instance *dscv1.DataScienceCluster,
-	platform cluster.Platform, component components.ComponentInterface,
-) (*dscv1.DataScienceCluster, error) {
-	log := r.Log
-	componentName := component.GetComponentName()
+// TODO: make it generic for all components.
+func (r *DataScienceClusterReconciler) reconcileDashboardComponent(ctx context.Context, instance *dscv1.DataScienceCluster) (*dscv1.DataScienceCluster, error) {
+	r.Log.Info("Starting reconciliation of Dashboard component")
+	componentName := dashboardctrl.ComponentName
 
-	enabled := component.GetManagementState() == operatorv1.Managed
-	installedComponentValue, isExistStatus := instance.Status.InstalledComponents[componentName]
+	enabled := instance.Spec.Components.Dashboard.ManagementState == operatorv1.Managed
+	_, isExistStatus := instance.Status.InstalledComponents[componentName]
 
-	// First set conditions to reflect a component is about to be reconciled
-	// only set to init condition e.g Unknonw for the very first time when component is not in the list
 	if !isExistStatus {
 		message := "Component is disabled"
 		if enabled {
 			message = "Component is enabled"
 		}
-		instance, err := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dscv1.DataScienceCluster) {
+		var err error
+		instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dscv1.DataScienceCluster) {
 			status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileInit, message, corev1.ConditionUnknown)
 		})
 		if err != nil {
-			_ = r.reportError(err, instance, "failed to update DataScienceCluster conditions before first time reconciling "+componentName)
-			// try to continue with reconciliation, as further updates can fix the status
+			return instance, fmt.Errorf("failed to update DataScienceCluster conditions before first time reconciling %s: %w", componentName, err)
 		}
 	}
-	// Reconcile component
-	componentLogger := newComponentLogger(log, componentName, r.DataScienceCluster.DSCISpec)
-	err := component.ReconcileComponent(ctx, r.Client, componentLogger, instance, r.DataScienceCluster.DSCISpec, platform, installedComponentValue)
 
-	// TODO: replace this hack with a full refactor of component status in the future
+	// Create the Dashboard instance
+	dashboard := dashboardctrl.GetDashboard(instance)
+
+	// Reconcile component
+	err := r.apply(ctx, instance, dashboard)
 
 	if err != nil {
-		// reconciliation failed: log errors, raise event and update status accordingly
-		instance = r.reportError(err, instance, "failed to reconcile "+componentName+" on DataScienceCluster")
+		r.Log.Error(err, "Failed to reconcile Dashboard component")
+		instance = r.reportError(err, instance, fmt.Sprintf("failed to reconcile %s on DataScienceCluster", componentName))
 		instance, _ = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dscv1.DataScienceCluster) {
-			if enabled {
-				if strings.Contains(err.Error(), datasciencepipelines.ArgoWorkflowCRD+" CRD already exists") {
-					datasciencepipelines.SetExistingArgoCondition(&saved.Status.Conditions, status.ArgoWorkflowExist, fmt.Sprintf("Component update failed: %v", err))
-				} else {
-					status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileFailed, fmt.Sprintf("Component reconciliation failed: %v", err), corev1.ConditionFalse)
-				}
-			} else {
-				status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileFailed, fmt.Sprintf("Component removal failed: %v", err), corev1.ConditionFalse)
-			}
+			status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileFailed, fmt.Sprintf("Component reconciliation failed: %v", err), corev1.ConditionFalse)
 		})
 		return instance, err
 	}
-	// reconciliation succeeded: update status accordingly
+
+	r.Log.Info("Dashboard component reconciled successfully")
 	instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dscv1.DataScienceCluster) {
 		if saved.Status.InstalledComponents == nil {
 			saved.Status.InstalledComponents = make(map[string]bool)
@@ -344,32 +334,12 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 		} else {
 			status.RemoveComponentCondition(&saved.Status.Conditions, componentName)
 		}
-
-		// TODO: replace this hack with a full refactor of component status in the future
-		if mr, isMR := component.(*modelregistry.ModelRegistry); isMR {
-			if enabled {
-				saved.Status.Components.ModelRegistry = &status.ModelRegistryStatus{RegistriesNamespace: mr.RegistriesNamespace}
-			} else {
-				saved.Status.Components.ModelRegistry = nil
-			}
-		}
 	})
 	if err != nil {
-		instance = r.reportError(err, instance, "failed to update DataScienceCluster status after reconciling "+componentName)
-
-		return instance, err
+		return instance, fmt.Errorf("failed to update DataScienceCluster status after reconciling %s: %w", componentName, err)
 	}
 
 	return instance, nil
-}
-
-// newComponentLogger is a wrapper to add DSC name and extract log mode from DSCISpec.
-func newComponentLogger(logger logr.Logger, componentName string, dscispec *dsciv1.DSCInitializationSpec) logr.Logger {
-	mode := ""
-	if dscispec.DevFlags != nil {
-		mode = dscispec.DevFlags.LogMode
-	}
-	return ctrlogger.NewNamedLogger(logger, "DSC.Components."+componentName, mode)
 }
 
 func (r *DataScienceClusterReconciler) reportError(err error, instance *dscv1.DataScienceCluster, message string) *dscv1.DataScienceCluster {
@@ -393,6 +363,29 @@ var configMapPredicates = predicate.Funcs{
 		}
 		return true
 	},
+}
+
+func (r *DataScienceClusterReconciler) apply(ctx context.Context, dsc *dscv1.DataScienceCluster, obj client.Object) error {
+	if obj.GetObjectKind().GroupVersionKind().Empty() {
+		return errors.New("no groupversionkind defined")
+	}
+	if err := ctrl.SetControllerReference(dsc, obj, r.Scheme); err != nil {
+		return err
+	}
+
+	managementStateAnn, exists := obj.GetAnnotations()[annotations.ManagementStateAnnotation]
+	if exists && managementStateAnn == string(operatorv1.Removed) {
+		err := r.Client.Delete(ctx, obj)
+		if k8serr.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+	if err := r.Client.Apply(ctx, obj, client.FieldOwner(dsc.Name), client.ForceOwnership); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // reduce unnecessary reconcile triggered by odh component's deployment change due to ManagedByODHOperator annotation.
@@ -514,6 +507,7 @@ func (r *DataScienceClusterReconciler) SetupWithManager(ctx context.Context, mgr
 			&admissionregistrationv1.ValidatingWebhookConfiguration{},
 			builder.WithPredicates(modelMeshwebhookPredicates),
 		).
+		Owns(&componentsv1.Dashboard{}).
 		Owns(
 			&corev1.ServiceAccount{},
 			builder.WithPredicates(saPredicates),

@@ -169,6 +169,59 @@ rules:
   - create
   - patch
 - apiGroups:
+  - components.opendatahub.io
+  resources:
+  - codeflares
+  - datasciencepipelines
+  - kserves
+  - kueues
+  - modelmeshservings
+  - modelregistries
+  - rays
+  - trainingoperators
+  - trustyais
+  - workbenches
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - components.opendatahub.io
+  resources:
+  - codeflares/finalizers
+  - datasciencepipelines/finalizers
+  - kserves/finalizers
+  - kueues/finalizers
+  - modelmeshservings/finalizers
+  - modelregistries/finalizers
+  - rays/finalizers
+  - trainingoperators/finalizers
+  - trustyais/finalizers
+  - workbenches/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - components.opendatahub.io
+  resources:
+  - codeflares/status
+  - datasciencepipelines/status
+  - kserves/status
+  - kueues/status
+  - modelmeshservings/status
+  - modelregistries/status
+  - rays/status
+  - trainingoperators/status
+  - trustyais/status
+  - workbenches/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - config.openshift.io
   resources:
   - clusterversions

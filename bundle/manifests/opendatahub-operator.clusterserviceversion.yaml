@@ -103,9 +103,15 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.19.0
-    createdAt: "2024-10-09T14:46:54Z"
+    createdAt: "2024-10-15T03:57:32Z"
     olm.skipRange: '>=1.0.0 <2.19.0'
     operators.operatorframework.io/builder: operator-sdk-v1.31.0
+    operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
+      "codeflares.components.opendatahub.io", "dashboards.components.opendatahub.io",
+      "datasciencepipelines.components.opendatahub.io", "kserves.components.opendatahub.io",
+      "kueues.components.opendatahub.io", "modelmeshservings.components.opendatahub.io",
+      "modelregistries.components.opendatahub.io", "rays.components.opendatahub.io",
+      "trainingoperators.components.opendatahub.io", "trustyais.components.opendatahub.io",  "workbenches.components.opendatahub.io"]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/opendatahub-io/opendatahub-operator
   name: opendatahub-operator.v2.19.0
@@ -114,6 +120,20 @@ spec:
   apiservicedefinitions: {}
   customresourcedefinitions:
     owned:
+    - description: CodeFlare is the Schema for the codeflares API
+      displayName: Code Flare
+      kind: CodeFlare
+      name: codeflares.components.opendatahub.io
+      version: v1
+    - description: Dashboard is the Schema for the dashboards API
+      displayName: Dashboard
+      kind: Dashboard
+      name: dashboards.components.opendatahub.io
+      specDescriptors:
+      - description: Add developer fields
+        displayName: Dev Flags
+        path: devFlags
+      version: v1
     - description: DataScienceCluster is the Schema for the datascienceclusters API.
       displayName: Data Science Cluster
       kind: DataScienceCluster
@@ -122,6 +142,12 @@ spec:
       - description: Override and fine tune specific component configurations.
         displayName: Components
         path: components
+      version: v1
+    - description: DataSciencePipelines is the Schema for the datasciencepipelines
+        API
+      displayName: Data Science Pipelines
+      kind: DataSciencePipelines
+      name: datasciencepipelines.components.opendatahub.io
       version: v1
     - description: DSCInitialization is the Schema for the dscinitializations API.
       displayName: DSC Initialization
@@ -160,6 +186,46 @@ spec:
       version: v1
     - kind: FeatureTracker
       name: featuretrackers.features.opendatahub.io
+      version: v1
+    - description: Kserve is the Schema for the kserves API
+      displayName: Kserve
+      kind: Kserve
+      name: kserves.components.opendatahub.io
+      version: v1
+    - description: Kueue is the Schema for the kueues API
+      displayName: Kueue
+      kind: Kueue
+      name: kueues.components.opendatahub.io
+      version: v1
+    - description: ModelMeshServing is the Schema for the modelmeshservings API
+      displayName: Model Mesh Serving
+      kind: ModelMeshServing
+      name: modelmeshservings.components.opendatahub.io
+      version: v1
+    - description: ModelRegistry is the Schema for the modelregistries API
+      displayName: Model Registry
+      kind: ModelRegistry
+      name: modelregistries.components.opendatahub.io
+      version: v1
+    - description: Ray is the Schema for the rays API
+      displayName: Ray
+      kind: Ray
+      name: rays.components.opendatahub.io
+      version: v1
+    - description: TrainingOperator is the Schema for the trainingoperators API
+      displayName: Training Operator
+      kind: TrainingOperator
+      name: trainingoperators.components.opendatahub.io
+      version: v1
+    - description: TrustyAI is the Schema for the trustyais API
+      displayName: Trusty AI
+      kind: TrustyAI
+      name: trustyais.components.opendatahub.io
+      version: v1
+    - description: Workbenches is the Schema for the workbenches API
+      displayName: Workbenches
+      kind: Workbenches
+      name: workbenches.components.opendatahub.io
       version: v1
   description: "The Open Data Hub is a machine-learning-as-a-service platform built
     on Red Hat's Kubernetes-based OpenShift® Container Platform. Open Data Hub integrates
@@ -354,6 +420,62 @@ spec:
           verbs:
           - create
           - patch
+        - apiGroups:
+          - components.opendatahub.io
+          resources:
+          - codeflares
+          - dashboards
+          - datasciencepipelines
+          - kserves
+          - kueues
+          - modelmeshservings
+          - modelregistries
+          - rays
+          - trainingoperators
+          - trustyais
+          - workbenches
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - components.opendatahub.io
+          resources:
+          - codeflares/finalizers
+          - dashboards/finalizers
+          - datasciencepipelines/finalizers
+          - kserves/finalizers
+          - kueues/finalizers
+          - modelmeshservings/finalizers
+          - modelregistries/finalizers
+          - rays/finalizers
+          - trainingoperators/finalizers
+          - trustyais/finalizers
+          - workbenches/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - components.opendatahub.io
+          resources:
+          - codeflares/status
+          - dashboards/status
+          - datasciencepipelines/status
+          - kserves/status
+          - kueues/status
+          - modelmeshservings/status
+          - modelregistries/status
+          - rays/status
+          - trainingoperators/status
+          - trustyais/status
+          - workbenches/status
+          verbs:
+          - get
+          - patch
+          - update
         - apiGroups:
           - config.openshift.io
           resources:
