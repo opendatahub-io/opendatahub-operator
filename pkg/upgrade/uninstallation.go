@@ -70,10 +70,10 @@ func OperatorUninstall(ctx context.Context, cli client.Client, platform cluster.
 
 	log.Info("Removing operator subscription which in turn will remove installplan")
 	subsName := "opendatahub-operator"
-	if platform == cluster.SelfManagedRhods {
+	if platform == cluster.SelfManagedRhoai {
 		subsName = "rhods-operator"
 	}
-	if platform != cluster.ManagedRhods {
+	if platform != cluster.ManagedRhoai {
 		if err := cluster.DeleteExistingSubscription(ctx, cli, operatorNs, subsName); err != nil {
 			return err
 		}

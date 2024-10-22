@@ -183,7 +183,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	switch req.Name {
 	case "prometheus": // prometheus configmap
-		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == cluster.ManagedRhods {
+		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == cluster.ManagedRhoai {
 			log.Info("Monitoring enabled to restart deployment", "cluster", "Managed Service Mode")
 			err := r.configureManagedMonitoring(ctx, instance, "updates")
 			if err != nil {
@@ -193,7 +193,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 		return ctrl.Result{}, nil
 	case "addon-managed-odh-parameters":
-		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == cluster.ManagedRhods {
+		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == cluster.ManagedRhoai {
 			log.Info("Monitoring enabled when notification updated", "cluster", "Managed Service Mode")
 			err := r.configureManagedMonitoring(ctx, instance, "updates")
 			if err != nil {
@@ -203,7 +203,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 		return ctrl.Result{}, nil
 	case "backup": // revert back to the original prometheus.yml
-		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == cluster.ManagedRhods {
+		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == cluster.ManagedRhoai {
 			log.Info("Monitoring enabled to restore back", "cluster", "Managed Service Mode")
 			err := r.configureManagedMonitoring(ctx, instance, "revertbackup")
 			if err != nil {
@@ -219,7 +219,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 
 		switch platform {
-		case cluster.SelfManagedRhods:
+		case cluster.SelfManagedRhoai:
 			// Check if user opted for disabling creating user groups
 			if !createUsergroup {
 				log.Info("DSCI disabled usergroup creation")
@@ -236,7 +236,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 					return reconcile.Result{}, err
 				}
 			}
-		case cluster.ManagedRhods:
+		case cluster.ManagedRhoai:
 			osdConfigsPath := filepath.Join(deploy.DefaultManifestPath, "osd-configs")
 			err = deploy.DeployManifestsFromPath(ctx, r.Client, instance, osdConfigsPath, r.ApplicationsNamespace, "osd", true)
 			if err != nil {

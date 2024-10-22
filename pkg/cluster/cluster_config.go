@@ -137,11 +137,11 @@ func GetClusterServiceVersion(ctx context.Context, c client.Client, namespace st
 		gvk.ClusterServiceVersion.Kind)
 }
 
-// detectSelfManaged detects if it is Self Managed Rhods or OpenDataHub.
+// detectSelfManaged detects if it is Self Managed Rhoai or OpenDataHub.
 func detectSelfManaged(ctx context.Context, cli client.Client) (Platform, error) {
 	variants := map[string]Platform{
 		"opendatahub-operator": OpenDataHub,
-		"rhods-operator":       SelfManagedRhods,
+		"rhods-operator":       SelfManagedRhoai,
 	}
 
 	for k, v := range variants {
@@ -157,8 +157,8 @@ func detectSelfManaged(ctx context.Context, cli client.Client) (Platform, error)
 	return Unknown, nil
 }
 
-// detectManagedRHODS checks if catsrc CR add-on exists ManagedRhods.
-func detectManagedRHODS(ctx context.Context, cli client.Client) (Platform, error) {
+// detectManagedRhoai checks if catsrc CR add-on exists ManagedRhoai.
+func detectManagedRhoai(ctx context.Context, cli client.Client) (Platform, error) {
 	catalogSource := &ofapiv1alpha1.CatalogSource{}
 	operatorNs, err := GetOperatorNamespace()
 	if err != nil {
@@ -168,7 +168,7 @@ func detectManagedRHODS(ctx context.Context, cli client.Client) (Platform, error
 	if err != nil {
 		return Unknown, client.IgnoreNotFound(err)
 	}
-	return ManagedRhods, nil
+	return ManagedRhoai, nil
 }
 
 func getPlatform(ctx context.Context, cli client.Client) (Platform, error) {
@@ -176,15 +176,15 @@ func getPlatform(ctx context.Context, cli client.Client) (Platform, error) {
 	case "OpenDataHub":
 		return OpenDataHub, nil
 	case "ManagedRHOAI":
-		return ManagedRhods, nil
+		return SelfManagedRhoai, nil
 	case "SelfManagedRHOAI":
-		return SelfManagedRhods, nil
+		return SelfManagedRhoai, nil
 	default:
 		// fall back to detect platform if ODH_PLATFORM_TYPE env is not provided in CSV or set to ""
-		if platform, err := detectManagedRHODS(ctx, cli); err != nil {
+		if platform, err := detectManagedRhoai(ctx, cli); err != nil {
 			return Unknown, err
-		} else if platform == ManagedRhods {
-			return ManagedRhods, nil
+		} else if platform == SelfManagedRhoai {
+			return SelfManagedRhoai, nil
 		}
 		return detectSelfManaged(ctx, cli)
 	}

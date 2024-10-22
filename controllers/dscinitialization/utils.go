@@ -192,7 +192,7 @@ func (r *DSCInitializationReconciler) createDefaultRoleBinding(ctx context.Conte
 
 func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.Context, name string, dscInit *dsciv1.DSCInitialization, platform cluster.Platform) error {
 	log := logf.FromContext(ctx)
-	if platform == cluster.ManagedRhods || platform == cluster.SelfManagedRhods {
+	if platform == cluster.ManagedRhoai || platform == cluster.SelfManagedRhoai {
 		// Get operator namepsace
 		operatorNs, err := cluster.GetOperatorNamespace()
 		if err != nil {
