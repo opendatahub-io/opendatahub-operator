@@ -88,7 +88,7 @@ func (k *Kueue) ReconcileComponent(ctx context.Context, cli client.Client, logge
 	}
 
 	// CloudService Monitoring handling
-	if platform == cluster.ManagedRhods {
+	if platform == cluster.ManagedRhoai {
 		if err := k.UpdatePrometheusConfig(cli, l, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
 		}

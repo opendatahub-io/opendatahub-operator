@@ -157,7 +157,7 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 	}
 
 	// CloudService Monitoring handling
-	if platform == cluster.ManagedRhods {
+	if platform == cluster.ManagedRhoai {
 		if err := m.UpdatePrometheusConfig(cli, l, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
 		}

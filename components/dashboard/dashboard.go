@@ -70,15 +70,15 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 ) error {
 	var l logr.Logger
 
-	if platform == cluster.SelfManagedRhods || platform == cluster.ManagedRhods {
+	if platform == cluster.SelfManagedRhoai || platform == cluster.ManagedRhoai {
 		l = d.ConfigComponentLogger(logger, ComponentNameDownstream, dscispec)
 	} else {
 		l = d.ConfigComponentLogger(logger, ComponentNameUpstream, dscispec)
 	}
 
 	entryPath := map[cluster.Platform]string{
-		cluster.SelfManagedRhods: PathDownstream + "/onprem",
-		cluster.ManagedRhods:     PathDownstream + "/addon",
+		cluster.SelfManagedRhoai: PathDownstream + "/onprem",
+		cluster.ManagedRhoai:     PathDownstream + "/addon",
 		cluster.OpenDataHub:      PathUpstream,
 		cluster.Unknown:          PathUpstream,
 	}[platform]
@@ -130,7 +130,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 	// common: Deploy odh-dashboard manifests
 	// TODO: check if we can have the same component name odh-dashboard for both, or still keep rhods-dashboard for RHOAI
 	switch platform {
-	case cluster.SelfManagedRhods, cluster.ManagedRhods:
+	case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
 		// anaconda
 		if err := cluster.CreateSecret(ctx, cli, "anaconda-ce-access", dscispec.ApplicationsNamespace); err != nil {
 			return fmt.Errorf("failed to create access-secret for anaconda: %w", err)
@@ -148,7 +148,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 		}
 
 		// CloudService Monitoring handling
-		if platform == cluster.ManagedRhods {
+		if platform == cluster.ManagedRhoai {
 			if err := d.UpdatePrometheusConfig(cli, l, enabled && monitoringEnabled, ComponentNameDownstream); err != nil {
 				return err
 			}
@@ -180,15 +180,15 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 
 func updateKustomizeVariable(ctx context.Context, cli client.Client, platform cluster.Platform, dscispec *dsciv1.DSCInitializationSpec) (map[string]string, error) {
 	adminGroups := map[cluster.Platform]string{
-		cluster.SelfManagedRhods: "rhods-admins",
-		cluster.ManagedRhods:     "dedicated-admins",
+		cluster.SelfManagedRhoai: "rhods-admins",
+		cluster.ManagedRhoai:     "dedicated-admins",
 		cluster.OpenDataHub:      "odh-admins",
 		cluster.Unknown:          "odh-admins",
 	}[platform]
 
 	sectionTitle := map[cluster.Platform]string{
-		cluster.SelfManagedRhods: "OpenShift Self Managed Services",
-		cluster.ManagedRhods:     "OpenShift Managed Services",
+		cluster.SelfManagedRhoai: "OpenShift Self Managed Services",
+		cluster.ManagedRhoai:     "OpenShift Managed Services",
 		cluster.OpenDataHub:      "OpenShift Open Data Hub",
 		cluster.Unknown:          "OpenShift Open Data Hub",
 	}[platform]
@@ -198,8 +198,8 @@ func updateKustomizeVariable(ctx context.Context, cli client.Client, platform cl
 		return nil, fmt.Errorf("error getting console route URL %s : %w", consoleLinkDomain, err)
 	}
 	consoleURL := map[cluster.Platform]string{
-		cluster.SelfManagedRhods: "https://rhods-dashboard-" + dscispec.ApplicationsNamespace + "." + consoleLinkDomain,
-		cluster.ManagedRhods:     "https://rhods-dashboard-" + dscispec.ApplicationsNamespace + "." + consoleLinkDomain,
+		cluster.SelfManagedRhoai: "https://rhods-dashboard-" + dscispec.ApplicationsNamespace + "." + consoleLinkDomain,
+		cluster.ManagedRhoai:     "https://rhods-dashboard-" + dscispec.ApplicationsNamespace + "." + consoleLinkDomain,
 		cluster.OpenDataHub:      "https://odh-dashboard-" + dscispec.ApplicationsNamespace + "." + consoleLinkDomain,
 		cluster.Unknown:          "https://odh-dashboard-" + dscispec.ApplicationsNamespace + "." + consoleLinkDomain,
 	}[platform]
