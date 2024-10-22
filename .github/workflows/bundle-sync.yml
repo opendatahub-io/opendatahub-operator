@@ -51,8 +51,8 @@ jobs:
           mkdir -p target_repo/to-be-processed/bundle
           echo "Updating bundle related files"
           cp -r source_repo/bundle/* target_repo/to-be-processed/bundle
-          echo "Updating Dockerfile"
-          cp source_repo/Dockerfiles/bundle.Dockerfile target_repo/to-be-processed/bundle/Dockerfile
+#          echo "Updating Dockerfile"
+#          cp source_repo/Dockerfiles/bundle.Dockerfile target_repo/to-be-processed/bundle/Dockerfile
 
       - name: Commit and push the changes to release branch
         uses: actions-js/push@master
