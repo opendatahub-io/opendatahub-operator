@@ -104,7 +104,6 @@ func (r *SecretGeneratorReconciler) SetupWithManager(ctx context.Context, mgr ct
 // based on the specified type and complexity. This will avoid possible race
 // conditions when a deployment mounts the secret before it is reconciled.
 func (r *SecretGeneratorReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
-	log := logf.FromContext(ctx).WithName("SecretGenerator")
 	foundSecret := &corev1.Secret{}
 	err := r.Client.Get(ctx, request.NamespacedName, foundSecret)
 	if err != nil {
@@ -116,70 +115,82 @@ func (r *SecretGeneratorReconciler) Reconcile(ctx context.Context, request ctrl.
 		return ctrl.Result{}, err
 	}
 
-	owner := []metav1.OwnerReference{
-		*metav1.NewControllerRef(foundSecret, foundSecret.GroupVersionKind()),
-	}
 	// Generate the secret if it does not previously exist
 	generatedSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:            foundSecret.Name + "-generated",
-			Namespace:       foundSecret.Namespace,
-			Labels:          foundSecret.Labels,
-			OwnerReferences: owner,
+			Name:      foundSecret.Name + "-generated",
+			Namespace: foundSecret.Namespace,
 		},
 	}
 
-	generatedSecretKey := types.NamespacedName{
-		Name: generatedSecret.Name, Namespace: generatedSecret.Namespace,
+	err = r.Client.Get(ctx, client.ObjectKeyFromObject(generatedSecret), generatedSecret)
+	if err == nil || !k8serr.IsNotFound(err) {
+		return ctrl.Result{}, err
 	}
-	err = r.Client.Get(ctx, generatedSecretKey, generatedSecret)
+
+	err = r.generateSecret(ctx, foundSecret, generatedSecret)
 	if err != nil {
-		if k8serr.IsNotFound(err) {
-			// Generate secret random value
-			log.Info("Generating a random value for a secret in a namespace",
-				"secret", generatedSecret.Name, "namespace", generatedSecret.Namespace)
-
-			secret, err := NewSecretFrom(foundSecret.GetAnnotations())
-			if err != nil {
-				log.Error(err, "error creating secret %s in %s", generatedSecret.Name, generatedSecret.Namespace)
-				return ctrl.Result{}, err
-			}
-
-			generatedSecret.StringData = map[string]string{
-				secret.Name: secret.Value,
-			}
-
-			err = r.Client.Create(ctx, generatedSecret)
-			if err != nil {
-				return ctrl.Result{}, err
-			}
-			log.Info("Done generating secret in namespace",
-				"secret", generatedSecret.Name, "namespace", generatedSecret.Namespace)
-			// check if annotation oauth-client-route exists
-			if secret.OAuthClientRoute != "" {
-				// Get OauthClient Route
-				oauthClientRoute, err := r.getRoute(ctx, secret.OAuthClientRoute, request.Namespace)
-				if err != nil {
-					log.Error(err, "Unable to retrieve route from OAuthClient", "route-name", secret.OAuthClientRoute)
-					return ctrl.Result{}, err
-				}
-				// Generate OAuthClient for the generated secret
-				log.Info("Generating an OAuthClient CR for route", "route-name", oauthClientRoute.Name)
-				err = r.createOAuthClient(ctx, foundSecret.Name, secret.Value, oauthClientRoute.Spec.Host)
-				if err != nil {
-					log.Error(err, "error creating oauth client resource. Recreate the Secret", "secret-name",
-						foundSecret.Name)
-
-					return ctrl.Result{}, err
-				}
-			}
-		} else {
-			return ctrl.Result{}, err
-		}
+		return ctrl.Result{}, err
 	}
 
 	// Don't requeue if secret is created successfully
-	return ctrl.Result{}, err
+	return ctrl.Result{}, nil
+}
+
+func (r *SecretGeneratorReconciler) generateSecret(ctx context.Context, foundSecret *corev1.Secret, generatedSecret *corev1.Secret) error {
+	log := logf.FromContext(ctx).WithName("SecretGenerator")
+
+	// Generate secret random value
+	log.Info("Generating a random value for a secret in a namespace",
+		"secret", generatedSecret.Name, "namespace", generatedSecret.Namespace)
+
+	generatedSecret.Labels = foundSecret.Labels
+
+	generatedSecret.OwnerReferences = []metav1.OwnerReference{
+		*metav1.NewControllerRef(foundSecret, foundSecret.GroupVersionKind()),
+	}
+
+	secret, err := NewSecretFrom(foundSecret.GetAnnotations())
+	if err != nil {
+		log.Error(err, "error creating secret %s in %s", generatedSecret.Name, generatedSecret.Namespace)
+		return err
+	}
+
+	generatedSecret.StringData = map[string]string{
+		secret.Name: secret.Value,
+	}
+
+	err = r.Client.Create(ctx, generatedSecret)
+	if err != nil {
+		return err
+	}
+
+	log.Info("Done generating secret in namespace",
+		"secret", generatedSecret.Name, "namespace", generatedSecret.Namespace)
+
+	// check if annotation oauth-client-route exists
+	if secret.OAuthClientRoute == "" {
+		return nil
+	}
+
+	// Get OauthClient Route
+	oauthClientRoute, err := r.getRoute(ctx, secret.OAuthClientRoute, foundSecret.Namespace)
+	if err != nil {
+		log.Error(err, "Unable to retrieve route from OAuthClient", "route-name", secret.OAuthClientRoute)
+		return err
+	}
+
+	// Generate OAuthClient for the generated secret
+	log.Info("Generating an OAuthClient CR for route", "route-name", oauthClientRoute.Name)
+	err = r.createOAuthClient(ctx, foundSecret.Name, secret.Value, oauthClientRoute.Spec.Host)
+	if err != nil {
+		log.Error(err, "error creating oauth client resource. Recreate the Secret", "secret-name",
+			foundSecret.Name)
+
+		return err
+	}
+
+	return nil
 }
 
 // getRoute returns an OpenShift route object. It waits until the .spec.host value exists to avoid possible race conditions, fails otherwise.
