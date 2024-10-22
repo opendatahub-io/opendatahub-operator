@@ -39,7 +39,7 @@ spec:
     workbenches:
       managementState: "Managed"
     trustyai:
-      managementState: "Removed"      
+      managementState: "Managed"
     modelregistry:
       managementState: "Removed"
       registriesNamespace: "rhoai-model-registries"

@@ -148,6 +148,6 @@ spec:
     workbenches:
       managementState: Managed
     trustyai:
-      managementState: Removed
+      managementState: Managed
 EOF
 ```
