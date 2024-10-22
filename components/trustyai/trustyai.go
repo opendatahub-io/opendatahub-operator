@@ -92,7 +92,7 @@ func (t *TrustyAI) UpdateStatus(in *status.ComponentsStatus) error {
 		ComponentStatus: status.ComponentStatus{
 			UpstreamReleases: []status.ComponentReleaseStatus{{
 				Name:        cluster.Platform(ComponentName),
-				DisplayName: ComponentName,
+				DisplayName: trustyAIStatus.DisplayName,
 				Version:     version.OperatorVersion{Version: trustyAIStatus.ComponentVersion},
 				RepoURL:     trustyAIStatus.RepositoryURL,
 			},

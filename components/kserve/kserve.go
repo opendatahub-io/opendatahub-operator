@@ -124,7 +124,7 @@ func (k *Kserve) UpdateStatus(in *status.ComponentsStatus) error {
 		ComponentStatus: status.ComponentStatus{
 			UpstreamReleases: []status.ComponentReleaseStatus{{
 				Name:        cluster.Platform(ComponentName),
-				DisplayName: ComponentName,
+				DisplayName: kserveStatus.DisplayName,
 				Version:     version.OperatorVersion{Version: kserveStatus.ComponentVersion},
 				RepoURL:     kserveStatus.RepositoryURL,
 			},

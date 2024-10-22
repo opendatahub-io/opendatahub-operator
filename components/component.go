@@ -86,6 +86,7 @@ type ManifestsConfig struct {
 type ComponentReleaseDetails struct {
 	ComponentVersion semver.Version
 	RepositoryURL    string
+	DisplayName      string
 }
 
 type ComponentInterface interface {
@@ -208,6 +209,7 @@ func (c *Component) UpdatePrometheusConfig(_ client.Client, logger logr.Logger, 
 func (c *Component) GetReleaseVersion(in *status.ComponentsStatus, defaultManifestPath string, componentName string) (ComponentReleaseDetails, error) {
 	var componentVersion semver.Version
 	var repositoryURL string
+	var displayName string
 
 	env, err := godotenv.Read(filepath.Join(defaultManifestPath, componentName, ".env"))
 
@@ -222,5 +224,7 @@ func (c *Component) GetReleaseVersion(in *status.ComponentsStatus, defaultManife
 	}
 	repositoryURL = env["REPOSITORY_URL"]
 
-	return ComponentReleaseDetails{ComponentVersion: componentVersion, RepositoryURL: repositoryURL}, nil
+	displayName = env["DISPLAY_NAME"]
+
+	return ComponentReleaseDetails{ComponentVersion: componentVersion, DisplayName: displayName, RepositoryURL: repositoryURL}, nil
 }

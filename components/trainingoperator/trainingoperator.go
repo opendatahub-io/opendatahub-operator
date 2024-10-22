@@ -83,7 +83,7 @@ func (r *TrainingOperator) UpdateStatus(in *status.ComponentsStatus) error {
 		ComponentStatus: status.ComponentStatus{
 			UpstreamReleases: []status.ComponentReleaseStatus{{
 				Name:        cluster.Platform(ComponentName),
-				DisplayName: ComponentName,
+				DisplayName: trainingOperatorStatus.DisplayName,
 				Version:     version.OperatorVersion{Version: trainingOperatorStatus.ComponentVersion},
 				RepoURL:     trainingOperatorStatus.RepositoryURL,
 			},

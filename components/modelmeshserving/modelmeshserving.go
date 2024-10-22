@@ -114,7 +114,7 @@ func (m *ModelMeshServing) UpdateStatus(in *status.ComponentsStatus) error {
 		ComponentStatus: status.ComponentStatus{
 			UpstreamReleases: []status.ComponentReleaseStatus{{
 				Name:        cluster.Platform(ComponentName),
-				DisplayName: ComponentName,
+				DisplayName: modelMeshServingStatus.DisplayName,
 				Version:     version.OperatorVersion{Version: modelMeshServingStatus.ComponentVersion},
 				RepoURL:     modelMeshServingStatus.RepositoryURL,
 			},

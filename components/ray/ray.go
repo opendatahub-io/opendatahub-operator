@@ -22,9 +22,8 @@ import (
 )
 
 var (
-	ComponentName         = "ray"
-	RayPath               = deploy.DefaultManifestPath + "/" + ComponentName + "/openshift"
-	ComponentNameUpstream = "ray-project"
+	ComponentName = "ray"
+	RayPath       = deploy.DefaultManifestPath + "/" + ComponentName + "/openshift"
 )
 
 // Verifies that Ray implements ComponentInterface.
@@ -83,7 +82,7 @@ func (r *Ray) UpdateStatus(in *status.ComponentsStatus) error {
 		ComponentStatus: status.ComponentStatus{
 			UpstreamReleases: []status.ComponentReleaseStatus{{
 				Name:        cluster.Platform(ComponentName),
-				DisplayName: ComponentNameUpstream,
+				DisplayName: rayStatus.DisplayName,
 				Version:     version.OperatorVersion{Version: rayStatus.ComponentVersion},
 				RepoURL:     rayStatus.RepositoryURL,
 			},

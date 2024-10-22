@@ -85,7 +85,7 @@ func (c *CodeFlare) UpdateStatus(in *status.ComponentsStatus) error {
 		ComponentStatus: status.ComponentStatus{
 			UpstreamReleases: []status.ComponentReleaseStatus{{
 				Name:        cluster.Platform(ComponentName),
-				DisplayName: CodeflareOperator,
+				DisplayName: codeFlareStatus.DisplayName,
 				Version:     version.OperatorVersion{Version: codeFlareStatus.ComponentVersion},
 				RepoURL:     codeFlareStatus.RepositoryURL,
 			},

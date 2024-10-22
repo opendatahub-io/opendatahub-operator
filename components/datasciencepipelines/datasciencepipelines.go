@@ -31,7 +31,6 @@ var (
 	Path            = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
 	OverlayPath     = deploy.DefaultManifestPath + "/" + ComponentName + "/overlays"
 	ArgoWorkflowCRD = "workflows.argoproj.io"
-	DisplayName     = "Red Hat Build of Kubeflow Pipelines"
 )
 
 // Verifies that Dashboard implements ComponentInterface.
@@ -106,7 +105,7 @@ func (d *DataSciencePipelines) UpdateStatus(in *status.ComponentsStatus) error {
 		ComponentStatus: status.ComponentStatus{
 			UpstreamReleases: []status.ComponentReleaseStatus{{
 				Name:        cluster.Platform(ComponentName),
-				DisplayName: DisplayName,
+				DisplayName: dataSciencePipelinesStatus.DisplayName,
 				Version:     version.OperatorVersion{Version: dataSciencePipelinesStatus.ComponentVersion},
 				RepoURL:     dataSciencePipelinesStatus.RepositoryURL,
 			},

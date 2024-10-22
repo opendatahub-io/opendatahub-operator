@@ -124,7 +124,7 @@ func (w *Workbenches) UpdateStatus(in *status.ComponentsStatus) error {
 		ComponentStatus: status.ComponentStatus{
 			UpstreamReleases: []status.ComponentReleaseStatus{{
 				Name:        cluster.Platform(ComponentName),
-				DisplayName: ComponentName,
+				DisplayName: workbenchesStatus.DisplayName,
 				Version:     version.OperatorVersion{Version: workbenchesStatus.ComponentVersion},
 				RepoURL:     workbenchesStatus.RepositoryURL,
 			},
