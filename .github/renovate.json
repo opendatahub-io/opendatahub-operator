@@ -4,21 +4,24 @@
     "config:recommended"
   ],
   "branchPrefix": "renovate/",
-  "baseBranches": ["non-existing-branch"],
-  "automerge": false,
+  "baseBranches": ["main"],
+  "ignoreTests": true,
+  "automergeType": "pr",
+  "automerge": true,
+  "enabledManagers": ["dockerfile", "tekton"],
   "packageRules": [
     {
       "matchUpdateTypes": ["*"],
       "enabled": false
     },
     {
-      "matchFileNames": ["*"],
-      "enabled": false
+      "matchUpdateTypes": ["digest"],
+      "enabled": true
     },
     {
-      "matchManagers": ["*"],
-      "enabled": false
+      "matchFileNames": ["*Dockerfile.konflux*", ".tekton/**"],
+      "enabled": true
     }
   ],
- "prHourlyLimit": 1
+ "prHourlyLimit": 0
 }
