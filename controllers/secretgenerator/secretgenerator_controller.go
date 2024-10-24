@@ -107,12 +107,17 @@ func (r *SecretGeneratorReconciler) Reconcile(ctx context.Context, request ctrl.
 	foundSecret := &corev1.Secret{}
 	err := r.Client.Get(ctx, request.NamespacedName, foundSecret)
 	if err != nil {
-		if k8serr.IsNotFound(err) {
-			// If Secret is deleted, delete OAuthClient if exists
-			err = r.deleteOAuthClient(ctx, request.Name)
+		if !k8serr.IsNotFound(err) {
+			return ctrl.Result{}, err
 		}
 
-		return ctrl.Result{}, err
+		// If Secret is deleted, delete OAuthClient if exists
+		err = r.deleteOAuthClient(ctx, request.NamespacedName)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+
+		return ctrl.Result{}, nil
 	}
 
 	// Generate the secret if it does not previously exist
@@ -252,17 +257,16 @@ func (r *SecretGeneratorReconciler) createOAuthClient(ctx context.Context, name 
 	return err
 }
 
-func (r *SecretGeneratorReconciler) deleteOAuthClient(ctx context.Context, secretName string) error {
-	oauthClient := &oauthv1.OAuthClient{}
-
-	err := r.Client.Get(ctx, client.ObjectKey{
-		Name: secretName,
-	}, oauthClient)
-	if err != nil {
-		return client.IgnoreNotFound(err)
+func (r *SecretGeneratorReconciler) deleteOAuthClient(ctx context.Context, secretNamespacedName types.NamespacedName) error {
+	oauthClient := &oauthv1.OAuthClient{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretNamespacedName.Name,
+			Namespace: secretNamespacedName.Namespace,
+		},
 	}
 
-	if err = r.Client.Delete(ctx, oauthClient); err != nil {
+	err := r.Client.Delete(ctx, oauthClient)
+	if err != nil && !k8serr.IsNotFound(err) {
 		return fmt.Errorf("error deleting OAuthClient %s: %w", oauthClient.Name, err)
 	}
 
