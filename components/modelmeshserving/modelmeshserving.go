@@ -101,14 +101,12 @@ func (m *ModelMeshServing) GetComponentName() string {
 	return ComponentName
 }
 
-func (m *ModelMeshServing) UpdateStatus(in *status.ComponentsStatus) error {
-	modelMeshServingStatus, err := m.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
+func (m *ModelMeshServing) UpdateStatus(in *status.ComponentsStatus) {
+	modelMeshServingStatus := m.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
 
 	in.ModelMeshServing = &status.ModelMeshServingStatus{
 		ComponentStatus: modelMeshServingStatus,
 	}
-
-	return err
 }
 
 func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,

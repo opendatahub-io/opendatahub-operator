@@ -90,7 +90,7 @@ type ComponentInterface interface {
 		platform cluster.Platform, currentComponentStatus bool) error
 	Cleanup(ctx context.Context, cli client.Client, owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec) error
 	GetComponentName() string
-	UpdateStatus(status *status.ComponentsStatus) error
+	UpdateStatus(status *status.ComponentsStatus)
 	GetManagementState() operatorv1.ManagementState
 	OverrideManifests(ctx context.Context, platform cluster.Platform) error
 	UpdatePrometheusConfig(cli client.Client, logger logr.Logger, enable bool, component string) error
@@ -201,7 +201,7 @@ func (c *Component) UpdatePrometheusConfig(_ client.Client, logger logr.Logger, 
 	return err
 }
 
-func (c *Component) GetReleaseVersion(defaultManifestPath string, componentName string) (status.ComponentStatus, error) {
+func (c *Component) GetReleaseVersion(defaultManifestPath string, componentName string) status.ComponentStatus {
 	var componentVersion semver.Version
 	var repositoryURL string
 	var displayName string
@@ -209,13 +209,13 @@ func (c *Component) GetReleaseVersion(defaultManifestPath string, componentName 
 	env, err := common.ParseParams(filepath.Join(defaultManifestPath, componentName, ".env"))
 
 	if err != nil {
-		return status.ComponentStatus{}, err
+		return status.ComponentStatus{}
 	}
 
 	componentVersion, err = semver.Parse(env["RHOAI_RELEASE_VERSION"])
 
 	if err != nil {
-		return status.ComponentStatus{}, err
+		return status.ComponentStatus{}
 	}
 	repositoryURL = env["REPOSITORY_URL"]
 
@@ -229,5 +229,5 @@ func (c *Component) GetReleaseVersion(defaultManifestPath string, componentName 
 			RepoURL:     repositoryURL,
 		},
 		},
-	}, nil
+	}
 }

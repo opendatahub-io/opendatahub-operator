@@ -72,14 +72,12 @@ func (c *CodeFlare) GetComponentName() string {
 	return ComponentName
 }
 
-func (c *CodeFlare) UpdateStatus(in *status.ComponentsStatus) error {
-	codeFlareStatus, err := c.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
+func (c *CodeFlare) UpdateStatus(in *status.ComponentsStatus) {
+	codeFlareStatus := c.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
 
 	in.CodeFlare = &status.CodeFlareStatus{
 		ComponentStatus: codeFlareStatus,
 	}
-
-	return err
 }
 
 func (c *CodeFlare) ReconcileComponent(ctx context.Context,

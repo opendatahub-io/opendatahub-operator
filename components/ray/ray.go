@@ -69,14 +69,12 @@ func (r *Ray) GetComponentName() string {
 	return ComponentName
 }
 
-func (r *Ray) UpdateStatus(in *status.ComponentsStatus) error {
-	rayStatus, err := r.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
+func (r *Ray) UpdateStatus(in *status.ComponentsStatus) {
+	rayStatus := r.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
 
 	in.Ray = &status.RayStatus{
 		ComponentStatus: rayStatus,
 	}
-
-	return err
 }
 
 func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client,

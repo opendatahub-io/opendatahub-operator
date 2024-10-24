@@ -111,14 +111,12 @@ func (k *Kserve) GetComponentName() string {
 	return ComponentName
 }
 
-func (k *Kserve) UpdateStatus(in *status.ComponentsStatus) error {
-	kserveStatus, err := k.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
+func (k *Kserve) UpdateStatus(in *status.ComponentsStatus) {
+	kserveStatus := k.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
 
 	in.Kserve = &status.KserveStatus{
 		ComponentStatus: kserveStatus,
 	}
-
-	return err
 }
 
 func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,

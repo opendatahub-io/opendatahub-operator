@@ -97,14 +97,12 @@ func (m *ModelRegistry) GetComponentName() string {
 	return ComponentName
 }
 
-func (m *ModelRegistry) UpdateStatus(in *status.ComponentsStatus) error {
-	modelRegistryStatus, err := m.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
+func (m *ModelRegistry) UpdateStatus(in *status.ComponentsStatus) {
+	modelRegistryStatus := m.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
 
 	in.ModelRegistry = &status.ModelRegistryStatus{
 		ComponentStatus: modelRegistryStatus,
 	}
-
-	return err
 }
 
 func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Client,

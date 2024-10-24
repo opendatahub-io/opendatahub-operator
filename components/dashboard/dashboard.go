@@ -83,9 +83,8 @@ func (d *Dashboard) GetComponentName() string {
 	return ComponentNameUpstream
 }
 
-func (d *Dashboard) UpdateStatus(in *status.ComponentsStatus) error {
+func (d *Dashboard) UpdateStatus(in *status.ComponentsStatus) {
 	in.Dashboard = &status.DashboardStatus{}
-	return nil
 }
 
 func (d *Dashboard) ReconcileComponent(ctx context.Context,

@@ -111,14 +111,12 @@ func (w *Workbenches) GetComponentName() string {
 	return ComponentName
 }
 
-func (w *Workbenches) UpdateStatus(in *status.ComponentsStatus) error {
-	workbenchesStatus, err := w.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
+func (w *Workbenches) UpdateStatus(in *status.ComponentsStatus) {
+	workbenchesStatus := w.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
 
 	in.Workbenches = &status.WorkbenchesStatus{
 		ComponentStatus: workbenchesStatus,
 	}
-
-	return err
 }
 
 func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
