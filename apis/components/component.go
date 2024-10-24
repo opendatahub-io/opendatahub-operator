@@ -6,9 +6,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// Component struct defines the basis for each OpenDataHub component configuration.
+// ManagementSpec struct defines the component's management configuration.
 // +kubebuilder:object:generate=true
-type Component struct {
+type ManagementSpec struct {
 	// Set to one of the following values:
 	//
 	// - "Managed" : the operator is actively managing the component and trying to keep it active.
@@ -19,12 +19,22 @@ type Component struct {
 	//
 	// +kubebuilder:validation:Enum=Managed;Removed
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
-	// Add any other common fields across components below
+}
 
+// DevFlagsSpec struct defines the component's dev flags configuration.
+// +kubebuilder:object:generate=true
+type DevFlagsSpec struct {
 	// Add developer fields
 	// +optional
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=2
 	DevFlags *DevFlags `json:"devFlags,omitempty"`
+}
+
+// Component struct defines the basis for each OpenDataHub component configuration.
+// +kubebuilder:object:generate=true
+type Component struct {
+	ManagementSpec `json:",inline"`
+	DevFlagsSpec   `json:",inline"`
 }
 
 // DevFlags defines list of fields that can be used by developers to test customizations. This is not recommended

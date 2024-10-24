@@ -171,7 +171,7 @@ func GetDashboard(dsc *dscv1.DataScienceCluster) *componentsv1.Dashboard {
 			Annotations: dashboardAnnotations,
 		},
 		Spec: componentsv1.DashboardSpec{
-			DSCDashboard: dsc.Spec.Components.Dashboard,
+			DashboardCommonSpec: dsc.Spec.Components.Dashboard.DashboardCommonSpec,
 		},
 	}
 }

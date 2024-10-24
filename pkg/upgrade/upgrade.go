@@ -70,7 +70,7 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 		Spec: dscv1.DataScienceClusterSpec{
 			Components: dscv1.Components{
 				Dashboard: componentsv1.DSCDashboard{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+					ManagementSpec: components.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
 				Workbenches: workbenches.Workbenches{
 					Component: componentsold.Component{ManagementState: operatorv1.Managed},
