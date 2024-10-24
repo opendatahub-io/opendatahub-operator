@@ -22,14 +22,21 @@ import (
 )
 
 const (
-    // value should match whats set in the XValidation below
+	// value should match whats set in the XValidation below
 	DashboardInstanceName = "default-dashboard"
 )
+
+// DashboardCommonSpec spec defines the shared desired state of Dashboard
+type DashboardCommonSpec struct {
+	// dashboard spec exposed to DSC api
+	components.DevFlagsSpec `json:",inline"`
+	// dashboard spec exposed only to internal api
+}
 
 // DashboardSpec defines the desired state of Dashboard
 type DashboardSpec struct {
 	// dashboard spec exposed to DSC api
-	DSCDashboard `json:""`
+	DashboardCommonSpec `json:",inline"`
 	// dashboard spec exposed only to internal api
 }
 
@@ -74,6 +81,7 @@ func init() {
 // DSCDashboard contains all the configuration exposed in DSC instance for Dashboard component
 type DSCDashboard struct {
 	// configuration fields common across components
-	components.Component `json:""`
-	// configuration fields specific to the dashboard component
+	components.ManagementSpec `json:",inline"`
+	// dashboard specific field
+	DashboardCommonSpec `json:",inline"`
 }

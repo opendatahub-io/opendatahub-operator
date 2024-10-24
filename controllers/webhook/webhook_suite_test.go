@@ -263,7 +263,7 @@ func newDSC(name string, namespace string) *dscv1.DataScienceCluster {
 		Spec: dscv1.DataScienceClusterSpec{
 			Components: dscv1.Components{
 				Dashboard: componentsv1.DSCDashboard{
-					Component: components.Component{
+					ManagementSpec: components.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},

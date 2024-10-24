@@ -90,9 +90,9 @@ func (tc *DashboardTestCtx) testDashboardCreation() error {
 
 func (tc *DashboardTestCtx) validateDashboard() error {
 	// Dashboard spec should match the spec of Dashboard component in DSC
-	if !reflect.DeepEqual(tc.testCtx.testDsc.Spec.Components.Dashboard.ManagementState, tc.testDashboardInstance.Spec.ManagementState) {
+	if !reflect.DeepEqual(tc.testCtx.testDsc.Spec.Components.Dashboard.DashboardCommonSpec, tc.testDashboardInstance.Spec.DashboardCommonSpec) {
 		err := fmt.Errorf("expected smanagement state for Dashboard %v, got %v",
-			tc.testCtx.testDsc.Spec.Components.Dashboard.ManagementState, tc.testDashboardInstance.Spec.ManagementState)
+			tc.testCtx.testDsc.Spec.Components.Dashboard.DashboardCommonSpec, tc.testDashboardInstance.Spec.DashboardCommonSpec)
 		return err
 	}
 	return nil

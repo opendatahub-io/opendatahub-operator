@@ -120,7 +120,7 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 			Components: dscv1.Components{
 				// keep dashboard as enabled, because other test is rely on this
 				Dashboard: componentsv1.DSCDashboard{
-					Component: components.Component{
+					ManagementSpec: components.ManagementSpec{
 						ManagementState: operatorv1.Managed,
 					},
 				},

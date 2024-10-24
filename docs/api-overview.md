@@ -122,11 +122,11 @@ DSCDashboard contains all the configuration exposed in DSC instance for Dashboar
 
 _Appears in:_
 - [Components](#components)
-- [DashboardSpec](#dashboardspec)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `Component` _[Component](#component)_ | configuration fields common across components |  |  |
+| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
 #### Dashboard
@@ -149,6 +149,23 @@ _Appears in:_
 | `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[DashboardSpec](#dashboardspec)_ |  |  |  |
 | `status` _[DashboardStatus](#dashboardstatus)_ |  |  |  |
+
+
+#### DashboardCommonSpec
+
+
+
+DashboardCommonSpec spec defines the shared desired state of Dashboard
+
+
+
+_Appears in:_
+- [DSCDashboard](#dscdashboard)
+- [DashboardSpec](#dashboardspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
 #### DashboardList
@@ -184,7 +201,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `DSCDashboard` _[DSCDashboard](#dscdashboard)_ | dashboard spec exposed to DSC api |  |  |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
 #### DashboardStatus
@@ -962,6 +979,42 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `manifests` _[ManifestsConfig](#manifestsconfig) array_ | List of custom manifests for the given component |  |  |
+
+
+#### DevFlagsSpec
+
+
+
+DevFlagsSpec struct defines the component's dev flags configuration.
+
+
+
+_Appears in:_
+- [Component](#component)
+- [DSCDashboard](#dscdashboard)
+- [DashboardCommonSpec](#dashboardcommonspec)
+- [DashboardSpec](#dashboardspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+
+
+#### ManagementSpec
+
+
+
+ManagementSpec struct defines the component's management configuration.
+
+
+
+_Appears in:_
+- [Component](#component)
+- [DSCDashboard](#dscdashboard)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
 
