@@ -51,6 +51,10 @@ type Kueue struct {
 	Status KueueStatus `json:"status,omitempty"`
 }
 
+func (c *Kueue) GetDevFlags() *components.DevFlags {
+	return nil
+}
+
 func (c *Kueue) GetStatus() *components.Status {
 	return &c.Status.Status
 }

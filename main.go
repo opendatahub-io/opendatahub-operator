@@ -24,6 +24,7 @@ import (
 	addonv1alpha1 "github.com/openshift/addon-operator/apis/addons/v1alpha1"
 	ocappsv1 "github.com/openshift/api/apps/v1" //nolint:importas //reason: conflicts with appsv1 "k8s.io/api/apps/v1"
 	buildv1 "github.com/openshift/api/build/v1"
+	consolev1 "github.com/openshift/api/console/v1"
 	imagev1 "github.com/openshift/api/image/v1"
 	oauthv1 "github.com/openshift/api/oauth/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -104,6 +105,7 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(apiregistrationv1.AddToScheme(scheme))
 	utilruntime.Must(monitoringv1.AddToScheme(scheme))
 	utilruntime.Must(operatorv1.Install(scheme))
+	utilruntime.Must(consolev1.AddToScheme(scheme))
 }
 
 func initComponents(_ context.Context, p cluster.Platform) error {
@@ -389,7 +391,7 @@ func createDeploymentCacheConfig(platform cluster.Platform) map[string]cache.Con
 
 func CreateComponentReconcilers(ctx context.Context, mgr manager.Manager) error {
 	// TODO: add more here or make it go routine
-	if err := dashboardctrl.NewDashboardReconciler(ctx, mgr); err != nil {
+	if err := dashboardctrl.NewReconciler(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DashboardReconciler")
 		return err
 	}

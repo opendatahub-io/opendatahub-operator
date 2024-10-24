@@ -4,6 +4,7 @@ package components
 import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // ManagementSpec struct defines the component's management configuration.
@@ -74,4 +75,14 @@ type Status struct {
 
 type WithStatus interface {
 	GetStatus() *Status
+}
+
+type WithDevFlags interface {
+	GetDevFlags() *DevFlags
+}
+
+type ComponentObject interface {
+	client.Object
+	WithDevFlags
+	WithStatus
 }

@@ -22,8 +22,10 @@ import (
 )
 
 const (
-	// value should match whats set in the XValidation below
+	// DashboardInstanceName the name of the Dashboard instance singleton.
+	// It must match what is set in the XValidation below.
 	DashboardInstanceName = "default-dashboard"
+	DashboardKind         = "Dashboard"
 )
 
 // DashboardCommonSpec spec defines the shared desired state of Dashboard
@@ -43,6 +45,8 @@ type DashboardSpec struct {
 // DashboardStatus defines the observed state of Dashboard
 type DashboardStatus struct {
 	components.Status `json:",inline"`
+
+	URL string `json:"url,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -51,6 +55,7 @@ type DashboardStatus struct {
 // +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-dashboard'",message="Dashboard name must be default-dashboard"
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
 // +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
+// +kubebuilder:printcolumn:name="URL",type=string,JSONPath=`.status.url`,description="URL"
 
 // Dashboard is the Schema for the dashboards API
 type Dashboard struct {
@@ -59,6 +64,10 @@ type Dashboard struct {
 
 	Spec   DashboardSpec   `json:"spec,omitempty"`
 	Status DashboardStatus `json:"status,omitempty"`
+}
+
+func (c *Dashboard) GetDevFlags() *components.DevFlags {
+	return c.Spec.DevFlags
 }
 
 func (c *Dashboard) GetStatus() *components.Status {

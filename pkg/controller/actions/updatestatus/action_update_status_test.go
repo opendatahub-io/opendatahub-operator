@@ -1,5 +1,5 @@
 //nolint:dupl
-package actions_test
+package updatestatus_test
 
 import (
 	"context"
@@ -16,9 +16,11 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/updatestatus"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers"
 
 	. "github.com/onsi/gomega"
 )
@@ -30,7 +32,8 @@ func TestUpdateStatusActionNotReady(t *testing.T) {
 	ctx := context.Background()
 	ns := xid.New().String()
 
-	client := NewFakeClient(
+	cl, err := fakeclient.New(
+		ctx,
 		&appsv1.Deployment{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: gvk.Deployment.GroupVersion().String(),
@@ -67,28 +70,29 @@ func TestUpdateStatusActionNotReady(t *testing.T) {
 		},
 	)
 
-	action := actions.NewUpdateStatusAction(
-		ctx,
-		actions.WithUpdateStatusLabel(labels.K8SCommon.PartOf, "foo"))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	action := updatestatus.NewAction(
+		updatestatus.WithSelectorLabel(labels.K8SCommon.PartOf, "foo"))
 
 	rr := types.ReconciliationRequest{
-		Client:   client,
+		Client:   cl,
 		Instance: &componentsv1.Dashboard{},
 		DSCI:     &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
 		DSC:      &dscv1.DataScienceCluster{},
-		Platform: cluster.OpenDataHub,
+		Release:  cluster.Release{Name: cluster.OpenDataHub},
 	}
 
-	err := action.Execute(ctx, &rr)
+	err = action(ctx, &rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(rr.Instance).Should(
 		WithTransform(
-			ExtractStatusCondition(status.ConditionTypeReady),
+			matchers.ExtractStatusCondition(status.ConditionTypeReady),
 			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
 				"Status": Equal(metav1.ConditionFalse),
-				"Reason": Equal(actions.DeploymentsNotReadyReason),
+				"Reason": Equal(updatestatus.DeploymentsNotReadyReason),
 			}),
 		),
 	)
@@ -100,7 +104,8 @@ func TestUpdateStatusActionReady(t *testing.T) {
 	ctx := context.Background()
 	ns := xid.New().String()
 
-	client := NewFakeClient(
+	cl, err := fakeclient.New(
+		ctx,
 		&appsv1.Deployment{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: gvk.Deployment.GroupVersion().String(),
@@ -137,28 +142,29 @@ func TestUpdateStatusActionReady(t *testing.T) {
 		},
 	)
 
-	action := actions.NewUpdateStatusAction(
-		ctx,
-		actions.WithUpdateStatusLabel(labels.K8SCommon.PartOf, "foo"))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	action := updatestatus.NewAction(
+		updatestatus.WithSelectorLabel(labels.K8SCommon.PartOf, "foo"))
 
 	rr := types.ReconciliationRequest{
-		Client:   client,
+		Client:   cl,
 		Instance: &componentsv1.Dashboard{},
 		DSCI:     &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
 		DSC:      &dscv1.DataScienceCluster{},
-		Platform: cluster.OpenDataHub,
+		Release:  cluster.Release{Name: cluster.OpenDataHub},
 	}
 
-	err := action.Execute(ctx, &rr)
+	err = action(ctx, &rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(rr.Instance).Should(
 		WithTransform(
-			ExtractStatusCondition(status.ConditionTypeReady),
+			matchers.ExtractStatusCondition(status.ConditionTypeReady),
 			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
 				"Status": Equal(metav1.ConditionTrue),
-				"Reason": Equal(actions.ReadyReason),
+				"Reason": Equal(updatestatus.ReadyReason),
 			}),
 		),
 	)

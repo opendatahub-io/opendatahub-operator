@@ -73,9 +73,18 @@ func (f RemoverFilter) run(node *kyaml.RNode) (*kyaml.RNode, error) {
 		return node, errors.New("no field set to remove, path to the field cannot be empty")
 	}
 
+	return ClearFieldFor(node, f.Gvk, f.Path)
+}
+
+func ClearFieldFor(node *kyaml.RNode, gvk schema.GroupVersionKind, fieldPath []string) (*kyaml.RNode, error) {
+	pathLen := len(fieldPath)
+	if pathLen == 0 {
+		return node, nil
+	}
+
 	typeMeta := kyaml.TypeMeta{
-		APIVersion: f.Gvk.GroupVersion().String(),
-		Kind:       f.Gvk.Kind,
+		APIVersion: gvk.GroupVersion().String(),
+		Kind:       gvk.Kind,
 	}
 
 	meta, err := node.GetMeta()
@@ -87,8 +96,29 @@ func (f RemoverFilter) run(node *kyaml.RNode) (*kyaml.RNode, error) {
 		return node, nil
 	}
 
-	path := f.Path[:pathLen-1]
-	name := f.Path[pathLen-1]
+	path := fieldPath[:pathLen-1]
+	name := fieldPath[pathLen-1]
+
+	matcher := &kyaml.PathMatcher{Path: path}
+	result, err := node.Pipe(matcher)
+	if err != nil {
+		return node, err
+	}
+
+	return node, result.VisitElements(
+		func(node *kyaml.RNode) error {
+			return node.PipeE(kyaml.FieldClearer{Name: name})
+		})
+}
+
+func ClearField(node *kyaml.RNode, fieldPath []string) (*kyaml.RNode, error) {
+	pathLen := len(fieldPath)
+	if pathLen == 0 {
+		return node, nil
+	}
+
+	path := fieldPath[:pathLen-1]
+	name := fieldPath[pathLen-1]
 
 	matcher := &kyaml.PathMatcher{Path: path}
 	result, err := node.Pipe(matcher)

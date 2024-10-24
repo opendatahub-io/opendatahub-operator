@@ -51,6 +51,10 @@ type Workbenches struct {
 	Status WorkbenchesStatus `json:"status,omitempty"`
 }
 
+func (c *Workbenches) GetDevFlags() *components.DevFlags {
+	return nil
+}
+
 func (c *Workbenches) GetStatus() *components.Status {
 	return &c.Status.Status
 }

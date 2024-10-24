@@ -1,4 +1,4 @@
-package actions_test
+package deleteresource_test
 
 import (
 	"context"
@@ -13,9 +13,10 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deleteresource"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 
 	. "github.com/onsi/gomega"
 )
@@ -26,7 +27,8 @@ func TestDeleteResourcesAction(t *testing.T) {
 	ctx := context.Background()
 	ns := xid.New().String()
 
-	client := NewFakeClient(
+	cl, err := fakeclient.New(
+		ctx,
 		&appsv1.Deployment{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: gvk.Deployment.GroupVersion().String(),
@@ -55,23 +57,24 @@ func TestDeleteResourcesAction(t *testing.T) {
 		},
 	)
 
-	action := actions.NewDeleteResourcesAction(
-		ctx,
-		actions.WithDeleteResourcesTypes(&appsv1.Deployment{}),
-		actions.WithDeleteResourcesLabel(labels.K8SCommon.PartOf, "foo"))
+	g.Expect(err).ShouldNot(HaveOccurred())
 
-	err := action.Execute(ctx, &types.ReconciliationRequest{
-		Client:   client,
+	action := deleteresource.NewAction(
+		deleteresource.WithDeleteResourcesTypes(&appsv1.Deployment{}),
+		deleteresource.WithDeleteResourcesLabel(labels.K8SCommon.PartOf, "foo"))
+
+	err = action(ctx, &types.ReconciliationRequest{
+		Client:   cl,
 		Instance: nil,
 		DSCI:     &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
 		DSC:      &dscv1.DataScienceCluster{},
-		Platform: cluster.OpenDataHub,
+		Release:  cluster.Release{Name: cluster.OpenDataHub},
 	})
 
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	deployments := appsv1.DeploymentList{}
-	err = client.List(ctx, &deployments)
+	err = cl.List(ctx, &deployments)
 
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(deployments.Items).Should(HaveLen(1))

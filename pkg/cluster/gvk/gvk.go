@@ -127,4 +127,10 @@ var (
 		Version: "v1",
 		Kind:    "TrainingOperator",
 	}
+
+	CustomResourceDefinition = schema.GroupVersionKind{
+		Group:   "apiextensions.k8s.io",
+		Version: "v1",
+		Kind:    "CustomResourceDefinition",
+	}
 )

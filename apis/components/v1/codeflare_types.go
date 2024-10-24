@@ -51,6 +51,10 @@ type CodeFlare struct {
 	Status CodeFlareStatus `json:"status,omitempty"`
 }
 
+func (c *CodeFlare) GetDevFlags() *components.DevFlags {
+	return nil
+}
+
 func (c *CodeFlare) GetStatus() *components.Status {
 	return &c.Status.Status
 }
