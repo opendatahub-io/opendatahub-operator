@@ -183,6 +183,7 @@ _Appears in:_
 | `Component` _[Component](#component)_ |  |  |  |
 | `serving` _[ServingSpec](#servingspec)_ | Serving configures the KNative-Serving stack used for model serving. A Service<br />Mesh (Istio) is prerequisite, since it is used as networking layer. |  |  |
 | `defaultDeploymentMode` _[DefaultDeploymentMode](#defaultdeploymentmode)_ | Configures the default deployment mode for Kserve. This can be set to 'Serverless' or 'RawDeployment'.<br />The value specified in this field will be used to set the default deployment mode in the 'inferenceservice-config' configmap for Kserve.<br />This field is optional. If no default deployment mode is specified, Kserve will use Serverless mode. |  | Enum: [Serverless RawDeployment] <br />Pattern: `^(Serverless\|RawDeployment)$` <br /> |
+| `rawRouteCreation` _[ManagementState](#managementstate)_ | Configures the global setting for route creation for Kserve Raw InferenceServices.<br />Managed: Route creation is enabled by default, InferenceServices will have to choose to opt out.<br />Removed: Route creation is disabled globally. In this configuration it is not possible for an individual<br />InferenceService to opt in to having a Route created automatically. |  | Enum: [Managed Removed] <br /> |
 
 
 
