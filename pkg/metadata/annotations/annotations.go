@@ -1,6 +1,6 @@
 package annotations
 
-// skip reconcile.
+// ManagedByODHOperator is used to denote if a resource/component should be reconciled - when true, reconcile.
 const ManagedByODHOperator = "opendatahub.io/managed"
 
 // trust CA bundler.

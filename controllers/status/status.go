@@ -21,8 +21,6 @@ package status
 import (
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
-
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 )
 
 // These constants represent the overall Phase as used by .Status.Phase.
@@ -191,31 +189,28 @@ func SetCompleteCondition(conditions *[]conditionsv1.Condition, reason string, m
 	conditionsv1.RemoveStatusCondition(conditions, CapabilityDSPv2Argo)
 }
 
-// SetComponentCondition appends Condition Type with const ReadySuffix for given component
-// when component finished reconcile.
-func SetComponentCondition(conditions *[]conditionsv1.Condition, component string, reason string, message string, status corev1.ConditionStatus) {
-	condtype := component + ReadySuffix
+// SetCondition is a general purpose function to update any type of condition.
+func SetCondition(conditions *[]conditionsv1.Condition, conditionType string, reason string, message string, status corev1.ConditionStatus) {
 	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
-		Type:    conditionsv1.ConditionType(condtype),
+		Type:    conditionsv1.ConditionType(conditionType),
 		Status:  status,
 		Reason:  reason,
 		Message: message,
 	})
 }
 
-// RemoveComponentCondition remove Condition of giving component.
-func RemoveComponentCondition(conditions *[]conditionsv1.Condition, component string) {
-	condType := component + ReadySuffix
-	conditionsv1.RemoveStatusCondition(conditions, conditionsv1.ConditionType(condType))
+// SetComponentCondition appends Condition Type with const ReadySuffix for given component
+// when component finished reconcile.
+func SetComponentCondition(conditions *[]conditionsv1.Condition, component string, reason string, message string, status corev1.ConditionStatus) {
+	SetCondition(conditions, component+ReadySuffix, reason, message, status)
 }
 
-func SetExistingArgoCondition(conditions *[]conditionsv1.Condition, reason, message string) {
-	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
-		Type:    CapabilityDSPv2Argo,
-		Status:  corev1.ConditionFalse,
-		Reason:  reason,
-		Message: message,
-	})
+// RemoveComponentCondition remove Condition of giving component.
+func RemoveComponentCondition(conditions *[]conditionsv1.Condition, component string) {
+	conditionsv1.RemoveStatusCondition(conditions, conditionsv1.ConditionType(component+ReadySuffix))
+}
 
-	SetComponentCondition(conditions, datasciencepipelines.ComponentName, ReconcileFailed, message, corev1.ConditionFalse)
+// ModelRegistryStatus struct holds the status for the ModelRegistry component.
+type ModelRegistryStatus struct {
+	RegistriesNamespace string `json:"registriesNamespace,omitempty"`
 }

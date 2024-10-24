@@ -1,0 +1,18 @@
+# This Gateway is used for KServe internal communication. Each InferenceService (ISVC) will update this Gateway, particularly by adding a Server that includes TLS settings, hosts, and port configurations. This Gateway is created by the OpenDataHub Operator as a feature, but it will not be managed by the OpenDataHub Operator after its creation.
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: kserve-local-gateway
+  namespace: {{ .ControlPlane.Namespace }}
+spec:
+  selector:
+    knative: ingressgateway
+  servers:
+    - hosts:
+        - 'default.host'
+      port:
+        name: https
+        number: 8445
+        protocol: HTTPS
+      tls:
+        mode: ISTIO_MUTUAL

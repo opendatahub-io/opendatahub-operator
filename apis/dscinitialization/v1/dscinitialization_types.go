@@ -23,15 +23,19 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
 // +operator-sdk:csv:customresourcedefinitions:order=1
 
 // DSCInitializationSpec defines the desired state of DSCInitialization.
 type DSCInitializationSpec struct {
-	// Namespace for applications to be installed, non-configurable, default to "opendatahub"
-	// +kubebuilder:default:=opendatahub
+	// Namespace for applications to be installed, non-configurable, default to "redhat-ods-applications"
+	// +kubebuilder:default:=redhat-ods-applications
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="ApplicationsNamespace is immutable"
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=1
+	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
+	// +kubebuilder:validation:MaxLength=63
 	ApplicationsNamespace string `json:"applicationsNamespace"`
 	// Enable monitoring on specified namespace
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=2
@@ -44,13 +48,13 @@ type DSCInitializationSpec struct {
 	// authentication giving a Single Sign On experience.
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=3
 	// +optional
-	ServiceMesh infrav1.ServiceMeshSpec `json:"serviceMesh,omitempty"`
+	ServiceMesh *infrav1.ServiceMeshSpec `json:"serviceMesh,omitempty"`
 	// When set to `Managed`, adds odh-trusted-ca-bundle Configmap to all namespaces that includes
 	// cluster-wide Trusted CA Bundle in .data["ca-bundle.crt"].
 	// Additionally, this fields allows admins to add custom CA bundles to the configmap using the .CustomCABundle field.
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=4
 	// +optional
-	TrustedCABundle TrustedCABundleSpec `json:"trustedCABundle,omitempty"`
+	TrustedCABundle *TrustedCABundleSpec `json:"trustedCABundle,omitempty"`
 	// Internal development useful field to test customizations.
 	// This is not recommended to be used in production environment.
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=5
@@ -66,8 +70,10 @@ type Monitoring struct {
 	//               or if it is installed, the operator will try to remove it.
 	// +kubebuilder:validation:Enum=Managed;Removed
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
-	// +kubebuilder:default=opendatahub
 	// Namespace for monitoring if it is enabled
+	// +kubebuilder:default=redhat-ods-monitoring
+	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
+	// +kubebuilder:validation:MaxLength=63
 	Namespace string `json:"namespace,omitempty"`
 }
 
@@ -77,7 +83,7 @@ type DevFlags struct {
 	// Custom manifests uri for odh-manifests
 	// +optional
 	ManifestsUri string `json:"manifestsUri,omitempty"`
-	// +kubebuilder:validation:Enum=devel;development;prod;production
+	// +kubebuilder:validation:Enum=devel;development;prod;production;default
 	// +kubebuilder:default="production"
 	LogMode string `json:"logmode,omitempty"`
 }
@@ -110,6 +116,9 @@ type DSCInitializationStatus struct {
 	// +optional
 	RelatedObjects []corev1.ObjectReference `json:"relatedObjects,omitempty"`
 	ErrorMessage   string                   `json:"errorMessage,omitempty"`
+
+	// Version and release type
+	Release cluster.Release `json:"release,omitempty"`
 }
 
 //+kubebuilder:object:root=true

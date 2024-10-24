@@ -10,7 +10,7 @@ import (
 	annotation "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
-//nolint:golint,revive,stylecheck //CAPS is preferred for const
+//nolint:golint,stylecheck //CAPS is preferred for const
 const (
 	SECRET_DEFAULT_COMPLEXITY = 16
 

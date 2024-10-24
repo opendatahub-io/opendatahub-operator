@@ -1,0 +1,36 @@
+# we have default nwp called redhat-ods-applications
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: redhat-ods-applications
+  namespace: redhat-ods-applications
+spec:
+  podSelector: {}
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8443
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 8081
+        - protocol: TCP
+          port: 5432
+        - protocol: TCP
+          port: 8082
+        - protocol: TCP
+          port: 8099
+        - protocol: TCP
+          port: 8181
+        - protocol: TCP
+          port: 9443    # default webhook of components
+    # - from:
+    #     - namespaceSelector:
+    #         matchLabels:
+    #           kubernetes.io/metadata.name: redhat-ods-monitoring
+    # - from:
+    #     - namespaceSelector:
+    #         matchLabels:
+    #           kubernetes.io/metadata.name: openshift-monitoring
+  policyTypes:
+    - Ingress

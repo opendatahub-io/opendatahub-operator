@@ -12,7 +12,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 const (
@@ -21,33 +23,36 @@ const (
 )
 
 // EnsureAuthNamespaceExists creates a namespace for the Authorization provider and set ownership so it will be garbage collected when the operator is uninstalled.
-func EnsureAuthNamespaceExists(f *feature.Feature) error {
-	if resolveNsErr := ResolveAuthNamespace(f); resolveNsErr != nil {
-		return resolveNsErr
+func EnsureAuthNamespaceExists(ctx context.Context, cli client.Client, f *feature.Feature) error {
+	authNs, err := FeatureData.Authorization.Namespace.Extract(f)
+	if err != nil {
+		return fmt.Errorf("could not get auth from feature: %w", err)
 	}
 
-	_, err := cluster.CreateNamespace(f.Client, f.Spec.Auth.Namespace, feature.OwnedBy(f))
+	_, err = cluster.CreateNamespace(ctx, cli, authNs, feature.OwnedBy(f), cluster.WithLabels(labels.ODH.OwnedNamespace, "true"))
 	return err
 }
 
-func EnsureServiceMeshOperatorInstalled(f *feature.Feature) error {
-	if err := feature.EnsureOperatorIsInstalled("servicemeshoperator")(f); err != nil {
+func EnsureServiceMeshOperatorInstalled(ctx context.Context, cli client.Client, f *feature.Feature) error {
+	if err := feature.EnsureOperatorIsInstalled("servicemeshoperator")(ctx, cli, f); err != nil {
 		return fmt.Errorf("failed to find the pre-requisite Service Mesh Operator subscription, please ensure Service Mesh Operator is installed. %w", err)
 	}
 
 	return nil
 }
 
-func EnsureServiceMeshInstalled(f *feature.Feature) error {
-	if err := EnsureServiceMeshOperatorInstalled(f); err != nil {
+func EnsureServiceMeshInstalled(ctx context.Context, cli client.Client, f *feature.Feature) error {
+	if err := EnsureServiceMeshOperatorInstalled(ctx, cli, f); err != nil {
 		return err
 	}
 
-	smcp := f.Spec.ControlPlane.Name
-	smcpNs := f.Spec.ControlPlane.Namespace
+	if err := WaitForControlPlaneToBeReady(ctx, cli, f); err != nil {
+		controlPlane, errGet := FeatureData.ControlPlane.Extract(f)
+		if errGet != nil {
+			return fmt.Errorf("failed to get control plane struct: %w", err)
+		}
 
-	if err := WaitForControlPlaneToBeReady(f); err != nil {
-		f.Log.Error(err, "failed waiting for control plane being ready", "control-plane", smcp, "namespace", smcpNs)
+		f.Log.Error(err, "failed waiting for control plane being ready", "control-plane", controlPlane.Name, "namespace", controlPlane.Namespace)
 
 		return multierror.Append(err, errors.New("service mesh control plane is not ready")).ErrorOrNil()
 	}
@@ -55,14 +60,19 @@ func EnsureServiceMeshInstalled(f *feature.Feature) error {
 	return nil
 }
 
-func WaitForControlPlaneToBeReady(f *feature.Feature) error {
-	smcp := f.Spec.ControlPlane.Name
-	smcpNs := f.Spec.ControlPlane.Namespace
+func WaitForControlPlaneToBeReady(ctx context.Context, cli client.Client, f *feature.Feature) error {
+	controlPlane, err := FeatureData.ControlPlane.Extract(f)
+	if err != nil {
+		return err
+	}
+
+	smcp := controlPlane.Name
+	smcpNs := controlPlane.Namespace
 
 	f.Log.Info("waiting for control plane components to be ready", "control-plane", smcp, "namespace", smcpNs, "duration (s)", duration.Seconds())
 
-	return wait.PollUntilContextTimeout(context.TODO(), interval, duration, false, func(ctx context.Context) (bool, error) {
-		ready, err := CheckControlPlaneComponentReadiness(f.Client, smcp, smcpNs)
+	return wait.PollUntilContextTimeout(ctx, interval, duration, false, func(ctx context.Context) (bool, error) {
+		ready, err := CheckControlPlaneComponentReadiness(ctx, cli, smcp, smcpNs)
 
 		if ready {
 			f.Log.Info("done waiting for control plane components to be ready", "control-plane", smcp, "namespace", smcpNs)
@@ -72,10 +82,10 @@ func WaitForControlPlaneToBeReady(f *feature.Feature) error {
 	})
 }
 
-func CheckControlPlaneComponentReadiness(c client.Client, smcpName, smcpNs string) (bool, error) {
+func CheckControlPlaneComponentReadiness(ctx context.Context, c client.Client, smcpName, smcpNs string) (bool, error) {
 	smcpObj := &unstructured.Unstructured{}
-	smcpObj.SetGroupVersionKind(cluster.ServiceMeshControlPlaneGVK)
-	err := c.Get(context.TODO(), client.ObjectKey{
+	smcpObj.SetGroupVersionKind(gvk.ServiceMeshControlPlane)
+	err := c.Get(ctx, client.ObjectKey{
 		Namespace: smcpNs,
 		Name:      smcpName,
 	}, smcpObj)
