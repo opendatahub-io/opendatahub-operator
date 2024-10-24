@@ -23,8 +23,6 @@ import (
 	"github.com/operator-framework/api/pkg/lib/version"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
 // These constants represent the overall Phase as used by .Status.Phase.
@@ -223,7 +221,7 @@ type ComponentObject interface {
 // reconciliation functionality.
 // +k8s:deepcopy-gen=true
 type ComponentReleaseStatus struct {
-	Name        cluster.Platform        `json:"name,omitempty"`
+	Name        string                  `json:"name,omitempty"`
 	DisplayName string                  `json:"displayname,omitempty"`
 	Version     version.OperatorVersion `json:"version,omitempty"`
 	RepoURL     string                  `json:"repourl,omitempty"`

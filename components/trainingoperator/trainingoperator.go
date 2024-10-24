@@ -71,18 +71,13 @@ func (r *TrainingOperator) GetComponentName() string {
 }
 
 func (r *TrainingOperator) UpdateStatus(in *status.ComponentsStatus) error {
-	trainingOperatorStatus, err := deploy.GetReleaseVersion(in, deploy.DefaultManifestPath, ComponentName)
-
-	if err != nil {
-		in.TrainingOperator = &status.TrainingOperatorStatus{}
-		return err
-	}
+	trainingOperatorStatus, err := r.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
 
 	in.TrainingOperator = &status.TrainingOperatorStatus{
 		ComponentStatus: trainingOperatorStatus,
 	}
 
-	return nil
+	return err
 }
 
 func (r *TrainingOperator) ReconcileComponent(ctx context.Context, cli client.Client,

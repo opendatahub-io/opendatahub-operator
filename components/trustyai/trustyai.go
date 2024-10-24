@@ -80,18 +80,13 @@ func (t *TrustyAI) GetComponentName() string {
 }
 
 func (t *TrustyAI) UpdateStatus(in *status.ComponentsStatus) error {
-	trustyAIStatus, err := deploy.GetReleaseVersion(in, deploy.DefaultManifestPath, ComponentName)
-
-	if err != nil {
-		in.TrustyAI = &status.TrustyAIStatus{}
-		return err
-	}
+	trustyAIStatus, err := t.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
 
 	in.TrustyAI = &status.TrustyAIStatus{
 		ComponentStatus: trustyAIStatus,
 	}
 
-	return nil
+	return err
 }
 
 func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client,

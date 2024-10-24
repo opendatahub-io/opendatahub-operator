@@ -7,8 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/blang/semver/v4"
 	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"github.com/operator-framework/api/pkg/lib/version"
 	"gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -16,6 +18,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 )
 
 // Component struct defines the basis for each OpenDataHub component configuration.
@@ -196,4 +199,35 @@ func (c *Component) UpdatePrometheusConfig(_ client.Client, logger logr.Logger, 
 	err = os.WriteFile(prometheusconfigPath, newyamlData, 0)
 
 	return err
+}
+
+func (c *Component) GetReleaseVersion(defaultManifestPath string, componentName string) (status.ComponentStatus, error) {
+	var componentVersion semver.Version
+	var repositoryURL string
+	var displayName string
+
+	env, err := common.ParseParams(filepath.Join(defaultManifestPath, componentName, ".env"))
+
+	if err != nil {
+		return status.ComponentStatus{}, err
+	}
+
+	componentVersion, err = semver.Parse(env["RHOAI_RELEASE_VERSION"])
+
+	if err != nil {
+		return status.ComponentStatus{}, err
+	}
+	repositoryURL = env["REPOSITORY_URL"]
+
+	displayName = env["DISPLAY_NAME"]
+
+	return status.ComponentStatus{
+		UpstreamReleases: []status.ComponentReleaseStatus{{
+			Name:        componentName,
+			DisplayName: displayName,
+			Version:     version.OperatorVersion{Version: componentVersion},
+			RepoURL:     repositoryURL,
+		},
+		},
+	}, nil
 }

@@ -69,17 +69,13 @@ func (k *Kueue) GetComponentName() string {
 }
 
 func (k *Kueue) UpdateStatus(in *status.ComponentsStatus) error {
-	kueueStatus, err := deploy.GetReleaseVersion(in, deploy.DefaultManifestPath, ComponentName)
+	kueueStatus, err := k.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
 
-	if err != nil {
-		in.Kueue = &status.KueueStatus{}
-		return err
-	}
 	in.Kueue = &status.KueueStatus{
 		ComponentStatus: kueueStatus,
 	}
 
-	return nil
+	return err
 }
 
 func (k *Kueue) ReconcileComponent(ctx context.Context, cli client.Client,

@@ -332,7 +332,6 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 		})
 		return instance, err
 	}
-
 	// reconciliation succeeded: update status accordingly
 	instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dscv1.DataScienceCluster) {
 		if saved.Status.InstalledComponents == nil {

@@ -98,18 +98,13 @@ func (m *ModelRegistry) GetComponentName() string {
 }
 
 func (m *ModelRegistry) UpdateStatus(in *status.ComponentsStatus) error {
-	modelRegistryStatus, err := deploy.GetReleaseVersion(in, deploy.DefaultManifestPath, ComponentName)
-
-	if err != nil {
-		in.ModelRegistry = &status.ModelRegistryStatus{}
-		return err
-	}
+	modelRegistryStatus, err := m.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
 
 	in.ModelRegistry = &status.ModelRegistryStatus{
 		ComponentStatus: modelRegistryStatus,
 	}
 
-	return nil
+	return err
 }
 
 func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Client,

@@ -93,18 +93,13 @@ func (d *DataSciencePipelines) GetComponentName() string {
 }
 
 func (d *DataSciencePipelines) UpdateStatus(in *status.ComponentsStatus) error {
-	dataSciencePipelinesStatus, err := deploy.GetReleaseVersion(in, deploy.DefaultManifestPath, ComponentName)
-
-	if err != nil {
-		in.DataSciencePipelines = &status.DataSciencePipelinesStatus{}
-		return err
-	}
+	dataSciencePipelinesStatus, err := d.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
 
 	in.DataSciencePipelines = &status.DataSciencePipelinesStatus{
 		ComponentStatus: dataSciencePipelinesStatus,
 	}
 
-	return nil
+	return err
 }
 
 func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
