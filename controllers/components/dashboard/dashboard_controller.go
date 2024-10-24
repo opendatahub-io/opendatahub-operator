@@ -53,11 +53,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
-const (
-	ComponentName = "dashboard"
-)
-
 var (
+	ComponentName         = componentsv1.DashboardComponentName
 	ComponentNameUpstream = ComponentName
 	PathUpstream          = deploy.DefaultManifestPath + "/" + ComponentNameUpstream + "/odh"
 
@@ -71,9 +68,7 @@ var (
 	dashboardID = types.NamespacedName{Name: componentsv1.DashboardInstanceName}
 )
 
-// NewDashboardReconciler
-
-func NewDashboardReconciler(ctx context.Context, mgr ctrl.Manager) error {
+func NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	r, err := odhrec.NewComponentReconciler[*componentsv1.Dashboard](ctx, mgr, ComponentName)
 	if err != nil {
 		return err
@@ -96,11 +91,11 @@ func NewDashboardReconciler(ctx context.Context, mgr ctrl.Manager) error {
 
 	switch r.Platform {
 	case cluster.SelfManagedRhods, cluster.ManagedRhods:
-		componentLabelPredicate = dashboardWatchPredicate(ComponentNameUpstream)
-		componentEventHandler = watchDashboardResources(ComponentNameUpstream)
+		componentLabelPredicate = watchPredicate(ComponentName)
+		componentEventHandler = watchResources(ComponentName)
 	default:
-		componentLabelPredicate = dashboardWatchPredicate(ComponentNameDownstream)
-		componentEventHandler = watchDashboardResources(ComponentNameDownstream)
+		componentLabelPredicate = watchPredicate(ComponentNameDownstream)
+		componentEventHandler = watchResources(ComponentNameDownstream)
 	}
 
 	err = ctrl.NewControllerManagedBy(mgr).
@@ -122,7 +117,7 @@ func NewDashboardReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		// Ignore status changes
 		Watches(&routev1.Route{}, componentEventHandler, builder.WithPredicates(predicate.And(
 			componentLabelPredicate,
-			dependent.New()))).
+			dependent.New()))). // do not watch status changes
 		Complete(r)
 
 	if err != nil {
@@ -151,7 +146,7 @@ func Init(platform cluster.Platform) error {
 	return nil
 }
 
-func GetDashboard(dsc *dscv1.DataScienceCluster) *componentsv1.Dashboard {
+func GetComponentCR(dsc *dscv1.DataScienceCluster) *componentsv1.Dashboard {
 	dashboardAnnotations := make(map[string]string)
 
 	switch dsc.Spec.Components.Dashboard.ManagementState {
@@ -177,7 +172,7 @@ func GetDashboard(dsc *dscv1.DataScienceCluster) *componentsv1.Dashboard {
 }
 
 //nolint:ireturn
-func watchDashboardResources(componentName string) handler.EventHandler {
+func watchResources(componentName string) handler.EventHandler {
 	return handler.EnqueueRequestsFromMapFunc(func(_ context.Context, a client.Object) []reconcile.Request {
 		switch {
 		case a.GetLabels()[labels.ODH.Component(componentName)] == "true":
@@ -190,7 +185,7 @@ func watchDashboardResources(componentName string) handler.EventHandler {
 	})
 }
 
-func dashboardWatchPredicate(componentName string) predicate.Funcs {
+func watchPredicate(componentName string) predicate.Funcs {
 	label := labels.ODH.Component(componentName)
 	return predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {

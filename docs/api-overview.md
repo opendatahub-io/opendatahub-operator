@@ -129,6 +129,23 @@ _Appears in:_
 | `Component` _[Component](#component)_ | configuration fields common across components |  |  |
 
 
+#### DSCRay
+
+
+
+DSCRay contains all the configuration exposed in DSC instance for Ray component
+
+
+
+_Appears in:_
+- [Components](#components)
+- [RaySpec](#rayspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `Component` _[Component](#component)_ | configuration fields common across components |  |  |
+
+
 #### Dashboard
 
 
@@ -640,7 +657,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `foo` _string_ | Foo is an example field of Ray. Edit ray_types.go to remove/update |  |  |
+| `DSCRay` _[DSCRay](#dscray)_ |  |  |  |
 
 
 #### RayStatus
@@ -934,7 +951,6 @@ _Appears in:_
 - [Kueue](#kueue)
 - [ModelMeshServing](#modelmeshserving)
 - [ModelRegistry](#modelregistry)
-- [Ray](#ray)
 - [TrainingOperator](#trainingoperator)
 - [TrustyAI](#trustyai)
 - [Workbenches](#workbenches)
@@ -1129,30 +1145,6 @@ _Appears in:_
 
 
 
-## datasciencecluster.opendatahub.io/ray
-
-Package ray provides utility functions to config Ray as part of the stack
-which makes managing distributed compute infrastructure in the cloud easy and intuitive for Data Scientists
-
-
-
-#### Ray
-
-
-
-Ray struct holds the configuration for the Ray component.
-
-
-
-_Appears in:_
-- [Components](#components)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `Component` _[Component](#component)_ |  |  |  |
-
-
-
 ## datasciencecluster.opendatahub.io/trainingoperator
 
 Package trainingoperator provides utility functions to config trainingoperator as part of the stack
@@ -1281,7 +1273,7 @@ _Appears in:_
 | `kserve` _[Kserve](#kserve)_ | Kserve component configuration.<br />Require OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component<br />Does not support enabled ModelMeshServing at the same time |  |  |
 | `kueue` _[Kueue](#kueue)_ | Kueue component configuration. |  |  |
 | `codeflare` _[CodeFlare](#codeflare)_ | CodeFlare component configuration.<br />If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabled component. |  |  |
-| `ray` _[Ray](#ray)_ | Ray component configuration. |  |  |
+| `ray` _[DSCRay](#dscray)_ | Ray component configuration. |  |  |
 | `trustyai` _[TrustyAI](#trustyai)_ | TrustyAI component configuration. |  |  |
 | `modelregistry` _[ModelRegistry](#modelregistry)_ | ModelRegistry component configuration. |  |  |
 | `trainingoperator` _[TrainingOperator](#trainingoperator)_ | Training Operator component configuration. |  |  |
