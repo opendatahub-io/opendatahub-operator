@@ -26,7 +26,6 @@ type ManagementSpec struct {
 type DevFlagsSpec struct {
 	// Add developer fields
 	// +optional
-	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=2
 	DevFlags *DevFlags `json:"devFlags,omitempty"`
 }
 
