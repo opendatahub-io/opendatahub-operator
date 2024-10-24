@@ -22,7 +22,8 @@ import (
 )
 
 const (
-    // value should match whats set in the XValidation below
+	DashboardComponentName = "dashboard"
+	// value should match whats set in the XValidation below
 	DashboardInstanceName = "default-dashboard"
 )
 

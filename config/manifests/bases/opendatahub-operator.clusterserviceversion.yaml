@@ -110,6 +110,10 @@ spec:
       displayName: Ray
       kind: Ray
       name: rays.components.opendatahub.io
+      specDescriptors:
+      - description: Add developer fields
+        displayName: Dev Flags
+        path: devFlags
       version: v1
     - description: TrainingOperator is the Schema for the trainingoperators API
       displayName: Training Operator

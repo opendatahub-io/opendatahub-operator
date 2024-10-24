@@ -13,7 +13,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
-func NewFakeClient(objs ...ctrlClient.Object) ctrlClient.WithWatch { //nolint:ireturn
+//nolint:ireturn
+func NewFakeClient(objs ...ctrlClient.Object) ctrlClient.WithWatch {
 	scheme := runtime.NewScheme()
 	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(appsv1.AddToScheme(scheme))
