@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
-	"github.com/operator-framework/api/pkg/lib/version"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -81,7 +80,7 @@ func (t *TrustyAI) GetComponentName() string {
 }
 
 func (t *TrustyAI) UpdateStatus(in *status.ComponentsStatus) error {
-	trustyAIStatus, err := t.GetReleaseVersion(in, deploy.DefaultManifestPath, ComponentName)
+	trustyAIStatus, err := deploy.GetReleaseVersion(in, deploy.DefaultManifestPath, ComponentName)
 
 	if err != nil {
 		in.TrustyAI = &status.TrustyAIStatus{}
@@ -89,15 +88,7 @@ func (t *TrustyAI) UpdateStatus(in *status.ComponentsStatus) error {
 	}
 
 	in.TrustyAI = &status.TrustyAIStatus{
-		ComponentStatus: status.ComponentStatus{
-			UpstreamReleases: []status.ComponentReleaseStatus{{
-				Name:        cluster.Platform(ComponentName),
-				DisplayName: trustyAIStatus.DisplayName,
-				Version:     version.OperatorVersion{Version: trustyAIStatus.ComponentVersion},
-				RepoURL:     trustyAIStatus.RepositoryURL,
-			},
-			},
-		},
+		ComponentStatus: trustyAIStatus,
 	}
 
 	return nil

@@ -6,6 +6,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/blang/semver/v4"
+	"github.com/operator-framework/api/pkg/lib/version"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
 func parseParams(fileName string) (map[string]string, error) {
@@ -120,4 +126,35 @@ func ApplyParams(componentPath string, imageParamsMap map[string]string, extraPa
 	}
 
 	return nil
+}
+
+func GetReleaseVersion(in *status.ComponentsStatus, defaultManifestPath string, componentName string) (status.ComponentStatus, error) {
+	var componentVersion semver.Version
+	var repositoryURL string
+	var displayName string
+
+	env, err := parseParams(filepath.Join(defaultManifestPath, componentName, ".env"))
+
+	if err != nil {
+		return status.ComponentStatus{}, err
+	}
+
+	componentVersion, err = semver.Parse(env["RHOAI_RELEASE_VERSION"])
+
+	if err != nil {
+		return status.ComponentStatus{}, err
+	}
+	repositoryURL = env["REPOSITORY_URL"]
+
+	displayName = env["DISPLAY_NAME"]
+
+	return status.ComponentStatus{
+		UpstreamReleases: []status.ComponentReleaseStatus{{
+			Name:        cluster.Platform(componentName),
+			DisplayName: displayName,
+			Version:     version.OperatorVersion{Version: componentVersion},
+			RepoURL:     repositoryURL,
+		},
+		},
+	}, nil
 }

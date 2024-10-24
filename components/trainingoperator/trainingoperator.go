@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
-	"github.com/operator-framework/api/pkg/lib/version"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -72,7 +71,7 @@ func (r *TrainingOperator) GetComponentName() string {
 }
 
 func (r *TrainingOperator) UpdateStatus(in *status.ComponentsStatus) error {
-	trainingOperatorStatus, err := r.GetReleaseVersion(in, deploy.DefaultManifestPath, ComponentName)
+	trainingOperatorStatus, err := deploy.GetReleaseVersion(in, deploy.DefaultManifestPath, ComponentName)
 
 	if err != nil {
 		in.TrainingOperator = &status.TrainingOperatorStatus{}
@@ -80,15 +79,7 @@ func (r *TrainingOperator) UpdateStatus(in *status.ComponentsStatus) error {
 	}
 
 	in.TrainingOperator = &status.TrainingOperatorStatus{
-		ComponentStatus: status.ComponentStatus{
-			UpstreamReleases: []status.ComponentReleaseStatus{{
-				Name:        cluster.Platform(ComponentName),
-				DisplayName: trainingOperatorStatus.DisplayName,
-				Version:     version.OperatorVersion{Version: trainingOperatorStatus.ComponentVersion},
-				RepoURL:     trainingOperatorStatus.RepositoryURL,
-			},
-			},
-		},
+		ComponentStatus: trainingOperatorStatus,
 	}
 
 	return nil

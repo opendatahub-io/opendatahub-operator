@@ -11,7 +11,6 @@ import (
 	"text/template"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
-	"github.com/operator-framework/api/pkg/lib/version"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -99,7 +98,7 @@ func (m *ModelRegistry) GetComponentName() string {
 }
 
 func (m *ModelRegistry) UpdateStatus(in *status.ComponentsStatus) error {
-	modelRegistryStatus, err := m.GetReleaseVersion(in, deploy.DefaultManifestPath, ComponentName)
+	modelRegistryStatus, err := deploy.GetReleaseVersion(in, deploy.DefaultManifestPath, ComponentName)
 
 	if err != nil {
 		in.ModelRegistry = &status.ModelRegistryStatus{}
@@ -107,15 +106,7 @@ func (m *ModelRegistry) UpdateStatus(in *status.ComponentsStatus) error {
 	}
 
 	in.ModelRegistry = &status.ModelRegistryStatus{
-		ComponentStatus: status.ComponentStatus{
-			UpstreamReleases: []status.ComponentReleaseStatus{{
-				Name:        cluster.Platform(ComponentName),
-				DisplayName: modelRegistryStatus.DisplayName,
-				Version:     version.OperatorVersion{Version: modelRegistryStatus.ComponentVersion},
-				RepoURL:     modelRegistryStatus.RepositoryURL,
-			},
-			},
-		},
+		ComponentStatus: modelRegistryStatus,
 	}
 
 	return nil

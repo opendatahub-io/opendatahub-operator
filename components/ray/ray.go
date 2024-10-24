@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
-	"github.com/operator-framework/api/pkg/lib/version"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -71,7 +70,7 @@ func (r *Ray) GetComponentName() string {
 }
 
 func (r *Ray) UpdateStatus(in *status.ComponentsStatus) error {
-	rayStatus, err := r.GetReleaseVersion(in, deploy.DefaultManifestPath, ComponentName)
+	rayStatus, err := deploy.GetReleaseVersion(in, deploy.DefaultManifestPath, ComponentName)
 
 	if err != nil {
 		in.Ray = &status.RayStatus{}
@@ -79,15 +78,7 @@ func (r *Ray) UpdateStatus(in *status.ComponentsStatus) error {
 	}
 
 	in.Ray = &status.RayStatus{
-		ComponentStatus: status.ComponentStatus{
-			UpstreamReleases: []status.ComponentReleaseStatus{{
-				Name:        cluster.Platform(ComponentName),
-				DisplayName: rayStatus.DisplayName,
-				Version:     version.OperatorVersion{Version: rayStatus.ComponentVersion},
-				RepoURL:     rayStatus.RepositoryURL,
-			},
-			},
-		},
+		ComponentStatus: rayStatus,
 	}
 
 	return nil

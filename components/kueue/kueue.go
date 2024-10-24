@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
-	"github.com/operator-framework/api/pkg/lib/version"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -70,22 +69,14 @@ func (k *Kueue) GetComponentName() string {
 }
 
 func (k *Kueue) UpdateStatus(in *status.ComponentsStatus) error {
-	kueueStatus, err := k.GetReleaseVersion(in, deploy.DefaultManifestPath, ComponentName)
+	kueueStatus, err := deploy.GetReleaseVersion(in, deploy.DefaultManifestPath, ComponentName)
 
 	if err != nil {
 		in.Kueue = &status.KueueStatus{}
 		return err
 	}
 	in.Kueue = &status.KueueStatus{
-		ComponentStatus: status.ComponentStatus{
-			UpstreamReleases: []status.ComponentReleaseStatus{{
-				Name:        cluster.Platform(ComponentName),
-				DisplayName: kueueStatus.DisplayName,
-				Version:     version.OperatorVersion{Version: kueueStatus.ComponentVersion},
-				RepoURL:     kueueStatus.RepositoryURL,
-			},
-			},
-		},
+		ComponentStatus: kueueStatus,
 	}
 
 	return nil

@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
-	"github.com/operator-framework/api/pkg/lib/version"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -74,7 +73,7 @@ func (c *CodeFlare) GetComponentName() string {
 }
 
 func (c *CodeFlare) UpdateStatus(in *status.ComponentsStatus) error {
-	codeFlareStatus, err := c.GetReleaseVersion(in, deploy.DefaultManifestPath, ComponentName)
+	codeFlareStatus, err := deploy.GetReleaseVersion(in, deploy.DefaultManifestPath, ComponentName)
 
 	if err != nil {
 		in.CodeFlare = &status.CodeFlareStatus{}
@@ -82,15 +81,7 @@ func (c *CodeFlare) UpdateStatus(in *status.ComponentsStatus) error {
 	}
 
 	in.CodeFlare = &status.CodeFlareStatus{
-		ComponentStatus: status.ComponentStatus{
-			UpstreamReleases: []status.ComponentReleaseStatus{{
-				Name:        cluster.Platform(ComponentName),
-				DisplayName: codeFlareStatus.DisplayName,
-				Version:     version.OperatorVersion{Version: codeFlareStatus.ComponentVersion},
-				RepoURL:     codeFlareStatus.RepositoryURL,
-			},
-			},
-		},
+		ComponentStatus: codeFlareStatus,
 	}
 
 	return nil

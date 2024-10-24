@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
-	"github.com/operator-framework/api/pkg/lib/version"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -103,7 +102,7 @@ func (m *ModelMeshServing) GetComponentName() string {
 }
 
 func (m *ModelMeshServing) UpdateStatus(in *status.ComponentsStatus) error {
-	modelMeshServingStatus, err := m.GetReleaseVersion(in, deploy.DefaultManifestPath, ComponentName)
+	modelMeshServingStatus, err := deploy.GetReleaseVersion(in, deploy.DefaultManifestPath, ComponentName)
 
 	if err != nil {
 		in.ModelMeshServing = &status.ModelMeshServingStatus{}
@@ -111,15 +110,7 @@ func (m *ModelMeshServing) UpdateStatus(in *status.ComponentsStatus) error {
 	}
 
 	in.ModelMeshServing = &status.ModelMeshServingStatus{
-		ComponentStatus: status.ComponentStatus{
-			UpstreamReleases: []status.ComponentReleaseStatus{{
-				Name:        cluster.Platform(ComponentName),
-				DisplayName: modelMeshServingStatus.DisplayName,
-				Version:     version.OperatorVersion{Version: modelMeshServingStatus.ComponentVersion},
-				RepoURL:     modelMeshServingStatus.RepositoryURL,
-			},
-			},
-		},
+		ComponentStatus: modelMeshServingStatus,
 	}
 
 	return nil

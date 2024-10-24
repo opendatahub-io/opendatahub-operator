@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
-	"github.com/operator-framework/api/pkg/lib/version"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -113,7 +112,7 @@ func (k *Kserve) GetComponentName() string {
 }
 
 func (k *Kserve) UpdateStatus(in *status.ComponentsStatus) error {
-	kserveStatus, err := k.GetReleaseVersion(in, deploy.DefaultManifestPath, ComponentName)
+	kserveStatus, err := deploy.GetReleaseVersion(in, deploy.DefaultManifestPath, ComponentName)
 
 	if err != nil {
 		in.Kserve = &status.KserveStatus{}
@@ -121,15 +120,7 @@ func (k *Kserve) UpdateStatus(in *status.ComponentsStatus) error {
 	}
 
 	in.Kserve = &status.KserveStatus{
-		ComponentStatus: status.ComponentStatus{
-			UpstreamReleases: []status.ComponentReleaseStatus{{
-				Name:        cluster.Platform(ComponentName),
-				DisplayName: kserveStatus.DisplayName,
-				Version:     version.OperatorVersion{Version: kserveStatus.ComponentVersion},
-				RepoURL:     kserveStatus.RepositoryURL,
-			},
-			},
-		},
+		ComponentStatus: kserveStatus,
 	}
 
 	return nil
