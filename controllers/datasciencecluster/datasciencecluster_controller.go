@@ -54,6 +54,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	dashboardctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/dashboard"
+	rayctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/ray"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
@@ -83,7 +84,7 @@ const (
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:maintidx
+func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:maintidx,gocyclo
 	log := r.Log
 	log.Info("Reconciling DataScienceCluster resources", "Request.Name", req.Name)
 
@@ -242,7 +243,21 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	var componentErrors *multierror.Error
 
 	// Deploy Dashboard
-	if instance, err = r.reconcileDashboardComponent(ctx, instance); err != nil {
+
+	if instance, err = r.ReconcileComponent(ctx, instance, componentsv1.DashboardComponentName, func() (error, bool) {
+		// Get the Dashboard instance
+		dashboard := dashboardctrl.GetComponentCR(instance)
+		// Reconcile component either create CR with setting owner or delete it
+		return r.apply(ctx, instance, dashboard), instance.Spec.Components.Dashboard.ManagementState == operatorv1.Managed
+	}); err != nil {
+		componentErrors = multierror.Append(componentErrors, err)
+	}
+
+	// Deploy Ray
+	if instance, err = r.ReconcileComponent(ctx, instance, componentsv1.RayComponentName, func() (error, bool) {
+		ray := rayctrl.GetComponentCR(instance)
+		return r.apply(ctx, instance, ray), instance.Spec.Components.Ray.ManagementState == operatorv1.Managed
+	}); err != nil {
 		componentErrors = multierror.Append(componentErrors, err)
 	}
 
@@ -286,12 +301,18 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	return ctrl.Result{}, nil
 }
 
-// TODO: make it generic for all components.
-func (r *DataScienceClusterReconciler) reconcileDashboardComponent(ctx context.Context, instance *dscv1.DataScienceCluster) (*dscv1.DataScienceCluster, error) {
-	r.Log.Info("Starting reconciliation of Dashboard component")
-	componentName := dashboardctrl.ComponentName
+type ComponentHandler func() (error, bool)
 
-	enabled := instance.Spec.Components.Dashboard.ManagementState == operatorv1.Managed
+// TODO: make it generic for all components.
+func (r *DataScienceClusterReconciler) ReconcileComponent(
+	ctx context.Context,
+	instance *dscv1.DataScienceCluster,
+	componentName string,
+	componentRec ComponentHandler,
+) (*dscv1.DataScienceCluster, error) {
+	r.Log.Info("Starting reconciliation of component: " + componentName)
+
+	err, enabled := componentRec()
 	_, isExistStatus := instance.Status.InstalledComponents[componentName]
 
 	if !isExistStatus {
@@ -308,14 +329,8 @@ func (r *DataScienceClusterReconciler) reconcileDashboardComponent(ctx context.C
 		}
 	}
 
-	// Create the Dashboard instance
-	dashboard := dashboardctrl.GetDashboard(instance)
-
-	// Reconcile component
-	err := r.apply(ctx, instance, dashboard)
-
 	if err != nil {
-		r.Log.Error(err, "Failed to reconcile Dashboard component")
+		r.Log.Error(err, "Failed to reconcile component: "+componentName)
 		instance = r.reportError(err, instance, fmt.Sprintf("failed to reconcile %s on DataScienceCluster", componentName))
 		instance, _ = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dscv1.DataScienceCluster) {
 			status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileFailed, fmt.Sprintf("Component reconciliation failed: %v", err), corev1.ConditionFalse)
@@ -323,7 +338,7 @@ func (r *DataScienceClusterReconciler) reconcileDashboardComponent(ctx context.C
 		return instance, err
 	}
 
-	r.Log.Info("Dashboard component reconciled successfully")
+	r.Log.Info("component reconciled successfully: " + componentName)
 	instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dscv1.DataScienceCluster) {
 		if saved.Status.InstalledComponents == nil {
 			saved.Status.InstalledComponents = make(map[string]bool)
@@ -365,6 +380,7 @@ var configMapPredicates = predicate.Funcs{
 	},
 }
 
+// apply either create component CR with owner set or delete component CR if it is marked with annotation.
 func (r *DataScienceClusterReconciler) apply(ctx context.Context, dsc *dscv1.DataScienceCluster, obj client.Object) error {
 	if obj.GetObjectKind().GroupVersionKind().Empty() {
 		return errors.New("no groupversionkind defined")
@@ -507,7 +523,9 @@ func (r *DataScienceClusterReconciler) SetupWithManager(ctx context.Context, mgr
 			&admissionregistrationv1.ValidatingWebhookConfiguration{},
 			builder.WithPredicates(modelMeshwebhookPredicates),
 		).
+		// components CRs
 		Owns(&componentsv1.Dashboard{}).
+		Owns(&componentsv1.Ray{}).
 		Owns(
 			&corev1.ServiceAccount{},
 			builder.WithPredicates(saPredicates),

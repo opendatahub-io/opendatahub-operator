@@ -23,6 +23,10 @@ spec:
       jsonPath: .status.conditions[?(@.type=="Ready")].reason
       name: Reason
       type: string
+    - description: URL
+      jsonPath: .status.url
+      name: URL
+      type: string
     name: v1
     schema:
       openAPIV3Schema:
@@ -74,20 +78,6 @@ spec:
                       type: object
                     type: array
                 type: object
-              managementState:
-                description: |-
-                  Set to one of the following values:
-
-                  - "Managed" : the operator is actively managing the component and trying to keep it active.
-                                It will only upgrade the component if it is safe to do so
-
-                  - "Removed" : the operator is actively managing the component and will not install it,
-                                or if it is installed, the operator will try to remove it
-                enum:
-                - Managed
-                - Removed
-                pattern: ^(Managed|Unmanaged|Force|Removed)$
-                type: string
             type: object
           status:
             description: DashboardStatus defines the observed state of Dashboard
@@ -152,6 +142,8 @@ spec:
                 format: int64
                 type: integer
               phase:
+                type: string
+              url:
                 type: string
             type: object
         type: object

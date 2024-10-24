@@ -23,7 +23,7 @@ func Init(platform cluster.Platform) error {
 	return nil
 }
 
-func GetDashboard(dsc *dscv1.DataScienceCluster) *componentsv1.Dashboard {
+func GetComponentCR(dsc *dscv1.DataScienceCluster) *componentsv1.Dashboard {
 	dashboardAnnotations := make(map[string]string)
 
 	switch dsc.Spec.Components.Dashboard.ManagementState {
