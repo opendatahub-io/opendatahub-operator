@@ -23,7 +23,7 @@ IMAGE_BUILDER ?= podman
 OPERATOR_NAMESPACE ?= redhat-ods-operator
 DEFAULT_MANIFESTS_PATH ?= opt/manifests
 
-CHANNELS="alpha,fast"
+CHANNELS="alpha,stable,fast"
 
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
