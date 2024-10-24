@@ -103,7 +103,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.19.0
-    createdAt: "2024-10-15T03:57:32Z"
+    createdAt: "2024-10-24T09:24:00Z"
     olm.skipRange: '>=1.0.0 <2.19.0'
     operators.operatorframework.io/builder: operator-sdk-v1.31.0
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
@@ -446,7 +446,6 @@ spec:
           - components.opendatahub.io
           resources:
           - codeflares/finalizers
-          - dashboards/finalizers
           - datasciencepipelines/finalizers
           - kserves/finalizers
           - kueues/finalizers
@@ -476,6 +475,18 @@ spec:
           - get
           - patch
           - update
+        - apiGroups:
+          - components.opendatahub.io
+          resources:
+          - dashboards/finalizers
+          verbs:
+          - create
+          - get
+          - list
+          - patch
+          - update
+          - use
+          - watch
         - apiGroups:
           - config.openshift.io
           resources:

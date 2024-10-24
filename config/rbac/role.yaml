@@ -172,6 +172,7 @@ rules:
   - components.opendatahub.io
   resources:
   - codeflares
+  - dashboards
   - datasciencepipelines
   - kserves
   - kueues
@@ -208,6 +209,7 @@ rules:
   - components.opendatahub.io
   resources:
   - codeflares/status
+  - dashboards/status
   - datasciencepipelines/status
   - kserves/status
   - kueues/status
@@ -221,6 +223,18 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - components.opendatahub.io
+  resources:
+  - dashboards/finalizers
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - use
+  - watch
 - apiGroups:
   - config.openshift.io
   resources:
