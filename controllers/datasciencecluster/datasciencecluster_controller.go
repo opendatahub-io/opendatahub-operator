@@ -243,21 +243,21 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	var componentErrors *multierror.Error
 
 	// Deploy Dashboard
-	dashboardRec := func() error {
+	dashboardRec := func() (error, bool) {
 		// Create the Dashboard instance
 		dashboard := dashboardctrl.GetComponentCR(instance)
 		// Reconcile component by set owner or delete it
-		return r.apply(ctx, instance, dashboard)
+		return r.apply(ctx, instance, dashboard), instance.Spec.Components.Dashboard.ManagementState == operatorv1.Managed
 	}
 	if instance, err = r.ReconcileComponent(ctx, instance, componentsv1.DashboardComponentName, dashboardRec); err != nil {
 		componentErrors = multierror.Append(componentErrors, err)
 	}
 	// Deploy Ray
-	rayRec := func() error {
+	rayRec := func() (error, bool) {
 		// Create the Dashboard instance
 		ray := rayctrl.GetComponentCR(instance)
 		// Reconcile component by set owner or delete it
-		return r.apply(ctx, instance, ray)
+		return r.apply(ctx, instance, ray), instance.Spec.Components.Ray.ManagementState == operatorv1.Managed
 	}
 	if instance, err = r.ReconcileComponent(ctx, instance, componentsv1.RayComponentName, rayRec); err != nil {
 		componentErrors = multierror.Append(componentErrors, err)
@@ -303,7 +303,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	return ctrl.Result{}, nil
 }
 
-type ComponentHandler func() error
+type ComponentHandler func() (error, bool)
 
 // TODO: make it generic for all components.
 func (r *DataScienceClusterReconciler) ReconcileComponent(
@@ -314,7 +314,8 @@ func (r *DataScienceClusterReconciler) ReconcileComponent(
 ) (*dscv1.DataScienceCluster, error) {
 	r.Log.Info("Starting reconciliation of component: " + componentName)
 
-	enabled := instance.Spec.Components.Dashboard.ManagementState == operatorv1.Managed
+	err, enabled := componentRec()
+
 	_, isExistStatus := instance.Status.InstalledComponents[componentName]
 
 	if !isExistStatus {
@@ -330,8 +331,6 @@ func (r *DataScienceClusterReconciler) ReconcileComponent(
 			return instance, fmt.Errorf("failed to update DataScienceCluster conditions before first time reconciling %s: %w", componentName, err)
 		}
 	}
-
-	err := componentRec()
 
 	if err != nil {
 		r.Log.Error(err, "Failed to reconcile component: "+componentName)
