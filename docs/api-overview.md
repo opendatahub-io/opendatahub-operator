@@ -413,22 +413,6 @@ _Appears in:_
 | `trainingoperator` _[TrainingOperator](#trainingoperator)_ | Training Operator component configuration. |  |  |
 
 
-#### ComponentsStatus
-
-
-
-ComponentsStatus defines the custom status of DataScienceCluster components.
-
-
-
-_Appears in:_
-- [DataScienceClusterStatus](#datascienceclusterstatus)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `modelregistry` _[ModelRegistryStatus](#modelregistrystatus)_ | ModelRegistry component status |  |  |
-
-
 #### ControlPlaneSpec
 
 

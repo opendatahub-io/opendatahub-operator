@@ -14,6 +14,7 @@ import (
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -76,6 +77,14 @@ func (t *TrustyAI) OverrideManifests(ctx context.Context, _ cluster.Platform) er
 
 func (t *TrustyAI) GetComponentName() string {
 	return ComponentName
+}
+
+func (t *TrustyAI) UpdateStatus(in *status.ComponentsStatus) {
+	trustyAIStatus := components.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
+
+	in.TrustyAI = &status.TrustyAIStatus{
+		ComponentStatus: trustyAIStatus,
+	}
 }
 
 func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client,

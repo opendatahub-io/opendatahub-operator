@@ -339,6 +339,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 		}
 		saved.Status.InstalledComponents[componentName] = enabled
 		if enabled {
+			component.UpdateStatus(&saved.Status.Components)
 			status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileCompleted, "Component reconciled successfully", corev1.ConditionTrue)
 		} else {
 			status.RemoveComponentCondition(&saved.Status.Conditions, componentName)
@@ -349,7 +350,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 			if enabled {
 				saved.Status.Components.ModelRegistry = &status.ModelRegistryStatus{RegistriesNamespace: mr.RegistriesNamespace}
 			} else {
-				saved.Status.Components.ModelRegistry = nil
+				saved.Status.Components.ModelRegistry = &status.ModelRegistryStatus{}
 			}
 		}
 	})

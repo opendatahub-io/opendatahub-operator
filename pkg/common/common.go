@@ -19,6 +19,7 @@ limitations under the License.
 package common
 
 import (
+	"bufio"
 	"crypto/sha256"
 	b64 "encoding/base64"
 	"fmt"
@@ -115,4 +116,27 @@ func GetMonitoringData(data string) (string, error) {
 	encodedData := b64.StdEncoding.EncodeToString(hashSum)
 
 	return encodedData, nil
+}
+
+func ParseParams(fileName string) (map[string]string, error) {
+	paramsEnv, err := os.Open(fileName)
+	if err != nil {
+		return nil, err
+	}
+	defer paramsEnv.Close()
+
+	paramsEnvMap := make(map[string]string)
+	scanner := bufio.NewScanner(paramsEnv)
+	for scanner.Scan() {
+		line := scanner.Text()
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			paramsEnvMap[parts[0]] = parts[1]
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return paramsEnvMap, nil
 }

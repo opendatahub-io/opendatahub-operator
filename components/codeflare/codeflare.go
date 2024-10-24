@@ -15,6 +15,7 @@ import (
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -69,6 +70,14 @@ func (c *CodeFlare) OverrideManifests(ctx context.Context, _ cluster.Platform) e
 
 func (c *CodeFlare) GetComponentName() string {
 	return ComponentName
+}
+
+func (c *CodeFlare) UpdateStatus(in *status.ComponentsStatus) {
+	codeFlareStatus := components.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
+
+	in.CodeFlare = &status.CodeFlareStatus{
+		ComponentStatus: codeFlareStatus,
+	}
 }
 
 func (c *CodeFlare) ReconcileComponent(ctx context.Context,

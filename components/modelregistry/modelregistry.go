@@ -19,6 +19,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/conversion"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -94,6 +95,14 @@ func (m *ModelRegistry) OverrideManifests(ctx context.Context, _ cluster.Platfor
 
 func (m *ModelRegistry) GetComponentName() string {
 	return ComponentName
+}
+
+func (m *ModelRegistry) UpdateStatus(in *status.ComponentsStatus) {
+	modelRegistryStatus := components.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
+
+	in.ModelRegistry = &status.ModelRegistryStatus{
+		ComponentStatus: modelRegistryStatus,
+	}
 }
 
 func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Client,

@@ -13,6 +13,7 @@ import (
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -65,6 +66,14 @@ func (k *Kueue) OverrideManifests(ctx context.Context, _ cluster.Platform) error
 
 func (k *Kueue) GetComponentName() string {
 	return ComponentName
+}
+
+func (k *Kueue) UpdateStatus(in *status.ComponentsStatus) {
+	kueueStatus := components.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
+
+	in.Kueue = &status.KueueStatus{
+		ComponentStatus: kueueStatus,
+	}
 }
 
 func (k *Kueue) ReconcileComponent(ctx context.Context, cli client.Client,

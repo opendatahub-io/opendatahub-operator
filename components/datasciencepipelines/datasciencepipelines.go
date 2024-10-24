@@ -92,6 +92,14 @@ func (d *DataSciencePipelines) GetComponentName() string {
 	return ComponentName
 }
 
+func (d *DataSciencePipelines) UpdateStatus(in *status.ComponentsStatus) {
+	dataSciencePipelinesStatus := components.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
+
+	in.DataSciencePipelines = &status.DataSciencePipelinesStatus{
+		ComponentStatus: dataSciencePipelinesStatus,
+	}
+}
+
 func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 	cli client.Client,
 	owner metav1.Object,

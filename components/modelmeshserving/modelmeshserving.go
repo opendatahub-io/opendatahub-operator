@@ -15,6 +15,7 @@ import (
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -98,6 +99,14 @@ func (m *ModelMeshServing) OverrideManifests(ctx context.Context, _ cluster.Plat
 
 func (m *ModelMeshServing) GetComponentName() string {
 	return ComponentName
+}
+
+func (m *ModelMeshServing) UpdateStatus(in *status.ComponentsStatus) {
+	modelMeshServingStatus := components.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
+
+	in.ModelMeshServing = &status.ModelMeshServingStatus{
+		ComponentStatus: modelMeshServingStatus,
+	}
 }
 
 func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
