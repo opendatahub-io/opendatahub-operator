@@ -124,7 +124,7 @@ func generateCertificate(addr string) ([]byte, []byte, error) {
 }
 
 // PropagateDefaultIngressCertificate copies ingress cert secrets from openshift-ingress ns to given namespace.
-func PropagateDefaultIngressCertificate(ctx context.Context, c client.Client, secretName, namespace string) error {
+func PropagateDefaultIngressCertificate(ctx context.Context, c client.Client, secretName, namespace string, metaOptions ...MetaOptions) error {
 	defaultIngressCtrl, err := FindAvailableIngressController(ctx, c)
 	if err != nil {
 		return fmt.Errorf("failed to get ingress controller: %w", err)
@@ -137,6 +137,9 @@ func PropagateDefaultIngressCertificate(ctx context.Context, c client.Client, se
 		return err
 	}
 
+	if err := ApplyMetaOptions(defaultIngressSecret, metaOptions...); err != nil {
+		return err
+	}
 	return copySecretToNamespace(ctx, c, defaultIngressSecret, secretName, namespace)
 }
 
@@ -169,8 +172,9 @@ func GetSecret(ctx context.Context, c client.Client, namespace, name string) (*c
 func copySecretToNamespace(ctx context.Context, c client.Client, secret *corev1.Secret, newSecretName, namespace string) error {
 	newSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      newSecretName,
-			Namespace: namespace,
+			Name:            newSecretName,
+			Namespace:       namespace,
+			OwnerReferences: secret.OwnerReferences,
 		},
 		Data: secret.Data,
 		Type: secret.Type,
