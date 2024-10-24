@@ -161,7 +161,3 @@ func (d *DataScienceCluster) GetComponents() ([]components.ComponentInterface, e
 
 	return allComponents, nil
 }
-
-func (d *DataScienceCluster) GetComponentsStatus() *status.ComponentsStatus {
-	return &d.Status.Components
-}

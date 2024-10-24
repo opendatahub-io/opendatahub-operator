@@ -80,7 +80,7 @@ func (t *TrustyAI) GetComponentName() string {
 }
 
 func (t *TrustyAI) UpdateStatus(in *status.ComponentsStatus) {
-	trustyAIStatus := t.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
+	trustyAIStatus := components.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
 
 	in.TrustyAI = &status.TrustyAIStatus{
 		ComponentStatus: trustyAIStatus,

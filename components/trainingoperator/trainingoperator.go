@@ -71,7 +71,7 @@ func (r *TrainingOperator) GetComponentName() string {
 }
 
 func (r *TrainingOperator) UpdateStatus(in *status.ComponentsStatus) {
-	trainingOperatorStatus := r.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
+	trainingOperatorStatus := components.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
 
 	in.TrainingOperator = &status.TrainingOperatorStatus{
 		ComponentStatus: trainingOperatorStatus,

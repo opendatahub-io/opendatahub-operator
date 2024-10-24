@@ -73,7 +73,7 @@ func (c *CodeFlare) GetComponentName() string {
 }
 
 func (c *CodeFlare) UpdateStatus(in *status.ComponentsStatus) {
-	codeFlareStatus := c.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
+	codeFlareStatus := components.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
 
 	in.CodeFlare = &status.CodeFlareStatus{
 		ComponentStatus: codeFlareStatus,

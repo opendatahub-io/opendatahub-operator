@@ -112,7 +112,7 @@ func (k *Kserve) GetComponentName() string {
 }
 
 func (k *Kserve) UpdateStatus(in *status.ComponentsStatus) {
-	kserveStatus := k.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
+	kserveStatus := components.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
 
 	in.Kserve = &status.KserveStatus{
 		ComponentStatus: kserveStatus,

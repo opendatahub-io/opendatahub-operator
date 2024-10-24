@@ -22,7 +22,6 @@ import (
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	"github.com/operator-framework/api/pkg/lib/version"
 	corev1 "k8s.io/api/core/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // These constants represent the overall Phase as used by .Status.Phase.
@@ -210,11 +209,6 @@ func SetComponentCondition(conditions *[]conditionsv1.Condition, component strin
 // RemoveComponentCondition remove Condition of giving component.
 func RemoveComponentCondition(conditions *[]conditionsv1.Condition, component string) {
 	conditionsv1.RemoveStatusCondition(conditions, conditionsv1.ConditionType(component+ReadySuffix))
-}
-
-type ComponentObject interface {
-	client.Object
-	GetComponentsStatus() *ComponentsStatus
 }
 
 // Condition represents the state of the operator's

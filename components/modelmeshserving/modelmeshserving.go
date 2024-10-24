@@ -102,7 +102,7 @@ func (m *ModelMeshServing) GetComponentName() string {
 }
 
 func (m *ModelMeshServing) UpdateStatus(in *status.ComponentsStatus) {
-	modelMeshServingStatus := m.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
+	modelMeshServingStatus := components.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
 
 	in.ModelMeshServing = &status.ModelMeshServingStatus{
 		ComponentStatus: modelMeshServingStatus,

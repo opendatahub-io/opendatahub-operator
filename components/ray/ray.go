@@ -70,7 +70,7 @@ func (r *Ray) GetComponentName() string {
 }
 
 func (r *Ray) UpdateStatus(in *status.ComponentsStatus) {
-	rayStatus := r.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
+	rayStatus := components.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
 
 	in.Ray = &status.RayStatus{
 		ComponentStatus: rayStatus,
