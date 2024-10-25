@@ -87,6 +87,11 @@ func GetDomain(ctx context.Context, c client.Client) (string, error) {
 		return "", fmt.Errorf("failed fetching cluster's ingress details: %w", err)
 	}
 
+	appsDomain, found, err := unstructured.NestedString(ingress.Object, "spec", "appsDomain")
+	if found && len(appsDomain) > 0 {
+		return appsDomain, err
+	}
+
 	domain, found, err := unstructured.NestedString(ingress.Object, "spec", "domain")
 	if !found {
 		return "", errors.New("spec.domain not found")
