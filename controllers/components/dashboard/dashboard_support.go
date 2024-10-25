@@ -81,9 +81,9 @@ func computeKustomizeVariable(ctx context.Context, cli client.Client, platform c
 func computeComponentName() string {
 	release := cluster.GetRelease()
 
-	name := ComponentNameDownstream
+	name := ComponentNameUpstream
 	if release.Name == cluster.SelfManagedRhods || release.Name == cluster.ManagedRhods {
-		name = ComponentNameUpstream
+		name = ComponentNameDownstream
 	}
 
 	return name
