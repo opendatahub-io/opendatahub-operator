@@ -359,16 +359,11 @@ spec:
           resources:
           - authentications
           - clusterversions
+          - ingresses
           verbs:
           - get
           - list
           - watch
-        - apiGroups:
-          - config.openshift.io
-          resources:
-          - ingresses
-          verbs:
-          - get
         - apiGroups:
           - console.openshift.io
           resources:
