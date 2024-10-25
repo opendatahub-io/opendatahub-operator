@@ -69,10 +69,15 @@ func (k *Kueue) GetComponentName() string {
 }
 
 func (k *Kueue) UpdateStatus(in *status.ComponentsStatus) {
-	kueueStatus := status.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
+	enabled := k.GetManagementState() == operatorv1.Managed
+	if enabled {
+		kueueStatus := status.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
 
-	in.Kueue = &status.KueueStatus{
-		ComponentStatus: kueueStatus,
+		in.Kueue = &status.KueueStatus{
+			ComponentStatus: kueueStatus,
+		}
+	} else {
+		in.Kueue = nil
 	}
 }
 

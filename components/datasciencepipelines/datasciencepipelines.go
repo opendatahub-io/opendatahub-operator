@@ -93,10 +93,15 @@ func (d *DataSciencePipelines) GetComponentName() string {
 }
 
 func (d *DataSciencePipelines) UpdateStatus(in *status.ComponentsStatus) {
-	dataSciencePipelinesStatus := status.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
+	enabled := d.GetManagementState() == operatorv1.Managed
+	if enabled {
+		dataSciencePipelinesStatus := status.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
 
-	in.DataSciencePipelines = &status.DataSciencePipelinesStatus{
-		ComponentStatus: dataSciencePipelinesStatus,
+		in.DataSciencePipelines = &status.DataSciencePipelinesStatus{
+			ComponentStatus: dataSciencePipelinesStatus,
+		}
+	} else {
+		in.DataSciencePipelines = nil
 	}
 }
 

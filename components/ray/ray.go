@@ -70,10 +70,15 @@ func (r *Ray) GetComponentName() string {
 }
 
 func (r *Ray) UpdateStatus(in *status.ComponentsStatus) {
-	rayStatus := status.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
+	enabled := r.GetManagementState() == operatorv1.Managed
+	if enabled {
+		rayStatus := status.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
 
-	in.Ray = &status.RayStatus{
-		ComponentStatus: rayStatus,
+		in.Ray = &status.RayStatus{
+			ComponentStatus: rayStatus,
+		}
+	} else {
+		in.Ray = nil
 	}
 }
 

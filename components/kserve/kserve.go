@@ -112,10 +112,15 @@ func (k *Kserve) GetComponentName() string {
 }
 
 func (k *Kserve) UpdateStatus(in *status.ComponentsStatus) {
-	kserveStatus := status.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
+	enabled := k.GetManagementState() == operatorv1.Managed
+	if enabled {
+		kserveStatus := status.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
 
-	in.Kserve = &status.KserveStatus{
-		ComponentStatus: kserveStatus,
+		in.Kserve = &status.KserveStatus{
+			ComponentStatus: kserveStatus,
+		}
+	} else {
+		in.Kserve = nil
 	}
 }
 

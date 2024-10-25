@@ -84,7 +84,13 @@ func (d *Dashboard) GetComponentName() string {
 }
 
 func (d *Dashboard) UpdateStatus(in *status.ComponentsStatus) {
-	in.Dashboard = &status.DashboardStatus{}
+	enabled := d.GetManagementState() == operatorv1.Managed
+
+	if enabled {
+		in.Dashboard = &status.DashboardStatus{}
+	} else {
+		in.Dashboard = nil
+	}
 }
 
 func (d *Dashboard) ReconcileComponent(ctx context.Context,

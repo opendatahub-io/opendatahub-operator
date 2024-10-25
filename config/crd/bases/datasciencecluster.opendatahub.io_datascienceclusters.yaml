@@ -652,7 +652,7 @@ spec:
                 properties:
                   codeflare:
                     properties:
-                      upstreamrelease:
+                      releases:
                         items:
                           description: |-
                             Condition represents the state of the operator's
@@ -671,7 +671,7 @@ spec:
                     type: object
                   dashboard:
                     properties:
-                      upstreamrelease:
+                      releases:
                         items:
                           description: |-
                             Condition represents the state of the operator's
@@ -690,7 +690,7 @@ spec:
                     type: object
                   datasciencepipelines:
                     properties:
-                      upstreamrelease:
+                      releases:
                         items:
                           description: |-
                             Condition represents the state of the operator's
@@ -709,7 +709,7 @@ spec:
                     type: object
                   kserve:
                     properties:
-                      upstreamrelease:
+                      releases:
                         items:
                           description: |-
                             Condition represents the state of the operator's
@@ -728,7 +728,7 @@ spec:
                     type: object
                   kueue:
                     properties:
-                      upstreamrelease:
+                      releases:
                         items:
                           description: |-
                             Condition represents the state of the operator's
@@ -747,7 +747,7 @@ spec:
                     type: object
                   modelmeshserving:
                     properties:
-                      upstreamrelease:
+                      releases:
                         items:
                           description: |-
                             Condition represents the state of the operator's
@@ -768,7 +768,7 @@ spec:
                     properties:
                       registriesNamespace:
                         type: string
-                      upstreamrelease:
+                      releases:
                         items:
                           description: |-
                             Condition represents the state of the operator's
@@ -787,7 +787,7 @@ spec:
                     type: object
                   ray:
                     properties:
-                      upstreamrelease:
+                      releases:
                         items:
                           description: |-
                             Condition represents the state of the operator's
@@ -806,7 +806,7 @@ spec:
                     type: object
                   trainingoperator:
                     properties:
-                      upstreamrelease:
+                      releases:
                         items:
                           description: |-
                             Condition represents the state of the operator's
@@ -825,7 +825,7 @@ spec:
                     type: object
                   trustyai:
                     properties:
-                      upstreamrelease:
+                      releases:
                         items:
                           description: |-
                             Condition represents the state of the operator's
@@ -844,7 +844,7 @@ spec:
                     type: object
                   workbenches:
                     properties:
-                      upstreamrelease:
+                      releases:
                         items:
                           description: |-
                             Condition represents the state of the operator's

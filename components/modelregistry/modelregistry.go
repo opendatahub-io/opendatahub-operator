@@ -98,10 +98,15 @@ func (m *ModelRegistry) GetComponentName() string {
 }
 
 func (m *ModelRegistry) UpdateStatus(in *status.ComponentsStatus) {
-	modelRegistryStatus := status.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
+	enabled := m.GetManagementState() == operatorv1.Managed
+	if enabled {
+		modelRegistryStatus := status.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
 
-	in.ModelRegistry = &status.ModelRegistryStatus{
-		ComponentStatus: modelRegistryStatus,
+		in.ModelRegistry = &status.ModelRegistryStatus{
+			ComponentStatus: modelRegistryStatus,
+		}
+	} else {
+		in.ModelRegistry = &status.ModelRegistryStatus{}
 	}
 }
 

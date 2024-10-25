@@ -102,10 +102,15 @@ func (m *ModelMeshServing) GetComponentName() string {
 }
 
 func (m *ModelMeshServing) UpdateStatus(in *status.ComponentsStatus) {
-	modelMeshServingStatus := status.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
+	enabled := m.GetManagementState() == operatorv1.Managed
+	if enabled {
+		modelMeshServingStatus := status.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
 
-	in.ModelMeshServing = &status.ModelMeshServingStatus{
-		ComponentStatus: modelMeshServingStatus,
+		in.ModelMeshServing = &status.ModelMeshServingStatus{
+			ComponentStatus: modelMeshServingStatus,
+		}
+	} else {
+		in.ModelMeshServing = nil
 	}
 }
 

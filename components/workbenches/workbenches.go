@@ -112,10 +112,15 @@ func (w *Workbenches) GetComponentName() string {
 }
 
 func (w *Workbenches) UpdateStatus(in *status.ComponentsStatus) {
-	workbenchesStatus := status.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
+	enabled := w.GetManagementState() == operatorv1.Managed
+	if enabled {
+		workbenchesStatus := status.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
 
-	in.Workbenches = &status.WorkbenchesStatus{
-		ComponentStatus: workbenchesStatus,
+		in.Workbenches = &status.WorkbenchesStatus{
+			ComponentStatus: workbenchesStatus,
+		}
+	} else {
+		in.Workbenches = nil
 	}
 }
 

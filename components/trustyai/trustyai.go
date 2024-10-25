@@ -80,10 +80,15 @@ func (t *TrustyAI) GetComponentName() string {
 }
 
 func (t *TrustyAI) UpdateStatus(in *status.ComponentsStatus) {
-	trustyAIStatus := status.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
+	enabled := t.GetManagementState() == operatorv1.Managed
+	if enabled {
+		trustyAIStatus := status.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
 
-	in.TrustyAI = &status.TrustyAIStatus{
-		ComponentStatus: trustyAIStatus,
+		in.TrustyAI = &status.TrustyAIStatus{
+			ComponentStatus: trustyAIStatus,
+		}
+	} else {
+		in.TrustyAI = nil
 	}
 }
 

@@ -71,10 +71,15 @@ func (r *TrainingOperator) GetComponentName() string {
 }
 
 func (r *TrainingOperator) UpdateStatus(in *status.ComponentsStatus) {
-	trainingOperatorStatus := status.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
+	enabled := r.GetManagementState() == operatorv1.Managed
+	if enabled {
+		trainingOperatorStatus := status.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
 
-	in.TrainingOperator = &status.TrainingOperatorStatus{
-		ComponentStatus: trainingOperatorStatus,
+		in.TrainingOperator = &status.TrainingOperatorStatus{
+			ComponentStatus: trainingOperatorStatus,
+		}
+	} else {
+		in.TrainingOperator = nil
 	}
 }
 

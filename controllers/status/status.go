@@ -228,7 +228,7 @@ type ComponentReleaseStatus struct {
 
 // +k8s:deepcopy-gen=true
 type ComponentStatus struct {
-	UpstreamReleases []ComponentReleaseStatus `json:"upstreamrelease,omitempty"`
+	Releases []ComponentReleaseStatus `json:"releases,omitempty"`
 }
 
 // +k8s:deepcopy-gen=true
@@ -323,7 +323,7 @@ func GetReleaseVersion(defaultManifestPath string, componentName string) Compone
 	displayName = env["DISPLAY_NAME"]
 
 	return ComponentStatus{
-		UpstreamReleases: []ComponentReleaseStatus{{
+		Releases: []ComponentReleaseStatus{{
 			Name:        componentName,
 			DisplayName: displayName,
 			Version:     version.OperatorVersion{Version: componentVersion},

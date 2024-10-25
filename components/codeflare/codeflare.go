@@ -73,10 +73,15 @@ func (c *CodeFlare) GetComponentName() string {
 }
 
 func (c *CodeFlare) UpdateStatus(in *status.ComponentsStatus) {
-	codeFlareStatus := status.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
+	enabled := c.GetManagementState() == operatorv1.Managed
+	if enabled {
+		codeFlareStatus := status.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
 
-	in.CodeFlare = &status.CodeFlareStatus{
-		ComponentStatus: codeFlareStatus,
+		in.CodeFlare = &status.CodeFlareStatus{
+			ComponentStatus: codeFlareStatus,
+		}
+	} else {
+		in.CodeFlare = nil
 	}
 }
 
