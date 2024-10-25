@@ -93,7 +93,7 @@ func (d *DataSciencePipelines) GetComponentName() string {
 }
 
 func (d *DataSciencePipelines) UpdateStatus(in *status.ComponentsStatus) {
-	dataSciencePipelinesStatus := components.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
+	dataSciencePipelinesStatus := status.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
 
 	in.DataSciencePipelines = &status.DataSciencePipelinesStatus{
 		ComponentStatus: dataSciencePipelinesStatus,

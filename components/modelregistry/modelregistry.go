@@ -98,7 +98,7 @@ func (m *ModelRegistry) GetComponentName() string {
 }
 
 func (m *ModelRegistry) UpdateStatus(in *status.ComponentsStatus) {
-	modelRegistryStatus := components.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
+	modelRegistryStatus := status.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
 
 	in.ModelRegistry = &status.ModelRegistryStatus{
 		ComponentStatus: modelRegistryStatus,

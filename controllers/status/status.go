@@ -19,9 +19,14 @@ limitations under the License.
 package status
 
 import (
+	"path/filepath"
+
+	"github.com/blang/semver/v4"
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	"github.com/operator-framework/api/pkg/lib/version"
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 )
 
 // These constants represent the overall Phase as used by .Status.Phase.
@@ -295,4 +300,35 @@ type ComponentsStatus struct {
 	TrustyAI             *TrustyAIStatus             `json:"trustyai,omitempty"`
 	TrainingOperator     *TrainingOperatorStatus     `json:"trainingoperator,omitempty"`
 	Workbenches          *WorkbenchesStatus          `json:"workbenches,omitempty"`
+}
+
+func GetReleaseVersion(defaultManifestPath string, componentName string) ComponentStatus {
+	var componentVersion semver.Version
+	var repositoryURL string
+	var displayName string
+
+	env, err := common.ParseParams(filepath.Join(defaultManifestPath, componentName, ".env"))
+
+	if err != nil {
+		return ComponentStatus{}
+	}
+
+	componentVersion, err = semver.Parse(env["RHOAI_RELEASE_VERSION"])
+
+	if err != nil {
+		return ComponentStatus{}
+	}
+	repositoryURL = env["REPOSITORY_URL"]
+
+	displayName = env["DISPLAY_NAME"]
+
+	return ComponentStatus{
+		UpstreamReleases: []ComponentReleaseStatus{{
+			Name:        componentName,
+			DisplayName: displayName,
+			Version:     version.OperatorVersion{Version: componentVersion},
+			RepoURL:     repositoryURL,
+		},
+		},
+	}
 }

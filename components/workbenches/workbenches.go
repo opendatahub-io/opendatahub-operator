@@ -112,7 +112,7 @@ func (w *Workbenches) GetComponentName() string {
 }
 
 func (w *Workbenches) UpdateStatus(in *status.ComponentsStatus) {
-	workbenchesStatus := components.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
+	workbenchesStatus := status.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
 
 	in.Workbenches = &status.WorkbenchesStatus{
 		ComponentStatus: workbenchesStatus,

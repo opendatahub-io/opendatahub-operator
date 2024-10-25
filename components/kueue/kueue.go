@@ -69,7 +69,7 @@ func (k *Kueue) GetComponentName() string {
 }
 
 func (k *Kueue) UpdateStatus(in *status.ComponentsStatus) {
-	kueueStatus := components.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
+	kueueStatus := status.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
 
 	in.Kueue = &status.KueueStatus{
 		ComponentStatus: kueueStatus,
