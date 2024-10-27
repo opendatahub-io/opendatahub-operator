@@ -13,7 +13,7 @@ spec:
     * Open Data Hub Dashboard - A web dashboard that displays installed Open Data Hub components with easy access to component UIs and documentation
     * ODH Notebook Controller - Secure management of Jupyter Notebook in Kubernetes environments built on top of Kubeflow Notebook Controller with support for OAuth
     * Jupyter Notebooks - JupyterLab notebook that provide Python support for GPU workloads
-    * Data Science Pipelines - Pipeline solution for end to end MLOps workflows that support the Kubeflow Pipelines SDK and Tekton
+    * Data Science Pipelines - Pipeline solution for end to end MLOps workflows that support the Kubeflow Pipelines SDK and Argo Workflows
     * Model Mesh - ModelMesh Serving is the Controller for managing ModelMesh, a general-purpose model serving management/routing layer
     * Distributed Workloads(Incubation) - Stack built to make managing distributed compute infrastructure in the cloud easy and intuitive for Data Scientists. This stack consists of three components 
                                           Codeflare , KubeRay and Kueue.
