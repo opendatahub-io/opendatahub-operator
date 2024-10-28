@@ -107,9 +107,7 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 
 		if err := cluster.UpdatePodSecurityRolebinding(ctx, cli, dscispec.ApplicationsNamespace,
 			"modelmesh",
-			"modelmesh-controller",
-			"odh-prometheus-operator",
-			"prometheus-custom"); err != nil {
+			"modelmesh-controller"); err != nil {
 			return err
 		}
 		// Update image parameters
