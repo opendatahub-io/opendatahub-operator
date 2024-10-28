@@ -23,7 +23,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-
+//nolint:ireturn
 func newFakeClient(objs ...client.Object) client.Client {
 	scheme := runtime.NewScheme()
 	utilruntime.Must(corev1.AddToScheme(scheme))
