@@ -143,7 +143,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 				WithPolling(interval).
 				Should(BeFalse())
 		})
-		It("Should create default monitoring namespace if monitoring enabled", func(ctx context.Context) {
+		It("Should not create default monitoring namespace even monitoring enabled for non-managed cluster", func(ctx context.Context) {
 			// when
 			desiredDsci := createDSCI(operatorv1.Managed, operatorv1.Managed, monitoringNamespace2)
 			Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
@@ -159,8 +159,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 				WithContext(ctx).
 				WithTimeout(timeout).
 				WithPolling(interval).
-				Should(BeTrue())
-			Expect(foundMonitoringNamespace.Name).Should(Equal(monitoringNamespace2))
+				Should(BeFalse())
 		})
 	})
 

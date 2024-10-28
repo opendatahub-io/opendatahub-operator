@@ -81,8 +81,8 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 			return err
 		}
 	}
-	// Create Monitoring Namespace if it is enabled and not exists
-	if dscInit.Spec.Monitoring.ManagementState == operatorv1.Managed {
+	// Create Monitoring Namespace if it is enabled and not exists and only for Managed cluster
+	if dscInit.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == cluster.ManagedRhoai {
 		foundMonitoringNamespace := &corev1.Namespace{}
 		monitoringName := dscInit.Spec.Monitoring.Namespace
 		err := r.Get(ctx, client.ObjectKey{Name: monitoringName}, foundMonitoringNamespace)
@@ -205,17 +205,19 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.
 			log.Error(err, "error to set networkpolicy in operator namespace", "path", networkpolicyPath)
 			return err
 		}
-		// Deploy networkpolicy for monitoring namespace
-		err = deploy.DeployManifestsFromPath(ctx, r.Client, dscInit, networkpolicyPath+"/monitoring", dscInit.Spec.Monitoring.Namespace, "networkpolicy", true)
-		if err != nil {
-			log.Error(err, "error to set networkpolicy in monitroing namespace", "path", networkpolicyPath)
-			return err
-		}
 		// Deploy networkpolicy for applications namespace
 		err = deploy.DeployManifestsFromPath(ctx, r.Client, dscInit, networkpolicyPath+"/applications", dscInit.Spec.ApplicationsNamespace, "networkpolicy", true)
 		if err != nil {
 			log.Error(err, "error to set networkpolicy in applications namespace", "path", networkpolicyPath)
 			return err
+		}
+		if platform == cluster.ManagedRhoai {
+			// Deploy networkpolicy for monitoring namespace
+			err = deploy.DeployManifestsFromPath(ctx, r.Client, dscInit, networkpolicyPath+"/monitoring", dscInit.Spec.Monitoring.Namespace, "networkpolicy", true)
+			if err != nil {
+				log.Error(err, "error to set networkpolicy in monitroing namespace", "path", networkpolicyPath)
+				return err
+			}
 		}
 	} else { // Expected namespace for the given name in ODH
 		desiredNetworkPolicy := &networkingv1.NetworkPolicy{
