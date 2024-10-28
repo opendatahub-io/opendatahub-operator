@@ -654,9 +654,6 @@ spec:
                     properties:
                       releases:
                         items:
-                          description: |-
-                            Condition represents the state of the operator's
-                            reconciliation functionality.
                           properties:
                             displayname:
                               type: string
@@ -673,9 +670,6 @@ spec:
                     properties:
                       releases:
                         items:
-                          description: |-
-                            Condition represents the state of the operator's
-                            reconciliation functionality.
                           properties:
                             displayname:
                               type: string
@@ -692,9 +686,6 @@ spec:
                     properties:
                       releases:
                         items:
-                          description: |-
-                            Condition represents the state of the operator's
-                            reconciliation functionality.
                           properties:
                             displayname:
                               type: string
@@ -711,9 +702,6 @@ spec:
                     properties:
                       releases:
                         items:
-                          description: |-
-                            Condition represents the state of the operator's
-                            reconciliation functionality.
                           properties:
                             displayname:
                               type: string
@@ -730,9 +718,6 @@ spec:
                     properties:
                       releases:
                         items:
-                          description: |-
-                            Condition represents the state of the operator's
-                            reconciliation functionality.
                           properties:
                             displayname:
                               type: string
@@ -749,9 +734,6 @@ spec:
                     properties:
                       releases:
                         items:
-                          description: |-
-                            Condition represents the state of the operator's
-                            reconciliation functionality.
                           properties:
                             displayname:
                               type: string
@@ -770,9 +752,6 @@ spec:
                         type: string
                       releases:
                         items:
-                          description: |-
-                            Condition represents the state of the operator's
-                            reconciliation functionality.
                           properties:
                             displayname:
                               type: string
@@ -789,9 +768,6 @@ spec:
                     properties:
                       releases:
                         items:
-                          description: |-
-                            Condition represents the state of the operator's
-                            reconciliation functionality.
                           properties:
                             displayname:
                               type: string
@@ -808,9 +784,6 @@ spec:
                     properties:
                       releases:
                         items:
-                          description: |-
-                            Condition represents the state of the operator's
-                            reconciliation functionality.
                           properties:
                             displayname:
                               type: string
@@ -827,9 +800,6 @@ spec:
                     properties:
                       releases:
                         items:
-                          description: |-
-                            Condition represents the state of the operator's
-                            reconciliation functionality.
                           properties:
                             displayname:
                               type: string
@@ -846,9 +816,6 @@ spec:
                     properties:
                       releases:
                         items:
-                          description: |-
-                            Condition represents the state of the operator's
-                            reconciliation functionality.
                           properties:
                             displayname:
                               type: string

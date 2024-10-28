@@ -54,7 +54,6 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	annotations "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
@@ -343,15 +342,6 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 			status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileCompleted, "Component reconciled successfully", corev1.ConditionTrue)
 		} else {
 			status.RemoveComponentCondition(&saved.Status.Conditions, componentName)
-		}
-
-		// TODO: replace this hack with a full refactor of component status in the future
-		if mr, isMR := component.(*modelregistry.ModelRegistry); isMR {
-			if enabled {
-				saved.Status.Components.ModelRegistry = &status.ModelRegistryStatus{RegistriesNamespace: mr.RegistriesNamespace}
-			} else {
-				saved.Status.Components.ModelRegistry = &status.ModelRegistryStatus{}
-			}
 		}
 	})
 	if err != nil {

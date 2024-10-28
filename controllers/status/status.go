@@ -216,8 +216,6 @@ func RemoveComponentCondition(conditions *[]conditionsv1.Condition, component st
 	conditionsv1.RemoveStatusCondition(conditions, conditionsv1.ConditionType(component+ReadySuffix))
 }
 
-// Condition represents the state of the operator's
-// reconciliation functionality.
 // +k8s:deepcopy-gen=true
 type ComponentReleaseStatus struct {
 	Name        string                  `json:"name,omitempty"`
@@ -302,6 +300,8 @@ type ComponentsStatus struct {
 	Workbenches          *WorkbenchesStatus          `json:"workbenches,omitempty"`
 }
 
+// GetReleaseVersion read .env file and parse env variables delimiter by "=".
+// If version is not set or set to "", return empty {}.
 func GetReleaseVersion(defaultManifestPath string, componentName string) ComponentStatus {
 	var componentVersion semver.Version
 	var repositoryURL string
