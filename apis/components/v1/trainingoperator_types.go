@@ -51,6 +51,10 @@ type TrainingOperator struct {
 	Status TrainingOperatorStatus `json:"status,omitempty"`
 }
 
+func (c *TrainingOperator) GetDevFlags() *components.DevFlags {
+	return nil
+}
+
 func (c *TrainingOperator) GetStatus() *components.Status {
 	return &c.Status.Status
 }

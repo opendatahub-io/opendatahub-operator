@@ -51,6 +51,10 @@ type ModelMeshServing struct {
 	Status ModelMeshServingStatus `json:"status,omitempty"`
 }
 
+func (c *ModelMeshServing) GetDevFlags() *components.DevFlags {
+	return nil
+}
+
 func (c *ModelMeshServing) GetStatus() *components.Status {
 	return &c.Status.Status
 }

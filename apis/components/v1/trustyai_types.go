@@ -51,6 +51,10 @@ type TrustyAI struct {
 	Status TrustyAIStatus `json:"status,omitempty"`
 }
 
+func (c *TrustyAI) GetDevFlags() *components.DevFlags {
+	return nil
+}
+
 func (c *TrustyAI) GetStatus() *components.Status {
 	return &c.Status.Status
 }

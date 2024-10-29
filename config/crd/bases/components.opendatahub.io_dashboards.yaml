@@ -23,6 +23,10 @@ spec:
       jsonPath: .status.conditions[?(@.type=="Ready")].reason
       name: Reason
       type: string
+    - description: URL
+      jsonPath: .status.url
+      name: URL
+      type: string
     name: v1
     schema:
       openAPIV3Schema:
@@ -138,6 +142,8 @@ spec:
                 format: int64
                 type: integer
               phase:
+                type: string
+              url:
                 type: string
             type: object
         type: object

@@ -51,6 +51,10 @@ type Kserve struct {
 	Status KserveStatus `json:"status,omitempty"`
 }
 
+func (c *Kserve) GetDevFlags() *components.DevFlags {
+	return nil
+}
+
 func (c *Kserve) GetStatus() *components.Status {
 	return &c.Status.Status
 }

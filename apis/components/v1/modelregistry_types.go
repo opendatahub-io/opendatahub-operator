@@ -51,6 +51,10 @@ type ModelRegistry struct {
 	Status ModelRegistryStatus `json:"status,omitempty"`
 }
 
+func (c *ModelRegistry) GetDevFlags() *components.DevFlags {
+	return nil
+}
+
 func (c *ModelRegistry) GetStatus() *components.Status {
 	return &c.Status.Status
 }

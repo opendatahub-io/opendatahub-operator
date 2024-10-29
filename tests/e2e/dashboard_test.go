@@ -14,6 +14,7 @@ import (
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -47,7 +48,7 @@ func dashboardTestSuite(t *testing.T) {
 		})
 
 		t.Run("Validate Ownerrefrences exist", func(t *testing.T) {
-			err = dashboardCtx.testOwnerrefrences()
+			err = dashboardCtx.testOwnerReferences()
 			require.NoError(t, err, "error getting all Dashboard's Ownerrefrences")
 		})
 
@@ -71,20 +72,35 @@ func dashboardTestSuite(t *testing.T) {
 }
 
 func (tc *DashboardTestCtx) testDashboardCreation() error {
-	existingDashboardList := &componentsv1.DashboardList{}
-
-	if tc.testCtx.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
-		err := tc.testCtx.customClient.List(tc.testCtx.ctx, existingDashboardList)
-		if err == nil {
-			if len(existingDashboardList.Items) == 1 {
-				tc.testDashboardInstance = existingDashboardList.Items[0]
-				return nil
-			} else {
-				return fmt.Errorf("unexpected Dashboard CR instances. Expected 1 , "+
-					"Found %v instance", len(existingDashboardList.Items))
-			}
-		}
+	if tc.testCtx.testDsc.Spec.Components.Dashboard.ManagementState != operatorv1.Managed {
+		return nil
 	}
+
+	err := tc.testCtx.wait(func(ctx context.Context) (bool, error) {
+		existingDashboardList := &componentsv1.DashboardList{}
+
+		err := tc.testCtx.customClient.List(ctx, existingDashboardList)
+		if err != nil {
+			return false, err
+		}
+
+		switch {
+		case len(existingDashboardList.Items) == 1:
+			tc.testDashboardInstance = existingDashboardList.Items[0]
+			return true, nil
+
+		case len(existingDashboardList.Items) > 1:
+			return false, fmt.Errorf(
+				"unexpected Dashboard CR instances. Expected 1 , Found %v instance", len(existingDashboardList.Items))
+		default:
+			return false, nil
+		}
+	})
+
+	if err != nil {
+		return fmt.Errorf("unable to find Dashboard CR instance: %w", err)
+	}
+
 	return nil
 }
 
@@ -98,7 +114,11 @@ func (tc *DashboardTestCtx) validateDashboard() error {
 	return nil
 }
 
-func (tc *DashboardTestCtx) testOwnerrefrences() error {
+func (tc *DashboardTestCtx) testOwnerReferences() error {
+	if len(tc.testDashboardInstance.OwnerReferences) != 1 {
+		return errors.New("expected ownerreferences to be non empty")
+	}
+
 	// Test Dashboard CR ownerref
 	if tc.testDashboardInstance.OwnerReferences[0].Kind != "DataScienceCluster" {
 		return fmt.Errorf("expected ownerreference not found. Got ownereferrence: %v",
@@ -124,8 +144,10 @@ func (tc *DashboardTestCtx) testOwnerrefrences() error {
 
 // Verify Dashboard instance is in Ready phase when dashboard deployments are up and running.
 func (tc *DashboardTestCtx) validateDashboardReady() error {
-	// wait for 2 mins which is on the safe side, normally it should get ready once all components are ready
-	err := tc.testCtx.wait(func(ctx context.Context) (bool, error) {
+	// the dashboard deployment may take quite a long time to get ready as the related readiness
+	// probes have an initial delay time of 30 sec and each check is performed with a delay of
+	// 30 sec.
+	err := wait.PollUntilContextTimeout(tc.testCtx.ctx, generalRetryInterval, componentReadyTimeout, true, func(ctx context.Context) (bool, error) {
 		key := types.NamespacedName{Name: tc.testDashboardInstance.Name}
 		dashboard := &componentsv1.Dashboard{}
 
@@ -147,7 +169,7 @@ func (tc *DashboardTestCtx) testUpdateOnDashboardResources() error {
 	// Test Updating Dashboard Replicas
 
 	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-		LabelSelector: labels.ODH.Component("dashboard"),
+		LabelSelector: labels.ComponentManagedBy + "=" + tc.testDashboardInstance.Name,
 	})
 	if err != nil {
 		return err
@@ -238,13 +260,15 @@ func (tc *DashboardTestCtx) testUpdateDashboardComponentDisabled() error {
 		return fmt.Errorf("error after retry %w", err)
 	}
 
-	// Verify dashboard CR is deleted
-	dashboard := &componentsv1.Dashboard{}
-	err = tc.testCtx.customClient.Get(tc.testCtx.ctx, client.ObjectKey{Name: tc.testDashboardInstance.Name}, dashboard)
-	if err == nil {
+	err = tc.testCtx.wait(func(ctx context.Context) (bool, error) {
+		// Verify dashboard CR is deleted
+		dashboard := &componentsv1.Dashboard{}
+		err = tc.testCtx.customClient.Get(ctx, client.ObjectKey{Name: tc.testDashboardInstance.Name}, dashboard)
+		return k8serr.IsNotFound(err), nil
+	})
+
+	if err != nil {
 		return fmt.Errorf("component %v is disabled, should not get the Dashboard CR %v", "dashboard", tc.testDashboardInstance.Name)
-	} else if !k8serr.IsNotFound(err) {
-		return err
 	}
 
 	// Sleep for 20 seconds to allow the operator to reconcile
