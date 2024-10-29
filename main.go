@@ -101,7 +101,7 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(admissionregistrationv1.AddToScheme(scheme))
 	utilruntime.Must(apiregistrationv1.AddToScheme(scheme))
 	utilruntime.Must(monitoringv1.AddToScheme(scheme))
-	utilruntime.Must(operatorv1.Install(scheme))
+	utilruntime.Must(operatorv1.Install(scheme)) // here also add configv1.Install(scheme) no need add configv1 explicitly
 }
 
 func initComponents(ctx context.Context, p cluster.Platform) error {

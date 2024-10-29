@@ -501,7 +501,7 @@ func (r *DataScienceClusterReconciler) SetupWithManager(ctx context.Context, mgr
 		Owns(&imagev1.ImageStream{}).
 		Owns(&buildv1.BuildConfig{}).
 		Owns(&apiregistrationv1.APIService{}).
-		Owns(&networkingv1.Ingress{}).
+		Owns(&operatorv1.IngressController{}).
 		Owns(&admissionregistrationv1.MutatingWebhookConfiguration{}).
 		Owns(
 			&admissionregistrationv1.ValidatingWebhookConfiguration{},
