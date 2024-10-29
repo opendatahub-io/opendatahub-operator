@@ -657,8 +657,6 @@ spec:
                           properties:
                             displayname:
                               type: string
-                            name:
-                              type: string
                             repourl:
                               type: string
                             version:
@@ -672,8 +670,6 @@ spec:
                         items:
                           properties:
                             displayname:
-                              type: string
-                            name:
                               type: string
                             repourl:
                               type: string
@@ -689,8 +685,6 @@ spec:
                           properties:
                             displayname:
                               type: string
-                            name:
-                              type: string
                             repourl:
                               type: string
                             version:
@@ -704,8 +698,6 @@ spec:
                         items:
                           properties:
                             displayname:
-                              type: string
-                            name:
                               type: string
                             repourl:
                               type: string
@@ -721,8 +713,6 @@ spec:
                           properties:
                             displayname:
                               type: string
-                            name:
-                              type: string
                             repourl:
                               type: string
                             version:
@@ -736,8 +726,6 @@ spec:
                         items:
                           properties:
                             displayname:
-                              type: string
-                            name:
                               type: string
                             repourl:
                               type: string
@@ -755,8 +743,6 @@ spec:
                           properties:
                             displayname:
                               type: string
-                            name:
-                              type: string
                             repourl:
                               type: string
                             version:
@@ -770,8 +756,6 @@ spec:
                         items:
                           properties:
                             displayname:
-                              type: string
-                            name:
                               type: string
                             repourl:
                               type: string
@@ -787,8 +771,6 @@ spec:
                           properties:
                             displayname:
                               type: string
-                            name:
-                              type: string
                             repourl:
                               type: string
                             version:
@@ -803,8 +785,6 @@ spec:
                           properties:
                             displayname:
                               type: string
-                            name:
-                              type: string
                             repourl:
                               type: string
                             version:
@@ -818,8 +798,6 @@ spec:
                         items:
                           properties:
                             displayname:
-                              type: string
-                            name:
                               type: string
                             repourl:
                               type: string

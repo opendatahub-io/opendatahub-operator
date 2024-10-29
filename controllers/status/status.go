@@ -19,14 +19,14 @@ limitations under the License.
 package status
 
 import (
+	"os"
 	"path/filepath"
 
 	"github.com/blang/semver/v4"
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	"github.com/operator-framework/api/pkg/lib/version"
+	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
-
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 )
 
 // These constants represent the overall Phase as used by .Status.Phase.
@@ -218,7 +218,6 @@ func RemoveComponentCondition(conditions *[]conditionsv1.Condition, component st
 
 // +k8s:deepcopy-gen=true
 type ComponentReleaseStatus struct {
-	Name        string                  `json:"name,omitempty"`
 	DisplayName string                  `json:"displayname,omitempty"`
 	Version     version.OperatorVersion `json:"version,omitempty"`
 	RepoURL     string                  `json:"repourl,omitempty"`
@@ -300,35 +299,52 @@ type ComponentsStatus struct {
 	Workbenches          *WorkbenchesStatus          `json:"workbenches,omitempty"`
 }
 
+// +k8s:deepcopy-gen=true
+type ReleaseFileMeta struct {
+	Releases []ComponentReleaseStatusMeta `json:"releases,omitempty"`
+}
+
+// +k8s:deepcopy-gen=true
+type ComponentReleaseStatusMeta struct {
+	DisplayName string `yaml:"displayname,omitempty"`
+	Version     string `yaml:"version,omitempty"`
+	RepoURL     string `yaml:"repourl,omitempty"`
+}
+
 // GetReleaseVersion read .env file and parse env variables delimiter by "=".
 // If version is not set or set to "", return empty {}.
 func GetReleaseVersion(defaultManifestPath string, componentName string) ComponentStatus {
 	var componentVersion semver.Version
-	var repositoryURL string
-	var displayName string
+	var releaseInfo ReleaseFileMeta
+	var releaseStatus ComponentReleaseStatus
+	componentReleaseStatus := make([]ComponentReleaseStatus, 0)
 
-	env, err := common.ParseParams(filepath.Join(defaultManifestPath, componentName, ".env"))
-
+	yamlData, err := os.ReadFile(filepath.Join(defaultManifestPath, componentName, "releases.yaml"))
 	if err != nil {
 		return ComponentStatus{}
 	}
 
-	componentVersion, err = semver.Parse(env["RHOAI_RELEASE_VERSION"])
-
+	err = yaml.Unmarshal(yamlData, &releaseInfo)
 	if err != nil {
 		return ComponentStatus{}
 	}
-	repositoryURL = env["REPOSITORY_URL"]
 
-	displayName = env["DISPLAY_NAME"]
+	for _, release := range releaseInfo.Releases {
+		componentVersion, err = semver.Parse(release.Version)
+
+		if err != nil {
+			return ComponentStatus{}
+		}
+
+		releaseStatus = ComponentReleaseStatus{
+			DisplayName: release.DisplayName,
+			Version:     version.OperatorVersion{Version: componentVersion},
+			RepoURL:     release.RepoURL,
+		}
+		componentReleaseStatus = append(componentReleaseStatus, releaseStatus)
+	}
 
 	return ComponentStatus{
-		Releases: []ComponentReleaseStatus{{
-			Name:        componentName,
-			DisplayName: displayName,
-			Version:     version.OperatorVersion{Version: componentVersion},
-			RepoURL:     repositoryURL,
-		},
-		},
+		Releases: componentReleaseStatus,
 	}
 }
