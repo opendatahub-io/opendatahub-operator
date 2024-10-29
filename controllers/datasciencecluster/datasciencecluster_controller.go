@@ -27,6 +27,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
 	buildv1 "github.com/openshift/api/build/v1"
+	configv1 "github.com/openshift/api/config/v1"
 	imagev1 "github.com/openshift/api/image/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -36,7 +37,6 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -539,12 +539,7 @@ func (r *DataScienceClusterReconciler) SetupWithManager(ctx context.Context, mgr
 			}),
 		).
 		Watches( // ingress
-			&unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"apiVersion": "config.openshift.io/v1",
-					"kind":       "Ingress",
-				},
-			},
+			&configv1.Ingress{},
 			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {
 				return r.watchIngressResources(ctx, a)
 			}),

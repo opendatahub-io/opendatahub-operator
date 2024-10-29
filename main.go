@@ -40,7 +40,6 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -68,7 +67,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/webhook"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
@@ -182,13 +180,13 @@ func main() { //nolint:funlen,maintidx
 	secretCache := createSecretCacheConfig(platform)
 	deploymentCache := createDeploymentCacheConfig(platform)
 
-	uingress := &unstructured.Unstructured{}
-	uingress.SetGroupVersionKind(gvk.OpenshiftIngress)
-
 	cacheOptions := cache.Options{
 		Scheme: scheme,
 		ByObject: map[client.Object]cache.ByObject{
-			uingress: {},
+			// for Ingress from config.openshift.io/v1
+			&configv1.Ingress{}: {
+				Field: fields.Set{"metadata.name": "cluster"}.AsSelector(),
+			},
 			// all CRD: mainly for pipeline v1 teckon and v2 argo and dashboard's own CRD
 			&apiextensionsv1.CustomResourceDefinition{}: {},
 			// Cannot find a label on various screts, so we need to watch all secrets
