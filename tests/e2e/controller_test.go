@@ -117,6 +117,7 @@ func TestOdhOperator(t *testing.T) {
 	t.Run("create DSCI and DSC CRs", creationTestSuite)
 	// Validate deployment of each component in separate test suite
 	t.Run("validate installation of Dashboard Component", dashboardTestSuite)
+	t.Run("validate installation of Ray Component", rayTestSuite)
 
 	// Run deletion if skipDeletion is not set
 	if !skipDeletion {

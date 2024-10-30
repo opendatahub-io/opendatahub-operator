@@ -54,6 +54,7 @@ const (
 	dscCreationTimeout       = 20 * time.Second // time required to wait till DSC is created.
 	generalRetryInterval     = 10 * time.Second
 	generalWaitTimeout       = 2 * time.Minute
+	readyStatus              = "Ready"
 )
 
 func (tc *testContext) waitForOperatorDeployment(name string, replicas int32) error {
