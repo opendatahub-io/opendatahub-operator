@@ -30,13 +30,13 @@ func stringToLevel(flagValue string) (zapcore.Level, error) {
 	if validLevel {
 		return level, nil
 	}
-	logLevel, err := strconv.Atoi(flagValue)
+	logLevel, err := strconv.ParseInt(flagValue, 10, 8)
 	if err != nil {
 		return 0, fmt.Errorf("invalid log level \"%s\"", flagValue)
 	}
 	if logLevel > 0 {
-		intLevel := -1 * logLevel
-		return zapcore.Level(int8(intLevel)), nil
+		intLevel := -1 * int8(logLevel)
+		return zapcore.Level(intLevel), nil
 	}
 
 	return 0, fmt.Errorf("invalid log level \"%s\"", flagValue)
