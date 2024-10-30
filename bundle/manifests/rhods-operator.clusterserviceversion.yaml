@@ -181,7 +181,7 @@ metadata:
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/red-hat-data-services/rhods-operator
     support: Red Hat OpenShift AI
-  name: rhods-operator.v2.15.0
+  name: rhods-operator.v2.16.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -580,12 +580,6 @@ spec:
           - patch
           - update
           - watch
-        - apiGroups:
-          - custom.tekton.dev
-          resources:
-          - pipelineloops
-          verbs:
-          - '*'
         - apiGroups:
           - dashboard.opendatahub.io
           resources:
@@ -1113,12 +1107,6 @@ spec:
           - get
           - patch
         - apiGroups:
-          - tekton.dev
-          resources:
-          - '*'
-          verbs:
-          - '*'
-        - apiGroups:
           - template.openshift.io
           resources:
           - templates
@@ -1261,7 +1249,7 @@ spec:
   - Data Science
   links:
   - name: Red Hat OpenShift AI
-    url: https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/2.15.0
+    url: https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/2.16.0
   maintainers:
   - email: managed-open-data-hub@redhat.com
     name: Red Hat Openshift AI
@@ -1269,7 +1257,7 @@ spec:
   minKubeVersion: 1.25.0
   provider:
     name: Red Hat
-  version: 2.15.0
+  version: 2.16.0
   webhookdefinitions:
   - admissionReviewVersions:
     - v1
