@@ -55,7 +55,7 @@ type Kserve struct {
 	// +kubebuilder:validation:Enum=Serverless;RawDeployment
 	DefaultDeploymentMode DefaultDeploymentMode `json:"defaultDeploymentMode,omitempty"`
 	// Configures and enables Nvidida's NIM integration
-	NIM components.Component `json:"nim,omitempty"`
+	NIM infrav1.NimSpec `json:"nim,omitempty"`
 }
 
 func (k *Kserve) Init(ctx context.Context, _ cluster.Platform) error {
