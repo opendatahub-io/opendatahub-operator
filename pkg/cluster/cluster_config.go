@@ -21,8 +21,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
-// +kubebuilder:rbac:groups="config.openshift.io",resources=ingresses,verbs=get
-
 type Platform string
 
 // Release includes information on operator version and platform

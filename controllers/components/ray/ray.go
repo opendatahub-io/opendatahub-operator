@@ -13,6 +13,14 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
+const (
+	ComponentName = componentsv1.RayComponentName
+)
+
+var (
+	DefaultPath = odhdeploy.DefaultManifestPath + "/" + ComponentName + "/openshift"
+)
+
 // for DSC to get compoment Ray's CR.
 func GetComponentCR(dsc *dscv1.DataScienceCluster) *componentsv1.Ray {
 	rayAnnotations := make(map[string]string)

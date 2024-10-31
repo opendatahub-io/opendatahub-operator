@@ -55,6 +55,7 @@ const (
 	generalRetryInterval     = 10 * time.Second
 	generalWaitTimeout       = 2 * time.Minute
 	readyStatus              = "Ready"
+	dscKind                  = "DataScienceCluster"
 )
 
 func (tc *testContext) waitForOperatorDeployment(name string, replicas int32) error {
