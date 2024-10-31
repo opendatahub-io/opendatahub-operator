@@ -129,6 +129,23 @@ _Appears in:_
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
+#### DSCRay
+
+
+
+DSCRay contains all the configuration exposed in DSC instance for Ray component
+
+
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+
+
 #### Dashboard
 
 
@@ -625,6 +642,23 @@ _Appears in:_
 | `status` _[RayStatus](#raystatus)_ |  |  |  |
 
 
+#### RayCommonSpec
+
+
+
+
+
+
+
+_Appears in:_
+- [DSCRay](#dscray)
+- [RaySpec](#rayspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+
+
 #### RayList
 
 
@@ -658,7 +692,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `foo` _string_ | Foo is an example field of Ray. Edit ray_types.go to remove/update |  |  |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
 #### RayStatus
@@ -952,7 +986,6 @@ _Appears in:_
 - [Kueue](#kueue)
 - [ModelMeshServing](#modelmeshserving)
 - [ModelRegistry](#modelregistry)
-- [Ray](#ray)
 - [TrainingOperator](#trainingoperator)
 - [TrustyAI](#trustyai)
 - [Workbenches](#workbenches)
@@ -995,8 +1028,11 @@ DevFlagsSpec struct defines the component's dev flags configuration.
 _Appears in:_
 - [Component](#component)
 - [DSCDashboard](#dscdashboard)
+- [DSCRay](#dscray)
 - [DashboardCommonSpec](#dashboardcommonspec)
 - [DashboardSpec](#dashboardspec)
+- [RayCommonSpec](#raycommonspec)
+- [RaySpec](#rayspec)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -1014,6 +1050,7 @@ ManagementSpec struct defines the component's management configuration.
 _Appears in:_
 - [Component](#component)
 - [DSCDashboard](#dscdashboard)
+- [DSCRay](#dscray)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -1187,30 +1224,6 @@ _Appears in:_
 
 
 
-## datasciencecluster.opendatahub.io/ray
-
-Package ray provides utility functions to config Ray as part of the stack
-which makes managing distributed compute infrastructure in the cloud easy and intuitive for Data Scientists
-
-
-
-#### Ray
-
-
-
-Ray struct holds the configuration for the Ray component.
-
-
-
-_Appears in:_
-- [Components](#components)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `Component` _[Component](#component)_ |  |  |  |
-
-
-
 ## datasciencecluster.opendatahub.io/trainingoperator
 
 Package trainingoperator provides utility functions to config trainingoperator as part of the stack
@@ -1339,7 +1352,7 @@ _Appears in:_
 | `kserve` _[Kserve](#kserve)_ | Kserve component configuration.<br />Require OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component<br />Does not support enabled ModelMeshServing at the same time |  |  |
 | `kueue` _[Kueue](#kueue)_ | Kueue component configuration. |  |  |
 | `codeflare` _[CodeFlare](#codeflare)_ | CodeFlare component configuration.<br />If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabled component. |  |  |
-| `ray` _[Ray](#ray)_ | Ray component configuration. |  |  |
+| `ray` _[DSCRay](#dscray)_ | Ray component configuration. |  |  |
 | `trustyai` _[TrustyAI](#trustyai)_ | TrustyAI component configuration. |  |  |
 | `modelregistry` _[ModelRegistry](#modelregistry)_ | ModelRegistry component configuration. |  |  |
 | `trainingoperator` _[TrainingOperator](#trainingoperator)_ | Training Operator component configuration. |  |  |

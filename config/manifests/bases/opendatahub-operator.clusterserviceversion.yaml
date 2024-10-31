@@ -31,10 +31,6 @@ spec:
       displayName: Dashboard
       kind: Dashboard
       name: dashboards.components.opendatahub.io
-      specDescriptors:
-      - description: Add developer fields
-        displayName: Dev Flags
-        path: devFlags
       version: v1
     - description: DataScienceCluster is the Schema for the datascienceclusters API.
       displayName: Data Science Cluster

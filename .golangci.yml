@@ -58,6 +58,7 @@ linters-settings:
       - stdlib
       # also allow generics
       - generic
+      - EventHandler # for ToOwner
   revive:
     rules:
       - name: dot-imports

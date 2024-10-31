@@ -36,10 +36,9 @@ func dashboardTestSuite(t *testing.T) {
 	testCtx := dashboardCtx.testCtx
 
 	t.Run(testCtx.testDsc.Name, func(t *testing.T) {
-		// DSCI
 		t.Run("Creation of Dashboard CR", func(t *testing.T) {
 			err = dashboardCtx.testDashboardCreation()
-			require.NoError(t, err, "error creating DSCI CR")
+			require.NoError(t, err, "error creating Dashboard CR")
 		})
 
 		t.Run("Validate Dashboard instance", func(t *testing.T) {
@@ -107,7 +106,7 @@ func (tc *DashboardTestCtx) testDashboardCreation() error {
 func (tc *DashboardTestCtx) validateDashboard() error {
 	// Dashboard spec should match the spec of Dashboard component in DSC
 	if !reflect.DeepEqual(tc.testCtx.testDsc.Spec.Components.Dashboard.DashboardCommonSpec, tc.testDashboardInstance.Spec.DashboardCommonSpec) {
-		err := fmt.Errorf("expected smanagement state for Dashboard %v, got %v",
+		err := fmt.Errorf("expected spec for Dashboard %v, got %v",
 			tc.testCtx.testDsc.Spec.Components.Dashboard.DashboardCommonSpec, tc.testDashboardInstance.Spec.DashboardCommonSpec)
 		return err
 	}
@@ -116,12 +115,12 @@ func (tc *DashboardTestCtx) validateDashboard() error {
 
 func (tc *DashboardTestCtx) testOwnerReferences() error {
 	if len(tc.testDashboardInstance.OwnerReferences) != 1 {
-		return errors.New("expected ownerreferences to be non empty")
+		return errors.New("expect CR has ownerreferences set")
 	}
 
 	// Test Dashboard CR ownerref
 	if tc.testDashboardInstance.OwnerReferences[0].Kind != "DataScienceCluster" {
-		return fmt.Errorf("expected ownerreference not found. Got ownereferrence: %v",
+		return fmt.Errorf("expected ownerreference DataScienceCluster not found. Got ownereferrence: %v",
 			tc.testDashboardInstance.OwnerReferences[0].Kind)
 	}
 
@@ -134,7 +133,7 @@ func (tc *DashboardTestCtx) testOwnerReferences() error {
 		return fmt.Errorf("error listing component deployments %w", err)
 	}
 	// test any one deployment for ownerreference
-	if len(appDeployments.Items) != 0 && appDeployments.Items[0].OwnerReferences[0].Kind != "Dashboard" {
+	if len(appDeployments.Items) != 0 && appDeployments.Items[0].OwnerReferences[0].Kind != componentsv1.DashboardKind {
 		return fmt.Errorf("expected ownerreference not found. Got ownereferrence: %v",
 			appDeployments.Items[0].OwnerReferences)
 	}
@@ -155,7 +154,7 @@ func (tc *DashboardTestCtx) validateDashboardReady() error {
 		if err != nil {
 			return false, err
 		}
-		return dashboard.Status.Phase == "Ready", nil
+		return dashboard.Status.Phase == readyStatus, nil
 	})
 
 	if err != nil {

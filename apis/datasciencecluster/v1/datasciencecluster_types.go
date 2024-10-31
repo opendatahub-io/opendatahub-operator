@@ -32,7 +32,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kueue"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trainingoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
@@ -75,7 +74,7 @@ type Components struct {
 	CodeFlare codeflare.CodeFlare `json:"codeflare,omitempty"`
 
 	// Ray component configuration.
-	Ray ray.Ray `json:"ray,omitempty"`
+	Ray componentsv1.DSCRay `json:"ray,omitempty"`
 
 	// TrustyAI component configuration.
 	TrustyAI trustyai.TrustyAI `json:"trustyai,omitempty"`

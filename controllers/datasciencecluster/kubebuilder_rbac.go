@@ -84,10 +84,6 @@ package datasciencecluster
 
 // +kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources=clusterrolebindings,verbs=*
 
-// +kubebuilder:rbac:groups="ray.io",resources=rayservices,verbs=create;delete;list;watch;update;patch;get
-// +kubebuilder:rbac:groups="ray.io",resources=rayjobs,verbs=create;delete;list;update;watch;patch;get
-// +kubebuilder:rbac:groups="ray.io",resources=rayclusters,verbs=create;delete;list;patch;get
-
 // +kubebuilder:rbac:groups="apiregistration.k8s.io",resources=apiservices,verbs=create;delete;list;watch;update;patch;get
 
 // +kubebuilder:rbac:groups="operator.openshift.io",resources=consoles,verbs=get;list;watch;patch;delete
@@ -229,7 +225,15 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="user.openshift.io",resources=groups,verbs=get;create;list;watch;patch;delete
 // +kubebuilder:rbac:groups="console.openshift.io",resources=consolelinks,verbs=create;get;patch;delete
 
-// Dashboard component
+// Ray
+// +kubebuilder:rbac:groups=components.opendatahub.io,resources=rays,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=components.opendatahub.io,resources=rays/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=components.opendatahub.io,resources=rays/finalizers,verbs=update
+// +kubebuilder:rbac:groups="ray.io",resources=rayservices,verbs=create;delete;list;watch;update;patch;get
+// +kubebuilder:rbac:groups="ray.io",resources=rayjobs,verbs=create;delete;list;update;watch;patch;get
+// +kubebuilder:rbac:groups="ray.io",resources=rayclusters,verbs=create;delete;list;patch;get
+
+// Dashboard
 // +kubebuilder:rbac:groups=components.opendatahub.io,resources=dashboards,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=components.opendatahub.io,resources=dashboards/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=components.opendatahub.io,resources=dashboards/finalizers,verbs=create;get;list;patch;update;use;watch

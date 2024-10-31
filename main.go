@@ -29,6 +29,7 @@ import (
 	oauthv1 "github.com/openshift/api/oauth/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
+	securityv1 "github.com/openshift/api/security/v1"
 	userv1 "github.com/openshift/api/user/v1"
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
@@ -63,6 +64,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/certconfigmapgenerator"
 	dashboardctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/dashboard"
+	rayctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/ray"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
@@ -106,6 +108,7 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(monitoringv1.AddToScheme(scheme))
 	utilruntime.Must(operatorv1.Install(scheme))
 	utilruntime.Must(consolev1.AddToScheme(scheme))
+	utilruntime.Must(securityv1.Install(scheme))
 }
 
 func initComponents(_ context.Context, p cluster.Platform) error {
@@ -391,9 +394,14 @@ func createDeploymentCacheConfig(platform cluster.Platform) map[string]cache.Con
 
 func CreateComponentReconcilers(ctx context.Context, mgr manager.Manager) error {
 	// TODO: add more here or make it go routine
-	if err := dashboardctrl.NewReconciler(ctx, mgr); err != nil {
+	if err := dashboardctrl.NewComponentReconciler(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DashboardReconciler")
 		return err
 	}
+	if err := rayctrl.NewComponentReconciler(ctx, mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "RayReconciler")
+		return err
+	}
+
 	return nil
 }

@@ -22,8 +22,9 @@ import (
 )
 
 const (
+	DashboardComponentName = "dashboard"
 	// DashboardInstanceName the name of the Dashboard instance singleton.
-	// It must match what is set in the XValidation below.
+	// value should match whats set in the XValidation below
 	DashboardInstanceName = "default-dashboard"
 	DashboardKind         = "Dashboard"
 )

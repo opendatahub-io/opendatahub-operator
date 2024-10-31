@@ -185,7 +185,7 @@ func waitDSCReady(tc *testContext) error {
 		if err != nil {
 			return false, err
 		}
-		return dsc.Status.Phase == "Ready", nil
+		return dsc.Status.Phase == readyStatus, nil
 	})
 
 	if err != nil {

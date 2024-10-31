@@ -21,26 +21,21 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
+const (
+	RayComponentName = "ray"
+	// value should match whats set in the XValidation below
+	RayInstanceName = "default-ray"
+	RayKind         = "Ray"
+)
+
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
-// RaySpec defines the desired state of Ray
-type RaySpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of Ray. Edit ray_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
-}
-
-// RayStatus defines the observed state of Ray
-type RayStatus struct {
-	components.Status `json:",inline"`
-}
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
+// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-ray'",message="Ray name must be default-ray"
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
+// +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
 
 // Ray is the Schema for the rays API
 type Ray struct {
@@ -51,16 +46,21 @@ type Ray struct {
 	Status RayStatus `json:"status,omitempty"`
 }
 
-func (c *Ray) GetDevFlags() *components.DevFlags {
-	return nil
+// RaySpec defines the desired state of Ray
+type RaySpec struct {
+	RayCommonSpec `json:",inline"`
 }
 
-func (c *Ray) GetStatus() *components.Status {
-	return &c.Status.Status
+type RayCommonSpec struct {
+	components.DevFlagsSpec `json:",inline"`
+}
+
+// RayStatus defines the observed state of Ray
+type RayStatus struct {
+	components.Status `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
-
 // RayList contains a list of Ray
 type RayList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -70,4 +70,18 @@ type RayList struct {
 
 func init() {
 	SchemeBuilder.Register(&Ray{}, &RayList{})
+}
+
+func (c *Ray) GetDevFlags() *components.DevFlags {
+	return c.Spec.DevFlags
+}
+func (c *Ray) GetStatus() *components.Status {
+	return &c.Status.Status
+}
+
+// DSCRay contains all the configuration exposed in DSC instance for Ray component
+type DSCRay struct {
+	components.ManagementSpec `json:",inline"`
+	// configuration fields common across components
+	RayCommonSpec `json:",inline"`
 }

@@ -34,7 +34,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kueue"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trainingoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
@@ -55,6 +54,7 @@ const (
 	dscCreationTimeout       = 20 * time.Second // time required to wait till DSC is created.
 	generalRetryInterval     = 10 * time.Second
 	generalWaitTimeout       = 2 * time.Minute
+	readyStatus              = "Ready"
 )
 
 func (tc *testContext) waitForOperatorDeployment(name string, replicas int32) error {
@@ -152,9 +152,9 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				Ray: ray.Ray{
-					Component: componentsold.Component{
-						ManagementState: operatorv1.Removed,
+				Ray: componentsv1.DSCRay{
+					ManagementSpec: components.ManagementSpec{
+						ManagementState: operatorv1.Managed,
 					},
 				},
 				Kueue: kueue.Kueue{
