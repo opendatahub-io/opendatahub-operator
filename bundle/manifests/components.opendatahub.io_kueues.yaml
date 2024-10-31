@@ -14,7 +14,16 @@ spec:
     singular: kueue
   scope: Cluster
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - description: Ready
+      jsonPath: .status.conditions[?(@.type=="Ready")].status
+      name: Ready
+      type: string
+    - description: Reason
+      jsonPath: .status.conditions[?(@.type=="Ready")].reason
+      name: Reason
+      type: string
+    name: v1
     schema:
       openAPIV3Schema:
         description: Kueue is the Schema for the kueues API
@@ -39,10 +48,32 @@ spec:
           spec:
             description: KueueSpec defines the desired state of Kueue
             properties:
-              foo:
-                description: Foo is an example field of Kueue. Edit kueue_types.go
-                  to remove/update
-                type: string
+              devFlags:
+                description: Add developer fields
+                properties:
+                  manifests:
+                    description: List of custom manifests for the given component
+                    items:
+                      properties:
+                        contextDir:
+                          default: manifests
+                          description: contextDir is the relative path to the folder
+                            containing manifests in a repository, default value "manifests"
+                          type: string
+                        sourcePath:
+                          default: ""
+                          description: 'sourcePath is the subpath within contextDir
+                            where kustomize builds start. Examples include any sub-folder
+                            or path: `base`, `overlays/dev`, `default`, `odh` etc.'
+                          type: string
+                        uri:
+                          default: ""
+                          description: uri is the URI point to a git repo with tag/branch.
+                            e.g.  https://github.com/org/repo/tarball/<tag/branch>
+                          type: string
+                      type: object
+                    type: array
+                type: object
             type: object
           status:
             description: KueueStatus defines the observed state of Kueue
@@ -110,6 +141,9 @@ spec:
                 type: string
             type: object
         type: object
+        x-kubernetes-validations:
+        - message: Kueue name must be default-kueue
+          rule: self.metadata.name == 'default-kueue'
     served: true
     storage: true
     subresources:

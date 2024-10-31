@@ -35,7 +35,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/kueue"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trainingoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
@@ -87,8 +86,8 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 				Ray: componentsv1.DSCRay{
 					ManagementSpec: components.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
-				Kueue: kueue.Kueue{
-					Component: componentsold.Component{ManagementState: operatorv1.Managed},
+				Kueue: componentsv1.DSCKueue{
+					ManagementSpec: components.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
 				TrustyAI: componentsv1.DSCTrustyAI{
 					ManagementSpec: components.ManagementSpec{ManagementState: operatorv1.Managed},

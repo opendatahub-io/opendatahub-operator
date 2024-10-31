@@ -54,6 +54,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	dashboardctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/dashboard"
+	kueuectrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/kueue"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 	rayctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/ray"
 	trustyaictrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/trustyai"
@@ -245,7 +246,6 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	var componentErrors *multierror.Error
 
 	// Deploy Dashboard
-
 	if instance, err = r.ReconcileComponent(ctx, instance, componentsv1.DashboardComponentName, func() (error, bool) {
 		// Get the Dashboard instance
 		dashboard := dashboardctrl.GetComponentCR(instance)
@@ -275,6 +275,14 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	if instance, err = r.ReconcileComponent(ctx, instance, componentsv1.TrustyAIComponentName, func() (error, bool) {
 		trustyai := trustyaictrl.GetComponentCR(instance)
 		return r.apply(ctx, instance, trustyai), instance.Spec.Components.TrustyAI.ManagementState == operatorv1.Managed
+	}); err != nil {
+		componentErrors = multierror.Append(componentErrors, err)
+	}
+
+	// Deploy Kueue
+	if instance, err = r.ReconcileComponent(ctx, instance, componentsv1.KueueComponentName, func() (error, bool) {
+		kueue := kueuectrl.GetComponentCR(instance)
+		return r.apply(ctx, instance, kueue), instance.Spec.Components.Kueue.ManagementState == operatorv1.Managed
 	}); err != nil {
 		componentErrors = multierror.Append(componentErrors, err)
 	}
@@ -546,6 +554,7 @@ func (r *DataScienceClusterReconciler) SetupWithManager(ctx context.Context, mgr
 		Owns(&componentsv1.Ray{}).
 		Owns(&componentsv1.ModelRegistry{}).
 		Owns(&componentsv1.TrustyAI{}).
+		Owns(&componentsv1.Kueue{}).
 		Owns(
 			&corev1.ServiceAccount{},
 			builder.WithPredicates(saPredicates),

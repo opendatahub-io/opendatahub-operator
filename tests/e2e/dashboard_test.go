@@ -121,7 +121,7 @@ func (tc *DashboardTestCtx) testOwnerReferences() error {
 	}
 
 	// Test Dashboard CR ownerref
-	if tc.testDashboardInstance.OwnerReferences[0].Kind != "DataScienceCluster" {
+	if tc.testDashboardInstance.OwnerReferences[0].Kind != dscKind {
 		return fmt.Errorf("expected ownerreference DataScienceCluster not found. Got ownereferrence: %v",
 			tc.testDashboardInstance.OwnerReferences[0].Kind)
 	}

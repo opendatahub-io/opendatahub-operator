@@ -64,6 +64,7 @@ import (
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/certconfigmapgenerator"
 	dashboardctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/dashboard"
+	kueuectrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/kueue"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 	rayctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/ray"
 	trustyaictrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/trustyai"
@@ -130,6 +131,10 @@ func initComponents(_ context.Context, p cluster.Platform) error {
 
 	if err := trustyaictrl.Init(p); err != nil {
 		return err
+	}
+
+	if err := kueuectrl.Init(p); err != nil {
+		multiErr = multierror.Append(multiErr, err)
 	}
 	return multiErr.ErrorOrNil()
 }
@@ -437,6 +442,10 @@ func CreateComponentReconcilers(ctx context.Context, mgr manager.Manager) error 
 	}
 	if err := trustyaictrl.NewComponentReconciler(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TrustyAIReconciler")
+		return err
+	}
+	if err := kueuectrl.NewComponentReconciler(ctx, mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "KueueReconciler")
 		return err
 	}
 
