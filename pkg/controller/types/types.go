@@ -34,11 +34,11 @@ type ManifestInfo struct {
 func (mi *ManifestInfo) String() string {
 	result := mi.Path
 
-	if mi.ContextDir == "" {
+	if mi.ContextDir != "" {
 		result = path.Join(result, mi.ContextDir)
 	}
 
-	if mi.SourcePath == "" {
+	if mi.SourcePath != "" {
 		result = path.Join(result, mi.SourcePath)
 	}
 
