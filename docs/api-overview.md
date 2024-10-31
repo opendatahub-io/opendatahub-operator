@@ -283,6 +283,23 @@ _Appears in:_
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
+#### DSCWorkbenches
+
+
+
+DSCWorkbenches contains all the configuration exposed in DSC instance for Workbenches component
+
+
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+
+
 #### Dashboard
 
 
@@ -1112,6 +1129,23 @@ _Appears in:_
 | `status` _[WorkbenchesStatus](#workbenchesstatus)_ |  |  |  |
 
 
+#### WorkbenchesCommonSpec
+
+
+
+
+
+
+
+_Appears in:_
+- [DSCWorkbenches](#dscworkbenches)
+- [WorkbenchesSpec](#workbenchesspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+
+
 #### WorkbenchesList
 
 
@@ -1145,7 +1179,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `foo` _string_ | Foo is an example field of Workbenches. Edit workbenches_types.go to remove/update |  |  |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
 #### WorkbenchesStatus
@@ -1183,7 +1217,6 @@ Component struct defines the basis for each OpenDataHub component configuration.
 _Appears in:_
 - [Kserve](#kserve)
 - [ModelMeshServing](#modelmeshserving)
-- [Workbenches](#workbenches)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -1232,6 +1265,7 @@ _Appears in:_
 - [DSCRay](#dscray)
 - [DSCTrainingOperator](#dsctrainingoperator)
 - [DSCTrustyAI](#dsctrustyai)
+- [DSCWorkbenches](#dscworkbenches)
 - [DashboardCommonSpec](#dashboardcommonspec)
 - [DashboardSpec](#dashboardspec)
 - [DataSciencePipelinesCommonSpec](#datasciencepipelinescommonspec)
@@ -1246,6 +1280,8 @@ _Appears in:_
 - [TrainingOperatorSpec](#trainingoperatorspec)
 - [TrustyAICommonSpec](#trustyaicommonspec)
 - [TrustyAISpec](#trustyaispec)
+- [WorkbenchesCommonSpec](#workbenchescommonspec)
+- [WorkbenchesSpec](#workbenchesspec)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -1270,6 +1306,7 @@ _Appears in:_
 - [DSCRay](#dscray)
 - [DSCTrainingOperator](#dsctrainingoperator)
 - [DSCTrustyAI](#dsctrustyai)
+- [DSCWorkbenches](#dscworkbenches)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -1448,7 +1485,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `dashboard` _[DSCDashboard](#dscdashboard)_ | Dashboard component configuration. |  |  |
-| `workbenches` _[Workbenches](#workbenches)_ | Workbenches component configuration. |  |  |
+| `workbenches` _[DSCWorkbenches](#dscworkbenches)_ | Workbenches component configuration. |  |  |
 | `modelmeshserving` _[ModelMeshServing](#modelmeshserving)_ | ModelMeshServing component configuration.<br />Does not support enabled Kserve at the same time |  |  |
 | `datasciencepipelines` _[DSCDataSciencePipelines](#dscdatasciencepipelines)_ | DataServicePipeline component configuration.<br />Require OpenShift Pipelines Operator to be installed before enable component |  |  |
 | `kserve` _[Kserve](#kserve)_ | Kserve component configuration.<br />Require OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component<br />Does not support enabled ModelMeshServing at the same time |  |  |
@@ -1605,29 +1642,6 @@ _Appears in:_
 | `managementState` _[ManagementState](#managementstate)_ |  | Managed | Enum: [Managed Unmanaged Removed] <br /> |
 | `name` _string_ | Name specifies the name of the KNativeServing resource that is going to be<br />created to instruct the KNative Operator to deploy KNative serving components.<br />This resource is created in the "knative-serving" namespace. | knative-serving |  |
 | `ingressGateway` _[GatewaySpec](#gatewayspec)_ | IngressGateway allows to customize some parameters for the Istio Ingress Gateway<br />that is bound to KNative-Serving. |  |  |
-
-
-
-## datasciencecluster.opendatahub.io/workbenches
-
-Package workbenches provides utility functions to config Workbenches to secure Jupyter Notebook in Kubernetes environments with support for OAuth
-
-
-
-#### Workbenches
-
-
-
-Workbenches struct holds the configuration for the Workbenches component.
-
-
-
-_Appears in:_
-- [Components](#components)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `Component` _[Component](#component)_ |  |  |  |
 
 
 

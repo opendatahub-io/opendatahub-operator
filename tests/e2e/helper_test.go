@@ -29,7 +29,6 @@ import (
 	componentsold "github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 )
 
@@ -119,9 +118,9 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 						ManagementState: operatorv1.Managed,
 					},
 				},
-				Workbenches: workbenches.Workbenches{
-					Component: componentsold.Component{
-						ManagementState: operatorv1.Removed,
+				Workbenches: componentsv1.DSCWorkbenches{
+					ManagementSpec: components.ManagementSpec{
+						ManagementState: operatorv1.Managed,
 					},
 				},
 				ModelMeshServing: modelmeshserving.ModelMeshServing{
