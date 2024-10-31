@@ -22,6 +22,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
+	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	odhManager "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -144,8 +145,14 @@ func (r *ComponentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			)
 
 			if err := action(actx, &rr); err != nil {
-				l.Error(err, "Failed to execute finalizer", "action", action)
-				return ctrl.Result{}, err
+				se := odherrors.StopError{}
+				if !errors.As(err, &se) {
+					l.Error(err, "Failed to execute finalizer", "action", action)
+					return ctrl.Result{}, err
+				}
+
+				l.Info("detected stop marker", "action", action)
+				break
 			}
 		}
 
@@ -162,8 +169,14 @@ func (r *ComponentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		)
 
 		if err := action(actx, &rr); err != nil {
-			l.Error(err, "Failed to execute action", "action", action)
-			return ctrl.Result{}, err
+			se := odherrors.StopError{}
+			if !errors.As(err, &se) {
+				l.Error(err, "Failed to execute action", "action", action)
+				return ctrl.Result{}, err
+			}
+
+			l.Info("detected stop marker", "action", action)
+			break
 		}
 	}
 

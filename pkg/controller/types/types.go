@@ -1,6 +1,7 @@
 package types
 
 import (
+	"fmt"
 	"path"
 
 	"github.com/go-logr/logr"
@@ -57,13 +58,39 @@ type ReconciliationRequest struct {
 	Resources []unstructured.Unstructured
 }
 
-func (rr *ReconciliationRequest) AddResource(obj interface{}) error {
-	u, err := machineryrt.DefaultUnstructuredConverter.ToUnstructured(obj)
+func (rr *ReconciliationRequest) AddResource(in interface{}) error {
+	if obj, ok := in.(client.Object); ok {
+		err := rr.normalize(obj)
+		if err != nil {
+			return fmt.Errorf("cannot normalize object: %w", err)
+		}
+	}
+
+	u, err := machineryrt.DefaultUnstructuredConverter.ToUnstructured(in)
 	if err != nil {
 		return err
 	}
 
 	rr.Resources = append(rr.Resources, unstructured.Unstructured{Object: u})
+
+	return nil
+}
+
+func (rr *ReconciliationRequest) normalize(obj client.Object) error {
+	if obj.GetObjectKind().GroupVersionKind().Kind != "" {
+		return nil
+	}
+
+	kinds, _, err := rr.Client.Scheme().ObjectKinds(obj)
+	if err != nil {
+		return fmt.Errorf("cannot get kind of resource: %w", err)
+	}
+
+	if len(kinds) != 1 {
+		return fmt.Errorf("expected to find a single GVK for %v, but got %d", obj, len(kinds))
+	}
+
+	obj.GetObjectKind().SetGroupVersionKind(kinds[0])
 
 	return nil
 }

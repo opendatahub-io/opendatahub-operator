@@ -21,26 +21,45 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+const (
+	ModelRegistryComponentName = "model-registry-operator"
+	// ModelRegistryInstanceName the name of the ModelRegistry instance singleton.
+	// value should match what's set in the XValidation below
+	ModelRegistryInstanceName = "default-model-registry"
+	ModelRegistryKind         = "ModelRegistry"
+)
+
+// ModelRegistryCommonSpec spec defines the shared desired state of ModelRegistry
+type ModelRegistryCommonSpec struct {
+	// model registry spec exposed to DSC api
+	components.DevFlagsSpec `json:",inline"`
+
+	// Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries"
+	// +kubebuilder:default="odh-model-registries"
+	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
+	// +kubebuilder:validation:MaxLength=63
+	RegistriesNamespace string `json:"registriesNamespace,omitempty"`
+}
 
 // ModelRegistrySpec defines the desired state of ModelRegistry
 type ModelRegistrySpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of ModelRegistry. Edit modelregistry_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// model registry spec exposed to DSC api
+	ModelRegistryCommonSpec `json:",inline"`
+	//  model registry spec exposed only to internal api
 }
 
 // ModelRegistryStatus defines the observed state of ModelRegistry
 type ModelRegistryStatus struct {
-	components.Status `json:",inline"`
+	components.Status      `json:",inline"`
+	DSCModelRegistryStatus `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
+// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-model-registry'",message="ModelRegistry name must be default-model-registry"
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
+// +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
 
 // ModelRegistry is the Schema for the modelregistries API
 type ModelRegistry struct {
@@ -52,7 +71,7 @@ type ModelRegistry struct {
 }
 
 func (c *ModelRegistry) GetDevFlags() *components.DevFlags {
-	return nil
+	return c.Spec.DevFlags
 }
 
 func (c *ModelRegistry) GetStatus() *components.Status {
@@ -70,4 +89,21 @@ type ModelRegistryList struct {
 
 func init() {
 	SchemeBuilder.Register(&ModelRegistry{}, &ModelRegistryList{})
+}
+
+// +kubebuilder:object:generate=true
+// +kubebuilder:validation:XValidation:rule="(self.managementState != 'Managed') || (oldSelf.registriesNamespace == '') || (oldSelf.managementState != 'Managed')|| (self.registriesNamespace == oldSelf.registriesNamespace)",message="RegistriesNamespace is immutable when model registry is Managed"
+//nolint:lll
+
+// DSCModelRegistry contains all the configuration exposed in DSC instance for ModelRegistry component
+type DSCModelRegistry struct {
+	// configuration fields common across components
+	components.ManagementSpec `json:",inline"`
+	// model registry specific field
+	ModelRegistryCommonSpec `json:",inline"`
+}
+
+// DSCModelRegistryStatus struct holds the status for the ModelRegistry component exposed in the DSC
+type DSCModelRegistryStatus struct {
+	RegistriesNamespace string `json:"registriesNamespace,omitempty"`
 }

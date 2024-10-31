@@ -1,6 +1,10 @@
 package gvk
 
-import "k8s.io/apimachinery/pkg/runtime/schema"
+import (
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+)
 
 var (
 	ClusterServiceVersion = schema.GroupVersionKind{
@@ -21,9 +25,21 @@ var (
 	}
 
 	Deployment = schema.GroupVersionKind{
-		Group:   "apps",
-		Version: "v1",
+		Group:   appsv1.SchemeGroupVersion.Group,
+		Version: appsv1.SchemeGroupVersion.Version,
 		Kind:    "Deployment",
+	}
+
+	ClusterRole = schema.GroupVersionKind{
+		Group:   "rbac.authorization.k8s.io",
+		Version: "v1",
+		Kind:    "ClusterRole",
+	}
+
+	Secret = schema.GroupVersionKind{
+		Group:   corev1.SchemeGroupVersion.Group,
+		Version: corev1.SchemeGroupVersion.Version,
+		Kind:    "Secret",
 	}
 
 	KnativeServing = schema.GroupVersionKind{
@@ -132,5 +148,11 @@ var (
 		Group:   "apiextensions.k8s.io",
 		Version: "v1",
 		Kind:    "CustomResourceDefinition",
+	}
+
+	ServiceMeshMember = schema.GroupVersionKind{
+		Group:   "maistra.io",
+		Version: "v1",
+		Kind:    "ServiceMeshMember",
 	}
 )

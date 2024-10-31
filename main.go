@@ -62,9 +62,9 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/certconfigmapgenerator"
 	dashboardctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/dashboard"
+	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 	rayctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/ray"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
@@ -121,6 +121,10 @@ func initComponents(_ context.Context, p cluster.Platform) error {
 	if err := rayctrl.Init(p); err != nil {
 		multiErr = multierror.Append(multiErr, err)
 	}
+	if err := modelregistryctrl.Init(p); err != nil {
+		return err
+	}
+
 	return multiErr.ErrorOrNil()
 }
 
@@ -397,7 +401,7 @@ func createDeploymentCacheConfig(platform cluster.Platform) map[string]cache.Con
 		namespaceConfigs["opendatahub"] = cache.Config{}
 	}
 	// for modelregistry namespace
-	namespaceConfigs[modelregistry.DefaultModelRegistriesNamespace] = cache.Config{}
+	namespaceConfigs[modelregistryctrl.DefaultModelRegistriesNamespace] = cache.Config{}
 	return namespaceConfigs
 }
 
@@ -409,6 +413,10 @@ func CreateComponentReconcilers(ctx context.Context, mgr manager.Manager) error 
 	}
 	if err := rayctrl.NewComponentReconciler(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "RayReconciler")
+		return err
+	}
+	if err := modelregistryctrl.NewComponentReconciler(ctx, mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "ModelRegistryReconciler")
 		return err
 	}
 

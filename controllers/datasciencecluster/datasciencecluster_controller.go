@@ -54,6 +54,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	dashboardctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/dashboard"
+	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 	rayctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/ray"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -257,6 +258,14 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	if instance, err = r.ReconcileComponent(ctx, instance, componentsv1.RayComponentName, func() (error, bool) {
 		ray := rayctrl.GetComponentCR(instance)
 		return r.apply(ctx, instance, ray), instance.Spec.Components.Ray.ManagementState == operatorv1.Managed
+	}); err != nil {
+		componentErrors = multierror.Append(componentErrors, err)
+	}
+
+	// Deploy Model Registry
+	if instance, err = r.ReconcileComponent(ctx, instance, componentsv1.ModelRegistryComponentName, func() (error, bool) {
+		modelregistry := modelregistryctrl.GetComponentCR(instance)
+		return r.apply(ctx, instance, modelregistry), instance.Spec.Components.ModelRegistry.ManagementState == operatorv1.Managed
 	}); err != nil {
 		componentErrors = multierror.Append(componentErrors, err)
 	}
@@ -526,6 +535,7 @@ func (r *DataScienceClusterReconciler) SetupWithManager(ctx context.Context, mgr
 		// components CRs
 		Owns(&componentsv1.Dashboard{}).
 		Owns(&componentsv1.Ray{}).
+		Owns(&componentsv1.ModelRegistry{}).
 		Owns(
 			&corev1.ServiceAccount{},
 			builder.WithPredicates(saPredicates),

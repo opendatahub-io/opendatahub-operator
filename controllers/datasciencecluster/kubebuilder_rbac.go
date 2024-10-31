@@ -142,6 +142,14 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="user.openshift.io",resources=groups,verbs=get;create;list;watch;patch;delete
 // +kubebuilder:rbac:groups="console.openshift.io",resources=consolelinks,verbs=create;get;patch;delete
 
+// ModelRegistry
+// +kubebuilder:rbac:groups=components.opendatahub.io,resources=modelregistries,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=components.opendatahub.io,resources=modelregistries/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=components.opendatahub.io,resources=modelregistries/finalizers,verbs=update
+// +kubebuilder:rbac:groups=modelregistry.opendatahub.io,resources=modelregistries,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=modelregistry.opendatahub.io,resources=modelregistries/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=modelregistry.opendatahub.io,resources=modelregistries/finalizers,verbs=update;get
+
 // TODO: Kueue
 // +kubebuilder:rbac:groups=components.opendatahub.io,resources=kueues,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=components.opendatahub.io,resources=kueues/status,verbs=get;update;patch
@@ -206,14 +214,6 @@ package datasciencecluster
 // +kubebuilder:rbac:groups=components.opendatahub.io,resources=trainingoperators,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=components.opendatahub.io,resources=trainingoperators/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=components.opendatahub.io,resources=trainingoperators/finalizers,verbs=update
-
-// TODO: MR
-// +kubebuilder:rbac:groups=components.opendatahub.io,resources=modelregistries,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=components.opendatahub.io,resources=modelregistries/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=components.opendatahub.io,resources=modelregistries/finalizers,verbs=update
-// +kubebuilder:rbac:groups=modelregistry.opendatahub.io,resources=modelregistries,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=modelregistry.opendatahub.io,resources=modelregistries/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=modelregistry.opendatahub.io,resources=modelregistries/finalizers,verbs=update;get
 
 // TODO: ModelMesh
 // +kubebuilder:rbac:groups=components.opendatahub.io,resources=modelmeshservings,verbs=get;list;watch;create;update;patch;delete

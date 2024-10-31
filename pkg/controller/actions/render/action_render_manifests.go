@@ -119,7 +119,7 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 
 	// deep copy object so changes done in the pipelines won't
 	// alter them
-	rr.Resources = result.Clone()
+	rr.Resources = append(rr.Resources, result.Clone()...)
 
 	return nil
 }

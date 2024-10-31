@@ -21,7 +21,7 @@ limitations under the License.
 package v1
 
 import (
-	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
+	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -58,7 +58,7 @@ func (in *ComponentsStatus) DeepCopyInto(out *ComponentsStatus) {
 	*out = *in
 	if in.ModelRegistry != nil {
 		in, out := &in.ModelRegistry, &out.ModelRegistry
-		*out = new(status.ModelRegistryStatus)
+		*out = new(componentsv1.DSCModelRegistryStatus)
 		**out = **in
 	}
 }

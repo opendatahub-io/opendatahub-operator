@@ -1,4 +1,3 @@
-//nolint:unused
 package e2e_test
 
 import (
@@ -33,7 +32,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kueue"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trainingoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
@@ -105,7 +103,7 @@ func setupDSCICR(name string) *dsciv1.DSCInitialization {
 					Name:              "data-science-smcp",
 					Namespace:         "istio-system",
 				},
-				ManagementState: "Removed",
+				ManagementState: "Managed",
 			},
 		},
 	}
@@ -168,9 +166,12 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				ModelRegistry: modelregistry.ModelRegistry{
-					Component: componentsold.Component{
-						ManagementState: operatorv1.Removed,
+				ModelRegistry: componentsv1.DSCModelRegistry{
+					ManagementSpec: components.ManagementSpec{
+						ManagementState: operatorv1.Managed,
+					},
+					ModelRegistryCommonSpec: componentsv1.ModelRegistryCommonSpec{
+						RegistriesNamespace: "odh-model-registries",
 					},
 				},
 				TrainingOperator: trainingoperator.TrainingOperator{
