@@ -54,6 +54,8 @@ type Kserve struct {
 	// This field is optional. If no default deployment mode is specified, Kserve will use Serverless mode.
 	// +kubebuilder:validation:Enum=Serverless;RawDeployment
 	DefaultDeploymentMode DefaultDeploymentMode `json:"defaultDeploymentMode,omitempty"`
+	// Configures and enables Nvidida's NIM integration
+	NIM components.Component `json:"nim,omitempty"`
 }
 
 func (k *Kserve) Init(ctx context.Context, _ cluster.Platform) error {
