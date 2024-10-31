@@ -532,25 +532,20 @@ func (r *DataScienceClusterReconciler) SetupWithManager(ctx context.Context, mgr
 			}),
 			builder.WithPredicates(argoWorkflowCRDPredicates),
 		).
-		Watches( // ingresscontroller
-			&networkingv1.Ingress{},
-			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {
-				return r.watchDefaultIngressSecret(ctx, a)
-			}),
-		).
 		Watches( // ingress
 			&configv1.Ingress{},
 			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {
 				return r.watchIngressResources(ctx, a)
 			}),
-			builder.WithPredicates(updatePredicates),
+			builder.WithPredicates(generalUpdatePredicates),
 		).
 		Watches(
 			&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {
 				return r.watchDefaultIngressSecret(ctx, a)
 			}),
-			builder.WithPredicates(defaultIngressCertSecretPredicates)).
+			builder.WithPredicates(defaultIngressCertSecretPredicates),
+		).
 		// this predicates prevents meaningless reconciliations from being triggered
 		WithEventFilter(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{})).
 		Complete(r)
@@ -659,7 +654,7 @@ func (r *DataScienceClusterReconciler) watchIngressResources(ctx context.Context
 	}}
 }
 
-var updatePredicates = predicate.Funcs{
+var generalUpdatePredicates = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
 		return true
 	},
