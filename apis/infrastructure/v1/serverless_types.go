@@ -19,10 +19,3 @@ type ServingSpec struct {
 	// that is bound to KNative-Serving.
 	IngressGateway GatewaySpec `json:"ingressGateway,omitempty"`
 }
-
-// nimSpec enables Nvidida's NIM integration
-type NimSpec struct {
-	// +kubebuilder:validation:Enum=Managed;Removed
-	// +kubebuilder:default=Managed
-	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
-}
