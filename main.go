@@ -21,6 +21,7 @@ import (
 	"flag"
 	"os"
 
+	"github.com/hashicorp/go-multierror"
 	addonv1alpha1 "github.com/openshift/addon-operator/apis/addons/v1alpha1"
 	ocappsv1 "github.com/openshift/api/apps/v1" //nolint:importas //reason: conflicts with appsv1 "k8s.io/api/apps/v1"
 	buildv1 "github.com/openshift/api/build/v1"
@@ -112,7 +113,15 @@ func init() { //nolint:gochecknoinits
 }
 
 func initComponents(_ context.Context, p cluster.Platform) error {
-	return dashboardctrl.Init(p)
+	var multiErr *multierror.Error
+
+	if err := dashboardctrl.Init(p); err != nil {
+		multiErr = multierror.Append(multiErr, err)
+	}
+	if err := rayctrl.Init(p); err != nil {
+		multiErr = multierror.Append(multiErr, err)
+	}
+	return multiErr.ErrorOrNil()
 }
 
 func main() { //nolint:funlen,maintidx
