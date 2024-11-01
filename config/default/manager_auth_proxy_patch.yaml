@@ -3,13 +3,13 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: controller-manager
+  name: rhods-operator
   namespace: system
 spec:
   template:
     spec:
       containers:
-      - name: manager
+      - name: rhods-operator
         args:
         - "--health-probe-bind-address=:8081"
         - "--metrics-bind-address=0.0.0.0:8080"

@@ -103,7 +103,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: REPLACE_IMAGE:latest
-    createdAt: "2024-10-28T09:05:34Z"
+    createdAt: "2024-11-01T16:20:53Z"
     description: Operator for deployment and management of Red Hat OpenShift AI
     features.operators.openshift.io/disconnected: "true"
     features.operators.openshift.io/fips-compliant: "false"
@@ -1137,20 +1137,20 @@ spec:
         serviceAccountName: redhat-ods-operator-controller-manager
       deployments:
       - label:
-          control-plane: controller-manager
-        name: redhat-ods-operator-controller-manager
+          name: rhods-operator
+        name: rhods-operator
         spec:
           replicas: 1
           selector:
             matchLabels:
-              control-plane: controller-manager
+              name: rhods-operator
           strategy: {}
           template:
             metadata:
               annotations:
-                kubectl.kubernetes.io/default-container: manager
+                kubectl.kubernetes.io/default-container: rhods-operator
               labels:
-                control-plane: controller-manager
+                name: rhods-operator
             spec:
               containers:
               - args:
@@ -1162,13 +1162,15 @@ spec:
                 env:
                 - name: DISABLE_DSC_CONFIG
                   value: "false"
+                - name: OPERATOR_NAME
+                  value: rhods-operator
                 - name: OPERATOR_NAMESPACE
                   valueFrom:
                     fieldRef:
                       fieldPath: metadata.namespace
                 - name: DEFAULT_MANIFESTS_PATH
                   value: /opt/manifests
-                image: quay.io/wenzhou/rhods-operator:2.16.0
+                image: REPLACE_IMAGE:latest
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:
@@ -1176,10 +1178,13 @@ spec:
                     port: 8081
                   initialDelaySeconds: 15
                   periodSeconds: 20
-                name: manager
+                name: rhods-operator
                 ports:
                 - containerPort: 9443
                   name: webhook-server
+                  protocol: TCP
+                - containerPort: 8080
+                  name: http
                   protocol: TCP
                 readinessProbe:
                   httpGet:
@@ -1263,7 +1268,7 @@ spec:
   - admissionReviewVersions:
     - v1
     containerPort: 443
-    deploymentName: redhat-ods-operator-controller-manager
+    deploymentName: rhods-operator
     failurePolicy: Fail
     generateName: mutate.operator.opendatahub.io
     rules:
@@ -1283,7 +1288,7 @@ spec:
   - admissionReviewVersions:
     - v1
     containerPort: 443
-    deploymentName: redhat-ods-operator-controller-manager
+    deploymentName: rhods-operator
     failurePolicy: Fail
     generateName: operator.opendatahub.io
     rules:
