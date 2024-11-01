@@ -85,7 +85,6 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 		"odh-modelmesh-runtime-adapter": "RELATED_IMAGE_ODH_MODELMESH_RUNTIME_ADAPTER_IMAGE",
 		"odh-modelmesh":                 "RELATED_IMAGE_ODH_MODELMESH_IMAGE",
 		"odh-modelmesh-controller":      "RELATED_IMAGE_ODH_MODELMESH_CONTROLLER_IMAGE",
-		"odh-model-controller":          "RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
 	}
 
 	// odh-model-controller to use
