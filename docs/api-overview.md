@@ -537,7 +537,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ |  | Managed | Enum: [Managed Removed] <br /> |
+| `managementState` _[ManagementState](#managementstate)_ |  | Removed | Enum: [Managed Removed] <br /> |
 
 
 #### ServiceMeshSpec

@@ -249,7 +249,7 @@ spec:
                         description: Configures and enables Nvidida's NIM integration
                         properties:
                           managementState:
-                            default: Managed
+                            default: Removed
                             enum:
                             - Managed
                             - Removed
