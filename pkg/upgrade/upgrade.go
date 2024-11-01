@@ -96,7 +96,7 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 					Component: components.Component{ManagementState: operatorv1.Removed},
 				},
 				TrustyAI: trustyai.TrustyAI{
-					Component: components.Component{ManagementState: operatorv1.Removed},
+					Component: components.Component{ManagementState: operatorv1.Managed},
 				},
 				ModelRegistry: modelregistry.ModelRegistry{
 					Component: components.Component{ManagementState: operatorv1.Removed},

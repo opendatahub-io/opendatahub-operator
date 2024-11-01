@@ -72,7 +72,7 @@ To deploy ODH components seamlessly, ODH operator will watch two CRDs:
           trainingoperator:
             managementState: Removed
           trustyai:
-            managementState: Removed
+            managementState: Managed
           workbenches:
             managementState: Managed
     ```
