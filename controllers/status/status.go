@@ -218,9 +218,9 @@ func RemoveComponentCondition(conditions *[]conditionsv1.Condition, component st
 
 // +k8s:deepcopy-gen=true
 type ComponentReleaseStatus struct {
-	DisplayName string                  `json:"displayname,omitempty"`
-	Version     version.OperatorVersion `json:"version,omitempty"`
-	RepoURL     string                  `json:"repourl,omitempty"`
+	Name    string                  `json:"name,omitempty"`
+	Version version.OperatorVersion `json:"version,omitempty"`
+	RepoURL string                  `json:"repoURL,omitempty"`
 }
 
 // +k8s:deepcopy-gen=true
@@ -306,12 +306,12 @@ type ReleaseFileMeta struct {
 
 // +k8s:deepcopy-gen=true
 type ComponentReleaseStatusMeta struct {
-	DisplayName string `yaml:"displayname,omitempty"`
-	Version     string `yaml:"version,omitempty"`
-	RepoURL     string `yaml:"repourl,omitempty"`
+	Name    string `yaml:"name,omitempty"`
+	Version string `yaml:"version,omitempty"`
+	RepoURL string `yaml:"repoURL,omitempty"`
 }
 
-// GetReleaseVersion read .env file and parse env variables delimiter by "=".
+// GetReleaseVersion reads odh_metadata.yaml file and parses release information.
 // If version is not set or set to "", return empty {}.
 func GetReleaseVersion(defaultManifestPath string, componentName string) ComponentStatus {
 	var componentVersion semver.Version
@@ -319,7 +319,7 @@ func GetReleaseVersion(defaultManifestPath string, componentName string) Compone
 	var releaseStatus ComponentReleaseStatus
 	componentReleaseStatus := make([]ComponentReleaseStatus, 0)
 
-	yamlData, err := os.ReadFile(filepath.Join(defaultManifestPath, componentName, "releases.yaml"))
+	yamlData, err := os.ReadFile(filepath.Join(defaultManifestPath, componentName, "odh_metadata.yaml"))
 	if err != nil {
 		return ComponentStatus{}
 	}
@@ -337,9 +337,9 @@ func GetReleaseVersion(defaultManifestPath string, componentName string) Compone
 		}
 
 		releaseStatus = ComponentReleaseStatus{
-			DisplayName: release.DisplayName,
-			Version:     version.OperatorVersion{Version: componentVersion},
-			RepoURL:     release.RepoURL,
+			Name:    release.Name,
+			Version: version.OperatorVersion{Version: componentVersion},
+			RepoURL: release.RepoURL,
 		}
 		componentReleaseStatus = append(componentReleaseStatus, releaseStatus)
 	}

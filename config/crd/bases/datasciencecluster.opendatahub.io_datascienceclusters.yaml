@@ -655,9 +655,9 @@ spec:
                       releases:
                         items:
                           properties:
-                            displayname:
+                            name:
                               type: string
-                            repourl:
+                            repoURL:
                               type: string
                             version:
                               type: string
@@ -669,9 +669,9 @@ spec:
                       releases:
                         items:
                           properties:
-                            displayname:
+                            name:
                               type: string
-                            repourl:
+                            repoURL:
                               type: string
                             version:
                               type: string
@@ -683,9 +683,9 @@ spec:
                       releases:
                         items:
                           properties:
-                            displayname:
+                            name:
                               type: string
-                            repourl:
+                            repoURL:
                               type: string
                             version:
                               type: string
@@ -697,9 +697,9 @@ spec:
                       releases:
                         items:
                           properties:
-                            displayname:
+                            name:
                               type: string
-                            repourl:
+                            repoURL:
                               type: string
                             version:
                               type: string
@@ -711,9 +711,9 @@ spec:
                       releases:
                         items:
                           properties:
-                            displayname:
+                            name:
                               type: string
-                            repourl:
+                            repoURL:
                               type: string
                             version:
                               type: string
@@ -725,9 +725,9 @@ spec:
                       releases:
                         items:
                           properties:
-                            displayname:
+                            name:
                               type: string
-                            repourl:
+                            repoURL:
                               type: string
                             version:
                               type: string
@@ -741,9 +741,9 @@ spec:
                       releases:
                         items:
                           properties:
-                            displayname:
+                            name:
                               type: string
-                            repourl:
+                            repoURL:
                               type: string
                             version:
                               type: string
@@ -755,9 +755,9 @@ spec:
                       releases:
                         items:
                           properties:
-                            displayname:
+                            name:
                               type: string
-                            repourl:
+                            repoURL:
                               type: string
                             version:
                               type: string
@@ -769,9 +769,9 @@ spec:
                       releases:
                         items:
                           properties:
-                            displayname:
+                            name:
                               type: string
-                            repourl:
+                            repoURL:
                               type: string
                             version:
                               type: string
@@ -783,9 +783,9 @@ spec:
                       releases:
                         items:
                           properties:
-                            displayname:
+                            name:
                               type: string
-                            repourl:
+                            repoURL:
                               type: string
                             version:
                               type: string
@@ -797,9 +797,9 @@ spec:
                       releases:
                         items:
                           properties:
-                            displayname:
+                            name:
                               type: string
-                            repourl:
+                            repoURL:
                               type: string
                             version:
                               type: string

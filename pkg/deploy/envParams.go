@@ -5,9 +5,31 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
+	"strings"
 )
+
+func parseParams(fileName string) (map[string]string, error) {
+	paramsEnv, err := os.Open(fileName)
+	if err != nil {
+		return nil, err
+	}
+	defer paramsEnv.Close()
+
+	paramsEnvMap := make(map[string]string)
+	scanner := bufio.NewScanner(paramsEnv)
+	for scanner.Scan() {
+		line := scanner.Text()
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			paramsEnvMap[parts[0]] = parts[1]
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return paramsEnvMap, nil
+}
 
 func writeParamsToTmp(params map[string]string, tmpDir string) (string, error) {
 	tmp, err := os.CreateTemp(tmpDir, "params.env-")
@@ -54,7 +76,7 @@ func ApplyParams(componentPath string, imageParamsMap map[string]string, extraPa
 	paramsFile := filepath.Join(componentPath, "params.env")
 	// Require params.env at the root folder
 
-	paramsEnvMap, err := common.ParseParams(paramsFile)
+	paramsEnvMap, err := parseParams(paramsFile)
 	if err != nil {
 		if os.IsNotExist(err) {
 			// params.env doesn't exist, do not apply any changes
