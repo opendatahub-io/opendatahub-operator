@@ -55,7 +55,6 @@ type Components struct {
 	Workbenches workbenches.Workbenches `json:"workbenches,omitempty"`
 
 	// ModelMeshServing component configuration.
-	// Does not support enabled Kserve at the same time
 	ModelMeshServing modelmeshserving.ModelMeshServing `json:"modelmeshserving,omitempty"`
 
 	// DataServicePipeline component configuration.
