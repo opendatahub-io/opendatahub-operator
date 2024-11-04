@@ -33,16 +33,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/updatestatus"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
-	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
-)
-
-const (
-	ComponentName = componentsv1.RayComponentName
-)
-
-var (
-	DefaultPath = odhdeploy.DefaultManifestPath + "/" + ComponentName + "/openshift"
 )
 
 func NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {

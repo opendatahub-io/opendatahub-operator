@@ -372,12 +372,6 @@ rules:
   - update
   - watch
 - apiGroups:
-  - custom.tekton.dev
-  resources:
-  - pipelineloops
-  verbs:
-  - '*'
-- apiGroups:
   - dashboard.opendatahub.io
   resources:
   - acceleratorprofiles
@@ -904,12 +898,6 @@ rules:
   - delete
   - get
   - patch
-- apiGroups:
-  - tekton.dev
-  resources:
-  - '*'
-  verbs:
-  - '*'
 - apiGroups:
   - template.openshift.io
   resources:
