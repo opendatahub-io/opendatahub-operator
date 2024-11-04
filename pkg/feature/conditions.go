@@ -64,16 +64,15 @@ func WaitForPodsToBeReady(namespace string) Action {
 				return false, err
 			}
 
-			pods := podList.DeepCopy()
-			pods.Items = filterEvictedPods(podList.Items)
+			podList.Items = filterEvictedPods(podList.Items)
 			readyPods := 0
-			totalPods := len(pods.Items)
+			totalPods := len(podList.Items)
 
 			if totalPods == 0 { // We want to wait for "something", so make sure we have "something" before we claim success.
 				return false, nil
 			}
 
-			for _, pod := range pods.Items {
+			for _, pod := range podList.Items {
 				podReady := true
 				// Consider a "PodSucceeded" as ready, since these will never will
 				// be in Ready condition (i.e. Jobs that already completed).
