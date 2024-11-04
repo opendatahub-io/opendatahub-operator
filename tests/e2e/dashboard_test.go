@@ -127,7 +127,6 @@ func (tc *DashboardTestCtx) testOwnerReferences() error {
 	}
 
 	// Test Dashboard resources
-
 	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
 		LabelSelector: labels.ODH.Component("dashboard"),
 	})

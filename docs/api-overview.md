@@ -129,6 +129,23 @@ _Appears in:_
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
+#### DSCDataSciencePipelines
+
+
+
+DSCDataSciencePipelines contains all the configuration exposed in DSC instance for DataSciencePipelines component
+
+
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+
+
 #### DSCKueue
 
 
@@ -348,6 +365,23 @@ _Appears in:_
 | `status` _[DataSciencePipelinesStatus](#datasciencepipelinesstatus)_ |  |  |  |
 
 
+#### DataSciencePipelinesCommonSpec
+
+
+
+
+
+
+
+_Appears in:_
+- [DSCDataSciencePipelines](#dscdatasciencepipelines)
+- [DataSciencePipelinesSpec](#datasciencepipelinesspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+
+
 #### DataSciencePipelinesList
 
 
@@ -381,7 +415,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `foo` _string_ | Foo is an example field of DataSciencePipelines. Edit datasciencepipelines_types.go to remove/update |  |  |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
 #### DataSciencePipelinesStatus
@@ -1138,7 +1172,6 @@ Component struct defines the basis for each OpenDataHub component configuration.
 
 _Appears in:_
 - [CodeFlare](#codeflare)
-- [DataSciencePipelines](#datasciencepipelines)
 - [Kserve](#kserve)
 - [ModelMeshServing](#modelmeshserving)
 - [Workbenches](#workbenches)
@@ -1181,6 +1214,7 @@ DevFlagsSpec struct defines the component's dev flags configuration.
 _Appears in:_
 - [Component](#component)
 - [DSCDashboard](#dscdashboard)
+- [DSCDataSciencePipelines](#dscdatasciencepipelines)
 - [DSCKueue](#dsckueue)
 - [DSCModelRegistry](#dscmodelregistry)
 - [DSCRay](#dscray)
@@ -1188,6 +1222,8 @@ _Appears in:_
 - [DSCTrustyAI](#dsctrustyai)
 - [DashboardCommonSpec](#dashboardcommonspec)
 - [DashboardSpec](#dashboardspec)
+- [DataSciencePipelinesCommonSpec](#datasciencepipelinescommonspec)
+- [DataSciencePipelinesSpec](#datasciencepipelinesspec)
 - [KueueCommonSpec](#kueuecommonspec)
 - [KueueSpec](#kueuespec)
 - [ModelRegistryCommonSpec](#modelregistrycommonspec)
@@ -1215,6 +1251,7 @@ ManagementSpec struct defines the component's management configuration.
 _Appears in:_
 - [Component](#component)
 - [DSCDashboard](#dscdashboard)
+- [DSCDataSciencePipelines](#dscdatasciencepipelines)
 - [DSCKueue](#dsckueue)
 - [DSCModelRegistry](#dscmodelregistry)
 - [DSCRay](#dscray)
@@ -1258,30 +1295,6 @@ _Appears in:_
 
 
 
-
-
-
-## datasciencecluster.opendatahub.io/datasciencepipelines
-
-Package datasciencepipelines provides utility functions to config Data Science Pipelines:
-Pipeline solution for end to end MLOps workflows that support the Kubeflow Pipelines SDK, Tekton and Argo Workflows.
-
-
-
-#### DataSciencePipelines
-
-
-
-DataSciencePipelines struct holds the configuration for the DataSciencePipelines component.
-
-
-
-_Appears in:_
-- [Components](#components)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `Component` _[Component](#component)_ |  |  |  |
 
 
 
@@ -1424,7 +1437,7 @@ _Appears in:_
 | `dashboard` _[DSCDashboard](#dscdashboard)_ | Dashboard component configuration. |  |  |
 | `workbenches` _[Workbenches](#workbenches)_ | Workbenches component configuration. |  |  |
 | `modelmeshserving` _[ModelMeshServing](#modelmeshserving)_ | ModelMeshServing component configuration.<br />Does not support enabled Kserve at the same time |  |  |
-| `datasciencepipelines` _[DataSciencePipelines](#datasciencepipelines)_ | DataServicePipeline component configuration.<br />Require OpenShift Pipelines Operator to be installed before enable component |  |  |
+| `datasciencepipelines` _[DSCDataSciencePipelines](#dscdatasciencepipelines)_ | DataServicePipeline component configuration.<br />Require OpenShift Pipelines Operator to be installed before enable component |  |  |
 | `kserve` _[Kserve](#kserve)_ | Kserve component configuration.<br />Require OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component<br />Does not support enabled ModelMeshServing at the same time |  |  |
 | `kueue` _[DSCKueue](#dsckueue)_ | Kueue component configuration. |  |  |
 | `codeflare` _[CodeFlare](#codeflare)_ | CodeFlare component configuration.<br />If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabled component. |  |  |

@@ -40,10 +40,32 @@ spec:
           spec:
             description: DataSciencePipelinesSpec defines the desired state of DataSciencePipelines
             properties:
-              foo:
-                description: Foo is an example field of DataSciencePipelines. Edit
-                  datasciencepipelines_types.go to remove/update
-                type: string
+              devFlags:
+                description: Add developer fields
+                properties:
+                  manifests:
+                    description: List of custom manifests for the given component
+                    items:
+                      properties:
+                        contextDir:
+                          default: manifests
+                          description: contextDir is the relative path to the folder
+                            containing manifests in a repository, default value "manifests"
+                          type: string
+                        sourcePath:
+                          default: ""
+                          description: 'sourcePath is the subpath within contextDir
+                            where kustomize builds start. Examples include any sub-folder
+                            or path: `base`, `overlays/dev`, `default`, `odh` etc.'
+                          type: string
+                        uri:
+                          default: ""
+                          description: uri is the URI point to a git repo with tag/branch.
+                            e.g.  https://github.com/org/repo/tarball/<tag/branch>
+                          type: string
+                      type: object
+                    type: array
+                type: object
             type: object
           status:
             description: DataSciencePipelinesStatus defines the observed state of
@@ -112,6 +134,9 @@ spec:
                 type: string
             type: object
         type: object
+        x-kubernetes-validations:
+        - message: DataSciencePipelines name must be default-datasciencepipelines
+          rule: self.metadata.name == 'default-datasciencepipelines'
     served: true
     storage: true
     subresources:

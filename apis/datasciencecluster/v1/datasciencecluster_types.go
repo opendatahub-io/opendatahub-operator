@@ -27,7 +27,6 @@ import (
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
@@ -54,7 +53,7 @@ type Components struct {
 
 	// DataServicePipeline component configuration.
 	// Require OpenShift Pipelines Operator to be installed before enable component
-	DataSciencePipelines datasciencepipelines.DataSciencePipelines `json:"datasciencepipelines,omitempty"`
+	DataSciencePipelines componentsv1.DSCDataSciencePipelines `json:"datasciencepipelines,omitempty"`
 
 	// Kserve component configuration.
 	// Require OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component

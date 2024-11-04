@@ -94,6 +94,12 @@ const (
 	ServiceMeshNotConfiguredMessage = "ServiceMesh needs to be set to 'Managed' in DSCI CR"
 )
 
+const (
+	DataSciencePipelinesDoesntOwnArgoCRDReason  = "DataSciencePipelinesDoesntOwnArgoCRD"
+	DataSciencePipelinesDoesntOwnArgoCRDMessage = "Failed upgrade: workflows.argoproj.io CRD already exists but not deployed by this operator " +
+		"remove existing Argo workflows or set `spec.components.datasciencepipelines.managementState` to Removed to proceed"
+)
+
 // SetProgressingCondition sets the ProgressingCondition to True and other conditions to false or
 // Unknown. Used when we are just starting to reconcile, and there are no existing conditions.
 func SetProgressingCondition(conditions *[]conditionsv1.Condition, reason string, message string) {

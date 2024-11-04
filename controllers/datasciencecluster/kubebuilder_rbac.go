@@ -203,7 +203,7 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="build.openshift.io",resources=buildconfigs/instantiate,verbs=create;patch;delete;get;list;watch
 // +kubebuilder:rbac:groups="build.openshift.io",resources=buildconfigs,verbs=list;watch;create;patch;delete;get
 
-// TODO: DSP
+// DataSciencePipelines
 // +kubebuilder:rbac:groups=components.opendatahub.io,resources=datasciencepipelines,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=components.opendatahub.io,resources=datasciencepipelines/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=components.opendatahub.io,resources=datasciencepipelines/finalizers,verbs=update
