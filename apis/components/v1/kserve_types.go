@@ -17,20 +17,50 @@ limitations under the License.
 package v1
 
 import (
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
+const (
+	KserveComponentName          = "kserve"
+	ModelControllerComponentName = "odh-model-controller" // shared by kserve and mm
+	// value should match what's set in the XValidation below
+	KserveInstanceName = "default-kserve"
+	KserveKind         = "Kserve"
+)
+
+// +kubebuilder:validation:Pattern=`^(Serverless|RawDeployment)$`
+type DefaultDeploymentMode string
+
+const (
+	// Serverless will be used as the default deployment mode for Kserve. This requires Serverless and ServiceMesh operators configured as dependencies.
+	Serverless DefaultDeploymentMode = "Serverless"
+	// RawDeployment will be used as the default deployment mode for Kserve.
+	RawDeployment DefaultDeploymentMode = "RawDeployment"
+)
+
+// KserveCommonSpec spec defines the shared desired state of Kserve
+type KserveCommonSpec struct {
+	components.DevFlagsSpec `json:",inline"`
+	// Serving configures the KNative-Serving stack used for model serving. A Service
+	// Mesh (Istio) is prerequisite, since it is used as networking layer.
+	Serving infrav1.ServingSpec `json:"serving,omitempty"`
+	// Configures the default deployment mode for Kserve. This can be set to 'Serverless' or 'RawDeployment'.
+	// The value specified in this field will be used to set the default deployment mode in the 'inferenceservice-config' configmap for Kserve.
+	// This field is optional. If no default deployment mode is specified, Kserve will use Serverless mode.
+	// +kubebuilder:validation:Enum=Serverless;RawDeployment
+	DefaultDeploymentMode DefaultDeploymentMode `json:"defaultDeploymentMode,omitempty"`
+}
+
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // KserveSpec defines the desired state of Kserve
 type KserveSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of Kserve. Edit kserve_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// kserve spec exposed to DSC api
+	KserveCommonSpec `json:",inline"`
+	// kserve spec exposed only to internal api
 }
 
 // KserveStatus defines the observed state of Kserve
@@ -41,6 +71,9 @@ type KserveStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
+// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-kserve'",message="Kserve name must be default-kserve"
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
+// +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
 
 // Kserve is the Schema for the kserves API
 type Kserve struct {
@@ -52,7 +85,7 @@ type Kserve struct {
 }
 
 func (c *Kserve) GetDevFlags() *components.DevFlags {
-	return nil
+	return c.Spec.DevFlags
 }
 
 func (c *Kserve) GetStatus() *components.Status {
@@ -70,4 +103,12 @@ type KserveList struct {
 
 func init() {
 	SchemeBuilder.Register(&Kserve{}, &KserveList{})
+}
+
+// DSCKserve contains all the configuration exposed in DSC instance for Kserve component
+type DSCKserve struct {
+	// configuration fields common across components
+	components.ManagementSpec `json:",inline"`
+	// Kserve specific fields
+	KserveCommonSpec `json:",inline"`
 }

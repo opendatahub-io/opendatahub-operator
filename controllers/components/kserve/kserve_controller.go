@@ -19,40 +19,128 @@ package kserve
 import (
 	"context"
 
-	"k8s.io/apimachinery/pkg/runtime"
+	templatev1 "github.com/openshift/api/template/v1"
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/security"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/updatestatus"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/clusterrole"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/hash"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
-// KserveReconciler reconciles a Kserve object.
-type KserveReconciler struct {
-	client.Client
-	Scheme *runtime.Scheme
-}
+// NewComponentReconciler creates a ComponentReconciler for the Dashboard API.
+func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
+	ownedViaFTMapFunc := ownedViaFT(mgr.GetClient())
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the Kserve object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.2/pkg/reconcile
-func (r *KserveReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	_, err := reconciler.ComponentReconcilerFor(mgr, &componentsv1.Kserve{}).
+		// operands - owned
+		Owns(&corev1.Secret{}).
+		Owns(&corev1.Service{}).
+		Owns(&corev1.ConfigMap{}).
+		Owns(&corev1.ServiceAccount{}).
+		Owns(&rbacv1.Role{}).
+		Owns(&rbacv1.RoleBinding{}).
+		Owns(&rbacv1.ClusterRole{}, reconciler.WithPredicates(clusterrole.IgnoreIfAggregationRule())).
+		Owns(&rbacv1.ClusterRoleBinding{}).
+		// The ovms template gets a new resourceVersion periodically without any other
+		// changes. The compareHashPredicate ensures that we don't needlessly enqueue
+		// requests if there are no changes that we don't care about.
+		Owns(&templatev1.Template{}, reconciler.WithPredicates(hash.Updated())).
+		Owns(&featuresv1.FeatureTracker{}).
+		Owns(&networkingv1.NetworkPolicy{}).
+		Owns(&monitoringv1.ServiceMonitor{}).
+		Owns(&admissionregistrationv1.MutatingWebhookConfiguration{}).
+		Owns(&admissionregistrationv1.ValidatingWebhookConfiguration{}).
+		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(resources.NewDeploymentPredicate())).
+		// operands - watched
+		//
+		// By default the Watches functions adds:
+		// - an event handler mapping to a cluster scope resource identified by the
+		//   components.opendatahub.io/managed-by annotation
+		// - a predicate that check for generation change for Delete/Updates events
+		//   for to objects that have the label components.opendatahub.io/managed-by
+		//   set to the current owner
+		//
+		Watches(&extv1.CustomResourceDefinition{}).
 
-	// TODO(user): your logic here
+		// operands - dynamically watched
+		//
+		// A watch will be created dynamically for these kinds, if they exist on the cluster
+		// (they come from ServiceMesh and Serverless operators).
+		//
+		// They're owned by FeatureTrackers, which are owned by a Kserve; so there's a
+		// custom event mapper to enqueue a reconcile request for a Kserve object, if
+		// applicable.
+		WatchesGVK(
+			gvk.KnativeServing,
+			reconciler.Dynamic(),
+			reconciler.WithEventMapper(ownedViaFTMapFunc),
+			reconciler.WithPredicates(reconciler.DefaultPredicate)).
+		WatchesGVK(
+			gvk.ServiceMeshMember,
+			reconciler.Dynamic(),
+			reconciler.WithEventMapper(ownedViaFTMapFunc),
+			reconciler.WithPredicates(reconciler.DefaultPredicate)).
+		WatchesGVK(
+			gvk.EnvoyFilter,
+			reconciler.Dynamic(),
+			reconciler.WithEventMapper(ownedViaFTMapFunc),
+			reconciler.WithPredicates(reconciler.DefaultPredicate)).
+		WatchesGVK(
+			gvk.AuthorizationPolicy,
+			reconciler.Dynamic(),
+			reconciler.WithEventMapper(ownedViaFTMapFunc),
+			reconciler.WithPredicates(reconciler.DefaultPredicate)).
+		WatchesGVK(
+			gvk.Gateway,
+			reconciler.Dynamic(),
+			reconciler.WithEventMapper(ownedViaFTMapFunc),
+			reconciler.WithPredicates(reconciler.DefaultPredicate)).
 
-	return ctrl.Result{}, nil
-}
+		// actions
+		WithAction(checkPreConditions).
+		WithAction(initialize).
+		WithAction(devFlags).
+		WithAction(configureServerless).
+		WithAction(configureServiceMesh).
+		WithAction(kustomize.NewAction(
+			kustomize.WithCache(),
+			// These are the default labels added by the legacy deploy method
+			// and should be preserved as the original plugin were affecting
+			// deployment selectors that are immutable once created, so it won't
+			// be possible to actually amend the labels in a non-disruptive
+			// manner.
+			//
+			// Additional labels/annotations MUST be added by the deploy action
+			// so they would affect only objects metadata without side effects
+			kustomize.WithLabel(labels.ODH.Component(componentName), "true"),
+			kustomize.WithLabel(labels.K8SCommon.PartOf, componentName),
+		)).
+		WithAction(customizeKserveConfigMap).
+		WithAction(deploy.NewAction(
+			deploy.WithCache(),
+		)).
+		WithAction(security.NewUpdatePodSecurityRoleBindingAction(serviceAccounts)).
+		WithAction(updatestatus.NewAction()).
+		// must be the final action
+		WithAction(gc.NewAction()).
+		Build(ctx)
 
-// SetupWithManager sets up the controller with the Manager.
-func (r *KserveReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&componentsv1.Kserve{}).
-		Complete(r)
+	return err
 }

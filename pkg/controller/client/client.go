@@ -72,7 +72,7 @@ func (c *Client) Apply(ctx context.Context, in ctrlCli.Object, opts ...ctrlCli.P
 
 	err = c.Client.Patch(ctx, u, ctrlCli.Apply, opts...)
 	if err != nil {
-		return fmt.Errorf("unable to pactch object %s: %w", u, err)
+		return fmt.Errorf("unable to patch object %s: %w", u, err)
 	}
 
 	// Write back the modified object so callers can access the patched object.

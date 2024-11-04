@@ -48,6 +48,7 @@ var (
 		"datasciencepipelienes": dataSciencePipelinesTestSuite,
 		"codeflare":             codeflareTestSuite,
 		"workbenches":           workbenchesTestSuite,
+		"kserve":                kserveTestSuite,
 	}
 )
 
