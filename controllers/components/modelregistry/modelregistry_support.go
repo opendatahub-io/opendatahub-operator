@@ -45,7 +45,7 @@ var (
 //go:embed resources/servicemesh-member.tmpl.yaml
 var smmTemplate string
 
-func baseManifestInfo(_ cluster.Platform, sourcePath string) odhtypes.ManifestInfo {
+func baseManifestInfo(sourcePath string) odhtypes.ManifestInfo {
 	return odhtypes.ManifestInfo{
 		Path:       deploy.DefaultManifestPath,
 		ContextDir: ComponentName,
@@ -53,7 +53,7 @@ func baseManifestInfo(_ cluster.Platform, sourcePath string) odhtypes.ManifestIn
 	}
 }
 
-func extraManifestInfo(_ cluster.Platform, sourcePath string) odhtypes.ManifestInfo {
+func extraManifestInfo(sourcePath string) odhtypes.ManifestInfo {
 	return odhtypes.ManifestInfo{
 		Path:       deploy.DefaultManifestPath,
 		ContextDir: ComponentName,

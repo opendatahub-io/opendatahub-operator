@@ -13,8 +13,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
-func Init(platform cluster.Platform) error {
-	mi := baseManifestInfo(platform, BaseManifestsSourcePath)
+func Init(_ cluster.Platform) error {
+	mi := baseManifestInfo(BaseManifestsSourcePath)
 
 	params := make(map[string]string)
 	for k, v := range imagesMap {

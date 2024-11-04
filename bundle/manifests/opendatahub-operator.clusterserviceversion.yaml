@@ -1210,7 +1210,7 @@ spec:
                   value: /opt/manifests
                 - name: ODH_PLATFORM_TYPE
                   value: OpenDataHub
-                image: ttl.sh/882e644b-532e-4feb-95d4-2bd23fb2e6df:2h
+                image: REPLACE_IMAGE:latest
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:

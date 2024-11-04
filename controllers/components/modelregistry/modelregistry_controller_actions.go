@@ -29,7 +29,7 @@ const (
 )
 
 func gate(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
-	obj, ok := rr.Instance.(odhtypes.ResourceObject)
+	mr, ok := rr.Instance.(*componentsv1.ModelRegistry)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a ResourceObject", rr.Instance)
 	}
@@ -38,7 +38,7 @@ func gate(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 		return nil
 	}
 
-	s := obj.GetStatus()
+	s := mr.GetStatus()
 	s.Phase = "NotReady"
 
 	meta.SetStatusCondition(&s.Conditions, metav1.Condition{
@@ -53,17 +53,17 @@ func gate(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 }
 
 func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	c, ok := rr.Instance.(*componentsv1.ModelRegistry)
+	mr, ok := rr.Instance.(*componentsv1.ModelRegistry)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentsv1.ModelRegistry)", rr.Instance)
 	}
 
 	rr.Manifests = []odhtypes.ManifestInfo{
-		baseManifestInfo(rr.Release.Name, BaseManifestsSourcePath),
-		extraManifestInfo(rr.Release.Name, BaseManifestsSourcePath),
+		baseManifestInfo(BaseManifestsSourcePath),
+		extraManifestInfo(BaseManifestsSourcePath),
 	}
 
-	df := c.GetDevFlags()
+	df := mr.GetDevFlags()
 
 	if df == nil {
 		return nil
@@ -81,8 +81,8 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 
 	if df.Manifests[0].SourcePath != "" {
 		rr.Manifests = []odhtypes.ManifestInfo{
-			baseManifestInfo(rr.Release.Name, df.Manifests[0].SourcePath),
-			extraManifestInfo(rr.Release.Name, df.Manifests[0].SourcePath),
+			baseManifestInfo(df.Manifests[0].SourcePath),
+			extraManifestInfo(df.Manifests[0].SourcePath),
 		}
 	}
 
@@ -90,7 +90,7 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 }
 
 func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	c, ok := rr.Instance.(*componentsv1.ModelRegistry)
+	mr, ok := rr.Instance.(*componentsv1.ModelRegistry)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentsv1.ModelRegistry)", rr.Instance)
 	}
@@ -100,11 +100,11 @@ func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationReque
 	if err := rr.AddResource(
 		&corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: c.Spec.RegistriesNamespace,
+				Name: mr.Spec.RegistriesNamespace,
 			},
 		},
 	); err != nil {
-		return fmt.Errorf("failed to add namespace %s to manifests", c.Spec.RegistriesNamespace)
+		return fmt.Errorf("failed to add namespace %s to manifests", mr.Spec.RegistriesNamespace)
 	}
 
 	// Secret
@@ -130,7 +130,7 @@ func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationReque
 
 	// Service Mesh
 
-	smm, err := createServiceMeshMember(rr.DSCI, c.Spec.RegistriesNamespace)
+	smm, err := createServiceMeshMember(rr.DSCI, mr.Spec.RegistriesNamespace)
 	if err != nil {
 		return fmt.Errorf("failed to create ServiceMesh Member: %w", err)
 	}
