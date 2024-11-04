@@ -6,6 +6,7 @@ import (
 	"log"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -20,8 +21,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
@@ -38,20 +39,30 @@ import (
 )
 
 const (
-	servicemeshNamespace = "openshift-operators"
-	servicemeshOpName    = "servicemeshoperator"
-	serverlessOpName     = "serverless-operator"
+	servicemeshNamespace     = "openshift-operators"
+	servicemeshOpName        = "servicemeshoperator"
+	serverlessOpName         = "serverless-operator"
+	ownedNamespaceNumber     = 1 // set to 4 for RHOAI
+	deleteConfigMap          = "delete-configmap-name"
+	operatorReadyTimeout     = 2 * time.Minute
+	componentReadyTimeout    = 7 * time.Minute // in component code is to set 2-3 mins, keep it 7 mins just the same value we used after introduce "Ready" check
+	componentDeletionTimeout = 1 * time.Minute
+	crdReadyTimeout          = 1 * time.Minute
+	csvWaitTimeout           = 1 * time.Minute
+	dsciCreationTimeout      = 20 * time.Second // time required to get a DSCI is created.
+	dscCreationTimeout       = 20 * time.Second // time required to wait till DSC is created.
+	generalRetryInterval     = 10 * time.Second
+	generalWaitTimeout       = 2 * time.Minute
 )
 
-func (tc *testContext) waitForControllerDeployment(name string, replicas int32) error {
-	err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
-		controllerDeployment, err := tc.kubeClient.AppsV1().Deployments(tc.operatorNamespace).Get(tc.ctx, name, metav1.GetOptions{})
+func (tc *testContext) waitForOperatorDeployment(name string, replicas int32) error {
+	err := wait.PollUntilContextTimeout(tc.ctx, generalRetryInterval, operatorReadyTimeout, false, func(ctx context.Context) (bool, error) {
+		controllerDeployment, err := tc.kubeClient.AppsV1().Deployments(tc.operatorNamespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return false, nil
 			}
 			log.Printf("Failed to get %s controller deployment", name)
-
 			return false, err
 		}
 
@@ -62,31 +73,33 @@ func (tc *testContext) waitForControllerDeployment(name string, replicas int32) 
 				}
 			}
 		}
-
 		log.Printf("Error in %s deployment", name)
-
 		return false, nil
 	})
-
 	return err
 }
 
-func setupDSCICR(name string) *dsci.DSCInitialization {
-	dsciTest := &dsci.DSCInitialization{
+func setupDSCICR(name string) *dsciv1.DSCInitialization {
+	dsciTest := &dsciv1.DSCInitialization{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
-		Spec: dsci.DSCInitializationSpec{
-			ApplicationsNamespace: "opendatahub",
-			Monitoring: dsci.Monitoring{
+		Spec: dsciv1.DSCInitializationSpec{
+			ApplicationsNamespace: "redhat-ods-applications",
+			Monitoring: dsciv1.Monitoring{
 				ManagementState: "Managed",
-				Namespace:       "opendatahub",
+				Namespace:       "redhat-ods-monitoring",
 			},
-			TrustedCABundle: dsci.TrustedCABundleSpec{
+			TrustedCABundle: &dsciv1.TrustedCABundleSpec{
 				ManagementState: "Managed",
 				CustomCABundle:  "",
 			},
-			ServiceMesh: infrav1.ServiceMeshSpec{
+			ServiceMesh: &infrav1.ServiceMeshSpec{
+				ControlPlane: infrav1.ControlPlaneSpec{
+					MetricsCollection: "Istio",
+					Name:              "data-science-smcp",
+					Namespace:         "istio-system",
+				},
 				ManagementState: "Managed",
 			},
 		},
@@ -94,13 +107,13 @@ func setupDSCICR(name string) *dsci.DSCInitialization {
 	return dsciTest
 }
 
-func setupDSCInstance(name string) *dsc.DataScienceCluster {
-	dscTest := &dsc.DataScienceCluster{
+func setupDSCInstance(name string) *dscv1.DataScienceCluster {
+	dscTest := &dscv1.DataScienceCluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
-		Spec: dsc.DataScienceClusterSpec{
-			Components: dsc.Components{
+		Spec: dscv1.DataScienceClusterSpec{
+			Components: dscv1.Components{
 				// keep dashboard as enabled, because other test is rely on this
 				Dashboard: dashboard.Dashboard{
 					Component: components.Component{
@@ -114,7 +127,7 @@ func setupDSCInstance(name string) *dsc.DataScienceCluster {
 				},
 				ModelMeshServing: modelmeshserving.ModelMeshServing{
 					Component: components.Component{
-						ManagementState: operatorv1.Removed,
+						ManagementState: operatorv1.Managed,
 					},
 				},
 				DataSciencePipelines: datasciencepipelines.DataSciencePipelines{
@@ -127,7 +140,7 @@ func setupDSCInstance(name string) *dsc.DataScienceCluster {
 						ManagementState: operatorv1.Managed,
 					},
 					Serving: infrav1.ServingSpec{
-						ManagementState: operatorv1.Unmanaged,
+						ManagementState: operatorv1.Managed,
 					},
 				},
 				CodeFlare: codeflare.CodeFlare{
@@ -152,18 +165,17 @@ func setupDSCInstance(name string) *dsc.DataScienceCluster {
 				},
 				ModelRegistry: modelregistry.ModelRegistry{
 					Component: components.Component{
-						ManagementState: operatorv1.Managed,
+						ManagementState: operatorv1.Removed,
 					},
 				},
 				TrainingOperator: trainingoperator.TrainingOperator{
 					Component: components.Component{
-						ManagementState: operatorv1.Managed,
+						ManagementState: operatorv1.Removed,
 					},
 				},
 			},
 		},
 	}
-
 	return dscTest
 }
 
@@ -188,14 +200,14 @@ func (tc *testContext) validateCRD(crdName string) error {
 	obj := client.ObjectKey{
 		Name: crdName,
 	}
-	err := wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, false, func(ctx context.Context) (bool, error) {
-		err := tc.customClient.Get(context.TODO(), obj, crd)
+
+	err := wait.PollUntilContextTimeout(tc.ctx, generalRetryInterval, crdReadyTimeout, false, func(ctx context.Context) (bool, error) {
+		err := tc.customClient.Get(ctx, obj, crd)
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return false, nil
 			}
 			log.Printf("Failed to get CRD %s", crdName)
-
 			return false, err
 		}
 
@@ -207,18 +219,16 @@ func (tc *testContext) validateCRD(crdName string) error {
 			}
 		}
 		log.Printf("Error to get CRD %s condition's matching", crdName)
-
 		return false, nil
 	})
-
 	return err
 }
 
 func (tc *testContext) wait(isReady func(ctx context.Context) (bool, error)) error {
-	return wait.PollUntilContextTimeout(tc.ctx, tc.resourceRetryInterval, tc.resourceCreationTimeout, true, isReady)
+	return wait.PollUntilContextTimeout(tc.ctx, generalRetryInterval, generalWaitTimeout, true, isReady)
 }
 
-func getCSV(cli client.Client, name string, namespace string) (*ofapi.ClusterServiceVersion, error) {
+func getCSV(ctx context.Context, cli client.Client, name string, namespace string) (*ofapi.ClusterServiceVersion, error) {
 	isMatched := func(csv *ofapi.ClusterServiceVersion, name string) bool {
 		return strings.Contains(csv.ObjectMeta.Name, name)
 	}
@@ -227,7 +237,7 @@ func getCSV(cli client.Client, name string, namespace string) (*ofapi.ClusterSer
 		Namespace: namespace,
 	}
 	csvList := &ofapi.ClusterServiceVersionList{}
-	err := cli.List(context.TODO(), csvList, opt)
+	err := cli.List(ctx, csvList, opt)
 	if err != nil {
 		return nil, err
 	}
@@ -250,9 +260,8 @@ func getSubscription(tc *testContext, name string, ns string) (*ofapi.Subscripti
 		sub := setupSubscription(name, ns)
 
 		if err := tc.customClient.Create(tc.ctx, sub); err != nil {
-			return nil, fmt.Errorf("error creating subscription: %w", err)
+			return nil, fmt.Errorf("error creating subscription %s: %w", name, err)
 		}
-
 		return sub, nil
 	}
 
@@ -274,11 +283,9 @@ func getSubscription(tc *testContext, name string, ns string) (*ofapi.Subscripti
 }
 
 func waitCSV(tc *testContext, name string, ns string) error {
-	interval := tc.resourceRetryInterval
-	timeout := tc.resourceCreationTimeout * 3 // just empirical value
-
+	interval := generalRetryInterval
 	isReady := func(ctx context.Context) (bool, error) {
-		csv, err := getCSV(tc.customClient, name, ns)
+		csv, err := getCSV(ctx, tc.customClient, name, ns)
 		if errors.IsNotFound(err) {
 			return false, nil
 		}
@@ -289,7 +296,7 @@ func waitCSV(tc *testContext, name string, ns string) error {
 		return csv.Status.Phase == "Succeeded", nil
 	}
 
-	err := wait.PollUntilContextTimeout(tc.ctx, interval, timeout, false, isReady)
+	err := wait.PollUntilContextTimeout(tc.ctx, interval, csvWaitTimeout, false, isReady)
 	if err != nil {
 		return fmt.Errorf("Error installing %s CSV: %w", name, err)
 	}
@@ -356,7 +363,7 @@ func approveInstallPlan(tc *testContext, plan *ofapi.InstallPlan) error {
 	}
 	force := true
 	opt := &client.PatchOptions{
-		FieldManager: "e2e-test",
+		FieldManager: "e2e-test-dsc",
 		Force:        &force,
 	}
 

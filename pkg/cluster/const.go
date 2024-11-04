@@ -1,23 +1,16 @@
 package cluster
 
-import "k8s.io/apimachinery/pkg/runtime/schema"
-
-var (
-	KnativeServingGVK = schema.GroupVersionKind{
-		Group:   "operator.knative.dev",
-		Version: "v1beta1",
-		Kind:    "KnativeServing",
-	}
-
-	OpenshiftIngressGVK = schema.GroupVersionKind{
-		Group:   "config.openshift.io",
-		Version: "v1",
-		Kind:    "Ingress",
-	}
-
-	ServiceMeshControlPlaneGVK = schema.GroupVersionKind{
-		Group:   "maistra.io",
-		Version: "v2",
-		Kind:    "ServiceMeshControlPlane",
-	}
+const (
+	// ManagedRhoai defines expected addon catalogsource.
+	ManagedRhoai Platform = "OpenShift AI Cloud Service"
+	// SelfManagedRhoai defines display name in csv.
+	SelfManagedRhoai Platform = "OpenShift AI Self-Managed"
+	// OpenDataHub defines display name in csv.
+	OpenDataHub Platform = "Open Data Hub"
+	// Unknown indicates that operator is not deployed using OLM.
+	Unknown Platform = ""
+	// DefaultNotebooksNamespace defines default namespace for notebooks.
+	DefaultNotebooksNamespace = "rhods-notebooks"
+	// Default cluster-scope Authentication CR name.
+	ClusterAuthenticationObj = "cluster"
 )

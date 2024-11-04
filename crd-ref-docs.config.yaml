@@ -7,4 +7,4 @@ processor:
     - "(DataScienceCluster|DSCInitialization)List$"
 render:
   # Version of Kubernetes to use when generating links to Kubernetes API documentation.
-  kubernetesVersion: 1.24
+  kubernetesVersion: 1.25

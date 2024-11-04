@@ -22,15 +22,17 @@ import (
 	"testing"
 	"time"
 
+	configv1 "github.com/openshift/api/config/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	userv1 "github.com/openshift/api/user/v1"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	netv1 "k8s.io/api/networking/v1"
-	authv1 "k8s.io/api/rbac/v1"
-	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	networkingv1 "k8s.io/api/networking/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -40,11 +42,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
-	datascienceclusterv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	dscinitializationv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -58,8 +60,8 @@ var (
 	cfg       *rest.Config
 	k8sClient client.Client
 	testEnv   *envtest.Environment
-	ctx       context.Context
-	cancel    context.CancelFunc
+	gCtx      context.Context
+	gCancel   context.CancelFunc
 )
 
 const (
@@ -75,9 +77,13 @@ func TestDataScienceClusterInitialization(t *testing.T) {
 
 var testScheme = runtime.NewScheme()
 
+//nolint:fatcontext
 var _ = BeforeSuite(func() {
-	ctx, cancel = context.WithCancel(context.TODO())
+	// can't use suite's context as the manager should survive the function
+	gCtx, gCancel = context.WithCancel(context.Background())
+
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
+
 	By("bootstrapping test environment")
 	rootPath, pathErr := envtestutil.FindProjectRoot()
 	Expect(pathErr).ToNot(HaveOccurred(), pathErr)
@@ -100,50 +106,55 @@ var _ = BeforeSuite(func() {
 	Expect(cfg).NotTo(BeNil())
 
 	utilruntime.Must(clientgoscheme.AddToScheme(testScheme))
-	utilruntime.Must(dscinitializationv1.AddToScheme(testScheme))
-	utilruntime.Must(datascienceclusterv1.AddToScheme(testScheme))
-	utilruntime.Must(netv1.AddToScheme(testScheme))
-	utilruntime.Must(authv1.AddToScheme(testScheme))
+	utilruntime.Must(dsciv1.AddToScheme(testScheme))
+	utilruntime.Must(dscv1.AddToScheme(testScheme))
+	utilruntime.Must(networkingv1.AddToScheme(testScheme))
+	utilruntime.Must(rbacv1.AddToScheme(testScheme))
 	utilruntime.Must(corev1.AddToScheme(testScheme))
-	utilruntime.Must(apiextv1.AddToScheme(testScheme))
+	utilruntime.Must(apiextensionsv1.AddToScheme(testScheme))
 	utilruntime.Must(appsv1.AddToScheme(testScheme))
 	utilruntime.Must(ofapi.AddToScheme(testScheme))
+	utilruntime.Must(ofapiv2.AddToScheme(testScheme))
 	utilruntime.Must(routev1.Install(testScheme))
 	utilruntime.Must(userv1.Install(testScheme))
-	utilruntime.Must(kfdefv1.AddToScheme(testScheme))
 	utilruntime.Must(monitoringv1.AddToScheme(testScheme))
-	//+kubebuilder:scaffold:scheme
+	utilruntime.Must(configv1.Install(testScheme))
+	// +kubebuilder:scaffold:scheme
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: testScheme})
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
 
+	webhookInstallOptions := &testEnv.WebhookInstallOptions
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
-		Scheme:             testScheme,
-		LeaderElection:     false,
-		MetricsBindAddress: "0",
+		Scheme:         testScheme,
+		LeaderElection: false,
+		Metrics: ctrlmetrics.Options{
+			BindAddress: "0",
+			CertDir:     webhookInstallOptions.LocalServingCertDir,
+		},
 	})
 
 	Expect(err).NotTo(HaveOccurred())
 
-	err = (&dsci.DSCInitializationReconciler{
+	err = (&dscictrl.DSCInitializationReconciler{
 		Client:   k8sClient,
 		Scheme:   testScheme,
 		Log:      ctrl.Log.WithName("controllers").WithName("DSCInitialization"),
 		Recorder: mgr.GetEventRecorderFor("dscinitialization-controller"),
-	}).SetupWithManager(mgr)
+	}).SetupWithManager(gCtx, mgr)
 
 	Expect(err).ToNot(HaveOccurred())
 
 	go func() {
 		defer GinkgoRecover()
-		err = mgr.Start(ctx)
+		err = mgr.Start(gCtx)
 		Expect(err).ToNot(HaveOccurred(), "Failed to run manager")
 	}()
 })
 
 var _ = AfterSuite(func() {
-	cancel()
+	gCancel()
 	By("tearing down the test environment")
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())

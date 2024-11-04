@@ -36,6 +36,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trainingoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
 // DataScienceClusterSpec defines the desired state of the cluster.
@@ -53,7 +55,6 @@ type Components struct {
 	Workbenches workbenches.Workbenches `json:"workbenches,omitempty"`
 
 	// ModelMeshServing component configuration.
-	// Does not support enabled Kserve at the same time
 	ModelMeshServing modelmeshserving.ModelMeshServing `json:"modelmeshserving,omitempty"`
 
 	// DataServicePipeline component configuration.
@@ -78,11 +79,17 @@ type Components struct {
 	// TrustyAI component configuration.
 	TrustyAI trustyai.TrustyAI `json:"trustyai,omitempty"`
 
-	// ModelRegistry component configuration.
-	ModelRegistry modelregistry.ModelRegistry `json:"modelregistry,omitempty"`
-
 	//Training Operator component configuration.
 	TrainingOperator trainingoperator.TrainingOperator `json:"trainingoperator,omitempty"`
+
+	// ModelRegistry component configuration.
+	ModelRegistry modelregistry.ModelRegistry `json:"modelregistry,omitempty"`
+}
+
+// ComponentsStatus defines the custom status of DataScienceCluster components.
+type ComponentsStatus struct {
+	// ModelRegistry component status
+	ModelRegistry *status.ModelRegistryStatus `json:"modelregistry,omitempty"`
 }
 
 // DataScienceClusterStatus defines the observed state of DataScienceCluster.
@@ -103,6 +110,13 @@ type DataScienceClusterStatus struct {
 
 	// List of components with status if installed or not
 	InstalledComponents map[string]bool `json:"installedComponents,omitempty"`
+
+	// Expose component's specific status
+	// +optional
+	Components ComponentsStatus `json:"components,omitempty"`
+
+	// Version and release type
+	Release cluster.Release `json:"release,omitempty"`
 }
 
 //+kubebuilder:object:root=true

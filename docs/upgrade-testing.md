@@ -121,20 +121,33 @@ metadata:
 spec:
   components:
     codeflare:
-      managementState: Removed
+      managementState: Managed
     dashboard:
       managementState: Managed
     datasciencepipelines:
       managementState: Managed
     kserve:
       managementState: Managed
+      serving:
+        ingressGateway:
+          certificate:
+            type: OpenshiftDefaultIngress
+        managementState: Managed
+        name: knative-serving
     modelmeshserving:
+      managementState: Managed
+    modelregistry:
       managementState: Removed
+      registriesNamespace: "rhoai-model-registries"
     ray:
+      managementState: Managed
+    kueue:
+      managementState: Managed
+    trainingoperator:
       managementState: Removed
     workbenches:
       managementState: Managed
     trustyai:
-      managementState: Removed
+      managementState: Managed
 EOF
 ```

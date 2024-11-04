@@ -1,0 +1,48 @@
+# Defines ingress rules for specific port. These ports are defined by
+# the services residing in redhat-ods-monitoring. namespaceSelector
+# ensures that traffic from only the desired namespaces is allowed
+# 9114 for blackbox or user_facing_endpoints* all down
+# 9115 for blackbox health
+# 10443 and 9091 for web
+---
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: redhat-ods-monitoring
+  namespace: redhat-ods-monitoring
+spec:
+  podSelector: {}
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 9115
+        - protocol: TCP
+          port: 8443
+        - protocol: TCP
+          port: 9091
+        - protocol: TCP
+          port: 10443
+        - protocol: TCP
+          port: 9114
+        - protocol: TCP
+          port: 8080
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openshift-monitoring
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openshift-user-workload-monitoring
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: redhat-ods-operator
+        - namespaceSelector:
+            matchLabels:
+              opendatahub.io/generated-namespace: "true"
+  egress:
+  - {}
+  policyTypes:
+    - Ingress
+    - Egress
