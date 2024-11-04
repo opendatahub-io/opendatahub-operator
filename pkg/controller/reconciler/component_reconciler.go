@@ -7,7 +7,6 @@ import (
 	"reflect"
 
 	"github.com/go-logr/logr"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/tools/record"
@@ -38,6 +37,7 @@ type ComponentReconciler struct {
 	Recorder   record.EventRecorder
 	Release    cluster.Release
 
+	name            string
 	m               *odhManager.Manager
 	instanceFactory func() (components.ComponentObject, error)
 }
@@ -54,6 +54,7 @@ func NewComponentReconciler[T components.ComponentObject](ctx context.Context, m
 		Log:      ctrl.Log.WithName("controllers").WithName(name),
 		Recorder: mgr.GetEventRecorderFor(name),
 		Release:  cluster.GetRelease(),
+		name:     name,
 		m:        odhManager.New(mgr),
 		instanceFactory: func() (components.ComponentObject, error) {
 			t := reflect.TypeOf(*new(T)).Elem()
@@ -180,24 +181,16 @@ func (r *ComponentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
-	//
-	// update status with standard update mechanism as the SSA one seems causing
-	// a weird issue on some openshift releases:
-	//
-	//   failed to create typed patch object (...): .status.url: field not declared in schema
-	//
-	err = r.Client.Status().Update(
+	err = r.Client.ApplyStatus(
 		ctx,
 		rr.Instance,
+		client.FieldOwner(r.name),
+		client.ForceOwnership,
 	)
 
-	switch {
-	case err == nil:
-		return ctrl.Result{}, nil
-	case k8serr.IsConflict(err):
-		l.Info("conflict detected while updating status, retrying")
-		return ctrl.Result{Requeue: true}, nil
-	default:
+	if err != nil {
 		return ctrl.Result{}, err
 	}
+
+	return ctrl.Result{}, err
 }

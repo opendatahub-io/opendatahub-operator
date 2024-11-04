@@ -94,6 +94,9 @@ func ingressSecret(ctx context.Context, cli client.Client) predicate.Funcs {
 		if err != nil {
 			return false
 		}
+		if ic.Spec.DefaultCertificate == nil {
+			return false
+		}
 
 		return obj.GetName() == ic.Spec.DefaultCertificate.Name &&
 			obj.GetNamespace() == cluster.IngressNamespace

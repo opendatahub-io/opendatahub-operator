@@ -13,10 +13,7 @@ import (
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	k8sclient "k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -30,7 +27,6 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 var (
@@ -58,78 +54,6 @@ type testContext struct {
 	// context for accessing resources
 	//nolint:containedctx //reason: legacy v1 test setup
 	ctx context.Context
-}
-
-func (tc *testContext) List(
-	gvk schema.GroupVersionKind,
-	option ...client.ListOption,
-) func() ([]unstructured.Unstructured, error) {
-	return func() ([]unstructured.Unstructured, error) {
-		items := unstructured.UnstructuredList{}
-		items.SetGroupVersionKind(gvk)
-
-		err := tc.customClient.List(tc.ctx, &items, option...)
-		if err != nil {
-			return nil, err
-		}
-
-		return items.Items, nil
-	}
-}
-
-func (tc *testContext) Get(
-	gvk schema.GroupVersionKind,
-	ns string,
-	name string,
-	option ...client.GetOption,
-) func() (*unstructured.Unstructured, error) {
-	return func() (*unstructured.Unstructured, error) {
-		u := unstructured.Unstructured{}
-		u.SetGroupVersionKind(gvk)
-
-		err := tc.customClient.Get(tc.ctx, client.ObjectKey{Namespace: ns, Name: name}, &u, option...)
-		if err != nil {
-			return nil, err
-		}
-
-		return &u, nil
-	}
-}
-func (tc *testContext) MergePatch(
-	obj client.Object,
-	patch []byte,
-) func() (*unstructured.Unstructured, error) {
-	return func() (*unstructured.Unstructured, error) {
-		u, err := resources.ToUnstructured(obj)
-		if err != nil {
-			return nil, err
-		}
-
-		err = tc.customClient.Patch(tc.ctx, u, client.RawPatch(types.MergePatchType, patch))
-		if err != nil {
-			return nil, err
-		}
-
-		return u, nil
-	}
-}
-
-func (tc *testContext) updateComponent(fn func(dsc *dscv1.Components)) func() error {
-	return func() error {
-		err := tc.customClient.Get(tc.ctx, types.NamespacedName{Name: tc.testDsc.Name}, tc.testDsc)
-		if err != nil {
-			return err
-		}
-
-		fn(&tc.testDsc.Spec.Components)
-
-		err = tc.customClient.Update(tc.ctx, tc.testDsc)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	}
 }
 
 func NewTestContext() (*testContext, error) {

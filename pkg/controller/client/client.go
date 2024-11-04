@@ -4,9 +4,13 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrlCli "sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 func NewFromManager(ctx context.Context, mgr ctrl.Manager) (*Client, error) {
@@ -23,27 +27,56 @@ type Client struct {
 	ctrlCli.Client
 }
 
-func (c *Client) Apply(ctx context.Context, obj ctrlCli.Object, opts ...ctrlCli.PatchOption) error {
-	// remove not required fields
-	obj.SetManagedFields(nil)
-	obj.SetResourceVersion("")
-
-	err := c.Client.Patch(ctx, obj, ctrlCli.Apply, opts...)
+func (c *Client) Apply(ctx context.Context, in ctrlCli.Object, opts ...ctrlCli.PatchOption) error {
+	u, err := resources.ToUnstructured(in)
 	if err != nil {
-		return fmt.Errorf("unable to pactch object %s: %w", obj, err)
+		return fmt.Errorf("failed to convert resource to unstructured: %w", err)
+	}
+
+	// safe copy
+	u = u.DeepCopy()
+
+	// remove not required fields
+	unstructured.RemoveNestedField(u.Object, "metadata", "managedFields")
+	unstructured.RemoveNestedField(u.Object, "metadata", "resourceVersion")
+	unstructured.RemoveNestedField(u.Object, "status")
+
+	err = c.Client.Patch(ctx, u, ctrlCli.Apply, opts...)
+	if err != nil {
+		return fmt.Errorf("unable to pactch object %s: %w", u, err)
+	}
+
+	// Write back the modified object so callers can access the patched object.
+	err = c.Scheme().Convert(u, in, ctx)
+	if err != nil {
+		return errors.Wrapf(err, "failed to write modified object")
 	}
 
 	return nil
 }
 
-func (c *Client) ApplyStatus(ctx context.Context, obj ctrlCli.Object, opts ...ctrlCli.SubResourcePatchOption) error {
-	// remove not required fields
-	obj.SetManagedFields(nil)
-	obj.SetResourceVersion("")
-
-	err := c.Client.Status().Patch(ctx, obj, ctrlCli.Apply, opts...)
+func (c *Client) ApplyStatus(ctx context.Context, in ctrlCli.Object, opts ...ctrlCli.SubResourcePatchOption) error {
+	u, err := resources.ToUnstructured(in)
 	if err != nil {
-		return fmt.Errorf("unable to patch object status %s: %w", obj, err)
+		return fmt.Errorf("failed to convert resource to unstructured: %w", err)
+	}
+
+	// safe copy
+	u = u.DeepCopy()
+
+	// remove not required fields
+	unstructured.RemoveNestedField(u.Object, "metadata", "managedFields")
+	unstructured.RemoveNestedField(u.Object, "metadata", "resourceVersion")
+
+	err = c.Client.Status().Patch(ctx, u, ctrlCli.Apply, opts...)
+	if err != nil {
+		return fmt.Errorf("unable to patch object status %s: %w", u, err)
+	}
+
+	// Write back the modified object so callers can access the patched object.
+	err = c.Scheme().Convert(u, in, ctx)
+	if err != nil {
+		return errors.Wrapf(err, "failed to write modified object")
 	}
 
 	return nil

@@ -8,6 +8,9 @@ import (
 	"github.com/stretchr/testify/require"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
@@ -16,6 +19,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 
 	. "github.com/onsi/gomega"
@@ -23,6 +27,88 @@ import (
 
 type ModelRegistryTestCtx struct {
 	*testContext
+}
+
+func (mr *ModelRegistryTestCtx) WithT(t *testing.T) *WithT {
+	t.Helper()
+
+	g := NewWithT(t)
+	g.SetDefaultEventuallyTimeout(generalWaitTimeout)
+	g.SetDefaultEventuallyPollingInterval(1 * time.Second)
+
+	return g
+}
+
+func (mr *ModelRegistryTestCtx) List(
+	gvk schema.GroupVersionKind,
+	option ...client.ListOption,
+) func() ([]unstructured.Unstructured, error) {
+	return func() ([]unstructured.Unstructured, error) {
+		items := unstructured.UnstructuredList{}
+		items.SetGroupVersionKind(gvk)
+
+		err := mr.customClient.List(mr.ctx, &items, option...)
+		if err != nil {
+			return nil, err
+		}
+
+		return items.Items, nil
+	}
+}
+
+func (mr *ModelRegistryTestCtx) Get(
+	gvk schema.GroupVersionKind,
+	ns string,
+	name string,
+	option ...client.GetOption,
+) func() (*unstructured.Unstructured, error) {
+	return func() (*unstructured.Unstructured, error) {
+		u := unstructured.Unstructured{}
+		u.SetGroupVersionKind(gvk)
+
+		err := mr.customClient.Get(mr.ctx, client.ObjectKey{Namespace: ns, Name: name}, &u, option...)
+		if err != nil {
+			return nil, err
+		}
+
+		return &u, nil
+	}
+}
+func (mr *ModelRegistryTestCtx) MergePatch(
+	obj client.Object,
+	patch []byte,
+) func() (*unstructured.Unstructured, error) {
+	return func() (*unstructured.Unstructured, error) {
+		u, err := resources.ToUnstructured(obj)
+		if err != nil {
+			return nil, err
+		}
+
+		err = mr.customClient.Patch(mr.ctx, u, client.RawPatch(types.MergePatchType, patch))
+		if err != nil {
+			return nil, err
+		}
+
+		return u, nil
+	}
+}
+
+func (mr *ModelRegistryTestCtx) updateComponent(fn func(dsc *dscv1.Components)) func() error {
+	return func() error {
+		err := mr.customClient.Get(mr.ctx, types.NamespacedName{Name: mr.testDsc.Name}, mr.testDsc)
+		if err != nil {
+			return err
+		}
+
+		fn(&mr.testDsc.Spec.Components)
+
+		err = mr.customClient.Update(mr.ctx, mr.testDsc)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
 }
 
 func modelRegistryTestSuite(t *testing.T) {
@@ -44,32 +130,28 @@ func modelRegistryTestSuite(t *testing.T) {
 	})
 }
 
-func (tc *ModelRegistryTestCtx) validateModelRegistryInstance(t *testing.T) {
-	g := NewWithT(t)
-	g.SetDefaultEventuallyTimeout(generalWaitTimeout)
-	g.SetDefaultEventuallyPollingInterval(1 * time.Second)
+func (mr *ModelRegistryTestCtx) validateModelRegistryInstance(t *testing.T) {
+	g := mr.WithT(t)
 
 	g.Eventually(
-		tc.List(gvk.ModelRegistry),
+		mr.List(gvk.ModelRegistry),
 	).Should(And(
 		HaveLen(1),
 		HaveEach(And(
 			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.DataScienceCluster.Kind),
-			jq.Match(`.spec.registriesNamespace == "%s"`, tc.testDsc.Spec.Components.ModelRegistry.RegistriesNamespace),
+			jq.Match(`.spec.registriesNamespace == "%s"`, mr.testDsc.Spec.Components.ModelRegistry.RegistriesNamespace),
 			jq.Match(`.status.phase == "%s"`, readyStatus),
 		)),
 	))
 }
 
-func (tc *ModelRegistryTestCtx) validateOperandsOwnerReferences(t *testing.T) {
-	g := NewWithT(t)
-	g.SetDefaultEventuallyTimeout(generalWaitTimeout)
-	g.SetDefaultEventuallyPollingInterval(generalRetryInterval)
+func (mr *ModelRegistryTestCtx) validateOperandsOwnerReferences(t *testing.T) {
+	g := mr.WithT(t)
 
 	g.Eventually(
-		tc.List(
+		mr.List(
 			gvk.Deployment,
-			client.InNamespace(tc.applicationsNamespace),
+			client.InNamespace(mr.applicationsNamespace),
 			client.MatchingLabels{labels.ComponentManagedBy: componentsv1.ModelRegistryInstanceName},
 		),
 	).Should(And(
@@ -80,13 +162,11 @@ func (tc *ModelRegistryTestCtx) validateOperandsOwnerReferences(t *testing.T) {
 	))
 }
 
-func (tc *ModelRegistryTestCtx) validateUpdateModelRegistryOperandsResources(t *testing.T) {
-	g := NewWithT(t)
-	g.SetDefaultEventuallyTimeout(generalWaitTimeout)
-	g.SetDefaultEventuallyPollingInterval(generalRetryInterval)
+func (mr *ModelRegistryTestCtx) validateUpdateModelRegistryOperandsResources(t *testing.T) {
+	g := mr.WithT(t)
 
-	appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(
-		tc.ctx,
+	appDeployments, err := mr.kubeClient.AppsV1().Deployments(mr.applicationsNamespace).List(
+		mr.ctx,
 		metav1.ListOptions{
 			LabelSelector: labels.ComponentManagedBy + "=" + componentsv1.ModelRegistryInstanceName,
 		},
@@ -109,8 +189,8 @@ func (tc *ModelRegistryTestCtx) validateUpdateModelRegistryOperandsResources(t *
 		Status: autoscalingv1.ScaleStatus{},
 	}
 
-	updatedDep, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).UpdateScale(
-		tc.ctx,
+	updatedDep, err := mr.kubeClient.AppsV1().Deployments(mr.applicationsNamespace).UpdateScale(
+		mr.ctx,
 		testDeployment.Name,
 		patchedReplica,
 		metav1.UpdateOptions{},
@@ -120,9 +200,9 @@ func (tc *ModelRegistryTestCtx) validateUpdateModelRegistryOperandsResources(t *
 	g.Expect(updatedDep.Spec.Replicas).Should(Equal(patchedReplica.Spec.Replicas))
 
 	g.Eventually(
-		tc.List(
+		mr.List(
 			gvk.Deployment,
-			client.InNamespace(tc.applicationsNamespace),
+			client.InNamespace(mr.applicationsNamespace),
 			client.MatchingLabels{labels.ComponentManagedBy: componentsv1.ModelRegistryInstanceName},
 		),
 	).Should(And(
@@ -133,9 +213,9 @@ func (tc *ModelRegistryTestCtx) validateUpdateModelRegistryOperandsResources(t *
 	))
 
 	g.Consistently(
-		tc.List(
+		mr.List(
 			gvk.Deployment,
-			client.InNamespace(tc.applicationsNamespace),
+			client.InNamespace(mr.applicationsNamespace),
 			client.MatchingLabels{labels.ComponentManagedBy: componentsv1.ModelRegistryInstanceName},
 		),
 	).WithTimeout(30 * time.Second).WithPolling(1 * time.Second).Should(And(
@@ -146,18 +226,16 @@ func (tc *ModelRegistryTestCtx) validateUpdateModelRegistryOperandsResources(t *
 	))
 }
 
-func (tc *ModelRegistryTestCtx) validateModelRegistryCert(t *testing.T) {
-	g := NewWithT(t)
-	g.SetDefaultEventuallyTimeout(generalWaitTimeout)
-	g.SetDefaultEventuallyPollingInterval(generalRetryInterval)
+func (mr *ModelRegistryTestCtx) validateModelRegistryCert(t *testing.T) {
+	g := mr.WithT(t)
 
-	is, err := cluster.FindDefaultIngressSecret(tc.ctx, tc.customClient)
+	is, err := cluster.FindDefaultIngressSecret(mr.ctx, mr.customClient)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	g.Eventually(
-		tc.Get(
+		mr.Get(
 			gvk.Secret,
-			tc.testDSCI.Spec.ServiceMesh.ControlPlane.Namespace,
+			mr.testDSCI.Spec.ServiceMesh.ControlPlane.Namespace,
 			modelregistry.DefaultModelRegistryCert,
 		),
 	).Should(And(
@@ -167,27 +245,23 @@ func (tc *ModelRegistryTestCtx) validateModelRegistryCert(t *testing.T) {
 	))
 }
 
-func (tc *ModelRegistryTestCtx) validateModelRegistryServiceMeshMember(t *testing.T) {
-	g := NewWithT(t)
-	g.SetDefaultEventuallyTimeout(generalWaitTimeout)
-	g.SetDefaultEventuallyPollingInterval(generalRetryInterval)
+func (mr *ModelRegistryTestCtx) validateModelRegistryServiceMeshMember(t *testing.T) {
+	g := mr.WithT(t)
 
 	g.Eventually(
-		tc.Get(gvk.ServiceMeshMember, modelregistry.DefaultModelRegistriesNamespace, "default"),
+		mr.Get(gvk.ServiceMeshMember, modelregistry.DefaultModelRegistriesNamespace, "default"),
 	).Should(
 		jq.Match(`.spec | has("controlPlaneRef")`),
 	)
 }
 
-func (tc *ModelRegistryTestCtx) validateModelRegistryDisabled(t *testing.T) {
-	g := NewWithT(t)
-	g.SetDefaultEventuallyTimeout(generalWaitTimeout)
-	g.SetDefaultEventuallyPollingInterval(generalRetryInterval)
+func (mr *ModelRegistryTestCtx) validateModelRegistryDisabled(t *testing.T) {
+	g := mr.WithT(t)
 
 	g.Eventually(
-		tc.List(
+		mr.List(
 			gvk.Deployment,
-			client.InNamespace(tc.applicationsNamespace),
+			client.InNamespace(mr.applicationsNamespace),
 			client.MatchingLabels{labels.ComponentManagedBy: componentsv1.ModelRegistryInstanceName},
 		),
 	).Should(
@@ -195,7 +269,7 @@ func (tc *ModelRegistryTestCtx) validateModelRegistryDisabled(t *testing.T) {
 	)
 
 	g.Eventually(
-		tc.updateComponent(func(c *dscv1.Components) {
+		mr.updateComponent(func(c *dscv1.Components) {
 			c.ModelRegistry.ManagementState = operatorv1.Removed
 		}),
 	).ShouldNot(
@@ -203,9 +277,9 @@ func (tc *ModelRegistryTestCtx) validateModelRegistryDisabled(t *testing.T) {
 	)
 
 	g.Eventually(
-		tc.List(
+		mr.List(
 			gvk.Deployment,
-			client.InNamespace(tc.applicationsNamespace),
+			client.InNamespace(mr.applicationsNamespace),
 			client.MatchingLabels{labels.ComponentManagedBy: componentsv1.ModelRegistryInstanceName},
 		),
 	).Should(
@@ -213,7 +287,7 @@ func (tc *ModelRegistryTestCtx) validateModelRegistryDisabled(t *testing.T) {
 	)
 
 	g.Eventually(
-		tc.List(gvk.ModelRegistry),
+		mr.List(gvk.ModelRegistry),
 	).Should(
 		BeEmpty(),
 	)

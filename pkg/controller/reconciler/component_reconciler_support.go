@@ -137,7 +137,15 @@ func (b *ComponentReconcilerBuilder[T]) WithEventFilter(p predicate.Predicate) *
 func (b *ComponentReconcilerBuilder[T]) Build(ctx context.Context) (*ComponentReconciler, error) {
 	name := b.componentName
 	if name == "" {
-		name = b.input.object.GetObjectKind().GroupVersionKind().Kind
+		kinds, _, err := b.mgr.GetScheme().ObjectKinds(b.input.object)
+		if err != nil {
+			return nil, err
+		}
+		if len(kinds) != 1 {
+			return nil, fmt.Errorf("expected exactly one kind of object, got %d", len(kinds))
+		}
+
+		name = kinds[0].Kind
 		name = strings.ToLower(name)
 	}
 
