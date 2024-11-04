@@ -31,7 +31,7 @@ const (
 func gate(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	mr, ok := rr.Instance.(*componentsv1.ModelRegistry)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a ResourceObject", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a componentsv1.ModelRegistry", rr.Instance)
 	}
 
 	if rr.DSCI.Spec.ServiceMesh != nil && rr.DSCI.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
