@@ -3,7 +3,7 @@ kind: Kustomization
 images:
 - name: controller
   newName: quay.io/wenzhou/rhods-operator
-  newTag: 2.16.0
+  newTag: 2.16.14768-2
   
 resources:
 - manager.yaml

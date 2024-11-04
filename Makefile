@@ -287,7 +287,7 @@ bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then val
 	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS)
 	$(OPERATOR_SDK) bundle validate ./$(BUNDLE_DIR)
 	mv bundle.Dockerfile Dockerfiles/
-	rm -f bundle/manifests/rhods-operator-webhook-service_v1_service.yaml bundle/manifests/controller-manager-metrics-service_v1_service.yaml
+	rm -f bundle/manifests/rhods-operator-webhook-service_v1_service.yaml
 .PHONY: bundle-build
 bundle-build: bundle
 	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/bundle.Dockerfile -t $(BUNDLE_IMG) .
