@@ -71,7 +71,7 @@ func NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 			handlers.ToNamed(componentsv1.ModelRegistryInstanceName),
 			builder.WithPredicates(ingressSecret(ctx, mgr.GetClient()))).
 		// actions
-		WithAction(gate).
+		WithAction(checkPreConditions).
 		WithAction(initialize).
 		WithAction(configureDependencies).
 		WithAction(render.NewAction(

@@ -23,12 +23,7 @@ import (
 	_ "embed"
 )
 
-const (
-	ServiceMeshNotConfiguredReason  = "ServiceMeshNotConfigured"
-	ServiceMeshNotConfiguredMessage = "ServiceMesh needs to be set to 'Managed' in DSCI CR, it is required by Model Registry"
-)
-
-func gate(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
+func checkPreConditions(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	mr, ok := rr.Instance.(*componentsv1.ModelRegistry)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentsv1.ModelRegistry", rr.Instance)
@@ -44,12 +39,12 @@ func gate(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	meta.SetStatusCondition(&s.Conditions, metav1.Condition{
 		Type:               status.ConditionTypeReady,
 		Status:             metav1.ConditionFalse,
-		Reason:             ServiceMeshNotConfiguredReason,
-		Message:            ServiceMeshNotConfiguredMessage,
+		Reason:             status.ServiceMeshNotConfiguredReason,
+		Message:            status.ServiceMeshNotConfiguredMessage,
 		ObservedGeneration: s.ObservedGeneration,
 	})
 
-	return odherrors.NewStopError(ServiceMeshNotConfiguredMessage)
+	return odherrors.NewStopError(status.ServiceMeshNotConfiguredMessage)
 }
 
 func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {

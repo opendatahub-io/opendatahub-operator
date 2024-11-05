@@ -35,6 +35,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trainingoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 )
 
 const (
@@ -171,7 +172,7 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 						ManagementState: operatorv1.Managed,
 					},
 					ModelRegistryCommonSpec: componentsv1.ModelRegistryCommonSpec{
-						RegistriesNamespace: "odh-model-registries",
+						RegistriesNamespace: modelregistry.DefaultModelRegistriesNamespace,
 					},
 				},
 				TrainingOperator: trainingoperator.TrainingOperator{
