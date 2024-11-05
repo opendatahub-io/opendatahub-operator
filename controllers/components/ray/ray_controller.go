@@ -37,7 +37,7 @@ import (
 )
 
 func NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	_, err := reconciler.ComponentReconcilerFor[*componentsv1.Ray](
+	_, err := reconciler.ComponentReconcilerFor(
 		mgr,
 		componentsv1.RayInstanceName,
 		&componentsv1.Ray{},
