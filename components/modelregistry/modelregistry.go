@@ -11,8 +11,10 @@ import (
 	"text/template"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -22,6 +24,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/conversion"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 
 	_ "embed"
 )
@@ -159,6 +162,10 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 	l.Info("apply extra manifests done")
 
 	if enabled {
+		// remove leftover kube-rbac-proxy container from older ODH installs
+		if err := removeUnusedKubeRbacProxy(ctx, cli, m.GetComponentName(), dscispec.ApplicationsNamespace); err != nil {
+			return fmt.Errorf("failed to remove kube-rbac-proxy from deployment for %s in namespace %s: %w", ComponentName, dscispec.ApplicationsNamespace, err)
+		}
 		if err := cluster.WaitForDeploymentAvailable(ctx, cli, m.GetComponentName(), dscispec.ApplicationsNamespace, 10, 1); err != nil {
 			return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 		}
@@ -176,6 +183,38 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 			return err
 		}
 		l.Info("updating SRE monitoring done")
+	}
+	return nil
+}
+
+// removeUnusedKubeRbacProxy removes older kube-rbac-proxy container in mr operator deployment.
+// This is required because patching a deployment using apply-patch doesn't remove older containers.
+// See: https://kubernetes.io/docs/tasks/manage-kubernetes-objects/update-api-object-kubectl-patch/#notes-on-the-strategic-merge-patch
+func removeUnusedKubeRbacProxy(ctx context.Context, cli client.Client, name string, namespace string) error {
+	// get MR operator deployment
+	componentDeploymentList := &appsv1.DeploymentList{}
+	err := cli.List(ctx, componentDeploymentList, client.InNamespace(namespace), client.HasLabels{labels.ODH.Component(name)})
+	if err != nil {
+		return fmt.Errorf("error fetching list of deployments: %w", err)
+	}
+	nItems := len(componentDeploymentList.Items)
+	if nItems != 1 {
+		return fmt.Errorf("error fetching model registry operator deployment, found %d deployments", nItems)
+	}
+
+	// check if deployment has a kube-rbac-proxy container
+	deployment := componentDeploymentList.Items[0]
+	containers := deployment.Spec.Template.Spec.Containers
+	// there should be a single container in latest deployment without kube-rbac-proxy
+	if len(containers) == 1 {
+		return nil
+	}
+	for i, container := range containers {
+		if container.Name == "kube-rbac-proxy" {
+			// remove if found
+			return cli.Patch(ctx, &deployment, client.RawPatch(types.JSONPatchType,
+				[]byte(fmt.Sprintf("[{\"op\": \"remove\", \"path\": \"/spec/template/spec/containers/%d\"}]", i))))
+		}
 	}
 	return nil
 }
