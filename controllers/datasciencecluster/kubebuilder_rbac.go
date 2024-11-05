@@ -212,7 +212,7 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="datasciencepipelinesapplications.opendatahub.io",resources=datasciencepipelinesapplications,verbs=create;delete;list;update;watch;patch;get
 // +kubebuilder:rbac:groups="argoproj.io",resources=workflows,verbs=*
 
-// TODO: KFTO
+// TrainingOperator
 // +kubebuilder:rbac:groups=components.opendatahub.io,resources=trainingoperators,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=components.opendatahub.io,resources=trainingoperators/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=components.opendatahub.io,resources=trainingoperators/finalizers,verbs=update

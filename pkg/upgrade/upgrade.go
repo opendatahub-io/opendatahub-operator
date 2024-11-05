@@ -36,7 +36,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/trainingoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -95,8 +94,8 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 				ModelRegistry: componentsv1.DSCModelRegistry{
 					ManagementSpec: components.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
-				TrainingOperator: trainingoperator.TrainingOperator{
-					Component: componentsold.Component{ManagementState: operatorv1.Managed},
+				TrainingOperator: componentsv1.DSCTrainingOperator{
+					ManagementSpec: components.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
 			},
 		},

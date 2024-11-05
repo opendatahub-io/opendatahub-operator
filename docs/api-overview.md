@@ -198,6 +198,23 @@ _Appears in:_
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
+#### DSCTrainingOperator
+
+
+
+DSCTrainingOperator contains all the configuration exposed in DSC instance for TrainingOperator component
+
+
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+
+
 #### DSCTrustyAI
 
 
@@ -841,6 +858,23 @@ _Appears in:_
 | `status` _[TrainingOperatorStatus](#trainingoperatorstatus)_ |  |  |  |
 
 
+#### TrainingOperatorCommonSpec
+
+
+
+
+
+
+
+_Appears in:_
+- [DSCTrainingOperator](#dsctrainingoperator)
+- [TrainingOperatorSpec](#trainingoperatorspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+
+
 #### TrainingOperatorList
 
 
@@ -874,7 +908,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `foo` _string_ | Foo is an example field of TrainingOperator. Edit trainingoperator_types.go to remove/update |  |  |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
 #### TrainingOperatorStatus
@@ -1107,7 +1141,6 @@ _Appears in:_
 - [DataSciencePipelines](#datasciencepipelines)
 - [Kserve](#kserve)
 - [ModelMeshServing](#modelmeshserving)
-- [TrainingOperator](#trainingoperator)
 - [Workbenches](#workbenches)
 
 | Field | Description | Default | Validation |
@@ -1151,6 +1184,7 @@ _Appears in:_
 - [DSCKueue](#dsckueue)
 - [DSCModelRegistry](#dscmodelregistry)
 - [DSCRay](#dscray)
+- [DSCTrainingOperator](#dsctrainingoperator)
 - [DSCTrustyAI](#dsctrustyai)
 - [DashboardCommonSpec](#dashboardcommonspec)
 - [DashboardSpec](#dashboardspec)
@@ -1160,6 +1194,8 @@ _Appears in:_
 - [ModelRegistrySpec](#modelregistryspec)
 - [RayCommonSpec](#raycommonspec)
 - [RaySpec](#rayspec)
+- [TrainingOperatorCommonSpec](#trainingoperatorcommonspec)
+- [TrainingOperatorSpec](#trainingoperatorspec)
 - [TrustyAICommonSpec](#trustyaicommonspec)
 - [TrustyAISpec](#trustyaispec)
 
@@ -1182,6 +1218,7 @@ _Appears in:_
 - [DSCKueue](#dsckueue)
 - [DSCModelRegistry](#dscmodelregistry)
 - [DSCRay](#dscray)
+- [DSCTrainingOperator](#dsctrainingoperator)
 - [DSCTrustyAI](#dsctrustyai)
 
 | Field | Description | Default | Validation |
@@ -1310,30 +1347,6 @@ _Appears in:_
 
 
 
-## datasciencecluster.opendatahub.io/trainingoperator
-
-Package trainingoperator provides utility functions to config trainingoperator as part of the stack
-which makes managing distributed compute infrastructure in the cloud easy and intuitive for Data Scientists
-
-
-
-#### TrainingOperator
-
-
-
-TrainingOperator struct holds the configuration for the TrainingOperator component.
-
-
-
-_Appears in:_
-- [Components](#components)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `Component` _[Component](#component)_ |  |  |  |
-
-
-
 ## datasciencecluster.opendatahub.io/v1
 
 
@@ -1418,7 +1431,7 @@ _Appears in:_
 | `ray` _[DSCRay](#dscray)_ | Ray component configuration. |  |  |
 | `trustyai` _[DSCTrustyAI](#dsctrustyai)_ | TrustyAI component configuration. |  |  |
 | `modelregistry` _[DSCModelRegistry](#dscmodelregistry)_ | ModelRegistry component configuration. |  |  |
-| `trainingoperator` _[TrainingOperator](#trainingoperator)_ | Training Operator component configuration. |  |  |
+| `trainingoperator` _[DSCTrainingOperator](#dsctrainingoperator)_ | Training Operator component configuration. |  |  |
 
 
 #### ComponentsStatus
