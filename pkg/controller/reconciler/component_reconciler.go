@@ -42,7 +42,7 @@ type ComponentReconciler struct {
 	instanceFactory func() (components.ComponentObject, error)
 }
 
-func NewComponentReconciler[T components.ComponentObject](ctx context.Context, mgr manager.Manager, name string) (*ComponentReconciler, error) {
+func NewComponentReconciler(ctx context.Context, mgr manager.Manager, name string, object components.ComponentObject) (*ComponentReconciler, error) {
 	oc, err := odhClient.NewFromManager(ctx, mgr)
 	if err != nil {
 		return nil, err
@@ -57,8 +57,8 @@ func NewComponentReconciler[T components.ComponentObject](ctx context.Context, m
 		name:     name,
 		m:        odhManager.New(mgr),
 		instanceFactory: func() (components.ComponentObject, error) {
-			t := reflect.TypeOf(*new(T)).Elem()
-			res, ok := reflect.New(t).Interface().(T)
+			t := reflect.TypeOf(object).Elem()
+			res, ok := reflect.New(t).Interface().(components.ComponentObject)
 			if !ok {
 				return res, fmt.Errorf("unable to construct instance of %v", t)
 			}

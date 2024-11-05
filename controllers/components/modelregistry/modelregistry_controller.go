@@ -40,7 +40,7 @@ import (
 
 // NewComponentReconciler creates a ComponentReconciler for the Dashboard API.
 func NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	_, err := reconciler.ComponentReconcilerFor[*componentsv1.ModelRegistry](
+	_, err := reconciler.ComponentReconcilerFor(
 		mgr,
 		componentsv1.ModelRegistryInstanceName,
 		&componentsv1.ModelRegistry{},

@@ -23,7 +23,7 @@ import (
 )
 
 type forInput struct {
-	object  client.Object
+	object  components.ComponentObject
 	options []builder.ForOption
 }
 
@@ -37,7 +37,7 @@ type ownInput struct {
 	options []builder.OwnsOption
 }
 
-type ComponentReconcilerBuilder[T components.ComponentObject] struct {
+type ComponentReconcilerBuilder struct {
 	mgr           ctrl.Manager
 	input         forInput
 	watches       []watchInput
@@ -49,8 +49,8 @@ type ComponentReconcilerBuilder[T components.ComponentObject] struct {
 	finalizers    []actions.Fn
 }
 
-func ComponentReconcilerFor[T components.ComponentObject](mgr ctrl.Manager, ownerName string, object T, opts ...builder.ForOption) *ComponentReconcilerBuilder[T] {
-	crb := ComponentReconcilerBuilder[T]{
+func ComponentReconcilerFor(mgr ctrl.Manager, ownerName string, object components.ComponentObject, opts ...builder.ForOption) *ComponentReconcilerBuilder {
+	crb := ComponentReconcilerBuilder{
 		mgr:       mgr,
 		ownerName: ownerName,
 		input: forInput{
@@ -62,22 +62,22 @@ func ComponentReconcilerFor[T components.ComponentObject](mgr ctrl.Manager, owne
 	return &crb
 }
 
-func (b *ComponentReconcilerBuilder[T]) WithComponentName(componentName string) *ComponentReconcilerBuilder[T] {
+func (b *ComponentReconcilerBuilder) WithComponentName(componentName string) *ComponentReconcilerBuilder {
 	b.componentName = componentName
 	return b
 }
 
-func (b *ComponentReconcilerBuilder[T]) WithAction(value actions.Fn) *ComponentReconcilerBuilder[T] {
+func (b *ComponentReconcilerBuilder) WithAction(value actions.Fn) *ComponentReconcilerBuilder {
 	b.actions = append(b.actions, value)
 	return b
 }
 
-func (b *ComponentReconcilerBuilder[T]) WithFinalizer(value actions.Fn) *ComponentReconcilerBuilder[T] {
+func (b *ComponentReconcilerBuilder) WithFinalizer(value actions.Fn) *ComponentReconcilerBuilder {
 	b.finalizers = append(b.finalizers, value)
 	return b
 }
 
-func (b *ComponentReconcilerBuilder[T]) Watches(object client.Object, opts ...builder.WatchesOption) *ComponentReconcilerBuilder[T] {
+func (b *ComponentReconcilerBuilder) Watches(object client.Object, opts ...builder.WatchesOption) *ComponentReconcilerBuilder {
 	b.watches = append(b.watches, watchInput{
 		object:       object,
 		eventHandler: handlers.ToOwner(),
@@ -87,7 +87,7 @@ func (b *ComponentReconcilerBuilder[T]) Watches(object client.Object, opts ...bu
 	return b
 }
 
-func (b *ComponentReconcilerBuilder[T]) WatchesH(object client.Object, eventHandler handler.EventHandler, opts ...builder.WatchesOption) *ComponentReconcilerBuilder[T] {
+func (b *ComponentReconcilerBuilder) WatchesH(object client.Object, eventHandler handler.EventHandler, opts ...builder.WatchesOption) *ComponentReconcilerBuilder {
 	b.watches = append(b.watches, watchInput{
 		object:       object,
 		eventHandler: eventHandler,
@@ -97,7 +97,7 @@ func (b *ComponentReconcilerBuilder[T]) WatchesH(object client.Object, eventHand
 	return b
 }
 
-func (b *ComponentReconcilerBuilder[T]) WatchesGVK(gvk schema.GroupVersionKind, eventHandler handler.EventHandler, opts ...builder.WatchesOption) *ComponentReconcilerBuilder[T] {
+func (b *ComponentReconcilerBuilder) WatchesGVK(gvk schema.GroupVersionKind, eventHandler handler.EventHandler, opts ...builder.WatchesOption) *ComponentReconcilerBuilder {
 	u := unstructured.Unstructured{}
 	u.SetGroupVersionKind(gvk)
 
@@ -110,7 +110,7 @@ func (b *ComponentReconcilerBuilder[T]) WatchesGVK(gvk schema.GroupVersionKind, 
 	return b
 }
 
-func (b *ComponentReconcilerBuilder[T]) WatchesM(object client.Object, fn handler.MapFunc, opts ...builder.WatchesOption) *ComponentReconcilerBuilder[T] {
+func (b *ComponentReconcilerBuilder) WatchesM(object client.Object, fn handler.MapFunc, opts ...builder.WatchesOption) *ComponentReconcilerBuilder {
 	b.watches = append(b.watches, watchInput{
 		object:       object,
 		eventHandler: handler.EnqueueRequestsFromMapFunc(fn),
@@ -120,7 +120,7 @@ func (b *ComponentReconcilerBuilder[T]) WatchesM(object client.Object, fn handle
 	return b
 }
 
-func (b *ComponentReconcilerBuilder[T]) Owns(object client.Object, opts ...builder.OwnsOption) *ComponentReconcilerBuilder[T] {
+func (b *ComponentReconcilerBuilder) Owns(object client.Object, opts ...builder.OwnsOption) *ComponentReconcilerBuilder {
 	b.owns = append(b.owns, ownInput{
 		object:  object,
 		options: slices.Clone(opts),
@@ -129,12 +129,12 @@ func (b *ComponentReconcilerBuilder[T]) Owns(object client.Object, opts ...build
 	return b
 }
 
-func (b *ComponentReconcilerBuilder[T]) WithEventFilter(p predicate.Predicate) *ComponentReconcilerBuilder[T] {
+func (b *ComponentReconcilerBuilder) WithEventFilter(p predicate.Predicate) *ComponentReconcilerBuilder {
 	b.predicates = append(b.predicates, p)
 	return b
 }
 
-func (b *ComponentReconcilerBuilder[T]) Build(ctx context.Context) (*ComponentReconciler, error) {
+func (b *ComponentReconcilerBuilder) Build(ctx context.Context) (*ComponentReconciler, error) {
 	name := b.componentName
 	if name == "" {
 		kinds, _, err := b.mgr.GetScheme().ObjectKinds(b.input.object)
@@ -149,7 +149,7 @@ func (b *ComponentReconcilerBuilder[T]) Build(ctx context.Context) (*ComponentRe
 		name = strings.ToLower(name)
 	}
 
-	r, err := NewComponentReconciler[T](ctx, b.mgr, name)
+	r, err := NewComponentReconciler(ctx, b.mgr, name, b.input.object)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create reconciler for component %s: %w", name, err)
 	}
