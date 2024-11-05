@@ -79,17 +79,24 @@ func (t *TrustyAI) GetComponentName() string {
 	return ComponentName
 }
 
-func (t *TrustyAI) UpdateStatus(in *status.ComponentsStatus) {
-	enabled := t.GetManagementState() == operatorv1.Managed
-	if enabled {
-		trustyAIStatus := status.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
-
-		in.TrustyAI = &status.TrustyAIStatus{
-			ComponentStatus: trustyAIStatus,
-		}
-	} else {
+func (t *TrustyAI) UpdateStatus(in *status.ComponentsStatus) error {
+	if t.GetManagementState() != operatorv1.Managed {
 		in.TrustyAI = nil
+		return nil
 	}
+
+	releases, err := status.GetReleaseStatus(deploy.DefaultManifestPath, ComponentName)
+
+	if err != nil {
+		return err
+	}
+
+	in.TrustyAI = &status.TrustyAIStatus{
+		ComponentStatus: status.ComponentStatus{
+			Releases: releases,
+		},
+	}
+	return nil
 }
 
 func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client,

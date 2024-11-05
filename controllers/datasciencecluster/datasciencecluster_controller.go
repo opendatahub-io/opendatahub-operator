@@ -337,7 +337,11 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 			saved.Status.InstalledComponents = make(map[string]bool)
 		}
 		saved.Status.InstalledComponents[componentName] = enabled
-		component.UpdateStatus(&saved.Status.Components)
+		err := component.UpdateStatus(&saved.Status.Components)
+
+		if err != nil {
+			r.reportError(ctx, err, instance, "failed to update DataScienceCluster status after reconciling "+componentName)
+		}
 		if enabled {
 			status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileCompleted, "Component reconciled successfully", corev1.ConditionTrue)
 		} else {

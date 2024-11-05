@@ -69,17 +69,24 @@ func (r *Ray) GetComponentName() string {
 	return ComponentName
 }
 
-func (r *Ray) UpdateStatus(in *status.ComponentsStatus) {
-	enabled := r.GetManagementState() == operatorv1.Managed
-	if enabled {
-		rayStatus := status.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
-
-		in.Ray = &status.RayStatus{
-			ComponentStatus: rayStatus,
-		}
-	} else {
+func (r *Ray) UpdateStatus(in *status.ComponentsStatus) error {
+	if r.GetManagementState() != operatorv1.Managed {
 		in.Ray = nil
+		return nil
 	}
+
+	releases, err := status.GetReleaseStatus(deploy.DefaultManifestPath, ComponentName)
+
+	if err != nil {
+		return err
+	}
+
+	in.Ray = &status.RayStatus{
+		ComponentStatus: status.ComponentStatus{
+			Releases: releases,
+		},
+	}
+	return nil
 }
 
 func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client,

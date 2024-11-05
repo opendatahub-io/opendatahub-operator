@@ -111,17 +111,24 @@ func (k *Kserve) GetComponentName() string {
 	return ComponentName
 }
 
-func (k *Kserve) UpdateStatus(in *status.ComponentsStatus) {
-	enabled := k.GetManagementState() == operatorv1.Managed
-	if enabled {
-		kserveStatus := status.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
-
-		in.Kserve = &status.KserveStatus{
-			ComponentStatus: kserveStatus,
-		}
-	} else {
+func (k *Kserve) UpdateStatus(in *status.ComponentsStatus) error {
+	if k.GetManagementState() != operatorv1.Managed {
 		in.Kserve = nil
+		return nil
 	}
+
+	releases, err := status.GetReleaseStatus(deploy.DefaultManifestPath, ComponentName)
+
+	if err != nil {
+		return err
+	}
+
+	in.Kserve = &status.KserveStatus{
+		ComponentStatus: status.ComponentStatus{
+			Releases: releases,
+		},
+	}
+	return nil
 }
 
 func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,

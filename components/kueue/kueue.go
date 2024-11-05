@@ -68,17 +68,24 @@ func (k *Kueue) GetComponentName() string {
 	return ComponentName
 }
 
-func (k *Kueue) UpdateStatus(in *status.ComponentsStatus) {
-	enabled := k.GetManagementState() == operatorv1.Managed
-	if enabled {
-		kueueStatus := status.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
-
-		in.Kueue = &status.KueueStatus{
-			ComponentStatus: kueueStatus,
-		}
-	} else {
+func (k *Kueue) UpdateStatus(in *status.ComponentsStatus) error {
+	if k.GetManagementState() != operatorv1.Managed {
 		in.Kueue = nil
+		return nil
 	}
+
+	releases, err := status.GetReleaseStatus(deploy.DefaultManifestPath, ComponentName)
+
+	if err != nil {
+		return err
+	}
+
+	in.Kueue = &status.KueueStatus{
+		ComponentStatus: status.ComponentStatus{
+			Releases: releases,
+		},
+	}
+	return nil
 }
 
 func (k *Kueue) ReconcileComponent(ctx context.Context, cli client.Client,

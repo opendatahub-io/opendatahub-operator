@@ -72,17 +72,24 @@ func (c *CodeFlare) GetComponentName() string {
 	return ComponentName
 }
 
-func (c *CodeFlare) UpdateStatus(in *status.ComponentsStatus) {
-	enabled := c.GetManagementState() == operatorv1.Managed
-	if enabled {
-		codeFlareStatus := status.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
-
-		in.CodeFlare = &status.CodeFlareStatus{
-			ComponentStatus: codeFlareStatus,
-		}
-	} else {
+func (c *CodeFlare) UpdateStatus(in *status.ComponentsStatus) error {
+	if c.GetManagementState() != operatorv1.Managed {
 		in.CodeFlare = nil
+		return nil
 	}
+
+	releases, err := status.GetReleaseStatus(deploy.DefaultManifestPath, ComponentName)
+
+	if err != nil {
+		return err
+	}
+
+	in.CodeFlare = &status.CodeFlareStatus{
+		ComponentStatus: status.ComponentStatus{
+			Releases: releases,
+		},
+	}
+	return nil
 }
 
 func (c *CodeFlare) ReconcileComponent(ctx context.Context,

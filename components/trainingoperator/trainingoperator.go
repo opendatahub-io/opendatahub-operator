@@ -70,17 +70,24 @@ func (r *TrainingOperator) GetComponentName() string {
 	return ComponentName
 }
 
-func (r *TrainingOperator) UpdateStatus(in *status.ComponentsStatus) {
-	enabled := r.GetManagementState() == operatorv1.Managed
-	if enabled {
-		trainingOperatorStatus := status.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
-
-		in.TrainingOperator = &status.TrainingOperatorStatus{
-			ComponentStatus: trainingOperatorStatus,
-		}
-	} else {
+func (r *TrainingOperator) UpdateStatus(in *status.ComponentsStatus) error {
+	if r.GetManagementState() != operatorv1.Managed {
 		in.TrainingOperator = nil
+		return nil
 	}
+
+	releases, err := status.GetReleaseStatus(deploy.DefaultManifestPath, ComponentName)
+
+	if err != nil {
+		return err
+	}
+
+	in.TrainingOperator = &status.TrainingOperatorStatus{
+		ComponentStatus: status.ComponentStatus{
+			Releases: releases,
+		},
+	}
+	return nil
 }
 
 func (r *TrainingOperator) ReconcileComponent(ctx context.Context, cli client.Client,

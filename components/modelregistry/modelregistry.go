@@ -97,18 +97,24 @@ func (m *ModelRegistry) GetComponentName() string {
 	return ComponentName
 }
 
-func (m *ModelRegistry) UpdateStatus(in *status.ComponentsStatus) {
-	enabled := m.GetManagementState() == operatorv1.Managed
-	if enabled {
-		modelRegistryStatus := status.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
-
-		in.ModelRegistry = &status.ModelRegistryStatus{
-			ComponentStatus:     modelRegistryStatus,
-			RegistriesNamespace: m.RegistriesNamespace,
-		}
-	} else {
-		in.ModelRegistry = &status.ModelRegistryStatus{}
+func (m *ModelRegistry) UpdateStatus(in *status.ComponentsStatus) error {
+	if m.GetManagementState() != operatorv1.Managed {
+		in.ModelRegistry = nil
+		return nil
 	}
+
+	releases, err := status.GetReleaseStatus(deploy.DefaultManifestPath, ComponentName)
+
+	if err != nil {
+		return err
+	}
+
+	in.ModelRegistry = &status.ModelRegistryStatus{
+		ComponentStatus: status.ComponentStatus{
+			Releases: releases,
+		},
+	}
+	return nil
 }
 
 func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Client,

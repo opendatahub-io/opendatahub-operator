@@ -311,9 +311,9 @@ type ComponentReleaseStatusMeta struct {
 	RepoURL string `yaml:"repoURL,omitempty"`
 }
 
-// GetReleaseVersion reads odh_metadata.yaml file and parses release information.
-// If version is not set or set to "", return empty {}.
-func GetReleaseVersion(defaultManifestPath string, componentName string) ComponentStatus {
+// GetReleaseStatus reads odh_metadata.yaml file and parses release information.
+// If version is not set or set to "", return empty slice along with error.
+func GetReleaseStatus(defaultManifestPath string, componentName string) ([]ComponentReleaseStatus, error) {
 	var componentVersion semver.Version
 	var releaseInfo ReleaseFileMeta
 	var releaseStatus ComponentReleaseStatus
@@ -321,19 +321,22 @@ func GetReleaseVersion(defaultManifestPath string, componentName string) Compone
 
 	yamlData, err := os.ReadFile(filepath.Join(defaultManifestPath, componentName, "odh_metadata.yaml"))
 	if err != nil {
-		return ComponentStatus{}
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
 	}
 
 	err = yaml.Unmarshal(yamlData, &releaseInfo)
 	if err != nil {
-		return ComponentStatus{}
+		return nil, err
 	}
 
 	for _, release := range releaseInfo.Releases {
 		componentVersion, err = semver.Parse(release.Version)
 
 		if err != nil {
-			return ComponentStatus{}
+			return nil, err
 		}
 
 		releaseStatus = ComponentReleaseStatus{
@@ -344,7 +347,5 @@ func GetReleaseVersion(defaultManifestPath string, componentName string) Compone
 		componentReleaseStatus = append(componentReleaseStatus, releaseStatus)
 	}
 
-	return ComponentStatus{
-		Releases: componentReleaseStatus,
-	}
+	return componentReleaseStatus, nil
 }

@@ -111,17 +111,24 @@ func (w *Workbenches) GetComponentName() string {
 	return ComponentName
 }
 
-func (w *Workbenches) UpdateStatus(in *status.ComponentsStatus) {
-	enabled := w.GetManagementState() == operatorv1.Managed
-	if enabled {
-		workbenchesStatus := status.GetReleaseVersion(deploy.DefaultManifestPath, ComponentName)
-
-		in.Workbenches = &status.WorkbenchesStatus{
-			ComponentStatus: workbenchesStatus,
-		}
-	} else {
+func (w *Workbenches) UpdateStatus(in *status.ComponentsStatus) error {
+	if w.GetManagementState() != operatorv1.Managed {
 		in.Workbenches = nil
+		return nil
 	}
+
+	releases, err := status.GetReleaseStatus(deploy.DefaultManifestPath, ComponentName)
+
+	if err != nil {
+		return err
+	}
+
+	in.Workbenches = &status.WorkbenchesStatus{
+		ComponentStatus: status.ComponentStatus{
+			Releases: releases,
+		},
+	}
+	return nil
 }
 
 func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
