@@ -94,7 +94,7 @@ func setupDSCICR(name string) *dsciv1.DSCInitialization {
 			},
 			TrustedCABundle: &dsciv1.TrustedCABundleSpec{
 				ManagementState: "Managed",
-				CustomCABundle:  "",
+				CustomCABundle:  "-----Begin....",
 			},
 			ServiceMesh: &infrav1.ServiceMeshSpec{
 				ControlPlane: infrav1.ControlPlaneSpec{

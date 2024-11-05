@@ -9,9 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
+	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -30,6 +32,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/serverless"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/trustedcabundle"
 )
 
 func creationTestSuite(t *testing.T) {
@@ -98,6 +101,10 @@ func creationTestSuite(t *testing.T) {
 		t.Run("Validate default model registry cert available", func(t *testing.T) {
 			err = testCtx.testDefaultModelRegistryCertAvailable()
 			require.NoError(t, err, "error getting default cert secret for ModelRegistry")
+		})
+		t.Run("Validate trusted CA bundle", func(t *testing.T) {
+			err = testCtx.testTrustedCABundle()
+			require.NoError(t, err, "error validating trusted CA bundle")
 		})
 		t.Run("Validate model registry servicemeshmember available", func(t *testing.T) {
 			err = testCtx.testMRServiceMeshMember()
@@ -440,6 +447,48 @@ func (tc *testContext) testDefaultCertsAvailable() error {
 
 	if string(defaultIngressSecret.Data["tls.key"]) != string(ctrlPlaneSecret.Data["tls.key"]) {
 		return fmt.Errorf("default cert secret not expected. Epected %v, Got %v", defaultIngressSecret.Data["tls.crt"], ctrlPlaneSecret.Data["tls.crt"])
+	}
+	return nil
+}
+
+func (tc *testContext) testTrustedCABundle() error {
+	managementStateChangeTrustedCA := false
+	CAConfigMapName := "odh-trusted-ca-bundle"
+	CADataFieldName := "odh-ca-bundle.crt"
+
+	err := trustedcabundle.ConfigureTrustedCABundle(tc.ctx, tc.customClient, logr.Logger{}, tc.testDSCI, managementStateChangeTrustedCA)
+
+	if err != nil {
+		return fmt.Errorf("Error while configuring trusted-ca-bundle: %w", err)
+	}
+	istrustedCABundleUpdated, err := trustedcabundle.IsTrustedCABundleUpdated(tc.ctx, tc.customClient, tc.testDSCI)
+
+	if istrustedCABundleUpdated == true {
+		return fmt.Errorf("odh-trusted-ca-bundle in config map does not match with DSCI's TrustedCABundle.CustomCABundle, needs update: %w", err)
+	}
+
+	err = trustedcabundle.AddCABundleCMInAllNamespaces(tc.ctx, tc.customClient, logr.Logger{}, tc.testDSCI)
+
+	if err != nil {
+		return fmt.Errorf("failed adding configmap %s to all namespaces: %w", CAConfigMapName, err)
+	}
+
+	if err := trustedcabundle.RemoveCABundleCMInAllNamespaces(tc.ctx, tc.customClient); err != nil {
+		return fmt.Errorf("error deleting configmap %s from all namespaces %w", CAConfigMapName, err)
+	}
+
+	foundConfigMap := &corev1.ConfigMap{}
+	err = tc.customClient.Get(tc.ctx, client.ObjectKey{
+		Name:      CAConfigMapName,
+		Namespace: tc.testDSCI.Spec.ApplicationsNamespace,
+	}, foundConfigMap)
+
+	if err != nil {
+		return errors.New("Config map not found")
+	}
+
+	if foundConfigMap.Data[CADataFieldName] != tc.testDSCI.Spec.TrustedCABundle.CustomCABundle {
+		return fmt.Errorf("odh-trusted-ca-bundle in config map does not match with DSCI's TrustedCABundle.CustomCABundle, needs update: %w", err)
 	}
 	return nil
 }
