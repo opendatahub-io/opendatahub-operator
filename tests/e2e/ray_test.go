@@ -162,7 +162,7 @@ func (tc *RayTestCtx) testUpdateOnRayResources() error {
 	// Test Updating Ray Replicas
 
 	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-		LabelSelector: labels.ComponentManagedBy + "=" + tc.testRayInstance.Name,
+		LabelSelector: labels.ComponentPartOf + "=" + tc.testRayInstance.Name,
 	})
 	if err != nil {
 		return err

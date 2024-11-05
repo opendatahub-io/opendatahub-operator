@@ -62,9 +62,9 @@ func NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		//
 		// By default the Watches functions adds:
 		// - an event handler mapping to a cluster scope resource identified by the
-		//   components.opendatahub.io/managed-by annotation
+		//   components.opendatahub.io/part-of annotation
 		// - a predicate that check for generation change for Delete/Updates events
-		//   for to objects that have the label components.opendatahub.io/managed-by
+		//   for to objects that have the label components.opendatahub.io/part-of
 		//   set to the current owner
 		//
 		Watches(&extv1.CustomResourceDefinition{}).
@@ -88,10 +88,10 @@ func NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		WithAction(updatePodSecurityRolebinding).
 		WithAction(deploy.NewAction(
 			deploy.WithFieldOwner(componentsv1.DashboardInstanceName),
-			deploy.WithLabel(labels.ComponentManagedBy, componentsv1.DashboardInstanceName),
+			deploy.WithLabel(labels.ComponentPartOf, componentsv1.DashboardInstanceName),
 		)).
 		WithAction(updatestatus.NewAction(
-			updatestatus.WithSelectorLabel(labels.ComponentManagedBy, componentsv1.DashboardInstanceName),
+			updatestatus.WithSelectorLabel(labels.ComponentPartOf, componentsv1.DashboardInstanceName),
 		)).
 		WithAction(updateStatus).
 		Build(ctx)

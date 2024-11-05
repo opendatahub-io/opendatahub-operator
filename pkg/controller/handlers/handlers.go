@@ -18,14 +18,14 @@ func ToOwner() handler.EventHandler {
 			return []reconcile.Request{}
 		}
 
-		managedBy := objLabels[labels.ComponentManagedBy]
-		if managedBy == "" {
+		partOf := objLabels[labels.ComponentPartOf]
+		if partOf == "" {
 			return []reconcile.Request{}
 		}
 
 		return []reconcile.Request{{
 			NamespacedName: types.NamespacedName{
-				Name: managedBy,
+				Name: partOf,
 			},
 		}}
 	})

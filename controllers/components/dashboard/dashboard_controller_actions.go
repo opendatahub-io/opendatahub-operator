@@ -118,7 +118,7 @@ func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 		&rl,
 		client.InNamespace(rr.DSCI.Spec.ApplicationsNamespace),
 		client.MatchingLabels(map[string]string{
-			labels.ComponentManagedBy: componentsv1.DashboardInstanceName,
+			labels.ComponentPartOf: componentsv1.DashboardInstanceName,
 		}),
 	)
 
