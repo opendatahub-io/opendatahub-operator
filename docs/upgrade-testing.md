@@ -137,7 +137,7 @@ spec:
     modelmeshserving:
       managementState: Managed
     modelregistry:
-      managementState: Managed
+      managementState: Removed
       registriesNamespace: "rhoai-model-registries"
     ray:
       managementState: Managed

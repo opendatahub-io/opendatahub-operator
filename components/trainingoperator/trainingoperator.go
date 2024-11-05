@@ -1,5 +1,6 @@
 // Package trainingoperator provides utility functions to config trainingoperator as part of the stack
 // which makes managing distributed compute infrastructure in the cloud easy and intuitive for Data Scientists
+// +groupName=datasciencecluster.opendatahub.io
 package trainingoperator
 
 import (
@@ -90,7 +91,7 @@ func (r *TrainingOperator) ReconcileComponent(ctx context.Context, cli client.Cl
 	}
 
 	// CloudService Monitoring handling
-	if platform == cluster.ManagedRhods {
+	if platform == cluster.ManagedRhoai {
 		if err := r.UpdatePrometheusConfig(cli, l, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
 		}

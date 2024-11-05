@@ -63,7 +63,7 @@ To deploy ODH components seamlessly, ODH operator will watch two CRDs:
           modelmeshserving:
             managementState: Managed
           modelregistry:
-            managementState: Managed
+            managementState: Removed
             registriesNamespace: "rhoai-model-registries"
           ray:
             managementState: Managed

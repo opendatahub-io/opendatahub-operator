@@ -10,7 +10,7 @@ plugins:
   manifests.sdk.operatorframework.io/v2: {}
   scorecard.sdk.operatorframework.io/v2: {}
 projectName: rhods-operator
-repo: github.com/red-hat-data-services/rhods-operator
+repo: github.com/opendatahub-io/opendatahub-operator
 resources:
 - api:
     crdVersion: v1

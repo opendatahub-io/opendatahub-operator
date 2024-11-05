@@ -1,17 +1,16 @@
 #!/usr/bin/env bash
 set -e
 
-GITHUB_URL="https://github.com/"
-# update to use different git repo for legacy manifests
-MANIFEST_ORG="red-hat-data-services"
+GITHUB_URL="https://github.com"
 
-# component: notebook, dsp, kserve, dashbaord, cf/ray/kueue/trainingoperator, trustyai, modelmesh, modelregistry
+# component: notebook, dsp, kserve, dashbaord, cf/ray/kueue/trainingoperator, trustyai, modelmesh, modelregistry.
 # in the format of "repo-org:repo-name:ref-name:source-folder:target-folder".
 declare -A COMPONENT_MANIFESTS=(
     ["codeflare"]="red-hat-data-services:codeflare-operator:rhoai-2.16:config:codeflare"
     ["ray"]="red-hat-data-services:kuberay:rhoai-2.16:ray-operator/config:ray"
     ["kueue"]="red-hat-data-services:kueue:rhoai-2.16:config:kueue"
     ["data-science-pipelines-operator"]="red-hat-data-services:data-science-pipelines-operator:rhoai-2.16:config:data-science-pipelines-operator"
+    ["odh-dashboard"]="red-hat-data-services:odh-dashboard:rhoai-2.16:manifests:dashboard"
     ["kf-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-2.16:components/notebook-controller/config:odh-notebook-controller/kf-notebook-controller"
     ["odh-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-2.16:components/odh-notebook-controller/config:odh-notebook-controller/odh-notebook-controller"
     ["notebooks"]="red-hat-data-services:notebooks:rhoai-2.16:manifests:notebooks"
@@ -19,9 +18,8 @@ declare -A COMPONENT_MANIFESTS=(
     ["model-mesh"]="red-hat-data-services:modelmesh-serving:rhoai-2.16:config:model-mesh"
     ["odh-model-controller"]="red-hat-data-services:odh-model-controller:rhoai-2.16:config:odh-model-controller"
     ["kserve"]="red-hat-data-services:kserve:rhoai-2.16:config:kserve"
-    ["odh-dashboard"]="red-hat-data-services:odh-dashboard:rhoai-2.16:manifests:dashboard"
-    ["trainingoperator"]="red-hat-data-services:training-operator:rhoai-2.16:manifests:trainingoperator"
     ["modelregistry"]="red-hat-data-services:model-registry-operator:rhoai-2.16:config:model-registry-operator"
+    ["trainingoperator"]="red-hat-data-services:training-operator:rhoai-2.16:manifests:trainingoperator"
 )
 
 # Allow overwriting repo using flags component=repo

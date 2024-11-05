@@ -105,7 +105,7 @@ func DeleteOdhTrustedCABundleConfigMap(ctx context.Context, cli client.Client, n
 	return cli.Delete(ctx, foundConfigMap)
 }
 
-// IsTrustedCABundleUpdated check if data in CM "odh-trusted-ca-bundle" from applciation namespace matches DSCI's TrustedCABundle.CustomCABundle
+// IsTrustedCABundleUpdated check if data in CM "odh-trusted-ca-bundle" from application namespace matches DSCI's TrustedCABundle.CustomCABundle
 // return false when these two are matching => skip update
 // return true when not match => need upate.
 func IsTrustedCABundleUpdated(ctx context.Context, cli client.Client, dscInit *dsciv1.DSCInitialization) (bool, error) {

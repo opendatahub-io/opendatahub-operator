@@ -85,7 +85,6 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 		"odh-modelmesh-runtime-adapter": "RELATED_IMAGE_ODH_MODELMESH_RUNTIME_ADAPTER_IMAGE",
 		"odh-modelmesh":                 "RELATED_IMAGE_ODH_MODELMESH_IMAGE",
 		"odh-modelmesh-controller":      "RELATED_IMAGE_ODH_MODELMESH_CONTROLLER_IMAGE",
-		"odh-model-controller":          "RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
 	}
 
 	// odh-model-controller to use
@@ -107,9 +106,7 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 
 		if err := cluster.UpdatePodSecurityRolebinding(ctx, cli, dscispec.ApplicationsNamespace,
 			"modelmesh",
-			"modelmesh-controller",
-			"odh-prometheus-operator",
-			"prometheus-custom"); err != nil {
+			"modelmesh-controller"); err != nil {
 			return err
 		}
 		// Update image parameters
@@ -153,7 +150,7 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 	}
 
 	// CloudService Monitoring handling
-	if platform == cluster.ManagedRhods {
+	if platform == cluster.ManagedRhoai {
 		// first model-mesh rules
 		if err := m.UpdatePrometheusConfig(cli, l, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err

@@ -109,7 +109,7 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 				return err
 			}
 		}
-		if platform == cluster.SelfManagedRhods || platform == cluster.ManagedRhods {
+		if platform == cluster.SelfManagedRhoai || platform == cluster.ManagedRhoai {
 			// Intentionally leaving the ownership unset for this namespace.
 			// Specifying this label triggers its deletion when the operator is uninstalled.
 			_, err := cluster.CreateNamespace(ctx, cli, cluster.DefaultNotebooksNamespace, cluster.WithLabels(labels.ODH.OwnedNamespace, "true"))
@@ -169,7 +169,7 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 	}
 
 	// CloudService Monitoring handling
-	if platform == cluster.ManagedRhods {
+	if platform == cluster.ManagedRhoai {
 		if err := w.UpdatePrometheusConfig(cli, l, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
 		}

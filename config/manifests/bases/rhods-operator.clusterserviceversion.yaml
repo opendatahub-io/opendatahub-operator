@@ -9,6 +9,9 @@ metadata:
     containerImage: REPLACE_IMAGE:latest
     createdAt: "2023-10-10T00:00:00Z"
     description: Operator for deployment and management of Red Hat OpenShift AI
+    features.operators.openshift.io/cnf: "false"
+    features.operators.openshift.io/cni: "false"
+    features.operators.openshift.io/csi: "false"
     features.operators.openshift.io/disconnected: "true"
     features.operators.openshift.io/fips-compliant: "false"
     features.operators.openshift.io/proxy-aware: "false"
@@ -179,7 +182,7 @@ spec:
   - Data Science
   links:
   - name: Red Hat OpenShift AI
-    url: https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/2.15.0
+    url: https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/2.16.0
   maintainers:
   - email: managed-open-data-hub@redhat.com
     name: Red Hat Openshift AI
@@ -187,4 +190,4 @@ spec:
   minKubeVersion: 1.25.0
   provider:
     name: Red Hat
-  version: 2.15.0
+  version: 2.16.0

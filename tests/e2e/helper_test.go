@@ -163,12 +163,12 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 						ManagementState: operatorv1.Managed,
 					},
 				},
-				TrainingOperator: trainingoperator.TrainingOperator{
+				ModelRegistry: modelregistry.ModelRegistry{
 					Component: components.Component{
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				ModelRegistry: modelregistry.ModelRegistry{
+				TrainingOperator: trainingoperator.TrainingOperator{
 					Component: components.Component{
 						ManagementState: operatorv1.Removed,
 					},
@@ -260,9 +260,8 @@ func getSubscription(tc *testContext, name string, ns string) (*ofapi.Subscripti
 		sub := setupSubscription(name, ns)
 
 		if err := tc.customClient.Create(tc.ctx, sub); err != nil {
-			return nil, fmt.Errorf("error creating subscription: %w", err)
+			return nil, fmt.Errorf("error creating subscription %s: %w", name, err)
 		}
-
 		return sub, nil
 	}
 

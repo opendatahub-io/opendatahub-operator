@@ -97,7 +97,7 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(admissionregistrationv1.AddToScheme(scheme))
 	utilruntime.Must(apiregistrationv1.AddToScheme(scheme))
 	utilruntime.Must(monitoringv1.AddToScheme(scheme))
-	utilruntime.Must(operatorv1.Install(scheme))
+	utilruntime.Must(operatorv1.Install(scheme)) // here also add configv1.Install(scheme) no need add configv1 explicitly
 }
 
 func main() { //nolint:funlen,maintidx
@@ -277,8 +277,8 @@ func main() { //nolint:funlen,maintidx
 		}
 	}
 
-	// Create default DSC CR for managed RHODS
-	if platform == cluster.ManagedRhods {
+	// Create default DSC CR for managed RHOAI
+	if platform == cluster.ManagedRhoai {
 		var createDefaultDSCFunc manager.RunnableFunc = func(ctx context.Context) error {
 			err := upgrade.CreateDefaultDSC(ctx, setupClient)
 			if err != nil {
@@ -327,7 +327,7 @@ func createSecretCacheConfig(platform cluster.Platform) map[string]cache.Config 
 		"openshift-ingress": {},
 	}
 	switch platform {
-	case cluster.ManagedRhods:
+	case cluster.ManagedRhoai:
 		namespaceConfigs["redhat-ods-monitoring"] = cache.Config{}
 		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
 		operatorNs, err := cluster.GetOperatorNamespace()
@@ -335,7 +335,7 @@ func createSecretCacheConfig(platform cluster.Platform) map[string]cache.Config 
 			operatorNs = "redhat-ods-operator" // fall back case
 		}
 		namespaceConfigs[operatorNs] = cache.Config{}
-	case cluster.SelfManagedRhods:
+	case cluster.SelfManagedRhoai:
 		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
 	default:
 		namespaceConfigs["opendatahub"] = cache.Config{}
@@ -346,10 +346,10 @@ func createSecretCacheConfig(platform cluster.Platform) map[string]cache.Config 
 func createDeploymentCacheConfig(platform cluster.Platform) map[string]cache.Config {
 	namespaceConfigs := map[string]cache.Config{}
 	switch platform {
-	case cluster.ManagedRhods: // no need workbench NS, only SFS no Deployment
+	case cluster.ManagedRhoai: // no need workbench NS, only SFS no Deployment
 		namespaceConfigs["redhat-ods-monitoring"] = cache.Config{}
 		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
-	case cluster.SelfManagedRhods:
+	case cluster.SelfManagedRhoai:
 		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
 	default:
 		namespaceConfigs["opendatahub"] = cache.Config{}

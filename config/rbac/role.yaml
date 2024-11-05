@@ -2,7 +2,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: controller-manager-role
+  name: rhods-operator-role
 rules:
 - apiGroups:
   - '*'
@@ -516,6 +516,7 @@ rules:
   resources:
   - modelregistries/finalizers
   verbs:
+  - get
   - update
 - apiGroups:
   - modelregistry.opendatahub.io

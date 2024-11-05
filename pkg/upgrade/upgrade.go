@@ -216,7 +216,7 @@ func CleanupExistingResource(ctx context.Context,
 ) error {
 	var multiErr *multierror.Error
 	// Special Handling of cleanup of deprecated model monitoring stack
-	if platform == cluster.ManagedRhods {
+	if platform == cluster.ManagedRhoai {
 		deprecatedDeployments := []string{"rhods-prometheus-operator"}
 		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedDeployments, &appsv1.DeploymentList{}))
 
@@ -270,7 +270,7 @@ func CleanupExistingResource(ctx context.Context,
 	multiErr = multierror.Append(multiErr, deleteResources(ctx, cli, &odhDocJPH))
 
 	// only apply on RHOAI since ODH has a different way to create this CR by dashboard
-	if platform == cluster.SelfManagedRhods || platform == cluster.ManagedRhods {
+	if platform == cluster.SelfManagedRhoai || platform == cluster.ManagedRhoai {
 		if err := upgradeODCCR(ctx, cli, "odh-dashboard-config", dscApplicationsNamespace, oldReleaseVersion); err != nil {
 			return err
 		}

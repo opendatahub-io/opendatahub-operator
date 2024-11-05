@@ -63,8 +63,8 @@ func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client, lo
 		"trustyaiOperatorImage": "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE",
 	}
 	entryPath := map[cluster.Platform]string{
-		cluster.SelfManagedRhods: PathDownstream,
-		cluster.ManagedRhods:     PathDownstream,
+		cluster.SelfManagedRhoai: PathDownstream,
+		cluster.ManagedRhoai:     PathDownstream,
 		cluster.OpenDataHub:      PathUpstream,
 		cluster.Unknown:          PathUpstream,
 	}[platform]
@@ -104,7 +104,7 @@ func (t *TrustyAI) ReconcileComponent(ctx context.Context, cli client.Client, lo
 	}
 
 	// CloudService Monitoring handling
-	if platform == cluster.ManagedRhods {
+	if platform == cluster.ManagedRhoai {
 		if err := t.UpdatePrometheusConfig(cli, l, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
 		}

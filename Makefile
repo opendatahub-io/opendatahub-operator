@@ -3,7 +3,7 @@
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
-VERSION ?= 2.15.0
+VERSION ?= 2.16.0
 # IMAGE_TAG_BASE defines the opendatahub.io namespace and part of the image name for remote images.
 # This variable is used to construct full image tags for bundle and catalog images.
 #
@@ -23,10 +23,7 @@ IMAGE_BUILDER ?= podman
 OPERATOR_NAMESPACE ?= redhat-ods-operator
 DEFAULT_MANIFESTS_PATH ?= opt/manifests
 
-MANIFEST_REPO ?= red-hat-data-services
-MANIFEST_RELEASE ?= master
-
-CHANNELS="alpha,stable"
+CHANNELS="alpha,stable,fast"
 
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
@@ -71,7 +68,7 @@ YQ ?= $(LOCALBIN)/yq
 KUSTOMIZE_VERSION ?= v5.0.2
 CONTROLLER_GEN_VERSION ?= v0.16.1
 OPERATOR_SDK_VERSION ?= v1.31.0
-GOLANGCI_LINT_VERSION ?= v1.60.2
+GOLANGCI_LINT_VERSION ?= v1.61.0
 YQ_VERSION ?= v4.12.2
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.31.0
@@ -143,7 +140,7 @@ endef
 
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	$(CONTROLLER_GEN) rbac:roleName=controller-manager-role crd:ignoreUnexportedFields=true webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+	$(CONTROLLER_GEN) rbac:roleName=rhods-operator-role crd:ignoreUnexportedFields=true webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 	$(call fetch-external-crds,github.com/openshift/api,route/v1)
 	$(call fetch-external-crds,github.com/openshift/api,user/v1)
 
@@ -191,8 +188,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 
 .PHONY: run-nowebhook
 run-nowebhook: GO_RUN_ARGS += -tags nowebhook
-run-nowebhook: manifests generate fmt vet ## Run a controller from your host without webhook enabled
-	$(GO_RUN_MAIN)
+run-nowebhook: run ## Run a controller from your host without webhook enabled
 
 .PHONY: image-build
 image-build: # unit-test ## Build image with the manager.
@@ -247,7 +243,7 @@ KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/k
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
 $(KUSTOMIZE): $(LOCALBIN)
-	test -s $(KUSTOMIZE) || { curl -s $(KUSTOMIZE_INSTALL_SCRIPT) | sh -s -- $(subst v,,$(KUSTOMIZE_VERSION)) $(LOCALBIN); }
+	test -s $(KUSTOMIZE) || { curl -s $(KUSTOMIZE_INSTALL_SCRIPT) | bash -s -- $(subst v,,$(KUSTOMIZE_VERSION)) $(LOCALBIN); }
 
 .PHONY: controller-gen
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.
@@ -291,8 +287,7 @@ bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then val
 	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS)
 	$(OPERATOR_SDK) bundle validate ./$(BUNDLE_DIR)
 	mv bundle.Dockerfile Dockerfiles/
-	rm -f bundle/manifests/redhat-ods-operator-webhook-service_v1_service.yaml
-
+	rm -f bundle/manifests/rhods-operator-webhook-service_v1_service.yaml
 .PHONY: bundle-build
 bundle-build: bundle
 	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/bundle.Dockerfile -t $(BUNDLE_IMG) .
@@ -383,6 +378,7 @@ CLEANFILES += cover.out
 e2e-test: ## Run e2e tests for the controller
 	go test ./tests/e2e/ -run ^TestOdhOperator -v --operator-namespace=${OPERATOR_NAMESPACE} ${E2E_TEST_FLAGS}
 
+.PHONY: clean
 clean: $(GOLANGCI_LINT)
 	$(GOLANGCI_LINT) cache clean
 	chmod u+w -R $(LOCALBIN) # envtest makes its dir RO

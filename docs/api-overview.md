@@ -279,6 +279,30 @@ _Appears in:_
 
 
 
+## datasciencecluster.opendatahub.io/trainingoperator
+
+Package trainingoperator provides utility functions to config trainingoperator as part of the stack
+which makes managing distributed compute infrastructure in the cloud easy and intuitive for Data Scientists
+
+
+
+#### TrainingOperator
+
+
+
+TrainingOperator struct holds the configuration for the TrainingOperator component.
+
+
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `Component` _[Component](#component)_ |  |  |  |
+
+
+
 ## datasciencecluster.opendatahub.io/trustyai
 
 Package trustyai provides utility functions to config TrustyAI, a bias/fairness and explainability toolkit
@@ -378,7 +402,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `dashboard` _[Dashboard](#dashboard)_ | Dashboard component configuration. |  |  |
 | `workbenches` _[Workbenches](#workbenches)_ | Workbenches component configuration. |  |  |
-| `modelmeshserving` _[ModelMeshServing](#modelmeshserving)_ | ModelMeshServing component configuration.<br />Does not support enabled Kserve at the same time |  |  |
+| `modelmeshserving` _[ModelMeshServing](#modelmeshserving)_ | ModelMeshServing component configuration. |  |  |
 | `datasciencepipelines` _[DataSciencePipelines](#datasciencepipelines)_ | DataServicePipeline component configuration.<br />Require OpenShift Pipelines Operator to be installed before enable component |  |  |
 | `kserve` _[Kserve](#kserve)_ | Kserve component configuration.<br />Require OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component<br />Does not support enabled ModelMeshServing at the same time |  |  |
 | `kueue` _[Kueue](#kueue)_ | Kueue component configuration. |  |  |
@@ -645,7 +669,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `manifestsUri` _string_ | Custom manifests uri for odh-manifests |  |  |
-| `logmode` _string_ |  | production | Enum: [devel development prod production] <br /> |
+| `logmode` _string_ |  | production | Enum: [devel development prod production default] <br /> |
 
 
 #### Monitoring

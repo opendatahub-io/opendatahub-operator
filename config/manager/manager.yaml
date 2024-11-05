@@ -8,21 +8,21 @@ metadata:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: controller-manager
+  name: rhods-operator
   namespace: system
   labels:
-    control-plane: controller-manager
+    name: rhods-operator
 spec:
   selector:
     matchLabels:
-      control-plane: controller-manager
+      name: rhods-operator
   replicas: 1
   template:
     metadata:
       annotations:
-        kubectl.kubernetes.io/default-container: manager
+        kubectl.kubernetes.io/default-container: rhods-operator
       labels:
-        control-plane: controller-manager
+        name: rhods-operator
     spec:
       securityContext:
         runAsNonRoot: true
@@ -34,9 +34,14 @@ spec:
         # seccompProfile:
         #   type: RuntimeDefault
       containers:
-      - command:
+      - name: rhods-operator
+        command:
         - /manager
         env:
+          - name: DISABLE_DSC_CONFIG
+            value: 'false'
+          - name: OPERATOR_NAME
+            value: rhods-operator
           - name: OPERATOR_NAMESPACE
             valueFrom:
               fieldRef:
@@ -47,7 +52,6 @@ spec:
           #   value: SelfManagedRHOAI
         image: controller:latest
         imagePullPolicy: Always
-        name: manager
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -74,5 +78,5 @@ spec:
           requests:
             cpu: 500m
             memory: 256Mi
-      serviceAccountName: controller-manager
+      serviceAccountName: redhat-ods-operator-controller-manager
       terminationGracePeriodSeconds: 10
