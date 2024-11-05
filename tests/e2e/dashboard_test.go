@@ -168,7 +168,7 @@ func (tc *DashboardTestCtx) testUpdateOnDashboardResources() error {
 	// Test Updating Dashboard Replicas
 
 	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-		LabelSelector: labels.ComponentManagedBy + "=" + tc.testDashboardInstance.Name,
+		LabelSelector: labels.ComponentPartOf + "=" + tc.testDashboardInstance.Name,
 	})
 	if err != nil {
 		return err

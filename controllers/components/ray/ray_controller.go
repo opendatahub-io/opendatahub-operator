@@ -63,10 +63,10 @@ func NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		)).
 		WithAction(deploy.NewAction(
 			deploy.WithFieldOwner(componentsv1.RayInstanceName),
-			deploy.WithLabel(labels.ComponentManagedBy, componentsv1.RayInstanceName),
+			deploy.WithLabel(labels.ComponentPartOf, componentsv1.RayInstanceName),
 		)).
 		WithAction(updatestatus.NewAction(
-			updatestatus.WithSelectorLabel(labels.ComponentManagedBy, componentsv1.RayInstanceName),
+			updatestatus.WithSelectorLabel(labels.ComponentPartOf, componentsv1.RayInstanceName),
 		)).
 		Build(ctx)
 

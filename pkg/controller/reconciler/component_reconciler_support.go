@@ -174,7 +174,7 @@ func (b *ComponentReconcilerBuilder[T]) Build(ctx context.Context) (*ComponentRe
 		if len(watchOpts) == 0 {
 			watchOpts = append(watchOpts, builder.WithPredicates(predicate.And(
 				generation.New(),
-				component.ForLabel(labels.ComponentManagedBy, b.ownerName),
+				component.ForLabel(labels.ComponentPartOf, b.ownerName),
 			)))
 		}
 

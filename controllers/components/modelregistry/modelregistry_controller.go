@@ -82,10 +82,10 @@ func NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		WithAction(customizeResources).
 		WithAction(deploy.NewAction(
 			deploy.WithFieldOwner(componentsv1.ModelRegistryInstanceName),
-			deploy.WithLabel(labels.ComponentManagedBy, componentsv1.ModelRegistryInstanceName),
+			deploy.WithLabel(labels.ComponentPartOf, componentsv1.ModelRegistryInstanceName),
 		)).
 		WithAction(updatestatus.NewAction(
-			updatestatus.WithSelectorLabel(labels.ComponentManagedBy, componentsv1.ModelRegistryInstanceName),
+			updatestatus.WithSelectorLabel(labels.ComponentPartOf, componentsv1.ModelRegistryInstanceName),
 		)).
 		WithAction(updateStatus).
 		Build(ctx)
