@@ -16,4 +16,5 @@ resources:
 #- components_v1_trustyai.yaml
 #- components_v1_modelregistry.yaml
 #- components_v1_trainingoperator.yaml
+#- services_v1_dscmonitoring.yaml
 #+kubebuilder:scaffold:manifestskustomizesamples
