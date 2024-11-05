@@ -49,9 +49,9 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
+	modelregistry2 "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/webhook"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -215,7 +215,7 @@ var _ = Describe("DSC mutating webhook", func() {
 		dscInstance := newMRDSC1(nameBase+"-dsc-mr1", "", operatorv1.Managed)
 		Expect(k8sClient.Create(ctx, dscInstance)).Should(Succeed())
 		Expect(dscInstance.Spec.Components.ModelRegistry.RegistriesNamespace).
-			Should(Equal(modelregistry.DefaultModelRegistriesNamespace))
+			Should(Equal(modelregistry2.DefaultModelRegistriesNamespace))
 		Expect(clearInstance(ctx, dscInstance)).Should(Succeed())
 	})
 
@@ -301,8 +301,8 @@ func newDSC(name string, namespace string) *dscv1.DataScienceCluster {
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				ModelRegistry: modelregistry.ModelRegistry{
-					Component: componentsold.Component{
+				ModelRegistry: componentsv1.DSCModelRegistry{
+					ManagementSpec: components.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},
@@ -311,7 +311,7 @@ func newDSC(name string, namespace string) *dscv1.DataScienceCluster {
 	}
 }
 
-func newMRDSC1(name string, mrNamespace string, state operatorv1.ManagementState) *dscv1.DataScienceCluster {
+func newMRDSC1(name string, mrNamespace string, _ operatorv1.ManagementState) *dscv1.DataScienceCluster {
 	return &dscv1.DataScienceCluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -319,11 +319,13 @@ func newMRDSC1(name string, mrNamespace string, state operatorv1.ManagementState
 		},
 		Spec: dscv1.DataScienceClusterSpec{
 			Components: dscv1.Components{
-				ModelRegistry: modelregistry.ModelRegistry{
-					Component: componentsold.Component{
-						ManagementState: state,
+				ModelRegistry: componentsv1.DSCModelRegistry{
+					ManagementSpec: components.ManagementSpec{
+						ManagementState: operatorv1.Removed,
 					},
-					RegistriesNamespace: mrNamespace,
+					ModelRegistryCommonSpec: componentsv1.ModelRegistryCommonSpec{
+						RegistriesNamespace: mrNamespace,
+					},
 				},
 			},
 		},

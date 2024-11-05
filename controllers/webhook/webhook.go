@@ -34,7 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 

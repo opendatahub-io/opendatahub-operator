@@ -30,3 +30,17 @@ func ToOwner() handler.EventHandler {
 		}}
 	})
 }
+
+func Fn(fn func(ctx context.Context, a client.Object) []reconcile.Request) handler.EventHandler {
+	return handler.EnqueueRequestsFromMapFunc(fn)
+}
+
+func ToNamed(name string) handler.EventHandler {
+	return handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {
+		return []reconcile.Request{{
+			NamespacedName: types.NamespacedName{
+				Name: name,
+			},
+		}}
+	})
+}

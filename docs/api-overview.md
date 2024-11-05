@@ -129,6 +129,41 @@ _Appears in:_
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
+#### DSCModelRegistry
+
+
+
+DSCModelRegistry contains all the configuration exposed in DSC instance for ModelRegistry component
+
+
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+| `registriesNamespace` _string_ | Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries" | odh-model-registries | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+
+
+#### DSCModelRegistryStatus
+
+
+
+DSCModelRegistryStatus struct holds the status for the ModelRegistry component exposed in the DSC
+
+
+
+_Appears in:_
+- [ComponentsStatus](#componentsstatus)
+- [ModelRegistryStatus](#modelregistrystatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `registriesNamespace` _string_ |  |  |  |
+
+
 #### DSCRay
 
 
@@ -566,6 +601,24 @@ _Appears in:_
 | `status` _[ModelRegistryStatus](#modelregistrystatus)_ |  |  |  |
 
 
+#### ModelRegistryCommonSpec
+
+
+
+ModelRegistryCommonSpec spec defines the shared desired state of ModelRegistry
+
+
+
+_Appears in:_
+- [DSCModelRegistry](#dscmodelregistry)
+- [ModelRegistrySpec](#modelregistryspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+| `registriesNamespace` _string_ | Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries" | odh-model-registries | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+
+
 #### ModelRegistryList
 
 
@@ -599,7 +652,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `foo` _string_ | Foo is an example field of ModelRegistry. Edit modelregistry_types.go to remove/update |  |  |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+| `registriesNamespace` _string_ | Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries" | odh-model-registries | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 
 #### ModelRegistryStatus
@@ -618,6 +672,7 @@ _Appears in:_
 | `phase` _string_ |  |  |  |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
+| `registriesNamespace` _string_ |  |  |  |
 
 
 #### Ray
@@ -985,7 +1040,6 @@ _Appears in:_
 - [Kserve](#kserve)
 - [Kueue](#kueue)
 - [ModelMeshServing](#modelmeshserving)
-- [ModelRegistry](#modelregistry)
 - [TrainingOperator](#trainingoperator)
 - [TrustyAI](#trustyai)
 - [Workbenches](#workbenches)
@@ -1028,9 +1082,12 @@ DevFlagsSpec struct defines the component's dev flags configuration.
 _Appears in:_
 - [Component](#component)
 - [DSCDashboard](#dscdashboard)
+- [DSCModelRegistry](#dscmodelregistry)
 - [DSCRay](#dscray)
 - [DashboardCommonSpec](#dashboardcommonspec)
 - [DashboardSpec](#dashboardspec)
+- [ModelRegistryCommonSpec](#modelregistrycommonspec)
+- [ModelRegistrySpec](#modelregistryspec)
 - [RayCommonSpec](#raycommonspec)
 - [RaySpec](#rayspec)
 
@@ -1050,6 +1107,7 @@ ManagementSpec struct defines the component's management configuration.
 _Appears in:_
 - [Component](#component)
 - [DSCDashboard](#dscdashboard)
+- [DSCModelRegistry](#dscmodelregistry)
 - [DSCRay](#dscray)
 
 | Field | Description | Default | Validation |
@@ -1200,30 +1258,6 @@ _Appears in:_
 
 
 
-## datasciencecluster.opendatahub.io/modelregistry
-
-Package modelregistry provides utility functions to config ModelRegistry, an ML Model metadata repository service
-
-
-
-#### ModelRegistry
-
-
-
-
-
-
-
-_Appears in:_
-- [Components](#components)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `Component` _[Component](#component)_ |  |  |  |
-| `registriesNamespace` _string_ | Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries" | odh-model-registries | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
-
-
-
 ## datasciencecluster.opendatahub.io/trainingoperator
 
 Package trainingoperator provides utility functions to config trainingoperator as part of the stack
@@ -1354,7 +1388,7 @@ _Appears in:_
 | `codeflare` _[CodeFlare](#codeflare)_ | CodeFlare component configuration.<br />If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabled component. |  |  |
 | `ray` _[DSCRay](#dscray)_ | Ray component configuration. |  |  |
 | `trustyai` _[TrustyAI](#trustyai)_ | TrustyAI component configuration. |  |  |
-| `modelregistry` _[ModelRegistry](#modelregistry)_ | ModelRegistry component configuration. |  |  |
+| `modelregistry` _[DSCModelRegistry](#dscmodelregistry)_ | ModelRegistry component configuration. |  |  |
 | `trainingoperator` _[TrainingOperator](#trainingoperator)_ | Training Operator component configuration. |  |  |
 
 
@@ -1371,7 +1405,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `modelregistry` _[ModelRegistryStatus](#modelregistrystatus)_ | ModelRegistry component status |  |  |
+| `modelregistry` _[DSCModelRegistryStatus](#dscmodelregistrystatus)_ | ModelRegistry component status |  |  |
 
 
 #### ControlPlaneSpec

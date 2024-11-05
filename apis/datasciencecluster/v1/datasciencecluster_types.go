@@ -31,11 +31,9 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kueue"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trainingoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
-	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
@@ -80,16 +78,16 @@ type Components struct {
 	TrustyAI trustyai.TrustyAI `json:"trustyai,omitempty"`
 
 	// ModelRegistry component configuration.
-	ModelRegistry modelregistry.ModelRegistry `json:"modelregistry,omitempty"`
+	ModelRegistry componentsv1.DSCModelRegistry `json:"modelregistry,omitempty"`
 
-	//Training Operator component configuration.
+	// Training Operator component configuration.
 	TrainingOperator trainingoperator.TrainingOperator `json:"trainingoperator,omitempty"`
 }
 
 // ComponentsStatus defines the custom status of DataScienceCluster components.
 type ComponentsStatus struct {
 	// ModelRegistry component status
-	ModelRegistry *status.ModelRegistryStatus `json:"modelregistry,omitempty"`
+	ModelRegistry *componentsv1.DSCModelRegistryStatus `json:"modelregistry,omitempty"`
 }
 
 // DataScienceClusterStatus defines the observed state of DataScienceCluster.
@@ -119,10 +117,10 @@ type DataScienceClusterStatus struct {
 	Release cluster.Release `json:"release,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-//+kubebuilder:resource:scope=Cluster,shortName=dsc
-//+kubebuilder:storageversion
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:resource:scope=Cluster,shortName=dsc
+// +kubebuilder:storageversion
 
 // DataScienceCluster is the Schema for the datascienceclusters API.
 type DataScienceCluster struct {
@@ -133,7 +131,7 @@ type DataScienceCluster struct {
 	Status DataScienceClusterStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 
 // DataScienceClusterList contains a list of DataScienceCluster.
 type DataScienceClusterList struct {

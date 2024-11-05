@@ -7,7 +7,6 @@ import (
 	"reflect"
 
 	"github.com/go-logr/logr"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/tools/record"
@@ -22,6 +21,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
+	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	odhManager "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -37,6 +37,7 @@ type ComponentReconciler struct {
 	Recorder   record.EventRecorder
 	Release    cluster.Release
 
+	name            string
 	m               *odhManager.Manager
 	instanceFactory func() (components.ComponentObject, error)
 }
@@ -53,6 +54,7 @@ func NewComponentReconciler[T components.ComponentObject](ctx context.Context, m
 		Log:      ctrl.Log.WithName("controllers").WithName(name),
 		Recorder: mgr.GetEventRecorderFor(name),
 		Release:  cluster.GetRelease(),
+		name:     name,
 		m:        odhManager.New(mgr),
 		instanceFactory: func() (components.ComponentObject, error) {
 			t := reflect.TypeOf(*new(T)).Elem()
@@ -144,8 +146,14 @@ func (r *ComponentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			)
 
 			if err := action(actx, &rr); err != nil {
-				l.Error(err, "Failed to execute finalizer", "action", action)
-				return ctrl.Result{}, err
+				se := odherrors.StopError{}
+				if !errors.As(err, &se) {
+					l.Error(err, "Failed to execute finalizer", "action", action)
+					return ctrl.Result{}, err
+				}
+
+				l.Info("detected stop marker", "action", action)
+				break
 			}
 		}
 
@@ -162,29 +170,27 @@ func (r *ComponentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		)
 
 		if err := action(actx, &rr); err != nil {
-			l.Error(err, "Failed to execute action", "action", action)
-			return ctrl.Result{}, err
+			se := odherrors.StopError{}
+			if !errors.As(err, &se) {
+				l.Error(err, "Failed to execute action", "action", action)
+				return ctrl.Result{}, err
+			}
+
+			l.Info("detected stop marker", "action", action)
+			break
 		}
 	}
 
-	//
-	// update status with standard update mechanism as the SSA one seems causing
-	// a weird issue on some openshift releases:
-	//
-	//   failed to create typed patch object (...): .status.url: field not declared in schema
-	//
-	err = r.Client.Status().Update(
+	err = r.Client.ApplyStatus(
 		ctx,
 		rr.Instance,
+		client.FieldOwner(r.name),
+		client.ForceOwnership,
 	)
 
-	switch {
-	case err == nil:
-		return ctrl.Result{}, nil
-	case k8serr.IsConflict(err):
-		l.Info("conflict detected while updating status, retrying")
-		return ctrl.Result{Requeue: true}, nil
-	default:
+	if err != nil {
 		return ctrl.Result{}, err
 	}
+
+	return ctrl.Result{}, err
 }

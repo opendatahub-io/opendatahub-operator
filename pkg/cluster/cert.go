@@ -19,8 +19,16 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+const IngressNamespace = "openshift-ingress"
+
+var IngressControllerName = types.NamespacedName{
+	Namespace: "openshift-ingress-operator",
+	Name:      "default",
+}
 
 func CreateSelfSignedCertificate(ctx context.Context, c client.Client, secretName, domain, namespace string, metaOptions ...MetaOptions) error {
 	certSecret, err := GenerateSelfSignedCertificateAsSecret(secretName, domain, namespace)
@@ -123,16 +131,25 @@ func generateCertificate(addr string) ([]byte, []byte, error) {
 	return certBuffer.Bytes(), keyBuffer.Bytes(), nil
 }
 
-// PropagateDefaultIngressCertificate copies ingress cert secrets from openshift-ingress ns to given namespace.
-func PropagateDefaultIngressCertificate(ctx context.Context, c client.Client, secretName, namespace string) error {
+func FindDefaultIngressSecret(ctx context.Context, c client.Client) (*corev1.Secret, error) {
 	defaultIngressCtrl, err := FindAvailableIngressController(ctx, c)
 	if err != nil {
-		return fmt.Errorf("failed to get ingress controller: %w", err)
+		return nil, fmt.Errorf("failed to get ingress controller: %w", err)
 	}
 
 	defaultIngressCertName := GetDefaultIngressCertSecretName(defaultIngressCtrl)
 
-	defaultIngressSecret, err := GetSecret(ctx, c, "openshift-ingress", defaultIngressCertName)
+	defaultIngressSecret, err := GetSecret(ctx, c, IngressNamespace, defaultIngressCertName)
+	if err != nil {
+		return nil, err
+	}
+
+	return defaultIngressSecret, nil
+}
+
+// PropagateDefaultIngressCertificate copies ingress cert secrets from openshift-ingress ns to given namespace.
+func PropagateDefaultIngressCertificate(ctx context.Context, c client.Client, secretName, namespace string) error {
+	defaultIngressSecret, err := FindDefaultIngressSecret(ctx, c)
 	if err != nil {
 		return err
 	}
@@ -143,7 +160,7 @@ func PropagateDefaultIngressCertificate(ctx context.Context, c client.Client, se
 func FindAvailableIngressController(ctx context.Context, c client.Client) (*operatorv1.IngressController, error) {
 	defaultIngressCtrl := &operatorv1.IngressController{}
 
-	err := c.Get(ctx, client.ObjectKey{Namespace: "openshift-ingress-operator", Name: "default"}, defaultIngressCtrl)
+	err := c.Get(ctx, IngressControllerName, defaultIngressCtrl)
 	if err != nil {
 		return nil, fmt.Errorf("error getting ingresscontroller resource :%w", err)
 	}

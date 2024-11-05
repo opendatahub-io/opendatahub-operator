@@ -113,11 +113,14 @@ func TestOdhOperator(t *testing.T) {
 	if !t.Run("validate operator pod is running", testODHOperatorValidation) {
 		return
 	}
+
 	// Run create and delete tests for all the components
 	t.Run("create DSCI and DSC CRs", creationTestSuite)
+
 	// Validate deployment of each component in separate test suite
 	t.Run("validate installation of Dashboard Component", dashboardTestSuite)
 	t.Run("validate installation of Ray Component", rayTestSuite)
+	t.Run("validate installation of ModelRegistry Component", modelRegistryTestSuite)
 
 	// Run deletion if skipDeletion is not set
 	if !skipDeletion {

@@ -14,7 +14,16 @@ spec:
     singular: modelregistry
   scope: Cluster
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - description: Ready
+      jsonPath: .status.conditions[?(@.type=="Ready")].status
+      name: Ready
+      type: string
+    - description: Reason
+      jsonPath: .status.conditions[?(@.type=="Ready")].reason
+      name: Reason
+      type: string
+    name: v1
     schema:
       openAPIV3Schema:
         description: ModelRegistry is the Schema for the modelregistries API
@@ -39,9 +48,38 @@ spec:
           spec:
             description: ModelRegistrySpec defines the desired state of ModelRegistry
             properties:
-              foo:
-                description: Foo is an example field of ModelRegistry. Edit modelregistry_types.go
-                  to remove/update
+              devFlags:
+                description: Add developer fields
+                properties:
+                  manifests:
+                    description: List of custom manifests for the given component
+                    items:
+                      properties:
+                        contextDir:
+                          default: manifests
+                          description: contextDir is the relative path to the folder
+                            containing manifests in a repository, default value "manifests"
+                          type: string
+                        sourcePath:
+                          default: ""
+                          description: 'sourcePath is the subpath within contextDir
+                            where kustomize builds start. Examples include any sub-folder
+                            or path: `base`, `overlays/dev`, `default`, `odh` etc.'
+                          type: string
+                        uri:
+                          default: ""
+                          description: uri is the URI point to a git repo with tag/branch.
+                            e.g.  https://github.com/org/repo/tarball/<tag/branch>
+                          type: string
+                      type: object
+                    type: array
+                type: object
+              registriesNamespace:
+                default: odh-model-registries
+                description: Namespace for model registries to be installed, configurable
+                  only once when model registry is enabled, defaults to "odh-model-registries"
+                maxLength: 63
+                pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
                 type: string
             type: object
           status:
@@ -108,8 +146,13 @@ spec:
                 type: integer
               phase:
                 type: string
+              registriesNamespace:
+                type: string
             type: object
         type: object
+        x-kubernetes-validations:
+        - message: ModelRegistry name must be default-model-registry
+          rule: self.metadata.name == 'default-model-registry'
     served: true
     storage: true
     subresources:
