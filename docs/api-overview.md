@@ -402,7 +402,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `dashboard` _[Dashboard](#dashboard)_ | Dashboard component configuration. |  |  |
 | `workbenches` _[Workbenches](#workbenches)_ | Workbenches component configuration. |  |  |
-| `modelmeshserving` _[ModelMeshServing](#modelmeshserving)_ | ModelMeshServing component configuration.<br />Does not support enabled Kserve at the same time |  |  |
+| `modelmeshserving` _[ModelMeshServing](#modelmeshserving)_ | ModelMeshServing component configuration. |  |  |
 | `datasciencepipelines` _[DataSciencePipelines](#datasciencepipelines)_ | DataServicePipeline component configuration.<br />Require OpenShift Pipelines Operator to be installed before enable component |  |  |
 | `kserve` _[Kserve](#kserve)_ | Kserve component configuration.<br />Require OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component<br />Does not support enabled ModelMeshServing at the same time |  |  |
 | `kueue` _[Kueue](#kueue)_ | Kueue component configuration. |  |  |
