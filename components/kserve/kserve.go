@@ -37,7 +37,8 @@ type DefaultDeploymentMode string
 
 var (
 	// Serverless will be used as the default deployment mode for Kserve. This requires Serverless and ServiceMesh operators configured as dependencies.
-	Serverless    DefaultDeploymentMode = "Serverless"
+	Serverless DefaultDeploymentMode = "Serverless"
+	// RawDeployment will be used as the default deployment mode for Kserve.
 	RawDeployment DefaultDeploymentMode = "RawDeployment"
 )
 
