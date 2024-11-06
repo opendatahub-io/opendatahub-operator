@@ -4,12 +4,7 @@ on:
     branches:
       - main
       - incubation
-      - rhoai_2
   pull_request:
-permissions:
-  contents: read
-  pull-requests: read
-  checks: write
 jobs:
   golangci:
     name: golangci-lint
@@ -23,5 +18,5 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.61.0
+          version: v1.60.2
           args: --timeout 5m0s
