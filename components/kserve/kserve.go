@@ -65,7 +65,6 @@ func (k *Kserve) Init(ctx context.Context, _ cluster.Platform) error {
 	var dependentParamMap = map[string]string{
 		"odh-model-controller": "RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
 	}
-
 	// Update image parameters for odh-model-controller
 	if err := deploy.ApplyParams(DependentPath, dependentParamMap); err != nil {
 		log.Error(err, "failed to update image", "path", DependentPath)
@@ -132,6 +131,12 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 			if err := k.OverrideManifests(ctx, platform); err != nil {
 				return err
 			}
+		}
+		extraParamsMap := map[string]string{
+			"nim-state": string(k.NIM.ManagementState),
+		}
+		if err := deploy.ApplyParams(Path, nil, extraParamsMap); err != nil {
+			return fmt.Errorf("failed to update image from %s : %w", Path, err)
 		}
 	}
 
