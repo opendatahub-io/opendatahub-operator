@@ -49,9 +49,8 @@ func HasCABundleAnnotationDisabled(ns client.Object) bool {
 // this is certificates for the cluster trusted CA Cert Bundle.
 func CreateOdhTrustedCABundleConfigMap(ctx context.Context, cli client.Client, namespace string, customCAData string) error {
 	// Adding newline breaker if user input does not have it
-	if !strings.HasSuffix(customCAData, "\n") {
-		customCAData += "\n"
-	}
+	customCAData = strings.TrimSpace(customCAData) + "\n"
+
 	// Expected configmap for the given namespace
 	desiredConfigMap := &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
