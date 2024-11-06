@@ -28,6 +28,8 @@ type RayTestCtx struct {
 }
 
 func rayTestSuite(t *testing.T) {
+	t.Helper()
+
 	rayCtx := RayTestCtx{}
 	var err error
 	rayCtx.testCtx, err = NewTestContext()

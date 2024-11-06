@@ -28,6 +28,8 @@ type DashboardTestCtx struct {
 }
 
 func dashboardTestSuite(t *testing.T) {
+	t.Helper()
+
 	dashboardCtx := DashboardTestCtx{}
 	var err error
 	dashboardCtx.testCtx, err = NewTestContext()
