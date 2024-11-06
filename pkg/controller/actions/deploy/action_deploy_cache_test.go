@@ -1,7 +1,4 @@
-// this uses unexported function for testing purpose
-//
-//nolint:testpackage
-package deploy
+package deploy_test
 
 import (
 	"context"
@@ -10,6 +7,7 @@ import (
 
 	"github.com/blang/semver/v4"
 	"github.com/operator-framework/api/pkg/lib/version"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/rs/xid"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -26,6 +24,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -144,18 +143,24 @@ func testResourceNotReDeployed(t *testing.T, cli *client.Client, obj ctrlCli.Obj
 			Version: version.OperatorVersion{Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
 			}}},
+		Resources: []unstructured.Unstructured{
+			*in.DeepCopy(),
+		},
 	}
 
-	action := New(
-		WithCache(),
-		WithMode(ModeSSA),
-		WithFieldOwner(xid.New().String()),
+	action := deploy.NewAction(
+		deploy.WithCache(),
+		deploy.WithMode(deploy.ModeSSA),
+		deploy.WithFieldOwner(xid.New().String()),
 	)
 
+	deploy.DeployedResourcesTotal.Reset()
+
 	// Resource should be created if missing
-	ok1, err := action.deploy(ctx, &rr, *in.DeepCopy())
+	err = action(ctx, &rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(ok1).Should(BeTrue())
+
+	g.Expect(testutil.ToFloat64(deploy.DeployedResourcesTotal)).Should(Equal(float64(1)))
 
 	out1 := unstructured.Unstructured{}
 	out1.SetGroupVersionKind(in.GroupVersionKind())
@@ -164,9 +169,10 @@ func testResourceNotReDeployed(t *testing.T, cli *client.Client, obj ctrlCli.Obj
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	// Resource should not be re-deployed
-	ok2, err := action.deploy(ctx, &rr, *in.DeepCopy())
+	err = action(ctx, &rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(ok2).Should(BeFalse())
+
+	g.Expect(testutil.ToFloat64(deploy.DeployedResourcesTotal)).Should(Equal(float64(1)))
 
 	out2 := unstructured.Unstructured{}
 	out2.SetGroupVersionKind(in.GroupVersionKind())

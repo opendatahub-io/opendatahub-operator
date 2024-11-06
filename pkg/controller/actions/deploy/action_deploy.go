@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -110,10 +111,16 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 		a.cache.Sync()
 	}
 
+	controllerName := strings.ToLower(rr.Instance.GetObjectKind().GroupVersionKind().Kind)
+
 	for i := range rr.Resources {
-		_, err := a.deploy(ctx, rr, rr.Resources[i])
+		ok, err := a.deploy(ctx, rr, rr.Resources[i])
 		if err != nil {
 			return fmt.Errorf("failure deploying %s: %w", rr.Resources[i], err)
+		}
+
+		if ok {
+			DeployedResourcesTotal.WithLabelValues(controllerName).Inc()
 		}
 	}
 
@@ -378,7 +385,7 @@ func (a *Action) computeCacheKey(
 	), nil
 }
 
-func New(opts ...ActionOpts) *Action {
+func NewAction(opts ...ActionOpts) actions.Fn {
 	action := Action{
 		deployMode: ModeSSA,
 	}
@@ -387,10 +394,5 @@ func New(opts ...ActionOpts) *Action {
 		opt(&action)
 	}
 
-	return &action
-}
-
-func NewAction(opts ...ActionOpts) actions.Fn {
-	action := New(opts...)
 	return action.run
 }
