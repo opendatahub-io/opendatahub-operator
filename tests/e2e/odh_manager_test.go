@@ -10,11 +10,11 @@ func testODHOperatorValidation(t *testing.T) {
 	testCtx, err := NewTestContext()
 	require.NoError(t, err)
 
-	t.Run("validate RHOAI Operator pod", testCtx.testODHDeployment)
+	t.Run("validate RHOAI Operator pod", testCtx.testRHOAIDeployment)
 	t.Run("validate CRDs owned by the operator", testCtx.validateOwnedCRDs)
 }
 
-func (tc *testContext) testODHDeployment(t *testing.T) {
+func (tc *testContext) testRHOAIDeployment(t *testing.T) {
 	// Verify if the operator deployment is created
 	require.NoErrorf(t, tc.waitForOperatorDeployment("rhods-operator", 1),
 		"error in validating rhods-operator deployment")
