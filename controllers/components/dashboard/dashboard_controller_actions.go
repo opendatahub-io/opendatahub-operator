@@ -73,33 +73,25 @@ func customizeResources(_ context.Context, rr *odhtypes.ReconciliationRequest) e
 	return nil
 }
 
-func updatePodSecurityRolebinding(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	switch rr.Release.Name {
-	case cluster.SelfManagedRhods, cluster.ManagedRhods:
-		if err := cluster.UpdatePodSecurityRolebinding(ctx, rr.Client, rr.DSCI.Spec.ApplicationsNamespace, "rhods-dashboard"); err != nil {
-			return fmt.Errorf("failed to update PodSecurityRolebinding for rhods-dashboard: %w", err)
-		}
+func configureDependencies(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
+	if rr.Release.Name == cluster.Unknown || rr.Release.Name == cluster.OpenDataHub {
+		return nil
+	}
 
-		err := rr.AddResource(&corev1.Secret{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: corev1.SchemeGroupVersion.String(),
-				Kind:       "Secret",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "anaconda-ce-access",
-				Namespace: rr.DSCI.Spec.ApplicationsNamespace,
-			},
-			Type: corev1.SecretTypeOpaque,
-		})
+	err := rr.AddResource(&corev1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.String(),
+			Kind:       "Secret",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "anaconda-ce-access",
+			Namespace: rr.DSCI.Spec.ApplicationsNamespace,
+		},
+		Type: corev1.SecretTypeOpaque,
+	})
 
-		if err != nil {
-			return fmt.Errorf("failed to create access-secret for anaconda: %w", err)
-		}
-
-	default:
-		if err := cluster.UpdatePodSecurityRolebinding(ctx, rr.Client, rr.DSCI.Spec.ApplicationsNamespace, "odh-dashboard"); err != nil {
-			return fmt.Errorf("failed to update PodSecurityRolebinding for odh-dashboard: %w", err)
-		}
+	if err != nil {
+		return fmt.Errorf("failed to create access-secret for anaconda: %w", err)
 	}
 
 	return nil

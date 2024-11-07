@@ -5,6 +5,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -18,6 +19,7 @@ func New(ctx context.Context, objs ...ctrlClient.Object) (*client.Client, error)
 	scheme := runtime.NewScheme()
 	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(appsv1.AddToScheme(scheme))
+	utilruntime.Must(rbacv1.AddToScheme(scheme))
 
 	fakeMapper := meta.NewDefaultRESTMapper(scheme.PreferredVersionAllGroups())
 	for gvk := range scheme.AllKnownTypes() {

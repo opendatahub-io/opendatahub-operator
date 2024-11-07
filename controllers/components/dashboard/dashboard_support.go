@@ -52,6 +52,13 @@ var (
 		cluster.Unknown:          PathUpstream,
 	}
 
+	serviceAccounts = map[cluster.Platform]string{
+		cluster.SelfManagedRhods: "rhods-dashboard",
+		cluster.ManagedRhods:     "rhods-dashboard",
+		cluster.OpenDataHub:      "odh-dashboard",
+		cluster.Unknown:          "odh-dashboard",
+	}
+
 	imagesMap = map[string]string{
 		"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
 	}
