@@ -31,7 +31,7 @@ import (
 
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/security"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/updatestatus"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
@@ -74,8 +74,8 @@ func NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		WithAction(devFlags).
 		WithAction(configureDependencies).
 		WithAction(security.NewUpdatePodSecurityRoleBindingAction(serviceAccounts)).
-		WithAction(render.NewAction(
-			render.WithCache(true, render.DefaultCachingKeyFn),
+		WithAction(kustomize.NewAction(
+			kustomize.WithCache(kustomize.DefaultCachingKeyFn),
 			// Those are the default labels added by the legacy deploy method
 			// and should be preserved as the original plugin were affecting
 			// deployment selectors that are immutable once created, so it won't
@@ -84,8 +84,8 @@ func NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 			//
 			// Additional labels/annotations MUST be added by the deploy action
 			// so they would affect only objects metadata without side effects
-			render.WithLabel(labels.ODH.Component(componentName), "true"),
-			render.WithLabel(labels.K8SCommon.PartOf, componentName),
+			kustomize.WithLabel(labels.ODH.Component(componentName), "true"),
+			kustomize.WithLabel(labels.K8SCommon.PartOf, componentName),
 		)).
 		WithAction(customizeResources).
 		WithAction(deploy.NewAction(
