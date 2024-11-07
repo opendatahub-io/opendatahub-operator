@@ -246,7 +246,7 @@ spec:
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
                       nim:
-                        description: Configures and enables Nvidida's NIM integration
+                        description: Configures and enables NVIDIA NIM integration
                         properties:
                           managementState:
                             default: Managed

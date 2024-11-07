@@ -54,7 +54,7 @@ type Kserve struct {
 	// This field is optional. If no default deployment mode is specified, Kserve will use Serverless mode.
 	// +kubebuilder:validation:Enum=Serverless;RawDeployment
 	DefaultDeploymentMode DefaultDeploymentMode `json:"defaultDeploymentMode,omitempty"`
-	// Configures and enables Nvidida's NIM integration
+	// Configures and enables NVIDIA NIM integration
 	NIM infrav1.NimSpec `json:"nim,omitempty"`
 }
 

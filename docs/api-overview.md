@@ -183,7 +183,7 @@ _Appears in:_
 | `Component` _[Component](#component)_ |  |  |  |
 | `serving` _[ServingSpec](#servingspec)_ | Serving configures the KNative-Serving stack used for model serving. A Service<br />Mesh (Istio) is prerequisite, since it is used as networking layer. |  |  |
 | `defaultDeploymentMode` _[DefaultDeploymentMode](#defaultdeploymentmode)_ | Configures the default deployment mode for Kserve. This can be set to 'Serverless' or 'RawDeployment'.<br />The value specified in this field will be used to set the default deployment mode in the 'inferenceservice-config' configmap for Kserve.<br />This field is optional. If no default deployment mode is specified, Kserve will use Serverless mode. |  | Enum: [Serverless RawDeployment] <br />Pattern: `^(Serverless\|RawDeployment)$` <br /> |
-| `nim` _[NimSpec](#nimspec)_ | Configures and enables Nvidida's NIM integration |  |  |
+| `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration |  |  |
 
 
 
@@ -528,7 +528,7 @@ _Appears in:_
 
 
 
-nimSpec enables Nvidida's NIM integration
+nimSpec enables NVIDIA NIM integration
 
 
 
