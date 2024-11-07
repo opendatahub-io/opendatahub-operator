@@ -95,6 +95,14 @@ E2E_TEST_FLAGS = "--skip-deletion=false" -timeout 25m # See README.md, default g
 # see target "image-build"
 IMAGE_BUILD_FLAGS ?= --build-arg USE_LOCAL=false
 
+# Prometheus-Unit Tests Parameters
+PROMETHEUS_CONFIG_YAML ?= $(shell pwd)/config/monitoring/prometheus/apps/prometheus-configs.yaml
+PROMETHEUS_CONFIG_DIR ?= $(shell pwd)/config/monitoring/prometheus/apps/
+GENERATED_ALERT_DIR ?= $(shell pwd)/tests/prometheus_unit_tests/
+PROMETHEUS_IMAGE ?= quay.io/prometheus/prometheus
+CONTAINER_RUNTIME ?= docker
+CRITICAL_SEVERITY="critical"
+
 # Read any custom variables overrides from a local.mk file.  This will only be read if it exists in the
 # same directory as this Makefile.  Variables can be specified in the standard format supported by
 # GNU Make since `include` processes any valid Makefile
@@ -373,6 +381,22 @@ test: unit-test e2e-test
 unit-test: envtest
 	OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $(TEST_SRC) -v  -coverprofile cover.out
 CLEANFILES += cover.out
+
+.PHONY: extract-alert-rules
+extract-alert-rules: $(PROMETHEUS_CONFIG_YAML) 
+	./tests/scripts/extract_alerts.sh $(PROMETHEUS_CONFIG_YAML) $(GENERATED_ALERT_DIR)
+
+# Run prometheus-alert-unit-tests
+.PHONY: test-alerts
+test-alerts: extract-alert-rules
+	$(CONTAINER_RUNTIME) run --rm -t \
+	    -v "$(GENERATED_ALERT_DIR)":/prometheus/unit_tests:Z --entrypoint=/bin/sh \
+	    $(PROMETHEUS_IMAGE) -c 'cd unit_tests && promtool test rules *_unit_tests.yaml'
+
+#Check for alerts without unit-tests
+.PHONY: check-unit-tests
+check-unit-tests: extract-alert-rules
+	./tests/scripts/check_alert_tests.sh $(PROMETHEUS_CONFIG_YAML) $(GENERATED_ALERT_DIR)
 
 .PHONY: e2e-test
 e2e-test: ## Run e2e tests for the controller

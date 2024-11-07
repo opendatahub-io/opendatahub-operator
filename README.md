@@ -403,6 +403,23 @@ for DataScienceCluster deletion.
 ```shell
 make e2e-test -e OPERATOR_NAMESPACE=<namespace> -e E2E_TEST_FLAGS="--skip-deletion=true"
 ```
+
+## Run Prometheus Unit Tests for Alerts 
+
+Unit tests for Prometheus alerts are included in the repository. You can run them using the following command:
+
+```shell
+make test-alerts
+```
+
+To check for alerts that don't have unit tests, run the below command:
+
+```shell
+make check-unit-tests
+```
+
+To add a new unit test, add the alert YAML file and the corresponding rule files to the[extract_alerts](tests/scripts/extract_alerts.sh) script.
+
 ### API Overview
 
 Please refer to [api documentation](docs/api-overview.md)

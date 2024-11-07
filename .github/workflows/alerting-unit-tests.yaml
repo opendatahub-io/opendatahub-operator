@@ -1,0 +1,17 @@
+name: Test Alerting
+on:
+  pull_request:
+    paths:
+      - 'config/monitoring/prometheus/**'
+      - 'tests/prometheus_unit_tests/**'
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Run alert-unit-test
+      run: make test-alerts
+    
+    - name: Run check-alert-unit-test
+      run : make check-unit-tests
