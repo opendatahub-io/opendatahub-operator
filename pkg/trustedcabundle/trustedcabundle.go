@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -47,6 +48,9 @@ func HasCABundleAnnotationDisabled(ns client.Object) bool {
 // or update existing odh-trusted-ca-bundle configmap if already exists with new content of .data.odh-ca-bundle.crt
 // this is certificates for the cluster trusted CA Cert Bundle.
 func CreateOdhTrustedCABundleConfigMap(ctx context.Context, cli client.Client, namespace string, customCAData string) error {
+	// Adding newline breaker if user input does not have it
+	customCAData = strings.TrimSpace(customCAData) + "\n"
+
 	// Expected configmap for the given namespace
 	desiredConfigMap := &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
