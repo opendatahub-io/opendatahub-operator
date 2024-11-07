@@ -112,6 +112,8 @@ func (mr *ModelRegistryTestCtx) updateComponent(fn func(dsc *dscv1.Components)) 
 }
 
 func modelRegistryTestSuite(t *testing.T) {
+	t.Helper()
+
 	tc, err := NewTestContext()
 	require.NoError(t, err)
 

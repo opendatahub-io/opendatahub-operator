@@ -43,14 +43,17 @@ func creationTestSuite(t *testing.T) {
 			err = testCtx.testDSCICreation()
 			require.NoError(t, err, "error creating DSCI CR")
 		})
-		t.Run("Creation of more than one of DSCInitialization instance", func(t *testing.T) {
-			testCtx.testDSCIDuplication(t)
-		})
+		if testCtx.testOpts.webhookTest {
+			t.Run("Creation of more than one of DSCInitialization instance", func(t *testing.T) {
+				testCtx.testDSCIDuplication(t)
+			})
+		}
 		// Validates Servicemesh fields
 		t.Run("Validate DSCInitialization instance", func(t *testing.T) {
 			err = testCtx.validateDSCI()
 			require.NoError(t, err, "error validating DSCInitialization instance")
 		})
+
 		t.Run("Check owned namespaces exist", func(t *testing.T) {
 			err = testCtx.testOwnedNamespacesAllExist()
 			require.NoError(t, err, "error owned namespace is missing")
@@ -61,9 +64,11 @@ func creationTestSuite(t *testing.T) {
 			err = testCtx.testDSCCreation(t)
 			require.NoError(t, err, "error creating DataScienceCluster instance")
 		})
-		t.Run("Creation of more than one of DataScienceCluster instance", func(t *testing.T) {
-			testCtx.testDSCDuplication(t)
-		})
+		if testCtx.testOpts.webhookTest {
+			t.Run("Creation of more than one of DataScienceCluster instance", func(t *testing.T) {
+				testCtx.testDSCDuplication(t)
+			})
+		}
 
 		// // Kserve
 		// t.Run("Validate Knative resoruce", func(t *testing.T) {
@@ -77,10 +82,13 @@ func creationTestSuite(t *testing.T) {
 		// })
 		//
 		// ModelReg
-		t.Run("Validate model registry config", func(t *testing.T) {
-			err = testCtx.validateModelRegistryConfig()
-			require.NoError(t, err, "error validating ModelRegistry config")
-		})
+
+		if testCtx.testOpts.webhookTest {
+			t.Run("Validate model registry config", func(t *testing.T) {
+				err = testCtx.validateModelRegistryConfig()
+				require.NoError(t, err, "error validating ModelRegistry config")
+			})
+		}
 	})
 }
 
