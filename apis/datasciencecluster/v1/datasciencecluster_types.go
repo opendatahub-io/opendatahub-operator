@@ -32,7 +32,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kueue"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trainingoperator"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
@@ -75,7 +74,7 @@ type Components struct {
 	Ray componentsv1.DSCRay `json:"ray,omitempty"`
 
 	// TrustyAI component configuration.
-	TrustyAI trustyai.TrustyAI `json:"trustyai,omitempty"`
+	TrustyAI componentsv1.DSCTrustyAI `json:"trustyai,omitempty"`
 
 	// ModelRegistry component configuration.
 	ModelRegistry componentsv1.DSCModelRegistry `json:"modelregistry,omitempty"`

@@ -181,6 +181,23 @@ _Appears in:_
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
+#### DSCTrustyAI
+
+
+
+DSCTrustyAI contains all the configuration exposed in DSC instance for TrustyAI component
+
+
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+
+
 #### Dashboard
 
 
@@ -866,6 +883,23 @@ _Appears in:_
 | `status` _[TrustyAIStatus](#trustyaistatus)_ |  |  |  |
 
 
+#### TrustyAICommonSpec
+
+
+
+
+
+
+
+_Appears in:_
+- [DSCTrustyAI](#dsctrustyai)
+- [TrustyAISpec](#trustyaispec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+
+
 #### TrustyAIList
 
 
@@ -899,7 +933,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `foo` _string_ | Foo is an example field of TrustyAI. Edit trustyai_types.go to remove/update |  |  |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
 #### TrustyAIStatus
@@ -1041,7 +1075,6 @@ _Appears in:_
 - [Kueue](#kueue)
 - [ModelMeshServing](#modelmeshserving)
 - [TrainingOperator](#trainingoperator)
-- [TrustyAI](#trustyai)
 - [Workbenches](#workbenches)
 
 | Field | Description | Default | Validation |
@@ -1084,12 +1117,15 @@ _Appears in:_
 - [DSCDashboard](#dscdashboard)
 - [DSCModelRegistry](#dscmodelregistry)
 - [DSCRay](#dscray)
+- [DSCTrustyAI](#dsctrustyai)
 - [DashboardCommonSpec](#dashboardcommonspec)
 - [DashboardSpec](#dashboardspec)
 - [ModelRegistryCommonSpec](#modelregistrycommonspec)
 - [ModelRegistrySpec](#modelregistryspec)
 - [RayCommonSpec](#raycommonspec)
 - [RaySpec](#rayspec)
+- [TrustyAICommonSpec](#trustyaicommonspec)
+- [TrustyAISpec](#trustyaispec)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -1109,6 +1145,7 @@ _Appears in:_
 - [DSCDashboard](#dscdashboard)
 - [DSCModelRegistry](#dscmodelregistry)
 - [DSCRay](#dscray)
+- [DSCTrustyAI](#dsctrustyai)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -1282,29 +1319,6 @@ _Appears in:_
 
 
 
-## datasciencecluster.opendatahub.io/trustyai
-
-Package trustyai provides utility functions to config TrustyAI, a bias/fairness and explainability toolkit
-
-
-
-#### TrustyAI
-
-
-
-TrustyAI struct holds the configuration for the TrustyAI component.
-
-
-
-_Appears in:_
-- [Components](#components)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `Component` _[Component](#component)_ |  |  |  |
-
-
-
 ## datasciencecluster.opendatahub.io/v1
 
 
@@ -1387,7 +1401,7 @@ _Appears in:_
 | `kueue` _[Kueue](#kueue)_ | Kueue component configuration. |  |  |
 | `codeflare` _[CodeFlare](#codeflare)_ | CodeFlare component configuration.<br />If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabled component. |  |  |
 | `ray` _[DSCRay](#dscray)_ | Ray component configuration. |  |  |
-| `trustyai` _[TrustyAI](#trustyai)_ | TrustyAI component configuration. |  |  |
+| `trustyai` _[DSCTrustyAI](#dsctrustyai)_ | TrustyAI component configuration. |  |  |
 | `modelregistry` _[DSCModelRegistry](#dscmodelregistry)_ | ModelRegistry component configuration. |  |  |
 | `trainingoperator` _[TrainingOperator](#trainingoperator)_ | Training Operator component configuration. |  |  |
 

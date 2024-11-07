@@ -49,7 +49,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 	modelregistry2 "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/webhook"
@@ -296,8 +295,8 @@ func newDSC(name string, namespace string) *dscv1.DataScienceCluster {
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				TrustyAI: trustyai.TrustyAI{
-					Component: componentsold.Component{
+				TrustyAI: componentsv1.DSCTrustyAI{
+					ManagementSpec: components.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},

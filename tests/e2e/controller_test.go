@@ -42,6 +42,7 @@ var (
 		"dashboard":     dashboardTestSuite,
 		"ray":           rayTestSuite,
 		"modelregistry": modelRegistryTestSuite,
+		"trustyai":      trustyAITestSuite,
 	}
 )
 
