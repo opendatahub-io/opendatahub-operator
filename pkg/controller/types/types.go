@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"io/fs"
 	"path"
 
 	"github.com/go-logr/logr"
@@ -46,6 +47,11 @@ func (mi *ManifestInfo) String() string {
 	return result
 }
 
+type TemplateInfo struct {
+	FS   fs.FS
+	Path string
+}
+
 type ReconciliationRequest struct {
 	*odhClient.Client
 
@@ -55,6 +61,28 @@ type ReconciliationRequest struct {
 	DSCI      *dsciv1.DSCInitialization
 	Release   cluster.Release
 	Manifests []ManifestInfo
+
+	//
+	// TODO: unify templates and resources.
+	//
+	// Unfortunately, the kustomize APIs do not yet support a FileSystem that is
+	// backed by golang's fs.Fs so it is not simple to have a single abstraction
+	// for both the manifests types.
+	//
+	// it would be nice to have a structure like:
+	//
+	// struct {
+	//   FS  fs.FS
+	//   URI net.URL
+	// }
+	//
+	// where the URI could be something like:
+	// - kustomize:///path/to/overlay
+	// - template:///path/to/resource.tmpl.yaml
+	//
+	// and use the scheme as discriminator for the rendering engine
+	//
+	Templates []TemplateInfo
 	Resources []unstructured.Unstructured
 }
 

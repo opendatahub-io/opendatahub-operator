@@ -1,72 +1,33 @@
-package kustomize
+package template
 
 import (
 	"bytes"
 	"context"
 	"fmt"
+	"io/fs"
 	"strings"
+	gt "text/template"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"sigs.k8s.io/kustomize/kyaml/filesys"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manifests/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
-const RendererEngine = "kustomize"
+const RendererEngine = "template"
 
-// Action takes a set of manifest locations and render them as Unstructured resources for
+// Action takes a set of template locations and render them as Unstructured resources for
 // further processing. The Action can eventually cache the results in memory to avoid doing
 // a full manifest rendering when not needed.
 type Action struct {
-	keOpts []kustomize.EngineOptsFn
-	ke     *kustomize.Engine
-
 	cachingKeyFn    render.CachingKeyFn
 	cachingKey      []byte
 	cachedResources resources.UnstructuredList
 }
-
 type ActionOpts func(*Action)
-
-func WithEngineFS(value filesys.FileSystem) ActionOpts {
-	return func(a *Action) {
-		a.keOpts = append(a.keOpts, kustomize.WithEngineFS(value))
-	}
-}
-
-func WithLabel(name string, value string) ActionOpts {
-	return func(a *Action) {
-		a.keOpts = append(a.keOpts, kustomize.WithEngineRenderOpts(kustomize.WithLabel(name, value)))
-	}
-}
-
-func WithLabels(values map[string]string) ActionOpts {
-	return func(a *Action) {
-		a.keOpts = append(a.keOpts, kustomize.WithEngineRenderOpts(kustomize.WithLabels(values)))
-	}
-}
-
-func WithAnnotation(name string, value string) ActionOpts {
-	return func(a *Action) {
-		a.keOpts = append(a.keOpts, kustomize.WithEngineRenderOpts(kustomize.WithAnnotation(name, value)))
-	}
-}
-
-func WithAnnotations(values map[string]string) ActionOpts {
-	return func(a *Action) {
-		a.keOpts = append(a.keOpts, kustomize.WithEngineRenderOpts(kustomize.WithAnnotations(values)))
-	}
-}
-
-func WithManifestsOptions(values ...kustomize.EngineOptsFn) ActionOpts {
-	return func(action *Action) {
-		action.keOpts = append(action.keOpts, values...)
-	}
-}
 
 func WithCache(value render.CachingKeyFn) ActionOpts {
 	return func(action *Action) {
@@ -118,19 +79,39 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 }
 
 func (a *Action) render(rr *types.ReconciliationRequest) ([]unstructured.Unstructured, error) {
+	decoder := serializer.NewCodecFactory(rr.Client.Scheme()).UniversalDeserializer()
+	data := map[string]any{"Instance": rr.Instance, "DSCI": rr.DSCI}
+
 	result := make([]unstructured.Unstructured, 0)
 
-	for i := range rr.Manifests {
-		renderedResources, err := a.ke.Render(
-			rr.Manifests[i].String(),
-			kustomize.WithNamespace(rr.DSCI.Spec.ApplicationsNamespace),
-		)
+	var buffer bytes.Buffer
 
+	for i := range rr.Templates {
+		content, err := fs.ReadFile(rr.Templates[i].FS, rr.Templates[i].Path)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to read file: %w", err)
 		}
 
-		result = append(result, renderedResources...)
+		tmpl, err := gt.New(rr.Templates[i].Path).
+			Option("missingkey=error").
+			Parse(string(content))
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse template: %w", err)
+		}
+
+		buffer.Reset()
+		err = tmpl.Execute(&buffer, data)
+		if err != nil {
+			return nil, fmt.Errorf("failed to execute template: %w", err)
+		}
+
+		u, err := resources.Decode(decoder, buffer.Bytes())
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode template: %w", err)
+		}
+
+		result = append(result, u...)
 	}
 
 	return result, nil
@@ -146,8 +127,6 @@ func NewAction(opts ...ActionOpts) actions.Fn {
 	for _, opt := range opts {
 		opt(&action)
 	}
-
-	action.ke = kustomize.NewEngine(action.keOpts...)
 
 	return action.run
 }

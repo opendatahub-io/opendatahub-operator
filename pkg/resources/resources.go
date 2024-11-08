@@ -1,16 +1,20 @@
 package resources
 
 import (
-	"crypto/sha256"
+	"bytes"
+	"errors"
 	"fmt"
+	"io"
+	"crypto/sha256"
 
-	"github.com/davecgh/go-spew/spew"
 	routev1 "github.com/openshift/api/route/v1"
+	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"github.com/davecgh/go-spew/spew"
 )
 
 func ToUnstructured(obj any) (*unstructured.Unstructured, error) {
@@ -26,12 +30,60 @@ func ToUnstructured(obj any) (*unstructured.Unstructured, error) {
 	return &u, nil
 }
 
+func Decode(decoder runtime.Decoder, content []byte) ([]unstructured.Unstructured, error) {
+	results := make([]unstructured.Unstructured, 0)
+
+	r := bytes.NewReader(content)
+	yd := yaml.NewDecoder(r)
+
+	for {
+		var out map[string]interface{}
+
+		err := yd.Decode(&out)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+
+			return nil, fmt.Errorf("unable to decode resource: %w", err)
+		}
+
+		if len(out) == 0 {
+			continue
+		}
+
+		if out["Kind"] == "" {
+			continue
+		}
+
+		encoded, err := yaml.Marshal(out)
+		if err != nil {
+			return nil, fmt.Errorf("unable to marshal resource: %w", err)
+		}
+
+		var obj unstructured.Unstructured
+
+		if _, _, err = decoder.Decode(encoded, nil, &obj); err != nil {
+			if runtime.IsMissingKind(err) {
+				continue
+			}
+
+			return nil, fmt.Errorf("unable to decode resource: %w", err)
+		}
+
+		results = append(results, obj)
+	}
+
+	return results, nil
+}
+
 func GvkToUnstructured(gvk schema.GroupVersionKind) *unstructured.Unstructured {
 	u := unstructured.Unstructured{}
 	u.SetGroupVersionKind(gvk)
 
 	return &u
 }
+
 func IngressHost(r routev1.Route) string {
 	if len(r.Status.Ingress) != 1 {
 		return ""
