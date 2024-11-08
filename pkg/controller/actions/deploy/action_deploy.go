@@ -137,6 +137,12 @@ func (a *Action) deploy(
 		return false, fmt.Errorf("failed to lookup object %s/%s: %w", obj.GetNamespace(), obj.GetName(), lookupErr)
 	}
 
+	// the user has explicitly marked the current object as not owned by the operator, so
+	// skip any further processing
+	if current != nil && resources.GetAnnotation(current, annotations.ManagedByODHOperator) == "false" {
+		return false, nil
+	}
+
 	resources.SetLabels(&obj, a.labels)
 	resources.SetAnnotations(&obj, a.annotations)
 
@@ -162,11 +168,6 @@ func (a *Action) deploy(
 	var deployedObj *unstructured.Unstructured
 
 	switch {
-	// the user has explicitly marked the current object as not owned by the operator, so
-	// skip any further processing
-	case current != nil && resources.GetAnnotation(current, annotations.ManagedByODHOperator) == "false":
-		return false, nil
-
 	// The object is explicitly marked as not owned by the operator in the manifests,
 	// so it should be created if it doesn't exist, but should not be modified afterward.
 	case resources.GetAnnotation(&obj, annotations.ManagedByODHOperator) == "false":
