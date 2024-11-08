@@ -3,6 +3,7 @@ package gvk
 import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
@@ -34,6 +35,12 @@ var (
 		Group:   "rbac.authorization.k8s.io",
 		Version: "v1",
 		Kind:    "ClusterRole",
+	}
+
+	RoleBinding = schema.GroupVersionKind{
+		Group:   rbacv1.SchemeGroupVersion.Group,
+		Version: rbacv1.SchemeGroupVersion.Version,
+		Kind:    "RoleBinding",
 	}
 
 	Secret = schema.GroupVersionKind{

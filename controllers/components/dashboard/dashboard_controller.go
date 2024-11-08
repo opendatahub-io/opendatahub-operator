@@ -32,6 +32,7 @@ import (
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/security"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/updatestatus"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
@@ -71,6 +72,8 @@ func NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		// actions
 		WithAction(initialize).
 		WithAction(devFlags).
+		WithAction(configureDependencies).
+		WithAction(security.NewUpdatePodSecurityRoleBindingAction(serviceAccounts)).
 		WithAction(render.NewAction(
 			render.WithCache(true, render.DefaultCachingKeyFn),
 			// Those are the default labels added by the legacy deploy method
@@ -85,7 +88,6 @@ func NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 			render.WithLabel(labels.K8SCommon.PartOf, componentName),
 		)).
 		WithAction(customizeResources).
-		WithAction(updatePodSecurityRolebinding).
 		WithAction(deploy.NewAction(
 			deploy.WithFieldOwner(componentsv1.DashboardInstanceName),
 			deploy.WithLabel(labels.ComponentPartOf, componentsv1.DashboardInstanceName),
