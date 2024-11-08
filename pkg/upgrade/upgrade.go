@@ -492,7 +492,6 @@ func updateODCModelRegistry(ctx context.Context, cli client.Client, instanceName
 // workaround for RHOAIENG-15328
 // TODO: this can be removed from ODH 2.22.
 func removeRBACProxyModelRegistry(ctx context.Context, cli client.Client, componentName string, containerName string, applicationNS string) error {
-	log := logf.FromContext(ctx)
 	deploymentList := &appsv1.DeploymentList{}
 	if err := cli.List(ctx, deploymentList, client.InNamespace(applicationNS), client.HasLabels{labels.ODH.Component(componentName)}); err != nil {
 		return fmt.Errorf("error fetching list of deployments: %w", err)
@@ -508,7 +507,7 @@ func removeRBACProxyModelRegistry(ctx context.Context, cli client.Client, compon
 		return nil
 	}
 
-	log.Info("Upgrade force ModelRegistry to remove container from deployment")
+	ctrl.Log.Info("Upgrade force ModelRegistry to remove container from deployment")
 	for i, container := range mrContainerList {
 		if container.Name == containerName {
 			removeUnusedKubeRbacProxy := []byte(fmt.Sprintf("[{\"op\": \"remove\", \"path\": \"/spec/template/spec/containers/%d\"}]", i))
