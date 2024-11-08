@@ -49,6 +49,12 @@ var (
 		Kind:    "Secret",
 	}
 
+	ConfigMap = schema.GroupVersionKind{
+		Group:   corev1.SchemeGroupVersion.Group,
+		Version: corev1.SchemeGroupVersion.Version,
+		Kind:    "ConfigMap",
+	}
+
 	KnativeServing = schema.GroupVersionKind{
 		Group:   "operator.knative.dev",
 		Version: "v1beta1",

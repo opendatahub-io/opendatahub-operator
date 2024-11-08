@@ -2,13 +2,16 @@ package deploy
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -35,6 +38,7 @@ type Action struct {
 	deployMode  Mode
 	labels      map[string]string
 	annotations map[string]string
+	cache       *Cache
 }
 
 type ActionOpts func(*Action)
@@ -44,6 +48,7 @@ func WithFieldOwner(value string) ActionOpts {
 		action.fieldOwner = value
 	}
 }
+
 func WithMode(value Mode) ActionOpts {
 	return func(action *Action) {
 		action.deployMode = value
@@ -94,69 +99,131 @@ func WithAnnotations(values map[string]string) ActionOpts {
 	}
 }
 
-func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) error {
-	for i := range rr.Resources {
-		obj := rr.Resources[i]
+func WithCache() ActionOpts {
+	return func(action *Action) {
+		action.cache = newCache()
+	}
+}
 
-		current, lookupErr := a.lookup(ctx, rr.Client, obj)
-		if lookupErr != nil && !k8serr.IsNotFound(lookupErr) {
-			return fmt.Errorf("failed to lookup object %s/%s: %w", obj.GetNamespace(), obj.GetName(), lookupErr)
+func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) error {
+	// cleanup old entries if needed
+	if a.cache != nil {
+		a.cache.Sync()
+	}
+
+	controllerName := strings.ToLower(rr.Instance.GetObjectKind().GroupVersionKind().Kind)
+
+	for i := range rr.Resources {
+		ok, err := a.deploy(ctx, rr, rr.Resources[i])
+		if err != nil {
+			return fmt.Errorf("failure deploying %s: %w", rr.Resources[i], err)
 		}
 
-		resources.SetLabels(&obj, a.labels)
-		resources.SetAnnotations(&obj, a.annotations)
-
-		resources.SetAnnotation(&obj, annotations.ComponentGeneration, strconv.FormatInt(rr.Instance.GetGeneration(), 10))
-		resources.SetAnnotation(&obj, annotations.PlatformType, string(rr.Release.Name))
-		resources.SetAnnotation(&obj, annotations.PlatformVersion, rr.Release.Version.String())
-
-		switch {
-		// the user has explicitly marked the current object as not owned by the operator, so
-		// skip any further processing
-		case current != nil && resources.GetAnnotation(current, annotations.ManagedByODHOperator) == "false":
-			continue
-
-		// The object is explicitly marked as not owned by the operator in the manifests,
-		// so it should be created if it doesn't exist, but should not be modified afterward.
-		case resources.GetAnnotation(&obj, annotations.ManagedByODHOperator) == "false":
-			// remove the opendatahub.io/managed as it should not be set
-			// to the actual object in this case
-			resources.RemoveAnnotation(&obj, annotations.ManagedByODHOperator)
-
-			err := a.create(ctx, rr.Client, obj)
-			if err != nil {
-				return err
-			}
-
-		default:
-			owned := rr.Manager.Owns(obj.GroupVersionKind())
-			if owned {
-				if err := ctrl.SetControllerReference(rr.Instance, &obj, rr.Client.Scheme()); err != nil {
-					return err
-				}
-			}
-
-			var err error
-
-			switch a.deployMode {
-			case ModePatch:
-				err = a.patch(ctx, rr.Client, obj, current)
-			case ModeSSA:
-				err = a.apply(ctx, rr.Client, obj, current)
-			default:
-				err = fmt.Errorf("unsupported deploy mode %s", a.deployMode)
-			}
-
-			if err != nil {
-				return err
-			}
+		if ok {
+			DeployedResourcesTotal.WithLabelValues(controllerName).Inc()
 		}
 	}
 
 	return nil
 }
 
-func (a *Action) lookup(ctx context.Context, c *odhClient.Client, obj unstructured.Unstructured) (*unstructured.Unstructured, error) {
+func (a *Action) deploy(
+	ctx context.Context,
+	rr *odhTypes.ReconciliationRequest,
+	obj unstructured.Unstructured,
+) (bool, error) {
+	current, lookupErr := a.lookup(ctx, rr.Client, obj)
+	if lookupErr != nil && !k8serr.IsNotFound(lookupErr) {
+		return false, fmt.Errorf("failed to lookup object %s/%s: %w", obj.GetNamespace(), obj.GetName(), lookupErr)
+	}
+
+	// the user has explicitly marked the current object as not owned by the operator, so
+	// skip any further processing
+	if current != nil && resources.GetAnnotation(current, annotations.ManagedByODHOperator) == "false" {
+		return false, nil
+	}
+
+	resources.SetLabels(&obj, a.labels)
+	resources.SetAnnotations(&obj, a.annotations)
+
+	resources.SetAnnotation(&obj, annotations.ComponentGeneration, strconv.FormatInt(rr.Instance.GetGeneration(), 10))
+	resources.SetAnnotation(&obj, annotations.PlatformType, string(rr.Release.Name))
+	resources.SetAnnotation(&obj, annotations.PlatformVersion, rr.Release.Version.String())
+
+	// backup copy for caching
+	origObj := obj.DeepCopy()
+
+	if a.cache != nil && current != nil {
+		ck, err := a.computeCacheKey(current, &obj)
+		if err != nil {
+			return false, fmt.Errorf("failed to compute request identifier: %w", err)
+		}
+
+		// no changes, no need to re-deploy it
+		if a.cache.Has(ck) {
+			return false, nil
+		}
+	}
+
+	var deployedObj *unstructured.Unstructured
+
+	switch {
+	// The object is explicitly marked as not owned by the operator in the manifests,
+	// so it should be created if it doesn't exist, but should not be modified afterward.
+	case resources.GetAnnotation(&obj, annotations.ManagedByODHOperator) == "false":
+		// remove the opendatahub.io/managed as it should not be set
+		// to the actual object in this case
+		resources.RemoveAnnotation(&obj, annotations.ManagedByODHOperator)
+
+		cr, err := a.create(ctx, rr.Client, &obj)
+		if err != nil {
+			return false, err
+		}
+
+		deployedObj = cr
+
+	default:
+		owned := rr.Manager.Owns(obj.GroupVersionKind())
+		if owned {
+			if err := ctrl.SetControllerReference(rr.Instance, &obj, rr.Client.Scheme()); err != nil {
+				return false, err
+			}
+		}
+
+		var err error
+
+		switch a.deployMode {
+		case ModePatch:
+			deployedObj, err = a.patch(ctx, rr.Client, &obj, current)
+		case ModeSSA:
+			deployedObj, err = a.apply(ctx, rr.Client, &obj, current)
+		default:
+			err = fmt.Errorf("unsupported deploy mode %s", a.deployMode)
+		}
+
+		if err != nil {
+			return false, err
+		}
+	}
+
+	// If the deployment did not update the object, add the request to the cache.
+	if a.cache != nil {
+		ck, err := a.computeCacheKey(deployedObj, origObj)
+		if err != nil {
+			return false, fmt.Errorf("failed to compute request identifier after apply: %w", err)
+		}
+
+		a.cache.Add(ck)
+	}
+
+	return true, nil
+}
+
+func (a *Action) lookup(
+	ctx context.Context,
+	c *odhClient.Client,
+	obj unstructured.Unstructured,
+) (*unstructured.Unstructured, error) {
 	found := unstructured.Unstructured{}
 	found.SetGroupVersionKind(obj.GroupVersionKind())
 
@@ -169,24 +236,33 @@ func (a *Action) lookup(ctx context.Context, c *odhClient.Client, obj unstructur
 	return &found, nil
 }
 
-func (a *Action) create(ctx context.Context, c *odhClient.Client, obj unstructured.Unstructured) error {
+func (a *Action) create(
+	ctx context.Context,
+	c *odhClient.Client,
+	obj *unstructured.Unstructured,
+) (*unstructured.Unstructured, error) {
 	logf.FromContext(ctx).V(3).Info("create",
 		"gvk", obj.GroupVersionKind(),
-		"name", client.ObjectKeyFromObject(&obj),
+		"name", client.ObjectKeyFromObject(obj),
 	)
 
-	err := c.Create(ctx, &obj)
+	err := c.Create(ctx, obj)
 	if err != nil && !k8serr.IsAlreadyExists(err) {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return obj, nil
 }
 
-func (a *Action) patch(ctx context.Context, c *odhClient.Client, obj unstructured.Unstructured, old *unstructured.Unstructured) error {
+func (a *Action) patch(
+	ctx context.Context,
+	c *odhClient.Client,
+	obj *unstructured.Unstructured,
+	old *unstructured.Unstructured,
+) (*unstructured.Unstructured, error) {
 	logf.FromContext(ctx).V(3).Info("patch",
 		"gvk", obj.GroupVersionKind(),
-		"name", client.ObjectKeyFromObject(&obj),
+		"name", client.ObjectKeyFromObject(obj),
 	)
 
 	switch obj.GroupVersionKind() {
@@ -205,8 +281,8 @@ func (a *Action) patch(ctx context.Context, c *odhClient.Client, obj unstructure
 		// Server-Side Apply.
 		//
 		// Ideally deployed resources should be configured only via the platform API
-		if err := RemoveDeploymentsResources(&obj); err != nil {
-			return fmt.Errorf("failed to apply allow list to Deployment %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
+		if err := RemoveDeploymentsResources(obj); err != nil {
+			return nil, fmt.Errorf("failed to apply allow list to Deployment %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
 		}
 
 	default:
@@ -215,14 +291,14 @@ func (a *Action) patch(ctx context.Context, c *odhClient.Client, obj unstructure
 	}
 
 	if old == nil {
-		err := c.Create(ctx, &obj)
+		err := c.Create(ctx, obj)
 		if err != nil {
-			return fmt.Errorf("failed to create object %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
+			return nil, fmt.Errorf("failed to create object %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
 		}
 	} else {
 		data, err := json.Marshal(obj)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		err = c.Patch(
@@ -234,17 +310,22 @@ func (a *Action) patch(ctx context.Context, c *odhClient.Client, obj unstructure
 		)
 
 		if err != nil {
-			return fmt.Errorf("failed to patch object %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
+			return nil, fmt.Errorf("failed to patch object %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
 		}
 	}
 
-	return nil
+	return old, nil
 }
 
-func (a *Action) apply(ctx context.Context, c *odhClient.Client, obj unstructured.Unstructured, old *unstructured.Unstructured) error {
+func (a *Action) apply(
+	ctx context.Context,
+	c *odhClient.Client,
+	obj *unstructured.Unstructured,
+	old *unstructured.Unstructured,
+) (*unstructured.Unstructured, error) {
 	logf.FromContext(ctx).V(3).Info("apply",
 		"gvk", obj.GroupVersionKind(),
-		"name", client.ObjectKeyFromObject(&obj),
+		"name", client.ObjectKeyFromObject(obj),
 	)
 
 	switch obj.GroupVersionKind() {
@@ -265,8 +346,8 @@ func (a *Action) apply(ctx context.Context, c *odhClient.Client, obj unstructure
 		// Ideally deployed resources should be configured only via the platform API
 		//
 		// [1] https://kubernetes.io/docs/reference/using-api/server-side-apply/#conflicts
-		if err := MergeDeployments(old, &obj); err != nil {
-			return fmt.Errorf("failed to merge Deployment %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
+		if err := MergeDeployments(old, obj); err != nil {
+			return nil, fmt.Errorf("failed to merge Deployment %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
 		}
 	default:
 		// do noting
@@ -275,16 +356,34 @@ func (a *Action) apply(ctx context.Context, c *odhClient.Client, obj unstructure
 
 	err := c.Apply(
 		ctx,
-		&obj,
+		obj,
 		client.ForceOwnership,
 		client.FieldOwner(a.fieldOwner),
 	)
 
 	if err != nil {
-		return fmt.Errorf("apply failed %s: %w", obj.GroupVersionKind(), err)
+		return nil, fmt.Errorf("apply failed %s: %w", obj.GroupVersionKind(), err)
 	}
 
-	return nil
+	return obj, nil
+}
+
+func (a *Action) computeCacheKey(
+	original *unstructured.Unstructured,
+	modified *unstructured.Unstructured,
+) (string, error) {
+	modifiedObjectHash, err := resources.Hash(modified)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%s.%s.%s.%s.%s",
+		original.GroupVersionKind().GroupVersion(),
+		original.GroupVersionKind().Kind,
+		klog.KObj(original),
+		original.GetResourceVersion(),
+		base64.RawURLEncoding.EncodeToString(modifiedObjectHash),
+	), nil
 }
 
 func NewAction(opts ...ActionOpts) actions.Fn {

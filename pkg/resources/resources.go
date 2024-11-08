@@ -1,12 +1,15 @@
 package resources
 
 import (
+	"crypto/sha256"
 	"fmt"
 
+	"github.com/davecgh/go-spew/spew"
 	routev1 "github.com/openshift/api/route/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -23,6 +26,12 @@ func ToUnstructured(obj any) (*unstructured.Unstructured, error) {
 	return &u, nil
 }
 
+func GvkToUnstructured(gvk schema.GroupVersionKind) *unstructured.Unstructured {
+	u := unstructured.Unstructured{}
+	u.SetGroupVersionKind(gvk)
+
+	return &u
+}
 func IngressHost(r routev1.Route) string {
 	if len(r.Status.Ingress) != 1 {
 		return ""
@@ -125,4 +134,34 @@ func GetAnnotation(obj client.Object, k string) string {
 	}
 
 	return target[k]
+}
+
+// Hash generates an SHA-256 hash of an unstructured Kubernetes object, omitting
+// specific fields that are typically irrelevant for hash comparison such as
+// "creationTimestamp", "deletionTimestamp", "managedFields", "ownerReferences",
+// "uid", "resourceVersion", and "status". It returns the computed hash as a byte
+// slice or an error if the hashing process fails.
+func Hash(in *unstructured.Unstructured) ([]byte, error) {
+	obj := in.DeepCopy()
+	unstructured.RemoveNestedField(obj.Object, "metadata", "uid")
+	unstructured.RemoveNestedField(obj.Object, "metadata", "resourceVersion")
+	unstructured.RemoveNestedField(obj.Object, "metadata", "deletionTimestamp")
+	unstructured.RemoveNestedField(obj.Object, "metadata", "managedFields")
+	unstructured.RemoveNestedField(obj.Object, "metadata", "ownerReferences")
+	unstructured.RemoveNestedField(obj.Object, "status")
+
+	printer := spew.ConfigState{
+		Indent:         " ",
+		SortKeys:       true,
+		DisableMethods: true,
+		SpewKeys:       true,
+	}
+
+	hasher := sha256.New()
+
+	if _, err := printer.Fprintf(hasher, "%#v", obj); err != nil {
+		return nil, fmt.Errorf("failed to calculate hash: %w", err)
+	}
+
+	return hasher.Sum(nil), nil
 }

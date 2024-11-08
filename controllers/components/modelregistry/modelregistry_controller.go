@@ -81,6 +81,7 @@ func NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		)).
 		WithAction(customizeResources).
 		WithAction(deploy.NewAction(
+			deploy.WithCache(),
 			deploy.WithFieldOwner(componentsv1.ModelRegistryInstanceName),
 			deploy.WithLabel(labels.ComponentPartOf, componentsv1.ModelRegistryInstanceName),
 		)).

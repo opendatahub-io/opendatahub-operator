@@ -52,6 +52,7 @@ func NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		Owns(&rbacv1.Role{}).
 		Owns(&rbacv1.RoleBinding{}).
 		Owns(&corev1.ServiceAccount{}).
+		Owns(&corev1.Service{}).
 		// By default, a predicated for changed generation is added by the Owns()
 		// method, however for deployments, we also need to retrieve status info
 		// hence we need a dedicated predicate to react to replicas status change
@@ -89,6 +90,7 @@ func NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		)).
 		WithAction(customizeResources).
 		WithAction(deploy.NewAction(
+			deploy.WithCache(),
 			deploy.WithFieldOwner(componentsv1.DashboardInstanceName),
 			deploy.WithLabel(labels.ComponentPartOf, componentsv1.DashboardInstanceName),
 		)).
