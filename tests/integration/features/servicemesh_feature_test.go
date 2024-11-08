@@ -4,6 +4,7 @@ import (
 	"context"
 	"path"
 
+	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -73,15 +74,20 @@ var _ = Describe("Service Mesh setup", func() {
 
 			When("operator is installed", func() {
 				var smcpCrdObj *apiextensionsv1.CustomResourceDefinition
+				var svc *corev1.Service
 
 				BeforeEach(func(ctx context.Context) {
 					err := fixtures.CreateSubscription(ctx, envTestClient, "openshift-operators", fixtures.OssmSubscription)
 					Expect(err).ToNot(HaveOccurred())
 					smcpCrdObj = installServiceMeshCRD(ctx)
+
+					svc, err = fixtures.CreateService(ctx, envTestClient, "openshift-operators", "istio-operator-service")
+					Expect(err).ToNot(HaveOccurred())
+
 				})
 
 				AfterEach(func(ctx context.Context) {
-					objectCleaner.DeleteAll(ctx, smcpCrdObj)
+					objectCleaner.DeleteAll(ctx, smcpCrdObj, svc)
 				})
 
 				It("should succeed using precondition check", func(ctx context.Context) {
