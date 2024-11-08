@@ -96,7 +96,7 @@ E2E_TEST_FLAGS = "--skip-deletion=false" -timeout 25m # See README.md, default g
 IMAGE_BUILD_FLAGS ?= --build-arg USE_LOCAL=false
 
 # Prometheus-Unit Tests Parameters
-PROMETHEUS_CONFIG_YAML ?= ./config/monitoring/prometheus/apps/prometheus-configs.yaml
+PROMETHEUS_CONFIG_YAML = ./config/monitoring/prometheus/apps/prometheus-configs.yaml
 PROMETHEUS_CONFIG_DIR = ./config/monitoring/prometheus/apps/
 GENERATED_ALERT_DIR = ./tests/prometheus_unit_tests/
 CRITICAL_SEVERITY="critical"
