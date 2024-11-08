@@ -25,18 +25,17 @@ func TestUpdatePodSecurityRoleBindingAction(t *testing.T) {
 
 	ctx := context.Background()
 
-	m := map[cluster.Platform]string{
-		cluster.Unknown:          "odh-dashboard",
-		cluster.OpenDataHub:      "odh-dashboard",
-		cluster.SelfManagedRhods: "rhods-dashboard",
-		cluster.ManagedRhods:     "rhods-dashboard",
+	m := map[cluster.Platform][]string{
+		cluster.OpenDataHub:      {"odh-dashboard"},
+		cluster.SelfManagedRhods: {"rhods-dashboard"},
+		cluster.ManagedRhods:     {"rhods-dashboard", "fake-account"},
 	}
 
 	action := security.NewUpdatePodSecurityRoleBindingAction(m)
 
 	for p, s := range m {
 		k := p
-		v := s
+		vl := s
 
 		t.Run(string(k), func(t *testing.T) {
 			t.Parallel()
@@ -74,7 +73,9 @@ func TestUpdatePodSecurityRoleBindingAction(t *testing.T) {
 			err = cl.Get(ctx, client.ObjectKey{Namespace: ns, Name: ns}, &rb)
 
 			g.Expect(err).ShouldNot(HaveOccurred())
-			g.Expect(cluster.SubjectExistInRoleBinding(rb.Subjects, v, ns)).Should(BeTrue())
+			for _, v := range vl {
+				g.Expect(cluster.SubjectExistInRoleBinding(rb.Subjects, v, ns)).Should(BeTrue())
+			}
 		})
 	}
 }
