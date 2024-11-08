@@ -1,10 +1,11 @@
-package render_test
+package kustomize_test
 
 import (
 	"context"
 	"path"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/rs/xid"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
@@ -13,9 +14,9 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manifests/kustomize"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	mk "github.com/opendatahub-io/opendatahub-operator/v2/pkg/manifests/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -104,8 +105,8 @@ func TestRenderResourcesAction(t *testing.T) {
 	id := xid.New().String()
 	fs := filesys.MakeFsInMemory()
 
-	_ = fs.MkdirAll(path.Join(id, kustomize.DefaultKustomizationFilePath))
-	_ = fs.WriteFile(path.Join(id, kustomize.DefaultKustomizationFileName), []byte(testRenderResourcesKustomization))
+	_ = fs.MkdirAll(path.Join(id, mk.DefaultKustomizationFilePath))
+	_ = fs.WriteFile(path.Join(id, mk.DefaultKustomizationFileName), []byte(testRenderResourcesKustomization))
 	_ = fs.WriteFile(path.Join(id, "test-resources-cm.yaml"), []byte(testRenderResourcesConfigMap))
 	_ = fs.WriteFile(path.Join(id, "test-resources-deployment-managed.yaml"), []byte(testRenderResourcesManaged))
 	_ = fs.WriteFile(path.Join(id, "test-resources-deployment-unmanaged.yaml"), []byte(testRenderResourcesUnmanaged))
@@ -114,14 +115,14 @@ func TestRenderResourcesAction(t *testing.T) {
 	cl, err := fakeclient.New(ctx)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	action := render.NewAction(
-		render.WithLabel("component.opendatahub.io/name", "foo"),
-		render.WithLabel("platform.opendatahub.io/namespace", ns),
-		render.WithAnnotation("platform.opendatahub.io/release", "1.2.3"),
-		render.WithAnnotation("platform.opendatahub.io/type", "managed"),
+	action := kustomize.NewAction(
+		kustomize.WithLabel("component.opendatahub.io/name", "foo"),
+		kustomize.WithLabel("platform.opendatahub.io/namespace", ns),
+		kustomize.WithAnnotation("platform.opendatahub.io/release", "1.2.3"),
+		kustomize.WithAnnotation("platform.opendatahub.io/type", "managed"),
 		// for testing
-		render.WithManifestsOptions(
-			kustomize.WithEngineFS(fs),
+		kustomize.WithManifestsOptions(
+			mk.WithEngineFS(fs),
 		),
 	)
 
@@ -184,32 +185,32 @@ func TestRenderResourcesWithCacheAction(t *testing.T) {
 	id := xid.New().String()
 	fs := filesys.MakeFsInMemory()
 
-	_ = fs.MkdirAll(path.Join(id, kustomize.DefaultKustomizationFilePath))
-	_ = fs.WriteFile(path.Join(id, kustomize.DefaultKustomizationFileName), []byte(testRenderResourcesWithCacheKustomization))
+	_ = fs.MkdirAll(path.Join(id, mk.DefaultKustomizationFilePath))
+	_ = fs.WriteFile(path.Join(id, mk.DefaultKustomizationFileName), []byte(testRenderResourcesWithCacheKustomization))
 	_ = fs.WriteFile(path.Join(id, "test-resources-deployment.yaml"), []byte(testRenderResourcesWithCacheDeployment))
 
 	cl, err := fakeclient.New(ctx)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	action := render.NewAction(
-		render.WithCache(true, render.DefaultCachingKeyFn),
-		render.WithLabel(labels.ComponentPartOf, "foo"),
-		render.WithLabel("platform.opendatahub.io/namespace", ns),
-		render.WithAnnotation("platform.opendatahub.io/release", "1.2.3"),
-		render.WithAnnotation("platform.opendatahub.io/type", "managed"),
+	action := kustomize.NewAction(
+		kustomize.WithCache(kustomize.DefaultCachingKeyFn),
+		kustomize.WithLabel(labels.ComponentPartOf, "foo"),
+		kustomize.WithLabel("platform.opendatahub.io/namespace", ns),
+		kustomize.WithAnnotation("platform.opendatahub.io/release", "1.2.3"),
+		kustomize.WithAnnotation("platform.opendatahub.io/type", "managed"),
 		// for testing
-		render.WithManifestsOptions(
-			kustomize.WithEngineFS(fs),
+		kustomize.WithManifestsOptions(
+			mk.WithEngineFS(fs),
 		),
 	)
 
-	hash := ""
+	render.RenderedResourcesTotal.Reset()
 
 	for i := int64(0); i < 3; i++ {
 		d := componentsv1.Dashboard{}
 
-		if i == 2 {
-			d.Generation = i
+		if i >= 1 {
+			d.Generation = 1
 		}
 
 		rr := types.ReconciliationRequest{
@@ -235,14 +236,15 @@ func TestRenderResourcesWithCacheAction(t *testing.T) {
 			)),
 		))
 
-		newHash := rr.Resources[0].GetAnnotations()[annotations.ComponentHash]
-		if i == 1 {
-			g.Expect(newHash).Should(Equal(hash))
-		}
-		if i == 2 {
-			g.Expect(newHash).ShouldNot(Equal(hash))
-		}
+		rc := testutil.ToFloat64(render.RenderedResourcesTotal)
 
-		hash = newHash
+		switch i {
+		case 0:
+			g.Expect(rc).Should(BeNumerically("==", 1))
+		case 1:
+			g.Expect(rc).Should(BeNumerically("==", 2))
+		case 2:
+			g.Expect(rc).Should(BeNumerically("==", 2))
+		}
 	}
 }

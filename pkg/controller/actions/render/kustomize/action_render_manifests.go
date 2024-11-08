@@ -1,20 +1,22 @@
-package render
+package kustomize
 
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"fmt"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manifests/kustomize"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
+
+const RendererEngine = "kustomize"
 
 type CachingKeyFn func(_ context.Context, rr *types.ReconciliationRequest) ([]byte, error)
 
@@ -25,7 +27,6 @@ type Action struct {
 	keOpts []kustomize.EngineOptsFn
 	ke     *kustomize.Engine
 
-	cacheAnnotation bool
 	cachingKeyFn    CachingKeyFn
 	cachingKey      []byte
 	cachedResources resources.UnstructuredList
@@ -69,9 +70,8 @@ func WithManifestsOptions(values ...kustomize.EngineOptsFn) ActionOpts {
 	}
 }
 
-func WithCache(addHashAnnotation bool, value CachingKeyFn) ActionOpts {
+func WithCache(value CachingKeyFn) ActionOpts {
 	return func(action *Action) {
-		action.cacheAnnotation = addHashAnnotation
 		action.cachingKeyFn = value
 	}
 }
@@ -101,20 +101,15 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 			return fmt.Errorf("unable to render reconciliation object: %w", err)
 		}
 
-		// Add a letter at the beginning and use URL safe encoding
-		digest := "v" + base64.RawURLEncoding.EncodeToString(cachingKey)
 		result = res
 
 		if len(cachingKey) != 0 {
-			if a.cacheAnnotation {
-				for i := range result {
-					resources.SetAnnotation(&result[i], annotations.ComponentHash, digest)
-				}
-			}
-
 			a.cachingKey = cachingKey
 			a.cachedResources = result
 		}
+
+		controllerName := strings.ToLower(rr.Instance.GetObjectKind().GroupVersionKind().Kind)
+		render.RenderedResourcesTotal.WithLabelValues(controllerName, RendererEngine).Add(float64(len(result)))
 	}
 
 	// deep copy object so changes done in the pipelines won't

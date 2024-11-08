@@ -30,7 +30,7 @@ import (
 
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/updatestatus"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
@@ -74,10 +74,10 @@ func NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		WithAction(checkPreConditions).
 		WithAction(initialize).
 		WithAction(configureDependencies).
-		WithAction(render.NewAction(
-			render.WithCache(true, render.DefaultCachingKeyFn),
-			render.WithLabel(labels.ODH.Component(ComponentName), "true"),
-			render.WithLabel(labels.K8SCommon.PartOf, ComponentName),
+		WithAction(kustomize.NewAction(
+			kustomize.WithCache(kustomize.DefaultCachingKeyFn),
+			kustomize.WithLabel(labels.ODH.Component(ComponentName), "true"),
+			kustomize.WithLabel(labels.K8SCommon.PartOf, ComponentName),
 		)).
 		WithAction(customizeResources).
 		WithAction(deploy.NewAction(
