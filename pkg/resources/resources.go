@@ -2,11 +2,12 @@ package resources
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
-	"crypto/sha256"
 
+	"github.com/davecgh/go-spew/spew"
 	routev1 "github.com/openshift/api/route/v1"
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
@@ -14,7 +15,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"github.com/davecgh/go-spew/spew"
 )
 
 func ToUnstructured(obj any) (*unstructured.Unstructured, error) {
