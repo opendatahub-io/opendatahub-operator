@@ -1,4 +1,4 @@
-name: Test Alerting
+name: Run prometheus unit tests
 on:
   pull_request:
     paths:
@@ -9,9 +9,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-
-    - name: Run alert-unit-test
-      run: make test-alerts
+    - name: Install Promtool
+      run: |
+        apt-get update
+        apt-get install -y prometheus
     
-    - name: Run check-alert-unit-test
-      run : make check-unit-tests
+    - name: Run prometheus-unit-tests
+      run : make test-alerts

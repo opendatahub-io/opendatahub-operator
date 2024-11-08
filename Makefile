@@ -96,11 +96,9 @@ E2E_TEST_FLAGS = "--skip-deletion=false" -timeout 25m # See README.md, default g
 IMAGE_BUILD_FLAGS ?= --build-arg USE_LOCAL=false
 
 # Prometheus-Unit Tests Parameters
-PROMETHEUS_CONFIG_YAML ?= $(shell pwd)/config/monitoring/prometheus/apps/prometheus-configs.yaml
-PROMETHEUS_CONFIG_DIR ?= $(shell pwd)/config/monitoring/prometheus/apps/
-GENERATED_ALERT_DIR ?= $(shell pwd)/tests/prometheus_unit_tests/
-PROMETHEUS_IMAGE ?= quay.io/prometheus/prometheus
-CONTAINER_RUNTIME ?= docker
+PROMETHEUS_CONFIG_YAML ?= ./config/monitoring/prometheus/apps/prometheus-configs.yaml
+PROMETHEUS_CONFIG_DIR = ./config/monitoring/prometheus/apps/
+GENERATED_ALERT_DIR = ./tests/prometheus_unit_tests/
 CRITICAL_SEVERITY="critical"
 
 # Read any custom variables overrides from a local.mk file.  This will only be read if it exists in the
@@ -384,19 +382,17 @@ CLEANFILES += cover.out
 
 .PHONY: extract-alert-rules
 extract-alert-rules: $(PROMETHEUS_CONFIG_YAML) 
-	./tests/scripts/extract_alerts.sh $(PROMETHEUS_CONFIG_YAML) $(GENERATED_ALERT_DIR)
+	./tests/prometheus_unit_tests/scripts/extract_alerts.sh $(PROMETHEUS_CONFIG_YAML) $(GENERATED_ALERT_DIR)
 
 # Run prometheus-alert-unit-tests
 .PHONY: test-alerts
 test-alerts: extract-alert-rules
-	$(CONTAINER_RUNTIME) run --rm -t \
-	    -v "$(GENERATED_ALERT_DIR)":/prometheus/unit_tests:Z --entrypoint=/bin/sh \
-	    $(PROMETHEUS_IMAGE) -c 'cd unit_tests && promtool test rules *_unit_tests.yaml'
+	cd "$(GENERATED_ALERT_DIR)" && promtool test rules *_unit_tests.yaml
 
 #Check for alerts without unit-tests
-.PHONY: check-unit-tests
-check-unit-tests: extract-alert-rules
-	./tests/scripts/check_alert_tests.sh $(PROMETHEUS_CONFIG_YAML) $(GENERATED_ALERT_DIR)
+.PHONY: check-prometheus-alert-unit-tests
+check-prometheus-alert-unit-tests: extract-alert-rules
+	./tests/prometheus_unit_tests/scripts/check_alert_tests.sh $(PROMETHEUS_CONFIG_YAML) $(GENERATED_ALERT_DIR)
 
 .PHONY: e2e-test
 e2e-test: ## Run e2e tests for the controller
