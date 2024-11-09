@@ -133,7 +133,7 @@ func (a *Action) deploy(
 	obj unstructured.Unstructured,
 ) (bool, error) {
 	current, lookupErr := a.lookup(ctx, rr.Client, obj)
-	if lookupErr != nil && !k8serr.IsNotFound(lookupErr) {
+	if lookupErr != nil {
 		return false, fmt.Errorf("failed to lookup object %s/%s: %w", obj.GetNamespace(), obj.GetName(), lookupErr)
 	}
 
@@ -166,6 +166,7 @@ func (a *Action) deploy(
 	}
 
 	var deployedObj *unstructured.Unstructured
+	var deployed bool
 
 	switch {
 	// The object is explicitly marked as not owned by the operator in the manifests,
@@ -175,12 +176,12 @@ func (a *Action) deploy(
 		// to the actual object in this case
 		resources.RemoveAnnotation(&obj, annotations.ManagedByODHOperator)
 
-		cr, err := a.create(ctx, rr.Client, &obj)
+		var err error
+
+		deployedObj, deployed, err = a.create(ctx, rr.Client, &obj)
 		if err != nil {
 			return false, err
 		}
-
-		deployedObj = cr
 
 	default:
 		owned := rr.Manager.Owns(obj.GroupVersionKind())
@@ -204,6 +205,8 @@ func (a *Action) deploy(
 		if err != nil {
 			return false, err
 		}
+
+		deployed = true
 	}
 
 	// If the deployment did not update the object, add the request to the cache.
@@ -216,7 +219,7 @@ func (a *Action) deploy(
 		a.cache.Add(ck)
 	}
 
-	return true, nil
+	return deployed, nil
 }
 
 func (a *Action) lookup(
@@ -229,29 +232,35 @@ func (a *Action) lookup(
 
 	// TODO: use PartialObjectMetadata for resources where it make sense
 	err := c.Get(ctx, client.ObjectKeyFromObject(&obj), &found)
-	if err != nil {
+	switch {
+	case err == nil:
+		return &found, nil
+	case k8serr.IsNotFound(err):
+		return nil, nil
+	default:
 		return nil, err
 	}
-
-	return &found, nil
 }
 
 func (a *Action) create(
 	ctx context.Context,
 	c *odhClient.Client,
 	obj *unstructured.Unstructured,
-) (*unstructured.Unstructured, error) {
+) (*unstructured.Unstructured, bool, error) {
 	logf.FromContext(ctx).V(3).Info("create",
 		"gvk", obj.GroupVersionKind(),
 		"name", client.ObjectKeyFromObject(obj),
 	)
 
 	err := c.Create(ctx, obj)
-	if err != nil && !k8serr.IsAlreadyExists(err) {
-		return nil, err
+	switch {
+	case err == nil:
+		return obj, true, nil
+	case k8serr.IsAlreadyExists(err):
+		return obj, false, nil
+	default:
+		return nil, false, err
 	}
-
-	return obj, nil
 }
 
 func (a *Action) patch(
