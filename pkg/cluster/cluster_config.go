@@ -125,15 +125,15 @@ func getPlatform(ctx context.Context, cli client.Client) (Platform, error) {
 	case "OpenDataHub":
 		return OpenDataHub, nil
 	case "ManagedRHOAI":
-		return SelfManagedRhoai, nil
+		return ManagedRhoai, nil
 	case "SelfManagedRHOAI":
 		return SelfManagedRhoai, nil
 	default:
 		// fall back to detect platform if ODH_PLATFORM_TYPE env is not provided in CSV or set to ""
 		if platform, err := detectManagedRhoai(ctx, cli); err != nil {
 			return Unknown, err
-		} else if platform == SelfManagedRhoai {
-			return SelfManagedRhoai, nil
+		} else if platform == ManagedRhoai {
+			return ManagedRhoai, nil
 		}
 		return detectSelfManaged(ctx, cli)
 	}
