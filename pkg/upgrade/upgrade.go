@@ -43,6 +43,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 type ResourceSpec struct {
@@ -275,6 +276,12 @@ func CleanupExistingResource(ctx context.Context,
 			return err
 		}
 	}
+	// remove modelreg proxy container from deployment in ODH
+	if platform == cluster.OpenDataHub {
+		if err := removeRBACProxyModelRegistry(ctx, cli, "model-registry-operator", "kube-rbac-proxy", dscApplicationsNamespace); err != nil {
+			return err
+		}
+	}
 
 	// to take a reference
 	toDelete := getDashboardWatsonResources(dscApplicationsNamespace)
@@ -479,6 +486,37 @@ func updateODCModelRegistry(ctx context.Context, cli client.Client, instanceName
 		return nil
 	}
 	ctrl.Log.Info("Upgrade does not force ModelRegistry to false due to from release >= 2.14.0")
+	return nil
+}
+
+// workaround for RHOAIENG-15328
+// TODO: this can be removed from ODH 2.22.
+func removeRBACProxyModelRegistry(ctx context.Context, cli client.Client, componentName string, containerName string, applicationNS string) error {
+	deploymentList := &appsv1.DeploymentList{}
+	if err := cli.List(ctx, deploymentList, client.InNamespace(applicationNS), client.HasLabels{labels.ODH.Component(componentName)}); err != nil {
+		return fmt.Errorf("error fetching list of deployments: %w", err)
+	}
+
+	if len(deploymentList.Items) != 1 { // ModelRegistry operator is not deployed
+		return nil
+	}
+	mrDeployment := deploymentList.Items[0]
+	mrContainerList := mrDeployment.Spec.Template.Spec.Containers
+	// if only one container in deployment, we are already on newer deployment, no need more action
+	if len(mrContainerList) == 1 {
+		return nil
+	}
+
+	ctrl.Log.Info("Upgrade force ModelRegistry to remove container from deployment")
+	for i, container := range mrContainerList {
+		if container.Name == containerName {
+			removeUnusedKubeRbacProxy := []byte(fmt.Sprintf("[{\"op\": \"remove\", \"path\": \"/spec/template/spec/containers/%d\"}]", i))
+			if err := cli.Patch(ctx, &mrDeployment, client.RawPatch(types.JSONPatchType, removeUnusedKubeRbacProxy)); err != nil {
+				return fmt.Errorf("error removing ModelRegistry %s container from deployment: %w", containerName, err)
+			}
+			break
+		}
+	}
 	return nil
 }
 
