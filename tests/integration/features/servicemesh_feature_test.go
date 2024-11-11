@@ -50,9 +50,11 @@ var _ = Describe("Service Mesh setup", func() {
 
 		Context("operator setup", func() {
 
-			When("operator is not installed", func() {
+			Context("operator is not installed", Ordered, func() {
 
-				It("should fail using precondition check", func(ctx context.Context) {
+				var smcpCrdObj *apiextensionsv1.CustomResourceDefinition
+
+				It("should fail using precondition subscription check", func(ctx context.Context) {
 					// given
 					featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
 						errFeatureAdd := registry.Add(feature.Define("no-service-mesh-operator-check").
@@ -70,6 +72,53 @@ var _ = Describe("Service Mesh setup", func() {
 					// then
 					Expect(applyErr).To(MatchError(ContainSubstring("failed to find the pre-requisite operator subscription \"servicemeshoperator\"")))
 				})
+
+				It("should fail using precondition CRD check", func(ctx context.Context) {
+					// given
+					err := fixtures.CreateSubscription(ctx, envTestClient, "openshift-operators", fixtures.OssmSubscription)
+					Expect(err).ToNot(HaveOccurred())
+
+					featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+						errFeatureAdd := registry.Add(feature.Define("no-service-mesh-crd-check").
+							PreConditions(servicemesh.EnsureServiceMeshOperatorInstalled),
+						)
+
+						Expect(errFeatureAdd).ToNot(HaveOccurred())
+
+						return nil
+					})
+
+					// when
+					applyErr := featuresHandler.Apply(ctx, envTestClient)
+
+					// then
+					Expect(applyErr).To(MatchError(ContainSubstring("failed to find the Service Mesh Control Plane CRD")))
+				})
+
+				It("should fail using precondition service check", func(ctx context.Context) {
+					// given
+					smcpCrdObj = installServiceMeshCRD(ctx)
+
+					featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+						errFeatureAdd := registry.Add(feature.Define("no-service-mesh-service-check").
+							PreConditions(servicemesh.EnsureServiceMeshOperatorInstalled),
+						)
+
+						Expect(errFeatureAdd).ToNot(HaveOccurred())
+
+						return nil
+					})
+
+					// when
+					applyErr := featuresHandler.Apply(ctx, envTestClient)
+
+					// then
+					Expect(applyErr).To(MatchError(ContainSubstring("failed to find the Service Mesh VWC service")))
+				})
+
+				AfterAll(func(ctx context.Context) {
+					objectCleaner.DeleteAll(ctx, smcpCrdObj)
+				})
 			})
 
 			When("operator is installed", func() {
@@ -79,6 +128,7 @@ var _ = Describe("Service Mesh setup", func() {
 				BeforeEach(func(ctx context.Context) {
 					err := fixtures.CreateSubscription(ctx, envTestClient, "openshift-operators", fixtures.OssmSubscription)
 					Expect(err).ToNot(HaveOccurred())
+
 					smcpCrdObj = installServiceMeshCRD(ctx)
 
 					svc, err = fixtures.CreateService(ctx, envTestClient, "openshift-operators", "istio-operator-service")
