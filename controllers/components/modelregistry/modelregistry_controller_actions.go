@@ -57,6 +57,7 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 		baseManifestInfo(BaseManifestsSourcePath),
 		extraManifestInfo(BaseManifestsSourcePath),
 	}
+
 	rr.Templates = []odhtypes.TemplateInfo{{
 		FS:   resourcesFS,
 		Path: ServiceMeshMemberTemplate,

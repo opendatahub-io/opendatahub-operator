@@ -6,6 +6,9 @@ import (
 
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrlCli "sigs.k8s.io/controller-runtime/pkg/client"
@@ -13,18 +16,44 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
-func NewFromManager(ctx context.Context, mgr ctrl.Manager) (*Client, error) {
-	return New(ctx, mgr.GetConfig(), mgr.GetClient())
+func NewFromManager(mgr ctrl.Manager) (*Client, error) {
+	return NewFromConfig(mgr.GetConfig(), mgr.GetClient())
 }
 
-func New(_ context.Context, _ *rest.Config, client ctrlCli.Client) (*Client, error) {
+func NewFromConfig(cfg *rest.Config, client ctrlCli.Client) (*Client, error) {
+	kubernetesCl, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("unable to construct a Kubernetes client: %w", err)
+	}
+
+	dynamicCl, err := dynamic.NewForConfig(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("unable to construct a Discovery client: %w", err)
+	}
+
+	return New(client, kubernetesCl, dynamicCl), nil
+}
+
+func New(client ctrlCli.Client, kubernetes kubernetes.Interface, dynamic dynamic.Interface) *Client {
 	return &Client{
-		Client: client,
-	}, nil
+		Client:     client,
+		kubernetes: kubernetes,
+		dynamic:    dynamic,
+	}
 }
 
 type Client struct {
 	ctrlCli.Client
+	kubernetes kubernetes.Interface
+	dynamic    dynamic.Interface
+}
+
+func (c *Client) Discovery() discovery.DiscoveryInterface {
+	return c.kubernetes.Discovery()
+}
+
+func (c *Client) Dynamic() dynamic.Interface {
+	return c.dynamic
 }
 
 func (c *Client) Apply(ctx context.Context, in ctrlCli.Object, opts ...ctrlCli.PatchOption) error {

@@ -113,8 +113,20 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 
 	controllerName := strings.ToLower(rr.Instance.GetObjectKind().GroupVersionKind().Kind)
 
+	deployHash, err := odhTypes.HashStr(rr)
+	if err != nil {
+		return fmt.Errorf("unable to compute reauest hash: %w", err)
+	}
+
+	deployAnnotations := map[string]string{
+		annotations.ComponentGeneration: strconv.FormatInt(rr.Instance.GetGeneration(), 10),
+		annotations.ComponentHash:       deployHash,
+		annotations.PlatformType:        string(rr.Release.Name),
+		annotations.PlatformVersion:     rr.Release.Version.String(),
+	}
+
 	for i := range rr.Resources {
-		ok, err := a.deploy(ctx, rr, rr.Resources[i])
+		ok, err := a.deploy(ctx, rr, rr.Resources[i], deployAnnotations)
 		if err != nil {
 			return fmt.Errorf("failure deploying %s: %w", rr.Resources[i], err)
 		}
@@ -131,6 +143,7 @@ func (a *Action) deploy(
 	ctx context.Context,
 	rr *odhTypes.ReconciliationRequest,
 	obj unstructured.Unstructured,
+	deployAnnotations map[string]string,
 ) (bool, error) {
 	current, lookupErr := a.lookup(ctx, rr.Client, obj)
 	if lookupErr != nil {
@@ -145,10 +158,7 @@ func (a *Action) deploy(
 
 	resources.SetLabels(&obj, a.labels)
 	resources.SetAnnotations(&obj, a.annotations)
-
-	resources.SetAnnotation(&obj, annotations.ComponentGeneration, strconv.FormatInt(rr.Instance.GetGeneration(), 10))
-	resources.SetAnnotation(&obj, annotations.PlatformType, string(rr.Release.Name))
-	resources.SetAnnotation(&obj, annotations.PlatformVersion, rr.Release.Version.String())
+	resources.SetAnnotations(&obj, deployAnnotations)
 
 	// backup copy for caching
 	origObj := obj.DeepCopy()

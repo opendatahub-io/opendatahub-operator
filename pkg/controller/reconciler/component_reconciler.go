@@ -42,8 +42,8 @@ type ComponentReconciler struct {
 	instanceFactory func() (components.ComponentObject, error)
 }
 
-func NewComponentReconciler(ctx context.Context, mgr manager.Manager, name string, object components.ComponentObject) (*ComponentReconciler, error) {
-	oc, err := odhClient.NewFromManager(ctx, mgr)
+func NewComponentReconciler(mgr manager.Manager, name string, object components.ComponentObject) (*ComponentReconciler, error) {
+	oc, err := odhClient.NewFromManager(mgr)
 	if err != nil {
 		return nil, err
 	}
@@ -96,6 +96,7 @@ func (r *ComponentReconciler) AddFinalizer(action actions.Fn) {
 
 func (r *ComponentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	l := log.FromContext(ctx)
+	l.Info("reconcile")
 
 	res, err := r.instanceFactory()
 	if err != nil {

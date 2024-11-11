@@ -1,6 +1,8 @@
 package types
 
 import (
+	"crypto/sha256"
+	"encoding/binary"
 	"fmt"
 	"io/fs"
 	"path"
@@ -16,6 +18,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/manager"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 type ResourceObject interface {
@@ -84,6 +87,12 @@ type ReconciliationRequest struct {
 	//
 	Templates []TemplateInfo
 	Resources []unstructured.Unstructured
+
+	// TODO: this has been added to reduce GC work and only run when
+	//       resources have been generated. It should be removed and
+	//       replaced with a better way of describing resources and
+	//       their origin
+	Generated bool
 }
 
 func (rr *ReconciliationRequest) AddResource(in interface{}) error {
@@ -121,4 +130,52 @@ func (rr *ReconciliationRequest) normalize(obj client.Object) error {
 	obj.GetObjectKind().SetGroupVersionKind(kinds[0])
 
 	return nil
+}
+
+func Hash(rr *ReconciliationRequest) ([]byte, error) {
+	hash := sha256.New()
+
+	dsciGeneration := make([]byte, binary.MaxVarintLen64)
+	binary.PutVarint(dsciGeneration, rr.DSCI.GetGeneration())
+
+	instanceGeneration := make([]byte, binary.MaxVarintLen64)
+	binary.PutVarint(instanceGeneration, rr.Instance.GetGeneration())
+
+	if _, err := hash.Write([]byte(rr.Instance.GetUID())); err != nil {
+		return nil, fmt.Errorf("failed to hash instance: %w", err)
+	}
+	if _, err := hash.Write(dsciGeneration); err != nil {
+		return nil, fmt.Errorf("failed to hash dsci generation: %w", err)
+	}
+	if _, err := hash.Write(instanceGeneration); err != nil {
+		return nil, fmt.Errorf("failed to hash instance generation: %w", err)
+	}
+	if _, err := hash.Write([]byte(rr.Release.Name)); err != nil {
+		return nil, fmt.Errorf("failed to hash release: %w", err)
+	}
+	if _, err := hash.Write([]byte(rr.Release.Version.String())); err != nil {
+		return nil, fmt.Errorf("failed to hash release: %w", err)
+	}
+
+	for i := range rr.Manifests {
+		if _, err := hash.Write([]byte(rr.Manifests[i].String())); err != nil {
+			return nil, fmt.Errorf("failed to hash manifest: %w", err)
+		}
+	}
+	for i := range rr.Templates {
+		if _, err := hash.Write([]byte(rr.Templates[i].Path)); err != nil {
+			return nil, fmt.Errorf("failed to hash template: %w", err)
+		}
+	}
+
+	return hash.Sum(nil), nil
+}
+
+func HashStr(rr *ReconciliationRequest) (string, error) {
+	h, err := Hash(rr)
+	if err != nil {
+		return "", err
+	}
+
+	return resources.EncodeToString(h), nil
 }

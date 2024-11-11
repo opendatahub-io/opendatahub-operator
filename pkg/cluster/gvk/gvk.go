@@ -2,6 +2,7 @@ package gvk
 
 import (
 	appsv1 "k8s.io/api/apps/v1"
+	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -173,5 +174,11 @@ var (
 		Group:   "maistra.io",
 		Version: "v1",
 		Kind:    "ServiceMeshMember",
+	}
+
+	Lease = schema.GroupVersionKind{
+		Group:   coordinationv1.SchemeGroupVersion.Group,
+		Version: coordinationv1.SchemeGroupVersion.Version,
+		Kind:    "Lease",
 	}
 )

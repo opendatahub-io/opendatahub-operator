@@ -44,7 +44,6 @@ func TestUpdatePodSecurityRoleBindingAction(t *testing.T) {
 			ns := xid.New().String()
 
 			cl, err := fakeclient.New(
-				ctx,
 				&rbacv1.RoleBinding{
 					TypeMeta: metav1.TypeMeta{
 						APIVersion: gvk.RoleBinding.GroupVersion().String(),

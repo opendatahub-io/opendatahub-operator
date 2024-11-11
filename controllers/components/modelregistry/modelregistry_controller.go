@@ -28,12 +28,15 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/updatestatus"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/generation"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -56,6 +59,13 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(resources.NewDeploymentPredicate())).
 		Owns(&admissionregistrationv1.MutatingWebhookConfiguration{}).
 		Owns(&admissionregistrationv1.ValidatingWebhookConfiguration{}).
+		// MR also depends on DSCInitialization to properly configure the SMM
+		// resource
+		Watches(
+			&dsciv1.DSCInitialization{},
+			reconciler.WithEventHandler(handlers.ToNamed(componentsv1.ModelRegistryInstanceName)),
+			reconciler.WithPredicates(generation.New()),
+		).
 		Watches(&corev1.Namespace{}).
 		Watches(&extv1.CustomResourceDefinition{}).
 		// Some ClusterRoles are part of the component deployment, but not owned by
@@ -71,10 +81,10 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(initialize).
 		WithAction(configureDependencies).
 		WithAction(template.NewAction(
-			template.WithCache(render.DefaultCachingKeyFn),
+			template.WithCache(),
 		)).
 		WithAction(kustomize.NewAction(
-			kustomize.WithCache(render.DefaultCachingKeyFn),
+			kustomize.WithCache(),
 			kustomize.WithLabel(labels.ODH.Component(ComponentName), "true"),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, ComponentName),
 		)).
@@ -88,6 +98,11 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			updatestatus.WithSelectorLabel(labels.ComponentPartOf, componentsv1.ModelRegistryInstanceName),
 		)).
 		WithAction(updateStatus).
+		// must be the final action
+		WithAction(gc.NewAction(
+			gc.WithLabel(labels.ComponentPartOf, componentsv1.ModelRegistryInstanceName),
+			gc.WithUnremovables(gvk.ServiceMeshMember),
+		)).
 		Build(ctx)
 
 	if err != nil {

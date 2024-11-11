@@ -37,8 +37,6 @@ func TestDeployWithCacheAction(t *testing.T) {
 	g := NewWithT(t)
 	s := runtime.NewScheme()
 
-	ctx := context.Background()
-
 	utilruntime.Must(corev1.AddToScheme(s))
 	utilruntime.Must(appsv1.AddToScheme(s))
 	utilruntime.Must(apiextensionsv1.AddToScheme(s))
@@ -67,7 +65,7 @@ func TestDeployWithCacheAction(t *testing.T) {
 	envTestClient, err := ctrlCli.New(cfg, ctrlCli.Options{Scheme: s})
 	g.Expect(err).NotTo(HaveOccurred())
 
-	cli, err := client.New(ctx, cfg, envTestClient)
+	cli, err := client.NewFromConfig(cfg, envTestClient)
 	g.Expect(err).NotTo(HaveOccurred())
 
 	t.Run("ExistingResource", func(t *testing.T) {
