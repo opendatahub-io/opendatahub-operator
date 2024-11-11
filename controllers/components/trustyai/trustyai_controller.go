@@ -19,40 +19,58 @@ package trustyai
 import (
 	"context"
 
-	"k8s.io/apimachinery/pkg/runtime"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/updatestatus"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
-// TrustyAIReconciler reconciles a TrustyAI object.
-type TrustyAIReconciler struct {
-	client.Client
-	Scheme *runtime.Scheme
-}
+func NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
+	_, err := reconciler.ComponentReconcilerFor(
+		mgr,
+		componentsv1.TrustyAIInstanceName,
+		&componentsv1.TrustyAI{},
+	).
+		// customized Owns() for Component with new predicates
+		Owns(&corev1.ConfigMap{}).
+		Owns(&corev1.ServiceAccount{}).
+		Owns(&rbacv1.ClusterRoleBinding{}).
+		Owns(&rbacv1.ClusterRole{}).
+		Owns(&rbacv1.Role{}).
+		Owns(&rbacv1.RoleBinding{}).
+		Owns(&corev1.Service{}).
+		Owns(&appsv1.Deployment{}, builder.WithPredicates(resources.NewDeploymentPredicate())).
+		Watches(&extv1.CustomResourceDefinition{}). // call ForLabel() + new predicates
+		// Add TrustyAI-specific actions
+		WithAction(initialize).
+		WithAction(devFlags).
+		WithAction(kustomize.NewAction(
+			kustomize.WithCache(kustomize.DefaultCachingKeyFn),
+			kustomize.WithLabel(labels.ODH.Component(ComponentName), "true"),
+			kustomize.WithLabel(labels.K8SCommon.PartOf, ComponentName),
+		)).
+		WithAction(deploy.NewAction(
+			deploy.WithFieldOwner(componentsv1.TrustyAIInstanceName),
+			deploy.WithLabel(labels.ComponentPartOf, componentsv1.TrustyAIInstanceName),
+		)).
+		WithAction(updatestatus.NewAction(
+			updatestatus.WithSelectorLabel(labels.ComponentPartOf, componentsv1.TrustyAIInstanceName),
+		)).
+		Build(ctx)
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the TrustyAI object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.2/pkg/reconcile
-func (r *TrustyAIReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	if err != nil {
+		return err // no need customize error, it is done in the caller main
+	}
 
-	// TODO(user): your logic here
-
-	return ctrl.Result{}, nil
-}
-
-// SetupWithManager sets up the controller with the Manager.
-func (r *TrustyAIReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&componentsv1.TrustyAI{}).
-		Complete(r)
+	return nil
 }

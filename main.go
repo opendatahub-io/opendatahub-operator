@@ -66,6 +66,7 @@ import (
 	dashboardctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/dashboard"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 	rayctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/ray"
+	trustyaictrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/trustyai"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
@@ -127,6 +128,9 @@ func initComponents(_ context.Context, p cluster.Platform) error {
 		return err
 	}
 
+	if err := trustyaictrl.Init(p); err != nil {
+		return err
+	}
 	return multiErr.ErrorOrNil()
 }
 
@@ -429,6 +433,10 @@ func CreateComponentReconcilers(ctx context.Context, mgr manager.Manager) error 
 	}
 	if err := modelregistryctrl.NewComponentReconciler(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ModelRegistryReconciler")
+		return err
+	}
+	if err := trustyaictrl.NewComponentReconciler(ctx, mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "TrustyAIReconciler")
 		return err
 	}
 

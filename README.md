@@ -412,7 +412,7 @@ Example commands to run test suite for the dashboard `component` only, with the 
 make run-nowebhook
 ```
 ```shell
-make e2e-test -e OPERATOR_NAMESPACE=<namespace> -e E2E_TEST_FLAGS="--test-operator-controller=false --test-webhook=false --test-component=dashboard"
+make e2e-test -e OPERATOR_NAMESPACE=<namespace> -e E2E_TEST_FLAGS="--test-operator-controller=false --test-webhook=false --test-component=dashboard,trustyai"
 ```
 
 

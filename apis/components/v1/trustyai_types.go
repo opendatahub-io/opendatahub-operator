@@ -21,26 +21,21 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
+const (
+	TrustyAIComponentName = "trustyai"
+	// value should match whats set in the XValidation below
+	TrustyAIInstanceName = "default-trustyai"
+	TrustyAIKind         = "TrustyAI"
+)
+
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
-// TrustyAISpec defines the desired state of TrustyAI
-type TrustyAISpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of TrustyAI. Edit trustyai_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
-}
-
-// TrustyAIStatus defines the observed state of TrustyAI
-type TrustyAIStatus struct {
-	components.Status `json:",inline"`
-}
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
+// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-trustyai'",message="TrustyAI name must be default-trustyai"
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
+// +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
 
 // TrustyAI is the Schema for the trustyais API
 type TrustyAI struct {
@@ -51,16 +46,21 @@ type TrustyAI struct {
 	Status TrustyAIStatus `json:"status,omitempty"`
 }
 
-func (c *TrustyAI) GetDevFlags() *components.DevFlags {
-	return nil
+// TrustyAISpec defines the desired state of TrustyAI
+type TrustyAISpec struct {
+	TrustyAICommonSpec `json:",inline"`
 }
 
-func (c *TrustyAI) GetStatus() *components.Status {
-	return &c.Status.Status
+type TrustyAICommonSpec struct {
+	components.DevFlagsSpec `json:",inline"`
+}
+
+// TrustyAIStatus defines the observed state of TrustyAI
+type TrustyAIStatus struct {
+	components.Status `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
-
 // TrustyAIList contains a list of TrustyAI
 type TrustyAIList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -70,4 +70,18 @@ type TrustyAIList struct {
 
 func init() {
 	SchemeBuilder.Register(&TrustyAI{}, &TrustyAIList{})
+}
+
+func (c *TrustyAI) GetDevFlags() *components.DevFlags {
+	return c.Spec.DevFlags
+}
+func (c *TrustyAI) GetStatus() *components.Status {
+	return &c.Status.Status
+}
+
+// DSCTrustyAI contains all the configuration exposed in DSC instance for TrustyAI component
+type DSCTrustyAI struct {
+	components.ManagementSpec `json:",inline"`
+	// configuration fields common across components
+	TrustyAICommonSpec `json:",inline"`
 }

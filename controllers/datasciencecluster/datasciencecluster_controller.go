@@ -56,6 +56,7 @@ import (
 	dashboardctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/dashboard"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 	rayctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/ray"
+	trustyaictrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
@@ -266,6 +267,14 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	if instance, err = r.ReconcileComponent(ctx, instance, componentsv1.ModelRegistryComponentName, func() (error, bool) {
 		modelregistry := modelregistryctrl.GetComponentCR(instance)
 		return r.apply(ctx, instance, modelregistry), instance.Spec.Components.ModelRegistry.ManagementState == operatorv1.Managed
+	}); err != nil {
+		componentErrors = multierror.Append(componentErrors, err)
+	}
+
+	// Deploy TrustyAI
+	if instance, err = r.ReconcileComponent(ctx, instance, componentsv1.TrustyAIComponentName, func() (error, bool) {
+		trustyai := trustyaictrl.GetComponentCR(instance)
+		return r.apply(ctx, instance, trustyai), instance.Spec.Components.TrustyAI.ManagementState == operatorv1.Managed
 	}); err != nil {
 		componentErrors = multierror.Append(componentErrors, err)
 	}
@@ -536,6 +545,7 @@ func (r *DataScienceClusterReconciler) SetupWithManager(ctx context.Context, mgr
 		Owns(&componentsv1.Dashboard{}).
 		Owns(&componentsv1.Ray{}).
 		Owns(&componentsv1.ModelRegistry{}).
+		Owns(&componentsv1.TrustyAI{}).
 		Owns(
 			&corev1.ServiceAccount{},
 			builder.WithPredicates(saPredicates),
