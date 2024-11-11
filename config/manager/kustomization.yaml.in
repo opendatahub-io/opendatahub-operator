@@ -14,3 +14,4 @@ resources:
 
 generatorOptions:
   disableNameSuffixHash: true
+
