@@ -130,9 +130,11 @@ func getPlatform(ctx context.Context, cli client.Client) (Platform, error) {
 		return SelfManagedRhoai, nil
 	default:
 		// fall back to detect platform if ODH_PLATFORM_TYPE env is not provided in CSV or set to ""
-		if platform, err := detectManagedRhoai(ctx, cli); err != nil {
+		platform, err := detectManagedRhoai(ctx, cli)
+		if err != nil {
 			return Unknown, err
-		} else if platform == ManagedRhoai {
+		}
+		if platform == ManagedRhoai {
 			return ManagedRhoai, nil
 		}
 		return detectSelfManaged(ctx, cli)
