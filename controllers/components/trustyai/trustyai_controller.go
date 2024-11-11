@@ -60,6 +60,7 @@ func NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 			kustomize.WithLabel(labels.K8SCommon.PartOf, ComponentName),
 		)).
 		WithAction(deploy.NewAction(
+			deploy.WithCache(),
 			deploy.WithFieldOwner(componentsv1.TrustyAIInstanceName),
 			deploy.WithLabel(labels.ComponentPartOf, componentsv1.TrustyAIInstanceName),
 		)).
