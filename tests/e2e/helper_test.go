@@ -30,7 +30,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/kueue"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trainingoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
@@ -156,9 +155,9 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 						ManagementState: operatorv1.Managed,
 					},
 				},
-				Kueue: kueue.Kueue{
-					Component: componentsold.Component{
-						ManagementState: operatorv1.Removed,
+				Kueue: componentsv1.DSCKueue{
+					ManagementSpec: components.ManagementSpec{
+						ManagementState: operatorv1.Managed,
 					},
 				},
 				TrustyAI: componentsv1.DSCTrustyAI{

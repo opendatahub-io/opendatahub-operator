@@ -129,6 +129,23 @@ _Appears in:_
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
+#### DSCKueue
+
+
+
+DSCKueue contains all the configuration exposed in DSC instance for Kueue component
+
+
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+
+
 #### DSCModelRegistry
 
 
@@ -466,6 +483,23 @@ _Appears in:_
 | `status` _[KueueStatus](#kueuestatus)_ |  |  |  |
 
 
+#### KueueCommonSpec
+
+
+
+
+
+
+
+_Appears in:_
+- [DSCKueue](#dsckueue)
+- [KueueSpec](#kueuespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+
+
 #### KueueList
 
 
@@ -499,7 +533,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `foo` _string_ | Foo is an example field of Kueue. Edit kueue_types.go to remove/update |  |  |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
 #### KueueStatus
@@ -1072,7 +1106,6 @@ _Appears in:_
 - [CodeFlare](#codeflare)
 - [DataSciencePipelines](#datasciencepipelines)
 - [Kserve](#kserve)
-- [Kueue](#kueue)
 - [ModelMeshServing](#modelmeshserving)
 - [TrainingOperator](#trainingoperator)
 - [Workbenches](#workbenches)
@@ -1115,11 +1148,14 @@ DevFlagsSpec struct defines the component's dev flags configuration.
 _Appears in:_
 - [Component](#component)
 - [DSCDashboard](#dscdashboard)
+- [DSCKueue](#dsckueue)
 - [DSCModelRegistry](#dscmodelregistry)
 - [DSCRay](#dscray)
 - [DSCTrustyAI](#dsctrustyai)
 - [DashboardCommonSpec](#dashboardcommonspec)
 - [DashboardSpec](#dashboardspec)
+- [KueueCommonSpec](#kueuecommonspec)
+- [KueueSpec](#kueuespec)
 - [ModelRegistryCommonSpec](#modelregistrycommonspec)
 - [ModelRegistrySpec](#modelregistryspec)
 - [RayCommonSpec](#raycommonspec)
@@ -1143,6 +1179,7 @@ ManagementSpec struct defines the component's management configuration.
 _Appears in:_
 - [Component](#component)
 - [DSCDashboard](#dscdashboard)
+- [DSCKueue](#dsckueue)
 - [DSCModelRegistry](#dscmodelregistry)
 - [DSCRay](#dscray)
 - [DSCTrustyAI](#dsctrustyai)
@@ -1247,28 +1284,6 @@ _Appears in:_
 | `Component` _[Component](#component)_ |  |  |  |
 | `serving` _[ServingSpec](#servingspec)_ | Serving configures the KNative-Serving stack used for model serving. A Service<br />Mesh (Istio) is prerequisite, since it is used as networking layer. |  |  |
 | `defaultDeploymentMode` _[DefaultDeploymentMode](#defaultdeploymentmode)_ | Configures the default deployment mode for Kserve. This can be set to 'Serverless' or 'RawDeployment'.<br />The value specified in this field will be used to set the default deployment mode in the 'inferenceservice-config' configmap for Kserve.<br />This field is optional. If no default deployment mode is specified, Kserve will use Serverless mode. |  | Enum: [Serverless RawDeployment] <br />Pattern: `^(Serverless\|RawDeployment)$` <br /> |
-
-
-
-## datasciencecluster.opendatahub.io/kueue
-
-
-
-
-#### Kueue
-
-
-
-Kueue struct holds the configuration for the Kueue component.
-
-
-
-_Appears in:_
-- [Components](#components)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `Component` _[Component](#component)_ |  |  |  |
 
 
 
@@ -1398,7 +1413,7 @@ _Appears in:_
 | `modelmeshserving` _[ModelMeshServing](#modelmeshserving)_ | ModelMeshServing component configuration.<br />Does not support enabled Kserve at the same time |  |  |
 | `datasciencepipelines` _[DataSciencePipelines](#datasciencepipelines)_ | DataServicePipeline component configuration.<br />Require OpenShift Pipelines Operator to be installed before enable component |  |  |
 | `kserve` _[Kserve](#kserve)_ | Kserve component configuration.<br />Require OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component<br />Does not support enabled ModelMeshServing at the same time |  |  |
-| `kueue` _[Kueue](#kueue)_ | Kueue component configuration. |  |  |
+| `kueue` _[DSCKueue](#dsckueue)_ | Kueue component configuration. |  |  |
 | `codeflare` _[CodeFlare](#codeflare)_ | CodeFlare component configuration.<br />If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabled component. |  |  |
 | `ray` _[DSCRay](#dscray)_ | Ray component configuration. |  |  |
 | `trustyai` _[DSCTrustyAI](#dsctrustyai)_ | TrustyAI component configuration. |  |  |

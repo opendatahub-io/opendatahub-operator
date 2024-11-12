@@ -62,4 +62,10 @@ func (tc *testContext) validateOwnedCRDs(t *testing.T) {
 		require.NoErrorf(t, tc.validateCRD("trustyais.components.opendatahub.io"),
 			"error in validating CRD : trustyais.components.opendatahub.io")
 	})
+
+	t.Run("Validate Kueue CRD", func(t *testing.T) {
+		t.Parallel()
+		require.NoErrorf(t, tc.validateCRD("kueues.components.opendatahub.io"),
+			"error in validating CRD : kueues.components.opendatahub.io")
+	})
 }

@@ -21,26 +21,21 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
+const (
+	KueueComponentName = "kueue"
+	// value should match whats set in the XValidation below
+	KueueInstanceName = "default-kueue"
+	KueueKind         = "Kueue"
+)
+
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
-// KueueSpec defines the desired state of Kueue
-type KueueSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of Kueue. Edit kueue_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
-}
-
-// KueueStatus defines the observed state of Kueue
-type KueueStatus struct {
-	components.Status `json:",inline"`
-}
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
+// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-kueue'",message="Kueue name must be default-kueue"
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
+// +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
 
 // Kueue is the Schema for the kueues API
 type Kueue struct {
@@ -51,16 +46,21 @@ type Kueue struct {
 	Status KueueStatus `json:"status,omitempty"`
 }
 
-func (c *Kueue) GetDevFlags() *components.DevFlags {
-	return nil
+// KueueSpec defines the desired state of Kueue
+type KueueSpec struct {
+	KueueCommonSpec `json:",inline"`
 }
 
-func (c *Kueue) GetStatus() *components.Status {
-	return &c.Status.Status
+type KueueCommonSpec struct {
+	components.DevFlagsSpec `json:",inline"`
+}
+
+// KueueStatus defines the observed state of Kueue
+type KueueStatus struct {
+	components.Status `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
-
 // KueueList contains a list of Kueue
 type KueueList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -70,4 +70,18 @@ type KueueList struct {
 
 func init() {
 	SchemeBuilder.Register(&Kueue{}, &KueueList{})
+}
+
+func (c *Kueue) GetDevFlags() *components.DevFlags {
+	return c.Spec.DevFlags
+}
+func (c *Kueue) GetStatus() *components.Status {
+	return &c.Status.Status
+}
+
+// DSCKueue contains all the configuration exposed in DSC instance for Kueue component
+type DSCKueue struct {
+	components.ManagementSpec `json:",inline"`
+	// configuration fields common across components
+	KueueCommonSpec `json:",inline"`
 }

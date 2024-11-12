@@ -43,6 +43,7 @@ var (
 		"ray":           rayTestSuite,
 		"modelregistry": modelRegistryTestSuite,
 		"trustyai":      trustyAITestSuite,
+		"kueue":         kueueTestSuite,
 	}
 )
 

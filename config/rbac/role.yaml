@@ -589,7 +589,6 @@ rules:
   - prometheuses
   - prometheuses/finalizers
   - prometheuses/status
-  - prometheusrules
   - thanosrulers
   - thanosrulers/finalizers
   - thanosrulers/status
@@ -611,6 +610,17 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - prometheusrules
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - list
+  - patch
 - apiGroups:
   - monitoring.coreos.com
   resources:
