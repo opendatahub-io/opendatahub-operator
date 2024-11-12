@@ -193,7 +193,7 @@ func TestRenderResourcesWithCacheAction(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	action := kustomize.NewAction(
-		kustomize.WithCache(kustomize.DefaultCachingKeyFn),
+		kustomize.WithCache(render.DefaultCachingKeyFn),
 		kustomize.WithLabel(labels.ComponentPartOf, "foo"),
 		kustomize.WithLabel("platform.opendatahub.io/namespace", ns),
 		kustomize.WithAnnotation("platform.opendatahub.io/release", "1.2.3"),

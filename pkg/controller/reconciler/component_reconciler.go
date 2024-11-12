@@ -138,7 +138,7 @@ func (r *ComponentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	if !res.GetDeletionTimestamp().IsZero() {
 		// Execute finalizers
 		for _, action := range r.Finalizer {
-			l.Info("Executing finalizer", "action", action)
+			l.V(3).Info("Executing finalizer", "action", action)
 
 			actx := log.IntoContext(
 				ctx,
@@ -152,7 +152,7 @@ func (r *ComponentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 					return ctrl.Result{}, err
 				}
 
-				l.Info("detected stop marker", "action", action)
+				l.V(3).Info("detected stop marker", "action", action)
 				break
 			}
 		}
@@ -162,7 +162,7 @@ func (r *ComponentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	// Execute actions
 	for _, action := range r.Actions {
-		l.Info("Executing action", "action", action)
+		l.V(3).Info("Executing action", "action", action)
 
 		actx := log.IntoContext(
 			ctx,
@@ -176,7 +176,7 @@ func (r *ComponentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 				return ctrl.Result{}, err
 			}
 
-			l.Info("detected stop marker", "action", action)
+			l.V(3).Info("detected stop marker", "action", action)
 			break
 		}
 	}

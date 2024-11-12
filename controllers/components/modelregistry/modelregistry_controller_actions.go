@@ -57,6 +57,10 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 		baseManifestInfo(BaseManifestsSourcePath),
 		extraManifestInfo(BaseManifestsSourcePath),
 	}
+	rr.Templates = []odhtypes.TemplateInfo{{
+		FS:   resourcesFS,
+		Path: ServiceMeshMemberTemplate,
+	}}
 
 	df := mr.GetDevFlags()
 
@@ -121,17 +125,6 @@ func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationReque
 		},
 	); err != nil {
 		return fmt.Errorf("failed to add default ingress secret for model registry: %w", err)
-	}
-
-	// Service Mesh
-
-	smm, err := createServiceMeshMember(rr.DSCI, mr.Spec.RegistriesNamespace)
-	if err != nil {
-		return fmt.Errorf("failed to create ServiceMesh Member: %w", err)
-	}
-
-	if err := rr.AddResource(smm); err != nil {
-		return fmt.Errorf("failed to add ServiceMesh Member: %w", err)
 	}
 
 	return nil

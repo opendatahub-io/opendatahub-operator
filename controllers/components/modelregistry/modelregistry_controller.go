@@ -30,9 +30,10 @@ import (
 
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/updatestatus"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -53,7 +54,10 @@ func NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		Owns(&rbacv1.ClusterRoleBinding{}).
 		Owns(&corev1.Service{}).
 		Owns(&corev1.ServiceAccount{}).
-		Owns(&appsv1.Deployment{}, builder.WithPredicates(resources.NewDeploymentPredicate())).
+		Owns(
+			&appsv1.Deployment{},
+			builder.WithPredicates(resources.NewDeploymentPredicate()),
+		).
 		Owns(&admissionregistrationv1.MutatingWebhookConfiguration{}).
 		Owns(&admissionregistrationv1.ValidatingWebhookConfiguration{}).
 		Watches(&corev1.Namespace{}).
@@ -62,20 +66,22 @@ func NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		// the operator (overlays/odh/extras), so in order to properly keep them
 		// in sync with the manifests, we should also create an additional watcher
 		Watches(&rbacv1.ClusterRole{}).
-		// This component copies a secret referenced by the default IngressController
-		// to the Istio namespace, hence we need to watch for the related secret
-		// placed in the openshift-ingress namespace and with name defined in the
-		// IngressController on the .spec.defaultCertificate.name path
-		WatchesH(
-			&corev1.Secret{},
-			handlers.ToNamed(componentsv1.ModelRegistryInstanceName),
-			builder.WithPredicates(ingressSecret(ctx, mgr.GetClient()))).
+		// This component adds a ServiceMeshMember resource to the registries
+		// namespaces that must be left even if the component is removed, hence
+		// we can't own.
+		//
+		// TODO: add dynamic watching for gvk.ServiceMeshMember if it make sense
+		//       https://issues.redhat.com/browse/RHOAIENG-15170
+		//
 		// actions
 		WithAction(checkPreConditions).
 		WithAction(initialize).
 		WithAction(configureDependencies).
+		WithAction(template.NewAction(
+			template.WithCache(render.DefaultCachingKeyFn),
+		)).
 		WithAction(kustomize.NewAction(
-			kustomize.WithCache(kustomize.DefaultCachingKeyFn),
+			kustomize.WithCache(render.DefaultCachingKeyFn),
 			kustomize.WithLabel(labels.ODH.Component(ComponentName), "true"),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, ComponentName),
 		)).
