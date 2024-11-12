@@ -20,7 +20,7 @@ import (
 
 const (
 	RendererEngine = "template"
-	InstanceKey    = "Instance"
+	ComponentKey   = "Component"
 	DSCIKey        = "DSCI"
 )
 
@@ -97,7 +97,7 @@ func (a *Action) render(rr *types.ReconciliationRequest) ([]unstructured.Unstruc
 	decoder := serializer.NewCodecFactory(rr.Client.Scheme()).UniversalDeserializer()
 
 	data := maps.Clone(a.data)
-	data[InstanceKey] = rr.Instance
+	data[ComponentKey] = rr.Instance
 	data[DSCIKey] = rr.DSCI
 
 	result := make([]unstructured.Unstructured, 0)

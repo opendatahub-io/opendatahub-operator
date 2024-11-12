@@ -4,7 +4,7 @@ metadata:
   name: {{.SMM.Name}}
   namespace: {{.DSCI.Spec.ApplicationsNamespace}}
   annotations:
-    instance-name: {{.Instance.Name}}
+    instance-name: {{.Component.Name}}
     instance-id: {{.ID}}
 spec:
   controlPlaneRef:

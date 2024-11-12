@@ -4,7 +4,7 @@ metadata:
   name: default
   namespace: {{.DSCI.Spec.ApplicationsNamespace}}
   annotations:
-    instance-name: {{.Instance.Name}}
+    instance-name: {{.Component.Name}}
 spec:
   controlPlaneRef:
     namespace: {{ .DSCI.Spec.ServiceMesh.ControlPlane.Namespace }}
