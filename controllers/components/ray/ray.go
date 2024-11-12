@@ -5,10 +5,12 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
@@ -21,8 +23,21 @@ var (
 	DefaultPath = odhdeploy.DefaultManifestPath + "/" + ComponentName + "/openshift"
 )
 
-// for DSC to get compoment Ray's CR.
-func GetComponentCR(dsc *dscv1.DataScienceCluster) *componentsv1.Ray {
+type componentHandler struct{}
+
+func init() { //nolint:gochecknoinits
+	cr.Add(&componentHandler{})
+}
+
+func (s *componentHandler) GetName() string {
+	return componentsv1.RayComponentName
+}
+
+func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) operatorv1.ManagementState {
+	return dsc.Spec.Components.Ray.ManagementState
+}
+
+func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Object { //nolint:ireturn
 	rayAnnotations := make(map[string]string)
 	switch dsc.Spec.Components.Ray.ManagementState {
 	case operatorv1.Managed, operatorv1.Removed:
@@ -31,7 +46,7 @@ func GetComponentCR(dsc *dscv1.DataScienceCluster) *componentsv1.Ray {
 		rayAnnotations[annotations.ManagementStateAnnotation] = "Unknown"
 	}
 
-	return &componentsv1.Ray{
+	return client.Object(&componentsv1.Ray{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentsv1.RayKind,
 			APIVersion: componentsv1.GroupVersion.String(),
@@ -43,11 +58,10 @@ func GetComponentCR(dsc *dscv1.DataScienceCluster) *componentsv1.Ray {
 		Spec: componentsv1.RaySpec{
 			RayCommonSpec: dsc.Spec.Components.Ray.RayCommonSpec,
 		},
-	}
+	})
 }
 
-// Init for set images.
-func Init(platform cluster.Platform) error {
+func (s *componentHandler) Init(platform cluster.Platform) error {
 	imageParamMap := map[string]string{
 		"odh-kuberay-operator-controller-image": "RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE",
 	}

@@ -5,15 +5,31 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
-func Init(_ cluster.Platform) error {
+type componentHandler struct{}
+
+func init() { //nolint:gochecknoinits
+	cr.Add(&componentHandler{})
+}
+
+func (s *componentHandler) GetName() string {
+	return componentsv1.ModelRegistryComponentName
+}
+
+func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) operatorv1.ManagementState {
+	return dsc.Spec.Components.ModelRegistry.ManagementState
+}
+
+func (s *componentHandler) Init(_ cluster.Platform) error {
 	mi := baseManifestInfo(BaseManifestsSourcePath)
 
 	params := make(map[string]string)
@@ -31,7 +47,7 @@ func Init(_ cluster.Platform) error {
 	return nil
 }
 
-func GetComponentCR(dsc *dscv1.DataScienceCluster) *componentsv1.ModelRegistry {
+func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Object { //nolint:ireturn
 	componentAnnotations := make(map[string]string)
 
 	switch dsc.Spec.Components.ModelRegistry.ManagementState {
@@ -42,7 +58,7 @@ func GetComponentCR(dsc *dscv1.DataScienceCluster) *componentsv1.ModelRegistry {
 		componentAnnotations[annotations.ManagementStateAnnotation] = "Unknown"
 	}
 
-	return &componentsv1.ModelRegistry{
+	return client.Object(&componentsv1.ModelRegistry{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentsv1.ModelRegistryKind,
 			APIVersion: componentsv1.GroupVersion.String(),
@@ -54,5 +70,5 @@ func GetComponentCR(dsc *dscv1.DataScienceCluster) *componentsv1.ModelRegistry {
 		Spec: componentsv1.ModelRegistrySpec{
 			ModelRegistryCommonSpec: dsc.Spec.Components.ModelRegistry.ModelRegistryCommonSpec,
 		},
-	}
+	})
 }

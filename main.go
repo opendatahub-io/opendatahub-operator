@@ -21,7 +21,6 @@ import (
 	"flag"
 	"os"
 
-	"github.com/hashicorp/go-multierror"
 	addonv1alpha1 "github.com/openshift/addon-operator/apis/addons/v1alpha1"
 	ocappsv1 "github.com/openshift/api/apps/v1" //nolint:importas //reason: conflicts with appsv1 "k8s.io/api/apps/v1"
 	buildv1 "github.com/openshift/api/build/v1"
@@ -63,23 +62,25 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/certconfigmapgenerator"
-	dashboardctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/dashboard"
-	datasciencepipelinesctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/datasciencepipelines"
-	kueuectrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/kueue"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
-	rayctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/ray"
-	trainingoperatorctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/trainingoperator"
-	trustyaictrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/trustyai"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/webhook"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
 	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
+
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/dashboard"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/datasciencepipelines"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/kueue"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/ray"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/trainingoperator"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/trustyai"
 )
 
 const controllerNum = 4 // we should keep this updated if we have new controllers to add
@@ -119,31 +120,9 @@ func init() { //nolint:gochecknoinits
 }
 
 func initComponents(_ context.Context, p cluster.Platform) error {
-	var multiErr *multierror.Error
-
-	if err := dashboardctrl.Init(p); err != nil {
-		multiErr = multierror.Append(multiErr, err)
-	}
-	if err := rayctrl.Init(p); err != nil {
-		multiErr = multierror.Append(multiErr, err)
-	}
-	if err := modelregistryctrl.Init(p); err != nil {
-		return err
-	}
-	if err := trainingoperatorctrl.Init(p); err != nil {
-		return err
-	}
-	if err := trustyaictrl.Init(p); err != nil {
-		return err
-	}
-	if err := datasciencepipelinesctrl.Init(p); err != nil {
-		multiErr = multierror.Append(multiErr, err)
-	}
-
-	if err := kueuectrl.Init(p); err != nil {
-		multiErr = multierror.Append(multiErr, err)
-	}
-	return multiErr.ErrorOrNil()
+	return cr.ForEach(func(ch cr.ComponentHandler) error {
+		return ch.Init(p)
+	})
 }
 
 func main() { //nolint:funlen,maintidx
@@ -436,36 +415,8 @@ func createDeploymentCacheConfig(platform cluster.Platform) map[string]cache.Con
 }
 
 func CreateComponentReconcilers(ctx context.Context, mgr manager.Manager) error {
-	// TODO: add more here or make it go routine
-	if err := dashboardctrl.NewComponentReconciler(ctx, mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "DashboardReconciler")
-		return err
-	}
-
-	if err := rayctrl.NewComponentReconciler(ctx, mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "RayReconciler")
-		return err
-	}
-	if err := modelregistryctrl.NewComponentReconciler(ctx, mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "ModelRegistryReconciler")
-		return err
-	}
-	if err := trustyaictrl.NewComponentReconciler(ctx, mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "TrustyAIReconciler")
-		return err
-	}
-	if err := kueuectrl.NewComponentReconciler(ctx, mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "KueueReconciler")
-		return err
-	}
-	if err := trainingoperatorctrl.NewComponentReconciler(ctx, mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "TrainingOperatorReconciler")
-		return err
-	}
-	if err := datasciencepipelinesctrl.NewComponentReconciler(ctx, mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "DataSciencePipelinesReconciler")
-		return err
-	}
-
-	return nil
+	// TODO: can it be moved to initComponents?
+	return cr.ForEach(func(ch cr.ComponentHandler) error {
+		return ch.NewComponentReconciler(ctx, mgr)
+	})
 }
