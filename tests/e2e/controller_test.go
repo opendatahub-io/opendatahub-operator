@@ -39,11 +39,12 @@ var (
 	scheme   = runtime.NewScheme()
 
 	componentsTestSuites = map[string]TestFn{
-		"dashboard":     dashboardTestSuite,
-		"ray":           rayTestSuite,
-		"modelregistry": modelRegistryTestSuite,
-		"trustyai":      trustyAITestSuite,
-		"kueue":         kueueTestSuite,
+		"dashboard":        dashboardTestSuite,
+		"ray":              rayTestSuite,
+		"modelregistry":    modelRegistryTestSuite,
+		"trustyai":         trustyAITestSuite,
+		"kueue":            kueueTestSuite,
+		"trainingoperator": trainingoperatorTestSuite,
 	}
 )
 

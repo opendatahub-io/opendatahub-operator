@@ -67,6 +67,7 @@ import (
 	kueuectrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/kueue"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 	rayctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/ray"
+	trainingoperatorctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/trainingoperator"
 	trustyaictrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/trustyai"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
@@ -126,6 +127,9 @@ func initComponents(_ context.Context, p cluster.Platform) error {
 		multiErr = multierror.Append(multiErr, err)
 	}
 	if err := modelregistryctrl.Init(p); err != nil {
+		return err
+	}
+	if err := trainingoperatorctrl.Init(p); err != nil {
 		return err
 	}
 
@@ -446,6 +450,11 @@ func CreateComponentReconcilers(ctx context.Context, mgr manager.Manager) error 
 	}
 	if err := kueuectrl.NewComponentReconciler(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "KueueReconciler")
+		return err
+	}
+
+	if err := trainingoperatorctrl.NewComponentReconciler(ctx, mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "TrainingOperatorReconciler")
 		return err
 	}
 

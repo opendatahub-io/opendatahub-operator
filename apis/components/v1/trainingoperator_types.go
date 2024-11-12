@@ -21,26 +21,21 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+const (
+	TrainingOperatorComponentName = "trainingoperator"
+	// value should match whats set in the XValidation below
+	TrainingOperatorInstanceName = "default-trainingoperator"
+	TrainingOperatorKind         = "TrainingOperator"
+)
 
-// TrainingOperatorSpec defines the desired state of TrainingOperator
-type TrainingOperatorSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of TrainingOperator. Edit trainingoperator_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
-}
-
-// TrainingOperatorStatus defines the observed state of TrainingOperator
-type TrainingOperatorStatus struct {
-	components.Status `json:",inline"`
-}
+// NOTE: json tags are required. Any new fields you add must have json tags for the fields to be serialized.
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
+// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-trainingoperator'",message="TrainingOperator name must be default-trainingoperator"
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
+// +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
 
 // TrainingOperator is the Schema for the trainingoperators API
 type TrainingOperator struct {
@@ -51,16 +46,21 @@ type TrainingOperator struct {
 	Status TrainingOperatorStatus `json:"status,omitempty"`
 }
 
-func (c *TrainingOperator) GetDevFlags() *components.DevFlags {
-	return nil
+// TrainingOperatorSpec defines the desired state of TrainingOperator
+type TrainingOperatorSpec struct {
+	TrainingOperatorCommonSpec `json:",inline"`
 }
 
-func (c *TrainingOperator) GetStatus() *components.Status {
-	return &c.Status.Status
+type TrainingOperatorCommonSpec struct {
+	components.DevFlagsSpec `json:",inline"`
+}
+
+// TrainingOperatorStatus defines the observed state of TrainingOperator
+type TrainingOperatorStatus struct {
+	components.Status `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
-
 // TrainingOperatorList contains a list of TrainingOperator
 type TrainingOperatorList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -70,4 +70,18 @@ type TrainingOperatorList struct {
 
 func init() {
 	SchemeBuilder.Register(&TrainingOperator{}, &TrainingOperatorList{})
+}
+
+func (c *TrainingOperator) GetDevFlags() *components.DevFlags {
+	return c.Spec.DevFlags
+}
+func (c *TrainingOperator) GetStatus() *components.Status {
+	return &c.Status.Status
+}
+
+// DSCTrainingOperator contains all the configuration exposed in DSC instance for TrainingOperator component
+type DSCTrainingOperator struct {
+	components.ManagementSpec `json:",inline"`
+	// configuration fields common across components
+	TrainingOperatorCommonSpec `json:",inline"`
 }

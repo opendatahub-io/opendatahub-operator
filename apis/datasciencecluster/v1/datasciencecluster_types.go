@@ -30,7 +30,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/trainingoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
@@ -79,7 +78,7 @@ type Components struct {
 	ModelRegistry componentsv1.DSCModelRegistry `json:"modelregistry,omitempty"`
 
 	// Training Operator component configuration.
-	TrainingOperator trainingoperator.TrainingOperator `json:"trainingoperator,omitempty"`
+	TrainingOperator componentsv1.DSCTrainingOperator `json:"trainingoperator,omitempty"`
 }
 
 // ComponentsStatus defines the custom status of DataScienceCluster components.

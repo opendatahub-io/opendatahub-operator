@@ -57,6 +57,7 @@ import (
 	kueuectrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/kueue"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 	rayctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/ray"
+	trainingoperatorctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/trainingoperator"
 	trustyaictrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -283,6 +284,14 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	if instance, err = r.ReconcileComponent(ctx, instance, componentsv1.KueueComponentName, func() (error, bool) {
 		kueue := kueuectrl.GetComponentCR(instance)
 		return r.apply(ctx, instance, kueue), instance.Spec.Components.Kueue.ManagementState == operatorv1.Managed
+	}); err != nil {
+		componentErrors = multierror.Append(componentErrors, err)
+	}
+
+	// Deploy TrainingOperator
+	if instance, err = r.ReconcileComponent(ctx, instance, componentsv1.TrainingOperatorComponentName, func() (error, bool) {
+		trainingoperator := trainingoperatorctrl.GetComponentCR(instance)
+		return r.apply(ctx, instance, trainingoperator), instance.Spec.Components.TrainingOperator.ManagementState == operatorv1.Managed
 	}); err != nil {
 		componentErrors = multierror.Append(componentErrors, err)
 	}
@@ -555,6 +564,7 @@ func (r *DataScienceClusterReconciler) SetupWithManager(ctx context.Context, mgr
 		Owns(&componentsv1.ModelRegistry{}).
 		Owns(&componentsv1.TrustyAI{}).
 		Owns(&componentsv1.Kueue{}).
+		Owns(&componentsv1.TrainingOperator{}).
 		Owns(
 			&corev1.ServiceAccount{},
 			builder.WithPredicates(saPredicates),

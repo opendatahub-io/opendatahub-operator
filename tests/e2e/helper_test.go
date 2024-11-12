@@ -31,7 +31,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/trainingoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 )
@@ -173,9 +172,9 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 						RegistriesNamespace: modelregistry.DefaultModelRegistriesNamespace,
 					},
 				},
-				TrainingOperator: trainingoperator.TrainingOperator{
-					Component: componentsold.Component{
-						ManagementState: operatorv1.Removed,
+				TrainingOperator: componentsv1.DSCTrainingOperator{
+					ManagementSpec: components.ManagementSpec{
+						ManagementState: operatorv1.Managed,
 					},
 				},
 			},
