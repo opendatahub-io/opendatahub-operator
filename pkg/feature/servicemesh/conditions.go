@@ -7,6 +7,8 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -36,6 +38,21 @@ func EnsureAuthNamespaceExists(ctx context.Context, cli client.Client, f *featur
 func EnsureServiceMeshOperatorInstalled(ctx context.Context, cli client.Client, f *feature.Feature) error {
 	if err := feature.EnsureOperatorIsInstalled("servicemeshoperator")(ctx, cli, f); err != nil {
 		return fmt.Errorf("failed to find the pre-requisite Service Mesh Operator subscription, please ensure Service Mesh Operator is installed. %w", err)
+	}
+	// Extra check SMCP CRD is installed and is active.
+	if err := cluster.CustomResourceDefinitionExists(ctx, cli, gvk.ServiceMeshControlPlane.GroupKind()); err != nil {
+		return fmt.Errorf("failed to find the Service Mesh Control Plane CRD, please ensure Service Mesh Operator is installed. %w", err)
+	}
+	// Extra check smcp validation service is running.
+	validationService := &corev1.Service{}
+	if err := cli.Get(ctx, client.ObjectKey{
+		Name:      "istio-operator-service",
+		Namespace: "openshift-operators",
+	}, validationService); err != nil {
+		if k8serr.IsNotFound(err) {
+			return fmt.Errorf("failed to find the Service Mesh VWC service, please ensure Service Mesh Operator is running. %w", err)
+		}
+		return fmt.Errorf("failed to find the Service Mesh VWC service. %w", err)
 	}
 
 	return nil
