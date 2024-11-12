@@ -19,6 +19,7 @@ package trainingoperator
 import (
 	"context"
 
+
 	promv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -29,6 +30,7 @@ import (
 
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/updatestatus"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
@@ -54,7 +56,7 @@ func NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		WithAction(initialize).
 		WithAction(devFlags).
 		WithAction(kustomize.NewAction(
-			kustomize.WithCache(kustomize.DefaultCachingKeyFn),
+			kustomize.WithCache(render.DefaultCachingKeyFn),
 			kustomize.WithLabel(labels.ODH.Component(ComponentName), "true"),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, ComponentName),
 		)).
