@@ -6,26 +6,33 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
-func NewDeploymentPredicate() predicate.Funcs {
-	return predicate.Funcs{
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			if e.ObjectOld == nil || e.ObjectNew == nil {
-				return true
-			}
+var _ predicate.Predicate = DeploymentPredicate{}
 
-			oldDeployment, ok := e.ObjectOld.(*appsv1.Deployment)
-			if !ok {
-				return false
-			}
+type DeploymentPredicate struct {
+	predicate.Funcs
+}
 
-			newDeployment, ok := e.ObjectNew.(*appsv1.Deployment)
-			if !ok {
-				return false
-			}
-
-			return oldDeployment.Generation != newDeployment.Generation ||
-				oldDeployment.Status.Replicas != newDeployment.Status.Replicas ||
-				oldDeployment.Status.ReadyReplicas != newDeployment.Status.ReadyReplicas
-		},
+// Update implements default UpdateEvent filter for validating generation change.
+func (DeploymentPredicate) Update(e event.UpdateEvent) bool {
+	if e.ObjectOld == nil || e.ObjectNew == nil {
+		return false
 	}
+
+	oldDeployment, ok := e.ObjectOld.(*appsv1.Deployment)
+	if !ok {
+		return false
+	}
+
+	newDeployment, ok := e.ObjectNew.(*appsv1.Deployment)
+	if !ok {
+		return false
+	}
+
+	return oldDeployment.Generation != newDeployment.Generation ||
+		oldDeployment.Status.Replicas != newDeployment.Status.Replicas ||
+		oldDeployment.Status.ReadyReplicas != newDeployment.Status.ReadyReplicas
+}
+
+func NewDeploymentPredicate() *DeploymentPredicate {
+	return &DeploymentPredicate{}
 }

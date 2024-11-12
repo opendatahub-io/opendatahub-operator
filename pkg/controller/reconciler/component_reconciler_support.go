@@ -97,30 +97,7 @@ func (b *ComponentReconcilerBuilder) WatchesH(object client.Object, eventHandler
 	return b
 }
 
-func (b *ComponentReconcilerBuilder) WatchesM(object client.Object, fn handler.MapFunc, opts ...builder.WatchesOption) *ComponentReconcilerBuilder {
-	b.watches = append(b.watches, watchInput{
-		object:       object,
-		eventHandler: handler.EnqueueRequestsFromMapFunc(fn),
-		options:      slices.Clone(opts),
-	})
-
-	return b
-}
-
-func (b *ComponentReconcilerBuilder) WatchesGVK(gvk schema.GroupVersionKind, opts ...builder.WatchesOption) *ComponentReconcilerBuilder {
-	u := unstructured.Unstructured{}
-	u.SetGroupVersionKind(gvk)
-
-	b.watches = append(b.watches, watchInput{
-		object:       &u,
-		eventHandler: handlers.ToOwner(),
-		options:      slices.Clone(opts),
-	})
-
-	return b
-}
-
-func (b *ComponentReconcilerBuilder) WatchesGVKH(gvk schema.GroupVersionKind, eventHandler handler.EventHandler, opts ...builder.WatchesOption) *ComponentReconcilerBuilder {
+func (b *ComponentReconcilerBuilder) WatchesGVK(gvk schema.GroupVersionKind, eventHandler handler.EventHandler, opts ...builder.WatchesOption) *ComponentReconcilerBuilder {
 	u := unstructured.Unstructured{}
 	u.SetGroupVersionKind(gvk)
 
@@ -133,12 +110,9 @@ func (b *ComponentReconcilerBuilder) WatchesGVKH(gvk schema.GroupVersionKind, ev
 	return b
 }
 
-func (b *ComponentReconcilerBuilder) WatchesGVKM(gvk schema.GroupVersionKind, fn handler.MapFunc, opts ...builder.WatchesOption) *ComponentReconcilerBuilder {
-	u := unstructured.Unstructured{}
-	u.SetGroupVersionKind(gvk)
-
+func (b *ComponentReconcilerBuilder) WatchesM(object client.Object, fn handler.MapFunc, opts ...builder.WatchesOption) *ComponentReconcilerBuilder {
 	b.watches = append(b.watches, watchInput{
-		object:       &u,
+		object:       object,
 		eventHandler: handler.EnqueueRequestsFromMapFunc(fn),
 		options:      slices.Clone(opts),
 	})

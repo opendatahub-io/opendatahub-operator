@@ -26,7 +26,7 @@ import (
 //go:embed resources
 var testFS embed.FS
 
-func TestRenderTemplateAction(t *testing.T) {
+func TestRenderTemplate(t *testing.T) {
 	g := NewWithT(t)
 
 	ctx := context.Background()
@@ -74,7 +74,66 @@ func TestRenderTemplateAction(t *testing.T) {
 	))
 }
 
-func TestRenderTemplateWithCacheAction(t *testing.T) {
+func TestRenderTemplateWithData(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := context.Background()
+	ns := xid.New().String()
+	id := xid.New().String()
+	name := xid.New().String()
+
+	cl, err := fakeclient.New(ctx)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	action := template.NewAction(
+		template.WithData(map[string]any{
+			"ID": id,
+			"SMM": map[string]any{
+				"Name": name,
+			},
+		}),
+	)
+
+	rr := types.ReconciliationRequest{
+		Client: cl,
+		Instance: &componentsv1.Dashboard{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: ns,
+			},
+		},
+		DSCI: &dsciv1.DSCInitialization{
+			Spec: dsciv1.DSCInitializationSpec{
+				ApplicationsNamespace: ns,
+				ServiceMesh: &infrav1.ServiceMeshSpec{
+					ControlPlane: infrav1.ControlPlaneSpec{
+						Name:      xid.New().String(),
+						Namespace: xid.New().String(),
+					},
+				},
+			},
+		},
+		DSC:       &dscv1.DataScienceCluster{},
+		Release:   cluster.Release{Name: cluster.OpenDataHub},
+		Templates: []types.TemplateInfo{{FS: testFS, Path: "resources/smm-data.tmpl.yaml"}},
+	}
+
+	err = action(ctx, &rr)
+
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(rr.Resources).Should(And(
+		HaveLen(1),
+		HaveEach(And(
+			jq.Match(`.metadata.name == "%s"`, name),
+			jq.Match(`.metadata.namespace == "%s"`, ns),
+			jq.Match(`.spec.controlPlaneRef.namespace == "%s"`, rr.DSCI.Spec.ServiceMesh.ControlPlane.Namespace),
+			jq.Match(`.spec.controlPlaneRef.name == "%s"`, rr.DSCI.Spec.ServiceMesh.ControlPlane.Name),
+			jq.Match(`.metadata.annotations."instance-name" == "%s"`, rr.Instance.GetName()),
+			jq.Match(`.metadata.annotations."instance-id" == "%s"`, id),
+		)),
+	))
+}
+
+func TestRenderTemplateWithCache(t *testing.T) {
 	g := NewWithT(t)
 
 	ctx := context.Background()

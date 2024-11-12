@@ -8,6 +8,7 @@ import (
 	"strings"
 	gt "text/template"
 
+	"golang.org/x/exp/maps"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 
@@ -17,7 +18,11 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
-const RendererEngine = "template"
+const (
+	RendererEngine = "template"
+	InstanceKey    = "Instance"
+	DSCIKey        = "DSCI"
+)
 
 // Action takes a set of template locations and render them as Unstructured resources for
 // further processing. The Action can eventually cache the results in memory to avoid doing
@@ -26,12 +31,22 @@ type Action struct {
 	cachingKeyFn    render.CachingKeyFn
 	cachingKey      []byte
 	cachedResources resources.UnstructuredList
+	data            map[string]any
 }
+
 type ActionOpts func(*Action)
 
 func WithCache(value render.CachingKeyFn) ActionOpts {
 	return func(action *Action) {
 		action.cachingKeyFn = value
+	}
+}
+
+func WithData(data map[string]any) ActionOpts {
+	return func(action *Action) {
+		for k, v := range data {
+			action.data[k] = v
+		}
 	}
 }
 
@@ -80,7 +95,10 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 
 func (a *Action) render(rr *types.ReconciliationRequest) ([]unstructured.Unstructured, error) {
 	decoder := serializer.NewCodecFactory(rr.Client.Scheme()).UniversalDeserializer()
-	data := map[string]any{"Instance": rr.Instance, "DSCI": rr.DSCI}
+
+	data := maps.Clone(a.data)
+	data[InstanceKey] = rr.Instance
+	data[DSCIKey] = rr.DSCI
 
 	result := make([]unstructured.Unstructured, 0)
 
@@ -122,6 +140,7 @@ func NewAction(opts ...ActionOpts) actions.Fn {
 		cachingKeyFn: func(_ context.Context, rr *types.ReconciliationRequest) ([]byte, error) {
 			return nil, nil
 		},
+		data: make(map[string]any),
 	}
 
 	for _, opt := range opts {
