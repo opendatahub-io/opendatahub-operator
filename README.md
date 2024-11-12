@@ -267,6 +267,9 @@ spec:
     managementState: Managed
     namespace: opendatahub
   serviceMesh:
+    auth:
+      audiences:
+        - 'https://kubernetes.default.svc'
     controlPlane:
       metricsCollection: Istio
       name: data-science-smcp
