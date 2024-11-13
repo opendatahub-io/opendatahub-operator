@@ -176,8 +176,12 @@ func main() { //nolint:funlen,maintidx
 	release := cluster.GetRelease()
 	platform := release.Name
 
-	secretCache := createSecretCacheConfig(ctx, setupClient)
-	deploymentCache := createDeploymentCacheConfig(ctx, setupClient)
+	// get old release version before we create default DSCI CR
+	oldReleaseVersion, _ := upgrade.GetDeployedRelease(ctx, setupClient)
+
+	secretCache := createSecretCacheConfig(ctx, setupClient, !(len(oldReleaseVersion.Name) == 0), platform)
+	deploymentCache := createDeploymentCacheConfig(ctx, setupClient, !(len(oldReleaseVersion.Name) == 0), platform)
+
 	cacheOptions := cache.Options{
 		Scheme: scheme,
 		ByObject: map[client.Object]cache.ByObject{
@@ -223,17 +227,6 @@ func main() { //nolint:funlen,maintidx
 		Cache:                  cacheOptions,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "07ed84f7.opendatahub.io",
-		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
-		// when the Manager ends. This requires the binary to immediately end when the
-		// Manager is stopped, otherwise, this setting is unsafe. Setting this significantly
-		// speeds up voluntary leader transitions as the new leader don't have to wait
-		// LeaseDuration time first.
-		//
-		// In the default scaffold provided, the program ends immediately after
-		// the manager stops, so would be fine to enable this option. However,
-		// if you are doing or is intended to do any operation such as perform cleanups
-		// after the manager stops then its usage might be unsafe.
-		// LeaderElectionReleaseOnCancel: true,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -281,9 +274,6 @@ func main() { //nolint:funlen,maintidx
 		setupLog.Error(err, "unable to create controller", "controller", "CertConfigmapGenerator")
 		os.Exit(1)
 	}
-
-	// get old release version before we create default DSCI CR
-	oldReleaseVersion, _ := upgrade.GetDeployedRelease(ctx, setupClient)
 
 	// Check if user opted for disabling DSC configuration
 	disableDSCConfig, existDSCConfig := os.LookupEnv("DISABLE_DSC_CONFIG")
@@ -352,43 +342,80 @@ func main() { //nolint:funlen,maintidx
 	}
 }
 
-func createSecretCacheConfig(ctx context.Context, cli client.Client) map[string]cache.Config {
+func createSecretCacheConfig(ctx context.Context, cli client.Client, upgrade bool, platform cluster.Platform) map[string]cache.Config {
 	namespaceConfigs := map[string]cache.Config{
 		"istio-system":      {}, // for both knative-serving-cert and default-modelregistry-cert,as an easy workarond, to watch all in this namespace for now
 		"openshift-ingress": {},
 	}
-	// TODO: if we want to not harcoded above two namespace we can add them with label selector
-	// maistra.io/member-of=istio-system
-	// network.openshift.io/policy-group=ingress
+	// upgrade cache
+	if upgrade {
+		// TODO: if we want to not harcoded above two namespace we can add them with label selector
+		// maistra.io/member-of=istio-system
+		// network.openshift.io/policy-group=ingress
 
-	labelSelector := client.MatchingLabels{
-		"opendatahub.io/generated-namespace": "true",
-	}
-	namespaceList := &corev1.NamespaceList{}
-	if err := cli.List(ctx, namespaceList, labelSelector); err != nil {
-		// return application (+ mnonitoring + default wb ) namespace
+		labelSelector := client.MatchingLabels{
+			"opendatahub.io/generated-namespace": "true",
+		}
+		namespaceList := &corev1.NamespaceList{}
+		if err := cli.List(ctx, namespaceList, labelSelector); err != nil {
+			// return application (+ mnonitoring + default wb ) namespace
+			return namespaceConfigs
+		}
+
+		for _, ns := range namespaceList.Items {
+			namespaceConfigs[ns.Name] = cache.Config{}
+		}
+		if platform == cluster.ManagedRhoai {
+			namespaceConfigs["redhat-ods-operator"] = cache.Config{}
+		}
 		return namespaceConfigs
 	}
 
-	for _, ns := range namespaceList.Items {
-		namespaceConfigs[ns.Name] = cache.Config{}
+	// clean install cache
+	switch platform {
+	case cluster.ManagedRhoai:
+		namespaceConfigs["redhat-ods-monitoring"] = cache.Config{}
+		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
+		operatorNs, err := cluster.GetOperatorNamespace()
+		if err != nil {
+			operatorNs = "redhat-ods-operator" // fall back case
+		}
+		namespaceConfigs[operatorNs] = cache.Config{}
+	case cluster.SelfManagedRhoai:
+		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
+	default:
+		namespaceConfigs["opendatahub"] = cache.Config{}
 	}
 	return namespaceConfigs
 }
 
-func createDeploymentCacheConfig(ctx context.Context, cli client.Client) map[string]cache.Config {
+func createDeploymentCacheConfig(ctx context.Context, cli client.Client, upgrade bool, platform cluster.Platform) map[string]cache.Config {
 	namespaceConfigs := map[string]cache.Config{}
-	labelSelector := client.MatchingLabels{
-		"opendatahub.io/generated-namespace": "true",
-	}
-	namespaceList := &corev1.NamespaceList{}
-	if err := cli.List(ctx, namespaceList, labelSelector); err != nil {
+	// upgrade cache
+	if upgrade {
+		labelSelector := client.MatchingLabels{
+			"opendatahub.io/generated-namespace": "true",
+		}
+		namespaceList := &corev1.NamespaceList{}
+		if err := cli.List(ctx, namespaceList, labelSelector); err != nil {
+			return namespaceConfigs
+		}
+		for _, ns := range namespaceList.Items {
+			namespaceConfigs[ns.Name] = cache.Config{}
+		}
+		// remove rhods-notebooks if it exists
+		delete(namespaceConfigs, cluster.DefaultNotebooksNamespace)
 		return namespaceConfigs
 	}
-	for _, ns := range namespaceList.Items {
-		namespaceConfigs[ns.Name] = cache.Config{}
+	// clean install cache
+	switch platform {
+	case cluster.ManagedRhoai: // no need workbench NS, only SFS no Deployment
+		namespaceConfigs["redhat-ods-monitoring"] = cache.Config{}
+		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
+	case cluster.SelfManagedRhoai:
+		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
+	default:
+		namespaceConfigs["opendatahub"] = cache.Config{}
 	}
-	// remove rhods-notebooks if it exists
-	delete(namespaceConfigs, cluster.DefaultNotebooksNamespace)
 	return namespaceConfigs
 }

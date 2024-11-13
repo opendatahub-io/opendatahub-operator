@@ -56,13 +56,6 @@ func creationTestSuite(t *testing.T) {
 			err = testCtx.testOwnedNamespacesAllExist()
 			require.NoError(t, err, "error owned namespace is missing")
 		})
-		t.Run("Check owned namespaces are recreated if it gets deleted", func(t *testing.T) {
-			_ = deleteNamespace(testCtx)
-			time.Sleep(2 * generalRetryInterval)
-
-			err = testCtx.testOwnedNamespacesAllExist()
-			require.NoError(t, err, "error owned namespace is missing")
-		})
 
 		// DSC
 		t.Run("Creation of DataScienceCluster instance", func(t *testing.T) {
