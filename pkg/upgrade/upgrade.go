@@ -8,13 +8,12 @@ import (
 	"fmt"
 	"reflect"
 
-	batchv1 "k8s.io/api/batch/v1"
-
 	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -610,12 +609,13 @@ func GetDeployedRelease(ctx context.Context, cli client.Client) (cluster.Release
 }
 
 func cleanupNimIntegrationTechPreview(ctx context.Context, cli client.Client, oldRelease cluster.Release, applicationNS string) error {
-	logger := logf.FromContext(ctx)
 	var errs *multierror.Error
 
-	if oldRelease.Version.Minor == 15 {
+	if oldRelease.Version.Minor >= 14 && oldRelease.Version.Minor <= 15 {
+		logger := logf.FromContext(ctx)
 		nimConfigMap := "nvidia-nim-validation-result"
 		nimCronjob := "nvidia-nim-periodic-validator"
+
 		cm := &corev1.ConfigMap{}
 		if err := cli.Get(ctx, types.NamespacedName{Name: nimConfigMap, Namespace: applicationNS}, cm); err != nil {
 			if !k8serr.IsNotFound(err) {
