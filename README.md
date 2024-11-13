@@ -222,8 +222,10 @@ This will ensure that the doc for the apis are updated accordingly.
 
 ### Enabled logging
 
-Global logger configuration can be changed with a command line switch `--log-mode <mode>`
-for example from CSV. Valid values for `<mode>`: "" (as default) || prod || production || devel || development.
+Global logger configuration can be changed with an environemnt variable `ZAP_LOG_LEVEL`
+or a command line switch `--log-mode <mode>` for example from CSV.
+Command line switch has higher priority.
+Valid values for `<mode>`: "" (as default) || prod || production || devel || development.
 
 Verbosity level is INFO.
 To fine tune zap backend [standard operator sdk zap switches](https://sdk.operatorframework.io/docs/building-operators/golang/references/logging/)
