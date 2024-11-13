@@ -8,11 +8,14 @@ import (
 	"fmt"
 	"reflect"
 
+	batchv1 "k8s.io/api/batch/v1"
+
 	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -286,6 +289,9 @@ func CleanupExistingResource(ctx context.Context,
 	// to take a reference
 	toDelete := getDashboardWatsonResources(dscApplicationsNamespace)
 	multiErr = multierror.Append(multiErr, deleteResources(ctx, cli, &toDelete))
+
+	// cleanup nvidia nim integration remove tech preview
+	multiErr = multierror.Append(multiErr, cleanupNimIntegrationTechPreview(ctx, cli, oldReleaseVersion))
 
 	return multiErr.ErrorOrNil()
 }
@@ -602,4 +608,44 @@ func GetDeployedRelease(ctx context.Context, cli client.Client) (cluster.Release
 	}
 	// could be a clean installation or both CRs are deleted already
 	return cluster.Release{}, nil
+}
+
+func cleanupNimIntegrationTechPreview(ctx context.Context, cli client.Client, oldRelease cluster.Release) error {
+	logger := logf.FromContext(ctx)
+	var errs *multierror.Error
+
+	// TODO where can we get the system namespace, opendatahub | redhat-ods-applications ?
+	ns := "todo-get-namespace"
+
+	if oldRelease.Version.Minor < 16 {
+		cm := &corev1.ConfigMap{}
+		if err := cli.Get(ctx, types.NamespacedName{Name: "nvidia-nim-validation-result", Namespace: ns}, cm); err != nil {
+			if !k8serr.IsNotFound(err) {
+				logger.V(1).Error(err, "failed to fetch tech preview validation result configmap")
+			}
+		} else {
+			if dErr := cli.Delete(ctx, cm); dErr != nil {
+				logger.Error(dErr, "failed to remove tech preview validation result configmap")
+				errs = multierror.Append(errs, dErr)
+			} else {
+				logger.V(1).Info("tech preview validation result configmap successfully removed")
+			}
+		}
+
+		job := &batchv1.CronJob{}
+		if err := cli.Get(ctx, types.NamespacedName{Name: "nvidia-nim-periodic-validator", Namespace: ns}, job); err != nil {
+			if !k8serr.IsNotFound(err) {
+				logger.V(1).Error(err, "failed to fetch tech preview validation result configmap")
+			}
+		} else {
+			if dErr := cli.Delete(ctx, job); dErr != nil {
+				logger.Error(dErr, "failed to remove tech preview cron job")
+				errs = multierror.Append(errs, dErr)
+			} else {
+				logger.Info("tech preview cron job successfully removed")
+			}
+		}
+	}
+
+	return errs.ErrorOrNil()
 }
