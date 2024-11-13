@@ -428,3 +428,16 @@ func ensureServicemeshOperators(t *testing.T, tc *testContext) error { //nolint:
 func (tc *testContext) setUp(t *testing.T) error { //nolint: thelper
 	return ensureServicemeshOperators(t, tc)
 }
+
+func deleteNamespace(tc *testContext) error {
+	ns := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: tc.testDSCI.Spec.ApplicationsNamespace,
+		},
+	}
+	err := tc.customClient.Delete(tc.ctx, ns, &client.DeleteOptions{})
+	if err != nil {
+		return fmt.Errorf("error deleting application namespace: %w", err)
+	}
+	return nil
+}

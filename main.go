@@ -41,6 +41,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -60,7 +61,6 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/certconfigmapgenerator"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
@@ -177,8 +177,7 @@ func main() { //nolint:funlen,maintidx
 	release := cluster.GetRelease()
 	platform := release.Name
 
-	secretCache := createSecretCacheConfig(platform)
-	deploymentCache := createDeploymentCacheConfig(platform)
+	secretCache := createSecretCacheConfig(ctx, setupClient)
 	cacheOptions := cache.Options{
 		Scheme: scheme,
 		ByObject: map[client.Object]cache.ByObject{
@@ -206,8 +205,11 @@ func main() { //nolint:funlen,maintidx
 			&configv1.Authentication{}: {
 				Field: fields.Set{"metadata.name": cluster.ClusterAuthenticationObj}.AsSelector(),
 			},
-			// for prometheus and black-box deployment and ones we owns
-			&appsv1.Deployment{}: {Namespaces: deploymentCache},
+			// for deployments in application namespace + operator namespace + monitoring namespace + rhods-notebooks
+			// default wb namespace is not needed since no deployment only sfs,  but our label is on it so we cache it as well
+			&appsv1.Deployment{}: {
+				Label: labels.Set{"opendatahub.io/generated-namespace": "true"}.AsSelector(),
+			},
 		},
 	}
 
@@ -351,40 +353,26 @@ func main() { //nolint:funlen,maintidx
 	}
 }
 
-func createSecretCacheConfig(platform cluster.Platform) map[string]cache.Config {
+func createSecretCacheConfig(ctx context.Context, cli client.Client) map[string]cache.Config {
 	namespaceConfigs := map[string]cache.Config{
 		"istio-system":      {}, // for both knative-serving-cert and default-modelregistry-cert,as an easy workarond, to watch all in this namespace for now
 		"openshift-ingress": {},
 	}
-	switch platform {
-	case cluster.ManagedRhoai:
-		namespaceConfigs["redhat-ods-monitoring"] = cache.Config{}
-		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
-		operatorNs, err := cluster.GetOperatorNamespace()
-		if err != nil {
-			operatorNs = "redhat-ods-operator" // fall back case
-		}
-		namespaceConfigs[operatorNs] = cache.Config{}
-	case cluster.SelfManagedRhoai:
-		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
-	default:
-		namespaceConfigs["opendatahub"] = cache.Config{}
-	}
-	return namespaceConfigs
-}
+	// TODO: if we want to not harcoded above two namespace we can add them with label selector
+	// maistra.io/member-of=istio-system
+	// network.openshift.io/policy-group=ingress
 
-func createDeploymentCacheConfig(platform cluster.Platform) map[string]cache.Config {
-	namespaceConfigs := map[string]cache.Config{}
-	switch platform {
-	case cluster.ManagedRhoai: // no need workbench NS, only SFS no Deployment
-		namespaceConfigs["redhat-ods-monitoring"] = cache.Config{}
-		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
-	case cluster.SelfManagedRhoai:
-		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
-	default:
-		namespaceConfigs["opendatahub"] = cache.Config{}
+	labelSelector := client.MatchingLabels{
+		"opendatahub.io/generated-namespace": "true",
 	}
-	// for modelregistry namespace
-	namespaceConfigs[modelregistry.DefaultModelRegistriesNamespace] = cache.Config{}
+	namespaceList := &corev1.NamespaceList{}
+	if err := cli.List(ctx, namespaceList, labelSelector); err != nil {
+		// return application (+ mnonitoring + default wb ) namespace
+		return namespaceConfigs
+	}
+
+	for _, ns := range namespaceList.Items {
+		namespaceConfigs[ns.Name] = cache.Config{}
+	}
 	return namespaceConfigs
 }
