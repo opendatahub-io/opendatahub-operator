@@ -612,50 +612,44 @@ func cleanupNimIntegrationTechPreview(ctx context.Context, cli client.Client, ol
 	var errs *multierror.Error
 
 	if oldRelease.Version.Minor >= 14 && oldRelease.Version.Minor <= 15 {
-		logger := logf.FromContext(ctx)
+		log := logf.FromContext(ctx)
 		nimCronjob := "nvidia-nim-periodic-validator"
 		nimConfigMap := "nvidia-nim-validation-result"
 		nimAPISec := "nvidia-nim-access"
 
-		job := &batchv1.CronJob{}
-		if err := cli.Get(ctx, types.NamespacedName{Name: nimCronjob, Namespace: applicationNS}, job); err != nil {
-			if !k8serr.IsNotFound(err) {
-				logger.V(1).Error(err, "failed to get NIM cronjob "+nimCronjob)
-			}
-		} else {
-			if dErr := cli.Delete(ctx, job); dErr != nil {
-				logger.Error(dErr, "failed to remove NIM cronjob "+nimCronjob)
-				errs = multierror.Append(errs, dErr)
-			} else {
-				logger.Info("removed NIM cronjob successfully")
-			}
+		deleteObjs := []struct {
+			obj        client.Object
+			name, desc string
+		}{
+			{
+				obj:  &batchv1.CronJob{},
+				name: nimCronjob,
+				desc: "validator CronJob",
+			},
+			{
+				obj:  &corev1.ConfigMap{},
+				name: nimConfigMap,
+				desc: "data ConfigMap",
+			},
+			{
+				obj:  &corev1.Secret{},
+				name: nimAPISec,
+				desc: "API key Secret",
+			},
 		}
-
-		cm := &corev1.ConfigMap{}
-		if err := cli.Get(ctx, types.NamespacedName{Name: nimConfigMap, Namespace: applicationNS}, cm); err != nil {
-			if !k8serr.IsNotFound(err) {
-				logger.V(1).Error(err, "failed to get NIM configmap "+nimConfigMap)
-			}
-		} else {
-			if dErr := cli.Delete(ctx, cm); dErr != nil {
-				logger.Error(dErr, "failed to remove NIM configmap "+nimConfigMap)
-				errs = multierror.Append(errs, dErr)
+		for _, delObj := range deleteObjs {
+			if gErr := cli.Get(ctx, types.NamespacedName{Name: delObj.name, Namespace: applicationNS}, delObj.obj); gErr != nil {
+				if !k8serr.IsNotFound(gErr) {
+					log.V(1).Error(gErr, fmt.Sprintf("failed to get NIM %s %s", delObj.desc, delObj.name))
+					errs = multierror.Append(errs, gErr)
+				}
 			} else {
-				logger.V(1).Info("removed NIM configmap successfully")
-			}
-		}
-
-		sec := &corev1.Secret{}
-		if err := cli.Get(ctx, types.NamespacedName{Name: nimAPISec, Namespace: applicationNS}, sec); err != nil {
-			if !k8serr.IsNotFound(err) {
-				logger.V(1).Error(err, "failed to get NIM API key secret "+nimAPISec)
-			}
-		} else {
-			if dErr := cli.Delete(ctx, sec); dErr != nil {
-				logger.Error(dErr, "failed to remove NIM API key secret "+nimAPISec)
-				errs = multierror.Append(errs, dErr)
-			} else {
-				logger.V(1).Info("removed NIM API key secret successfully")
+				if dErr := cli.Delete(ctx, delObj.obj); dErr != nil {
+					log.Error(dErr, fmt.Sprintf("failed to remove NIM %s %s", delObj.desc, delObj.name))
+					errs = multierror.Append(errs, dErr)
+				} else {
+					log.Info(fmt.Sprintf("removed NIM %s successfully", delObj.desc))
+				}
 			}
 		}
 	}
