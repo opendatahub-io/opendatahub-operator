@@ -613,8 +613,23 @@ func cleanupNimIntegrationTechPreview(ctx context.Context, cli client.Client, ol
 
 	if oldRelease.Version.Minor >= 14 && oldRelease.Version.Minor <= 15 {
 		logger := logf.FromContext(ctx)
-		nimConfigMap := "nvidia-nim-validation-result"
 		nimCronjob := "nvidia-nim-periodic-validator"
+		nimConfigMap := "nvidia-nim-validation-result"
+		nimAPISec := "nvidia-nim-access"
+
+		job := &batchv1.CronJob{}
+		if err := cli.Get(ctx, types.NamespacedName{Name: nimCronjob, Namespace: applicationNS}, job); err != nil {
+			if !k8serr.IsNotFound(err) {
+				logger.V(1).Error(err, "failed to get NIM cronjob "+nimCronjob)
+			}
+		} else {
+			if dErr := cli.Delete(ctx, job); dErr != nil {
+				logger.Error(dErr, "failed to remove NIM cronjob "+nimCronjob)
+				errs = multierror.Append(errs, dErr)
+			} else {
+				logger.Info("removed NIM cronjob successfully")
+			}
+		}
 
 		cm := &corev1.ConfigMap{}
 		if err := cli.Get(ctx, types.NamespacedName{Name: nimConfigMap, Namespace: applicationNS}, cm); err != nil {
@@ -630,17 +645,17 @@ func cleanupNimIntegrationTechPreview(ctx context.Context, cli client.Client, ol
 			}
 		}
 
-		job := &batchv1.CronJob{}
-		if err := cli.Get(ctx, types.NamespacedName{Name: nimCronjob, Namespace: applicationNS}, job); err != nil {
+		sec := &corev1.Secret{}
+		if err := cli.Get(ctx, types.NamespacedName{Name: nimAPISec, Namespace: applicationNS}, sec); err != nil {
 			if !k8serr.IsNotFound(err) {
-				logger.V(1).Error(err, "failed to get NIM cronjob "+nimCronjob)
+				logger.V(1).Error(err, "failed to get NIM API key secret "+nimAPISec)
 			}
 		} else {
-			if dErr := cli.Delete(ctx, job); dErr != nil {
-				logger.Error(dErr, "failed to remove NIM cronjob "+nimCronjob)
+			if dErr := cli.Delete(ctx, sec); dErr != nil {
+				logger.Error(dErr, "failed to remove NIM API key secret "+nimAPISec)
 				errs = multierror.Append(errs, dErr)
 			} else {
-				logger.Info("removed NIM cronjob successfully")
+				logger.V(1).Info("removed NIM API key secret successfully")
 			}
 		}
 	}
