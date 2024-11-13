@@ -15,7 +15,6 @@ import (
 	routev1 "github.com/openshift/api/route/v1"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	appsv1 "k8s.io/api/apps/v1"
-	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -291,7 +290,7 @@ func CleanupExistingResource(ctx context.Context,
 	multiErr = multierror.Append(multiErr, deleteResources(ctx, cli, &toDelete))
 
 	// cleanup nvidia nim integration remove tech preview
-	multiErr = multierror.Append(multiErr, cleanupNimIntegrationTechPreview(ctx, cli, oldReleaseVersion,dscApplicationsNamespace))
+	multiErr = multierror.Append(multiErr, cleanupNimIntegrationTechPreview(ctx, cli, oldReleaseVersion, dscApplicationsNamespace))
 
 	return multiErr.ErrorOrNil()
 }
@@ -614,35 +613,34 @@ func cleanupNimIntegrationTechPreview(ctx context.Context, cli client.Client, ol
 	logger := logf.FromContext(ctx)
 	var errs *multierror.Error
 
-
 	if oldRelease.Version.Minor == 15 {
-	  nimConfigMap = "nvidia-nim-validation-result"
-	  nimCronjob = "nvidia-nim-periodic-validator"
+		nimConfigMap := "nvidia-nim-validation-result"
+		nimCronjob := "nvidia-nim-periodic-validator"
 		cm := &corev1.ConfigMap{}
-		if err := cli.Get(ctx, types.NamespacedName{Name:  nimConfigMap, Namespace: applicationNS}, cm); err != nil {
+		if err := cli.Get(ctx, types.NamespacedName{Name: nimConfigMap, Namespace: applicationNS}, cm); err != nil {
 			if !k8serr.IsNotFound(err) {
-				logger.V(1).Error(err, "failed to fetch tech preview validation result configmap")
+				logger.V(1).Error(err, "failed to get NIM configmap "+nimConfigMap)
 			}
 		} else {
 			if dErr := cli.Delete(ctx, cm); dErr != nil {
-				logger.Error(dErr, "failed to remove tech preview validation result configmap")
+				logger.Error(dErr, "failed to remove NIM configmap "+nimConfigMap)
 				errs = multierror.Append(errs, dErr)
 			} else {
-				logger.V(1).Info("tech preview validation result configmap successfully removed")
+				logger.V(1).Info("removed NIM configmap successfully")
 			}
 		}
 
 		job := &batchv1.CronJob{}
 		if err := cli.Get(ctx, types.NamespacedName{Name: nimCronjob, Namespace: applicationNS}, job); err != nil {
 			if !k8serr.IsNotFound(err) {
-				logger.V(1).Error(err, "failed to fetch tech preview validation result configmap")
+				logger.V(1).Error(err, "failed to get NIM cronjob "+nimCronjob)
 			}
 		} else {
 			if dErr := cli.Delete(ctx, job); dErr != nil {
-				logger.Error(dErr, "failed to remove tech preview cron job")
+				logger.Error(dErr, "failed to remove NIM cronjob "+nimCronjob)
 				errs = multierror.Append(errs, dErr)
 			} else {
-				logger.Info("tech preview cron job successfully removed")
+				logger.Info("removed NIM cronjob successfully")
 			}
 		}
 	}
