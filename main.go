@@ -41,7 +41,6 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -178,6 +177,7 @@ func main() { //nolint:funlen,maintidx
 	platform := release.Name
 
 	secretCache := createSecretCacheConfig(ctx, setupClient)
+	deploymentCache := createDeploymentCacheConfig(ctx, setupClient)
 	cacheOptions := cache.Options{
 		Scheme: scheme,
 		ByObject: map[client.Object]cache.ByObject{
@@ -205,10 +205,9 @@ func main() { //nolint:funlen,maintidx
 			&configv1.Authentication{}: {
 				Field: fields.Set{"metadata.name": cluster.ClusterAuthenticationObj}.AsSelector(),
 			},
-			// for deployments in application namespace + operator namespace + monitoring namespace + rhods-notebooks
-			// default wb namespace is not needed since no deployment only sfs,  but our label is on it so we cache it as well
+			// for deployments in application namespace + monitoring namespace
 			&appsv1.Deployment{}: {
-				Label: labels.Set{"opendatahub.io/generated-namespace": "true"}.AsSelector(),
+				Namespaces: deploymentCache,
 			},
 		},
 	}
@@ -374,5 +373,22 @@ func createSecretCacheConfig(ctx context.Context, cli client.Client) map[string]
 	for _, ns := range namespaceList.Items {
 		namespaceConfigs[ns.Name] = cache.Config{}
 	}
+	return namespaceConfigs
+}
+
+func createDeploymentCacheConfig(ctx context.Context, cli client.Client) map[string]cache.Config {
+	namespaceConfigs := map[string]cache.Config{}
+	labelSelector := client.MatchingLabels{
+		"opendatahub.io/generated-namespace": "true",
+	}
+	namespaceList := &corev1.NamespaceList{}
+	if err := cli.List(ctx, namespaceList, labelSelector); err != nil {
+		return namespaceConfigs
+	}
+	for _, ns := range namespaceList.Items {
+		namespaceConfigs[ns.Name] = cache.Config{}
+	}
+	// remove rhods-notebooks if it exists
+	delete(namespaceConfigs, cluster.DefaultNotebooksNamespace)
 	return namespaceConfigs
 }
