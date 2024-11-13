@@ -291,7 +291,7 @@ func CleanupExistingResource(ctx context.Context,
 	multiErr = multierror.Append(multiErr, deleteResources(ctx, cli, &toDelete))
 
 	// cleanup nvidia nim integration remove tech preview
-	multiErr = multierror.Append(multiErr, cleanupNimIntegrationTechPreview(ctx, cli, oldReleaseVersion))
+	multiErr = multierror.Append(multiErr, cleanupNimIntegrationTechPreview(ctx, cli, oldReleaseVersion,dscApplicationsNamespace))
 
 	return multiErr.ErrorOrNil()
 }
@@ -610,16 +610,16 @@ func GetDeployedRelease(ctx context.Context, cli client.Client) (cluster.Release
 	return cluster.Release{}, nil
 }
 
-func cleanupNimIntegrationTechPreview(ctx context.Context, cli client.Client, oldRelease cluster.Release) error {
+func cleanupNimIntegrationTechPreview(ctx context.Context, cli client.Client, oldRelease cluster.Release, applicationNS string) error {
 	logger := logf.FromContext(ctx)
 	var errs *multierror.Error
 
-	// TODO where can we get the system namespace, opendatahub | redhat-ods-applications ?
-	ns := "todo-get-namespace"
 
-	if oldRelease.Version.Minor < 16 {
+	if oldRelease.Version.Minor == 15 {
+	  nimConfigMap = "nvidia-nim-validation-result"
+	  nimCronjob = "nvidia-nim-periodic-validator"
 		cm := &corev1.ConfigMap{}
-		if err := cli.Get(ctx, types.NamespacedName{Name: "nvidia-nim-validation-result", Namespace: ns}, cm); err != nil {
+		if err := cli.Get(ctx, types.NamespacedName{Name:  nimConfigMap, Namespace: applicationNS}, cm); err != nil {
 			if !k8serr.IsNotFound(err) {
 				logger.V(1).Error(err, "failed to fetch tech preview validation result configmap")
 			}
@@ -633,7 +633,7 @@ func cleanupNimIntegrationTechPreview(ctx context.Context, cli client.Client, ol
 		}
 
 		job := &batchv1.CronJob{}
-		if err := cli.Get(ctx, types.NamespacedName{Name: "nvidia-nim-periodic-validator", Namespace: ns}, job); err != nil {
+		if err := cli.Get(ctx, types.NamespacedName{Name: nimCronjob, Namespace: applicationNS}, job); err != nil {
 			if !k8serr.IsNotFound(err) {
 				logger.V(1).Error(err, "failed to fetch tech preview validation result configmap")
 			}
