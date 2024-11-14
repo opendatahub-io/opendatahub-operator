@@ -2,6 +2,7 @@
 
 PROMETHEUS_CONFIG_YAML=$1
 UNIT_TEST_DIR=$2
+ALERT_SEVERITY=$3
 
 # Collect all alerts from the configuration file
 while IFS= read -r ALERT; do
@@ -9,7 +10,7 @@ while IFS= read -r ALERT; do
 done < <(yq -N e '.data[]
   | from_yaml
   | .groups[].rules[]
-  | select(.alert != "DeadManSnitch" and .labels.severity == "critical")
+  | select(.alert != "DeadManSnitch" and .labels.severity == strenv(ALERT_SEVERITY))
   | .alert' "${PROMETHEUS_CONFIG_YAML}")
 
 # Collect all alerts from the unit test files

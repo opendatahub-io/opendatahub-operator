@@ -9,10 +9,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version-file: go.mod
+    
     - name: Install Promtool
       run: |
-        apt-get update
-        apt-get install -y prometheus
+        go install github.com/prometheus/prometheus/cmd/promtool@latest
+        export PATH=$PATH:$(go env GOPATH)/bin
+        promtool --version
     
     - name: Run prometheus-unit-tests
       run : make test-alerts

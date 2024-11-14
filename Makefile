@@ -99,7 +99,7 @@ IMAGE_BUILD_FLAGS ?= --build-arg USE_LOCAL=false
 PROMETHEUS_CONFIG_YAML = ./config/monitoring/prometheus/apps/prometheus-configs.yaml
 PROMETHEUS_CONFIG_DIR = ./config/monitoring/prometheus/apps/
 GENERATED_ALERT_DIR = ./tests/prometheus_unit_tests/
-CRITICAL_SEVERITY="critical"
+ALERT_SEVERITY = critical
 
 # Read any custom variables overrides from a local.mk file.  This will only be read if it exists in the
 # same directory as this Makefile.  Variables can be specified in the standard format supported by
@@ -392,7 +392,7 @@ test-alerts: extract-alert-rules
 #Check for alerts without unit-tests
 .PHONY: check-prometheus-alert-unit-tests
 check-prometheus-alert-unit-tests: extract-alert-rules
-	./tests/prometheus_unit_tests/scripts/check_alert_tests.sh $(PROMETHEUS_CONFIG_YAML) $(GENERATED_ALERT_DIR)
+	./tests/prometheus_unit_tests/scripts/check_alert_tests.sh $(PROMETHEUS_CONFIG_YAML) $(GENERATED_ALERT_DIR) $(ALERT_SEVERITY)
 
 .PHONY: e2e-test
 e2e-test: ## Run e2e tests for the controller
