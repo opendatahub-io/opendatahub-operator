@@ -15,6 +15,10 @@ import (
 	ctrlzap "sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
+const envVarName = "ZAP_LOG_LEVEL"
+
+var defaultLogLevel = zap.InfoLevel
+
 var logLevel atomic.Value
 
 // copy from controller-runtime/pkg/log/zap/flag.go.
@@ -63,16 +67,28 @@ func SetLevel(levelStr string) error {
 	return nil
 }
 
+func levelFromEnvOrDefault() zapcore.Level {
+	levelStr := os.Getenv(envVarName)
+	if levelStr == "" {
+		return defaultLogLevel
+	}
+	level, err := stringToLevel(levelStr)
+	if err != nil {
+		return defaultLogLevel
+	}
+	return level
+}
+
 func NewLogger(mode string, override *ctrlzap.Options) logr.Logger {
-	opts := newOptions(mode)
+	opts := newOptions(mode, levelFromEnvOrDefault())
 	overrideOptions(opts, override)
 	logLevel.Store(opts.Level)
 	return ctrlzap.New(ctrlzap.UseFlagOptions(opts))
 }
 
-func newOptions(mode string) *ctrlzap.Options {
+func newOptions(mode string, defaultLevel zapcore.Level) *ctrlzap.Options {
 	var opts ctrlzap.Options
-	level := zap.NewAtomicLevelAt(zapcore.InfoLevel)
+	level := zap.NewAtomicLevelAt(defaultLevel)
 
 	switch mode {
 	case "devel", "development": //  the most logging verbosity
