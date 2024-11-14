@@ -418,7 +418,7 @@ To check for alerts that don't have unit tests, run the below command:
 make check-prometheus-alert-unit-tests
 ```
 
-To add a new unit test, add the alert YAML file and the corresponding rule files to the [extract_alerts](tests/scripts/extract_alerts.sh) script.
+To add a new unit test, add the alert YAML file and the corresponding rule files to the [extract_alerts](tests/prometheus_unit_tests/scripts/extract_alerts.sh) script.
 
 ### API Overview
 

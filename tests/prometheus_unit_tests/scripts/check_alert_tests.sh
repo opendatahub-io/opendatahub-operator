@@ -10,7 +10,7 @@ while IFS= read -r ALERT; do
 done < <(yq -N e '.data[]
   | from_yaml
   | .groups[].rules[]
-  | select(.alert != "DeadManSnitch" and .labels.severity == "critical")
+  | select(.alert != "DeadManSnitch" and .labels.severity == "'${ALERT_SEVERITY}'")
   | .alert' "${PROMETHEUS_CONFIG_YAML}")
 
 # Collect all alerts from the unit test files
@@ -22,7 +22,7 @@ done < <(
     | .alert_rule_test[]
     | .exp_alerts[]
     | .exp_labels
-    | select(.severity == "critical")
+    | select(.severity == "'${ALERT_SEVERITY}'")
     | .alertname' "$alert"
   done
 )
