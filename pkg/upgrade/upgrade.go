@@ -13,6 +13,7 @@ import (
 	routev1 "github.com/openshift/api/route/v1"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -286,6 +287,9 @@ func CleanupExistingResource(ctx context.Context,
 	// to take a reference
 	toDelete := getDashboardWatsonResources(dscApplicationsNamespace)
 	multiErr = multierror.Append(multiErr, deleteResources(ctx, cli, &toDelete))
+
+	// cleanup nvidia nim integration remove tech preview
+	multiErr = multierror.Append(multiErr, cleanupNimIntegrationTechPreview(ctx, cli, oldReleaseVersion, dscApplicationsNamespace))
 
 	return multiErr.ErrorOrNil()
 }
@@ -595,4 +599,53 @@ func GetDeployedRelease(ctx context.Context, cli client.Client) (cluster.Release
 	}
 	// could be a clean installation or both CRs are deleted already
 	return cluster.Release{}, nil
+}
+
+func cleanupNimIntegrationTechPreview(ctx context.Context, cli client.Client, oldRelease cluster.Release, applicationNS string) error {
+	var errs *multierror.Error
+
+	if oldRelease.Version.Minor >= 14 && oldRelease.Version.Minor <= 15 {
+		log := logf.FromContext(ctx)
+		nimCronjob := "nvidia-nim-periodic-validator"
+		nimConfigMap := "nvidia-nim-validation-result"
+		nimAPISec := "nvidia-nim-access"
+
+		deleteObjs := []struct {
+			obj        client.Object
+			name, desc string
+		}{
+			{
+				obj:  &batchv1.CronJob{},
+				name: nimCronjob,
+				desc: "validator CronJob",
+			},
+			{
+				obj:  &corev1.ConfigMap{},
+				name: nimConfigMap,
+				desc: "data ConfigMap",
+			},
+			{
+				obj:  &corev1.Secret{},
+				name: nimAPISec,
+				desc: "API key Secret",
+			},
+		}
+		for _, delObj := range deleteObjs {
+			if gErr := cli.Get(ctx, types.NamespacedName{Name: delObj.name, Namespace: applicationNS}, delObj.obj); gErr != nil {
+				if !k8serr.IsNotFound(gErr) {
+					log.V(1).Error(gErr, fmt.Sprintf("failed to get NIM %s %s", delObj.desc, delObj.name))
+					errs = multierror.Append(errs, gErr)
+				}
+			} else {
+				if dErr := cli.Delete(ctx, delObj.obj); dErr != nil {
+					log.Error(dErr, fmt.Sprintf("failed to remove NIM %s %s", delObj.desc, delObj.name))
+					errs = multierror.Append(errs, dErr)
+				} else {
+					log.Info(fmt.Sprintf("removed NIM %s successfully", delObj.desc))
+				}
+			}
+		}
+	}
+
+	return errs.ErrorOrNil()
 }
