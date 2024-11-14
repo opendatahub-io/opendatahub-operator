@@ -605,7 +605,6 @@ func cleanupNimIntegrationTechPreview(ctx context.Context, cli client.Client, ol
 	var errs *multierror.Error
 
 	if oldRelease.Version.Minor >= 14 && oldRelease.Version.Minor <= 15 {
-		log := logf.FromContext(ctx)
 		nimCronjob := "nvidia-nim-periodic-validator"
 		nimConfigMap := "nvidia-nim-validation-result"
 		nimAPISec := "nvidia-nim-access"
@@ -633,15 +632,15 @@ func cleanupNimIntegrationTechPreview(ctx context.Context, cli client.Client, ol
 		for _, delObj := range deleteObjs {
 			if gErr := cli.Get(ctx, types.NamespacedName{Name: delObj.name, Namespace: applicationNS}, delObj.obj); gErr != nil {
 				if !k8serr.IsNotFound(gErr) {
-					log.V(1).Error(gErr, fmt.Sprintf("failed to get NIM %s %s", delObj.desc, delObj.name))
+					ctrl.Log.V(1).Error(gErr, fmt.Sprintf("failed to get NIM %s %s", delObj.desc, delObj.name))
 					errs = multierror.Append(errs, gErr)
 				}
 			} else {
 				if dErr := cli.Delete(ctx, delObj.obj); dErr != nil {
-					log.Error(dErr, fmt.Sprintf("failed to remove NIM %s %s", delObj.desc, delObj.name))
+					ctrl.Log.Error(dErr, fmt.Sprintf("failed to remove NIM %s %s", delObj.desc, delObj.name))
 					errs = multierror.Append(errs, dErr)
 				} else {
-					log.Info(fmt.Sprintf("removed NIM %s successfully", delObj.desc))
+					ctrl.Log.Info(fmt.Sprintf("removed NIM %s successfully", delObj.desc))
 				}
 			}
 		}
