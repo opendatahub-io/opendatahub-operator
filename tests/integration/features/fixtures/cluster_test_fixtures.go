@@ -79,6 +79,28 @@ func GetService(ctx context.Context, client client.Client, namespace, name strin
 	return svc, err
 }
 
+func CreateService(ctx context.Context, client client.Client, namespace, svcName string) (*corev1.Service, error) {
+	if err := client.Create(ctx, &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      svcName,
+			Namespace: namespace,
+		},
+		Spec: corev1.ServiceSpec{
+			Selector: map[string]string{
+				"name": "istio-operator",
+			},
+			Ports: []corev1.ServicePort{
+				{
+					Port: 443,
+				},
+			},
+		},
+	}); err != nil {
+		return nil, err
+	}
+	return GetService(ctx, client, namespace, svcName)
+}
+
 func CreateSecret(name, namespace string) feature.Action {
 	return func(ctx context.Context, cli client.Client, f *feature.Feature) error {
 		secret := &corev1.Secret{
