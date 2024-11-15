@@ -387,7 +387,7 @@ extract-alert-rules: $(PROMETHEUS_CONFIG_YAML)
 # Run prometheus-alert-unit-tests
 .PHONY: test-alerts
 test-alerts: extract-alert-rules
-	cd "$(GENERATED_ALERT_DIR)" && promtool test rules *_unit_tests.yaml
+	promtool test rules $(GENERATED_ALERT_DIR)/*_unit_tests.yaml 
 
 #Check for alerts without unit-tests
 .PHONY: check-prometheus-alert-unit-tests

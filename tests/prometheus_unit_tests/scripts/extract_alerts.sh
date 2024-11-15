@@ -22,9 +22,6 @@ declare -A RULES_TO_ALERTS=(
 for RULE_FILE in "${!RULES_TO_ALERTS[@]}"; do
     ALERT_FILE="${RULES_TO_ALERTS[$RULE_FILE]}"
   
-    echo "key: $RULE_FILE"
-    echo "value: $ALERT_FILE"
-  
     echo "Extracting $RULE_FILE to $OUTPUT_DIR/$ALERT_FILE"
     yq ".data.\"$RULE_FILE\"" "$INPUT_YAML" > "$OUTPUT_DIR/$ALERT_FILE"
 done
