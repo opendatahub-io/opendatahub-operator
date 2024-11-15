@@ -88,7 +88,7 @@ func setupDSCICR(name string) *dsciv1.DSCInitialization {
 		},
 		Spec: dsciv1.DSCInitializationSpec{
 			ApplicationsNamespace: "opendatahub",
-			Monitoring: dsciv1.Monitoring{
+			Monitoring: &dsciv1.Monitoring{
 				ManagementState: "Managed",
 				Namespace:       "opendatahub",
 			},

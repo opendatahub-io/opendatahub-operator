@@ -25,6 +25,10 @@ import (
 	"os"
 	"regexp"
 	"strings"
+
+	operatorv1 "github.com/openshift/api/operator/v1"
+
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 )
 
 // ReplaceStringsInFile replaces variable with value in manifests during runtime.
@@ -115,4 +119,11 @@ func GetMonitoringData(data string) (string, error) {
 	encodedData := b64.StdEncoding.EncodeToString(hashSum)
 
 	return encodedData, nil
+}
+
+func IsMonitoringEnabled(m *dsciv1.Monitoring) bool {
+	if m != nil && m.ManagementState == operatorv1.Managed {
+		return true
+	}
+	return false
 }
