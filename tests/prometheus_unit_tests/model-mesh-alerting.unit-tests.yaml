@@ -1,5 +1,5 @@
 rule_files:
-  - model_mesh_alerts.yaml
+  - model-mesh-alerting.rules.yaml
 
 evaluation_interval: 1m
 
@@ -62,7 +62,7 @@ tests:
               summary: "Modelmesh Controller Probe Success Burn Rate"
               message: "High error budget burn for modelmesh-controller (current value: 16)."
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-modelmesh-controller-probe-success-burn-rate.md'
- 
+
   - interval: 1m
     input_series:
       - series: probe_success:burnrate2h{instance="modelmesh-controller"}

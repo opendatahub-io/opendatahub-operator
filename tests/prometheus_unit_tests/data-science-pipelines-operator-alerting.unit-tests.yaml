@@ -1,5 +1,5 @@
 rule_files:
-  - data_science_pipelines_operator_alerts.yaml
+  - data-science-pipelines-operator-alerting.rules.yaml
 
 evaluation_interval: 1m
 
@@ -43,7 +43,7 @@ tests:
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-error-burn-rate.md'
 
   - interval: 1m
-    input_series: 
+    input_series:
       - series: haproxy_backend_http_responses_total:burnrate30m{component="dsp"}
         values: "1+1x60"
       - series: haproxy_backend_http_responses_total:burnrate6h{component="dsp"}
@@ -62,7 +62,7 @@ tests:
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-error-burn-rate.md'
 
   - interval: 1m
-    input_series: 
+    input_series:
       - series: haproxy_backend_http_responses_total:burnrate2h{component="dsp"}
         values: "1+1x60"
       - series: haproxy_backend_http_responses_total:burnrate1d{component="dsp"}
@@ -81,7 +81,7 @@ tests:
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-error-burn-rate.md'
 
   - interval: 1m
-    input_series: 
+    input_series:
       - series: haproxy_backend_http_responses_total:burnrate6h{component="dsp"}
         values: "1+1x200"
       - series: haproxy_backend_http_responses_total:burnrate3d{component="dsp"}
@@ -141,7 +141,7 @@ tests:
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-operator-probe-success-burn-rate.md'
 
   - interval: 1m
-    input_series: 
+    input_series:
       - series: probe_success:burnrate30m{instance="data-science-pipelines-operator"}
         values: "1+1x60"
       - series: probe_success:burnrate6h{instance="data-science-pipelines-operator"}
@@ -161,7 +161,7 @@ tests:
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-operator-probe-success-burn-rate.md'
 
   - interval: 1m
-    input_series: 
+    input_series:
       - series: probe_success:burnrate2h{instance="data-science-pipelines-operator"}
         values: "1+1x60"
       - series: probe_success:burnrate1d{instance="data-science-pipelines-operator"}
@@ -182,7 +182,7 @@ tests:
 
   # application unavailable
   - interval: 1m
-    input_series: 
+    input_series:
       - series: data_science_pipelines_application_ready{dspa_name="dspa_instance_1", dspa_namespace="dspa_namespace_a"}
         values: "0x200"
       - series: data_science_pipelines_application_apiserver_ready{dspa_name="dspa_instance_1", dspa_namespace="dspa_namespace_a"}

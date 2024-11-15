@@ -1,4 +1,3 @@
-
 This operator is the primary operator for Open Data Hub. It is responsible for enabling Data science applications like
 Jupyter Notebooks, Modelmesh serving, Datascience pipelines etc. The operator makes use of `DataScienceCluster` CRD to deploy
 and configure these applications.
@@ -185,7 +184,7 @@ e.g `make image-build -e IMAGE_BUILD_FLAGS="--build-arg USE_LOCAL=true"`
 **Deploying operator using OLM**
 
 - To create a new bundle in defined operator namespace, run following command:
-  
+
   ```commandline
   export OPERATOR_NAMESPACE=<namespace-to-install-operator>
   make bundle
@@ -216,7 +215,7 @@ There are 2 ways to test your changes with modification:
 
 Whenever a new api is added or a new field is added to the CRD, please make sure to run the command:
   ```commandline
-  make api-docs 
+  make api-docs
   ```
 This will ensure that the doc for the apis are updated accordingly.
 
@@ -404,7 +403,7 @@ for DataScienceCluster deletion.
 make e2e-test -e OPERATOR_NAMESPACE=<namespace> -e E2E_TEST_FLAGS="--skip-deletion=true"
 ```
 
-## Run Prometheus Unit Tests for Alerts 
+## Run Prometheus Unit Tests for Alerts
 
 Unit tests for Prometheus alerts are included in the repository. You can run them using the following command:
 
@@ -418,7 +417,7 @@ To check for alerts that don't have unit tests, run the below command:
 make check-prometheus-alert-unit-tests
 ```
 
-To add a new unit test, add the alert YAML file and the corresponding rule files to the [extract_alerts](tests/prometheus_unit_tests/scripts/extract_alerts.sh) script.
+To add a new unit test file, name it the same as the rules file in the [prometheus ConfigMap](./config/monitoring/prometheus/apps/prometheus-configs.yaml), just with the `.rules` suffix replaced with `.unit-tests.yaml`
 
 ### API Overview
 

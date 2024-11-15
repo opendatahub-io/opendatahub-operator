@@ -62,6 +62,3 @@ local.mk
 
 # Ignore temporary files created by the Makefile
 *.mktmp.*
-
-#Ignore temporary alert yaml files created by the Makefile
-*_alerts.yaml

@@ -97,8 +97,10 @@ IMAGE_BUILD_FLAGS ?= --build-arg USE_LOCAL=false
 
 # Prometheus-Unit Tests Parameters
 PROMETHEUS_CONFIG_YAML = ./config/monitoring/prometheus/apps/prometheus-configs.yaml
-PROMETHEUS_CONFIG_DIR = ./config/monitoring/prometheus/apps/
-GENERATED_ALERT_DIR = ./tests/prometheus_unit_tests/
+PROMETHEUS_CONFIG_DIR = ./config/monitoring/prometheus/apps
+PROMETHEUS_TEST_DIR = ./tests/prometheus_unit_tests
+PROMETHEUS_ALERT_TESTS = $(shell find $(PROMETHEUS_TEST_DIR) -name "*.unit-tests.yaml")
+
 ALERT_SEVERITY = critical
 
 # Read any custom variables overrides from a local.mk file.  This will only be read if it exists in the
@@ -380,19 +382,18 @@ unit-test: envtest
 	OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $(TEST_SRC) -v  -coverprofile cover.out
 CLEANFILES += cover.out
 
-.PHONY: extract-alert-rules
-extract-alert-rules: $(PROMETHEUS_CONFIG_YAML) 
-	./tests/prometheus_unit_tests/scripts/extract_alerts.sh $(PROMETHEUS_CONFIG_YAML) $(GENERATED_ALERT_DIR)
+$(PROMETHEUS_TEST_DIR)/%.rules.yaml: $(PROMETHEUS_TEST_DIR)/%.unit-tests.yaml $(PROMETHEUS_CONFIG_YAML)
+	$(YQ) eval ".data.\"$(@F:.rules.yaml=.rules)\"" $(PROMETHEUS_CONFIG_YAML) > $@
 
 # Run prometheus-alert-unit-tests
 .PHONY: test-alerts
-test-alerts: extract-alert-rules
-	promtool test rules $(GENERATED_ALERT_DIR)/*_unit_tests.yaml 
+test-alerts: $(PROMETHEUS_ALERT_TESTS:.unit-tests.yaml=.rules.yaml)
+	promtool test rules $(PROMETHEUS_ALERT_TESTS)
 
 #Check for alerts without unit-tests
 .PHONY: check-prometheus-alert-unit-tests
-check-prometheus-alert-unit-tests: extract-alert-rules
-	./tests/prometheus_unit_tests/scripts/check_alert_tests.sh $(PROMETHEUS_CONFIG_YAML) $(GENERATED_ALERT_DIR) $(ALERT_SEVERITY)
+check-prometheus-alert-unit-tests: $(PROMETHEUS_ALERT_TESTS:.unit-tests.yaml=.rules.yaml)
+	./tests/prometheus_unit_tests/scripts/check_alert_tests.sh $(PROMETHEUS_CONFIG_YAML) $(PROMETHEUS_TEST_DIR) $(ALERT_SEVERITY)
 
 .PHONY: e2e-test
 e2e-test: ## Run e2e tests for the controller
@@ -403,3 +404,4 @@ clean: $(GOLANGCI_LINT)
 	$(GOLANGCI_LINT) cache clean
 	chmod u+w -R $(LOCALBIN) # envtest makes its dir RO
 	rm -rf $(CLEANFILES)
+	rm $(PROMETHEUS_ALERT_TESTS:.unit-tests.yaml=.rules.yaml)

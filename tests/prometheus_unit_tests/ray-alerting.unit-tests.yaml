@@ -1,5 +1,5 @@
 rule_files:
-  - "kuberay_alerts.yaml"
+  - "ray-alerting.rules.yaml"
 
 evaluation_interval: 1m
 
@@ -27,7 +27,7 @@ tests:
               description: This alert fires when the KubeRay Operator is not running.
               summary: Alerting for KubeRay Operator
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/kuberay-operator-availability.md'
-  
+
   - interval: 1m
     input_series:
       - series: up{job="KubeRay Operator"}
@@ -44,4 +44,3 @@ tests:
               description: This alert fires when the KubeRay Operator is not running.
               summary: Alerting for KubeRay Operator
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/kuberay-operator-availability.md'
-
