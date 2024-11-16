@@ -386,6 +386,17 @@ func createSecretCacheConfig(ctx context.Context, cli client.Client, upgrade boo
 	default:
 		namespaceConfigs["opendatahub"] = cache.Config{}
 	}
+	// for any user created namespace want to be used as application namespace in DSCI creation
+	labelSelector := client.MatchingLabels{
+		"opendatahub.io/watched-namespace": "true",
+	}
+	namespaceList := &corev1.NamespaceList{}
+	if err := cli.List(ctx, namespaceList, labelSelector); err != nil {
+		return namespaceConfigs
+	}
+	for _, ns := range namespaceList.Items {
+		namespaceConfigs[ns.Name] = cache.Config{}
+	}
 	return namespaceConfigs
 }
 
@@ -416,6 +427,17 @@ func createDeploymentCacheConfig(ctx context.Context, cli client.Client, upgrade
 		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
 	default:
 		namespaceConfigs["opendatahub"] = cache.Config{}
+	}
+	// for any user created namespace want to be used as application namespace in DSCI creation
+	labelSelector := client.MatchingLabels{
+		"opendatahub.io/watched-namespace": "true",
+	}
+	namespaceList := &corev1.NamespaceList{}
+	if err := cli.List(ctx, namespaceList, labelSelector); err != nil {
+		return namespaceConfigs
+	}
+	for _, ns := range namespaceList.Items {
+		namespaceConfigs[ns.Name] = cache.Config{}
 	}
 	return namespaceConfigs
 }
