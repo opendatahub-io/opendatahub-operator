@@ -27,9 +27,9 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
 
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
@@ -57,10 +57,16 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		// By default, a predicated for changed generation is added by the Owns()
 		// method, however for deployments, we also need to retrieve status info
 		// hence we need a dedicated predicate to react to replicas status change
-		Owns(&appsv1.Deployment{}, builder.WithPredicates(resources.NewDeploymentPredicate())).
+		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(resources.NewDeploymentPredicate())).
 		// operands - openshift
 		Owns(&routev1.Route{}).
 		Owns(&consolev1.ConsoleLink{}).
+		// Those APIs are provided by the component itself hence they should
+		// be watched dynamically
+		OwnsGVK(gvk.AcceleratorProfile, reconciler.Dynamic()).
+		OwnsGVK(gvk.OdhApplication, reconciler.Dynamic()).
+		OwnsGVK(gvk.OdhDocument, reconciler.Dynamic()).
+		OwnsGVK(gvk.OdhQuickStart, reconciler.Dynamic()).
 		// operands - watched
 		//
 		// By default the Watches functions adds:
@@ -71,6 +77,13 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		//   set to the current owner
 		//
 		Watches(&extv1.CustomResourceDefinition{}).
+		// The OdhDashboardConfig resource is expected to be created by the operator
+		// but then owned by the user so we only re-create it with factory values if
+		// it gets deleted
+		WatchesGVK(gvk.OdhDashboardConfig,
+			reconciler.Dynamic(),
+			reconciler.WithPredicates(resources.Deleted()),
+		).
 		// actions
 		WithAction(initialize).
 		WithAction(devFlags).

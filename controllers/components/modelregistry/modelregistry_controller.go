@@ -26,9 +26,9 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
 
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
@@ -53,10 +53,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Owns(&rbacv1.ClusterRoleBinding{}).
 		Owns(&corev1.Service{}).
 		Owns(&corev1.ServiceAccount{}).
-		Owns(
-			&appsv1.Deployment{},
-			builder.WithPredicates(resources.NewDeploymentPredicate()),
-		).
+		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(resources.NewDeploymentPredicate())).
 		Owns(&admissionregistrationv1.MutatingWebhookConfiguration{}).
 		Owns(&admissionregistrationv1.ValidatingWebhookConfiguration{}).
 		Watches(&corev1.Namespace{}).
@@ -66,12 +63,9 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		// in sync with the manifests, we should also create an additional watcher
 		Watches(&rbacv1.ClusterRole{}).
 		// This component adds a ServiceMeshMember resource to the registries
-		// namespaces that must be left even if the component is removed, hence
-		// we can't own.
-		//
-		// TODO: add dynamic watching for gvk.ServiceMeshMember if it make sense
-		//       https://issues.redhat.com/browse/RHOAIENG-15170
-		//
+		// namespaces that may not be known when the controller is started, hence
+		// it should be watched dynamically
+		WatchesGVK(gvk.ServiceMeshMember, reconciler.Dynamic()).
 		// actions
 		WithAction(checkPreConditions).
 		WithAction(initialize).

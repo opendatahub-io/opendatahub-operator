@@ -7,25 +7,23 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
-func ToOwner() handler.EventHandler {
+func LabelToName(label string) handler.EventHandler {
 	return handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {
 		objLabels := a.GetLabels()
 		if len(objLabels) == 0 {
 			return []reconcile.Request{}
 		}
 
-		partOf := objLabels[labels.ComponentPartOf]
-		if partOf == "" {
+		name := objLabels[label]
+		if name == "" {
 			return []reconcile.Request{}
 		}
 
 		return []reconcile.Request{{
 			NamespacedName: types.NamespacedName{
-				Name: partOf,
+				Name: name,
 			},
 		}}
 	})

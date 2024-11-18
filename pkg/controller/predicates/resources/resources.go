@@ -36,3 +36,20 @@ func (DeploymentPredicate) Update(e event.UpdateEvent) bool {
 func NewDeploymentPredicate() *DeploymentPredicate {
 	return &DeploymentPredicate{}
 }
+
+func Deleted() predicate.Funcs {
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return false
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			return false
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return true
+		},
+		GenericFunc: func(e event.GenericEvent) bool {
+			return false
+		},
+	}
+}

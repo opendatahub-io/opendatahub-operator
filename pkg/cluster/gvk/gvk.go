@@ -85,6 +85,12 @@ var (
 		Kind:    "OdhDocument",
 	}
 
+	AcceleratorProfile = schema.GroupVersionKind{
+		Group:   "dashboard.opendatahub.io",
+		Version: "v1",
+		Kind:    "AcceleratorProfile",
+	}
+
 	OdhQuickStart = schema.GroupVersionKind{
 		Group:   "console.openshift.io",
 		Version: "v1",

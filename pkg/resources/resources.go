@@ -113,15 +113,18 @@ func SetLabels(obj client.Object, values map[string]string) {
 	obj.SetLabels(target)
 }
 
-func SetLabel(obj client.Object, k string, v string) {
+func SetLabel(obj client.Object, k string, v string) string {
 	target := obj.GetLabels()
 	if target == nil {
 		target = make(map[string]string)
 	}
 
+	old := target[k]
 	target[k] = v
 
 	obj.SetLabels(target)
+
+	return old
 }
 
 func RemoveLabel(obj client.Object, k string) {
@@ -157,15 +160,18 @@ func SetAnnotations(obj client.Object, values map[string]string) {
 	obj.SetAnnotations(target)
 }
 
-func SetAnnotation(obj client.Object, k string, v string) {
+func SetAnnotation(obj client.Object, k string, v string) string {
 	target := obj.GetAnnotations()
 	if target == nil {
 		target = make(map[string]string)
 	}
 
+	old := target[k]
 	target[k] = v
 
 	obj.SetAnnotations(target)
+
+	return old
 }
 
 func RemoveAnnotation(obj client.Object, k string) {

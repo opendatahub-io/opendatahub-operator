@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"golang.org/x/exp/slices"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -20,6 +19,21 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/generation"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+)
+
+var (
+	// defaultPredicate is the default set of predicates associated to
+	// resources when there is no specific predicate configured via the
+	// builder.
+	//
+	// It would trigger a reconciliation if either the generation or
+	// metadata (labels, annotations) have changed.
+	defaultPredicate = predicate.Or(
+		generation.New(),
+		predicate.LabelChangedPredicate{},
+		predicate.AnnotationChangedPredicate{},
+	)
 )
 
 type forInput struct {
@@ -30,18 +44,41 @@ type forInput struct {
 type watchInput struct {
 	object       client.Object
 	eventHandler handler.EventHandler
-	options      []builder.WatchesOption
+	predicates   []predicate.Predicate
+	owned        bool
+	dynamic      bool
 }
-type ownInput struct {
-	object  client.Object
-	options []builder.OwnsOption
+
+type WatchOpts func(*watchInput)
+
+func WithPredicates(values ...predicate.Predicate) WatchOpts {
+	return func(a *watchInput) {
+		a.predicates = append(a.predicates, values...)
+	}
+}
+
+func WithEventHandler(value handler.EventHandler) WatchOpts {
+	return func(a *watchInput) {
+		a.eventHandler = value
+	}
+}
+
+func WithEventMapper(value handler.MapFunc) WatchOpts {
+	return func(a *watchInput) {
+		a.eventHandler = handler.EnqueueRequestsFromMapFunc(value)
+	}
+}
+
+func Dynamic() WatchOpts {
+	return func(a *watchInput) {
+		a.dynamic = true
+	}
 }
 
 type ComponentReconcilerBuilder struct {
 	mgr           ctrl.Manager
 	input         forInput
 	watches       []watchInput
-	owns          []ownInput
 	predicates    []predicate.Predicate
 	ownerName     string
 	componentName string
@@ -77,56 +114,68 @@ func (b *ComponentReconcilerBuilder) WithFinalizer(value actions.Fn) *ComponentR
 	return b
 }
 
-func (b *ComponentReconcilerBuilder) Watches(object client.Object, opts ...builder.WatchesOption) *ComponentReconcilerBuilder {
-	b.watches = append(b.watches, watchInput{
-		object:       object,
-		eventHandler: handlers.ToOwner(),
-		options:      slices.Clone(opts),
-	})
+func (b *ComponentReconcilerBuilder) Watches(object client.Object, opts ...WatchOpts) *ComponentReconcilerBuilder {
+	in := watchInput{}
+	in.object = object
+	in.owned = false
+
+	for _, opt := range opts {
+		opt(&in)
+	}
+
+	if in.eventHandler == nil {
+		// use the components.opendatahub.io/part-of label to find out
+		// the owner
+		in.eventHandler = handlers.LabelToName(labels.ComponentPartOf)
+	}
+
+	if len(in.predicates) == 0 {
+		in.predicates = append(in.predicates, predicate.And(
+			defaultPredicate,
+			// use the components.opendatahub.io/part-of label to filter
+			// events not related to the owner
+			component.ForLabel(labels.ComponentPartOf, b.ownerName),
+		))
+	}
+
+	b.watches = append(b.watches, in)
 
 	return b
 }
 
-func (b *ComponentReconcilerBuilder) WatchesH(object client.Object, eventHandler handler.EventHandler, opts ...builder.WatchesOption) *ComponentReconcilerBuilder {
-	b.watches = append(b.watches, watchInput{
-		object:       object,
-		eventHandler: eventHandler,
-		options:      slices.Clone(opts),
-	})
+func (b *ComponentReconcilerBuilder) WatchesGVK(gvk schema.GroupVersionKind, opts ...WatchOpts) *ComponentReconcilerBuilder {
+	return b.Watches(resources.GvkToUnstructured(gvk), opts...)
+}
+
+func (b *ComponentReconcilerBuilder) Owns(object client.Object, opts ...WatchOpts) *ComponentReconcilerBuilder {
+	in := watchInput{}
+	in.object = object
+	in.owned = true
+
+	for _, opt := range opts {
+		opt(&in)
+	}
+
+	if in.eventHandler == nil {
+		in.eventHandler = handler.EnqueueRequestForOwner(
+			b.mgr.GetScheme(),
+			b.mgr.GetRESTMapper(),
+			b.input.object,
+			handler.OnlyControllerOwner(),
+		)
+	}
+
+	if len(in.predicates) == 0 {
+		in.predicates = append(in.predicates, defaultPredicate)
+	}
+
+	b.watches = append(b.watches, in)
 
 	return b
 }
 
-func (b *ComponentReconcilerBuilder) WatchesGVK(gvk schema.GroupVersionKind, eventHandler handler.EventHandler, opts ...builder.WatchesOption) *ComponentReconcilerBuilder {
-	u := unstructured.Unstructured{}
-	u.SetGroupVersionKind(gvk)
-
-	b.watches = append(b.watches, watchInput{
-		object:       &u,
-		eventHandler: eventHandler,
-		options:      slices.Clone(opts),
-	})
-
-	return b
-}
-
-func (b *ComponentReconcilerBuilder) WatchesM(object client.Object, fn handler.MapFunc, opts ...builder.WatchesOption) *ComponentReconcilerBuilder {
-	b.watches = append(b.watches, watchInput{
-		object:       object,
-		eventHandler: handler.EnqueueRequestsFromMapFunc(fn),
-		options:      slices.Clone(opts),
-	})
-
-	return b
-}
-
-func (b *ComponentReconcilerBuilder) Owns(object client.Object, opts ...builder.OwnsOption) *ComponentReconcilerBuilder {
-	b.owns = append(b.owns, ownInput{
-		object:  object,
-		options: slices.Clone(opts),
-	})
-
-	return b
+func (b *ComponentReconcilerBuilder) OwnsGVK(gvk schema.GroupVersionKind, opts ...WatchOpts) *ComponentReconcilerBuilder {
+	return b.Owns(resources.GvkToUnstructured(gvk), opts...)
 }
 
 func (b *ComponentReconcilerBuilder) WithEventFilter(p predicate.Predicate) *ComponentReconcilerBuilder {
@@ -170,34 +219,28 @@ func (b *ComponentReconcilerBuilder) Build(ctx context.Context) (*ComponentRecon
 	c = c.For(b.input.object, forOpts...)
 
 	for i := range b.watches {
-		watchOpts := b.watches[i].options
-		if len(watchOpts) == 0 {
-			watchOpts = append(watchOpts, builder.WithPredicates(predicate.And(
-				generation.New(),
-				component.ForLabel(labels.ComponentPartOf, b.ownerName),
-			)))
+		if b.watches[i].owned {
+			kinds, _, err := b.mgr.GetScheme().ObjectKinds(b.watches[i].object)
+			if err != nil {
+				return nil, err
+			}
+
+			for i := range kinds {
+				r.AddOwnedType(kinds[i])
+			}
 		}
 
-		c = c.Watches(b.watches[i].object, b.watches[i].eventHandler, watchOpts...)
-	}
-
-	for i := range b.owns {
-		ownOpts := b.owns[i].options
-		if len(ownOpts) == 0 {
-			ownOpts = append(ownOpts, builder.WithPredicates(predicate.And(
-				generation.New(),
-			)))
+		// if the watch is dynamic, then the watcher will be registered
+		// at later stage
+		if b.watches[i].dynamic {
+			continue
 		}
 
-		c = c.Owns(b.owns[i].object, ownOpts...)
-		kinds, _, err := b.mgr.GetScheme().ObjectKinds(b.owns[i].object)
-		if err != nil {
-			return nil, err
-		}
-
-		for i := range kinds {
-			r.AddOwnedType(kinds[i])
-		}
+		c = c.Watches(
+			b.watches[i].object,
+			b.watches[i].eventHandler,
+			builder.WithPredicates(b.watches[i].predicates...),
+		)
 	}
 
 	for i := range b.predicates {
@@ -211,5 +254,13 @@ func (b *ComponentReconcilerBuilder) Build(ctx context.Context) (*ComponentRecon
 		r.AddFinalizer(b.finalizers[i])
 	}
 
-	return r, c.Complete(r)
+	cc, err := c.Build(r)
+	if err != nil {
+		return nil, err
+	}
+
+	// internal action
+	r.AddAction(newDynamicWatchAction(b.mgr, cc, b.watches))
+
+	return r, nil
 }

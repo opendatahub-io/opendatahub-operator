@@ -162,7 +162,7 @@ func (r *ComponentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	// Execute actions
 	for _, action := range r.Actions {
-		l.V(3).Info("Executing action", "action", action)
+		l.Info("Executing action", "action", action)
 
 		actx := log.IntoContext(
 			ctx,

@@ -47,7 +47,7 @@ func (s *componentHandler) Init(_ cluster.Platform) error {
 	return nil
 }
 
-func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Object { //nolint:ireturn
+func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Object {
 	componentAnnotations := make(map[string]string)
 
 	switch dsc.Spec.Components.ModelRegistry.ManagementState {
