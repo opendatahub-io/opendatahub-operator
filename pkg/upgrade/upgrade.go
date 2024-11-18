@@ -13,6 +13,7 @@ import (
 	routev1 "github.com/openshift/api/route/v1"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -43,6 +44,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 type ResourceSpec struct {
@@ -275,10 +277,19 @@ func CleanupExistingResource(ctx context.Context,
 			return err
 		}
 	}
+	// remove modelreg proxy container from deployment in ODH
+	if platform == cluster.OpenDataHub {
+		if err := removeRBACProxyModelRegistry(ctx, cli, "model-registry-operator", "kube-rbac-proxy", dscApplicationsNamespace); err != nil {
+			return err
+		}
+	}
 
 	// to take a reference
 	toDelete := getDashboardWatsonResources(dscApplicationsNamespace)
 	multiErr = multierror.Append(multiErr, deleteResources(ctx, cli, &toDelete))
+
+	// cleanup nvidia nim integration remove tech preview
+	multiErr = multierror.Append(multiErr, cleanupNimIntegrationTechPreview(ctx, cli, oldReleaseVersion, dscApplicationsNamespace))
 
 	return multiErr.ErrorOrNil()
 }
@@ -487,6 +498,38 @@ func updateODCModelRegistry(ctx context.Context, cli client.Client, instanceName
 	return nil
 }
 
+// workaround for RHOAIENG-15328
+// TODO: this can be removed from ODH 2.22.
+func removeRBACProxyModelRegistry(ctx context.Context, cli client.Client, componentName string, containerName string, applicationNS string) error {
+	log := logf.FromContext(ctx)
+	deploymentList := &appsv1.DeploymentList{}
+	if err := cli.List(ctx, deploymentList, client.InNamespace(applicationNS), client.HasLabels{labels.ODH.Component(componentName)}); err != nil {
+		return fmt.Errorf("error fetching list of deployments: %w", err)
+	}
+
+	if len(deploymentList.Items) != 1 { // ModelRegistry operator is not deployed
+		return nil
+	}
+	mrDeployment := deploymentList.Items[0]
+	mrContainerList := mrDeployment.Spec.Template.Spec.Containers
+	// if only one container in deployment, we are already on newer deployment, no need more action
+	if len(mrContainerList) == 1 {
+		return nil
+	}
+
+	log.Info("Upgrade force ModelRegistry to remove container from deployment")
+	for i, container := range mrContainerList {
+		if container.Name == containerName {
+			removeUnusedKubeRbacProxy := []byte(fmt.Sprintf("[{\"op\": \"remove\", \"path\": \"/spec/template/spec/containers/%d\"}]", i))
+			if err := cli.Patch(ctx, &mrDeployment, client.RawPatch(types.JSONPatchType, removeUnusedKubeRbacProxy)); err != nil {
+				return fmt.Errorf("error removing ModelRegistry %s container from deployment: %w", containerName, err)
+			}
+			break
+		}
+	}
+	return nil
+}
+
 func RemoveLabel(ctx context.Context, cli client.Client, objectName string, labelKey string) error {
 	foundNamespace := &corev1.Namespace{}
 	if err := cli.Get(ctx, client.ObjectKey{Name: objectName}, foundNamespace); err != nil {
@@ -563,4 +606,53 @@ func GetDeployedRelease(ctx context.Context, cli client.Client) (cluster.Release
 	}
 	// could be a clean installation or both CRs are deleted already
 	return cluster.Release{}, nil
+}
+
+func cleanupNimIntegrationTechPreview(ctx context.Context, cli client.Client, oldRelease cluster.Release, applicationNS string) error {
+	var errs *multierror.Error
+
+	if oldRelease.Version.Minor >= 14 && oldRelease.Version.Minor <= 15 {
+		log := logf.FromContext(ctx)
+		nimCronjob := "nvidia-nim-periodic-validator"
+		nimConfigMap := "nvidia-nim-validation-result"
+		nimAPISec := "nvidia-nim-access"
+
+		deleteObjs := []struct {
+			obj        client.Object
+			name, desc string
+		}{
+			{
+				obj:  &batchv1.CronJob{},
+				name: nimCronjob,
+				desc: "validator CronJob",
+			},
+			{
+				obj:  &corev1.ConfigMap{},
+				name: nimConfigMap,
+				desc: "data ConfigMap",
+			},
+			{
+				obj:  &corev1.Secret{},
+				name: nimAPISec,
+				desc: "API key Secret",
+			},
+		}
+		for _, delObj := range deleteObjs {
+			if gErr := cli.Get(ctx, types.NamespacedName{Name: delObj.name, Namespace: applicationNS}, delObj.obj); gErr != nil {
+				if !k8serr.IsNotFound(gErr) {
+					log.V(1).Error(gErr, fmt.Sprintf("failed to get NIM %s %s", delObj.desc, delObj.name))
+					errs = multierror.Append(errs, gErr)
+				}
+			} else {
+				if dErr := cli.Delete(ctx, delObj.obj); dErr != nil {
+					log.Error(dErr, fmt.Sprintf("failed to remove NIM %s %s", delObj.desc, delObj.name))
+					errs = multierror.Append(errs, dErr)
+				} else {
+					log.Info(fmt.Sprintf("removed NIM %s successfully", delObj.desc))
+				}
+			}
+		}
+	}
+
+	return errs.ErrorOrNil()
 }

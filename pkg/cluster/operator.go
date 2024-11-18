@@ -4,9 +4,14 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -66,4 +71,32 @@ func OperatorExists(ctx context.Context, cli client.Client, operatorPrefix strin
 	}
 
 	return false, nil
+}
+
+// CustomResourceDefinitionExists checks if a CustomResourceDefinition with the given GVK exists.
+func CustomResourceDefinitionExists(ctx context.Context, cli client.Client, crdGK schema.GroupKind) error {
+	crd := &apiextv1.CustomResourceDefinition{}
+	resourceInterval, resourceTimeout := 2*time.Second, 5*time.Second
+	name := strings.ToLower(fmt.Sprintf("%ss.%s", crdGK.Kind, crdGK.Group)) // we need plural form of the kind
+
+	err := wait.PollUntilContextTimeout(ctx, resourceInterval, resourceTimeout, false, func(ctx context.Context) (bool, error) {
+		err := cli.Get(ctx, client.ObjectKey{Name: name}, crd)
+		if err != nil {
+			if errors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+
+		for _, condition := range crd.Status.Conditions {
+			if condition.Type == apiextv1.Established {
+				if condition.Status == apiextv1.ConditionTrue {
+					return true, nil
+				}
+			}
+		}
+		return false, nil
+	})
+
+	return err
 }
