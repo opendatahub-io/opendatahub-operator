@@ -4,7 +4,7 @@
     "config:recommended"
   ],
   "branchPrefix": "renovate/",
-  "baseBranches": ["main"],
+  "baseBranches": ["main", "rhoai-2.16"],
   "ignoreTests": true,
   "automergeType": "pr",
   "automerge": true,
@@ -13,9 +13,12 @@
     "enabled": true,
     "additionalBranchPrefix": "{{baseBranch}}/",
     "branchPrefix": "konflux/mintmaker/",
+    "ignoreTests": true,
+    "automergeType": "pr",
+    "automerge": true,
     "packageRules": [
       {
-        "matchUpdateTypes": ["*"],
+        "matchUpdateTypes": ["major", "minor", "pin", "pinDigest", "patch", "bump"],
         "enabled": false
       },
       {
@@ -38,10 +41,15 @@
     ],
     "packageRules": [
       {
+        "matchUpdateTypes": ["major", "minor", "pin", "pinDigest", "patch", "bump"],
+        "enabled": false
+      },
+      {
         "matchPackagePatterns": [
           "^quay.io/redhat-appstudio-tekton-catalog/",
           "^quay.io/konflux-ci/tekton-catalog/"
         ],
+        "matchUpdateTypes": ["digest"],
         "enabled": true,
         "groupName": "Konflux references",
         "branchPrefix": "konflux/references/",
