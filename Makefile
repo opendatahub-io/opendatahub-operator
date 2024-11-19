@@ -23,6 +23,7 @@ IMAGE_BUILDER ?= podman
 OPERATOR_NAMESPACE ?= opendatahub-operator-system
 DEFAULT_MANIFESTS_PATH ?= opt/manifests
 CGO_ENABLED ?= 1
+USE_LOCAL = false
 
 CHANNELS="fast"
 # CHANNELS define the bundle channels used in the bundle.
@@ -93,7 +94,7 @@ E2E_TEST_FLAGS = "--skip-deletion=false" -timeout 25m # See README.md, default g
 # Default image-build is to not use local odh-manifests folder
 # set to "true" to use local instead
 # see target "image-build"
-IMAGE_BUILD_FLAGS ?= --build-arg USE_LOCAL=false
+IMAGE_BUILD_FLAGS ?= --build-arg USE_LOCAL=$(USE_LOCAL)
 IMAGE_BUILD_FLAGS += --build-arg CGO_ENABLED=$(CGO_ENABLED)
 
 # Read any custom variables overrides from a local.mk file.  This will only be read if it exists in the
