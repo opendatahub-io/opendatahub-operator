@@ -19,40 +19,76 @@ package datasciencepipelines
 import (
 	"context"
 
-	"k8s.io/apimachinery/pkg/runtime"
+	securityv1 "github.com/openshift/api/security/v1"
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/updatestatus"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
-// DataSciencePipelinesReconciler reconciles a DataSciencePipelines object.
-type DataSciencePipelinesReconciler struct {
-	client.Client
-	Scheme *runtime.Scheme
-}
+var (
+	defaultPath = types.ManifestInfo{
+		Path:       odhdeploy.DefaultManifestPath,
+		ContextDir: componentsv1.DataSciencePipelinesComponentName,
+		SourcePath: "/base",
+	}
+)
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the DataSciencePipelines object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.2/pkg/reconcile
-func (r *DataSciencePipelinesReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+func NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
+	_, err := reconciler.ComponentReconcilerFor(
+		mgr,
+		componentsv1.DataSciencePipelinesInstanceName,
+		&componentsv1.DataSciencePipelines{},
+	).
+		// customized Owns() for Component with new predicates
+		Owns(&corev1.ConfigMap{}).
+		Owns(&corev1.Secret{}).
+		Owns(&rbacv1.ClusterRoleBinding{}).
+		Owns(&rbacv1.ClusterRole{}).
+		Owns(&rbacv1.Role{}).
+		Owns(&rbacv1.RoleBinding{}).
+		Owns(&corev1.ServiceAccount{}).
+		Owns(&corev1.Service{}).
+		Owns(&monitoringv1.ServiceMonitor{}).
+		Owns(&appsv1.Deployment{}, builder.WithPredicates(resources.NewDeploymentPredicate())).
+		Owns(&securityv1.SecurityContextConstraints{}).
+		Watches(&extv1.CustomResourceDefinition{}). // call ForLabel() + new predicates
+		// Add datasciencepipelines-specific actions
+		WithAction(checkPreConditions).
+		WithAction(initialize).
+		WithAction(devFlags).
+		WithAction(kustomize.NewAction(
+			kustomize.WithCache(render.DefaultCachingKeyFn),
+			kustomize.WithLabel(labels.ODH.Component(componentsv1.DataSciencePipelinesComponentName), "true"),
+			kustomize.WithLabel(labels.K8SCommon.PartOf, componentsv1.DataSciencePipelinesComponentName),
+		)).
+		WithAction(deploy.NewAction(
+			deploy.WithCache(),
+			deploy.WithFieldOwner(componentsv1.DataSciencePipelinesInstanceName),
+			deploy.WithLabel(labels.ComponentPartOf, componentsv1.DataSciencePipelinesInstanceName),
+		)).
+		WithAction(updatestatus.NewAction(
+			updatestatus.WithSelectorLabel(labels.ComponentPartOf, componentsv1.DataSciencePipelinesInstanceName),
+		)).
+		Build(ctx)
 
-	// TODO(user): your logic here
+	if err != nil {
+		return err // no need customize error, it is done in the caller main
+	}
 
-	return ctrl.Result{}, nil
-}
-
-// SetupWithManager sets up the controller with the Manager.
-func (r *DataSciencePipelinesReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&componentsv1.DataSciencePipelines{}).
-		Complete(r)
+	return nil
 }

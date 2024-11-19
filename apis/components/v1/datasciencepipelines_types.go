@@ -21,26 +21,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
-// DataSciencePipelinesSpec defines the desired state of DataSciencePipelines
-type DataSciencePipelinesSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of DataSciencePipelines. Edit datasciencepipelines_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
-}
-
-// DataSciencePipelinesStatus defines the observed state of DataSciencePipelines
-type DataSciencePipelinesStatus struct {
-	components.Status `json:",inline"`
-}
+const (
+	DataSciencePipelinesComponentName = "data-science-pipelines-operator"
+	// value should match whats set in the XValidation below
+	DataSciencePipelinesInstanceName = "default-datasciencepipelines"
+	DataSciencePipelinesKind         = "DataSciencePipelines"
+)
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
+// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-datasciencepipelines'",message="DataSciencePipelines name must be default-datasciencepipelines"
 
 // DataSciencePipelines is the Schema for the datasciencepipelines API
 type DataSciencePipelines struct {
@@ -51,8 +42,22 @@ type DataSciencePipelines struct {
 	Status DataSciencePipelinesStatus `json:"status,omitempty"`
 }
 
+// DataSciencePipelinesSpec defines the desired state of DataSciencePipelines
+type DataSciencePipelinesSpec struct {
+	DataSciencePipelinesCommonSpec `json:",inline"`
+}
+
+type DataSciencePipelinesCommonSpec struct {
+	components.DevFlagsSpec `json:",inline"`
+}
+
+// DataSciencePipelinesStatus defines the observed state of DataSciencePipelines
+type DataSciencePipelinesStatus struct {
+	components.Status `json:",inline"`
+}
+
 func (c *DataSciencePipelines) GetDevFlags() *components.DevFlags {
-	return nil
+	return c.Spec.DevFlags
 }
 
 func (c *DataSciencePipelines) GetStatus() *components.Status {
@@ -70,4 +75,12 @@ type DataSciencePipelinesList struct {
 
 func init() {
 	SchemeBuilder.Register(&DataSciencePipelines{}, &DataSciencePipelinesList{})
+}
+
+// DSCDataSciencePipelines contains all the configuration exposed in DSC instance for DataSciencePipelines component
+type DSCDataSciencePipelines struct {
+	// configuration fields common across components
+	components.ManagementSpec `json:",inline"`
+	// datasciencepipelines specific field
+	DataSciencePipelinesCommonSpec `json:",inline"`
 }

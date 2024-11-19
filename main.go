@@ -64,6 +64,7 @@ import (
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/certconfigmapgenerator"
 	dashboardctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/dashboard"
+	datasciencepipelinesctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/datasciencepipelines"
 	kueuectrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/kueue"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 	rayctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/ray"
@@ -132,9 +133,11 @@ func initComponents(_ context.Context, p cluster.Platform) error {
 	if err := trainingoperatorctrl.Init(p); err != nil {
 		return err
 	}
-
 	if err := trustyaictrl.Init(p); err != nil {
 		return err
+	}
+	if err := datasciencepipelinesctrl.Init(p); err != nil {
+		multiErr = multierror.Append(multiErr, err)
 	}
 
 	if err := kueuectrl.Init(p); err != nil {
@@ -438,6 +441,7 @@ func CreateComponentReconcilers(ctx context.Context, mgr manager.Manager) error 
 		setupLog.Error(err, "unable to create controller", "controller", "DashboardReconciler")
 		return err
 	}
+
 	if err := rayctrl.NewComponentReconciler(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "RayReconciler")
 		return err
@@ -454,9 +458,12 @@ func CreateComponentReconcilers(ctx context.Context, mgr manager.Manager) error 
 		setupLog.Error(err, "unable to create controller", "controller", "KueueReconciler")
 		return err
 	}
-
 	if err := trainingoperatorctrl.NewComponentReconciler(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TrainingOperatorReconciler")
+		return err
+	}
+	if err := datasciencepipelinesctrl.NewComponentReconciler(ctx, mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "DataSciencePipelinesReconciler")
 		return err
 	}
 

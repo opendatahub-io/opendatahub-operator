@@ -52,8 +52,8 @@ import (
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	dashboardctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/dashboard"
+	datasciencepipelinesctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/datasciencepipelines"
 	kueuectrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/kueue"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 	rayctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/ray"
@@ -211,21 +211,6 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 		return ctrl.Result{}, nil
 	}
-	// Check preconditions if this is an upgrade
-	if instance.Status.Phase == status.PhaseReady {
-		// Check for existence of Argo Workflows if DSP is
-		if instance.Status.InstalledComponents[datasciencepipelines.ComponentName] {
-			if err := datasciencepipelines.UnmanagedArgoWorkFlowExists(ctx, r.Client); err != nil {
-				message := fmt.Sprintf("Failed upgrade: %v ", err.Error())
-				_, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dscv1.DataScienceCluster) {
-					datasciencepipelines.SetExistingArgoCondition(&saved.Status.Conditions, status.ArgoWorkflowExist, message)
-					status.SetErrorCondition(&saved.Status.Conditions, status.ArgoWorkflowExist, message)
-					saved.Status.Phase = status.PhaseError
-				})
-				return ctrl.Result{}, err
-			}
-		}
-	}
 
 	// Start reconciling
 	if instance.Status.Conditions == nil {
@@ -292,6 +277,14 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	if instance, err = r.ReconcileComponent(ctx, instance, componentsv1.TrainingOperatorComponentName, func() (error, bool) {
 		trainingoperator := trainingoperatorctrl.GetComponentCR(instance)
 		return r.apply(ctx, instance, trainingoperator), instance.Spec.Components.TrainingOperator.ManagementState == operatorv1.Managed
+	}); err != nil {
+		componentErrors = multierror.Append(componentErrors, err)
+	}
+
+	// Deploy DataSciencePipelines
+	if instance, err = r.ReconcileComponent(ctx, instance, componentsv1.DataSciencePipelinesComponentName, func() (error, bool) {
+		dsp := datasciencepipelinesctrl.GetComponentCR(instance)
+		return r.apply(ctx, instance, dsp), instance.Spec.Components.DataSciencePipelines.ManagementState == operatorv1.Managed
 	}); err != nil {
 		componentErrors = multierror.Append(componentErrors, err)
 	}
@@ -565,6 +558,7 @@ func (r *DataScienceClusterReconciler) SetupWithManager(ctx context.Context, mgr
 		Owns(&componentsv1.TrustyAI{}).
 		Owns(&componentsv1.Kueue{}).
 		Owns(&componentsv1.TrainingOperator{}).
+		Owns(&componentsv1.DataSciencePipelines{}).
 		Owns(
 			&corev1.ServiceAccount{},
 			builder.WithPredicates(saPredicates),
@@ -662,10 +656,10 @@ func (r *DataScienceClusterReconciler) getRequestName(ctx context.Context) (stri
 // argoWorkflowCRDPredicates filters the delete events to trigger reconcile when Argo Workflow CRD is deleted.
 var argoWorkflowCRDPredicates = predicate.Funcs{
 	DeleteFunc: func(e event.DeleteEvent) bool {
-		if e.Object.GetName() == datasciencepipelines.ArgoWorkflowCRD {
+		if e.Object.GetName() == datasciencepipelinesctrl.ArgoWorkflowCRD {
 			labelList := e.Object.GetLabels()
 			// CRD to be deleted with label "app.opendatahub.io/datasciencepipeline":"true", should not trigger reconcile
-			if value, exist := labelList[labels.ODH.Component(datasciencepipelines.ComponentName)]; exist && value == "true" {
+			if value, exist := labelList[labels.ODH.Component(componentsv1.DataSciencePipelinesComponentName)]; exist && value == "true" {
 				return false
 			}
 		}
