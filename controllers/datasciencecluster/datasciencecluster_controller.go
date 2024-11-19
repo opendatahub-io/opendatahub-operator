@@ -21,24 +21,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
-	buildv1 "github.com/openshift/api/build/v1"
-	imagev1 "github.com/openshift/api/image/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	networkingv1 "k8s.io/api/networking/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
-	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -222,6 +216,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 	}
 
+	// all DSC defined components
 	componentErrors := cr.ForEach(func(component cr.ComponentHandler) error {
 		var err error
 		instance, err = r.ReconcileComponent(ctx, instance, component)
@@ -277,6 +272,10 @@ func (r *DataScienceClusterReconciler) ReconcileComponent(
 
 	r.Log.Info("Starting reconciliation of component: " + componentName)
 
+	enabled := component.GetManagementState(instance) == operatorv1.Managed
+	if componentName == componentsv1.ModelControllerComponentName {
+		enabled = instance.Spec.Components.ModelMeshServing.ManagementState == operatorv1.Managed || instance.Spec.Components.Kserve.ManagementState == operatorv1.Managed
+	}
 	componentCR := component.NewCRObject(instance)
 	err := r.apply(ctx, instance, componentCR)
 	if err != nil {
@@ -287,8 +286,6 @@ func (r *DataScienceClusterReconciler) ReconcileComponent(
 		})
 		return instance, err
 	}
-
-	enabled := component.GetManagementState(instance) == operatorv1.Managed
 
 	// TODO: check component status before update DSC status to successful .GetStatus().Phase == "Ready"
 	r.Log.Info("component reconciled successfully: " + componentName)
@@ -333,9 +330,10 @@ var configMapPredicates = predicate.Funcs{
 		if e.ObjectNew.GetName() == "prometheus" && e.ObjectNew.GetNamespace() == "redhat-ods-monitoring" {
 			return false
 		}
+		// TODO: cleanup below
 		// Do not reconcile on kserver's inferenceservice-config CM updates, for rawdeployment
 		namespace := e.ObjectNew.GetNamespace()
-		if e.ObjectNew.GetName() == "inferenceservice-config" && (namespace == "redhat-ods-applications" || namespace == "opendatahub") { //nolint:goconst
+		if e.ObjectNew.GetName() == "inferenceservice-config" && (namespace == "redhat-ods-applications" || namespace == "opendatahub") {
 			return false
 		}
 		return true
@@ -383,108 +381,20 @@ var componentDeploymentPredicates = predicate.Funcs{
 	},
 }
 
-// a workaround for 2.5 due to odh-model-controller serivceaccount keeps updates with label.
-var saPredicates = predicate.Funcs{
-	UpdateFunc: func(e event.UpdateEvent) bool {
-		namespace := e.ObjectNew.GetNamespace()
-		if e.ObjectNew.GetName() == "odh-model-controller" && (namespace == "redhat-ods-applications" || namespace == "opendatahub") {
-			return false
-		}
-		return true
-	},
-}
-
-// a workaround for 2.5 due to modelmesh-servingruntime.serving.kserve.io keeps updates.
-var modelMeshwebhookPredicates = predicate.Funcs{
-	UpdateFunc: func(e event.UpdateEvent) bool {
-		return e.ObjectNew.GetName() != "modelmesh-servingruntime.serving.kserve.io"
-	},
-}
-
-var modelMeshRolePredicates = predicate.Funcs{
-	UpdateFunc: func(e event.UpdateEvent) bool {
-		notAllowedNames := []string{"leader-election-role", "proxy-role", "metrics-reader", "kserve-prometheus-k8s", "odh-model-controller-role"}
-		for _, notallowedName := range notAllowedNames {
-			if e.ObjectNew.GetName() == notallowedName {
-				return false
-			}
-		}
-		return true
-	},
-}
-
-// a workaround for modelmesh and kserve both create same odh-model-controller NWP.
-var networkpolicyPredicates = predicate.Funcs{
-	UpdateFunc: func(e event.UpdateEvent) bool {
-		return e.ObjectNew.GetName() != "odh-model-controller"
-	},
-}
-
-var modelMeshRBPredicates = predicate.Funcs{
-	UpdateFunc: func(e event.UpdateEvent) bool {
-		notAllowedNames := []string{"leader-election-rolebinding", "proxy-rolebinding", "odh-model-controller-rolebinding-opendatahub"}
-		for _, notallowedName := range notAllowedNames {
-			if e.ObjectNew.GetName() == notallowedName {
-				return false
-			}
-		}
-		return true
-	},
-}
-
-// ignore label updates if it is from application namespace.
-var modelMeshGeneralPredicates = predicate.Funcs{
-	UpdateFunc: func(e event.UpdateEvent) bool {
-		if strings.Contains(e.ObjectNew.GetName(), "odh-model-controller") || strings.Contains(e.ObjectNew.GetName(), "kserve") {
-			return false
-		}
-		return true
-	},
-}
-
 // SetupWithManager sets up the controller with the Manager.
 func (r *DataScienceClusterReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&dscv1.DataScienceCluster{}).
-		Owns(&corev1.Namespace{}).
-		Owns(&corev1.Secret{}).
 		Owns(
 			&corev1.ConfigMap{},
 			builder.WithPredicates(configMapPredicates),
 		).
 		Owns(
-			&networkingv1.NetworkPolicy{},
-			builder.WithPredicates(networkpolicyPredicates),
-		).
-		Owns(
-			&rbacv1.Role{},
-			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, modelMeshRolePredicates))).
-		Owns(
-			&rbacv1.RoleBinding{},
-			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, modelMeshRBPredicates))).
-		Owns(
-			&rbacv1.ClusterRole{},
-			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, modelMeshRolePredicates))).
-		Owns(
-			&rbacv1.ClusterRoleBinding{},
-			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, modelMeshRBPredicates))).
-		Owns(
 			&appsv1.Deployment{},
 			builder.WithPredicates(componentDeploymentPredicates)).
-		Owns(&corev1.PersistentVolumeClaim{}).
-		Owns(
-			&corev1.Service{},
-			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, modelMeshGeneralPredicates))).
-		Owns(&appsv1.StatefulSet{}).
-		Owns(&imagev1.ImageStream{}).
-		Owns(&buildv1.BuildConfig{}).
-		Owns(&apiregistrationv1.APIService{}).
-		Owns(&networkingv1.Ingress{}).
 		Owns(&admissionregistrationv1.MutatingWebhookConfiguration{}).
-		Owns(
-			&admissionregistrationv1.ValidatingWebhookConfiguration{},
-			builder.WithPredicates(modelMeshwebhookPredicates),
-		).
+		Owns(&admissionregistrationv1.ValidatingWebhookConfiguration{}).
+		Owns(&corev1.ServiceAccount{}).
 		// components CRs
 		Owns(&componentsv1.Dashboard{}).
 		Owns(&componentsv1.Workbenches{}).
@@ -496,10 +406,8 @@ func (r *DataScienceClusterReconciler) SetupWithManager(ctx context.Context, mgr
 		Owns(&componentsv1.TrainingOperator{}).
 		Owns(&componentsv1.DataSciencePipelines{}).
 		Owns(&componentsv1.Kserve{}).
-		Owns(
-			&corev1.ServiceAccount{},
-			builder.WithPredicates(saPredicates),
-		).
+		Owns(&componentsv1.ModelMeshServing{}).
+		Owns(&componentsv1.ModelController{}).
 		Watches(
 			&dsciv1.DSCInitialization{},
 			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {

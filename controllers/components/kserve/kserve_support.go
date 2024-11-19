@@ -46,14 +46,6 @@ func kserveManifestInfo(sourcePath string) odhtypes.ManifestInfo {
 	}
 }
 
-func odhModelControllerManifestInfo(sourcePath string) odhtypes.ManifestInfo {
-	return odhtypes.ManifestInfo{
-		Path:       deploy.DefaultManifestPath,
-		ContextDir: odhModelControllerComponentName,
-		SourcePath: sourcePath,
-	}
-}
-
 func configureServerlessFeatures(dsciSpec *dsciv1.DSCInitializationSpec, kserve *componentsv1.Kserve) feature.FeaturesProvider {
 	return func(registry feature.FeaturesRegistry) error {
 		servingDeployment := feature.Define("serverless-serving-deployment").

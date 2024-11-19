@@ -26,7 +26,6 @@ import (
 
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
@@ -45,8 +44,7 @@ type Components struct {
 	Workbenches componentsv1.DSCWorkbenches `json:"workbenches,omitempty"`
 
 	// ModelMeshServing component configuration.
-	// Does not support enabled Kserve at the same time
-	ModelMeshServing modelmeshserving.ModelMeshServing `json:"modelmeshserving,omitempty"`
+	ModelMeshServing componentsv1.DSCModelMeshServing `json:"modelmeshserving,omitempty"`
 
 	// DataServicePipeline component configuration.
 	// Require OpenShift Pipelines Operator to be installed before enable component

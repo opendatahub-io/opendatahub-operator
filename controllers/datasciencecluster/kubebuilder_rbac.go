@@ -217,7 +217,7 @@ package datasciencecluster
 // +kubebuilder:rbac:groups=components.opendatahub.io,resources=trainingoperators/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=components.opendatahub.io,resources=trainingoperators/finalizers,verbs=update
 
-// TODO: ModelMesh
+// ModelMeshServing
 // +kubebuilder:rbac:groups=components.opendatahub.io,resources=modelmeshservings,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=components.opendatahub.io,resources=modelmeshservings/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=components.opendatahub.io,resources=modelmeshservings/finalizers,verbs=update
@@ -226,3 +226,8 @@ package datasciencecluster
 // +kubebuilder:rbac:groups=components.opendatahub.io,resources=trustyais,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=components.opendatahub.io,resources=trustyais/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=components.opendatahub.io,resources=trustyais/finalizers,verbs=update
+
+// ModelController
+// +kubebuilder:rbac:groups=components.opendatahub.io,resources=modelcontrollers,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=components.opendatahub.io,resources=modelcontrollers/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=components.opendatahub.io,resources=modelcontrollers/finalizers,verbs=update

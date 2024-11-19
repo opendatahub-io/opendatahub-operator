@@ -1,17 +1,17 @@
+---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.1
-  creationTimestamp: null
-  name: modelmeshservings.components.opendatahub.io
+  name: modelcontrollers.components.opendatahub.io
 spec:
   group: components.opendatahub.io
   names:
-    kind: ModelMeshServing
-    listKind: ModelMeshServingList
-    plural: modelmeshservings
-    singular: modelmeshserving
+    kind: ModelController
+    listKind: ModelControllerList
+    plural: modelcontrollers
+    singular: modelcontroller
   scope: Cluster
   versions:
   - additionalPrinterColumns:
@@ -26,7 +26,8 @@ spec:
     name: v1
     schema:
       openAPIV3Schema:
-        description: ModelMeshServing is the Schema for the modelmeshservings API
+        description: ModelController is the Schema for the modelcontroller API, it
+          is a shared component between kserve and modelmeshserving
         properties:
           apiVersion:
             description: |-
@@ -46,7 +47,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: ModelMeshServingSpec defines the desired state of ModelMeshServing
+            description: ModelControllerSpec defines the desired state of ModelController
             properties:
               devFlags:
                 description: Add developer fields
@@ -74,9 +75,15 @@ spec:
                       type: object
                     type: array
                 type: object
+              kserve:
+                pattern: ^(Managed|Unmanaged|Force|Removed)$
+                type: string
+              modelMeshServing:
+                pattern: ^(Managed|Unmanaged|Force|Removed)$
+                type: string
             type: object
           status:
-            description: ModelMeshServingStatus defines the observed state of ModelMeshServing
+            description: ModelControllerStatus defines the observed state of ModelController
             properties:
               conditions:
                 items:
@@ -142,15 +149,9 @@ spec:
             type: object
         type: object
         x-kubernetes-validations:
-        - message: ModelMeshServing name must be default-modelmesh
-          rule: self.metadata.name == 'default-modelmesh'
+        - message: ModelController name must be default-modelcontroller
+          rule: self.metadata.name == 'default-modelcontroller'
     served: true
     storage: true
     subresources:
       status: {}
-status:
-  acceptedNames:
-    kind: ""
-    plural: ""
-  conditions: null
-  storedVersions: null

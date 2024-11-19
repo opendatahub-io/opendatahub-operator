@@ -176,6 +176,7 @@ rules:
   - datasciencepipelines
   - kserves
   - kueues
+  - modelcontrollers
   - modelmeshservings
   - modelregistries
   - rays
@@ -197,6 +198,7 @@ rules:
   - datasciencepipelines/finalizers
   - kserves/finalizers
   - kueues/finalizers
+  - modelcontrollers/finalizers
   - modelmeshservings/finalizers
   - modelregistries/finalizers
   - rays/finalizers
@@ -213,6 +215,7 @@ rules:
   - datasciencepipelines/status
   - kserves/status
   - kueues/status
+  - modelcontrollers/status
   - modelmeshservings/status
   - modelregistries/status
   - rays/status

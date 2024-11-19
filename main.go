@@ -84,6 +84,8 @@ import (
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/datasciencepipelines"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/kserve"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/kueue"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelcontroller"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelmeshserving"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/ray"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/trainingoperator"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/trustyai"

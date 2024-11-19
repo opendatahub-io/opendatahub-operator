@@ -18,14 +18,15 @@ package v1
 
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
-	ModelMeshServingComponentName = "model-mesh"
+	// shared by kserve and modelmeshserving
 	// value should match whats set in the XValidation below
-	ModelMeshServingInstanceName = "default-modelmesh"
-	ModelMeshServingKind         = "ModelMeshServing"
+	ModelControllerInstanceName = "default-modelcontroller"
+	ModelControllerKind         = "ModelController"
 )
 
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
@@ -33,55 +34,45 @@ const (
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
-// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-modelmesh'",message="ModelMeshServing name must be default-modelmesh"
+// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-modelcontroller'",message="ModelController name must be default-modelcontroller"
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
 // +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
 
-// ModelMeshServing is the Schema for the modelmeshservings API
-type ModelMeshServing struct {
+// ModelController is the Schema for the modelcontroller API, it is a shared component between kserve and modelmeshserving
+type ModelController struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ModelMeshServingSpec   `json:"spec,omitempty"`
-	Status ModelMeshServingStatus `json:"status,omitempty"`
+	Spec   ModelControllerSpec   `json:"spec,omitempty"`
+	Status ModelControllerStatus `json:"status,omitempty"`
 }
 
-// ModelMeshServingSpec defines the desired state of ModelMeshServing
-type ModelMeshServingSpec struct {
-	ModelMeshServingCommonSpec `json:",inline"`
-}
-
-type ModelMeshServingCommonSpec struct {
+// ModelControllerSpec defines the desired state of ModelController
+type ModelControllerSpec struct {
 	common.DevFlagsSpec `json:",inline"`
+	ModelMeshServing    operatorv1.ManagementState `json:"modelMeshServing,omitempty"`
+	Kserve              operatorv1.ManagementState `json:"kserve,omitempty"`
 }
 
-// ModelMeshServingStatus defines the observed state of ModelMeshServing
-type ModelMeshServingStatus struct {
+// ModelControllerStatus defines the observed state of ModelController
+type ModelControllerStatus struct {
 	common.Status `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
-// ModelMeshServingList contains a list of ModelMeshServing
-type ModelMeshServingList struct {
+// ModelControllerList contains a list of ModelController
+type ModelControllerList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ModelMeshServing `json:"items"`
+	Items           []ModelController `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&ModelMeshServing{}, &ModelMeshServingList{})
+	SchemeBuilder.Register(&ModelController{}, &ModelControllerList{})
 }
 
-func (c *ModelMeshServing) GetDevFlags() *common.DevFlags {
-	return c.Spec.DevFlags
-}
-func (c *ModelMeshServing) GetStatus() *common.Status {
+func (c *ModelController) GetDevFlags() *common.DevFlags { return nil }
+
+func (c *ModelController) GetStatus() *common.Status {
 	return &c.Status.Status
-}
-
-// DSCModelMeshServing contains all the configuration exposed in DSC instance for ModelMeshServing component
-type DSCModelMeshServing struct {
-	common.ManagementSpec `json:",inline"`
-	// configuration fields common across components
-	ModelMeshServingCommonSpec `json:",inline"`
 }
