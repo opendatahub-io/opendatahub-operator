@@ -34,7 +34,7 @@ import (
 	userv1 "github.com/openshift/api/user/v1"
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
-	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	promv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -111,7 +111,7 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(apiextensionsv1.AddToScheme(scheme))
 	utilruntime.Must(admissionregistrationv1.AddToScheme(scheme))
 	utilruntime.Must(apiregistrationv1.AddToScheme(scheme))
-	utilruntime.Must(monitoringv1.AddToScheme(scheme))
+	utilruntime.Must(promv1.AddToScheme(scheme))
 	utilruntime.Must(operatorv1.Install(scheme))
 	utilruntime.Must(consolev1.AddToScheme(scheme))
 	utilruntime.Must(securityv1.Install(scheme))
@@ -232,6 +232,8 @@ func main() { //nolint:funlen,maintidx
 			},
 			// for prometheus and black-box deployment and ones we owns
 			&appsv1.Deployment{}: {Namespaces: deploymentCache},
+			// kueue need prometheusrules
+			&promv1.PrometheusRule{}: {Namespaces: deploymentCache},
 		},
 	}
 
