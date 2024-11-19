@@ -22,6 +22,7 @@ COPY opt/manifests/ /opt/manifests/
 
 ################################################################################
 FROM builder_local_${USE_LOCAL} as builder
+ARG CGO_ENABLED=1
 USER root
 WORKDIR /workspace
 # Copy the Go Modules manifests
@@ -46,7 +47,7 @@ COPY config/partners/ /opt/manifests/partners/
 COPY config/osd-configs/ /opt/manifests/osd-configs/
 
 # Build
-RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -a -o manager main.go
+RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=amd64 go build -a -o manager main.go
 
 ################################################################################
 FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
