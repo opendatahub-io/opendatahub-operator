@@ -1,27 +1,21 @@
 # Build the manager binary
 ARG GOLANG_VERSION=1.21
+
+################################################################################
+FROM registry.access.redhat.com/ubi8/toolbox as manifests
 ARG USE_LOCAL=false
 ARG OVERWRITE_MANIFESTS=""
-
-################################################################################
-FROM registry.access.redhat.com/ubi8/go-toolset:$GOLANG_VERSION as builder_local_false
-ARG OVERWRITE_MANIFESTS
-# Get all manifests from remote git repo to builder_local_false by script
 USER root
 WORKDIR /
-COPY get_all_manifests.sh get_all_manifests.sh
-RUN ./get_all_manifests.sh ${OVERWRITE_MANIFESTS}
-
-################################################################################
-FROM registry.access.redhat.com/ubi8/go-toolset:$GOLANG_VERSION as builder_local_true
-# Get all manifests from local to builder_local_true
-USER root
-WORKDIR /opt
-# copy local manifests to build
 COPY opt/manifests/ /opt/manifests/
+COPY get_all_manifests.sh get_all_manifests.sh
+RUN if [ "${USE_LOCAL}" != "true" ]; then \
+        rm -rf /opt/manifests/*; \
+        ./get_all_manifests.sh ${OVERWRITE_MANIFESTS}; \
+    fi
 
 ################################################################################
-FROM builder_local_${USE_LOCAL} as builder
+FROM registry.access.redhat.com/ubi8/go-toolset:$GOLANG_VERSION as builder
 ARG CGO_ENABLED=1
 USER root
 WORKDIR /workspace
@@ -46,7 +40,7 @@ RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=amd64 go build -a -o manager ma
 FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
 WORKDIR /
 COPY --from=builder /workspace/manager .
-COPY --chown=1001:0 --from=builder /opt/manifests /opt/manifests
+COPY --chown=1001:0 --from=manifests /opt/manifests /opt/manifests
 # Recursive change all files
 RUN chown -R 1001:0 /opt/manifests &&\
     chmod -R g=u /opt/manifests
