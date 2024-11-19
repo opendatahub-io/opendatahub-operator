@@ -268,6 +268,7 @@ rules:
   - get
   - list
   - patch
+  - watch
 - apiGroups:
   - controller-runtime.sigs.k8s.io
   resources:
@@ -375,6 +376,15 @@ rules:
   - dashboard.opendatahub.io
   resources:
   - acceleratorprofiles
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+- apiGroups:
+  - dashboard.opendatahub.io
+  resources:
   - odhapplications
   - odhdocuments
   verbs:
@@ -383,6 +393,7 @@ rules:
   - get
   - list
   - patch
+  - watch
 - apiGroups:
   - datasciencecluster.opendatahub.io
   resources:
@@ -621,6 +632,7 @@ rules:
   - get
   - list
   - patch
+  - watch
 - apiGroups:
   - monitoring.coreos.com
   resources:
