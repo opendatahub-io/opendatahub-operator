@@ -32,7 +32,6 @@ import (
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	componentsold "github.com/opendatahub-io/opendatahub-operator/v2/components"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
@@ -78,8 +77,8 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 				Kserve: kserve.Kserve{
 					Component: componentsold.Component{ManagementState: operatorv1.Managed},
 				},
-				CodeFlare: codeflare.CodeFlare{
-					Component: componentsold.Component{ManagementState: operatorv1.Managed},
+				CodeFlare: componentsv1.DSCCodeFlare{
+					ManagementSpec: components.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
 				Ray: componentsv1.DSCRay{
 					ManagementSpec: components.ManagementSpec{ManagementState: operatorv1.Managed},

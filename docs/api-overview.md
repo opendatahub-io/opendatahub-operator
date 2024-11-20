@@ -58,6 +58,23 @@ _Appears in:_
 | `status` _[CodeFlareStatus](#codeflarestatus)_ |  |  |  |
 
 
+#### KueueCommonSpec
+
+
+
+
+
+
+
+_Appears in:_
+- [DSCCodeFlare](#dsccodeflare)
+- [CodeFlareSpec](#codeflarespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+
+
 #### CodeFlareList
 
 
@@ -134,6 +151,23 @@ _Appears in:_
 
 
 DSCDataSciencePipelines contains all the configuration exposed in DSC instance for DataSciencePipelines component
+
+
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+
+
+#### DSCCodeFlare
+
+
+
+DSCCodeFlare contains all the configuration exposed in DSC instance for CodeFlare component
 
 
 
@@ -1154,7 +1188,6 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `Component` _[Component](#component)_ |  |  |  |
-
 
 
 ## datasciencecluster.opendatahub.io/components
