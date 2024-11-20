@@ -37,7 +37,7 @@ func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) ope
 	return dsc.Spec.Components.Ray.ManagementState
 }
 
-func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Object { //nolint:ireturn
+func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Object {
 	rayAnnotations := make(map[string]string)
 	switch dsc.Spec.Components.Ray.ManagementState {
 	case operatorv1.Managed, operatorv1.Removed:

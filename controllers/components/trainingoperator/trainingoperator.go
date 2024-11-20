@@ -37,7 +37,7 @@ func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) ope
 	return dsc.Spec.Components.TrainingOperator.ManagementState
 }
 
-func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) k8sclient.Object { //nolint:ireturn
+func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) k8sclient.Object {
 	trainingoperatorAnnotations := make(map[string]string)
 	switch dsc.Spec.Components.TrainingOperator.ManagementState {
 	case operatorv1.Managed, operatorv1.Removed:

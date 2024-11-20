@@ -1,10 +1,12 @@
 package e2e_test
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"github.com/rs/xid"
 	"github.com/stretchr/testify/require"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,6 +20,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -74,6 +77,34 @@ func (mr *ModelRegistryTestCtx) Get(
 		return &u, nil
 	}
 }
+
+func (mr *ModelRegistryTestCtx) Update(
+	obj client.Object,
+	fn func(obj *unstructured.Unstructured) error,
+	option ...client.GetOption,
+) func() (*unstructured.Unstructured, error) {
+	return func() (*unstructured.Unstructured, error) {
+		if err := mr.customClient.Get(mr.ctx, client.ObjectKeyFromObject(obj), obj, option...); err != nil {
+			return nil, fmt.Errorf("failed to fetch resource: %w", err)
+		}
+
+		in, err := resources.ToUnstructured(obj)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert to unstructured: %w", err)
+		}
+
+		if err := fn(in); err != nil {
+			return nil, fmt.Errorf("failed to apply function: %w", err)
+		}
+
+		if err := mr.customClient.Update(mr.ctx, in); err != nil {
+			return nil, fmt.Errorf("failed to update resource: %w", err)
+		}
+
+		return in, nil
+	}
+}
+
 func (mr *ModelRegistryTestCtx) MergePatch(
 	obj client.Object,
 	patch []byte,
@@ -111,6 +142,18 @@ func (mr *ModelRegistryTestCtx) updateComponent(fn func(dsc *dscv1.Components)) 
 	}
 }
 
+func (mr *ModelRegistryTestCtx) getInstance() (*componentsv1.ModelRegistry, error) {
+	mri := componentsv1.ModelRegistry{}
+	nn := types.NamespacedName{Name: componentsv1.ModelRegistryInstanceName}
+
+	err := mr.customClient.Get(mr.ctx, nn, &mri)
+	if err != nil {
+		return nil, err
+	}
+
+	return &mri, nil
+}
+
 func modelRegistryTestSuite(t *testing.T) {
 	t.Helper()
 
@@ -124,6 +167,8 @@ func modelRegistryTestSuite(t *testing.T) {
 	t.Run(componentCtx.testDsc.Name, func(t *testing.T) {
 		t.Run("Validate ModelRegistry instance", componentCtx.validateModelRegistryInstance)
 		t.Run("Validate ModelRegistry operands OwnerReferences", componentCtx.validateOperandsOwnerReferences)
+		t.Run("Validate ModelRegistry operands Watched Resources", componentCtx.validateOperandsWatchedResources)
+		t.Run("Validate ModelRegistry operands Dynamically Watched Resources", componentCtx.validateOperandsDynamicallyWatchedResources)
 		t.Run("Validate Update ModelRegistry operands resources", componentCtx.validateUpdateModelRegistryOperandsResources)
 		t.Run("Validate ModelRegistry Cert", componentCtx.validateModelRegistryCert)
 		t.Run("Validate ModelRegistry ServiceMeshMember", componentCtx.validateModelRegistryServiceMeshMember)
@@ -161,6 +206,58 @@ func (mr *ModelRegistryTestCtx) validateOperandsOwnerReferences(t *testing.T) {
 		HaveEach(
 			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, componentsv1.ModelRegistryKind),
 		),
+	))
+}
+
+func (mr *ModelRegistryTestCtx) validateOperandsWatchedResources(t *testing.T) {
+	g := mr.WithT(t)
+
+	g.Eventually(
+		mr.List(
+			gvk.ServiceMeshMember,
+			client.MatchingLabels{labels.ComponentPartOf: componentsv1.ModelRegistryInstanceName},
+		),
+	).Should(And(
+		HaveLen(1),
+		HaveEach(And(
+			jq.Match(`.metadata | has("ownerReferences") | not`),
+		)),
+	))
+}
+
+func (mr *ModelRegistryTestCtx) validateOperandsDynamicallyWatchedResources(t *testing.T) {
+	g := mr.WithT(t)
+
+	mri, err := mr.getInstance()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	newPt := xid.New().String()
+	oldPt := ""
+
+	smm := unstructured.Unstructured{}
+	smm.SetGroupVersionKind(gvk.ServiceMeshMember)
+	smm.SetName("default")
+	smm.SetNamespace(mri.Spec.RegistriesNamespace)
+
+	g.Eventually(
+		mr.Update(&smm, func(obj *unstructured.Unstructured) error {
+			oldPt = resources.SetAnnotation(obj, annotations.PlatformType, newPt)
+			return nil
+		}),
+	).Should(
+		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformType, newPt),
+	)
+
+	g.Eventually(
+		mr.List(
+			gvk.ServiceMeshMember,
+			client.MatchingLabels{labels.ComponentPartOf: componentsv1.ModelRegistryInstanceName},
+		),
+	).Should(And(
+		HaveLen(1),
+		HaveEach(And(
+			jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformType, oldPt),
+		)),
 	))
 }
 

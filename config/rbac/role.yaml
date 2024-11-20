@@ -253,14 +253,6 @@ rules:
   - console.openshift.io
   resources:
   - consolelinks
-  verbs:
-  - create
-  - delete
-  - get
-  - patch
-- apiGroups:
-  - console.openshift.io
-  resources:
   - odhquickstarts
   verbs:
   - create
@@ -376,15 +368,6 @@ rules:
   - dashboard.opendatahub.io
   resources:
   - acceleratorprofiles
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-- apiGroups:
-  - dashboard.opendatahub.io
-  resources:
   - odhapplications
   - odhdocuments
   verbs:
@@ -552,10 +535,22 @@ rules:
   resources:
   - servicemeshcontrolplanes
   - servicemeshmemberrolls
-  - servicemeshmembers
   - servicemeshmembers/finalizers
   verbs:
   - create
+  - get
+  - list
+  - patch
+  - update
+  - use
+  - watch
+- apiGroups:
+  - maistra.io
+  resources:
+  - servicemeshmembers
+  verbs:
+  - create
+  - delete
   - get
   - list
   - patch

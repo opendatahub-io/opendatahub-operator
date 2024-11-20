@@ -1,287 +1,340 @@
 package e2e_test
 
 import (
-	"context"
-	"errors"
 	"fmt"
-	"reflect"
 	"testing"
 	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"github.com/rs/xid"
 	"github.com/stretchr/testify/require"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+
+	. "github.com/onsi/gomega"
 )
 
 type DashboardTestCtx struct {
-	testCtx               *testContext
-	testDashboardInstance componentsv1.Dashboard
+	*testContext
+}
+
+func (d *DashboardTestCtx) WithT(t *testing.T) *WithT {
+	t.Helper()
+
+	g := NewWithT(t)
+	g.SetDefaultEventuallyTimeout(generalWaitTimeout)
+	g.SetDefaultEventuallyPollingInterval(1 * time.Second)
+
+	return g
+}
+
+func (d *DashboardTestCtx) List(
+	gvk schema.GroupVersionKind,
+	option ...client.ListOption,
+) func() ([]unstructured.Unstructured, error) {
+	return func() ([]unstructured.Unstructured, error) {
+		items := unstructured.UnstructuredList{}
+		items.SetGroupVersionKind(gvk)
+
+		err := d.customClient.List(d.ctx, &items, option...)
+		if err != nil {
+			return nil, err
+		}
+
+		return items.Items, nil
+	}
+}
+
+func (d *DashboardTestCtx) Get(
+	gvk schema.GroupVersionKind,
+	ns string,
+	name string,
+	option ...client.GetOption,
+) func() (*unstructured.Unstructured, error) {
+	return func() (*unstructured.Unstructured, error) {
+		u := unstructured.Unstructured{}
+		u.SetGroupVersionKind(gvk)
+
+		err := d.customClient.Get(d.ctx, client.ObjectKey{Namespace: ns, Name: name}, &u, option...)
+		if err != nil {
+			return nil, err
+		}
+
+		return &u, nil
+	}
+}
+
+func (d *DashboardTestCtx) Update(
+	obj client.Object,
+	fn func(obj *unstructured.Unstructured) error,
+	option ...client.GetOption,
+) func() (*unstructured.Unstructured, error) {
+	return func() (*unstructured.Unstructured, error) {
+		if err := d.customClient.Get(d.ctx, client.ObjectKeyFromObject(obj), obj, option...); err != nil {
+			return nil, fmt.Errorf("failed to fetch resource: %w", err)
+		}
+
+		in, err := resources.ToUnstructured(obj)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert to unstructured: %w", err)
+		}
+
+		if err := fn(in); err != nil {
+			return nil, fmt.Errorf("failed to apply function: %w", err)
+		}
+
+		if err := d.customClient.Update(d.ctx, in); err != nil {
+			return nil, fmt.Errorf("failed to update resource: %w", err)
+		}
+
+		return in, nil
+	}
+}
+
+func (d *DashboardTestCtx) MergePatch(
+	obj client.Object,
+	patch []byte,
+) func() (*unstructured.Unstructured, error) {
+	return func() (*unstructured.Unstructured, error) {
+		u, err := resources.ToUnstructured(obj)
+		if err != nil {
+			return nil, err
+		}
+
+		err = d.customClient.Patch(d.ctx, u, client.RawPatch(types.MergePatchType, patch))
+		if err != nil {
+			return nil, err
+		}
+
+		return u, nil
+	}
+}
+
+func (d *DashboardTestCtx) updateComponent(fn func(dsc *dscv1.Components)) func() error {
+	return func() error {
+		err := d.customClient.Get(d.ctx, types.NamespacedName{Name: d.testDsc.Name}, d.testDsc)
+		if err != nil {
+			return err
+		}
+
+		fn(&d.testDsc.Spec.Components)
+
+		err = d.customClient.Update(d.ctx, d.testDsc)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+}
+
+func (d *DashboardTestCtx) getInstance() (*componentsv1.Dashboard, error) {
+	mri := componentsv1.Dashboard{}
+	nn := types.NamespacedName{Name: componentsv1.DashboardInstanceName}
+
+	err := d.customClient.Get(d.ctx, nn, &mri)
+	if err != nil {
+		return nil, err
+	}
+
+	return &mri, nil
 }
 
 func dashboardTestSuite(t *testing.T) {
 	t.Helper()
 
-	dashboardCtx := DashboardTestCtx{}
-	var err error
-	dashboardCtx.testCtx, err = NewTestContext()
+	tc, err := NewTestContext()
 	require.NoError(t, err)
 
-	testCtx := dashboardCtx.testCtx
+	componentCtx := DashboardTestCtx{
+		testContext: tc,
+	}
 
-	t.Run(testCtx.testDsc.Name, func(t *testing.T) {
-		t.Run("Creation of Dashboard CR", func(t *testing.T) {
-			err = dashboardCtx.testDashboardCreation()
-			require.NoError(t, err, "error creating Dashboard CR")
-		})
-
-		t.Run("Validate Dashboard instance", func(t *testing.T) {
-			err = dashboardCtx.validateDashboard()
-			require.NoError(t, err, "error validating Dashboard instance")
-		})
-
-		t.Run("Validate Ownerrefrences exist", func(t *testing.T) {
-			err = dashboardCtx.testOwnerReferences()
-			require.NoError(t, err, "error getting all Dashboard's Ownerrefrences")
-		})
-
-		t.Run("Validate Dashboard Ready", func(t *testing.T) {
-			err = dashboardCtx.validateDashboardReady()
-			require.NoError(t, err, "Dashboard instance is not Ready")
-		})
-
-		// reconcile
-		t.Run("Validate Controller reconcile", func(t *testing.T) {
-			// only test Dashboard component for now
-			err = dashboardCtx.testUpdateOnDashboardResources()
-			require.NoError(t, err, "error testing updates for Dashboard's managed resources")
-		})
-
-		t.Run("Validate Disabling Component", func(t *testing.T) {
-			err = dashboardCtx.testUpdateDashboardComponentDisabled()
-			require.NoError(t, err, "error testing component enabled field")
-		})
+	t.Run(componentCtx.testDsc.Name, func(t *testing.T) {
+		t.Run("Validate Dashboard instance", componentCtx.validateDashboardInstance)
+		t.Run("Validate Dashboard operands have OwnerReferences", componentCtx.validateOperandsOwnerReferences)
+		t.Run("Validate Dashboard dynamically watches operands", componentCtx.validateOperandsDynamicallyWatchedResources)
+		t.Run("Validate Dashboard update operand resources", componentCtx.validateUpdateOperandsResources)
+		// must be the latest one
+		t.Run("Validate Disabling Dashboard Component", componentCtx.validateDashboardDisabled)
 	})
 }
 
-func (tc *DashboardTestCtx) testDashboardCreation() error {
-	if tc.testCtx.testDsc.Spec.Components.Dashboard.ManagementState != operatorv1.Managed {
-		return nil
-	}
+func (d *DashboardTestCtx) validateDashboardInstance(t *testing.T) {
+	g := d.WithT(t)
 
-	err := tc.testCtx.wait(func(ctx context.Context) (bool, error) {
-		existingDashboardList := &componentsv1.DashboardList{}
-
-		err := tc.testCtx.customClient.List(ctx, existingDashboardList)
-		if err != nil {
-			return false, err
-		}
-
-		switch {
-		case len(existingDashboardList.Items) == 1:
-			tc.testDashboardInstance = existingDashboardList.Items[0]
-			return true, nil
-
-		case len(existingDashboardList.Items) > 1:
-			return false, fmt.Errorf(
-				"unexpected Dashboard CR instances. Expected 1 , Found %v instance", len(existingDashboardList.Items))
-		default:
-			return false, nil
-		}
-	})
-
-	if err != nil {
-		return fmt.Errorf("unable to find Dashboard CR instance: %w", err)
-	}
-
-	return nil
+	g.Eventually(
+		d.List(gvk.Dashboard),
+	).Should(And(
+		HaveLen(1),
+		HaveEach(And(
+			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.DataScienceCluster.Kind),
+			jq.Match(`.status.phase == "%s"`, readyStatus),
+		)),
+	))
 }
 
-func (tc *DashboardTestCtx) validateDashboard() error {
-	// Dashboard spec should match the spec of Dashboard component in DSC
-	if !reflect.DeepEqual(tc.testCtx.testDsc.Spec.Components.Dashboard.DashboardCommonSpec, tc.testDashboardInstance.Spec.DashboardCommonSpec) {
-		err := fmt.Errorf("expected spec for Dashboard %v, got %v",
-			tc.testCtx.testDsc.Spec.Components.Dashboard.DashboardCommonSpec, tc.testDashboardInstance.Spec.DashboardCommonSpec)
-		return err
-	}
-	return nil
+func (d *DashboardTestCtx) validateOperandsOwnerReferences(t *testing.T) {
+	g := d.WithT(t)
+
+	g.Eventually(
+		d.List(
+			gvk.Deployment,
+			client.InNamespace(d.applicationsNamespace),
+			client.MatchingLabels{labels.ComponentPartOf: componentsv1.DashboardInstanceName},
+		),
+	).Should(And(
+		HaveLen(1),
+		HaveEach(
+			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, componentsv1.DashboardKind),
+		),
+	))
 }
 
-func (tc *DashboardTestCtx) testOwnerReferences() error {
-	if len(tc.testDashboardInstance.OwnerReferences) != 1 {
-		return errors.New("expect CR has ownerreferences set")
-	}
+func (d *DashboardTestCtx) validateOperandsDynamicallyWatchedResources(t *testing.T) {
+	g := d.WithT(t)
 
-	// Test Dashboard CR ownerref
-	if tc.testDashboardInstance.OwnerReferences[0].Kind != dscKind {
-		return fmt.Errorf("expected ownerreference DataScienceCluster not found. Got ownereferrence: %v",
-			tc.testDashboardInstance.OwnerReferences[0].Kind)
-	}
+	_, err := d.getInstance()
+	g.Expect(err).ShouldNot(HaveOccurred())
 
-	// Test Dashboard resources
-	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-		LabelSelector: labels.ODH.Component("dashboard"),
-	})
-	if err != nil {
-		return fmt.Errorf("error listing component deployments %w", err)
-	}
-	// test any one deployment for ownerreference
-	if len(appDeployments.Items) != 0 && appDeployments.Items[0].OwnerReferences[0].Kind != componentsv1.DashboardKind {
-		return fmt.Errorf("expected ownerreference not found. Got ownereferrence: %v",
-			appDeployments.Items[0].OwnerReferences)
-	}
+	newPt := xid.New().String()
+	oldPt := ""
 
-	return nil
+	odhapp := unstructured.Unstructured{}
+	odhapp.SetGroupVersionKind(gvk.OdhApplication)
+	odhapp.SetName("jupyter")
+	odhapp.SetNamespace(d.applicationsNamespace)
+
+	g.Eventually(
+		d.Update(&odhapp, func(obj *unstructured.Unstructured) error {
+			oldPt = resources.SetAnnotation(obj, annotations.PlatformType, newPt)
+			return nil
+		}),
+	).Should(
+		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformType, newPt),
+	)
+
+	g.Eventually(
+		d.List(
+			gvk.OdhApplication,
+			client.MatchingLabels{labels.ComponentPartOf: componentsv1.DashboardInstanceName},
+		),
+	).Should(And(
+		HaveEach(
+			jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformType, oldPt),
+		),
+	))
 }
 
-// Verify Dashboard instance is in Ready phase when dashboard deployments are up and running.
-func (tc *DashboardTestCtx) validateDashboardReady() error {
-	// the dashboard deployment may take quite a long time to get ready as the related readiness
-	// probes have an initial delay time of 30 sec and each check is performed with a delay of
-	// 30 sec.
-	err := wait.PollUntilContextTimeout(tc.testCtx.ctx, generalRetryInterval, componentReadyTimeout, true, func(ctx context.Context) (bool, error) {
-		key := types.NamespacedName{Name: tc.testDashboardInstance.Name}
-		dashboard := &componentsv1.Dashboard{}
+func (d *DashboardTestCtx) validateUpdateOperandsResources(t *testing.T) {
+	g := d.WithT(t)
 
-		err := tc.testCtx.customClient.Get(ctx, key, dashboard)
-		if err != nil {
-			return false, err
-		}
-		return dashboard.Status.Phase == readyStatus, nil
-	})
+	appDeployments, err := d.kubeClient.AppsV1().Deployments(d.applicationsNamespace).List(
+		d.ctx,
+		metav1.ListOptions{
+			LabelSelector: labels.ComponentPartOf + "=" + componentsv1.DashboardInstanceName,
+		},
+	)
 
-	if err != nil {
-		return fmt.Errorf("error waiting Ready state for Dashboard %v: %w", tc.testDashboardInstance.Name, err)
-	}
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(appDeployments.Items).To(HaveLen(1))
 
-	return nil
-}
+	const expectedReplica int32 = 1 // from 2 to 1
 
-func (tc *DashboardTestCtx) testUpdateOnDashboardResources() error {
-	// Test Updating Dashboard Replicas
-
-	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-		LabelSelector: labels.ComponentPartOf + "=" + tc.testDashboardInstance.Name,
-	})
-	if err != nil {
-		return err
-	}
-
-	if len(appDeployments.Items) != 1 {
-		return fmt.Errorf("error getting deployment for component %s", "dashboard")
-	}
-
-	const expectedReplica int32 = 3
-
-	testDeployment := appDeployments.Items[0]
 	patchedReplica := &autoscalingv1.Scale{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      testDeployment.Name,
-			Namespace: testDeployment.Namespace,
+			Name:      appDeployments.Items[0].Name,
+			Namespace: appDeployments.Items[0].Namespace,
 		},
 		Spec: autoscalingv1.ScaleSpec{
 			Replicas: expectedReplica,
 		},
 		Status: autoscalingv1.ScaleStatus{},
 	}
-	updatedDep, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).UpdateScale(tc.testCtx.ctx,
-		testDeployment.Name, patchedReplica, metav1.UpdateOptions{})
-	if err != nil {
-		return fmt.Errorf("error patching component resources : %w", err)
-	}
-	if updatedDep.Spec.Replicas != patchedReplica.Spec.Replicas {
-		return fmt.Errorf("failed to patch replicas : expect to be %v but got %v", patchedReplica.Spec.Replicas, updatedDep.Spec.Replicas)
-	}
 
-	// Sleep for 40 seconds to allow the operator to reconcile
-	// we expect it should not revert back to original value because of AllowList
-	time.Sleep(4 * generalRetryInterval)
-	reconciledDep, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).Get(tc.testCtx.ctx, testDeployment.Name, metav1.GetOptions{})
-	if err != nil {
-		return fmt.Errorf("error getting component resource after reconcile: %w", err)
-	}
-	if *reconciledDep.Spec.Replicas != expectedReplica {
-		return fmt.Errorf("failed to revert back replicas : expect to be %v but got %v", expectedReplica, *reconciledDep.Spec.Replicas)
-	}
+	updatedDep, err := d.kubeClient.AppsV1().Deployments(d.applicationsNamespace).UpdateScale(
+		d.ctx,
+		appDeployments.Items[0].Name,
+		patchedReplica,
+		metav1.UpdateOptions{},
+	)
 
-	return nil
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(updatedDep.Spec.Replicas).Should(Equal(patchedReplica.Spec.Replicas))
+
+	g.Eventually(
+		d.List(
+			gvk.Deployment,
+			client.InNamespace(d.applicationsNamespace),
+			client.MatchingLabels{labels.ComponentPartOf: componentsv1.DashboardInstanceName},
+		),
+	).Should(And(
+		HaveLen(1),
+		HaveEach(
+			jq.Match(`.spec.replicas == %d`, expectedReplica),
+		),
+	))
+
+	g.Consistently(
+		d.List(
+			gvk.Deployment,
+			client.InNamespace(d.applicationsNamespace),
+			client.MatchingLabels{labels.ComponentPartOf: componentsv1.DashboardInstanceName},
+		),
+	).WithTimeout(30 * time.Second).WithPolling(1 * time.Second).Should(And(
+		HaveLen(1),
+		HaveEach(
+			jq.Match(`.spec.replicas == %d`, expectedReplica),
+		),
+	))
 }
 
-func (tc *DashboardTestCtx) testUpdateDashboardComponentDisabled() error {
-	// Test Updating dashboard to be disabled
-	var dashboardDeploymentName string
+func (d *DashboardTestCtx) validateDashboardDisabled(t *testing.T) {
+	g := d.WithT(t)
 
-	if tc.testCtx.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
-		appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-			LabelSelector: labels.ODH.Component("dashboard"),
-		})
-		if err != nil {
-			return fmt.Errorf("error getting enabled component %v", "dashboard")
-		}
-		if len(appDeployments.Items) > 0 {
-			dashboardDeploymentName = appDeployments.Items[0].Name
-			if appDeployments.Items[0].Status.ReadyReplicas == 0 {
-				return fmt.Errorf("error getting enabled component: %s its deployment 'ReadyReplicas'", dashboardDeploymentName)
-			}
-		}
-	} else {
-		return errors.New("dashboard spec should be in 'enabled: true' state in order to perform test")
-	}
+	g.Eventually(
+		d.List(
+			gvk.Deployment,
+			client.InNamespace(d.applicationsNamespace),
+			client.MatchingLabels{labels.ComponentPartOf: componentsv1.DashboardInstanceName},
+		),
+	).Should(
+		HaveLen(1),
+	)
 
-	// Disable component Dashboard
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		// refresh the instance in case it was updated during the reconcile
-		err := tc.testCtx.customClient.Get(tc.testCtx.ctx, types.NamespacedName{Name: tc.testCtx.testDsc.Name}, tc.testCtx.testDsc)
-		if err != nil {
-			return fmt.Errorf("error getting resource %w", err)
-		}
-		// Disable the Component
-		tc.testCtx.testDsc.Spec.Components.Dashboard.ManagementState = operatorv1.Removed
+	g.Eventually(
+		d.updateComponent(func(c *dscv1.Components) {
+			c.Dashboard.ManagementState = operatorv1.Removed
+		}),
+	).ShouldNot(
+		HaveOccurred(),
+	)
 
-		// Try to update
-		err = tc.testCtx.customClient.Update(tc.testCtx.ctx, tc.testCtx.testDsc)
-		// Return err itself here (not wrapped inside another error)
-		// so that RetryOnConflict can identify it correctly.
-		if err != nil {
-			return fmt.Errorf("error updating component from 'enabled: true' to 'enabled: false': %w", err)
-		}
+	g.Eventually(
+		d.List(
+			gvk.Deployment,
+			client.InNamespace(d.applicationsNamespace),
+			client.MatchingLabels{labels.ComponentPartOf: componentsv1.DashboardInstanceName},
+		),
+	).Should(
+		BeEmpty(),
+	)
 
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("error after retry %w", err)
-	}
-
-	err = tc.testCtx.wait(func(ctx context.Context) (bool, error) {
-		// Verify dashboard CR is deleted
-		dashboard := &componentsv1.Dashboard{}
-		err = tc.testCtx.customClient.Get(ctx, client.ObjectKey{Name: tc.testDashboardInstance.Name}, dashboard)
-		return k8serr.IsNotFound(err), nil
-	})
-
-	if err != nil {
-		return fmt.Errorf("component %v is disabled, should not get the Dashboard CR %v", "dashboard", tc.testDashboardInstance.Name)
-	}
-
-	// Sleep for 20 seconds to allow the operator to reconcile
-	time.Sleep(2 * generalRetryInterval)
-	_, err = tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).Get(tc.testCtx.ctx, dashboardDeploymentName, metav1.GetOptions{})
-	if err != nil {
-		if k8serr.IsNotFound(err) {
-			return nil // correct result: should not find deployment after we disable it already
-		}
-		return fmt.Errorf("error getting component resource after reconcile: %w", err)
-	}
-	return fmt.Errorf("component %v is disabled, should not get its deployment %v from NS %v any more",
-		"dashboard",
-		dashboardDeploymentName,
-		tc.testCtx.applicationsNamespace)
+	g.Eventually(
+		d.List(gvk.Dashboard),
+	).Should(
+		BeEmpty(),
+	)
 }

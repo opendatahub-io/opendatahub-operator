@@ -43,7 +43,7 @@ func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) ope
 	return dsc.Spec.Components.TrustyAI.ManagementState
 }
 
-func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Object { //nolint:ireturn
+func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Object {
 	trustyaiAnnotations := make(map[string]string)
 	switch dsc.Spec.Components.TrustyAI.ManagementState {
 	case operatorv1.Managed, operatorv1.Removed:

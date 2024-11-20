@@ -59,6 +59,8 @@ linters-settings:
       # also allow generics
       - generic
       - EventHandler # for ToOwner
+      - predicate.Predicate
+      - client.Object
   revive:
     rules:
       - name: dot-imports
