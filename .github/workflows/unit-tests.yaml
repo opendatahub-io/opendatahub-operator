@@ -2,10 +2,7 @@ name: Unit Tests
 on: 
   push:
     branches:
-      - incubation
       - rhoai
-      - main
-      - master
   pull_request:
 jobs:
   unit-test:
