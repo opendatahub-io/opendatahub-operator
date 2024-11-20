@@ -5,10 +5,12 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
@@ -27,8 +29,21 @@ var (
 	}
 )
 
-// for DSC to get compoment TrustyAI's CR.
-func GetComponentCR(dsc *dscv1.DataScienceCluster) *componentsv1.TrustyAI {
+type componentHandler struct{}
+
+func init() { //nolint:gochecknoinits
+	cr.Add(&componentHandler{})
+}
+
+func (s *componentHandler) GetName() string {
+	return componentsv1.TrustyAIComponentName
+}
+
+func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) operatorv1.ManagementState {
+	return dsc.Spec.Components.TrustyAI.ManagementState
+}
+
+func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Object { //nolint:ireturn
 	trustyaiAnnotations := make(map[string]string)
 	switch dsc.Spec.Components.TrustyAI.ManagementState {
 	case operatorv1.Managed, operatorv1.Removed:
@@ -37,7 +52,7 @@ func GetComponentCR(dsc *dscv1.DataScienceCluster) *componentsv1.TrustyAI {
 		trustyaiAnnotations[annotations.ManagementStateAnnotation] = "Unknown"
 	}
 
-	return &componentsv1.TrustyAI{
+	return client.Object(&componentsv1.TrustyAI{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentsv1.TrustyAIKind,
 			APIVersion: componentsv1.GroupVersion.String(),
@@ -49,11 +64,10 @@ func GetComponentCR(dsc *dscv1.DataScienceCluster) *componentsv1.TrustyAI {
 		Spec: componentsv1.TrustyAISpec{
 			TrustyAICommonSpec: dsc.Spec.Components.TrustyAI.TrustyAICommonSpec,
 		},
-	}
+	})
 }
 
-// Init for set images.
-func Init(platform cluster.Platform) error {
+func (s *componentHandler) Init(platform cluster.Platform) error {
 	imageParamMap := map[string]string{
 		"trustyaiServiceImage":  "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE",
 		"trustyaiOperatorImage": "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE",

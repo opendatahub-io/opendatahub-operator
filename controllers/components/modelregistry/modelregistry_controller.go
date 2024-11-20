@@ -39,8 +39,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
-// NewComponentReconciler creates a ComponentReconciler for the Dashboard API.
-func NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
+func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	_, err := reconciler.ComponentReconcilerFor(
 		mgr,
 		componentsv1.ModelRegistryInstanceName,

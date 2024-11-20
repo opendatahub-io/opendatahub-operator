@@ -5,10 +5,12 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8sclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
@@ -21,8 +23,21 @@ var (
 	DefaultPath = odhdeploy.DefaultManifestPath + "/" + ComponentName + "/rhoai"
 )
 
-// for DSC to get compoment TrainingOperator's CR.
-func GetComponentCR(dsc *dscv1.DataScienceCluster) *componentsv1.TrainingOperator {
+type componentHandler struct{}
+
+func init() { //nolint:gochecknoinits
+	cr.Add(&componentHandler{})
+}
+
+func (s *componentHandler) GetName() string {
+	return componentsv1.TrainingOperatorComponentName
+}
+
+func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) operatorv1.ManagementState {
+	return dsc.Spec.Components.TrainingOperator.ManagementState
+}
+
+func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) k8sclient.Object { //nolint:ireturn
 	trainingoperatorAnnotations := make(map[string]string)
 	switch dsc.Spec.Components.TrainingOperator.ManagementState {
 	case operatorv1.Managed, operatorv1.Removed:
@@ -31,7 +46,7 @@ func GetComponentCR(dsc *dscv1.DataScienceCluster) *componentsv1.TrainingOperato
 		trainingoperatorAnnotations[annotations.ManagementStateAnnotation] = "Unknown"
 	}
 
-	return &componentsv1.TrainingOperator{
+	return k8sclient.Object(&componentsv1.TrainingOperator{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentsv1.TrainingOperatorKind,
 			APIVersion: componentsv1.GroupVersion.String(),
@@ -43,11 +58,10 @@ func GetComponentCR(dsc *dscv1.DataScienceCluster) *componentsv1.TrainingOperato
 		Spec: componentsv1.TrainingOperatorSpec{
 			TrainingOperatorCommonSpec: dsc.Spec.Components.TrainingOperator.TrainingOperatorCommonSpec,
 		},
-	}
+	})
 }
 
-// Init for set images.
-func Init(platform cluster.Platform) error {
+func (s *componentHandler) Init(platform cluster.Platform) error {
 	imageParamMap := map[string]string{
 		"odh-training-operator-controller-image": "RELATED_IMAGE_ODH_TRAINING_OPERATOR_IMAGE",
 	}

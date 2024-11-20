@@ -5,10 +5,12 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
@@ -21,8 +23,21 @@ var (
 	DefaultPath = odhdeploy.DefaultManifestPath + "/" + ComponentName + "/rhoai" // same path for both odh and rhoai
 )
 
-// for DSC to get compoment Kueue's CR.
-func GetComponentCR(dsc *dscv1.DataScienceCluster) *componentsv1.Kueue {
+type componentHandler struct{}
+
+func init() { //nolint:gochecknoinits
+	cr.Add(&componentHandler{})
+}
+
+func (s *componentHandler) GetName() string {
+	return componentsv1.KueueComponentName
+}
+
+func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) operatorv1.ManagementState {
+	return dsc.Spec.Components.Kueue.ManagementState
+}
+
+func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Object { //nolint:ireturn
 	kueueAnnotations := make(map[string]string)
 	switch dsc.Spec.Components.Kueue.ManagementState {
 	case operatorv1.Managed, operatorv1.Removed:
@@ -31,7 +46,7 @@ func GetComponentCR(dsc *dscv1.DataScienceCluster) *componentsv1.Kueue {
 		kueueAnnotations[annotations.ManagementStateAnnotation] = "Unknown"
 	}
 
-	return &componentsv1.Kueue{
+	return client.Object(&componentsv1.Kueue{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentsv1.KueueKind,
 			APIVersion: componentsv1.GroupVersion.String(),
@@ -43,11 +58,10 @@ func GetComponentCR(dsc *dscv1.DataScienceCluster) *componentsv1.Kueue {
 		Spec: componentsv1.KueueSpec{
 			KueueCommonSpec: dsc.Spec.Components.Kueue.KueueCommonSpec,
 		},
-	}
+	})
 }
 
-// Init for set images.
-func Init(platform cluster.Platform) error {
+func (s *componentHandler) Init(platform cluster.Platform) error {
 	imageParamMap := map[string]string{
 		"odh-kueue-controller-image": "RELATED_IMAGE_ODH_KUEUE_CONTROLLER_IMAGE",
 	}

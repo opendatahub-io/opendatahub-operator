@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/hashicorp/go-multierror"
 	buildv1 "github.com/openshift/api/build/v1"
 	imagev1 "github.com/openshift/api/image/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -52,15 +51,10 @@ import (
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	dashboardctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/dashboard"
 	datasciencepipelinesctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/datasciencepipelines"
-	kueuectrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/kueue"
-	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
-	rayctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/ray"
-	trainingoperatorctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/trainingoperator"
-	trustyaictrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
 	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	annotations "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -88,7 +82,7 @@ const (
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:maintidx,gocyclo
+func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := r.Log
 	log.Info("Reconciling DataScienceCluster resources", "Request.Name", req.Name)
 
@@ -228,66 +222,11 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 	}
 
-	// Initialize error list, instead of returning errors after every component is deployed
-	var componentErrors *multierror.Error
-
-	// Deploy Dashboard
-	if instance, err = r.ReconcileComponent(ctx, instance, componentsv1.DashboardComponentName, func() (error, bool) {
-		// Get the Dashboard instance
-		dashboard := dashboardctrl.GetComponentCR(instance)
-		// Reconcile component either create CR with setting owner or delete it
-		return r.apply(ctx, instance, dashboard), instance.Spec.Components.Dashboard.ManagementState == operatorv1.Managed
-	}); err != nil {
-		componentErrors = multierror.Append(componentErrors, err)
-	}
-
-	// Deploy Ray
-	if instance, err = r.ReconcileComponent(ctx, instance, componentsv1.RayComponentName, func() (error, bool) {
-		ray := rayctrl.GetComponentCR(instance)
-		return r.apply(ctx, instance, ray), instance.Spec.Components.Ray.ManagementState == operatorv1.Managed
-	}); err != nil {
-		componentErrors = multierror.Append(componentErrors, err)
-	}
-
-	// Deploy Model Registry
-	if instance, err = r.ReconcileComponent(ctx, instance, componentsv1.ModelRegistryComponentName, func() (error, bool) {
-		modelregistry := modelregistryctrl.GetComponentCR(instance)
-		return r.apply(ctx, instance, modelregistry), instance.Spec.Components.ModelRegistry.ManagementState == operatorv1.Managed
-	}); err != nil {
-		componentErrors = multierror.Append(componentErrors, err)
-	}
-
-	// Deploy TrustyAI
-	if instance, err = r.ReconcileComponent(ctx, instance, componentsv1.TrustyAIComponentName, func() (error, bool) {
-		trustyai := trustyaictrl.GetComponentCR(instance)
-		return r.apply(ctx, instance, trustyai), instance.Spec.Components.TrustyAI.ManagementState == operatorv1.Managed
-	}); err != nil {
-		componentErrors = multierror.Append(componentErrors, err)
-	}
-
-	// Deploy Kueue
-	if instance, err = r.ReconcileComponent(ctx, instance, componentsv1.KueueComponentName, func() (error, bool) {
-		kueue := kueuectrl.GetComponentCR(instance)
-		return r.apply(ctx, instance, kueue), instance.Spec.Components.Kueue.ManagementState == operatorv1.Managed
-	}); err != nil {
-		componentErrors = multierror.Append(componentErrors, err)
-	}
-
-	// Deploy TrainingOperator
-	if instance, err = r.ReconcileComponent(ctx, instance, componentsv1.TrainingOperatorComponentName, func() (error, bool) {
-		trainingoperator := trainingoperatorctrl.GetComponentCR(instance)
-		return r.apply(ctx, instance, trainingoperator), instance.Spec.Components.TrainingOperator.ManagementState == operatorv1.Managed
-	}); err != nil {
-		componentErrors = multierror.Append(componentErrors, err)
-	}
-
-	// Deploy DataSciencePipelines
-	if instance, err = r.ReconcileComponent(ctx, instance, componentsv1.DataSciencePipelinesComponentName, func() (error, bool) {
-		dsp := datasciencepipelinesctrl.GetComponentCR(instance)
-		return r.apply(ctx, instance, dsp), instance.Spec.Components.DataSciencePipelines.ManagementState == operatorv1.Managed
-	}); err != nil {
-		componentErrors = multierror.Append(componentErrors, err)
-	}
+	componentErrors := cr.ForEach(func(component cr.ComponentHandler) error {
+		var err error
+		instance, err = r.ReconcileComponent(ctx, instance, component)
+		return err
+	})
 
 	// Process errors for components
 	if componentErrors != nil {
@@ -329,20 +268,23 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	return ctrl.Result{}, nil
 }
 
-type ComponentHandler func() (error, bool)
-
-// TODO: make it generic for all components.
 func (r *DataScienceClusterReconciler) ReconcileComponent(
 	ctx context.Context,
 	instance *dscv1.DataScienceCluster,
-	componentName string,
-	componentRec ComponentHandler,
+	component cr.ComponentHandler,
 ) (*dscv1.DataScienceCluster, error) {
+	componentName := component.GetName()
+
 	r.Log.Info("Starting reconciliation of component: " + componentName)
 
-	err, enabled := componentRec()
-	_, isExistStatus := instance.Status.InstalledComponents[componentName]
+	enabled := component.GetManagementState(instance) == operatorv1.Managed
+	componentCR := component.NewCRObject(instance)
+	err := r.apply(ctx, instance, componentCR)
+	if err != nil {
+		return instance, err
+	}
 
+	_, isExistStatus := instance.Status.InstalledComponents[componentName]
 	if !isExistStatus {
 		message := "Component is disabled"
 		if enabled {
