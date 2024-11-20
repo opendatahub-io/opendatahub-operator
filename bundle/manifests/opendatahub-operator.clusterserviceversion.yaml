@@ -102,9 +102,9 @@ metadata:
     capabilities: Full Lifecycle
     categories: AI/Machine Learning, Big Data
     certified: "False"
-    containerImage: quay.io/opendatahub/opendatahub-operator:v2.20.0
-    createdAt: "2024-11-07T18:49:55Z"
-    olm.skipRange: '>=1.0.0 <2.20.0'
+    containerImage: quay.io/opendatahub/opendatahub-operator:v2.21.0
+    createdAt: "2024-11-18T18:28:55Z"
+    olm.skipRange: '>=1.0.0 <2.21.0'
     operators.operatorframework.io/builder: operator-sdk-v1.31.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/opendatahub-io/opendatahub-operator
