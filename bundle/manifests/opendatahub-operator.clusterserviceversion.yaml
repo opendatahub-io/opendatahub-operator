@@ -108,7 +108,7 @@ metadata:
     operators.operatorframework.io/builder: operator-sdk-v1.31.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/opendatahub-io/opendatahub-operator
-  name: opendatahub-operator.v2.20.0
+  name: opendatahub-operator.v2.21.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -1167,7 +1167,7 @@ spec:
   selector:
     matchLabels:
       component: opendatahub-operator
-  version: 2.20.0
+  version: 2.21.0
   webhookdefinitions:
   - admissionReviewVersions:
     - v1
