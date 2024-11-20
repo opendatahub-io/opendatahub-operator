@@ -36,6 +36,9 @@ type CodeFlareStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
+// +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
+// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-codeflare'",message="CodeFlare name must be default-codeflare"
 
 // CodeFlare is the Schema for the codeflares API
 type CodeFlare struct {
