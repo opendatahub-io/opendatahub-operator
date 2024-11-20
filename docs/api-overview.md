@@ -58,7 +58,7 @@ _Appears in:_
 | `status` _[CodeFlareStatus](#codeflarestatus)_ |  |  |  |
 
 
-#### KueueCommonSpec
+#### CodeFlareCommonSpec
 
 
 
@@ -67,8 +67,8 @@ _Appears in:_
 
 
 _Appears in:_
-- [DSCCodeFlare](#dsccodeflare)
 - [CodeFlareSpec](#codeflarespec)
+- [DSCCodeFlare](#dsccodeflare)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -99,7 +99,7 @@ CodeFlareList contains a list of CodeFlare
 
 
 
-CodeFlareSpec defines the desired state of CodeFlare
+
 
 
 
@@ -108,7 +108,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `foo` _string_ | Foo is an example field of CodeFlare. Edit codeflare_types.go to remove/update |  |  |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
 #### CodeFlareStatus
@@ -127,6 +127,23 @@ _Appears in:_
 | `phase` _string_ |  |  |  |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
+
+
+#### DSCCodeFlare
+
+
+
+
+
+
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
 #### DSCDashboard
@@ -151,23 +168,6 @@ _Appears in:_
 
 
 DSCDataSciencePipelines contains all the configuration exposed in DSC instance for DataSciencePipelines component
-
-
-
-_Appears in:_
-- [Components](#components)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
-
-
-#### DSCCodeFlare
-
-
-
-DSCCodeFlare contains all the configuration exposed in DSC instance for CodeFlare component
 
 
 
@@ -1167,29 +1167,6 @@ _Appears in:_
 
 
 
-## datasciencecluster.opendatahub.io/codeflare
-
-Package codeflare provides utility functions to config CodeFlare as part of the stack
-which makes managing distributed compute infrastructure in the cloud easy and intuitive for Data Scientists
-
-
-
-#### CodeFlare
-
-
-
-CodeFlare struct holds the configuration for the CodeFlare component.
-
-
-
-_Appears in:_
-- [Components](#components)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `Component` _[Component](#component)_ |  |  |  |
-
-
 ## datasciencecluster.opendatahub.io/components
 
 
@@ -1204,7 +1181,6 @@ Component struct defines the basis for each OpenDataHub component configuration.
 
 
 _Appears in:_
-- [CodeFlare](#codeflare)
 - [Kserve](#kserve)
 - [ModelMeshServing](#modelmeshserving)
 - [Workbenches](#workbenches)
@@ -1245,7 +1221,10 @@ DevFlagsSpec struct defines the component's dev flags configuration.
 
 
 _Appears in:_
+- [CodeFlareCommonSpec](#codeflarecommonspec)
+- [CodeFlareSpec](#codeflarespec)
 - [Component](#component)
+- [DSCCodeFlare](#dsccodeflare)
 - [DSCDashboard](#dscdashboard)
 - [DSCDataSciencePipelines](#dscdatasciencepipelines)
 - [DSCKueue](#dsckueue)
@@ -1283,6 +1262,7 @@ ManagementSpec struct defines the component's management configuration.
 
 _Appears in:_
 - [Component](#component)
+- [DSCCodeFlare](#dsccodeflare)
 - [DSCDashboard](#dscdashboard)
 - [DSCDataSciencePipelines](#dscdatasciencepipelines)
 - [DSCKueue](#dsckueue)
@@ -1473,7 +1453,7 @@ _Appears in:_
 | `datasciencepipelines` _[DSCDataSciencePipelines](#dscdatasciencepipelines)_ | DataServicePipeline component configuration.<br />Require OpenShift Pipelines Operator to be installed before enable component |  |  |
 | `kserve` _[Kserve](#kserve)_ | Kserve component configuration.<br />Require OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component<br />Does not support enabled ModelMeshServing at the same time |  |  |
 | `kueue` _[DSCKueue](#dsckueue)_ | Kueue component configuration. |  |  |
-| `codeflare` _[CodeFlare](#codeflare)_ | CodeFlare component configuration.<br />If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabled component. |  |  |
+| `codeflare` _[DSCCodeFlare](#dsccodeflare)_ | CodeFlare component configuration.<br />If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabled component. |  |  |
 | `ray` _[DSCRay](#dscray)_ | Ray component configuration. |  |  |
 | `trustyai` _[DSCTrustyAI](#dsctrustyai)_ | TrustyAI component configuration. |  |  |
 | `modelregistry` _[DSCModelRegistry](#dscmodelregistry)_ | ModelRegistry component configuration. |  |  |
