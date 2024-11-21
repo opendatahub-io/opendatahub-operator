@@ -20,6 +20,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -56,9 +57,10 @@ func TestDeployAction(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	rr := types.ReconciliationRequest{
-		Client: cl,
-		DSCI:   &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
-		DSC:    &dscv1.DataScienceCluster{},
+		OwnerName: xid.New().String(),
+		Client:    cl,
+		DSCI:      &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
+		DSC:       &dscv1.DataScienceCluster{},
 		Instance: &componentsv1.Dashboard{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
@@ -82,6 +84,7 @@ func TestDeployAction(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	g.Expect(obj1).Should(And(
+		jq.Match(`.metadata.labels."%s" == "%s"`, labels.ComponentPartOf, rr.OwnerName),
 		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.ComponentGeneration, strconv.FormatInt(rr.Instance.GetGeneration(), 10)),
 		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.ComponentHash, dh),
 		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformVersion, "1.2.3"),

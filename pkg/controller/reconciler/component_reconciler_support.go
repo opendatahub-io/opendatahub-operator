@@ -198,7 +198,7 @@ func (b *ComponentReconcilerBuilder) Build(_ context.Context) (*ComponentReconci
 		name = strings.ToLower(name)
 	}
 
-	r, err := NewComponentReconciler(b.mgr, name, b.input.object)
+	r, err := NewComponentReconciler(b.mgr, name, b.ownerName, b.input.object)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create reconciler for component %s: %w", name, err)
 	}

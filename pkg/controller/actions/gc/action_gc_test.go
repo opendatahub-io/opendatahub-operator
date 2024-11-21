@@ -29,6 +29,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	gcSvc "github.com/opendatahub-io/opendatahub-operator/v2/pkg/services/gc"
 
 	. "github.com/onsi/gomega"
@@ -175,6 +176,7 @@ func TestGcAction(t *testing.T) {
 				NotTo(HaveOccurred())
 
 			rr := types.ReconciliationRequest{
+				OwnerName: componentsv1.DashboardInstanceName,
 				DSCI: &dsciv1.DSCInitialization{
 					ObjectMeta: metav1.ObjectMeta{
 						Generation: 1,
@@ -204,6 +206,13 @@ func TestGcAction(t *testing.T) {
 				g.Expect(err).NotTo(HaveOccurred())
 			}
 
+			l := make(map[string]string)
+			for k, v := range tt.labels {
+				l[k] = v
+			}
+
+			l[labels.ComponentPartOf] = rr.OwnerName
+
 			cm := corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "gc-cm",
@@ -214,7 +223,7 @@ func TestGcAction(t *testing.T) {
 						annotations.PlatformVersion:     "0.1.0",
 						annotations.PlatformType:        string(cluster.OpenDataHub),
 					},
-					Labels: tt.labels,
+					Labels: l,
 				},
 			}
 

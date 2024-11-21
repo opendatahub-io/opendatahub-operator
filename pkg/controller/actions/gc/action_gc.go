@@ -13,6 +13,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	odhTypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	odhLabels "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/services/gc"
 )
 
@@ -91,9 +92,16 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 		return err
 	}
 
+	selector := a.selector
+	if selector == nil {
+		selector = labels.SelectorFromSet(map[string]string{
+			odhLabels.ComponentPartOf: rr.OwnerName,
+		})
+	}
+
 	deleted, err := a.gc.Run(
 		ctx,
-		a.selector,
+		selector,
 		func(ctx context.Context, obj unstructured.Unstructured) (bool, error) {
 			if slices.Contains(a.unremovables, obj.GroupVersionKind()) {
 				return false, nil
@@ -128,7 +136,9 @@ func NewAction(opts ...ActionOpts) actions.Fn {
 		opt(&action)
 	}
 
-	action.selector = labels.SelectorFromSet(action.labels)
+	if len(action.labels) > 0 {
+		action.selector = labels.SelectorFromSet(action.labels)
+	}
 
 	// TODO: refactor
 	if action.gc == nil {

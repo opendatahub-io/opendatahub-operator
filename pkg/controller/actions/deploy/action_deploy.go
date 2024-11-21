@@ -21,6 +21,7 @@ import (
 	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	odhTypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
@@ -156,9 +157,18 @@ func (a *Action) deploy(
 		return false, nil
 	}
 
+	fo := a.fieldOwner
+	if fo == "" {
+		fo = rr.OwnerName
+	}
+
 	resources.SetLabels(&obj, a.labels)
 	resources.SetAnnotations(&obj, a.annotations)
 	resources.SetAnnotations(&obj, deployAnnotations)
+
+	if resources.GetLabel(&obj, labels.ComponentPartOf) == "" && fo != "" {
+		resources.SetLabel(&obj, labels.ComponentPartOf, fo)
+	}
 
 	// backup copy for caching
 	origObj := obj.DeepCopy()
@@ -205,9 +215,21 @@ func (a *Action) deploy(
 
 		switch a.deployMode {
 		case ModePatch:
-			deployedObj, err = a.patch(ctx, rr.Client, &obj, current)
+			deployedObj, err = a.patch(
+				ctx,
+				rr.Client,
+				&obj,
+				current,
+				client.ForceOwnership,
+				client.FieldOwner(fo))
 		case ModeSSA:
-			deployedObj, err = a.apply(ctx, rr.Client, &obj, current)
+			deployedObj, err = a.apply(
+				ctx,
+				rr.Client,
+				&obj,
+				current,
+				client.ForceOwnership,
+				client.FieldOwner(fo))
 		default:
 			err = fmt.Errorf("unsupported deploy mode %s", a.deployMode)
 		}
@@ -278,6 +300,7 @@ func (a *Action) patch(
 	c *odhClient.Client,
 	obj *unstructured.Unstructured,
 	old *unstructured.Unstructured,
+	opts ...client.PatchOption,
 ) (*unstructured.Unstructured, error) {
 	logf.FromContext(ctx).V(3).Info("patch",
 		"gvk", obj.GroupVersionKind(),
@@ -305,7 +328,7 @@ func (a *Action) patch(
 		}
 
 	default:
-		// do noting
+		// do nothing
 		break
 	}
 
@@ -324,8 +347,7 @@ func (a *Action) patch(
 			ctx,
 			old,
 			client.RawPatch(types.ApplyPatchType, data),
-			client.ForceOwnership,
-			client.FieldOwner(a.fieldOwner),
+			opts...,
 		)
 
 		if err != nil {
@@ -341,6 +363,7 @@ func (a *Action) apply(
 	c *odhClient.Client,
 	obj *unstructured.Unstructured,
 	old *unstructured.Unstructured,
+	opts ...client.PatchOption,
 ) (*unstructured.Unstructured, error) {
 	logf.FromContext(ctx).V(3).Info("apply",
 		"gvk", obj.GroupVersionKind(),
@@ -369,15 +392,14 @@ func (a *Action) apply(
 			return nil, fmt.Errorf("failed to merge Deployment %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
 		}
 	default:
-		// do noting
+		// do nothing
 		break
 	}
 
 	err := c.Apply(
 		ctx,
 		obj,
-		client.ForceOwnership,
-		client.FieldOwner(a.fieldOwner),
+		opts...,
 	)
 
 	if err != nil {
