@@ -190,12 +190,10 @@ func getNimManagementFlag(obj metav1.Object) string {
 		return removed
 	}
 	kserve, foundKserve, _ := unstructured.NestedString(un, "spec", "components", "kserve", "managementState")
-	if foundKserve {
-		if kserve != removed {
-			nim, foundNim, _ := unstructured.NestedString(un, "spec", "components", "kserve", "nim", "managementState")
-			if foundNim {
-				return nim
-			}
+	if foundKserve && kserve != removed {
+		nim, foundNim, _ := unstructured.NestedString(un, "spec", "components", "kserve", "nim", "managementState")
+		if foundNim {
+			return nim
 		}
 	}
 	return removed
