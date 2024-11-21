@@ -5,10 +5,12 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
@@ -21,7 +23,19 @@ var (
 	DefaultPath = odhdeploy.DefaultManifestPath + "/" + ComponentName + "/rhoai" // same path for both odh and rhoai
 )
 
-func GetComponentCR(dsc *dscv1.DataScienceCluster) *componentsv1.CodeFlare {
+type componentHandler struct{}
+
+func init() { //nolint:gochecknoinits
+	cr.Add(&componentHandler{})
+}
+func (s *componentHandler) GetName() string {
+	return componentsv1.CodeFlareComponentName
+}
+func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) operatorv1.ManagementState {
+	return dsc.Spec.Components.CodeFlare.ManagementState
+}
+
+func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Object {
 	codeflareAnnotations := make(map[string]string)
 	switch dsc.Spec.Components.CodeFlare.ManagementState {
 	case operatorv1.Managed, operatorv1.Removed:
@@ -30,7 +44,7 @@ func GetComponentCR(dsc *dscv1.DataScienceCluster) *componentsv1.CodeFlare {
 		codeflareAnnotations[annotations.ManagementStateAnnotation] = "Unknown"
 	}
 
-	return &componentsv1.CodeFlare{
+	return client.Object(&componentsv1.CodeFlare{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentsv1.CodeFlareKind,
 			APIVersion: componentsv1.GroupVersion.String(),
@@ -42,10 +56,10 @@ func GetComponentCR(dsc *dscv1.DataScienceCluster) *componentsv1.CodeFlare {
 		Spec: componentsv1.CodeFlareSpec{
 			CodeFlareCommonSpec: dsc.Spec.Components.CodeFlare.CodeFlareCommonSpec,
 		},
-	}
+	})
 }
 
-func Init(platform cluster.Platform) error {
+func (s *componentHandler) Init(platform cluster.Platform) error {
 	imageParamMap := map[string]string{
 		"codeflare-operator-controller-image": "RELATED_IMAGE_ODH_CODEFLARE_OPERATOR_IMAGE",
 	}

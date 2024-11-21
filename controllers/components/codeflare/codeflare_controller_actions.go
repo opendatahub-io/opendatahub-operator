@@ -22,18 +22,18 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 }
 
 func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	kueue, ok := rr.Instance.(*componentsv1.Kueue)
+	codeflare, ok := rr.Instance.(*componentsv1.CodeFlare)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentsv1.Kueue)", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a componentsv1.CodeFlare)", rr.Instance)
 	}
 
-	if kueue.Spec.DevFlags == nil {
+	if codeflare.Spec.DevFlags == nil {
 		return nil
 	}
 	// Implement devflags support logic
 	// If dev flags are set, update default manifests path
-	if len(kueue.Spec.DevFlags.Manifests) != 0 {
-		manifestConfig := kueue.Spec.DevFlags.Manifests[0]
+	if len(codeflare.Spec.DevFlags.Manifests) != 0 {
+		manifestConfig := codeflare.Spec.DevFlags.Manifests[0]
 		if err := odhdeploy.DownloadManifests(ctx, ComponentName, manifestConfig); err != nil {
 			return err
 		}

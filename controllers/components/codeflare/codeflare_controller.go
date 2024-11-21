@@ -27,11 +27,9 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
 
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/updatestatus"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
@@ -41,7 +39,7 @@ import (
 
 // CodeFlareReconciler reconciles a CodeFlare object.
 
-func NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
+func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	_, err := reconciler.ComponentReconcilerFor(
 		mgr,
 		componentsv1.CodeFlareInstanceName,
@@ -61,13 +59,13 @@ func NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		Owns(&promv1.PrometheusRule{}).
 		Owns(&admissionregistrationv1.MutatingWebhookConfiguration{}).
 		Owns(&admissionregistrationv1.ValidatingWebhookConfiguration{}).
-		Owns(&appsv1.Deployment{}, builder.WithPredicates(resources.NewDeploymentPredicate())).
+		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(resources.NewDeploymentPredicate())).
 		Watches(&extv1.CustomResourceDefinition{}).
 		// Add CodeFlare-specific actions
 		WithAction(initialize).
 		WithAction(devFlags).
 		WithAction(kustomize.NewAction(
-			kustomize.WithCache(render.DefaultCachingKeyFn),
+			kustomize.WithCache(),
 			kustomize.WithLabel(labels.ODH.Component(ComponentName), "true"),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, ComponentName),
 		)).
