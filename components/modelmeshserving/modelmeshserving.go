@@ -186,14 +186,15 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 func getNimManagementFlag(obj metav1.Object) string {
 	removed := string(operatorv1.Removed)
 	un, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
-	if err == nil {
-		kserve, foundKserve, _ := unstructured.NestedString(un, "spec", "components", "kserve", "managementState")
-		if foundKserve {
-			if kserve != removed {
-				nim, foundNim, _ := unstructured.NestedString(un, "spec", "components", "kserve", "nim", "managementState")
-				if foundNim {
-					return nim
-				}
+	if err != nil {
+		return removed
+	}
+	kserve, foundKserve, _ := unstructured.NestedString(un, "spec", "components", "kserve", "managementState")
+	if foundKserve {
+		if kserve != removed {
+			nim, foundNim, _ := unstructured.NestedString(un, "spec", "components", "kserve", "nim", "managementState")
+			if foundNim {
+				return nim
 			}
 		}
 	}
