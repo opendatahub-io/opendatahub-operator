@@ -36,9 +36,9 @@ type Action struct {
 
 type ActionOpts func(*Action)
 
-func WithCache(value render.CachingKeyFn) ActionOpts {
+func WithCache() ActionOpts {
 	return func(action *Action) {
-		action.cachingKeyFn = value
+		action.cachingKeyFn = types.Hash
 	}
 }
 
@@ -55,7 +55,7 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 	var cachingKey []byte
 
 	if rr.Instance.GetDevFlags() == nil {
-		cachingKey, err = a.cachingKeyFn(ctx, rr)
+		cachingKey, err = a.cachingKeyFn(rr)
 		if err != nil {
 			return fmt.Errorf("unable to calculate checksum of reconciliation object: %w", err)
 		}
@@ -84,6 +84,8 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 
 		controllerName := strings.ToLower(rr.Instance.GetObjectKind().GroupVersionKind().Kind)
 		render.RenderedResourcesTotal.WithLabelValues(controllerName, RendererEngine).Add(float64(len(result)))
+
+		rr.Generated = true
 	}
 
 	// deep copy object so changes done in the pipelines won't
@@ -137,7 +139,7 @@ func (a *Action) render(rr *types.ReconciliationRequest) ([]unstructured.Unstruc
 
 func NewAction(opts ...ActionOpts) actions.Fn {
 	action := Action{
-		cachingKeyFn: func(_ context.Context, rr *types.ReconciliationRequest) ([]byte, error) {
+		cachingKeyFn: func(rr *types.ReconciliationRequest) ([]byte, error) {
 			return nil, nil
 		},
 		data: make(map[string]any),

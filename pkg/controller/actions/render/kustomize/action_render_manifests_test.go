@@ -112,7 +112,7 @@ func TestRenderResourcesAction(t *testing.T) {
 	_ = fs.WriteFile(path.Join(id, "test-resources-deployment-unmanaged.yaml"), []byte(testRenderResourcesUnmanaged))
 	_ = fs.WriteFile(path.Join(id, "test-resources-deployment-forced.yaml"), []byte(testRenderResourcesForced))
 
-	cl, err := fakeclient.New(ctx)
+	cl, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	action := kustomize.NewAction(
@@ -189,11 +189,11 @@ func TestRenderResourcesWithCacheAction(t *testing.T) {
 	_ = fs.WriteFile(path.Join(id, mk.DefaultKustomizationFileName), []byte(testRenderResourcesWithCacheKustomization))
 	_ = fs.WriteFile(path.Join(id, "test-resources-deployment.yaml"), []byte(testRenderResourcesWithCacheDeployment))
 
-	cl, err := fakeclient.New(ctx)
+	cl, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	action := kustomize.NewAction(
-		kustomize.WithCache(render.DefaultCachingKeyFn),
+		kustomize.WithCache(),
 		kustomize.WithLabel(labels.ComponentPartOf, "foo"),
 		kustomize.WithLabel("platform.opendatahub.io/namespace", ns),
 		kustomize.WithAnnotation("platform.opendatahub.io/release", "1.2.3"),

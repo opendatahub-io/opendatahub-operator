@@ -59,6 +59,8 @@ linters-settings:
       # also allow generics
       - generic
       - EventHandler # for ToOwner
+      - discovery.DiscoveryInterface
+      - dynamic.Interface
       - predicate.Predicate
       - client.Object
   revive:

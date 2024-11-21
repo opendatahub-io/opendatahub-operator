@@ -123,7 +123,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
 
-	odhClient, err := odhClient.New(gCtx, cfg, k8sClient)
+	odhClient, err := odhClient.NewFromConfig(cfg, k8sClient)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(odhClient).NotTo(BeNil())
 

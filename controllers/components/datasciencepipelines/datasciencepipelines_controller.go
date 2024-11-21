@@ -29,7 +29,7 @@ import (
 
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/updatestatus"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
@@ -71,7 +71,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(initialize).
 		WithAction(devFlags).
 		WithAction(kustomize.NewAction(
-			kustomize.WithCache(render.DefaultCachingKeyFn),
+			kustomize.WithCache(),
 			kustomize.WithLabel(labels.ODH.Component(componentsv1.DataSciencePipelinesComponentName), "true"),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, componentsv1.DataSciencePipelinesComponentName),
 		)).
@@ -82,6 +82,10 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		)).
 		WithAction(updatestatus.NewAction(
 			updatestatus.WithSelectorLabel(labels.ComponentPartOf, componentsv1.DataSciencePipelinesInstanceName),
+		)).
+		// must be the final action
+		WithAction(gc.NewAction(
+			gc.WithLabel(labels.ComponentPartOf, componentsv1.DataSciencePipelinesInstanceName),
 		)).
 		Build(ctx)
 

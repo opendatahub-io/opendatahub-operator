@@ -28,7 +28,6 @@ func TestDeleteResourcesAction(t *testing.T) {
 	ns := xid.New().String()
 
 	cl, err := fakeclient.New(
-		ctx,
 		&appsv1.Deployment{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: gvk.Deployment.GroupVersion().String(),

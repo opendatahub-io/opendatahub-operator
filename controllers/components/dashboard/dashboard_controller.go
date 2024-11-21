@@ -31,7 +31,7 @@ import (
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/security"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/updatestatus"
@@ -90,7 +90,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(configureDependencies).
 		WithAction(security.NewUpdatePodSecurityRoleBindingAction(serviceAccounts)).
 		WithAction(kustomize.NewAction(
-			kustomize.WithCache(render.DefaultCachingKeyFn),
+			kustomize.WithCache(),
 			// Those are the default labels added by the legacy deploy method
 			// and should be preserved as the original plugin were affecting
 			// deployment selectors that are immutable once created, so it won't
@@ -112,6 +112,11 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			updatestatus.WithSelectorLabel(labels.ComponentPartOf, componentsv1.DashboardInstanceName),
 		)).
 		WithAction(updateStatus).
+		// must be the final action
+		WithAction(gc.NewAction(
+			gc.WithLabel(labels.ComponentPartOf, componentsv1.DashboardInstanceName),
+			gc.WithUnremovables(gvk.OdhDashboardConfig),
+		)).
 		Build(ctx)
 
 	if err != nil {

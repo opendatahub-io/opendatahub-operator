@@ -3,6 +3,7 @@ package resources
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -222,4 +223,8 @@ func Hash(in *unstructured.Unstructured) ([]byte, error) {
 	}
 
 	return hasher.Sum(nil), nil
+}
+
+func EncodeToString(in []byte) string {
+	return "v" + base64.RawURLEncoding.EncodeToString(in)
 }

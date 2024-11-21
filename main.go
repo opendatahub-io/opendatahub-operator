@@ -36,6 +36,7 @@ import (
 	promv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
+	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -73,6 +74,7 @@ import (
 	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/services/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/dashboard"
@@ -245,6 +247,7 @@ func main() { //nolint:funlen,maintidx
 			Cache: &client.CacheOptions{
 				DisableFor: []client.Object{
 					resources.GvkToUnstructured(gvk.OpenshiftIngress),
+					&authorizationv1.SelfSubjectRulesReview{},
 				},
 				// Set it to true so the cache-backed client reads unstructured objects
 				// or lists from the cache instead of a live lookup.
@@ -259,7 +262,7 @@ func main() { //nolint:funlen,maintidx
 
 	webhook.Init(mgr)
 
-	oc, err := odhClient.NewFromManager(ctx, mgr)
+	oc, err := odhClient.NewFromManager(mgr)
 	if err != nil {
 		setupLog.Error(err, "unable to create client")
 		os.Exit(1)
@@ -306,6 +309,24 @@ func main() { //nolint:funlen,maintidx
 		Log:    logger.LogWithLevel(ctrl.Log.WithName(operatorName).WithName("controllers").WithName("CertConfigmapGenerator"), logmode),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CertConfigmapGenerator")
+		os.Exit(1)
+	}
+
+	ons, err := cluster.GetOperatorNamespace()
+	if err != nil {
+		setupLog.Error(err, "unable to determine Operator Namespace")
+		os.Exit(1)
+	}
+
+	gc.Instance = gc.New(
+		oc,
+		ons,
+		gc.WithUnremovables(gvk.CustomResourceDefinition, gvk.Lease),
+	)
+
+	err = mgr.Add(gc.Instance)
+	if err != nil {
+		setupLog.Error(err, "unable to register GC service")
 		os.Exit(1)
 	}
 

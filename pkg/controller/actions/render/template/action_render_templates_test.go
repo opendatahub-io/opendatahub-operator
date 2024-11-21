@@ -32,7 +32,7 @@ func TestRenderTemplate(t *testing.T) {
 	ctx := context.Background()
 	ns := xid.New().String()
 
-	cl, err := fakeclient.New(ctx)
+	cl, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	action := template.NewAction()
@@ -82,7 +82,7 @@ func TestRenderTemplateWithData(t *testing.T) {
 	id := xid.New().String()
 	name := xid.New().String()
 
-	cl, err := fakeclient.New(ctx)
+	cl, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	action := template.NewAction(
@@ -139,11 +139,11 @@ func TestRenderTemplateWithCache(t *testing.T) {
 	ctx := context.Background()
 	ns := xid.New().String()
 
-	cl, err := fakeclient.New(ctx)
+	cl, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	action := template.NewAction(
-		template.WithCache(render.DefaultCachingKeyFn),
+		template.WithCache(),
 	)
 
 	render.RenderedResourcesTotal.Reset()

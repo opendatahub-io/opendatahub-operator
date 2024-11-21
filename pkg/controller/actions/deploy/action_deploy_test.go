@@ -32,7 +32,7 @@ func TestDeployAction(t *testing.T) {
 
 	ctx := context.Background()
 	ns := xid.New().String()
-	cl, err := fakeclient.New(ctx)
+	cl, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	action := deploy.NewAction(
@@ -78,8 +78,12 @@ func TestDeployAction(t *testing.T) {
 	err = cl.Get(ctx, client.ObjectKeyFromObject(obj1), obj1)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
+	dh, err := types.HashStr(&rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
 	g.Expect(obj1).Should(And(
 		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.ComponentGeneration, strconv.FormatInt(rr.Instance.GetGeneration(), 10)),
+		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.ComponentHash, dh),
 		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformVersion, "1.2.3"),
 		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformType, string(cluster.OpenDataHub)),
 	))
@@ -138,7 +142,7 @@ func TestDeployNotOwnedSkip(t *testing.T) {
 
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	cl, err := fakeclient.New(ctx, oldObj)
+	cl, err := fakeclient.New(oldObj)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	rr := types.ReconciliationRequest{
@@ -205,7 +209,7 @@ func TestDeployNotOwnedCreate(t *testing.T) {
 
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	cl, err := fakeclient.New(ctx)
+	cl, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	rr := types.ReconciliationRequest{

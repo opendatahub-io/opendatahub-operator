@@ -183,7 +183,7 @@ func (b *ComponentReconcilerBuilder) WithEventFilter(p predicate.Predicate) *Com
 	return b
 }
 
-func (b *ComponentReconcilerBuilder) Build(ctx context.Context) (*ComponentReconciler, error) {
+func (b *ComponentReconcilerBuilder) Build(_ context.Context) (*ComponentReconciler, error) {
 	name := b.componentName
 	if name == "" {
 		kinds, _, err := b.mgr.GetScheme().ObjectKinds(b.input.object)
@@ -198,7 +198,7 @@ func (b *ComponentReconcilerBuilder) Build(ctx context.Context) (*ComponentRecon
 		name = strings.ToLower(name)
 	}
 
-	r, err := NewComponentReconciler(ctx, b.mgr, name, b.input.object)
+	r, err := NewComponentReconciler(b.mgr, name, b.input.object)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create reconciler for component %s: %w", name, err)
 	}
