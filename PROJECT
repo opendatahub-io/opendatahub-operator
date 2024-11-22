@@ -124,7 +124,7 @@ resources:
   controller: true
   domain: opendatahub.io
   group: services
-  kind: DSCMonitoring
+  kind: Monitoring
   path: github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1
   version: v1
 version: "3"

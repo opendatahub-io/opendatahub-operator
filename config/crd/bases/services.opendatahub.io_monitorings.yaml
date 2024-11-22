@@ -4,20 +4,33 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.1
-  name: dscmonitorings.services.opendatahub.io
+  name: monitorings.services.opendatahub.io
 spec:
   group: services.opendatahub.io
   names:
-    kind: DSCMonitoring
-    listKind: DSCMonitoringList
-    plural: dscmonitorings
-    singular: dscmonitoring
+    kind: Monitoring
+    listKind: MonitoringList
+    plural: monitorings
+    singular: monitoring
   scope: Cluster
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - description: Ready
+      jsonPath: .status.conditions[?(@.type=="Ready")].status
+      name: Ready
+      type: string
+    - description: Reason
+      jsonPath: .status.conditions[?(@.type=="Ready")].reason
+      name: Reason
+      type: string
+    - description: URL
+      jsonPath: .status.url
+      name: URL
+      type: string
+    name: v1
     schema:
       openAPIV3Schema:
-        description: DSCMonitoring is the Schema for the dscmonitorings API
+        description: Monitoring is the Schema for the monitorings API
         properties:
           apiVersion:
             description: |-
@@ -37,17 +50,20 @@ spec:
           metadata:
             type: object
           spec:
-            description: DSCMonitoringSpec defines the desired state of DSCMonitoring
+            description: MonitoringSpec defines the desired state of Monitoring
             properties:
               foo:
-                description: Foo is an example field of DSCMonitoring. Edit dscmonitoring_types.go
+                description: Foo is an example field of Monitoring. Edit monitoring_types.go
                   to remove/update
                 type: string
             type: object
           status:
-            description: DSCMonitoringStatus defines the observed state of DSCMonitoring
+            description: MonitoringStatus defines the observed state of Monitoring
             type: object
         type: object
+        x-kubernetes-validations:
+        - message: Monitoring name must be default-monitoring
+          rule: self.metadata.name == 'default-monitoring'
     served: true
     storage: true
     subresources:
