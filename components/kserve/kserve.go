@@ -136,7 +136,7 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 			"nim-state": string(k.NIM.ManagementState),
 		}
 		if err := deploy.ApplyParams(Path, nil, extraParamsMap); err != nil {
-			return fmt.Errorf("failed to update image from %s : %w", Path, err)
+			return fmt.Errorf("failed to update NIM flag from %s : %w", Path, err)
 		}
 	}
 
