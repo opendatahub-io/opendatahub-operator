@@ -77,6 +77,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/services/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/codeflare"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/dashboard"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/datasciencepipelines"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/kueue"

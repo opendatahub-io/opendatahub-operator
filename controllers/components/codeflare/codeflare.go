@@ -20,7 +20,7 @@ const (
 )
 
 var (
-	DefaultPath = odhdeploy.DefaultManifestPath + "/" + ComponentName + "/rhoai" // same path for both odh and rhoai
+	DefaultPath = odhdeploy.DefaultManifestPath + "/" + ComponentName + "/default" // same path for both odh and rhoai
 )
 
 type componentHandler struct{}
