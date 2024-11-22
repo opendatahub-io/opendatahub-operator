@@ -131,7 +131,7 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 	extraParamsMap := map[string]string{
 		"nim-state": getNimManagementFlag(owner),
 	}
-	if err := deploy.ApplyParams(Path, nil, extraParamsMap); err != nil {
+	if err := deploy.ApplyParams(DependentPath, nil, extraParamsMap); err != nil {
 		return fmt.Errorf("failed to update image from %s : %w", Path, err)
 	}
 

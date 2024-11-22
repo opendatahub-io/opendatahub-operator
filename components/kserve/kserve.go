@@ -135,7 +135,7 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 		extraParamsMap := map[string]string{
 			"nim-state": string(k.NIM.ManagementState),
 		}
-		if err := deploy.ApplyParams(Path, nil, extraParamsMap); err != nil {
+		if err := deploy.ApplyParams(DependentPath, nil, extraParamsMap); err != nil {
 			return fmt.Errorf("failed to update NIM flag from %s : %w", Path, err)
 		}
 	}
