@@ -1,5 +1,5 @@
 rule_files:
-  - dashboard_alerts.yaml
+  - rhods-dashboard-alerting.rules.yaml
 
 evaluation_interval: 1m
 
@@ -44,7 +44,7 @@ tests:
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-error-burn-rate.md'
 
   - interval: 1m
-    input_series: 
+    input_series:
       - series: haproxy_backend_http_responses_total:burnrate30m{route="rhods-dashboard"}
         values: "1+1x60"
       - series: haproxy_backend_http_responses_total:burnrate6h{route="rhods-dashboard"}
@@ -64,7 +64,7 @@ tests:
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-error-burn-rate.md'
 
   - interval: 1m
-    input_series: 
+    input_series:
       - series: haproxy_backend_http_responses_total:burnrate2h{route="rhods-dashboard"}
         values: "1+1x60"
       - series: haproxy_backend_http_responses_total:burnrate1d{route="rhods-dashboard"}
@@ -124,7 +124,7 @@ tests:
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-dashboard-probe-success-burn-rate.md'
 
   - interval: 1m
-    input_series: 
+    input_series:
       - series: probe_success:burnrate30m{name="rhods-dashboard"}
         values: "1+1x60"
       - series: probe_success:burnrate6h{name="rhods-dashboard"}
@@ -144,7 +144,7 @@ tests:
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-dashboard-probe-success-burn-rate.md'
 
   - interval: 1m
-    input_series: 
+    input_series:
       - series: probe_success:burnrate2h{name="rhods-dashboard"}
         values: "1+1x60"
       - series: probe_success:burnrate1d{name="rhods-dashboard"}
@@ -164,7 +164,7 @@ tests:
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-dashboard-probe-success-burn-rate.md'
 
   - interval: 1m
-    input_series: 
+    input_series:
       - series: probe_success:burnrate6h{name="rhods-dashboard"}
         values: "1+1x200"
       - series: probe_success:burnrate3d{name="rhods-dashboard"}

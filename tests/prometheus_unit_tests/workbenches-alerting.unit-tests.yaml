@@ -1,5 +1,5 @@
 rule_files:
-  - workbenches_alerts.yaml
+  - workbenches-alerting.rules.yaml
 
 evaluation_interval: 1m
 
@@ -54,8 +54,8 @@ tests:
             exp_annotations:
               summary: "User notebook pvc usage at 100%"
               message: "The user notebook jupyterhub-nb-1a is using 100% of its Volume. You might want to decrease the amount of data stored on the server or you can reach out to your cluster admin to increase the storage capacity to prevent disruptions and loss of data. Please back up your data before increasing the storage limit."
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/tree/main/RHODS'     
-      
+              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/tree/main/RHODS'
+
   # Probe success
   - interval: 1m
     input_series:
@@ -113,7 +113,7 @@ tests:
               summary: "RHODS Jupyter Probe Success Burn Rate"
               message: "High error budget burn for notebook-spawner (current value: 16)."
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Jupyter/rhods-jupyter-probe-success-burn-rate.md'
- 
+
   - interval: 1m
     input_series:
       - series: probe_success:burnrate2h{instance="notebook-spawner"}
@@ -161,7 +161,7 @@ tests:
       - eval_time: 5m
         alertname: ODH notebook controller pod is not running
         exp_alerts: []
-  
+
   - interval: 1m
     input_series:
     alert_rule_test:
@@ -176,7 +176,7 @@ tests:
               summary: ODH notebook controller pod is not running
               message: 'ODH notebook controller is down!'
               triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Jupyter/rhods-odh-notebook-controller-alert.md"
-  
+
   # Kubeflow notebook controllers running
   - interval: 1m
     input_series:
@@ -186,7 +186,7 @@ tests:
       - eval_time: 5m
         alertname: Kubeflow notebook controller pod is not running
         exp_alerts: []
-  
+
   - interval: 1m
     input_series:
     alert_rule_test:

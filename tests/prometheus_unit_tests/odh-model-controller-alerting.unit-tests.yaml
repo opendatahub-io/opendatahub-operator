@@ -1,5 +1,5 @@
 rule_files:
-  - model_controller_alerts.yaml
+  - odh-model-controller-alerting.rules.yaml
 
 evaluation_interval: 1m
 
@@ -62,7 +62,7 @@ tests:
               summary: "ODH Model Controller Probe Success Burn Rate"
               message: "High error budget burn for odh-model-controller (current value: 16)."
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-odh-controller-probe-success-burn-rate.md'
- 
+
   - interval: 1m
     input_series:
       - series: probe_success:burnrate2h{instance="odh-model-controller"}
