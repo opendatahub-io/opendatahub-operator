@@ -28,6 +28,7 @@ import (
 
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/updatestatus"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
@@ -71,6 +72,9 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		)).
 		WithAction(updatestatus.NewAction(
 			updatestatus.WithSelectorLabel(labels.ComponentPartOf, componentsv1.CodeFlareInstanceName),
+		)).
+		WithAction(gc.NewAction(
+			gc.WithLabel(labels.ComponentPartOf, componentsv1.CodeFlareInstanceName),
 		)).
 		Build(ctx)
 
