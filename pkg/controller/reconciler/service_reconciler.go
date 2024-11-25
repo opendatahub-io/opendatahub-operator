@@ -1,6 +1,5 @@
 package reconciler
 
-//revive:disable:dupl
 import (
 	"context"
 	"errors"
@@ -17,9 +16,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/services"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
@@ -28,7 +26,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
-type ComponentReconciler struct {
+type ServiceReconciler struct {
 	Client     *odhClient.Client
 	Scheme     *runtime.Scheme
 	Actions    []actions.Fn
@@ -40,20 +38,16 @@ type ComponentReconciler struct {
 
 	name            string
 	m               *odhManager.Manager
-	instanceFactory func() (components.ComponentObject, error)
+	instanceFactory func() (services.ServiceObject, error)
 }
 
-func NewComponentReconciler(
-	mgr manager.Manager,
-	name string,
-	object components.ComponentObject,
-) (*ComponentReconciler, error) {
-	oc, err := odhClient.NewFromManager(mgr)
+func NewServiceReconciler(ctx context.Context, mgr manager.Manager, name string, object services.ServiceObject) (*ServiceReconciler, error) {
+	oc, err := odhClient.NewFromManager(ctx, mgr)
 	if err != nil {
 		return nil, err
 	}
 
-	cc := ComponentReconciler{
+	cc := ServiceReconciler{
 		Client:   oc,
 		Scheme:   mgr.GetScheme(),
 		Log:      ctrl.Log.WithName("controllers").WithName(name),
@@ -61,9 +55,9 @@ func NewComponentReconciler(
 		Release:  cluster.GetRelease(),
 		name:     name,
 		m:        odhManager.New(mgr),
-		instanceFactory: func() (components.ComponentObject, error) {
+		instanceFactory: func() (services.ServiceObject, error) {
 			t := reflect.TypeOf(object).Elem()
-			res, ok := reflect.New(t).Interface().(components.ComponentObject)
+			res, ok := reflect.New(t).Interface().(services.ServiceObject)
 			if !ok {
 				return res, fmt.Errorf("unable to construct instance of %v", t)
 			}
@@ -75,33 +69,32 @@ func NewComponentReconciler(
 	return &cc, nil
 }
 
-func (r *ComponentReconciler) GetRelease() cluster.Release {
+func (r *ServiceReconciler) GetRelease() cluster.Release {
 	return r.Release
 }
 
-func (r *ComponentReconciler) GetLogger() logr.Logger {
+func (r *ServiceReconciler) GetLogger() logr.Logger {
 	return r.Log
 }
 
-func (r *ComponentReconciler) AddOwnedType(gvk schema.GroupVersionKind) {
+func (r *ServiceReconciler) AddOwnedType(gvk schema.GroupVersionKind) {
 	r.m.AddGVK(gvk, true)
 }
 
-func (r *ComponentReconciler) Owns(obj client.Object) bool {
+func (r *ServiceReconciler) Owns(obj client.Object) bool {
 	return r.m.Owns(obj.GetObjectKind().GroupVersionKind())
 }
 
-func (r *ComponentReconciler) AddAction(action actions.Fn) {
+func (r *ServiceReconciler) AddAction(action actions.Fn) {
 	r.Actions = append(r.Actions, action)
 }
 
-func (r *ComponentReconciler) AddFinalizer(action actions.Fn) {
+func (r *ServiceReconciler) AddFinalizer(action actions.Fn) {
 	r.Finalizer = append(r.Finalizer, action)
 }
 
-func (r *ComponentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	l := log.FromContext(ctx)
-	l.Info("reconcile")
 
 	res, err := r.instanceFactory()
 	if err != nil {
@@ -110,15 +103,6 @@ func (r *ComponentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	if err := r.Client.Get(ctx, client.ObjectKey{Name: req.Name}, res); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
-	}
-
-	dscl := dscv1.DataScienceClusterList{}
-	if err := r.Client.List(ctx, &dscl); err != nil {
-		return ctrl.Result{}, err
-	}
-
-	if len(dscl.Items) != 1 {
-		return ctrl.Result{}, errors.New("unable to find DataScienceCluster")
 	}
 
 	dscil := dsciv1.DSCInitializationList{}
@@ -134,7 +118,6 @@ func (r *ComponentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		Client:    r.Client,
 		Manager:   r.m,
 		Instance:  res,
-		DSC:       &dscl.Items[0],
 		DSCI:      &dscil.Items[0],
 		Release:   r.Release,
 		Manifests: make([]types.ManifestInfo, 0),
@@ -168,7 +151,7 @@ func (r *ComponentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	// Execute actions
 	for _, action := range r.Actions {
-		l.Info("Executing action", "action", action)
+		l.V(3).Info("Executing action", "action", action)
 
 		actx := log.IntoContext(
 			ctx,

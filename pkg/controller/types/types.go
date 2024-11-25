@@ -58,7 +58,7 @@ type ReconciliationRequest struct {
 	*odhClient.Client
 
 	Manager   *manager.Manager
-	Instance  components.ComponentObject
+	Instance  client.Object
 	DSC       *dscv1.DataScienceCluster
 	DSCI      *dsciv1.DSCInitialization
 	Release   cluster.Release

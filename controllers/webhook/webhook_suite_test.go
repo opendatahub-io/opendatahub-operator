@@ -44,6 +44,8 @@ import (
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/services"
+	servicesv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1"
 	componentsold "github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
 	modelregistry2 "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
@@ -238,9 +240,11 @@ func newDSCI(appName string) *dsciv1.DSCInitialization {
 		},
 		Spec: dsciv1.DSCInitializationSpec{
 			ApplicationsNamespace: namespace,
-			Monitoring: dsciv1.Monitoring{
-				Namespace:       monitoringNS,
-				ManagementState: operatorv1.Managed,
+			Monitoring: servicesv1.DSCMonitoring{
+				ManagementSpec: services.ManagementSpec{ManagementState: operatorv1.Managed},
+				MonitoringCommonSpec: servicesv1.MonitoringCommonSpec{
+					Namespace: monitoringNS,
+				},
 			},
 			TrustedCABundle: &dsciv1.TrustedCABundleSpec{
 				ManagementState: operatorv1.Managed,

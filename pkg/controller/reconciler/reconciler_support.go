@@ -2,8 +2,8 @@ package reconciler
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/services"
 	"strings"
 
 	"golang.org/x/exp/slices"
@@ -16,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/services"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
@@ -50,7 +51,7 @@ type ReconcilerBuilder struct {
 	finalizers   []actions.Fn
 }
 
-func ReconcilerFor(mgr ctrl.Manager, ownerName string, object components.ComponentObject, opts ...builder.ForOption) *ReconcilerBuilder {
+func ReconcilerFor(mgr ctrl.Manager, ownerName string, object client.Object, opts ...builder.ForOption) *ReconcilerBuilder {
 	crb := ReconcilerBuilder{
 		mgr:       mgr,
 		ownerName: ownerName,
@@ -87,7 +88,7 @@ func (b *ReconcilerBuilder) Watches(object client.Object, opts ...builder.Watche
 	}
 	b.watches = append(b.watches, watchInput{
 		object:       object,
-		eventHandler: handlers.ToOwner(instanceLabel),
+		eventHandler: handlers.LabelToName(instanceLabel),
 		options:      slices.Clone(opts),
 	})
 
@@ -158,7 +159,7 @@ func (b *ReconcilerBuilder) BuildComponent(ctx context.Context) (*ComponentRecon
 
 	obj, ok := b.input.object.(components.ComponentObject)
 	if !ok {
-		return nil, fmt.Errorf("invalid type for object")
+		return nil, errors.New("invalid type for object")
 	}
 
 	r, err := NewComponentReconciler(ctx, b.mgr, name, obj)
@@ -243,7 +244,7 @@ func (b *ReconcilerBuilder) BuildService(ctx context.Context) (*ServiceReconcile
 
 	obj, ok := b.input.object.(services.ServiceObject)
 	if !ok {
-		return nil, fmt.Errorf("invalid type for object")
+		return nil, errors.New("invalid type for object")
 	}
 	r, err := NewServiceReconciler(ctx, b.mgr, name, obj)
 	if err != nil {

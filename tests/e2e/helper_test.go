@@ -26,6 +26,8 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/services"
+	servicesv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1"
 	componentsold "github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
@@ -83,9 +85,11 @@ func setupDSCICR(name string) *dsciv1.DSCInitialization {
 		},
 		Spec: dsciv1.DSCInitializationSpec{
 			ApplicationsNamespace: "opendatahub",
-			Monitoring: dsciv1.Monitoring{
-				ManagementState: "Managed",
-				Namespace:       "opendatahub",
+			Monitoring: servicesv1.DSCMonitoring{
+				ManagementSpec: services.ManagementSpec{ManagementState: operatorv1.Managed},
+				MonitoringCommonSpec: servicesv1.MonitoringCommonSpec{
+					Namespace: "opendatahub",
+				},
 			},
 			TrustedCABundle: &dsciv1.TrustedCABundleSpec{
 				ManagementState: "Managed",

@@ -14,49 +14,93 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package services
+package monitoring
 
 import (
 	"context"
+	"fmt"
 
-	"k8s.io/apimachinery/pkg/runtime"
+	routev1 "github.com/openshift/api/route/v1"
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 
 	servicesv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/updatestatus"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
-// MonitoringReconciler reconciles a Monitoring object
-type MonitoringReconciler struct {
-	client.Client
-	Scheme *runtime.Scheme
-}
+const serviceName = "monitoring"
 
-//+kubebuilder:rbac:groups=services.opendatahub.io,resources=monitorings,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=services.opendatahub.io,resources=monitorings/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=services.opendatahub.io,resources=monitorings/finalizers,verbs=update
+// NewServiceReconciler creates a ServiceReconciler for the Monitoring API.
+func NewServiceReconciler(ctx context.Context, mgr ctrl.Manager) error {
+	_, err := reconciler.ReconcilerFor(mgr, servicesv1.MonitoringInstanceName, &servicesv1.Monitoring{}).
+		// operands - owned
+		Owns(&corev1.ConfigMap{}).
+		Owns(&corev1.Secret{}).
+		Owns(&rbacv1.ClusterRoleBinding{}).
+		Owns(&rbacv1.ClusterRole{}).
+		Owns(&rbacv1.Role{}).
+		Owns(&rbacv1.RoleBinding{}).
+		Owns(&corev1.ServiceAccount{}).
+		Owns(&corev1.Service{}).
+		Owns(&corev1.PersistentVolumeClaim{}).
+		Owns(&monitoringv1.ServiceMonitor{}).
+		Owns(&monitoringv1.PrometheusRule{}).
+		// By default, a predicated for changed generation is added by the Owns()
+		// method, however for deployments, we also need to retrieve status info
+		// hence we need a dedicated predicate to react to replicas status change
+		Owns(&appsv1.Deployment{}, builder.WithPredicates(resources.NewDeploymentPredicate())).
+		// operands - openshift
+		Owns(&routev1.Route{}).
+		// operands - watched
+		//
+		// By default the Watches functions adds:
+		// - an event handler mapping to a cluster scope resource identified by the
+		//   components.opendatahub.io/part-of annotation
+		// - a predicate that check for generation change for Delete/Updates events
+		//   for to objects that have the label components.opendatahub.io/part-of
+		// or services.opendatahub.io/part-of set to the current owner
+		//
+		Watches(&extv1.CustomResourceDefinition{}).
+		// actions
+		WithAction(initialize).
+		WithAction(kustomize.NewAction(
+			kustomize.WithCache(render.DefaultCachingKeyFn),
+			// Those are the default labels added by the legacy deploy method
+			// and should be preserved as the original plugin were affecting
+			// deployment selectors that are immutable once created, so it won't
+			// be possible to actually amend the labels in a non-disruptive
+			// manner.
+			//
+			// Additional labels/annotations MUST be added by the deploy action
+			// so they would affect only objects metadata without side effects
+			// kustomize.WithLabel(labels.ODH.Component(componentName), "true"),
+			kustomize.WithLabel(labels.K8SCommon.PartOf, serviceName),
+		)).
+		WithAction(deploy.NewAction(
+			deploy.WithCache(),
+			deploy.WithFieldOwner(servicesv1.MonitoringInstanceName),
+			deploy.WithLabel(labels.ServicePartOf, servicesv1.MonitoringServiceName),
+		)).
+		WithAction(updatestatus.NewAction(
+			updatestatus.WithSelectorLabel(labels.ComponentPartOf, servicesv1.MonitoringServiceName),
+		)).
+		WithAction(updateStatus).
+		BuildService(ctx)
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the Monitoring object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.2/pkg/reconcile
-func (r *MonitoringReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	if err != nil {
+		return fmt.Errorf("could not create the monitoring controller: %w", err)
+	}
 
-	// TODO(user): your logic here
-
-	return ctrl.Result{}, nil
-}
-
-// SetupWithManager sets up the controller with the Manager.
-func (r *MonitoringReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&servicesv1.Monitoring{}).
-		Complete(r)
+	return nil
 }

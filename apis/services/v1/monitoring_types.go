@@ -21,6 +21,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const (
+	MonitoringServiceName = "monitoring"
+	// MonitoringInstanceName the name of the Dashboard instance singleton.
+	// value should match whats set in the XValidation below
+	MonitoringInstanceName = "default-monitoring"
+	MonitoringKind         = "Monitoring"
+)
+
 // MonitoringSpec defines the desired state of Monitoring
 type MonitoringSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
@@ -32,8 +40,9 @@ type MonitoringSpec struct {
 
 // MonitoringStatus defines the observed state of Monitoring
 type MonitoringStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	services.Status `json:",inline"`
+
+	URL string `json:"url,omitempty"`
 }
 
 //+kubebuilder:object:root=true

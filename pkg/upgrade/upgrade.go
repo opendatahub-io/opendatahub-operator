@@ -31,6 +31,8 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/services"
+	servicesv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1"
 	componentsold "github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -109,9 +111,11 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ cluster.Platform, appNamespace, monNamespace string) error {
 	defaultDsciSpec := &dsciv1.DSCInitializationSpec{
 		ApplicationsNamespace: appNamespace,
-		Monitoring: dsciv1.Monitoring{
-			ManagementState: operatorv1.Managed,
-			Namespace:       monNamespace,
+		Monitoring: servicesv1.DSCMonitoring{
+			ManagementSpec: services.ManagementSpec{ManagementState: operatorv1.Managed},
+			MonitoringCommonSpec: servicesv1.MonitoringCommonSpec{
+				Namespace: monNamespace,
+			},
 		},
 		ServiceMesh: &infrav1.ServiceMeshSpec{
 			ManagementState: "Managed",
