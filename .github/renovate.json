@@ -10,6 +10,7 @@
   "automerge": true,
   "enabledManagers": ["dockerfile", "tekton"],
   "dockerfile": {
+    "schedule": ["at any time"],
     "enabled": true,
     "additionalBranchPrefix": "{{baseBranch}}/",
     "branchPrefix": "konflux/mintmaker/",
