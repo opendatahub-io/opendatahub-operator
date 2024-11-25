@@ -27,11 +27,9 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
 
 	servicesv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/updatestatus"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
@@ -59,7 +57,7 @@ func NewServiceReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		// By default, a predicated for changed generation is added by the Owns()
 		// method, however for deployments, we also need to retrieve status info
 		// hence we need a dedicated predicate to react to replicas status change
-		Owns(&appsv1.Deployment{}, builder.WithPredicates(resources.NewDeploymentPredicate())).
+		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(resources.NewDeploymentPredicate())).
 		// operands - openshift
 		Owns(&routev1.Route{}).
 		// operands - watched
@@ -75,7 +73,7 @@ func NewServiceReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		// actions
 		WithAction(initialize).
 		WithAction(kustomize.NewAction(
-			kustomize.WithCache(render.DefaultCachingKeyFn),
+			kustomize.WithCache(),
 			// Those are the default labels added by the legacy deploy method
 			// and should be preserved as the original plugin were affecting
 			// deployment selectors that are immutable once created, so it won't

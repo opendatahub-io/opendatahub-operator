@@ -41,8 +41,8 @@ type ServiceReconciler struct {
 	instanceFactory func() (services.ServiceObject, error)
 }
 
-func NewServiceReconciler(ctx context.Context, mgr manager.Manager, name string, object services.ServiceObject) (*ServiceReconciler, error) {
-	oc, err := odhClient.NewFromManager(ctx, mgr)
+func NewServiceReconciler(mgr manager.Manager, name string, object services.ServiceObject) (*ServiceReconciler, error) {
+	oc, err := odhClient.NewFromManager(mgr)
 	if err != nil {
 		return nil, err
 	}
