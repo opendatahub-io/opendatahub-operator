@@ -11,22 +11,52 @@ func ForLabel(name string, value string) predicate.Funcs {
 			return false
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
-			labelList := e.Object.GetLabels()
+			values := e.Object.GetLabels()
 
-			if v, exist := labelList[name]; exist && v == value {
+			if v, exist := values[name]; exist && v == value {
 				return true
 			}
 
 			return false
 		},
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			oldLabels := e.ObjectOld.GetLabels()
-			if v, exist := oldLabels[name]; exist && v == value {
+			oldValues := e.ObjectOld.GetLabels()
+			if v, exist := oldValues[name]; exist && v == value {
 				return true
 			}
 
-			newLabels := e.ObjectNew.GetLabels()
-			if v, exist := newLabels[name]; exist && v == value {
+			newValues := e.ObjectNew.GetLabels()
+			if v, exist := newValues[name]; exist && v == value {
+				return true
+			}
+
+			return false
+		},
+	}
+}
+
+func ForAnnotation(name string, value string) predicate.Funcs {
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return false
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			values := e.Object.GetAnnotations()
+
+			if v, exist := values[name]; exist && v == value {
+				return true
+			}
+
+			return false
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldValues := e.ObjectOld.GetAnnotations()
+			if v, exist := oldValues[name]; exist && v == value {
+				return true
+			}
+
+			newValues := e.ObjectNew.GetAnnotations()
+			if v, exist := newValues[name]; exist && v == value {
 				return true
 			}
 

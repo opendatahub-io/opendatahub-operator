@@ -19,6 +19,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/generation"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
@@ -132,16 +133,16 @@ func (b *ComponentReconcilerBuilder) Watches(object client.Object, opts ...Watch
 	}
 
 	if in.eventHandler == nil {
-		// use the components.opendatahub.io/part-of label to find out
+		// use the platform.opendatahub.io/instance.name label to find out
 		// the owner
-		in.eventHandler = handlers.LabelToName(labels.ComponentPartOf)
+		in.eventHandler = handlers.AnnotationToName(annotations.InstanceName)
 	}
 
 	if len(in.predicates) == 0 {
 		in.predicates = append(in.predicates, predicate.And(
 			defaultPredicate,
 			// use the components.opendatahub.io/part-of label to filter
-			// events not related to the owner
+			// events not related to the owner type
 			component.ForLabel(labels.ComponentPartOf, strings.ToLower(b.input.gvk.Kind)),
 		))
 	}
