@@ -588,14 +588,11 @@ rules:
   - monitoring.coreos.com
   resources:
   - alertmanagerconfigs
-  - alertmanagers
   - alertmanagers/finalizers
   - alertmanagers/status
-  - probes
   - prometheuses
   - prometheuses/finalizers
   - prometheuses/status
-  - thanosrulers
   - thanosrulers/finalizers
   - thanosrulers/status
   verbs:
@@ -604,6 +601,20 @@ rules:
   - deletecollection
   - get
   - patch
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - alertmanagers
+  - probes
+  - prometheusrules
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - list
+  - patch
+  - watch
 - apiGroups:
   - monitoring.coreos.com
   resources:
@@ -619,18 +630,6 @@ rules:
 - apiGroups:
   - monitoring.coreos.com
   resources:
-  - prometheusrules
-  verbs:
-  - create
-  - delete
-  - deletecollection
-  - get
-  - list
-  - patch
-  - watch
-- apiGroups:
-  - monitoring.coreos.com
-  resources:
   - servicemonitors
   verbs:
   - create
@@ -640,6 +639,18 @@ rules:
   - list
   - patch
   - update
+  - watch
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - thanosrulers
+  verbs:
+  - :list
+  - create
+  - delete
+  - deletecollection
+  - get
+  - patch
   - watch
 - apiGroups:
   - networking.istio.io
@@ -914,7 +925,9 @@ rules:
   - create
   - delete
   - get
+  - list
   - patch
+  - watch
 - apiGroups:
   - template.openshift.io
   resources:
