@@ -91,10 +91,10 @@ func NewServiceReconciler(ctx context.Context, mgr ctrl.Manager) error {
 			deploy.WithLabel(labels.ServicePartOf, servicesv1.MonitoringServiceName),
 		)).
 		WithAction(updatestatus.NewAction(
-			updatestatus.WithSelectorLabel(labels.ComponentPartOf, servicesv1.MonitoringServiceName),
+			updatestatus.WithSelectorLabel(labels.ServicePartOf, servicesv1.MonitoringServiceName),
 		)).
 		WithAction(updateStatus).
-		BuildService(ctx)
+		Build(ctx)
 
 	if err != nil {
 		return fmt.Errorf("could not create the monitoring controller: %w", err)

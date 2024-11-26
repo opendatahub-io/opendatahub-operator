@@ -840,7 +840,6 @@ rules:
 - apiGroups:
   - services.opendatahub.io
   resources:
-  - dscmonitorings
   - monitorings
   verbs:
   - create
@@ -853,14 +852,12 @@ rules:
 - apiGroups:
   - services.opendatahub.io
   resources:
-  - dscmonitorings/finalizers
   - monitorings/finalizers
   verbs:
   - update
 - apiGroups:
   - services.opendatahub.io
   resources:
-  - dscmonitorings/status
   - monitorings/status
   verbs:
   - get

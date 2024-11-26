@@ -17,7 +17,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/services"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
@@ -26,7 +25,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
-type ServiceReconciler struct {
+// Reconciler provides generic reconciliation functionality for ODH objects.
+type Reconciler[T client.Object] struct {
 	Client     *odhClient.Client
 	Scheme     *runtime.Scheme
 	Actions    []actions.Fn
@@ -38,16 +38,17 @@ type ServiceReconciler struct {
 
 	name            string
 	m               *odhManager.Manager
-	instanceFactory func() (services.ServiceObject, error)
+	instanceFactory func() (T, error)
 }
 
-func NewServiceReconciler(mgr manager.Manager, name string, object services.ServiceObject) (*ServiceReconciler, error) {
+// NewReconciler creates a new reconciler for the given type.
+func NewReconciler[T client.Object](mgr manager.Manager, name string, object T) (*Reconciler[T], error) {
 	oc, err := odhClient.NewFromManager(mgr)
 	if err != nil {
 		return nil, err
 	}
 
-	cc := ServiceReconciler{
+	cc := Reconciler[T]{
 		Client:   oc,
 		Scheme:   mgr.GetScheme(),
 		Log:      ctrl.Log.WithName("controllers").WithName(name),
@@ -55,9 +56,9 @@ func NewServiceReconciler(mgr manager.Manager, name string, object services.Serv
 		Release:  cluster.GetRelease(),
 		name:     name,
 		m:        odhManager.New(mgr),
-		instanceFactory: func() (services.ServiceObject, error) {
+		instanceFactory: func() (T, error) {
 			t := reflect.TypeOf(object).Elem()
-			res, ok := reflect.New(t).Interface().(services.ServiceObject)
+			res, ok := reflect.New(t).Interface().(T)
 			if !ok {
 				return res, fmt.Errorf("unable to construct instance of %v", t)
 			}
@@ -69,32 +70,33 @@ func NewServiceReconciler(mgr manager.Manager, name string, object services.Serv
 	return &cc, nil
 }
 
-func (r *ServiceReconciler) GetRelease() cluster.Release {
+func (r *Reconciler[T]) GetRelease() cluster.Release {
 	return r.Release
 }
 
-func (r *ServiceReconciler) GetLogger() logr.Logger {
+func (r *Reconciler[T]) GetLogger() logr.Logger {
 	return r.Log
 }
 
-func (r *ServiceReconciler) AddOwnedType(gvk schema.GroupVersionKind) {
+func (r *Reconciler[T]) AddOwnedType(gvk schema.GroupVersionKind) {
 	r.m.AddGVK(gvk, true)
 }
 
-func (r *ServiceReconciler) Owns(obj client.Object) bool {
+func (r *Reconciler[T]) Owns(obj client.Object) bool {
 	return r.m.Owns(obj.GetObjectKind().GroupVersionKind())
 }
 
-func (r *ServiceReconciler) AddAction(action actions.Fn) {
+func (r *Reconciler[T]) AddAction(action actions.Fn) {
 	r.Actions = append(r.Actions, action)
 }
 
-func (r *ServiceReconciler) AddFinalizer(action actions.Fn) {
+func (r *Reconciler[T]) AddFinalizer(action actions.Fn) {
 	r.Finalizer = append(r.Finalizer, action)
 }
 
-func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler[T]) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	l := log.FromContext(ctx)
+	l.Info("reconcile")
 
 	res, err := r.instanceFactory()
 	if err != nil {
@@ -151,7 +153,7 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// Execute actions
 	for _, action := range r.Actions {
-		l.V(3).Info("Executing action", "action", action)
+		l.Info("Executing action", "action", action)
 
 		actx := log.IntoContext(
 			ctx,

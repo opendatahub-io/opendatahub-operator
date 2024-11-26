@@ -2,7 +2,6 @@ package reconciler
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -18,7 +17,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/services"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
@@ -28,13 +26,13 @@ import (
 )
 
 var (
-	// defaultPredicate is the default set of predicates associated to
+	// DefaultPredicate is the default set of predicates associated to
 	// resources when there is no specific predicate configured via the
 	// builder.
 	//
 	// It would trigger a reconciliation if either the generation or
 	// metadata (labels, annotations) have changed.
-	defaultPredicate = predicate.Or(
+	DefaultPredicate = predicate.Or(
 		generation.New(),
 		predicate.LabelChangedPredicate{},
 		predicate.AnnotationChangedPredicate{},
@@ -134,17 +132,14 @@ func (b *ReconcilerBuilder) Watches(object client.Object, opts ...WatchOpts) *Re
 	in := watchInput{}
 	in.object = object
 	in.owned = false
-
 	for _, opt := range opts {
 		opt(&in)
 	}
-
 	if in.eventHandler == nil {
 		// use the platform.opendatahub.io/instance.name label to find out
 		// the owner
 		in.eventHandler = handlers.AnnotationToName(annotations.InstanceName)
 	}
-
 	if len(in.predicates) == 0 {
 		in.predicates = append(in.predicates, predicate.And(
 			DefaultPredicate,
@@ -153,9 +148,7 @@ func (b *ReconcilerBuilder) Watches(object client.Object, opts ...WatchOpts) *Re
 			component.ForLabel(labels.ComponentPartOf, strings.ToLower(b.input.gvk.Kind)),
 		))
 	}
-
 	b.watches = append(b.watches, in)
-
 	return b
 }
 
@@ -199,7 +192,7 @@ func (b *ReconcilerBuilder) OwnsGVK(gvk schema.GroupVersionKind, opts ...WatchOp
 	return b.Owns(resources.GvkToUnstructured(gvk), opts...)
 }
 
-func (b *ReconcilerBuilder) BuildComponent(_ context.Context) (*ComponentReconciler, error) {
+func (b *ReconcilerBuilder) BuildComponent(_ context.Context) (*Reconciler[T], error) {
 	if b.errors != nil {
 		return nil, b.errors
 	}
@@ -279,92 +272,6 @@ func (b *ReconcilerBuilder) BuildComponent(_ context.Context) (*ComponentReconci
 			b.watches,
 		),
 	)
-
-	return r, nil
-}
-
-func (b *ReconcilerBuilder) BuildService(ctx context.Context) (*ServiceReconciler, error) {
-	name := b.instanceName
-	if name == "" {
-		kinds, _, err := b.mgr.GetScheme().ObjectKinds(b.input.object)
-		if err != nil {
-			return nil, err
-		}
-		if len(kinds) != 1 {
-			return nil, fmt.Errorf("expected exactly one kind of object, got %d", len(kinds))
-		}
-
-		name = kinds[0].Kind
-		name = strings.ToLower(name)
-	}
-
-	obj, ok := b.input.object.(services.ServiceObject)
-	if !ok {
-		return nil, errors.New("invalid type for object")
-	}
-	r, err := NewServiceReconciler(b.mgr, name, obj)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create reconciler for component %s: %w", name, err)
-	}
-
-	c := ctrl.NewControllerManagedBy(b.mgr)
-
-	// automatically add default predicates to the watched API if no
-	// predicates are provided
-	forOpts := b.input.options
-	if len(forOpts) == 0 {
-		forOpts = append(forOpts, builder.WithPredicates(predicate.Or(
-			predicate.GenerationChangedPredicate{},
-			predicate.LabelChangedPredicate{},
-			predicate.AnnotationChangedPredicate{},
-		)))
-	}
-
-	c = c.For(b.input.object, forOpts...)
-
-	for i := range b.watches {
-		if b.watches[i].owned {
-			kinds, _, err := b.mgr.GetScheme().ObjectKinds(b.watches[i].object)
-			if err != nil {
-				return nil, err
-			}
-
-			for i := range kinds {
-				r.AddOwnedType(kinds[i])
-			}
-		}
-
-		// if the watch is dynamic, then the watcher will be registered
-		// at later stage
-		if b.watches[i].dynamic {
-			continue
-		}
-
-		c = c.Watches(
-			b.watches[i].object,
-			b.watches[i].eventHandler,
-			builder.WithPredicates(b.watches[i].predicates...),
-		)
-	}
-
-	for i := range b.predicates {
-		c = c.WithEventFilter(b.predicates[i])
-	}
-
-	for i := range b.actions {
-		r.AddAction(b.actions[i])
-	}
-	for i := range b.finalizers {
-		r.AddFinalizer(b.finalizers[i])
-	}
-
-	cc, err := c.Build(r)
-	if err != nil {
-		return nil, err
-	}
-
-	// internal action
-	r.AddAction(newDynamicWatchAction(b.mgr, cc, b.watches))
 
 	return r, nil
 }
