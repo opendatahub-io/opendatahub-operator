@@ -39,19 +39,21 @@ func (s *componentHandler) GetName() string {
 	return componentsv1.TrustyAIComponentName
 }
 
-func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) operatorv1.ManagementState {
-	return dsc.Spec.Components.TrustyAI.ManagementState
+func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) string {
+	if s == nil || dsc.Spec.Components.TrustyAI.ManagementState == operatorv1.Removed {
+		return string(operatorv1.Removed)
+	}
+	switch dsc.Spec.Components.TrustyAI.ManagementState {
+	case operatorv1.Managed:
+		return string(dsc.Spec.Components.TrustyAI.ManagementState)
+	default: // Force and Unmanaged case for unknown values, we do not support these yet
+		return "Unknown"
+	}
 }
 
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Object {
 	trustyaiAnnotations := make(map[string]string)
-	switch dsc.Spec.Components.TrustyAI.ManagementState {
-	case operatorv1.Managed, operatorv1.Removed:
-		trustyaiAnnotations[annotations.ManagementStateAnnotation] = string(dsc.Spec.Components.TrustyAI.ManagementState)
-	default: // Force and Unmanaged case for unknown values, we do not support these yet
-		trustyaiAnnotations[annotations.ManagementStateAnnotation] = "Unknown"
-	}
-
+	trustyaiAnnotations[annotations.ManagementStateAnnotation] = s.GetManagementState(dsc)
 	return client.Object(&componentsv1.TrustyAI{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentsv1.TrustyAIKind,

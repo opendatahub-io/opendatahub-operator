@@ -33,18 +33,20 @@ func (s *componentHandler) GetName() string {
 	return componentsv1.RayComponentName
 }
 
-func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) operatorv1.ManagementState {
-	return dsc.Spec.Components.Ray.ManagementState
+func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) string {
+	if s == nil || dsc.Spec.Components.Ray.ManagementState == operatorv1.Removed {
+		return string(operatorv1.Removed)
+	}
+	switch dsc.Spec.Components.Ray.ManagementState {
+	case operatorv1.Managed:
+		return string(dsc.Spec.Components.Ray.ManagementState)
+	default: // Force and Unmanaged case for unknown values, we do not support these yet
+		return "Unknown"
+	}
 }
-
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Object {
 	rayAnnotations := make(map[string]string)
-	switch dsc.Spec.Components.Ray.ManagementState {
-	case operatorv1.Managed, operatorv1.Removed:
-		rayAnnotations[annotations.ManagementStateAnnotation] = string(dsc.Spec.Components.Ray.ManagementState)
-	default: // Force and Unmanaged case for unknown values, we do not support these yet
-		rayAnnotations[annotations.ManagementStateAnnotation] = "Unknown"
-	}
+	rayAnnotations[annotations.ManagementStateAnnotation] = s.GetManagementState(dsc)
 
 	return client.Object(&componentsv1.Ray{
 		TypeMeta: metav1.TypeMeta{

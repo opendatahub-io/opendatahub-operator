@@ -25,8 +25,16 @@ func (s *componentHandler) GetName() string {
 	return componentsv1.ModelRegistryComponentName
 }
 
-func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) operatorv1.ManagementState {
-	return dsc.Spec.Components.ModelRegistry.ManagementState
+func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) string {
+	if s == nil || dsc.Spec.Components.ModelRegistry.ManagementState == operatorv1.Removed {
+		return string(operatorv1.Removed)
+	}
+	switch dsc.Spec.Components.ModelRegistry.ManagementState {
+	case operatorv1.Managed:
+		return string(dsc.Spec.Components.ModelRegistry.ManagementState)
+	default: // Force and Unmanaged case for unknown values, we do not support these yet
+		return "Unknown"
+	}
 }
 
 func (s *componentHandler) Init(_ cluster.Platform) error {
@@ -49,15 +57,7 @@ func (s *componentHandler) Init(_ cluster.Platform) error {
 
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Object {
 	componentAnnotations := make(map[string]string)
-
-	switch dsc.Spec.Components.ModelRegistry.ManagementState {
-	case operatorv1.Managed, operatorv1.Removed:
-		componentAnnotations[annotations.ManagementStateAnnotation] = string(dsc.Spec.Components.ModelRegistry.ManagementState)
-	default:
-		// Force and Unmanaged case for unknown values, we do not support these yet
-		componentAnnotations[annotations.ManagementStateAnnotation] = "Unknown"
-	}
-
+	componentAnnotations[annotations.ManagementStateAnnotation] = s.GetManagementState(dsc)
 	return client.Object(&componentsv1.ModelRegistry{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentsv1.ModelRegistryKind,

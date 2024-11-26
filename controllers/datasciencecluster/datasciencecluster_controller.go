@@ -288,7 +288,7 @@ func (r *DataScienceClusterReconciler) ReconcileComponent(
 		return instance, err
 	}
 
-	enabled := component.GetManagementState(instance) == operatorv1.Managed
+	enabled := component.GetManagementState(instance) == string(operatorv1.Managed)
 
 	// TODO: check component status before update DSC status to successful .GetStatus().Phase == "Ready"
 	r.Log.Info("component reconciled successfully: " + componentName)
