@@ -49,9 +49,9 @@ func codeflareTestSuite(t *testing.T) {
 			require.NoError(t, err, "error validating CodeFlare instance")
 		})
 
-		t.Run("Validate Ownerrefrences exist", func(t *testing.T) {
+		t.Run("Validate Ownerreferences exist", func(t *testing.T) {
 			err = codeflareCtx.testOwnerReferences()
-			require.NoError(t, err, "error getting all CodeFlare's Ownerrefrences")
+			require.NoError(t, err, "error getting all CodeFlare's Ownerreferences")
 		})
 
 		t.Run("Validate CodeFlare Ready", func(t *testing.T) {
