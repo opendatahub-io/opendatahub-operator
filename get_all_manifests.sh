@@ -17,7 +17,7 @@ declare -A COMPONENT_MANIFESTS=(
     ["trustyai"]="trustyai-explainability:trustyai-service-operator:main:config:trustyai-service-operator"
     ["model-mesh"]="opendatahub-io:modelmesh-serving:release-0.12.0-rc0:config:model-mesh"
     ["odh-model-controller"]="opendatahub-io:odh-model-controller:incubating:config:odh-model-controller"
-    ["kserve"]="opendatahub-io:kserve:release-v0.12.1:config:kserve"
+    ["kserve"]="opendatahub-io:kserve:release-v0.14:config:kserve"
     ["modelregistry"]="opendatahub-io:model-registry-operator:main:config:model-registry-operator"
     ["trainingoperator"]="opendatahub-io:training-operator:dev:manifests:trainingoperator"
 )
