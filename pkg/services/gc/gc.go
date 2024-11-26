@@ -117,7 +117,7 @@ func (gc *GC) Run(
 		items, err := dc.Resource(resources[r].GroupVersionResource()).Namespace("").List(ctx, lo)
 		if err != nil {
 			if k8serr.IsForbidden(err) {
-				l.Info(
+				l.V(3).Info(
 					"cannot list resource",
 					"reason", err.Error(),
 					"gvk", resources[r].GroupVersionKind(),
