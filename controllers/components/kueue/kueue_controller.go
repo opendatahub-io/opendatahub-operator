@@ -39,11 +39,7 @@ import (
 )
 
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	_, err := reconciler.ComponentReconcilerFor(
-		mgr,
-		componentsv1.KueueInstanceName,
-		&componentsv1.Kueue{},
-	).
+	_, err := reconciler.ComponentReconcilerFor(mgr, &componentsv1.Kueue{}).
 		// customized Owns() for Component with new predicates
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Secret{}).

@@ -112,22 +112,15 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 		a.cache.Sync()
 	}
 
-	controllerName := strings.ToLower(rr.Instance.GetObjectKind().GroupVersionKind().Kind)
-
-	deployHash, err := odhTypes.HashStr(rr)
+	kind, err := resources.KindForObject(rr.Client.Scheme(), rr.Instance)
 	if err != nil {
-		return fmt.Errorf("unable to compute reauest hash: %w", err)
+		return err
 	}
 
-	deployAnnotations := map[string]string{
-		annotations.ComponentGeneration: strconv.FormatInt(rr.Instance.GetGeneration(), 10),
-		annotations.ComponentHash:       deployHash,
-		annotations.PlatformType:        string(rr.Release.Name),
-		annotations.PlatformVersion:     rr.Release.Version.String(),
-	}
+	controllerName := strings.ToLower(kind)
 
 	for i := range rr.Resources {
-		ok, err := a.deploy(ctx, rr, rr.Resources[i], deployAnnotations)
+		ok, err := a.deploy(ctx, rr, rr.Resources[i])
 		if err != nil {
 			return fmt.Errorf("failure deploying %s: %w", rr.Resources[i], err)
 		}
@@ -144,7 +137,6 @@ func (a *Action) deploy(
 	ctx context.Context,
 	rr *odhTypes.ReconciliationRequest,
 	obj unstructured.Unstructured,
-	deployAnnotations map[string]string,
 ) (bool, error) {
 	current, lookupErr := a.lookup(ctx, rr.Client, obj)
 	if lookupErr != nil {
@@ -159,12 +151,21 @@ func (a *Action) deploy(
 
 	fo := a.fieldOwner
 	if fo == "" {
-		fo = rr.OwnerName
+		kind, err := resources.KindForObject(rr.Client.Scheme(), rr.Instance)
+		if err != nil {
+			return false, err
+		}
+
+		fo = strings.ToLower(kind)
 	}
 
 	resources.SetLabels(&obj, a.labels)
 	resources.SetAnnotations(&obj, a.annotations)
-	resources.SetAnnotations(&obj, deployAnnotations)
+	resources.SetAnnotation(&obj, annotations.InstanceGeneration, strconv.FormatInt(rr.Instance.GetGeneration(), 10))
+	resources.SetAnnotation(&obj, annotations.InstanceName, rr.Instance.GetName())
+	resources.SetAnnotation(&obj, annotations.InstanceUID, string(rr.Instance.GetUID()))
+	resources.SetAnnotation(&obj, annotations.PlatformType, string(rr.Release.Name))
+	resources.SetAnnotation(&obj, annotations.PlatformVersion, rr.Release.Version.String())
 
 	if resources.GetLabel(&obj, labels.ComponentPartOf) == "" && fo != "" {
 		resources.SetLabel(&obj, labels.ComponentPartOf, fo)

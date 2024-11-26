@@ -18,8 +18,9 @@ const (
 const ManagementStateAnnotation = "component.opendatahub.io/management-state"
 
 const (
-	ComponentGeneration = "components.opendatahub.io/component-generation"
-	ComponentHash       = "components.opendatahub.io/component-hash"
-	PlatformVersion     = "platform.opendatahub.io/version"
-	PlatformType        = "platform.opendatahub.io/type"
+	PlatformVersion    = "platform.opendatahub.io/version"
+	PlatformType       = "platform.opendatahub.io/type"
+	InstanceGeneration = "platform.opendatahub.io/instance.generation"
+	InstanceName       = "platform.opendatahub.io/instance.name"
+	InstanceUID        = "platform.opendatahub.io/instance.uid"
 )

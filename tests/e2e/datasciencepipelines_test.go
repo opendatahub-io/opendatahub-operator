@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -200,7 +201,7 @@ func (tc *DataSciencePipelinesTestCtx) validateDataSciencePipelinesReady() error
 
 func (tc *DataSciencePipelinesTestCtx) testUpdateOnDataSciencePipelinesResources() error {
 	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-		LabelSelector: labels.ComponentPartOf + "=" + tc.testDataSciencePipelinesInstance.Name,
+		LabelSelector: labels.ComponentPartOf + "=" + strings.ToLower(tc.testDataSciencePipelinesInstance.Kind),
 	})
 	if err != nil {
 		return err

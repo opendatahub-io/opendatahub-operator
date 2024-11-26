@@ -2,6 +2,7 @@ package gc_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/blang/semver/v4"
@@ -17,6 +18,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	apytypes "k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	ctrlCli "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -75,7 +77,7 @@ func TestGcAction(t *testing.T) {
 		metricsMatcher gTypes.GomegaMatcher
 		labels         map[string]string
 		options        []gc.ActionOpts
-		hashFn         func(*types.ReconciliationRequest) (string, error)
+		uidFn          func(request *types.ReconciliationRequest) string
 	}{
 		{
 			name:           "should delete leftovers",
@@ -83,6 +85,7 @@ func TestGcAction(t *testing.T) {
 			generated:      true,
 			matcher:        Satisfy(k8serr.IsNotFound),
 			metricsMatcher: BeNumerically("==", 1),
+			uidFn:          func(rr *types.ReconciliationRequest) string { return string(rr.Instance.GetUID()) },
 		},
 		{
 			name:           "should not delete resources because same annotations",
@@ -90,6 +93,7 @@ func TestGcAction(t *testing.T) {
 			generated:      true,
 			matcher:        Not(HaveOccurred()),
 			metricsMatcher: BeNumerically("==", 1),
+			uidFn:          func(rr *types.ReconciliationRequest) string { return string(rr.Instance.GetUID()) },
 		},
 		{
 			name:           "should not delete resources because of no generated resources have been detected",
@@ -97,6 +101,7 @@ func TestGcAction(t *testing.T) {
 			generated:      false,
 			matcher:        Not(HaveOccurred()),
 			metricsMatcher: BeNumerically("==", 0),
+			uidFn:          func(rr *types.ReconciliationRequest) string { return string(rr.Instance.GetUID()) },
 		},
 		{
 			name:           "should not delete resources because of selector",
@@ -106,6 +111,7 @@ func TestGcAction(t *testing.T) {
 			metricsMatcher: BeNumerically("==", 1),
 			labels:         map[string]string{"foo": "bar"},
 			options:        []gc.ActionOpts{gc.WithLabel("foo", "baz")},
+			uidFn:          func(rr *types.ReconciliationRequest) string { return string(rr.Instance.GetUID()) },
 		},
 		{
 			name:           "should not delete resources because of unremovable type",
@@ -114,6 +120,7 @@ func TestGcAction(t *testing.T) {
 			matcher:        Not(HaveOccurred()),
 			metricsMatcher: BeNumerically("==", 1),
 			options:        []gc.ActionOpts{gc.WithUnremovables(gvk.ConfigMap)},
+			uidFn:          func(rr *types.ReconciliationRequest) string { return string(rr.Instance.GetUID()) },
 		},
 		{
 			name:           "should not delete resources because of predicate",
@@ -126,24 +133,23 @@ func TestGcAction(t *testing.T) {
 					return unstructured.GroupVersionKind() != gvk.ConfigMap, nil
 				},
 			)},
+			uidFn: func(rr *types.ReconciliationRequest) string { return string(rr.Instance.GetUID()) },
 		},
 		{
-			name:           "should delete leftovers because of hash",
+			name:           "should delete leftovers because of UID",
 			version:        semver.Version{Major: 0, Minor: 1, Patch: 0},
 			generated:      true,
 			matcher:        Satisfy(k8serr.IsNotFound),
 			metricsMatcher: BeNumerically("==", 1),
-			hashFn: func(rr *types.ReconciliationRequest) (string, error) {
-				return xid.New().String(), nil
-			},
+			uidFn:          func(rr *types.ReconciliationRequest) string { return xid.New().String() },
 		},
 		{
-			name:           "should not delete leftovers because of hash",
+			name:           "should not delete leftovers because of UID",
 			version:        semver.Version{Major: 0, Minor: 1, Patch: 0},
 			generated:      true,
 			matcher:        Not(HaveOccurred()),
 			metricsMatcher: BeNumerically("==", 1),
-			hashFn:         types.HashStr,
+			uidFn:          func(rr *types.ReconciliationRequest) string { return string(rr.Instance.GetUID()) },
 		},
 	}
 
@@ -154,6 +160,7 @@ func TestGcAction(t *testing.T) {
 
 			g := NewWithT(t)
 			nsn := xid.New().String()
+			id := xid.New().String()
 
 			gci := gcSvc.New(
 				cli,
@@ -176,7 +183,7 @@ func TestGcAction(t *testing.T) {
 				NotTo(HaveOccurred())
 
 			rr := types.ReconciliationRequest{
-				OwnerName: componentsv1.DashboardInstanceName,
+				Client: cli,
 				DSCI: &dsciv1.DSCInitialization{
 					ObjectMeta: metav1.ObjectMeta{
 						Generation: 1,
@@ -189,6 +196,7 @@ func TestGcAction(t *testing.T) {
 					},
 					ObjectMeta: metav1.ObjectMeta{
 						Generation: 1,
+						UID:        apytypes.UID(id),
 					},
 				},
 				Release: cluster.Release{
@@ -200,28 +208,22 @@ func TestGcAction(t *testing.T) {
 				Generated: tt.generated,
 			}
 
-			ch := ""
-			if tt.hashFn != nil {
-				ch, err = tt.hashFn(&rr)
-				g.Expect(err).NotTo(HaveOccurred())
-			}
-
 			l := make(map[string]string)
 			for k, v := range tt.labels {
 				l[k] = v
 			}
 
-			l[labels.ComponentPartOf] = rr.OwnerName
+			l[labels.ComponentPartOf] = strings.ToLower(componentsv1.DashboardKind)
 
 			cm := corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "gc-cm",
 					Namespace: nsn,
 					Annotations: map[string]string{
-						annotations.ComponentGeneration: "1",
-						annotations.ComponentHash:       ch,
-						annotations.PlatformVersion:     "0.1.0",
-						annotations.PlatformType:        string(cluster.OpenDataHub),
+						annotations.InstanceGeneration: "1",
+						annotations.InstanceUID:        tt.uidFn(&rr),
+						annotations.PlatformVersion:    "0.1.0",
+						annotations.PlatformType:       string(cluster.OpenDataHub),
 					},
 					Labels: l,
 				},

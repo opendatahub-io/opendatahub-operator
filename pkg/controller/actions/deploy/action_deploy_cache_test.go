@@ -40,6 +40,7 @@ func TestDeployWithCacheAction(t *testing.T) {
 	utilruntime.Must(corev1.AddToScheme(s))
 	utilruntime.Must(appsv1.AddToScheme(s))
 	utilruntime.Must(apiextensionsv1.AddToScheme(s))
+	utilruntime.Must(componentsv1.AddToScheme(s))
 
 	projectDir, err := envtestutil.FindProjectRoot()
 	g.Expect(err).NotTo(HaveOccurred())

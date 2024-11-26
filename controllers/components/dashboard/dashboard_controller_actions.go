@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	routev1 "github.com/openshift/api/route/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -110,7 +111,7 @@ func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 		&rl,
 		client.InNamespace(rr.DSCI.Spec.ApplicationsNamespace),
 		client.MatchingLabels(map[string]string{
-			labels.ComponentPartOf: componentsv1.DashboardInstanceName,
+			labels.ComponentPartOf: strings.ToLower(componentsv1.DashboardKind),
 		}),
 	)
 

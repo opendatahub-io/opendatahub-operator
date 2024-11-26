@@ -3,6 +3,7 @@ package updatestatus_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/onsi/gomega/gstruct"
@@ -184,7 +185,7 @@ func TestUpdateStatusActionReadyAutoSelector(t *testing.T) {
 				Name:      "my-deployment",
 				Namespace: ns,
 				Labels: map[string]string{
-					labels.ComponentPartOf: ns,
+					labels.ComponentPartOf: strings.ToLower(componentsv1.DashboardKind),
 				},
 			},
 			Status: appsv1.DeploymentStatus{
@@ -201,7 +202,7 @@ func TestUpdateStatusActionReadyAutoSelector(t *testing.T) {
 				Name:      "my-deployment-2",
 				Namespace: ns,
 				Labels: map[string]string{
-					labels.ComponentPartOf: ns,
+					labels.ComponentPartOf: strings.ToLower(componentsv1.DashboardKind),
 				},
 			},
 			Status: appsv1.DeploymentStatus{
@@ -216,12 +217,11 @@ func TestUpdateStatusActionReadyAutoSelector(t *testing.T) {
 	action := updatestatus.NewAction()
 
 	rr := types.ReconciliationRequest{
-		OwnerName: ns,
-		Client:    cl,
-		Instance:  &componentsv1.Dashboard{},
-		DSCI:      &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
-		DSC:       &dscv1.DataScienceCluster{},
-		Release:   cluster.Release{Name: cluster.OpenDataHub},
+		Client:   cl,
+		Instance: &componentsv1.Dashboard{},
+		DSCI:     &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
+		DSC:      &dscv1.DataScienceCluster{},
+		Release:  cluster.Release{Name: cluster.OpenDataHub},
 	}
 
 	err = action(ctx, &rr)
@@ -287,12 +287,11 @@ func TestUpdateStatusActionNotReadyNotFound(t *testing.T) {
 	action := updatestatus.NewAction()
 
 	rr := types.ReconciliationRequest{
-		OwnerName: xid.New().String(),
-		Client:    cl,
-		Instance:  &componentsv1.Dashboard{},
-		DSCI:      &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
-		DSC:       &dscv1.DataScienceCluster{},
-		Release:   cluster.Release{Name: cluster.OpenDataHub},
+		Client:   cl,
+		Instance: &componentsv1.Dashboard{},
+		DSCI:     &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
+		DSC:      &dscv1.DataScienceCluster{},
+		Release:  cluster.Release{Name: cluster.OpenDataHub},
 	}
 
 	err = action(ctx, &rr)

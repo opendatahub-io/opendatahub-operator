@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/hashicorp/go-multierror"
 	"golang.org/x/exp/slices"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -39,6 +40,7 @@ var (
 type forInput struct {
 	object  components.ComponentObject
 	options []builder.ForOption
+	gvk     schema.GroupVersionKind
 }
 
 type watchInput struct {
@@ -80,20 +82,26 @@ type ComponentReconcilerBuilder struct {
 	input         forInput
 	watches       []watchInput
 	predicates    []predicate.Predicate
-	ownerName     string
 	componentName string
 	actions       []actions.Fn
 	finalizers    []actions.Fn
+	errors        error
 }
 
-func ComponentReconcilerFor(mgr ctrl.Manager, ownerName string, object components.ComponentObject, opts ...builder.ForOption) *ComponentReconcilerBuilder {
+func ComponentReconcilerFor(mgr ctrl.Manager, object components.ComponentObject, opts ...builder.ForOption) *ComponentReconcilerBuilder {
 	crb := ComponentReconcilerBuilder{
-		mgr:       mgr,
-		ownerName: ownerName,
-		input: forInput{
-			object:  object,
-			options: slices.Clone(opts),
-		},
+		mgr: mgr,
+	}
+
+	gvk, err := mgr.GetClient().GroupVersionKindFor(object)
+	if err != nil {
+		crb.errors = multierror.Append(crb.errors, fmt.Errorf("unable to determine GVK: %w", err))
+	}
+
+	crb.input = forInput{
+		object:  object,
+		options: slices.Clone(opts),
+		gvk:     gvk,
 	}
 
 	return &crb
@@ -134,7 +142,7 @@ func (b *ComponentReconcilerBuilder) Watches(object client.Object, opts ...Watch
 			defaultPredicate,
 			// use the components.opendatahub.io/part-of label to filter
 			// events not related to the owner
-			component.ForLabel(labels.ComponentPartOf, b.ownerName),
+			component.ForLabel(labels.ComponentPartOf, strings.ToLower(b.input.gvk.Kind)),
 		))
 	}
 
@@ -184,21 +192,16 @@ func (b *ComponentReconcilerBuilder) WithEventFilter(p predicate.Predicate) *Com
 }
 
 func (b *ComponentReconcilerBuilder) Build(_ context.Context) (*ComponentReconciler, error) {
-	name := b.componentName
-	if name == "" {
-		kinds, _, err := b.mgr.GetScheme().ObjectKinds(b.input.object)
-		if err != nil {
-			return nil, err
-		}
-		if len(kinds) != 1 {
-			return nil, fmt.Errorf("expected exactly one kind of object, got %d", len(kinds))
-		}
-
-		name = kinds[0].Kind
-		name = strings.ToLower(name)
+	if b.errors != nil {
+		return nil, b.errors
 	}
 
-	r, err := NewComponentReconciler(b.mgr, name, b.ownerName, b.input.object)
+	name := b.componentName
+	if name == "" {
+		name = strings.ToLower(b.input.gvk.Kind)
+	}
+
+	r, err := NewComponentReconciler(b.mgr, name, b.input.object)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create reconciler for component %s: %w", name, err)
 	}

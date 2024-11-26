@@ -58,8 +58,6 @@ type TemplateInfo struct {
 type ReconciliationRequest struct {
 	*odhClient.Client
 
-	OwnerName string
-
 	Manager   *manager.Manager
 	Instance  components.ComponentObject
 	DSC       *dscv1.DataScienceCluster

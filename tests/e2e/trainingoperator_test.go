@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -164,7 +165,7 @@ func (tc *TrainingOperatorTestCtx) testUpdateOnTrainingOperatorResources() error
 	// Test Updating TrainingOperator Replicas
 
 	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-		LabelSelector: labels.ComponentPartOf + "=" + tc.testTrainingOperatorInstance.Name,
+		LabelSelector: labels.ComponentPartOf + "=" + strings.ToLower(tc.testTrainingOperatorInstance.Kind),
 	})
 	if err != nil {
 		return err

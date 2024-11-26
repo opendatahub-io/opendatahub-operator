@@ -3,6 +3,7 @@ package updatestatus
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -13,6 +14,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 const (
@@ -47,7 +49,12 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 	}
 
 	if l[labels.ComponentPartOf] == "" {
-		l[labels.ComponentPartOf] = rr.OwnerName
+		kind, err := resources.KindForObject(rr.Client.Scheme(), rr.Instance)
+		if err != nil {
+			return err
+		}
+
+		l[labels.ComponentPartOf] = strings.ToLower(kind)
 	}
 
 	obj, ok := rr.Instance.(types.ResourceObject)

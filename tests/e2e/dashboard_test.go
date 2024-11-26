@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -193,7 +194,7 @@ func (d *DashboardTestCtx) validateOperandsOwnerReferences(t *testing.T) {
 		d.List(
 			gvk.Deployment,
 			client.InNamespace(d.applicationsNamespace),
-			client.MatchingLabels{labels.ComponentPartOf: componentsv1.DashboardInstanceName},
+			client.MatchingLabels{labels.ComponentPartOf: strings.ToLower(componentsv1.DashboardKind)},
 		),
 	).Should(And(
 		HaveLen(1),
@@ -229,7 +230,7 @@ func (d *DashboardTestCtx) validateOperandsDynamicallyWatchedResources(t *testin
 	g.Eventually(
 		d.List(
 			gvk.OdhApplication,
-			client.MatchingLabels{labels.ComponentPartOf: componentsv1.DashboardInstanceName},
+			client.MatchingLabels{labels.ComponentPartOf: strings.ToLower(componentsv1.DashboardKind)},
 		),
 	).Should(And(
 		HaveEach(
@@ -244,7 +245,7 @@ func (d *DashboardTestCtx) validateUpdateOperandsResources(t *testing.T) {
 	appDeployments, err := d.kubeClient.AppsV1().Deployments(d.applicationsNamespace).List(
 		d.ctx,
 		metav1.ListOptions{
-			LabelSelector: labels.ComponentPartOf + "=" + componentsv1.DashboardInstanceName,
+			LabelSelector: labels.ComponentPartOf + "=" + strings.ToLower(componentsv1.DashboardKind),
 		},
 	)
 
@@ -278,7 +279,7 @@ func (d *DashboardTestCtx) validateUpdateOperandsResources(t *testing.T) {
 		d.List(
 			gvk.Deployment,
 			client.InNamespace(d.applicationsNamespace),
-			client.MatchingLabels{labels.ComponentPartOf: componentsv1.DashboardInstanceName},
+			client.MatchingLabels{labels.ComponentPartOf: strings.ToLower(componentsv1.DashboardKind)},
 		),
 	).Should(And(
 		HaveLen(1),
@@ -291,7 +292,7 @@ func (d *DashboardTestCtx) validateUpdateOperandsResources(t *testing.T) {
 		d.List(
 			gvk.Deployment,
 			client.InNamespace(d.applicationsNamespace),
-			client.MatchingLabels{labels.ComponentPartOf: componentsv1.DashboardInstanceName},
+			client.MatchingLabels{labels.ComponentPartOf: strings.ToLower(componentsv1.DashboardKind)},
 		),
 	).WithTimeout(30 * time.Second).WithPolling(1 * time.Second).Should(And(
 		HaveLen(1),
@@ -308,7 +309,7 @@ func (d *DashboardTestCtx) validateDashboardDisabled(t *testing.T) {
 		d.List(
 			gvk.Deployment,
 			client.InNamespace(d.applicationsNamespace),
-			client.MatchingLabels{labels.ComponentPartOf: componentsv1.DashboardInstanceName},
+			client.MatchingLabels{labels.ComponentPartOf: strings.ToLower(componentsv1.DashboardKind)},
 		),
 	).Should(
 		HaveLen(1),
@@ -326,7 +327,7 @@ func (d *DashboardTestCtx) validateDashboardDisabled(t *testing.T) {
 		d.List(
 			gvk.Deployment,
 			client.InNamespace(d.applicationsNamespace),
-			client.MatchingLabels{labels.ComponentPartOf: componentsv1.DashboardInstanceName},
+			client.MatchingLabels{labels.ComponentPartOf: strings.ToLower(componentsv1.DashboardKind)},
 		),
 	).Should(
 		BeEmpty(),

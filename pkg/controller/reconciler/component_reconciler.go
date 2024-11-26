@@ -38,7 +38,6 @@ type ComponentReconciler struct {
 	Release    cluster.Release
 
 	name            string
-	ownerName       string
 	m               *odhManager.Manager
 	instanceFactory func() (components.ComponentObject, error)
 }
@@ -46,7 +45,6 @@ type ComponentReconciler struct {
 func NewComponentReconciler(
 	mgr manager.Manager,
 	name string,
-	ownerName string,
 	object components.ComponentObject,
 ) (*ComponentReconciler, error) {
 	oc, err := odhClient.NewFromManager(mgr)
@@ -55,14 +53,13 @@ func NewComponentReconciler(
 	}
 
 	cc := ComponentReconciler{
-		Client:    oc,
-		Scheme:    mgr.GetScheme(),
-		Log:       ctrl.Log.WithName("controllers").WithName(name),
-		Recorder:  mgr.GetEventRecorderFor(name),
-		Release:   cluster.GetRelease(),
-		name:      name,
-		ownerName: ownerName,
-		m:         odhManager.New(mgr),
+		Client:   oc,
+		Scheme:   mgr.GetScheme(),
+		Log:      ctrl.Log.WithName("controllers").WithName(name),
+		Recorder: mgr.GetEventRecorderFor(name),
+		Release:  cluster.GetRelease(),
+		name:     name,
+		m:        odhManager.New(mgr),
 		instanceFactory: func() (components.ComponentObject, error) {
 			t := reflect.TypeOf(object).Elem()
 			res, ok := reflect.New(t).Interface().(components.ComponentObject)
@@ -133,7 +130,6 @@ func (r *ComponentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	rr := types.ReconciliationRequest{
-		OwnerName: r.ownerName,
 		Client:    r.Client,
 		Manager:   r.m,
 		Instance:  res,

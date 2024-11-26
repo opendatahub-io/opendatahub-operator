@@ -48,11 +48,7 @@ var (
 )
 
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	_, err := reconciler.ComponentReconcilerFor(
-		mgr,
-		componentsv1.DataSciencePipelinesInstanceName,
-		&componentsv1.DataSciencePipelines{},
-	).
+	_, err := reconciler.ComponentReconcilerFor(mgr, &componentsv1.DataSciencePipelines{}).
 		// customized Owns() for Component with new predicates
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Secret{}).

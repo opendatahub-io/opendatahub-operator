@@ -12,8 +12,8 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	odhTypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	odhLabels "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/services/gc"
 )
 
@@ -83,19 +83,19 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 		return nil
 	}
 
-	controllerName := strings.ToLower(rr.Instance.GetObjectKind().GroupVersionKind().Kind)
-
-	CyclesTotal.WithLabelValues(controllerName).Inc()
-
-	ch, err := odhTypes.HashStr(rr)
+	kind, err := resources.KindForObject(rr.Client.Scheme(), rr.Instance)
 	if err != nil {
 		return err
 	}
 
+	controllerName := strings.ToLower(kind)
+
+	CyclesTotal.WithLabelValues(controllerName).Inc()
+
 	selector := a.selector
 	if selector == nil {
 		selector = labels.SelectorFromSet(map[string]string{
-			odhLabels.ComponentPartOf: rr.OwnerName,
+			odhLabels.ComponentPartOf: strings.ToLower(kind),
 		})
 	}
 
@@ -105,11 +105,6 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 		func(ctx context.Context, obj unstructured.Unstructured) (bool, error) {
 			if slices.Contains(a.unremovables, obj.GroupVersionKind()) {
 				return false, nil
-			}
-
-			objectHash := obj.GetAnnotations()[annotations.ComponentHash]
-			if objectHash != "" {
-				return objectHash != ch, nil
 			}
 
 			return a.predicateFn(rr, obj)

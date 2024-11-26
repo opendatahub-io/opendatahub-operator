@@ -37,11 +37,7 @@ import (
 )
 
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	_, err := reconciler.ComponentReconcilerFor(
-		mgr,
-		componentsv1.TrainingOperatorInstanceName,
-		&componentsv1.TrainingOperator{},
-	).
+	_, err := reconciler.ComponentReconcilerFor(mgr, &componentsv1.TrainingOperator{}).
 		// customized Owns() for Component with new predicates
 		Owns(&corev1.ConfigMap{}).
 		Owns(&promv1.PodMonitor{}).

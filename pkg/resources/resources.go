@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 )
 
 func ToUnstructured(obj any) (*unstructured.Unstructured, error) {
@@ -227,4 +228,17 @@ func Hash(in *unstructured.Unstructured) ([]byte, error) {
 
 func EncodeToString(in []byte) string {
 	return "v" + base64.RawURLEncoding.EncodeToString(in)
+}
+
+func KindForObject(scheme *runtime.Scheme, obj runtime.Object) (string, error) {
+	if obj.GetObjectKind().GroupVersionKind().Kind != "" {
+		return obj.GetObjectKind().GroupVersionKind().Kind, nil
+	}
+
+	gvk, err := apiutil.GVKForObject(obj, scheme)
+	if err != nil {
+		return "", fmt.Errorf("failed to get GVK: %w", err)
+	}
+
+	return gvk.Kind, nil
 }

@@ -43,11 +43,7 @@ import (
 )
 
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	_, err := reconciler.ComponentReconcilerFor(
-		mgr,
-		componentsv1.ModelRegistryInstanceName,
-		&componentsv1.ModelRegistry{},
-	).
+	_, err := reconciler.ComponentReconcilerFor(mgr, &componentsv1.ModelRegistry{}).
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Secret{}).
 		Owns(&rbacv1.Role{}).
