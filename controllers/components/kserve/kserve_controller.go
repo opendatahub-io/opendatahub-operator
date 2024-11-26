@@ -28,6 +28,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
@@ -62,7 +63,17 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		// changes. The compareHashPredicate ensures that we don't needlessly enqueue
 		// requests if there are no changes that we don't care about.
 		Owns(&templatev1.Template{}, reconciler.WithPredicates(hash.Updated())).
-		Owns(&featuresv1.FeatureTracker{}).
+		// The FeatureTrackers are created slightly differently, and have
+		// ownerRefs set by controllerutil.SetOwnerReference() rather than
+		// controllerutil.SetControllerReference(), which means that the default
+		// eventHandler for Owns won't work, so a slightly modified variant is
+		// added here
+		Owns(&featuresv1.FeatureTracker{}, reconciler.WithEventHandler(
+			handler.EnqueueRequestForOwner(
+				mgr.GetScheme(),
+				mgr.GetRESTMapper(),
+				&componentsv1.Kserve{},
+			))).
 		Owns(&networkingv1.NetworkPolicy{}).
 		Owns(&monitoringv1.ServiceMonitor{}).
 		Owns(&admissionregistrationv1.MutatingWebhookConfiguration{}).
@@ -87,6 +98,9 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		// They're owned by FeatureTrackers, which are owned by a Kserve; so there's a
 		// custom event mapper to enqueue a reconcile request for a Kserve object, if
 		// applicable.
+		//
+		// They also don't have the "partOf" label that Watches expects in the
+		// implicit predicate, so the simpler "DefaultPredicate" is also added.
 		WatchesGVK(
 			gvk.KnativeServing,
 			reconciler.Dynamic(),
