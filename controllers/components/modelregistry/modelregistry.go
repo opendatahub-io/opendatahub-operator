@@ -1,12 +1,14 @@
 package modelregistry
 
 import (
+	"context"
 	"fmt"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -71,4 +73,11 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Obj
 			ModelRegistryCommonSpec: dsc.Spec.Components.ModelRegistry.ModelRegistryCommonSpec,
 		},
 	})
+}
+func (s *componentHandler) GetStatus(ctx context.Context, cli client.Client) (components.Status, error) {
+	m := &componentsv1.Dashboard{}
+	if err := cli.Get(ctx, client.ObjectKey{Name: componentsv1.ModelRegistryInstanceName}, m); err != nil {
+		return components.Status{}, fmt.Errorf("error get component CR %v %w ", componentsv1.ModelRegistryInstanceName, err)
+	}
+	return *m.GetStatus(), nil
 }

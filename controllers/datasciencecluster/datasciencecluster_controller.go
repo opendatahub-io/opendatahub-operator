@@ -56,6 +56,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
 	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	annotations "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
@@ -309,13 +310,21 @@ func (r *DataScienceClusterReconciler) ReconcileComponent(
 	}
 
 	r.Log.Info("component reconciled successfully: " + componentName)
+	s, e := component.GetStatus(ctx, r.Client)
+	if e != nil {
+		return instance, e
+	}
 	instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dscv1.DataScienceCluster) {
 		if saved.Status.InstalledComponents == nil {
 			saved.Status.InstalledComponents = make(map[string]bool)
 		}
 		saved.Status.InstalledComponents[componentName] = enabled
 		if enabled {
-			status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileCompleted, "Component reconciled successfully", corev1.ConditionTrue)
+			if s.Phase == "Ready" {
+				// should use status.PhaseReady but to keep backwards compatibility use status.ReconcileCompleted
+				status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileCompleted, "Component reconciled successfully", corev1.ConditionTrue)
+			}
+			status.SetComponentCondition(&saved.Status.Conditions, componentName, status.PhaseNotReady, "Component reconciled in progress", corev1.ConditionTrue)
 		} else {
 			status.RemoveComponentCondition(&saved.Status.Conditions, componentName)
 		}
@@ -494,13 +503,13 @@ func (r *DataScienceClusterReconciler) SetupWithManager(ctx context.Context, mgr
 			builder.WithPredicates(modelMeshwebhookPredicates),
 		).
 		// components CRs
-		Owns(&componentsv1.Dashboard{}).
-		Owns(&componentsv1.Ray{}).
-		Owns(&componentsv1.ModelRegistry{}).
-		Owns(&componentsv1.TrustyAI{}).
-		Owns(&componentsv1.Kueue{}).
-		Owns(&componentsv1.TrainingOperator{}).
-		Owns(&componentsv1.DataSciencePipelines{}).
+		Owns(&componentsv1.Dashboard{}, builder.WithPredicates(resources.ComponentStatusPredicate())).
+		Owns(&componentsv1.Ray{}, builder.WithPredicates(resources.ComponentStatusPredicate())).
+		Owns(&componentsv1.ModelRegistry{}, builder.WithPredicates(resources.ComponentStatusPredicate())).
+		Owns(&componentsv1.TrustyAI{}, builder.WithPredicates(resources.ComponentStatusPredicate())).
+		Owns(&componentsv1.Kueue{}, builder.WithPredicates(resources.ComponentStatusPredicate())).
+		Owns(&componentsv1.TrainingOperator{}, builder.WithPredicates(resources.ComponentStatusPredicate())).
+		Owns(&componentsv1.DataSciencePipelines{}, builder.WithPredicates(resources.ComponentStatusPredicate())).
 		Owns(
 			&corev1.ServiceAccount{},
 			builder.WithPredicates(saPredicates),

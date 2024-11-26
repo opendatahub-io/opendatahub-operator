@@ -2,6 +2,7 @@ package resources
 
 import (
 	appsv1 "k8s.io/api/apps/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
@@ -50,6 +51,26 @@ func Deleted() predicate.Funcs {
 		},
 		GenericFunc: func(e event.GenericEvent) bool {
 			return false
+		},
+	}
+}
+
+func ComponentStatusPredicate() predicate.Funcs {
+	return predicate.Funcs{
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldCR, okOld := e.ObjectOld.(*unstructured.Unstructured)
+			newCR, okNew := e.ObjectNew.(*unstructured.Unstructured)
+			if !okOld || !okNew {
+				return false
+			}
+
+			// Check if the `.status.phase` is different: "", "Ready", "NotReady"
+			oldPhase, _, errO := unstructured.NestedString(oldCR.Object, "status", "phase")
+			newPhase, _, errN := unstructured.NestedString(newCR.Object, "status", "phase")
+			if errO != nil || errN != nil {
+				return false
+			}
+			return oldPhase != newPhase
 		},
 	}
 }

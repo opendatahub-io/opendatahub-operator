@@ -1,12 +1,14 @@
 package trainingoperator
 
 import (
+	"context"
 	"fmt"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8sclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -37,7 +39,7 @@ func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) ope
 	return dsc.Spec.Components.TrainingOperator.ManagementState
 }
 
-func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) k8sclient.Object {
+func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Object {
 	trainingoperatorAnnotations := make(map[string]string)
 	switch dsc.Spec.Components.TrainingOperator.ManagementState {
 	case operatorv1.Managed, operatorv1.Removed:
@@ -46,7 +48,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) k8sclient.
 		trainingoperatorAnnotations[annotations.ManagementStateAnnotation] = "Unknown"
 	}
 
-	return k8sclient.Object(&componentsv1.TrainingOperator{
+	return client.Object(&componentsv1.TrainingOperator{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentsv1.TrainingOperatorKind,
 			APIVersion: componentsv1.GroupVersion.String(),
@@ -71,4 +73,11 @@ func (s *componentHandler) Init(platform cluster.Platform) error {
 	}
 
 	return nil
+}
+func (s *componentHandler) GetStatus(ctx context.Context, cli client.Client) (components.Status, error) {
+	t := &componentsv1.Dashboard{}
+	if err := cli.Get(ctx, client.ObjectKey{Name: componentsv1.TrainingOperatorInstanceName}, t); err != nil {
+		return components.Status{}, fmt.Errorf("error get component CR %v %w ", componentsv1.TrainingOperatorInstanceName, err)
+	}
+	return *t.GetStatus(), nil
 }

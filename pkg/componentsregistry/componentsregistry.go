@@ -10,6 +10,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
@@ -27,6 +28,7 @@ type ComponentHandler interface {
 	// It returns interface, but it simplifies DSC reconciler code a lot
 	NewCRObject(dsc *dscv1.DataScienceCluster) client.Object
 	NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error
+	GetStatus(ctx context.Context, cli client.Client) (components.Status, error)
 }
 
 var registry = []ComponentHandler{}

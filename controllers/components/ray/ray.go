@@ -1,12 +1,14 @@
 package ray
 
 import (
+	"context"
 	"fmt"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -71,4 +73,11 @@ func (s *componentHandler) Init(platform cluster.Platform) error {
 	}
 
 	return nil
+}
+func (s *componentHandler) GetStatus(ctx context.Context, cli client.Client) (components.Status, error) {
+	r := &componentsv1.Dashboard{}
+	if err := cli.Get(ctx, client.ObjectKey{Name: componentsv1.RayInstanceName}, r); err != nil {
+		return components.Status{}, fmt.Errorf("error get component CR %v %w ", componentsv1.RayInstanceName, err)
+	}
+	return *r.GetStatus(), nil
 }
