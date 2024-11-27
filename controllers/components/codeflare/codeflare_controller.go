@@ -41,7 +41,6 @@ import (
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	_, err := reconciler.ComponentReconcilerFor(
 		mgr,
-		componentsv1.CodeFlareInstanceName,
 		&componentsv1.CodeFlare{},
 	).
 		// customized Owns() for Component with new predicates
