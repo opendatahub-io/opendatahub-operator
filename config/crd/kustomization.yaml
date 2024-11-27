@@ -16,7 +16,6 @@ resources:
 - bases/components.opendatahub.io_trustyais.yaml
 - bases/components.opendatahub.io_modelregistries.yaml
 - bases/components.opendatahub.io_trainingoperators.yaml
-- bases/services.opendatahub.io_dscmonitorings.yaml
 - bases/services.opendatahub.io_monitorings.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 

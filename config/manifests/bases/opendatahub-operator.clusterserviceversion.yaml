@@ -14,7 +14,8 @@ metadata:
       "datasciencepipelines.components.opendatahub.io", "kserves.components.opendatahub.io",
       "kueues.components.opendatahub.io", "modelmeshservings.components.opendatahub.io",
       "modelregistries.components.opendatahub.io", "rays.components.opendatahub.io",
-      "trainingoperators.components.opendatahub.io", "trustyais.components.opendatahub.io",  "workbenches.components.opendatahub.io"]'
+      "trainingoperators.components.opendatahub.io", "trustyais.components.opendatahub.io",  "workbenches.components.opendatahub.io",
+      "monitorings.services.opendatahub.io" ]'
     repository: https://github.com/opendatahub-io/opendatahub-operator
   name: opendatahub-operator.v2.19.0
   namespace: placeholder
@@ -101,6 +102,11 @@ spec:
       displayName: Model Registry
       kind: ModelRegistry
       name: modelregistries.components.opendatahub.io
+      version: v1
+    - description: Monitoring is the Schema for the monitorings API
+      displayName: Monitoring
+      kind: Monitoring
+      name: monitorings.services.opendatahub.io
       version: v1
     - description: Ray is the Schema for the rays API
       displayName: Ray
