@@ -299,6 +299,7 @@ func (r *DataScienceClusterReconciler) ReconcileComponent(
 		saved.Status.InstalledComponents[componentName] = enabled
 		if enabled {
 			status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileCompleted, "Component reconciled successfully", corev1.ConditionTrue)
+			// TODO: 	reflect.ValueOf(&saved.Status.Components).Elem().FieldByName(componentName).SetString(s.Phase)
 		} else {
 			status.RemoveComponentCondition(&saved.Status.Conditions, componentName)
 		}

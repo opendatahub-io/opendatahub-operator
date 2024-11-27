@@ -21,6 +21,7 @@ limitations under the License.
 package v1
 
 import (
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -58,8 +59,58 @@ func (in *ComponentsStatus) DeepCopyInto(out *ComponentsStatus) {
 	*out = *in
 	if in.ModelRegistry != nil {
 		in, out := &in.ModelRegistry, &out.ModelRegistry
-		*out = new(componentsv1.DSCModelRegistryStatus)
-		**out = **in
+		*out = new(componentsv1.ModelRegistryStatus)
+		(*in).DeepCopyInto(*out)
+	}
+	if in.Dashboard != nil {
+		in, out := &in.Dashboard, &out.Dashboard
+		*out = new(componentsv1.DashboardStatus)
+		(*in).DeepCopyInto(*out)
+	}
+	if in.CodeFlare != nil {
+		in, out := &in.CodeFlare, &out.CodeFlare
+		*out = new(components.Status)
+		(*in).DeepCopyInto(*out)
+	}
+	if in.Ray != nil {
+		in, out := &in.Ray, &out.Ray
+		*out = new(components.Status)
+		(*in).DeepCopyInto(*out)
+	}
+	if in.TrustyAI != nil {
+		in, out := &in.TrustyAI, &out.TrustyAI
+		*out = new(components.Status)
+		(*in).DeepCopyInto(*out)
+	}
+	if in.TrainingOperator != nil {
+		in, out := &in.TrainingOperator, &out.TrainingOperator
+		*out = new(components.Status)
+		(*in).DeepCopyInto(*out)
+	}
+	if in.Kueue != nil {
+		in, out := &in.Kueue, &out.Kueue
+		*out = new(components.Status)
+		(*in).DeepCopyInto(*out)
+	}
+	if in.DataSciencePipelines != nil {
+		in, out := &in.DataSciencePipelines, &out.DataSciencePipelines
+		*out = new(components.Status)
+		(*in).DeepCopyInto(*out)
+	}
+	if in.Kserve != nil {
+		in, out := &in.Kserve, &out.Kserve
+		*out = new(components.Status)
+		(*in).DeepCopyInto(*out)
+	}
+	if in.ModelMeshServing != nil {
+		in, out := &in.ModelMeshServing, &out.ModelMeshServing
+		*out = new(components.Status)
+		(*in).DeepCopyInto(*out)
+	}
+	if in.Workbenches != nil {
+		in, out := &in.Workbenches, &out.Workbenches
+		*out = new(components.Status)
+		(*in).DeepCopyInto(*out)
 	}
 }
 

@@ -25,6 +25,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	c "github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
@@ -80,10 +81,18 @@ type Components struct {
 
 // ComponentsStatus defines the custom status of DataScienceCluster components.
 type ComponentsStatus struct {
-	// ModelRegistry component status
-	ModelRegistry *componentsv1.DSCModelRegistryStatus `json:"modelregistry,omitempty"`
+	ModelRegistry        *componentsv1.ModelRegistryStatus `json:"modelregistry,omitempty"` // with namespace
+	Dashboard            *componentsv1.DashboardStatus     `json:"dashboard,omitempty"`     // with URL
+	CodeFlare            *c.Status                         `json:"codeflare,omitempty"`
+	Ray                  *c.Status                         `json:"ray,omitempty"`
+	TrustyAI             *c.Status                         `json:"trustyai,omitempty"`
+	TrainingOperator     *c.Status                          `json:"trainingoperator,omitempty"`
+	Kueue                *c.Status                         `json:"kueue,omitempty"`
+	DataSciencePipelines *c.Status                         `json:"datasciencepipelines,omitempty"`
+	Kserve               *c.Status                         `json:"kserve,omitempty"`
+	ModelMeshServing     *c.Status                         `json:"modelmeshserving,omitempty"`
+	Workbenches          *c.Status                         `json:"workbenches,omitempty"`
 }
-
 // DataScienceClusterStatus defines the observed state of DataScienceCluster.
 type DataScienceClusterStatus struct {
 	// Phase describes the Phase of DataScienceCluster reconciliation state
