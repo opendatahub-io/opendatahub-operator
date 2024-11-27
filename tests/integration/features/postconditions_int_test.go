@@ -3,13 +3,15 @@ package features_test
 import (
 	"context"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
+
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/integration/features/fixtures"
-	corev1 "k8s.io/api/core/v1"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("feature postconditions", func() {
