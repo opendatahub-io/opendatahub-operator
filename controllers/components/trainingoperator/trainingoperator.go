@@ -34,17 +34,14 @@ func (s *componentHandler) GetName() string {
 }
 
 func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) operatorv1.ManagementState {
-	return dsc.Spec.Components.TrainingOperator.ManagementState
+	if dsc.Spec.Components.TrainingOperator.ManagementState == operatorv1.Managed {
+		return operatorv1.Managed
+	}
+	return operatorv1.Removed
 }
-
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) k8sclient.Object {
 	trainingoperatorAnnotations := make(map[string]string)
-	switch dsc.Spec.Components.TrainingOperator.ManagementState {
-	case operatorv1.Managed, operatorv1.Removed:
-		trainingoperatorAnnotations[annotations.ManagementStateAnnotation] = string(dsc.Spec.Components.TrainingOperator.ManagementState)
-	default: // Force and Unmanaged case for unknown values, we do not support these yet
-		trainingoperatorAnnotations[annotations.ManagementStateAnnotation] = "Unknown"
-	}
+	trainingoperatorAnnotations[annotations.ManagementStateAnnotation] = string(s.GetManagementState(dsc))
 
 	return k8sclient.Object(&componentsv1.TrainingOperator{
 		TypeMeta: metav1.TypeMeta{

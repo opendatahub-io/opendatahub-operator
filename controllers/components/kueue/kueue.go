@@ -34,18 +34,15 @@ func (s *componentHandler) GetName() string {
 }
 
 func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) operatorv1.ManagementState {
-	return dsc.Spec.Components.Kueue.ManagementState
+	if dsc.Spec.Components.Kueue.ManagementState == operatorv1.Managed {
+		return operatorv1.Managed
+	}
+	return operatorv1.Removed
 }
 
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Object {
 	kueueAnnotations := make(map[string]string)
-	switch dsc.Spec.Components.Kueue.ManagementState {
-	case operatorv1.Managed, operatorv1.Removed:
-		kueueAnnotations[annotations.ManagementStateAnnotation] = string(dsc.Spec.Components.Kueue.ManagementState)
-	default: // Force and Unmanaged case for unknown values, we do not support these yet
-		kueueAnnotations[annotations.ManagementStateAnnotation] = "Unknown"
-	}
-
+	kueueAnnotations[annotations.ManagementStateAnnotation] = string(s.GetManagementState(dsc))
 	return client.Object(&componentsv1.Kueue{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentsv1.KueueKind,
