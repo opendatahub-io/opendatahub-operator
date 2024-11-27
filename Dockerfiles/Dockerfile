@@ -1,6 +1,3 @@
-# Build the manager binary
-ARG GOLANG_VERSION=1.21
-
 ################################################################################
 FROM registry.access.redhat.com/ubi8/toolbox as manifests
 ARG USE_LOCAL=false
@@ -15,7 +12,7 @@ RUN if [ "${USE_LOCAL}" != "true" ]; then \
     fi
 
 ################################################################################
-FROM registry.access.redhat.com/ubi8/go-toolset:$GOLANG_VERSION as builder
+FROM registry.access.redhat.com/ubi8/go-toolset:latest as builder
 ARG CGO_ENABLED=1
 USER root
 WORKDIR /workspace
