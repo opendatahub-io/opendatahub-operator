@@ -25,16 +25,11 @@ func (s *componentHandler) GetName() string {
 	return componentsv1.DashboardComponentName
 }
 
-func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) string {
-	if s == nil || dsc.Spec.Components.Dashboard.ManagementState == operatorv1.Removed {
-		return string(operatorv1.Removed)
+func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) operatorv1.ManagementState {
+	if dsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
+		return operatorv1.Managed
 	}
-	switch dsc.Spec.Components.Dashboard.ManagementState {
-	case operatorv1.Managed:
-		return string(dsc.Spec.Components.Dashboard.ManagementState)
-	default: // Force and Unmanaged case for unknown values, we do not support these yet
-		return "Unknown"
-	}
+	return operatorv1.Removed
 }
 
 func (s *componentHandler) Init(platform cluster.Platform) error {
@@ -49,7 +44,7 @@ func (s *componentHandler) Init(platform cluster.Platform) error {
 
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Object {
 	dashboardAnnotations := make(map[string]string)
-	dashboardAnnotations[annotations.ManagementStateAnnotation] = s.GetManagementState(dsc)
+	dashboardAnnotations[annotations.ManagementStateAnnotation] = string(s.GetManagementState(dsc))
 
 	return client.Object(&componentsv1.Dashboard{
 		TypeMeta: metav1.TypeMeta{

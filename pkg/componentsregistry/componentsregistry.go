@@ -6,6 +6,7 @@ import (
 	"context"
 
 	"github.com/hashicorp/go-multierror"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -20,7 +21,7 @@ type ComponentHandler interface {
 	// GetName and GetManagementState sound like pretty much the same across
 	// all components, but I could not find a way to avoid it
 	GetName() string
-	GetManagementState(dsc *dscv1.DataScienceCluster) string
+	GetManagementState(dsc *dscv1.DataScienceCluster) operatorv1.ManagementState
 	// NewCRObject constructs components specific Custom Resource
 	// e.g. Dashboard in datasciencecluster.opendatahub.io group
 	// It returns interface, but it simplifies DSC reconciler code a lot
