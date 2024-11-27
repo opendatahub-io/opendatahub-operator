@@ -3,6 +3,7 @@ package updatestatus
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -12,6 +13,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 const (
@@ -40,8 +43,18 @@ func WithSelectorLabels(values map[string]string) ActionOpts {
 }
 
 func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error {
-	if len(a.labels) == 0 {
-		return nil
+	l := make(map[string]string, len(a.labels))
+	for k, v := range a.labels {
+		l[k] = v
+	}
+
+	if l[labels.ComponentPartOf] == "" {
+		kind, err := resources.KindForObject(rr.Client.Scheme(), rr.Instance)
+		if err != nil {
+			return err
+		}
+
+		l[labels.ComponentPartOf] = strings.ToLower(kind)
 	}
 
 	obj, ok := rr.Instance.(types.ResourceObject)
@@ -55,7 +68,7 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 		ctx,
 		deployments,
 		client.InNamespace(rr.DSCI.Spec.ApplicationsNamespace),
-		client.MatchingLabels(a.labels),
+		client.MatchingLabels(l),
 	)
 
 	if err != nil {

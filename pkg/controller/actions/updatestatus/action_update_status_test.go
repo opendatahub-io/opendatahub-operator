@@ -3,6 +3,7 @@ package updatestatus_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/onsi/gomega/gstruct"
@@ -42,7 +43,7 @@ func TestUpdateStatusActionNotReady(t *testing.T) {
 				Name:      "my-deployment",
 				Namespace: ns,
 				Labels: map[string]string{
-					labels.K8SCommon.PartOf: "foo",
+					labels.ComponentPartOf: ns,
 				},
 			},
 			Status: appsv1.DeploymentStatus{
@@ -59,7 +60,7 @@ func TestUpdateStatusActionNotReady(t *testing.T) {
 				Name:      "my-deployment-2",
 				Namespace: ns,
 				Labels: map[string]string{
-					labels.K8SCommon.PartOf: "foo",
+					labels.ComponentPartOf: ns,
 				},
 			},
 			Status: appsv1.DeploymentStatus{
@@ -72,7 +73,7 @@ func TestUpdateStatusActionNotReady(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	action := updatestatus.NewAction(
-		updatestatus.WithSelectorLabel(labels.K8SCommon.PartOf, "foo"))
+		updatestatus.WithSelectorLabel(labels.ComponentPartOf, ns))
 
 	rr := types.ReconciliationRequest{
 		Client:   cl,
@@ -113,7 +114,7 @@ func TestUpdateStatusActionReady(t *testing.T) {
 				Name:      "my-deployment",
 				Namespace: ns,
 				Labels: map[string]string{
-					labels.K8SCommon.PartOf: "foo",
+					labels.ComponentPartOf: ns,
 				},
 			},
 			Status: appsv1.DeploymentStatus{
@@ -130,7 +131,7 @@ func TestUpdateStatusActionReady(t *testing.T) {
 				Name:      "my-deployment-2",
 				Namespace: ns,
 				Labels: map[string]string{
-					labels.K8SCommon.PartOf: "foo",
+					labels.ComponentPartOf: ns,
 				},
 			},
 			Status: appsv1.DeploymentStatus{
@@ -143,7 +144,7 @@ func TestUpdateStatusActionReady(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	action := updatestatus.NewAction(
-		updatestatus.WithSelectorLabel(labels.K8SCommon.PartOf, "foo"))
+		updatestatus.WithSelectorLabel(labels.ComponentPartOf, ns))
 
 	rr := types.ReconciliationRequest{
 		Client:   cl,
@@ -163,6 +164,146 @@ func TestUpdateStatusActionReady(t *testing.T) {
 			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
 				"Status": Equal(metav1.ConditionTrue),
 				"Reason": Equal(updatestatus.ReadyReason),
+			}),
+		),
+	)
+}
+
+func TestUpdateStatusActionReadyAutoSelector(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := context.Background()
+	ns := xid.New().String()
+
+	cl, err := fakeclient.New(
+		&appsv1.Deployment{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: gvk.Deployment.GroupVersion().String(),
+				Kind:       gvk.Deployment.Kind,
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "my-deployment",
+				Namespace: ns,
+				Labels: map[string]string{
+					labels.ComponentPartOf: strings.ToLower(componentsv1.DashboardKind),
+				},
+			},
+			Status: appsv1.DeploymentStatus{
+				Replicas:      1,
+				ReadyReplicas: 1,
+			},
+		},
+		&appsv1.Deployment{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: gvk.Deployment.GroupVersion().String(),
+				Kind:       gvk.Deployment.Kind,
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "my-deployment-2",
+				Namespace: ns,
+				Labels: map[string]string{
+					labels.ComponentPartOf: strings.ToLower(componentsv1.DashboardKind),
+				},
+			},
+			Status: appsv1.DeploymentStatus{
+				Replicas:      1,
+				ReadyReplicas: 1,
+			},
+		},
+	)
+
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	action := updatestatus.NewAction()
+
+	rr := types.ReconciliationRequest{
+		Client:   cl,
+		Instance: &componentsv1.Dashboard{},
+		DSCI:     &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
+		DSC:      &dscv1.DataScienceCluster{},
+		Release:  cluster.Release{Name: cluster.OpenDataHub},
+	}
+
+	err = action(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(rr.Instance).Should(
+		WithTransform(
+			matchers.ExtractStatusCondition(status.ConditionTypeReady),
+			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+				"Status": Equal(metav1.ConditionTrue),
+				"Reason": Equal(updatestatus.ReadyReason),
+			}),
+		),
+	)
+}
+
+func TestUpdateStatusActionNotReadyNotFound(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := context.Background()
+	ns := xid.New().String()
+
+	cl, err := fakeclient.New(
+		&appsv1.Deployment{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: gvk.Deployment.GroupVersion().String(),
+				Kind:       gvk.Deployment.Kind,
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "my-deployment",
+				Namespace: ns,
+				Labels: map[string]string{
+					labels.ComponentPartOf: ns,
+				},
+			},
+			Status: appsv1.DeploymentStatus{
+				Replicas:      1,
+				ReadyReplicas: 1,
+			},
+		},
+		&appsv1.Deployment{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: gvk.Deployment.GroupVersion().String(),
+				Kind:       gvk.Deployment.Kind,
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "my-deployment-2",
+				Namespace: ns,
+				Labels: map[string]string{
+					labels.ComponentPartOf: ns,
+				},
+			},
+			Status: appsv1.DeploymentStatus{
+				Replicas:      1,
+				ReadyReplicas: 1,
+			},
+		},
+	)
+
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	action := updatestatus.NewAction()
+
+	rr := types.ReconciliationRequest{
+		Client:   cl,
+		Instance: &componentsv1.Dashboard{},
+		DSCI:     &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
+		DSC:      &dscv1.DataScienceCluster{},
+		Release:  cluster.Release{Name: cluster.OpenDataHub},
+	}
+
+	err = action(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(rr.Instance).Should(
+		WithTransform(
+			matchers.ExtractStatusCondition(status.ConditionTypeReady),
+			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+				"Status": Equal(metav1.ConditionFalse),
+				"Reason": Equal(updatestatus.DeploymentsNotReadyReason),
 			}),
 		),
 	)

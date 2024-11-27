@@ -37,11 +37,7 @@ import (
 )
 
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	_, err := reconciler.ComponentReconcilerFor(
-		mgr,
-		componentsv1.TrainingOperatorInstanceName,
-		&componentsv1.TrainingOperator{},
-	).
+	_, err := reconciler.ComponentReconcilerFor(mgr, &componentsv1.TrainingOperator{}).
 		// customized Owns() for Component with new predicates
 		Owns(&corev1.ConfigMap{}).
 		Owns(&promv1.PodMonitor{}).
@@ -60,16 +56,10 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		)).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
-			deploy.WithFieldOwner(componentsv1.TrainingOperatorInstanceName),
-			deploy.WithLabel(labels.ComponentPartOf, componentsv1.TrainingOperatorInstanceName),
 		)).
-		WithAction(updatestatus.NewAction(
-			updatestatus.WithSelectorLabel(labels.ComponentPartOf, componentsv1.TrainingOperatorInstanceName),
-		)).
+		WithAction(updatestatus.NewAction()).
 		// must be the final action
-		WithAction(gc.NewAction(
-			gc.WithLabel(labels.ComponentPartOf, componentsv1.TrainingOperatorInstanceName),
-		)).
+		WithAction(gc.NewAction()).
 		Build(ctx)
 
 	if err != nil {

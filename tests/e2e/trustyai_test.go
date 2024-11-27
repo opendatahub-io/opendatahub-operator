@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -164,7 +165,7 @@ func (tc *TrustyaiTestCtx) testUpdateOnTrustyaiResources() error {
 	// Test Updating Trustyai Replicas
 
 	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-		LabelSelector: labels.ComponentPartOf + "=" + tc.testTrustyaiInstance.Name,
+		LabelSelector: labels.ComponentPartOf + "=" + strings.ToLower(tc.testTrustyaiInstance.Kind),
 	})
 	if err != nil {
 		return err

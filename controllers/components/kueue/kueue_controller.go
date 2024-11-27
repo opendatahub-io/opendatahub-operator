@@ -39,11 +39,7 @@ import (
 )
 
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	_, err := reconciler.ComponentReconcilerFor(
-		mgr,
-		componentsv1.KueueInstanceName,
-		&componentsv1.Kueue{},
-	).
+	_, err := reconciler.ComponentReconcilerFor(mgr, &componentsv1.Kueue{}).
 		// customized Owns() for Component with new predicates
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Secret{}).
@@ -70,16 +66,10 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		)).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
-			deploy.WithFieldOwner(componentsv1.KueueInstanceName),
-			deploy.WithLabel(labels.ComponentPartOf, componentsv1.KueueInstanceName),
 		)).
-		WithAction(updatestatus.NewAction(
-			updatestatus.WithSelectorLabel(labels.ComponentPartOf, componentsv1.KueueInstanceName),
-		)).
+		WithAction(updatestatus.NewAction()).
 		// must be the final action
-		WithAction(gc.NewAction(
-			gc.WithLabel(labels.ComponentPartOf, componentsv1.KueueInstanceName),
-		)).
+		WithAction(gc.NewAction()).
 		Build(ctx)
 
 	if err != nil {

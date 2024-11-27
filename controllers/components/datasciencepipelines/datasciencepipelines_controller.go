@@ -48,11 +48,7 @@ var (
 )
 
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	_, err := reconciler.ComponentReconcilerFor(
-		mgr,
-		componentsv1.DataSciencePipelinesInstanceName,
-		&componentsv1.DataSciencePipelines{},
-	).
+	_, err := reconciler.ComponentReconcilerFor(mgr, &componentsv1.DataSciencePipelines{}).
 		// customized Owns() for Component with new predicates
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Secret{}).
@@ -77,16 +73,10 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		)).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
-			deploy.WithFieldOwner(componentsv1.DataSciencePipelinesInstanceName),
-			deploy.WithLabel(labels.ComponentPartOf, componentsv1.DataSciencePipelinesInstanceName),
 		)).
-		WithAction(updatestatus.NewAction(
-			updatestatus.WithSelectorLabel(labels.ComponentPartOf, componentsv1.DataSciencePipelinesInstanceName),
-		)).
+		WithAction(updatestatus.NewAction()).
 		// must be the final action
-		WithAction(gc.NewAction(
-			gc.WithLabel(labels.ComponentPartOf, componentsv1.DataSciencePipelinesInstanceName),
-		)).
+		WithAction(gc.NewAction()).
 		Build(ctx)
 
 	if err != nil {

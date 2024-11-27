@@ -36,11 +36,7 @@ import (
 )
 
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	_, err := reconciler.ComponentReconcilerFor(
-		mgr,
-		componentsv1.TrustyAIInstanceName,
-		&componentsv1.TrustyAI{},
-	).
+	_, err := reconciler.ComponentReconcilerFor(mgr, &componentsv1.TrustyAI{}).
 		// customized Owns() for Component with new predicates
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.ServiceAccount{}).
@@ -61,16 +57,10 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		)).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
-			deploy.WithFieldOwner(componentsv1.TrustyAIInstanceName),
-			deploy.WithLabel(labels.ComponentPartOf, componentsv1.TrustyAIInstanceName),
 		)).
-		WithAction(updatestatus.NewAction(
-			updatestatus.WithSelectorLabel(labels.ComponentPartOf, componentsv1.TrustyAIInstanceName),
-		)).
+		WithAction(updatestatus.NewAction()).
 		// must be the final action
-		WithAction(gc.NewAction(
-			gc.WithLabel(labels.ComponentPartOf, componentsv1.TrustyAIInstanceName),
-		)).
+		WithAction(gc.NewAction()).
 		Build(ctx)
 
 	if err != nil {

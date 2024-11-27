@@ -9,14 +9,33 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-func LabelToName(label string) handler.EventHandler {
+func LabelToName(key string) handler.EventHandler {
 	return handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {
-		objLabels := a.GetLabels()
-		if len(objLabels) == 0 {
+		values := a.GetLabels()
+		if len(values) == 0 {
 			return []reconcile.Request{}
 		}
 
-		name := objLabels[label]
+		name := values[key]
+		if name == "" {
+			return []reconcile.Request{}
+		}
+
+		return []reconcile.Request{{
+			NamespacedName: types.NamespacedName{
+				Name: name,
+			},
+		}}
+	})
+}
+func AnnotationToName(key string) handler.EventHandler {
+	return handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
+		values := obj.GetAnnotations()
+		if len(values) == 0 {
+			return []reconcile.Request{}
+		}
+
+		name := values[key]
 		if name == "" {
 			return []reconcile.Request{}
 		}

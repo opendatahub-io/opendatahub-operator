@@ -18,9 +18,10 @@ func DefaultPredicate(rr *odhTypes.ReconciliationRequest, obj unstructured.Unstr
 
 	pv := resources.GetAnnotation(&obj, odhAnnotations.PlatformVersion)
 	pt := resources.GetAnnotation(&obj, odhAnnotations.PlatformType)
-	cg := resources.GetAnnotation(&obj, odhAnnotations.ComponentGeneration)
+	ig := resources.GetAnnotation(&obj, odhAnnotations.InstanceGeneration)
+	iu := resources.GetAnnotation(&obj, odhAnnotations.InstanceUID)
 
-	if pv == "" || pt == "" || cg == "" {
+	if pv == "" || pt == "" || ig == "" || iu == "" {
 		return false, nil
 	}
 
@@ -32,7 +33,11 @@ func DefaultPredicate(rr *odhTypes.ReconciliationRequest, obj unstructured.Unstr
 		return true, nil
 	}
 
-	g, err := strconv.Atoi(cg)
+	if iu != string(rr.Instance.GetUID()) {
+		return true, nil
+	}
+
+	g, err := strconv.Atoi(ig)
 	if err != nil {
 		return false, fmt.Errorf("cannot determine generation: %w", err)
 	}

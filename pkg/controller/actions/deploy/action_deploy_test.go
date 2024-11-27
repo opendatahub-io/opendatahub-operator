@@ -3,6 +3,7 @@ package deploy_test
 import (
 	"context"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/blang/semver/v4"
@@ -20,6 +21,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -78,12 +80,9 @@ func TestDeployAction(t *testing.T) {
 	err = cl.Get(ctx, client.ObjectKeyFromObject(obj1), obj1)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	dh, err := types.HashStr(&rr)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
 	g.Expect(obj1).Should(And(
-		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.ComponentGeneration, strconv.FormatInt(rr.Instance.GetGeneration(), 10)),
-		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.ComponentHash, dh),
+		jq.Match(`.metadata.labels."%s" == "%s"`, labels.ComponentPartOf, strings.ToLower(componentsv1.DashboardKind)),
+		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.InstanceGeneration, strconv.FormatInt(rr.Instance.GetGeneration(), 10)),
 		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformVersion, "1.2.3"),
 		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformType, string(cluster.OpenDataHub)),
 	))

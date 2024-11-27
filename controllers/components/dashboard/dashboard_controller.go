@@ -44,7 +44,7 @@ import (
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	componentName := computeComponentName()
 
-	_, err := reconciler.ComponentReconcilerFor(mgr, componentsv1.DashboardInstanceName, &componentsv1.Dashboard{}).
+	_, err := reconciler.ComponentReconcilerFor(mgr, &componentsv1.Dashboard{}).
 		// operands - owned
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Secret{}).
@@ -105,16 +105,11 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(customizeResources).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
-			deploy.WithFieldOwner(componentsv1.DashboardInstanceName),
-			deploy.WithLabel(labels.ComponentPartOf, componentsv1.DashboardInstanceName),
 		)).
-		WithAction(updatestatus.NewAction(
-			updatestatus.WithSelectorLabel(labels.ComponentPartOf, componentsv1.DashboardInstanceName),
-		)).
+		WithAction(updatestatus.NewAction()).
 		WithAction(updateStatus).
 		// must be the final action
 		WithAction(gc.NewAction(
-			gc.WithLabel(labels.ComponentPartOf, componentsv1.DashboardInstanceName),
 			gc.WithUnremovables(gvk.OdhDashboardConfig),
 		)).
 		Build(ctx)

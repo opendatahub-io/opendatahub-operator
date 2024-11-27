@@ -42,7 +42,11 @@ type ComponentReconciler struct {
 	instanceFactory func() (components.ComponentObject, error)
 }
 
-func NewComponentReconciler(mgr manager.Manager, name string, object components.ComponentObject) (*ComponentReconciler, error) {
+func NewComponentReconciler(
+	mgr manager.Manager,
+	name string,
+	object components.ComponentObject,
+) (*ComponentReconciler, error) {
 	oc, err := odhClient.NewFromManager(mgr)
 	if err != nil {
 		return nil, err
