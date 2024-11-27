@@ -118,6 +118,9 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 
 	if !enabled {
+		if err := deploy.ApplyParams(DependentPath, nil, map[string]string{"nim-state": "removed"}); err != nil {
+			return fmt.Errorf("failed to update NIM flag to removed : %w", err)
+		}
 		if err := k.removeServerlessFeatures(ctx, cli, owner, dscispec); err != nil {
 			return err
 		}
