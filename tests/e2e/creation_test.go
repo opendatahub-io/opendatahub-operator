@@ -290,7 +290,6 @@ func (tc *testContext) testAllComponentCreation(t *testing.T) error { //nolint:f
 	}
 
 	for _, c := range components {
-		c := c
 		name := c.GetComponentName()
 		t.Run("Validate "+name, func(t *testing.T) {
 			t.Parallel()

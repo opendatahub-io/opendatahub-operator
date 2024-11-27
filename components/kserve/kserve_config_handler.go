@@ -109,7 +109,6 @@ func (k *Kserve) setDefaultDeploymentMode(ctx context.Context, cli client.Client
 			return fmt.Errorf("failed to list pods: %w", err)
 		}
 		for _, pod := range podList.Items {
-			pod := pod
 			if err := cli.Delete(ctx, &pod); err != nil {
 				return fmt.Errorf("failed to delete pod %s: %w", pod.Name, err)
 			}
