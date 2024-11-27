@@ -41,7 +41,7 @@ const serviceName = "monitoring"
 
 // NewServiceReconciler creates a ServiceReconciler for the Monitoring API.
 func NewServiceReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	_, err := reconciler.ReconcilerFor(mgr, servicesv1.MonitoringInstanceName, &servicesv1.Monitoring{}).
+	_, err := reconciler.ReconcilerFor(mgr, &servicesv1.Monitoring{}).
 		// operands - owned
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Secret{}).

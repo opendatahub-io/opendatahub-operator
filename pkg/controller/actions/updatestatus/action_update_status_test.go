@@ -43,7 +43,7 @@ func TestUpdateStatusActionNotReady(t *testing.T) {
 				Name:      "my-deployment",
 				Namespace: ns,
 				Labels: map[string]string{
-					labels.ComponentPartOf: ns,
+					labels.PlatformPartOf: ns,
 				},
 			},
 			Status: appsv1.DeploymentStatus{
@@ -60,7 +60,7 @@ func TestUpdateStatusActionNotReady(t *testing.T) {
 				Name:      "my-deployment-2",
 				Namespace: ns,
 				Labels: map[string]string{
-					labels.ComponentPartOf: ns,
+					labels.PlatformPartOf: ns,
 				},
 			},
 			Status: appsv1.DeploymentStatus{
@@ -73,7 +73,7 @@ func TestUpdateStatusActionNotReady(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	action := updatestatus.NewAction(
-		updatestatus.WithSelectorLabel(labels.ComponentPartOf, ns))
+		updatestatus.WithSelectorLabel(labels.PlatformPartOf, ns))
 
 	rr := types.ReconciliationRequest{
 		Client:   cl,
@@ -114,7 +114,7 @@ func TestUpdateStatusActionReady(t *testing.T) {
 				Name:      "my-deployment",
 				Namespace: ns,
 				Labels: map[string]string{
-					labels.ComponentPartOf: ns,
+					labels.PlatformPartOf: ns,
 				},
 			},
 			Status: appsv1.DeploymentStatus{
@@ -131,7 +131,7 @@ func TestUpdateStatusActionReady(t *testing.T) {
 				Name:      "my-deployment-2",
 				Namespace: ns,
 				Labels: map[string]string{
-					labels.ComponentPartOf: ns,
+					labels.PlatformPartOf: ns,
 				},
 			},
 			Status: appsv1.DeploymentStatus{
@@ -144,7 +144,7 @@ func TestUpdateStatusActionReady(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	action := updatestatus.NewAction(
-		updatestatus.WithSelectorLabel(labels.ComponentPartOf, ns))
+		updatestatus.WithSelectorLabel(labels.PlatformPartOf, ns))
 
 	rr := types.ReconciliationRequest{
 		Client:   cl,
@@ -185,7 +185,7 @@ func TestUpdateStatusActionReadyAutoSelector(t *testing.T) {
 				Name:      "my-deployment",
 				Namespace: ns,
 				Labels: map[string]string{
-					labels.ComponentPartOf: strings.ToLower(componentsv1.DashboardKind),
+					labels.PlatformPartOf: strings.ToLower(componentsv1.DashboardKind),
 				},
 			},
 			Status: appsv1.DeploymentStatus{
@@ -202,7 +202,7 @@ func TestUpdateStatusActionReadyAutoSelector(t *testing.T) {
 				Name:      "my-deployment-2",
 				Namespace: ns,
 				Labels: map[string]string{
-					labels.ComponentPartOf: strings.ToLower(componentsv1.DashboardKind),
+					labels.PlatformPartOf: strings.ToLower(componentsv1.DashboardKind),
 				},
 			},
 			Status: appsv1.DeploymentStatus{
@@ -255,7 +255,7 @@ func TestUpdateStatusActionNotReadyNotFound(t *testing.T) {
 				Name:      "my-deployment",
 				Namespace: ns,
 				Labels: map[string]string{
-					labels.ComponentPartOf: ns,
+					labels.PlatformPartOf: ns,
 				},
 			},
 			Status: appsv1.DeploymentStatus{
@@ -272,7 +272,7 @@ func TestUpdateStatusActionNotReadyNotFound(t *testing.T) {
 				Name:      "my-deployment-2",
 				Namespace: ns,
 				Labels: map[string]string{
-					labels.ComponentPartOf: ns,
+					labels.PlatformPartOf: ns,
 				},
 			},
 			Status: appsv1.DeploymentStatus{

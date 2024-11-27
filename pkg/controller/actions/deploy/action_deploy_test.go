@@ -92,7 +92,7 @@ func TestDeployAction(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	g.Expect(obj1).Should(And(
-		jq.Match(`.metadata.labels."%s" == "%s"`, labels.ComponentPartOf, strings.ToLower(componentsv1.DashboardKind)),
+		jq.Match(`.metadata.labels."%s" == "%s"`, labels.PlatformPartOf, strings.ToLower(componentsv1.DashboardKind)),
 		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.InstanceGeneration, strconv.FormatInt(rr.Instance.GetGeneration(), 10)),
 		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformVersion, "1.2.3"),
 		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformType, string(cluster.OpenDataHub)),

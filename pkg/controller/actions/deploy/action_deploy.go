@@ -167,8 +167,8 @@ func (a *Action) deploy(
 	resources.SetAnnotation(&obj, annotations.PlatformType, string(rr.Release.Name))
 	resources.SetAnnotation(&obj, annotations.PlatformVersion, rr.Release.Version.String())
 
-	if resources.GetLabel(&obj, labels.ComponentPartOf) == "" && fo != "" {
-		resources.SetLabel(&obj, labels.ComponentPartOf, fo)
+	if resources.GetLabel(&obj, labels.PlatformPartOf) == "" && fo != "" {
+		resources.SetLabel(&obj, labels.PlatformPartOf, fo)
 	}
 
 	// backup copy for caching

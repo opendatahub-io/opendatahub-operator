@@ -95,7 +95,7 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 	selector := a.selector
 	if selector == nil {
 		selector = labels.SelectorFromSet(map[string]string{
-			odhLabels.ComponentPartOf: strings.ToLower(kind),
+			odhLabels.PlatformPartOf: strings.ToLower(kind),
 		})
 	}
 

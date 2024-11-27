@@ -44,7 +44,7 @@ import (
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	componentName := computeComponentName()
 
-	_, err := reconciler.ComponentReconcilerFor(mgr, &componentsv1.Dashboard{}).
+	_, err := reconciler.ReconcilerFor(mgr, &componentsv1.Dashboard{}).
 		// operands - owned
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Secret{}).

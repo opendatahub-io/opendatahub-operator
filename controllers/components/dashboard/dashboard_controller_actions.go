@@ -111,11 +111,7 @@ func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 		&rl,
 		client.InNamespace(rr.DSCI.Spec.ApplicationsNamespace),
 		client.MatchingLabels(map[string]string{
-<<<<<<< HEAD
-			labels.ComponentPartOf: strings.ToLower(componentsv1.DashboardKind),
-=======
-			labels.PlatformPartOf: componentsv1.DashboardInstanceName,
->>>>>>> 51e8117b (Update label to platform.opendatahub.io)
+			labels.PlatformPartOf: strings.ToLower(componentsv1.DashboardKind),
 		}),
 	)
 

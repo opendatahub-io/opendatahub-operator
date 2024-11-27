@@ -194,7 +194,7 @@ func (d *DashboardTestCtx) validateOperandsOwnerReferences(t *testing.T) {
 		d.List(
 			gvk.Deployment,
 			client.InNamespace(d.applicationsNamespace),
-			client.MatchingLabels{labels.ComponentPartOf: strings.ToLower(componentsv1.DashboardKind)},
+			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1.DashboardKind)},
 		),
 	).Should(And(
 		HaveLen(1),
@@ -230,11 +230,7 @@ func (d *DashboardTestCtx) validateOperandsDynamicallyWatchedResources(t *testin
 	g.Eventually(
 		d.List(
 			gvk.OdhApplication,
-<<<<<<< HEAD
-			client.MatchingLabels{labels.ComponentPartOf: strings.ToLower(componentsv1.DashboardKind)},
-=======
-			client.MatchingLabels{labels.PlatformPartOf: componentsv1.DashboardInstanceName},
->>>>>>> 51e8117b (Update label to platform.opendatahub.io)
+			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1.DashboardKind)},
 		),
 	).Should(And(
 		HaveEach(
@@ -249,11 +245,7 @@ func (d *DashboardTestCtx) validateUpdateOperandsResources(t *testing.T) {
 	appDeployments, err := d.kubeClient.AppsV1().Deployments(d.applicationsNamespace).List(
 		d.ctx,
 		metav1.ListOptions{
-<<<<<<< HEAD
-			LabelSelector: labels.ComponentPartOf + "=" + strings.ToLower(componentsv1.DashboardKind),
-=======
-			LabelSelector: labels.PlatformPartOf + "=" + componentsv1.DashboardInstanceName,
->>>>>>> 51e8117b (Update label to platform.opendatahub.io)
+			LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(componentsv1.DashboardKind),
 		},
 	)
 
@@ -287,11 +279,7 @@ func (d *DashboardTestCtx) validateUpdateOperandsResources(t *testing.T) {
 		d.List(
 			gvk.Deployment,
 			client.InNamespace(d.applicationsNamespace),
-<<<<<<< HEAD
-			client.MatchingLabels{labels.ComponentPartOf: strings.ToLower(componentsv1.DashboardKind)},
-=======
-			client.MatchingLabels{labels.PlatformPartOf: componentsv1.DashboardInstanceName},
->>>>>>> 51e8117b (Update label to platform.opendatahub.io)
+			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1.DashboardKind)},
 		),
 	).Should(And(
 		HaveLen(1),
@@ -304,11 +292,7 @@ func (d *DashboardTestCtx) validateUpdateOperandsResources(t *testing.T) {
 		d.List(
 			gvk.Deployment,
 			client.InNamespace(d.applicationsNamespace),
-<<<<<<< HEAD
-			client.MatchingLabels{labels.ComponentPartOf: strings.ToLower(componentsv1.DashboardKind)},
-=======
-			client.MatchingLabels{labels.PlatformPartOf: componentsv1.DashboardInstanceName},
->>>>>>> 51e8117b (Update label to platform.opendatahub.io)
+			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1.DashboardKind)},
 		),
 	).WithTimeout(30 * time.Second).WithPolling(1 * time.Second).Should(And(
 		HaveLen(1),
@@ -325,11 +309,7 @@ func (d *DashboardTestCtx) validateDashboardDisabled(t *testing.T) {
 		d.List(
 			gvk.Deployment,
 			client.InNamespace(d.applicationsNamespace),
-<<<<<<< HEAD
-			client.MatchingLabels{labels.ComponentPartOf: strings.ToLower(componentsv1.DashboardKind)},
-=======
-			client.MatchingLabels{labels.PlatformPartOf: componentsv1.DashboardInstanceName},
->>>>>>> 51e8117b (Update label to platform.opendatahub.io)
+			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1.DashboardKind)},
 		),
 	).Should(
 		HaveLen(1),
@@ -347,11 +327,7 @@ func (d *DashboardTestCtx) validateDashboardDisabled(t *testing.T) {
 		d.List(
 			gvk.Deployment,
 			client.InNamespace(d.applicationsNamespace),
-<<<<<<< HEAD
-			client.MatchingLabels{labels.ComponentPartOf: strings.ToLower(componentsv1.DashboardKind)},
-=======
-			client.MatchingLabels{labels.PlatformPartOf: componentsv1.DashboardInstanceName},
->>>>>>> 51e8117b (Update label to platform.opendatahub.io)
+			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1.DashboardKind)},
 		),
 	).Should(
 		BeEmpty(),
