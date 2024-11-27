@@ -194,7 +194,7 @@ func TestRenderResourcesWithCacheAction(t *testing.T) {
 
 	action := kustomize.NewAction(
 		kustomize.WithCache(),
-		kustomize.WithLabel(labels.ComponentPartOf, "foo"),
+		kustomize.WithLabel(labels.PlatformPartOf, "foo"),
 		kustomize.WithLabel("platform.opendatahub.io/namespace", ns),
 		kustomize.WithAnnotation("platform.opendatahub.io/release", "1.2.3"),
 		kustomize.WithAnnotation("platform.opendatahub.io/type", "managed"),
@@ -229,7 +229,7 @@ func TestRenderResourcesWithCacheAction(t *testing.T) {
 			HaveLen(1),
 			HaveEach(And(
 				jq.Match(`.metadata.namespace == "%s"`, ns),
-				jq.Match(`.metadata.labels."%s" == "%s"`, labels.ComponentPartOf, "foo"),
+				jq.Match(`.metadata.labels."%s" == "%s"`, labels.PlatformPartOf, "foo"),
 				jq.Match(`.metadata.labels."platform.opendatahub.io/namespace" == "%s"`, ns),
 				jq.Match(`.metadata.annotations."platform.opendatahub.io/release" == "%s"`, "1.2.3"),
 				jq.Match(`.metadata.annotations."platform.opendatahub.io/type" == "%s"`, "managed"),

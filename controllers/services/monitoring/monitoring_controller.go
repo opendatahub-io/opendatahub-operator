@@ -88,10 +88,10 @@ func NewServiceReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 			deploy.WithFieldOwner(servicesv1.MonitoringInstanceName),
-			deploy.WithLabel(labels.ServicePartOf, servicesv1.MonitoringServiceName),
+			deploy.WithLabel(labels.PlatformPartOf, servicesv1.MonitoringServiceName),
 		)).
 		WithAction(updatestatus.NewAction(
-			updatestatus.WithSelectorLabel(labels.ServicePartOf, servicesv1.MonitoringServiceName),
+			updatestatus.WithSelectorLabel(labels.PlatformPartOf, servicesv1.MonitoringServiceName),
 		)).
 		WithAction(updateStatus).
 		Build(ctx)

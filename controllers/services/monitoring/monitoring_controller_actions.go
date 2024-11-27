@@ -31,7 +31,7 @@ func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 		&rl,
 		client.InNamespace(rr.DSCI.Spec.Monitoring.Namespace),
 		client.MatchingLabels(map[string]string{
-			labels.ServicePartOf: servicesv1.MonitoringServiceName,
+			labels.PlatformPartOf: servicesv1.MonitoringServiceName,
 		}),
 	)
 
