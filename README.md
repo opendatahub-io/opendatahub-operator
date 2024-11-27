@@ -20,6 +20,7 @@ and configure these applications.
     - [Deployment](#deployment)
   - [Test with customized manifests](#test-with-customized-manifests)
   - [Update API docs](#update-api-docs)
+  - [Enabled logging](#enabled-logging)
   - [Example DSCInitialization](#example-dscinitialization)
   - [Example DataScienceCluster](#example-datasciencecluster)
   - [Run functional Tests](#run-functional-tests)
@@ -314,6 +315,8 @@ spec:
       managementState: Managed
     kserve:
       managementState: Managed
+      nim:
+        managementState: Managed
       serving:
         ingressGateway:
           certificate:

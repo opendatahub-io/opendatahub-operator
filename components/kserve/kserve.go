@@ -54,6 +54,8 @@ type Kserve struct {
 	// This field is optional. If no default deployment mode is specified, Kserve will use Serverless mode.
 	// +kubebuilder:validation:Enum=Serverless;RawDeployment
 	DefaultDeploymentMode DefaultDeploymentMode `json:"defaultDeploymentMode,omitempty"`
+	// Configures and enables NVIDIA NIM integration
+	NIM infrav1.NimSpec `json:"nim,omitempty"`
 }
 
 func (k *Kserve) OverrideManifests(ctx context.Context, _ cluster.Platform) error {
@@ -106,6 +108,9 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 
 	if !enabled {
+		if err := deploy.ApplyParams(DependentPath, nil, map[string]string{"nim-state": "removed"}); err != nil {
+			return fmt.Errorf("failed to update NIM flag to removed : %w", err)
+		}
 		if err := k.removeServerlessFeatures(ctx, cli, owner, dscispec); err != nil {
 			return err
 		}
@@ -119,6 +124,12 @@ func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,
 			if err := k.OverrideManifests(ctx, platform); err != nil {
 				return err
 			}
+		}
+		extraParamsMap := map[string]string{
+			"nim-state": string(k.NIM.ManagementState),
+		}
+		if err := deploy.ApplyParams(DependentPath, nil, extraParamsMap); err != nil {
+			return fmt.Errorf("failed to update NIM flag from %s : %w", Path, err)
 		}
 	}
 
