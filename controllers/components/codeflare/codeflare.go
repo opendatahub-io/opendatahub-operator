@@ -32,7 +32,10 @@ func (s *componentHandler) GetName() string {
 	return componentsv1.CodeFlareComponentName
 }
 func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) operatorv1.ManagementState {
-	return dsc.Spec.Components.CodeFlare.ManagementState
+	if dsc.Spec.Components.CodeFlare.ManagementState == operatorv1.Managed {
+		return operatorv1.Managed
+	}
+	return operatorv1.Removed
 }
 
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Object {
