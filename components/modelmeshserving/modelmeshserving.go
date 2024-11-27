@@ -10,6 +10,8 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -126,6 +128,13 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 		}
 	}
 
+	extraParamsMap := map[string]string{
+		"nim-state": getNimManagementFlag(owner),
+	}
+	if err := deploy.ApplyParams(DependentPath, nil, extraParamsMap); err != nil {
+		return fmt.Errorf("failed to update image from %s : %w", Path, err)
+	}
+
 	if err := deploy.DeployManifestsFromPath(ctx, cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 		return fmt.Errorf("failed to apply manifests from %s : %w", Path, err)
 	}
@@ -172,4 +181,20 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 	}
 
 	return nil
+}
+
+func getNimManagementFlag(obj metav1.Object) string {
+	removed := string(operatorv1.Removed)
+	un, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
+	if err != nil {
+		return removed
+	}
+	kserve, foundKserve, _ := unstructured.NestedString(un, "spec", "components", "kserve", "managementState")
+	if foundKserve && kserve != removed {
+		nim, foundNim, _ := unstructured.NestedString(un, "spec", "components", "kserve", "nim", "managementState")
+		if foundNim {
+			return nim
+		}
+	}
+	return removed
 }
