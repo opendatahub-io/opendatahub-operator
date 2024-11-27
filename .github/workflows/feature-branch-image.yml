@@ -5,7 +5,7 @@ env:
   BUNDLE_IMG: quay.io/${{ secrets.QUAY_ORG }}/opendatahub-operator-bundle:${{ github.head_ref }}
   CATALOG_IMG: quay.io/${{ secrets.QUAY_ORG }}/opendatahub-operator-catalog:${{ github.head_ref }}
 on:
-  pull_request:
+  pull_request_target:
     branches:
       - 'feature-**'
   workflow_dispatch:
@@ -20,9 +20,12 @@ jobs:
       - name: Login to quay.io
         run: |
           podman login -u ${{ secrets.QUAY_ID }} -p ${{ secrets.QUAY_TOKEN }} quay.io
-      - name: Build and Push Feature Branch Image
+      - name: Build Feature Branch Image
         run: |
-          make image -e IMG=${{ env.OPERATOR_IMG }}
+          make image-build -e IMG=${{ env.OPERATOR_IMG }}
+      - name: Push Feature Branch Image
+        run: |
+          make image-push -e IMG=${{ env.OPERATOR_IMG }}
       - name: Build Bundle Manifests
         run: |
           make bundle

@@ -26,11 +26,14 @@ func init() { //nolint:gochecknoinits
 }
 
 func (s *componentHandler) GetName() string {
-	return componentsv1.DashboardComponentName
+	return componentsv1.DataSciencePipelinesComponentName
 }
 
 func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) operatorv1.ManagementState {
-	return dsc.Spec.Components.Dashboard.ManagementState
+	if dsc.Spec.Components.DataSciencePipelines.ManagementState == operatorv1.Managed {
+		return operatorv1.Managed
+	}
+	return operatorv1.Removed
 }
 
 func (s *componentHandler) Init(platform cluster.Platform) error {
@@ -62,13 +65,7 @@ func (s *componentHandler) Init(platform cluster.Platform) error {
 
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Object {
 	dataSciencePipelinesAnnotations := make(map[string]string)
-
-	switch dsc.Spec.Components.DataSciencePipelines.ManagementState {
-	case operatorv1.Managed, operatorv1.Removed:
-		dataSciencePipelinesAnnotations[annotations.ManagementStateAnnotation] = string(dsc.Spec.Components.DataSciencePipelines.ManagementState)
-	default: // Force and Unmanaged case for unknown values, we do not support these yet
-		dataSciencePipelinesAnnotations[annotations.ManagementStateAnnotation] = "Unknown"
-	}
+	dataSciencePipelinesAnnotations[annotations.ManagementStateAnnotation] = string(s.GetManagementState(dsc))
 
 	return client.Object(&componentsv1.DataSciencePipelines{
 		TypeMeta: metav1.TypeMeta{
