@@ -1,0 +1,23 @@
+---
+name: Build Feature Branch Image
+env:
+  BRANCH_NAME: ${{ github.head_ref }}
+on:
+  pull_request:
+  push:
+    branches:
+      - feature-*
+jobs:
+  push-feature-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      packages: write
+      contents: read
+    steps:
+      - name: Login to quay.io
+        run: |
+          podman login -u ${{ secrets.QUAY_ID }} -p ${{ secrets.QUAY_TOKEN }} quay.io
+      - name: Build and Push Feature Branch Image
+        run: |
+          make image -e IMG=quay.io/${{ secrets.QUAY_ORG }}/opendatahub-operator:${{ env.BRANCH_NAME }}
