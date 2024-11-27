@@ -49,7 +49,7 @@ import (
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	ownedViaFTMapFunc := ownedViaFT(mgr.GetClient())
 
-	_, err := reconciler.ComponentReconcilerFor(mgr, &componentsv1.Kserve{}).
+	_, err := reconciler.ReconcilerFor(mgr, &componentsv1.Kserve{}).
 		// operands - owned
 		Owns(&corev1.Secret{}).
 		Owns(&corev1.Service{}).

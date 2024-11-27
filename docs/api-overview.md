@@ -4,6 +4,7 @@
 - [components.opendatahub.io/v1](#componentsopendatahubiov1)
 - [datasciencecluster.opendatahub.io/v1](#datascienceclusteropendatahubiov1)
 - [dscinitialization.opendatahub.io/v1](#dscinitializationopendatahubiov1)
+- [services.opendatahub.io/v1](#servicesopendatahubiov1)
 
 
 ## components.opendatahub.io/v1
@@ -1671,6 +1672,55 @@ _Appears in:_
 
 
 
+## dscinitialization.opendatahub.io/services
+
+
+
+
+#### ManagementSpec
+
+
+
+ManagementSpec struct defines the component's management configuration.
+
+
+
+_Appears in:_
+- [DSCMonitoring](#dscmonitoring)
+- [Service](#service)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+
+
+
+
+
+
+
+
+#### Status
+
+
+
+
+
+
+
+_Appears in:_
+- [MonitoringStatus](#monitoringstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `phase` _string_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
+| `observedGeneration` _integer_ |  |  |  |
+
+
+
+
+
 ## dscinitialization.opendatahub.io/v1
 
 Package v1 contains API Schema definitions for the dscinitialization v1 API group
@@ -1715,7 +1765,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `applicationsNamespace` _string_ | Namespace for applications to be installed, non-configurable, default to "opendatahub" | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
-| `monitoring` _[Monitoring](#monitoring)_ | Enable monitoring on specified namespace |  |  |
+| `monitoring` _[DSCMonitoring](#dscmonitoring)_ | Enable monitoring on specified namespace |  |  |
 | `serviceMesh` _[ServiceMeshSpec](#servicemeshspec)_ | Configures Service Mesh as networking layer for Data Science Clusters components.<br />The Service Mesh is a mandatory prerequisite for single model serving (KServe) and<br />you should review this configuration if you are planning to use KServe.<br />For other components, it enhances user experience; e.g. it provides unified<br />authentication giving a Single Sign On experience. |  |  |
 | `trustedCABundle` _[TrustedCABundleSpec](#trustedcabundlespec)_ | When set to `Managed`, adds odh-trusted-ca-bundle Configmap to all namespaces that includes<br />cluster-wide Trusted CA Bundle in .data["ca-bundle.crt"].<br />Additionally, this fields allows admins to add custom CA bundles to the configmap using the .CustomCABundle field. |  |  |
 | `devFlags` _[DevFlags](#devflags)_ | Internal development useful field to test customizations.<br />This is not recommended to be used in production environment. |  |  |
@@ -1759,23 +1809,6 @@ _Appears in:_
 | `logmode` _string_ |  | production | Enum: [devel development prod production default] <br /> |
 
 
-#### Monitoring
-
-
-
-
-
-
-
-_Appears in:_
-- [DSCInitializationSpec](#dscinitializationspec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so.<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it. |  | Enum: [Managed Removed] <br /> |
-| `namespace` _string_ | Namespace for monitoring if it is enabled | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
-
-
 #### TrustedCABundleSpec
 
 
@@ -1791,5 +1824,129 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](#managementstate)_ | managementState indicates whether and how the operator should manage customized CA bundle | Removed | Enum: [Managed Removed Unmanaged] <br /> |
 | `customCABundle` _string_ | A custom CA bundle that will be available for  all  components in the<br />Data Science Cluster(DSC). This bundle will be stored in odh-trusted-ca-bundle<br />ConfigMap .data.odh-ca-bundle.crt . |  |  |
+
+
+
+## services.opendatahub.io/v1
+
+Package v1 contains API Schema definitions for the services v1 API group
+
+### Resource Types
+- [Monitoring](#monitoring)
+- [MonitoringList](#monitoringlist)
+
+
+
+#### DSCMonitoring
+
+
+
+
+
+
+
+_Appears in:_
+- [DSCInitializationSpec](#dscinitializationspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+
+
+
+
+#### Monitoring
+
+
+
+Monitoring is the Schema for the monitorings API
+
+
+
+_Appears in:_
+- [MonitoringList](#monitoringlist)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `services.opendatahub.io/v1` | | |
+| `kind` _string_ | `Monitoring` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[MonitoringSpec](#monitoringspec)_ |  |  |  |
+| `status` _[MonitoringStatus](#monitoringstatus)_ |  |  |  |
+
+
+#### MonitoringCommonSpec
+
+
+
+MonitoringCommonSpec spec defines the shared desired state of Dashboard
+
+
+
+_Appears in:_
+- [DSCMonitoring](#dscmonitoring)
+- [DashboardSpec](#dashboardspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+
+
+#### MonitoringList
+
+
+
+MonitoringList contains a list of Monitoring
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `services.opendatahub.io/v1` | | |
+| `kind` _string_ | `MonitoringList` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `items` _[Monitoring](#monitoring) array_ |  |  |  |
+
+
+#### MonitoringSpec
+
+
+
+MonitoringSpec defines the desired state of Monitoring
+
+
+
+_Appears in:_
+- [Monitoring](#monitoring)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `foo` _string_ | Foo is an example field of Monitoring. Edit monitoring_types.go to remove/update |  |  |
+
+
+#### MonitoringStatus
+
+
+
+MonitoringStatus defines the observed state of Monitoring
+
+
+
+_Appears in:_
+- [Monitoring](#monitoring)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `phase` _string_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
+| `observedGeneration` _integer_ |  |  |  |
+| `url` _string_ |  |  |  |
 
 

@@ -165,7 +165,7 @@ func (tc *WorkbenchesTestCtx) validateWorkbenchesReady() error {
 
 func (tc *WorkbenchesTestCtx) testUpdateOnWorkbenchesResources() error {
 	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-		LabelSelector: labels.ComponentPartOf + "=" + strings.ToLower(tc.testWorkbenchesInstance.Kind),
+		LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(tc.testWorkbenchesInstance.Kind),
 	})
 	if err != nil {
 		return err
