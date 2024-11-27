@@ -66,15 +66,10 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		)).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
-			deploy.WithFieldOwner(componentsv1.CodeFlareInstanceName),
-			deploy.WithLabel(labels.ComponentPartOf, componentsv1.CodeFlareInstanceName),
 		)).
-		WithAction(updatestatus.NewAction(
-			updatestatus.WithSelectorLabel(labels.ComponentPartOf, componentsv1.CodeFlareInstanceName),
-		)).
-		WithAction(gc.NewAction(
-			gc.WithLabel(labels.ComponentPartOf, componentsv1.CodeFlareInstanceName),
-		)).
+		WithAction(updatestatus.NewAction()).
+		// must be final action
+		WithAction(gc.NewAction()).
 		Build(ctx)
 
 	if err != nil {

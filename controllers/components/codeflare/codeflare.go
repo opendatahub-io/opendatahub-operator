@@ -37,12 +37,7 @@ func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) ope
 
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Object {
 	codeflareAnnotations := make(map[string]string)
-	switch dsc.Spec.Components.CodeFlare.ManagementState {
-	case operatorv1.Managed, operatorv1.Removed:
-		codeflareAnnotations[annotations.ManagementStateAnnotation] = string(dsc.Spec.Components.CodeFlare.ManagementState)
-	default:
-		codeflareAnnotations[annotations.ManagementStateAnnotation] = "Unknown"
-	}
+	codeflareAnnotations[annotations.ManagementStateAnnotation] = string(s.GetManagementState(dsc))
 
 	return client.Object(&componentsv1.CodeFlare{
 		TypeMeta: metav1.TypeMeta{
