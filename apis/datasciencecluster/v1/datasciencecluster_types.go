@@ -26,7 +26,6 @@ import (
 
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
@@ -65,7 +64,7 @@ type Components struct {
 
 	// CodeFlare component configuration.
 	// If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabled component.
-	CodeFlare codeflare.CodeFlare `json:"codeflare,omitempty"`
+	CodeFlare componentsv1.DSCCodeFlare `json:"codeflare,omitempty"`
 
 	// Ray component configuration.
 	Ray componentsv1.DSCRay `json:"ray,omitempty"`

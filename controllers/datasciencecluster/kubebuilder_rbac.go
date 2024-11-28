@@ -157,7 +157,7 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="monitoring.coreos.com",resources=prometheusrules,verbs=get;create;patch;delete;deletecollection;list;watch
 // +kubebuilder:rbac:groups="monitoring.coreos.com",resources=podmonitors,verbs=get;create;delete;update;watch;list;patch
 
-// TODO: CFO
+// CFO
 //+kubebuilder:rbac:groups=components.opendatahub.io,resources=codeflares,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=components.opendatahub.io,resources=codeflares/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=components.opendatahub.io,resources=codeflares/finalizers,verbs=update
