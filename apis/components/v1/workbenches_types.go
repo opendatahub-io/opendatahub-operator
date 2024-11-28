@@ -21,16 +21,25 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+const (
+	WorkbenchesComponentName = "workbenches"
+	// WorkbenchesInstanceName the name of the Workbenches instance singleton.
+	// value should match what is set in the XValidation below.
+	WorkbenchesInstanceName = "default-workbenches"
+	WorkbenchesKind         = "Workbenches"
+)
+
+type WorkbenchesCommonSpec struct {
+	// workbenches spec exposed to DSC api
+	components.DevFlagsSpec `json:",inline"`
+	// workbenches spec exposed only to internal api
+}
 
 // WorkbenchesSpec defines the desired state of Workbenches
 type WorkbenchesSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of Workbenches. Edit workbenches_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// workbenches spec exposed to DSC api
+	WorkbenchesCommonSpec `json:",inline"`
+	// workbenches spec exposed only to internal api
 }
 
 // WorkbenchesStatus defines the observed state of Workbenches
@@ -41,6 +50,9 @@ type WorkbenchesStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
+// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-workbenches'",message="Workbenches name must be default-workbenches"
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
+// +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
 
 // Workbenches is the Schema for the workbenches API
 type Workbenches struct {
@@ -52,7 +64,7 @@ type Workbenches struct {
 }
 
 func (c *Workbenches) GetDevFlags() *components.DevFlags {
-	return nil
+	return c.Spec.DevFlags
 }
 
 func (c *Workbenches) GetStatus() *components.Status {
@@ -70,4 +82,12 @@ type WorkbenchesList struct {
 
 func init() {
 	SchemeBuilder.Register(&Workbenches{}, &WorkbenchesList{})
+}
+
+// DSCWorkbenches contains all the configuration exposed in DSC instance for Workbenches component
+type DSCWorkbenches struct {
+	// configuration fields common across components
+	components.ManagementSpec `json:",inline"`
+	// workbenches specific field
+	WorkbenchesCommonSpec `json:",inline"`
 }

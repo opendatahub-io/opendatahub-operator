@@ -84,6 +84,7 @@ import (
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/ray"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/trainingoperator"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/trustyai"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/workbenches"
 )
 
 const controllerNum = 4 // we should keep this updated if we have new controllers to add

@@ -487,6 +487,7 @@ func (r *DataScienceClusterReconciler) SetupWithManager(ctx context.Context, mgr
 		).
 		// components CRs
 		Owns(&componentsv1.Dashboard{}).
+		Owns(&componentsv1.Workbenches{}).
 		Owns(&componentsv1.Ray{}).
 		Owns(&componentsv1.ModelRegistry{}).
 		Owns(&componentsv1.TrustyAI{}).
