@@ -14,7 +14,16 @@ spec:
     singular: codeflare
   scope: Cluster
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - description: Ready
+      jsonPath: .status.conditions[?(@.type=="Ready")].status
+      name: Ready
+      type: string
+    - description: Reason
+      jsonPath: .status.conditions[?(@.type=="Ready")].reason
+      name: Reason
+      type: string
+    name: v1
     schema:
       openAPIV3Schema:
         description: CodeFlare is the Schema for the codeflares API
@@ -37,12 +46,33 @@ spec:
           metadata:
             type: object
           spec:
-            description: CodeFlareSpec defines the desired state of CodeFlare
             properties:
-              foo:
-                description: Foo is an example field of CodeFlare. Edit codeflare_types.go
-                  to remove/update
-                type: string
+              devFlags:
+                description: Add developer fields
+                properties:
+                  manifests:
+                    description: List of custom manifests for the given component
+                    items:
+                      properties:
+                        contextDir:
+                          default: manifests
+                          description: contextDir is the relative path to the folder
+                            containing manifests in a repository, default value "manifests"
+                          type: string
+                        sourcePath:
+                          default: ""
+                          description: 'sourcePath is the subpath within contextDir
+                            where kustomize builds start. Examples include any sub-folder
+                            or path: `base`, `overlays/dev`, `default`, `odh` etc.'
+                          type: string
+                        uri:
+                          default: ""
+                          description: uri is the URI point to a git repo with tag/branch.
+                            e.g.  https://github.com/org/repo/tarball/<tag/branch>
+                          type: string
+                      type: object
+                    type: array
+                type: object
             type: object
           status:
             description: CodeFlareStatus defines the observed state of CodeFlare
@@ -110,6 +140,9 @@ spec:
                 type: string
             type: object
         type: object
+        x-kubernetes-validations:
+        - message: CodeFlare name must be default-codeflare
+          rule: self.metadata.name == 'default-codeflare'
     served: true
     storage: true
     subresources:

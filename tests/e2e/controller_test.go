@@ -46,6 +46,7 @@ var (
 		"kueue":                 kueueTestSuite,
 		"trainingoperator":      trainingoperatorTestSuite,
 		"datasciencepipelienes": dataSciencePipelinesTestSuite,
+		"codeflare":             codeflareTestSuite,
 	}
 )
 

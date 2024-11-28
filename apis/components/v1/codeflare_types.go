@@ -21,17 +21,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
-// CodeFlareSpec defines the desired state of CodeFlare
-type CodeFlareSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of CodeFlare. Edit codeflare_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
-}
+const (
+	CodeFlareComponentName = "codeflare"
+	// value should match whats set in the XValidation below
+	CodeFlareInstanceName = "default-codeflare"
+	CodeFlareKind         = "CodeFlare"
+)
 
 // CodeFlareStatus defines the observed state of CodeFlare
 type CodeFlareStatus struct {
@@ -41,6 +36,9 @@ type CodeFlareStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
+// +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
+// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-codeflare'",message="CodeFlare name must be default-codeflare"
 
 // CodeFlare is the Schema for the codeflares API
 type CodeFlare struct {
@@ -51,12 +49,24 @@ type CodeFlare struct {
 	Status CodeFlareStatus `json:"status,omitempty"`
 }
 
+type CodeFlareSpec struct {
+	CodeFlareCommonSpec `json:",inline"`
+}
+
+type CodeFlareCommonSpec struct {
+	components.DevFlagsSpec `json:",inline"`
+}
+
 func (c *CodeFlare) GetDevFlags() *components.DevFlags {
-	return nil
+	return c.Spec.DevFlags
 }
 
 func (c *CodeFlare) GetStatus() *components.Status {
 	return &c.Status.Status
+}
+
+func init() {
+	SchemeBuilder.Register(&CodeFlare{}, &CodeFlareList{})
 }
 
 // +kubebuilder:object:root=true
@@ -70,4 +80,9 @@ type CodeFlareList struct {
 
 func init() {
 	SchemeBuilder.Register(&CodeFlare{}, &CodeFlareList{})
+}
+
+type DSCCodeFlare struct {
+	components.ManagementSpec `json:",inline"`
+	CodeFlareCommonSpec       `json:",inline"`
 }

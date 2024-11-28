@@ -7,7 +7,8 @@ env:
 on:
   pull_request_target:
     branches:
-      - 'feature-**'
+      - 'feature-operator-refactor'
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 jobs:
   build-and-push-feature-branch-custom-catalog:
