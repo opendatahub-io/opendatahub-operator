@@ -27,7 +27,6 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	componentsold "github.com/opendatahub-io/opendatahub-operator/v2/components"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 )
@@ -133,12 +132,20 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 						ManagementState: operatorv1.Managed,
 					},
 				},
-				Kserve: kserve.Kserve{
-					Component: componentsold.Component{
-						ManagementState: operatorv1.Removed,
+				Kserve: componentsv1.DSCKserve{
+					ManagementSpec: components.ManagementSpec{
+						ManagementState: operatorv1.Managed,
 					},
-					Serving: infrav1.ServingSpec{
-						ManagementState: operatorv1.Removed,
+					KserveCommonSpec: componentsv1.KserveCommonSpec{
+						Serving: infrav1.ServingSpec{
+							ManagementState: operatorv1.Managed,
+							Name:            "knative-serving",
+							IngressGateway: infrav1.GatewaySpec{
+								Certificate: infrav1.CertificateSpec{
+									Type: infrav1.OpenshiftDefaultIngress,
+								},
+							},
+						},
 					},
 				},
 				CodeFlare: componentsv1.DSCCodeFlare{

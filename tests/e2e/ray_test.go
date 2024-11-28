@@ -50,7 +50,7 @@ func rayTestSuite(t *testing.T) {
 			require.NoError(t, err, "error validating Ray instance")
 		})
 
-		t.Run("Validate Ownerrefrences exist", func(t *testing.T) {
+		t.Run("Validate Ownerreferences exist", func(t *testing.T) {
 			err = rayCtx.testOwnerReferences()
 			require.NoError(t, err, "error getting all Ray's Ownerrefrences")
 		})

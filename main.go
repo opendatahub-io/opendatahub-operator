@@ -30,6 +30,7 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	securityv1 "github.com/openshift/api/security/v1"
+	templatev1 "github.com/openshift/api/template/v1"
 	userv1 "github.com/openshift/api/user/v1"
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
@@ -80,6 +81,7 @@ import (
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/codeflare"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/dashboard"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/datasciencepipelines"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/kserve"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/kueue"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/ray"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/trainingoperator"
@@ -121,6 +123,7 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(operatorv1.Install(scheme))
 	utilruntime.Must(consolev1.AddToScheme(scheme))
 	utilruntime.Must(securityv1.Install(scheme))
+	utilruntime.Must(templatev1.Install(scheme))
 }
 
 func initComponents(_ context.Context, p cluster.Platform) error {

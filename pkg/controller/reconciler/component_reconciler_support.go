@@ -25,13 +25,13 @@ import (
 )
 
 var (
-	// defaultPredicate is the default set of predicates associated to
+	// DefaultPredicate is the default set of predicates associated to
 	// resources when there is no specific predicate configured via the
 	// builder.
 	//
 	// It would trigger a reconciliation if either the generation or
 	// metadata (labels, annotations) have changed.
-	defaultPredicate = predicate.Or(
+	DefaultPredicate = predicate.Or(
 		generation.New(),
 		predicate.LabelChangedPredicate{},
 		predicate.AnnotationChangedPredicate{},
@@ -140,7 +140,7 @@ func (b *ComponentReconcilerBuilder) Watches(object client.Object, opts ...Watch
 
 	if len(in.predicates) == 0 {
 		in.predicates = append(in.predicates, predicate.And(
-			defaultPredicate,
+			DefaultPredicate,
 			// use the components.opendatahub.io/part-of label to filter
 			// events not related to the owner type
 			component.ForLabel(labels.ComponentPartOf, strings.ToLower(b.input.gvk.Kind)),
@@ -175,7 +175,7 @@ func (b *ComponentReconcilerBuilder) Owns(object client.Object, opts ...WatchOpt
 	}
 
 	if len(in.predicates) == 0 {
-		in.predicates = append(in.predicates, defaultPredicate)
+		in.predicates = append(in.predicates, DefaultPredicate)
 	}
 
 	b.watches = append(b.watches, in)

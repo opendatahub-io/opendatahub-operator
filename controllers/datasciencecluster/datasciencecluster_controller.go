@@ -495,6 +495,7 @@ func (r *DataScienceClusterReconciler) SetupWithManager(ctx context.Context, mgr
 		Owns(&componentsv1.CodeFlare{}).
 		Owns(&componentsv1.TrainingOperator{}).
 		Owns(&componentsv1.DataSciencePipelines{}).
+		Owns(&componentsv1.Kserve{}).
 		Owns(
 			&corev1.ServiceAccount{},
 			builder.WithPredicates(saPredicates),
