@@ -28,7 +28,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
@@ -44,7 +43,7 @@ type Components struct {
 	Dashboard componentsv1.DSCDashboard `json:"dashboard,omitempty"`
 
 	// Workbenches component configuration.
-	Workbenches workbenches.Workbenches `json:"workbenches,omitempty"`
+	Workbenches componentsv1.DSCWorkbenches `json:"workbenches,omitempty"`
 
 	// ModelMeshServing component configuration.
 	// Does not support enabled Kserve at the same time

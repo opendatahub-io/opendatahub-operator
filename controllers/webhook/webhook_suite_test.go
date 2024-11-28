@@ -47,7 +47,6 @@ import (
 	componentsold "github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 	modelregistry2 "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/webhook"
 
@@ -263,8 +262,8 @@ func newDSC(name string, namespace string) *dscv1.DataScienceCluster {
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				Workbenches: workbenches.Workbenches{
-					Component: componentsold.Component{
+				Workbenches: componentsv1.DSCWorkbenches{
+					ManagementSpec: components.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},
@@ -337,8 +336,8 @@ func newMRDSC2(name string) *dscv1.DataScienceCluster {
 		},
 		Spec: dscv1.DataScienceClusterSpec{
 			Components: dscv1.Components{
-				Workbenches: workbenches.Workbenches{
-					Component: componentsold.Component{
+				Workbenches: componentsv1.DSCWorkbenches{
+					ManagementSpec: components.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},
