@@ -79,7 +79,7 @@ func configureDependencies(_ context.Context, rr *odhtypes.ReconciliationRequest
 		return nil
 	}
 
-	err := rr.AddResource(&corev1.Secret{
+	err := rr.AddResources(&corev1.Secret{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: corev1.SchemeGroupVersion.String(),
 			Kind:       "Secret",
