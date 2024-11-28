@@ -73,7 +73,16 @@ tests:
         values: "0x60"
     alert_rule_test:
       - eval_time: 1h
-        alertname: RHODS Jupyter Probe Success Burn Rate
+        alertname: RHODS Jupyter Probe Success 5m and 1h Burn Rate high
+        exp_alerts: []
+      - eval_time: 1h
+        alertname: RHODS Jupyter Probe Success 30m and 6h Burn Rate high
+        exp_alerts: []
+      - eval_time: 1h
+        alertname: RHODS Jupyter Probe Success 2h and 1d Burn Rate high
+        exp_alerts: []
+      - eval_time: 1h
+        alertname: RHODS Jupyter Probe Success 6h and 3d Burn Rate high
         exp_alerts: []
 
   - interval: 1m
@@ -84,14 +93,14 @@ tests:
         values: "1+1x60"
     alert_rule_test:
       - eval_time: 2m
-        alertname: RHODS Jupyter Probe Success Burn Rate
+        alertname: RHODS Jupyter Probe Success 5m and 1h Burn Rate high
         exp_alerts:
           - exp_labels:
-              alertname: RHODS Jupyter Probe Success Burn Rate
+              alertname: RHODS Jupyter Probe Success 5m and 1h Burn Rate high
               instance: "notebook-spawner"
               severity: critical
             exp_annotations:
-              summary: "RHODS Jupyter Probe Success Burn Rate"
+              summary: "RHODS Jupyter Probe Success 5m and 1h Burn Rate high"
               message: "High error budget burn for notebook-spawner (current value: 3)."
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Jupyter/rhods-jupyter-probe-success-burn-rate.md'
 
@@ -103,14 +112,14 @@ tests:
         values: "1+1x60"
     alert_rule_test:
       - eval_time: 15m
-        alertname: RHODS Jupyter Probe Success Burn Rate
+        alertname: RHODS Jupyter Probe Success 30m and 6h Burn Rate high
         exp_alerts:
           - exp_labels:
-              alertname: RHODS Jupyter Probe Success Burn Rate
+              alertname: RHODS Jupyter Probe Success 30m and 6h Burn Rate high
               instance: "notebook-spawner"
               severity: critical
             exp_annotations:
-              summary: "RHODS Jupyter Probe Success Burn Rate"
+              summary: "RHODS Jupyter Probe Success 30m and 6h Burn Rate high"
               message: "High error budget burn for notebook-spawner (current value: 16)."
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Jupyter/rhods-jupyter-probe-success-burn-rate.md'
 
@@ -122,14 +131,14 @@ tests:
         values: "1+1x60"
     alert_rule_test:
       - eval_time: 1h
-        alertname: RHODS Jupyter Probe Success Burn Rate
+        alertname: RHODS Jupyter Probe Success 2h and 1d Burn Rate high
         exp_alerts:
           - exp_labels:
-              alertname: RHODS Jupyter Probe Success Burn Rate
+              alertname: RHODS Jupyter Probe Success 2h and 1d Burn Rate high
               instance: "notebook-spawner"
               severity: warning
             exp_annotations:
-              summary: "RHODS Jupyter Probe Success Burn Rate"
+              summary: "RHODS Jupyter Probe Success 2h and 1d Burn Rate high"
               message: "High error budget burn for notebook-spawner (current value: 61)."
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Jupyter/rhods-jupyter-probe-success-burn-rate.md'
 
@@ -141,14 +150,14 @@ tests:
         values: "1+1x200"
     alert_rule_test:
       - eval_time: 3h
-        alertname: RHODS Jupyter Probe Success Burn Rate
+        alertname: RHODS Jupyter Probe Success 6h and 3d Burn Rate high
         exp_alerts:
           - exp_labels:
-              alertname: RHODS Jupyter Probe Success Burn Rate
+              alertname: RHODS Jupyter Probe Success 6h and 3d Burn Rate high
               instance: "notebook-spawner"
               severity: warning
             exp_annotations:
-              summary: "RHODS Jupyter Probe Success Burn Rate"
+              summary: "RHODS Jupyter Probe Success 6h and 3d Burn Rate high"
               message: "High error budget burn for notebook-spawner (current value: 181)."
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Jupyter/rhods-jupyter-probe-success-burn-rate.md'
 

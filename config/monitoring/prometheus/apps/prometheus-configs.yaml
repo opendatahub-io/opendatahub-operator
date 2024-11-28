@@ -534,11 +534,11 @@ data:
     groups:
       - name: SLOs-probe_success_codeflare
         rules:
-        - alert: CodeFlare Operator Probe Success Burn Rate
+        - alert: CodeFlare Operator Probe Success 5m and 1h Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
             triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/codeflare-operator-availability.md'
-            summary: CodeFlare Operator Probe Success Burn Rate
+            summary: CodeFlare Operator Probe Success 5m and 1h Burn Rate high
           expr: |
             sum(probe_success:burnrate5m{instance=~"codeflare-operator"}) by (instance) > (14.40 * (1-0.99950))
             and
@@ -547,11 +547,11 @@ data:
           labels:
             severity: info
             namespace: redhat-ods-applications
-        - alert: CodeFlare Operator Probe Success Burn Rate
+        - alert: CodeFlare Operator Probe Success 30m and 6h Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
             triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/codeflare-operator-probe-success-burn-rate.md'
-            summary: CodeFlare Operator Probe Success Burn Rate
+            summary: CodeFlare Operator Probe Success 30m and 6h Burn Rate high
           expr: |
             sum(probe_success:burnrate30m{instance=~"codeflare-operator"}) by (instance) > (6.00 * (1-0.99950))
             and
@@ -560,11 +560,11 @@ data:
           labels:
             severity: info
             namespace: redhat-ods-applications
-        - alert: CodeFlare Operator Probe Success Burn Rate
+        - alert: CodeFlare Operator Probe Success 2h and 1d Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
             triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/codeflare-operator-probe-success-burn-rate.md'
-            summary: CodeFlare Operator Probe Success Burn Rate
+            summary: CodeFlare Operator Probe Success 2h and 1d Burn Rate high
           expr: |
             sum(probe_success:burnrate2h{instance=~"codeflare-operator"}) by (instance) > (3.00 * (1-0.99950))
             and
@@ -703,11 +703,11 @@ data:
     groups:
       - name: SLOs-haproxy_backend_http_responses_dashboard
         rules:
-        - alert: RHODS Dashboard Route Error Burn Rate
+        - alert: RHODS Dashboard Route Error 5m and 1h Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.route }} (current value: {{ $value }}).'
             triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-error-burn-rate.md'
-            summary: RHODS Dashboard Route Error Burn Rate
+            summary: RHODS Dashboard Route Error 5m and 1h Burn Rate high
           expr: |
             sum(haproxy_backend_http_responses_total:burnrate5m{route=~"rhods-dashboard"}) by (route) > (14.40 * (1-0.99950))
             and
@@ -716,11 +716,11 @@ data:
           labels:
             severity: critical
             namespace: redhat-ods-applications
-        - alert: RHODS Dashboard Route Error Burn Rate
+        - alert: RHODS Dashboard Route Error 30m and 6h Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.route }} (current value: {{ $value }}).'
             triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-error-burn-rate.md'
-            summary: RHODS Dashboard Route Error Burn Rate
+            summary: RHODS Dashboard Route Error 30m and 6h Burn Rate high
           expr: |
             sum(haproxy_backend_http_responses_total:burnrate30m{route=~"rhods-dashboard"}) by (route) > (6.00 * (1-0.99950))
             and
@@ -729,11 +729,11 @@ data:
           labels:
             severity: critical
             namespace: redhat-ods-applications
-        - alert: RHODS Dashboard Route Error Burn Rate
+        - alert: RHODS Dashboard Route Error 2h and 1d Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.route }} (current value: {{ $value }}).'
             triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-error-burn-rate.md'
-            summary: RHODS Dashboard Route Error Burn Rate
+            summary: RHODS Dashboard Route Error 2h and 1d Burn Rate high
           expr: |
             sum(haproxy_backend_http_responses_total:burnrate2h{route=~"rhods-dashboard"}) by (route) > (3.00 * (1-0.99950))
             and
@@ -742,11 +742,11 @@ data:
           labels:
             severity: warning
             namespace: redhat-ods-applications
-        - alert: RHODS Dashboard Route Error Burn Rate
+        - alert: RHODS Dashboard Route Error 6h and 3d Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.route }} (current value: {{ $value }}).'
             triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-error-burn-rate.md'
-            summary: RHODS Dashboard Route Error Burn Rate
+            summary: RHODS Dashboard Route Error 6h and 3d Burn Rate high
           expr: |
             sum(haproxy_backend_http_responses_total:burnrate6h{route=~"rhods-dashboard"}) by (route) > (1.00 * (1-0.99950))
             and
@@ -757,11 +757,11 @@ data:
             namespace: redhat-ods-applications
       - name: SLOs-probe_success_dashboard
         rules:
-        - alert: RHODS Dashboard Probe Success Burn Rate
+        - alert: RHODS Dashboard Probe Success 5m and 1h Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.name }} (current value: {{ $value }}).'
             triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-dashboard-probe-success-burn-rate.md"
-            summary: RHODS Dashboard Probe Success Burn Rate
+            summary: RHODS Dashboard Probe Success 5m and 1h Burn Rate high
           expr: |
             sum(probe_success:burnrate5m{name=~"rhods-dashboard"}) by (name) > (14.40 * (1-0.98))
             and
@@ -770,11 +770,11 @@ data:
           labels:
             severity: critical
             namespace: redhat-ods-applications
-        - alert: RHODS Dashboard Probe Success Burn Rate
+        - alert: RHODS Dashboard Probe Success 30m and 6h Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.name }} (current value: {{ $value }}).'
             triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-dashboard-probe-success-burn-rate.md"
-            summary: RHODS Dashboard Probe Success Burn Rate
+            summary: RHODS Dashboard Probe Success 30m and 6h Burn Rate high
           expr: |
             sum(probe_success:burnrate30m{name=~"rhods-dashboard"}) by (name) > (6.00 * (1-0.98))
             and
@@ -783,11 +783,11 @@ data:
           labels:
             severity: critical
             namespace: redhat-ods-applications
-        - alert: RHODS Dashboard Probe Success Burn Rate
+        - alert: RHODS Dashboard Probe Success 2h and 1d Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.name }} (current value: {{ $value }}).'
             triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-dashboard-probe-success-burn-rate.md"
-            summary: RHODS Dashboard Probe Success Burn Rate
+            summary: RHODS Dashboard Probe Success 2h and 1d Burn Rate high
           expr: |
             sum(probe_success:burnrate2h{name=~"rhods-dashboard"}) by (name) > (3.00 * (1-0.98))
             and
@@ -796,11 +796,11 @@ data:
           labels:
             severity: warning
             namespace: redhat-ods-applications
-        - alert: RHODS Dashboard Probe Success Burn Rate
+        - alert: RHODS Dashboard Probe Success 6h and 3d Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.name }} (current value: {{ $value }}).'
             triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-dashboard-probe-success-burn-rate.md"
-            summary: RHODS Dashboard Probe Success Burn Rate
+            summary: RHODS Dashboard Probe Success 6h and 3d Burn Rate high
           expr: |
             sum(probe_success:burnrate6h{name=~"rhods-dashboard"}) by (name) > (1.00 * (1-0.98))
             and
@@ -906,11 +906,11 @@ data:
     groups:
       - name: SLOs-haproxy_backend_http_responses_dsp
         rules:
-        - alert: Data Science Pipelines Application Route Error Burn Rate
+        - alert: Data Science Pipelines Application Route Error 5m and 1h Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.route }} (current value: {{ $value }}).'
             triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-error-burn-rate.md'
-            summary: Data Science Pipelines Application Route Error Burn Rate
+            summary: Data Science Pipelines Application Route Error 5m and 1h Burn Rate high
           expr: |
             sum(haproxy_backend_http_responses_total:burnrate5m{component="dsp"}) by (exported_namespace) > (14.40 * (1-0.99950))
             and
@@ -919,11 +919,11 @@ data:
           labels:
             severity: info
             namespace: redhat-ods-applications
-        - alert: Data Science Pipelines Application Route Error Burn Rate
+        - alert: Data Science Pipelines Application Route Error 30m and 6h Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.route }} (current value: {{ $value }}).'
             triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-error-burn-rate.md'
-            summary: Data Science Pipelines Application Route Error Burn Rate
+            summary: Data Science Pipelines Application Route Error 30m and 6h Burn Rate high
           expr: |
             sum(haproxy_backend_http_responses_total:burnrate30m{component="dsp"}) by (exported_namespace) > (6.00 * (1-0.99950))
             and
@@ -932,11 +932,11 @@ data:
           labels:
             severity: info
             namespace: redhat-ods-applications
-        - alert: Data Science Pipelines Application Route Error Burn Rate
+        - alert: Data Science Pipelines Application Route Error 2h and 1d Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.route }} (current value: {{ $value }}).'
             triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-error-burn-rate.md'
-            summary: Data Science Pipelines Application Route Error Burn Rate
+            summary: Data Science Pipelines Application Route Error 2h and 1d Burn Rate high
           expr: |
             sum(haproxy_backend_http_responses_total:burnrate2h{component="dsp"}) by (exported_namespace) > (3.00 * (1-0.99950))
             and
@@ -945,11 +945,11 @@ data:
           labels:
             severity: info
             namespace: redhat-ods-applications
-        - alert: Data Science Pipelines Application Route Error Burn Rate
+        - alert: Data Science Pipelines Application Route Error 6h and 3d Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.route }} (current value: {{ $value }}).'
             triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-error-burn-rate.md'
-            summary: Data Science Pipelines Application Route Error Burn Rate
+            summary: Data Science Pipelines Application Route Error 6h and 3d Burn Rate high
           expr: |
             sum(haproxy_backend_http_responses_total:burnrate6h{component="dsp"}) by (exported_namespace) > (1.00 * (1-0.99950))
             and
@@ -960,11 +960,11 @@ data:
             namespace: redhat-ods-applications
       - name: SLOs-probe_success_dsp
         rules:
-        - alert: Data Science Pipelines Operator Probe Success Burn Rate
+        - alert: Data Science Pipelines Operator Probe Success 5m and 1h Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
             triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-operator-probe-success-burn-rate.md"
-            summary: Data Science Pipelines Operator Probe Success Burn Rate
+            summary: Data Science Pipelines Operator Probe Success 5m and 1h Burn Rate high
           expr: |
             sum(probe_success:burnrate5m{instance=~"data-science-pipelines-operator"}) by (instance) > (14.40 * (1-0.98000))
             and
@@ -973,11 +973,11 @@ data:
           labels:
             severity: critical
             namespace: redhat-ods-applications
-        - alert: Data Science Pipelines Operator Probe Success Burn Rate
+        - alert: Data Science Pipelines Operator Probe Success 30m and 6h Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
             triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-operator-probe-success-burn-rate.md"
-            summary: Data Science Pipelines Operator Probe Success Burn Rate
+            summary: Data Science Pipelines Operator Probe Success 30m and 6h Burn Rate high
           expr: |
             sum(probe_success:burnrate30m{instance=~"data-science-pipelines-operator"}) by (instance) > (6.00 * (1-0.98000))
             and
@@ -986,11 +986,11 @@ data:
           labels:
             severity: critical
             namespace: redhat-ods-applications
-        - alert: Data Science Pipelines Operator Probe Success Burn Rate
+        - alert: Data Science Pipelines Operator Probe Success 2h and 1d Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
             triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-operator-probe-success-burn-rate.md"
-            summary: Data Science Pipelines Operator Probe Success Burn Rate
+            summary: Data Science Pipelines Operator Probe Success 2h and 1d Burn Rate high
           expr: |
             sum(probe_success:burnrate2h{instance=~"data-science-pipelines-operator"}) by (instance) > (3.00 * (1-0.98000))
             and
@@ -1091,11 +1091,11 @@ data:
     groups:
       - name: SLOs-probe_success_modelmesh
         rules:
-        - alert: Modelmesh Controller Probe Success Burn Rate
+        - alert: Modelmesh Controller Probe Success 5m and 1h Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
             triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-modelmesh-controller-probe-success-burn-rate.md"
-            summary: Modelmesh Controller Probe Success Burn Rate
+            summary: Modelmesh Controller Probe Success 5m and 1h Burn Rate high
           expr: |
             sum(probe_success:burnrate5m{instance=~"modelmesh-controller"}) by (instance) > (14.40 * (1-0.98000))
             and
@@ -1104,11 +1104,11 @@ data:
           labels:
             severity: critical
             namespace: redhat-ods-applications
-        - alert: Modelmesh Controller Probe Success Burn Rate
+        - alert: Modelmesh Controller Probe Success 30m and 6h Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
             triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-modelmesh-controller-probe-success-burn-rate.md"
-            summary: Modelmesh Controller Probe Success Burn Rate
+            summary: Modelmesh Controller Probe Success 30m and 6h Burn Rate high
           expr: |
             sum(probe_success:burnrate30m{instance=~"modelmesh-controller"}) by (instance) > (6.00 * (1-0.98000))
             and
@@ -1117,11 +1117,11 @@ data:
           labels:
             severity: critical
             namespace: redhat-ods-applications
-        - alert: Modelmesh Controller Probe Success Burn Rate
+        - alert: Modelmesh Controller Probe Success 2h and 1d Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
             triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-modelmesh-controller-probe-success-burn-rate.md"
-            summary: Modelmesh Controller Probe Success Burn Rate
+            summary: Modelmesh Controller Probe Success 2h and 1d Burn Rate high
           expr: |
             sum(probe_success:burnrate2h{instance=~"modelmesh-controller"}) by (instance) > (3.00 * (1-0.98000))
             and
@@ -1180,11 +1180,11 @@ data:
     groups:
       - name: SLOs-probe_success_model_controller
         rules:
-        - alert: ODH Model Controller Probe Success Burn Rate
+        - alert: ODH Model Controller Probe Success 5m and 1h Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
             triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-odh-controller-probe-success-burn-rate.md"
-            summary: ODH Model Controller Probe Success Burn Rate
+            summary: ODH Model Controller Probe Success 5m and 1h Burn Rate high
           expr: |
             sum(probe_success:burnrate5m{instance=~"odh-model-controller"}) by (instance) > (14.40 * (1-0.98000))
             and
@@ -1193,11 +1193,11 @@ data:
           labels:
             severity: critical
             namespace: redhat-ods-applications
-        - alert: ODH Model Controller Probe Success Burn Rate
+        - alert: ODH Model Controller Probe Success 30m and 6h Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
             triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-odh-controller-probe-success-burn-rate.md"
-            summary: ODH Model Controller Probe Success Burn Rate
+            summary: ODH Model Controller Probe Success 30m and 6h Burn Rate high
           expr: |
             sum(probe_success:burnrate30m{instance=~"odh-model-controller"}) by (instance) > (6.00 * (1-0.98000))
             and
@@ -1206,11 +1206,11 @@ data:
           labels:
             severity: critical
             namespace: redhat-ods-applications
-        - alert: ODH Model Controller Probe Success Burn Rate
+        - alert: ODH Model Controller Probe Success 2h and 1d Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
             triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-odh-controller-probe-success-burn-rate.md"
-            summary: ODH Model Controller Probe Success Burn Rate
+            summary: ODH Model Controller Probe Success 2h and 1d Burn Rate high
           expr: |
             sum(probe_success:burnrate2h{instance=~"odh-model-controller"}) by (instance) > (3.00 * (1-0.98000))
             and
@@ -1269,11 +1269,11 @@ data:
     groups:
       - name: SLOs-probe_success_kserve
         rules:
-        - alert: Kserve Controller Probe Success Burn Rate
+        - alert: Kserve Controller Probe Success 5m and 1h Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
             triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-kserve-controller-probe-success-burn-rate.md"
-            summary: Kserve Controller Probe Success Burn Rate
+            summary: Kserve Controller Probe Success 5m and 1h Burn Rate high
           expr: |
             sum(probe_success:burnrate5m{instance=~"kserve-controller-manager"}) by (instance) > (14.40 * (1-0.98000))
             and
@@ -1281,11 +1281,11 @@ data:
           for: 2m
           labels:
             severity: critical
-        - alert: Kserve Controller Probe Success Burn Rate
+        - alert: Kserve Controller Probe Success 30m and 6h Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
             triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-kserve-controller-probe-success-burn-rate.md"
-            summary: Kserve Controller Probe Success Burn Rate
+            summary: Kserve Controller Probe Success 30m and 6h Burn Rate high
           expr: |
             sum(probe_success:burnrate30m{instance=~"kserve-controller-manager"}) by (instance) > (6.00 * (1-0.98000))
             and
@@ -1293,11 +1293,11 @@ data:
           for: 15m
           labels:
             severity: critical
-        - alert: Kserve Controller Probe Success Burn Rate
+        - alert: Kserve Controller Probe Success 2h and 1d Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
             triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-kserve-controller-probe-success-burn-rate.md"
-            summary: Kserve Controller Probe Success Burn Rate
+            summary: Kserve Controller Probe Success 2h and 1d Burn Rate high
           expr: |
             sum(probe_success:burnrate2h{instance=~"kserve-controller-manager"}) by (instance) > (3.00 * (1-0.98000))
             and
@@ -1462,11 +1462,11 @@ data:
 
       - name: SLOs-probe_success_workbench
         rules:
-        - alert: RHODS Jupyter Probe Success Burn Rate
+        - alert: RHODS Jupyter Probe Success 5m and 1h Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
             triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Jupyter/rhods-jupyter-probe-success-burn-rate.md"
-            summary: RHODS Jupyter Probe Success Burn Rate
+            summary: RHODS Jupyter Probe Success 5m and 1h Burn Rate high
           expr: |
             sum(probe_success:burnrate5m{instance=~"notebook-spawner"}) by (instance) > (14.40 * (1-0.98000))
             and
@@ -1475,11 +1475,11 @@ data:
           labels:
             severity: critical
             instance: notebook-spawner
-        - alert: RHODS Jupyter Probe Success Burn Rate
+        - alert: RHODS Jupyter Probe Success 30m and 6h Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
             triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Jupyter/rhods-jupyter-probe-success-burn-rate.md"
-            summary: RHODS Jupyter Probe Success Burn Rate
+            summary: RHODS Jupyter Probe Success 30m and 6h Burn Rate high
           expr: |
             sum(probe_success:burnrate30m{instance=~"notebook-spawner"}) by (instance) > (6.00 * (1-0.98000))
             and
@@ -1488,11 +1488,11 @@ data:
           labels:
             severity: critical
             instance: notebook-spawner
-        - alert: RHODS Jupyter Probe Success Burn Rate
+        - alert: RHODS Jupyter Probe Success 2h and 1d Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
             triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Jupyter/rhods-jupyter-probe-success-burn-rate.md"
-            summary: RHODS Jupyter Probe Success Burn Rate
+            summary: RHODS Jupyter Probe Success 2h and 1d Burn Rate high
           expr: |
             sum(probe_success:burnrate2h{instance=~"notebook-spawner"}) by (instance) > (3.00 * (1-0.98000))
             and
@@ -1501,11 +1501,11 @@ data:
           labels:
             severity: warning
             instance: notebook-spawner
-        - alert: RHODS Jupyter Probe Success Burn Rate
+        - alert: RHODS Jupyter Probe Success 6h and 3d Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
             triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Jupyter/rhods-jupyter-probe-success-burn-rate.md"
-            summary: RHODS Jupyter Probe Success Burn Rate
+            summary: RHODS Jupyter Probe Success 6h and 3d Burn Rate high
           expr: |
             sum(probe_success:burnrate6h{instance=~"notebook-spawner"}) by (instance) > (1.00 * (1-0.98000))
             and
@@ -1563,11 +1563,11 @@ data:
     groups:
       - name: SLOs-probe_success_trustyai
         rules:
-        - alert: TrustyAI Controller Probe Success Burn Rate
+        - alert: TrustyAI Controller Probe Success 5m and 1h Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
             triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhoai-trustyai-controller-probe-success-burn-rate.md"
-            summary: TrustyAI Controller Probe Success Burn Rate
+            summary: TrustyAI Controller Probe Success 5m and 1h Burn Rate high
           expr: |
             sum(probe_success:burnrate5m{instance=~"trustyai-service-operator-controller-manager"}) by (instance) > (14.40 * (1-0.98000))
             and
@@ -1576,11 +1576,11 @@ data:
           labels:
             severity: critical
             instance: trustyai-service-operator-controller-manager
-        - alert: TrustyAI Controller Probe Success Burn Rate
+        - alert: TrustyAI Controller Probe Success 30m and 6h Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
             triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhoai-trustyai-controller-probe-success-burn-rate.md"
-            summary: TrustyAI Controller Probe Success Burn Rate
+            summary: TrustyAI Controller Probe Success 30m and 6h Burn Rate high
           expr: |
             sum(probe_success:burnrate30m{instance=~"trustyai-service-operator-controller-manager"}) by (instance) > (6.00 * (1-0.98000))
             and
@@ -1589,11 +1589,11 @@ data:
           labels:
             severity: critical
             instance: trustyai-service-operator-controller-manager
-        - alert: TrustyAI Controller Probe Success Burn Rate
+        - alert: TrustyAI Controller Probe Success 2h and 1d Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
             triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhoai-trustyai-controller-probe-success-burn-rate.md"
-            summary: TrustyAI Controller Probe Success Burn Rate
+            summary: TrustyAI Controller Probe Success 2h and 1d Burn Rate high
           expr: |
             sum(probe_success:burnrate2h{instance=~"trustyai-service-operator-controller-manager"}) by (instance) > (3.00 * (1-0.98000))
             and

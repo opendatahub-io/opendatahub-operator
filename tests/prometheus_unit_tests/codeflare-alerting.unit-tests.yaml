@@ -21,7 +21,13 @@ tests:
         values: "0x60"
     alert_rule_test:
       - eval_time: 1h
-        alertname: CodeFlare Operator Probe Success Burn Rate
+        alertname: CodeFlare Operator Probe Success 5m and 1h Burn Rate high
+        exp_alerts: []
+      - eval_time: 1h
+        alertname: CodeFlare Operator Probe Success 30m and 6h Burn Rate high
+        exp_alerts: []
+      - eval_time: 1h
+        alertname: CodeFlare Operator Probe Success 2h and 1d Burn Rate high
         exp_alerts: []
 
   - interval: 1m
@@ -32,16 +38,16 @@ tests:
         values: "1+1x60"
     alert_rule_test:
       - eval_time: 2m
-        alertname: CodeFlare Operator Probe Success Burn Rate
+        alertname: CodeFlare Operator Probe Success 5m and 1h Burn Rate high
         exp_alerts:
           - exp_labels:
-              alertname: CodeFlare Operator Probe Success Burn Rate
+              alertname: CodeFlare Operator Probe Success 5m and 1h Burn Rate high
               instance: "codeflare-operator"
               namespace: "redhat-ods-applications"
               severity: info
             exp_annotations:
               message: "High error budget burn for codeflare-operator (current value: 3)."
-              summary: CodeFlare Operator Probe Success Burn Rate
+              summary: CodeFlare Operator Probe Success 5m and 1h Burn Rate high
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/codeflare-operator-availability.md'
 
   - interval: 1m
@@ -52,16 +58,16 @@ tests:
         values: "1+1x60"
     alert_rule_test:
       - eval_time: 15m
-        alertname: CodeFlare Operator Probe Success Burn Rate
+        alertname: CodeFlare Operator Probe Success 30m and 6h Burn Rate high
         exp_alerts:
           - exp_labels:
-              alertname: CodeFlare Operator Probe Success Burn Rate
+              alertname: CodeFlare Operator Probe Success 30m and 6h Burn Rate high
               instance: "codeflare-operator"
               namespace: "redhat-ods-applications"
               severity: info
             exp_annotations:
               message: "High error budget burn for codeflare-operator (current value: 16)."
-              summary: CodeFlare Operator Probe Success Burn Rate
+              summary: CodeFlare Operator Probe Success 30m and 6h Burn Rate high
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/codeflare-operator-probe-success-burn-rate.md'
 
   - interval: 1m
@@ -72,16 +78,16 @@ tests:
         values: "1+1x60"
     alert_rule_test:
       - eval_time: 1h
-        alertname: CodeFlare Operator Probe Success Burn Rate
+        alertname: CodeFlare Operator Probe Success 2h and 1d Burn Rate high
         exp_alerts:
           - exp_labels:
-              alertname: CodeFlare Operator Probe Success Burn Rate
+              alertname: CodeFlare Operator Probe Success 2h and 1d Burn Rate high
               instance: "codeflare-operator"
               namespace: "redhat-ods-applications"
               severity: info
             exp_annotations:
               message: "High error budget burn for codeflare-operator (current value: 61)."
-              summary: CodeFlare Operator Probe Success Burn Rate
+              summary: CodeFlare Operator Probe Success 2h and 1d Burn Rate high
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/codeflare-operator-probe-success-burn-rate.md'
 
   # operator running
