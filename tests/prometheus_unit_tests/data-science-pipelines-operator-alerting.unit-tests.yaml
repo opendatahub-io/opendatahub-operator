@@ -18,9 +18,20 @@ tests:
         values: "0x60"
       - series: haproxy_backend_http_responses_total:burnrate1d{component="dsp"}
         values: "0x60"
+      - series: haproxy_backend_http_responses_total:burnrate3d{component="dsp"}
+        values: "0x60"
     alert_rule_test:
       - eval_time: 1h
-        alertname: Data Science Pipelines Application Route Error Burn Rate
+        alertname: Data Science Pipelines Application Route Error 5m and 1h Burn Rate high
+        exp_alerts: []
+      - eval_time: 1h
+        alertname: Data Science Pipelines Application Route Error 30m and 6h Burn Rate high
+        exp_alerts: []
+      - eval_time: 1h
+        alertname: Data Science Pipelines Application Route Error 2h and 1d Burn Rate high
+        exp_alerts: []
+      - eval_time: 1h
+        alertname: Data Science Pipelines Application Route Error 6h and 3d Burn Rate high
         exp_alerts: []
 
   - interval: 1m
@@ -31,14 +42,14 @@ tests:
         values: "1+1x60"
     alert_rule_test:
       - eval_time: 2m
-        alertname: Data Science Pipelines Application Route Error Burn Rate
+        alertname: Data Science Pipelines Application Route Error 5m and 1h Burn Rate high
         exp_alerts:
           - exp_labels:
-              alertname: Data Science Pipelines Application Route Error Burn Rate
+              alertname: Data Science Pipelines Application Route Error 5m and 1h Burn Rate high
               namespace: "redhat-ods-applications"
               severity: info
             exp_annotations:
-              summary: "Data Science Pipelines Application Route Error Burn Rate"
+              summary: "Data Science Pipelines Application Route Error 5m and 1h Burn Rate high"
               message: "High error budget burn for  (current value: 3)."
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-error-burn-rate.md'
 
@@ -50,14 +61,14 @@ tests:
         values: "1+1x60"
     alert_rule_test:
       - eval_time: 15m
-        alertname: Data Science Pipelines Application Route Error Burn Rate
+        alertname: Data Science Pipelines Application Route Error 30m and 6h Burn Rate high
         exp_alerts:
           - exp_labels:
-              alertname: Data Science Pipelines Application Route Error Burn Rate
+              alertname: Data Science Pipelines Application Route Error 30m and 6h Burn Rate high
               namespace: "redhat-ods-applications"
               severity: info
             exp_annotations:
-              summary: "Data Science Pipelines Application Route Error Burn Rate"
+              summary: "Data Science Pipelines Application Route Error 30m and 6h Burn Rate high"
               message: "High error budget burn for  (current value: 16)."
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-error-burn-rate.md'
 
@@ -69,14 +80,14 @@ tests:
         values: "1+1x60"
     alert_rule_test:
       - eval_time: 1h
-        alertname: Data Science Pipelines Application Route Error Burn Rate
+        alertname: Data Science Pipelines Application Route Error 2h and 1d Burn Rate high
         exp_alerts:
           - exp_labels:
-              alertname: Data Science Pipelines Application Route Error Burn Rate
+              alertname: Data Science Pipelines Application Route Error 2h and 1d Burn Rate high
               namespace: "redhat-ods-applications"
               severity: info
             exp_annotations:
-              summary: "Data Science Pipelines Application Route Error Burn Rate"
+              summary: "Data Science Pipelines Application Route Error 2h and 1d Burn Rate high"
               message: "High error budget burn for  (current value: 61)."
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-error-burn-rate.md'
 
@@ -88,14 +99,14 @@ tests:
         values: "1+1x200"
     alert_rule_test:
       - eval_time: 3h
-        alertname: Data Science Pipelines Application Route Error Burn Rate
+        alertname: Data Science Pipelines Application Route Error 6h and 3d Burn Rate high
         exp_alerts:
           - exp_labels:
-              alertname: Data Science Pipelines Application Route Error Burn Rate
+              alertname: Data Science Pipelines Application Route Error 6h and 3d Burn Rate high
               namespace: "redhat-ods-applications"
               severity: info
             exp_annotations:
-              summary: "Data Science Pipelines Application Route Error Burn Rate"
+              summary: "Data Science Pipelines Application Route Error 6h and 3d Burn Rate high"
               message: "High error budget burn for  (current value: 181)."
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-error-burn-rate.md'
 
@@ -116,7 +127,13 @@ tests:
         values: "0x60"
     alert_rule_test:
       - eval_time: 3h
-        alertname: Data Science Pipelines Operator Probe Success Burn Rate
+        alertname: Data Science Pipelines Operator Probe Success 5m and 1h Burn Rate high
+        exp_alerts: []
+      - eval_time: 3h
+        alertname: Data Science Pipelines Operator Probe Success 30m and 6h Burn Rate high
+        exp_alerts: []
+      - eval_time: 3h
+        alertname: Data Science Pipelines Operator Probe Success 2h and 1d Burn Rate high
         exp_alerts: []
 
 
@@ -128,15 +145,15 @@ tests:
         values: "1+1x60"
     alert_rule_test:
       - eval_time: 2m
-        alertname: Data Science Pipelines Operator Probe Success Burn Rate
+        alertname: Data Science Pipelines Operator Probe Success 5m and 1h Burn Rate high
         exp_alerts:
           - exp_labels:
-              alertname: Data Science Pipelines Operator Probe Success Burn Rate
+              alertname: Data Science Pipelines Operator Probe Success 5m and 1h Burn Rate high
               instance: "data-science-pipelines-operator"
               namespace: "redhat-ods-applications"
               severity: critical
             exp_annotations:
-              summary: "Data Science Pipelines Operator Probe Success Burn Rate"
+              summary: "Data Science Pipelines Operator Probe Success 5m and 1h Burn Rate high"
               message: "High error budget burn for data-science-pipelines-operator (current value: 3)."
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-operator-probe-success-burn-rate.md'
 
@@ -148,15 +165,15 @@ tests:
         values: "1+1x60"
     alert_rule_test:
       - eval_time: 15m
-        alertname: Data Science Pipelines Operator Probe Success Burn Rate
+        alertname: Data Science Pipelines Operator Probe Success 30m and 6h Burn Rate high
         exp_alerts:
           - exp_labels:
-              alertname: Data Science Pipelines Operator Probe Success Burn Rate
+              alertname: Data Science Pipelines Operator Probe Success 30m and 6h Burn Rate high
               instance: "data-science-pipelines-operator"
               namespace: "redhat-ods-applications"
               severity: critical
             exp_annotations:
-              summary: "Data Science Pipelines Operator Probe Success Burn Rate"
+              summary: "Data Science Pipelines Operator Probe Success 30m and 6h Burn Rate high"
               message: "High error budget burn for data-science-pipelines-operator (current value: 16)."
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-operator-probe-success-burn-rate.md'
 
@@ -168,15 +185,15 @@ tests:
         values: "1+1x60"
     alert_rule_test:
       - eval_time: 1h
-        alertname: Data Science Pipelines Operator Probe Success Burn Rate
+        alertname: Data Science Pipelines Operator Probe Success 2h and 1d Burn Rate high
         exp_alerts:
           - exp_labels:
-              alertname: Data Science Pipelines Operator Probe Success Burn Rate
+              alertname: Data Science Pipelines Operator Probe Success 2h and 1d Burn Rate high
               instance: "data-science-pipelines-operator"
               namespace: "redhat-ods-applications"
               severity: warning
             exp_annotations:
-              summary: "Data Science Pipelines Operator Probe Success Burn Rate"
+              summary: "Data Science Pipelines Operator Probe Success 2h and 1d Burn Rate high"
               message: "High error budget burn for data-science-pipelines-operator (current value: 61)."
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-operator-probe-success-burn-rate.md'
 
