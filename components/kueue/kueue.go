@@ -82,7 +82,7 @@ func (k *Kueue) ReconcileComponent(ctx context.Context, cli client.Client,
 	}
 	// Deploy Kueue Operator
 	if err := deploy.DeployManifestsFromPath(ctx, cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
-		return fmt.Errorf("failed to apply manifetss %s: %w", Path, err)
+		return fmt.Errorf("failed to apply manifests %s: %w", Path, err)
 	}
 	l.Info("apply manifests done")
 

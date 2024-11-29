@@ -87,7 +87,7 @@ func (r *Ray) ReconcileComponent(ctx context.Context, cli client.Client,
 	}
 	// Deploy Ray Operator
 	if err := deploy.DeployManifestsFromPath(ctx, cli, owner, RayPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
-		return fmt.Errorf("failed to apply manifets from %s : %w", RayPath, err)
+		return fmt.Errorf("failed to apply manifest from %s : %w", RayPath, err)
 	}
 	l.Info("apply manifests done")
 

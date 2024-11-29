@@ -143,7 +143,7 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 		notebookControllerPath,
 		dscispec.ApplicationsNamespace,
 		ComponentName, enabled); err != nil {
-		return fmt.Errorf("failed to apply manifetss %s: %w", notebookControllerPath, err)
+		return fmt.Errorf("failed to apply manifests %s: %w", notebookControllerPath, err)
 	}
 	l.WithValues("Path", notebookControllerPath).Info("apply manifests done notebook controller done")
 
@@ -151,7 +151,7 @@ func (w *Workbenches) ReconcileComponent(ctx context.Context, cli client.Client,
 		kfnotebookControllerPath,
 		dscispec.ApplicationsNamespace,
 		ComponentName, enabled); err != nil {
-		return fmt.Errorf("failed to apply manifetss %s: %w", kfnotebookControllerPath, err)
+		return fmt.Errorf("failed to apply manifests %s: %w", kfnotebookControllerPath, err)
 	}
 	l.WithValues("Path", kfnotebookControllerPath).Info("apply manifests done kf-notebook controller done")
 
