@@ -13,12 +13,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/generation"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -44,12 +46,15 @@ type forInput struct {
 	gvk     schema.GroupVersionKind
 }
 
+type DynamicPredicate func(context.Context, *types.ReconciliationRequest) (bool, error)
+
 type watchInput struct {
 	object       client.Object
 	eventHandler handler.EventHandler
 	predicates   []predicate.Predicate
 	owned        bool
 	dynamic      bool
+	dynamicPred  []DynamicPredicate
 }
 
 type WatchOpts func(*watchInput)
@@ -72,9 +77,10 @@ func WithEventMapper(value handler.MapFunc) WatchOpts {
 	}
 }
 
-func Dynamic() WatchOpts {
+func Dynamic(predicates ...DynamicPredicate) WatchOpts {
 	return func(a *watchInput) {
 		a.dynamic = true
+		a.dynamicPred = slices.Clone(predicates)
 	}
 }
 
@@ -264,7 +270,14 @@ func (b *ComponentReconcilerBuilder) Build(_ context.Context) (*ComponentReconci
 	}
 
 	// internal action
-	r.AddAction(newDynamicWatchAction(b.mgr, cc, b.watches))
+	r.AddAction(
+		newDynamicWatchAction(
+			func(obj client.Object, eventHandler handler.EventHandler, predicates ...predicate.Predicate) error {
+				return cc.Watch(source.Kind(b.mgr.GetCache(), obj), eventHandler, predicates...)
+			},
+			b.watches,
+		),
+	)
 
 	return r, nil
 }

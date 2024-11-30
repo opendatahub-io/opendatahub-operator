@@ -1,3 +1,4 @@
+//nilint:testpackage
 package reconciler
 
 import (
@@ -6,22 +7,23 @@ import (
 	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/source"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
+type dynamicWatchFn func(client.Object, handler.EventHandler, ...predicate.Predicate) error
+
 type dynamicWatchAction struct {
-	mgr        ctrl.Manager
-	controller controller.Controller
-	watches    []watchInput
-	watched    map[schema.GroupVersionKind]struct{}
+	fn      dynamicWatchFn
+	watches []watchInput
+	watched map[schema.GroupVersionKind]struct{}
 }
 
-func (a *dynamicWatchAction) run(_ context.Context, rr *types.ReconciliationRequest) error {
+func (a *dynamicWatchAction) run(ctx context.Context, rr *types.ReconciliationRequest) error {
 	controllerName := strings.ToLower(rr.Instance.GetObjectKind().GroupVersionKind().Kind)
 
 	for i := range a.watches {
@@ -33,28 +35,43 @@ func (a *dynamicWatchAction) run(_ context.Context, rr *types.ReconciliationRequ
 			continue
 		}
 
-		err := a.controller.Watch(
-			source.Kind(a.mgr.GetCache(), w.object),
-			w.eventHandler,
-			w.predicates...,
-		)
+		ok, err := a.shouldWatch(ctx, w, rr)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			continue
+		}
 
+		err = a.fn(w.object, w.eventHandler, w.predicates...)
 		if err != nil {
 			return fmt.Errorf("failed to create watcher for %s: %w", w.object.GetObjectKind().GroupVersionKind(), err)
 		}
 
-		DynamicWatchResourcesTotal.WithLabelValues(controllerName).Inc()
 		a.watched[gvk] = struct{}{}
+		DynamicWatchResourcesTotal.WithLabelValues(controllerName).Inc()
 	}
 
 	return nil
 }
 
-func newDynamicWatchAction(mgr ctrl.Manager, controller controller.Controller, watches []watchInput) actions.Fn {
+func (a *dynamicWatchAction) shouldWatch(ctx context.Context, in watchInput, rr *types.ReconciliationRequest) (bool, error) {
+	for pi := range in.dynamicPred {
+		ok, err := in.dynamicPred[pi](ctx, rr)
+		if err != nil {
+			return false, err
+		}
+		if !ok {
+			return false, nil
+		}
+	}
+
+	return true, nil
+}
+func newDynamicWatch(fn dynamicWatchFn, watches []watchInput) *dynamicWatchAction {
 	action := dynamicWatchAction{
-		mgr:        mgr,
-		controller: controller,
-		watched:    map[schema.GroupVersionKind]struct{}{},
+		fn:      fn,
+		watched: map[schema.GroupVersionKind]struct{}{},
 	}
 
 	for i := range watches {
@@ -66,5 +83,10 @@ func newDynamicWatchAction(mgr ctrl.Manager, controller controller.Controller, w
 		action.watches = append(action.watches, watches[i])
 	}
 
+	return &action
+}
+
+func newDynamicWatchAction(fn dynamicWatchFn, watches []watchInput) actions.Fn {
+	action := newDynamicWatch(fn, watches)
 	return action.run
 }
