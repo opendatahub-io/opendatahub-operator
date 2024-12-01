@@ -8,12 +8,19 @@ ARG OVERWRITE_MANIFESTS=""
 USER root
 WORKDIR /
 COPY opt/manifests/ /opt/manifests/
+
 COPY get_all_manifests.sh get_all_manifests.sh
 RUN if [ "${USE_LOCAL}" != "true" ]; then \
         rm -rf /opt/manifests/*; \
         ./get_all_manifests.sh ${OVERWRITE_MANIFESTS}; \
     fi
 
+# Copy monitoring config
+COPY config/monitoring/ /opt/manifests/monitoring
+# Copy partners config
+COPY config/partners/ /opt/manifests/partners
+# Copy ods-configs
+COPY config/osd-configs/ /opt/manifests/osd-configs
 ################################################################################
 FROM registry.access.redhat.com/ubi8/go-toolset:$GOLANG_VERSION as builder
 ARG CGO_ENABLED=1
@@ -32,13 +39,6 @@ COPY components/ components/
 COPY controllers/ controllers/
 COPY main.go main.go
 COPY pkg/ pkg/
-
-# Copy monitoring config
-COPY config/monitoring/ /opt/manifests/monitoring/
-# Copy partners config
-COPY config/partners/ /opt/manifests/partners/
-# Copy ods-configs
-COPY config/osd-configs/ /opt/manifests/osd-configs/
 
 # Build
 RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=amd64 go build -a -o manager main.go
