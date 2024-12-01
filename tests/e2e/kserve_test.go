@@ -83,7 +83,7 @@ func (k *KserveTestCtx) validateOperandsOwnerReferences(t *testing.T) {
 			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1.KserveKind)},
 		),
 	).Should(And(
-		HaveLen(2),
+		HaveLen(1), // only kserve-controller-manager
 		HaveEach(
 			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, componentsv1.KserveKind),
 		),
@@ -94,7 +94,6 @@ func (k *KserveTestCtx) validateUpdateKserveOperandsResources(t *testing.T) {
 	g := k.WithT(t)
 
 	matchLabels := map[string]string{
-		"control-plane":       "kserve-controller-manager",
 		labels.PlatformPartOf: strings.ToLower(componentsv1.KserveKind),
 	}
 
@@ -172,7 +171,7 @@ func (k *KserveTestCtx) validateKserveDisabled(t *testing.T) {
 			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1.KserveKind)},
 		),
 	).Should(
-		HaveLen(2),
+		HaveLen(1),
 	)
 
 	g.Eventually(
