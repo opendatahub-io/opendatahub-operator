@@ -22,13 +22,8 @@ import (
 	"strings"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
-	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -87,66 +82,6 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 				rr.Manifests[0].SourcePath = subcomponent.SourcePath
 			}
 		}
-	}
-	return nil
-}
-
-func patchOwnerReference(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	l := log.FromContext(ctx)
-	mc, ok := rr.Instance.(*componentsv1.ModelController)
-	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentsv1.ModelController)", rr.Instance)
-	}
-
-	owners := []metav1.OwnerReference{}
-	if mc.Spec.ModelMeshServing == operatorv1.Managed { // when modelmesh is Removed, it wont be set in the owners in next update
-		mm := &componentsv1.ModelMeshServing{}
-		if err := rr.Client.Get(ctx, client.ObjectKey{Name: "default-modelmesh"}, mm); err != nil {
-			if k8serr.IsNotFound(err) {
-				return odherrors.NewStopError("ModelMesh CR not exist: %v", err)
-			}
-			return odherrors.NewStopError("failed to get ModelMesh CR: %v", err)
-		}
-		owners = append(owners, metav1.OwnerReference{
-			Kind:               componentsv1.ModelMeshServingKind,
-			APIVersion:         componentsv1.GroupVersion.String(),
-			Name:               componentsv1.ModelMeshServingInstanceName,
-			UID:                mm.GetUID(),
-			BlockOwnerDeletion: func(b bool) *bool { return &b }(false),
-			Controller:         func(b bool) *bool { return &b }(false),
-		},
-		)
-		l.Info("Update Ownerreference on modelmesh change")
-	}
-	if mc.Spec.Kserve == operatorv1.Managed { // when kserve is Removed, it wont be set in the owners in next update
-		k := &componentsv1.Kserve{}
-		if err := rr.Client.Get(ctx, client.ObjectKey{Name: "default-kserve"}, k); err != nil {
-			if k8serr.IsNotFound(err) {
-				return odherrors.NewStopError("Kserve CR not exist: %v", err)
-			}
-			return odherrors.NewStopError("failed to get Kserve CR: %v", err)
-		}
-		owners = append(owners, metav1.OwnerReference{
-			Kind:               componentsv1.KserveKind,
-			APIVersion:         componentsv1.GroupVersion.String(),
-			Name:               componentsv1.KserveInstanceName,
-			UID:                k.GetUID(),
-			BlockOwnerDeletion: func(b bool) *bool { return &b }(false),
-			Controller:         func(b bool) *bool { return &b }(false),
-		},
-		)
-		l.Info("Update Ownerreference on kserve change")
-	}
-
-	mc.SetOwnerReferences(owners)
-	mc.SetManagedFields(nil) // remove managed fields to avoid conflicts when SSA apply
-	force := true
-	opt := &client.PatchOptions{
-		Force:        &force,
-		FieldManager: componentsv1.ModelControllerInstanceName,
-	}
-	if err := rr.Client.Patch(ctx, mc, client.Apply, opt); err != nil {
-		return fmt.Errorf("error update ownerreference for CR %s : %w", mc.GetName(), err)
 	}
 	return nil
 }

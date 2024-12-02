@@ -21,7 +21,14 @@ import (
 	"fmt"
 	"strings"
 
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -69,5 +76,49 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 		}
 	}
 	// TODO: Implement devflags logmode logic
+	return nil
+}
+
+func patchOwnerReference(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	mm, ok := rr.Instance.(*componentsv1.ModelMeshServing)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentsv1.ModelMeshServing)", rr.Instance)
+	}
+
+	l := logf.FromContext(ctx)
+	mc := &componentsv1.ModelController{}
+	if err := rr.Client.Get(ctx, client.ObjectKey{Name: componentsv1.ModelControllerInstanceName}, mc); err != nil {
+		if k8serr.IsNotFound(err) {
+			return odherrors.NewStopError("ModelController CR not exist: %v", err)
+		}
+		return odherrors.NewStopError("failed to get ModelController CR: %v", err)
+	}
+	for _, owners := range mc.GetOwnerReferences() {
+		if owners.UID == mm.GetUID() {
+			return nil // modelmesh already as owner to modelcontroller, early exit
+		}
+	}
+
+	owners := []metav1.OwnerReference{}
+	owners = append(owners, mc.GetOwnerReferences()...) // keep the existing ones
+	owners = append(owners, metav1.OwnerReference{
+		Kind:               componentsv1.ModelMeshServingKind,
+		APIVersion:         componentsv1.GroupVersion.String(),
+		Name:               componentsv1.ModelMeshServingInstanceName,
+		UID:                mm.GetUID(),
+		BlockOwnerDeletion: ptr.To(false),
+		Controller:         ptr.To(false),
+	},
+	)
+	mc.SetOwnerReferences(owners)
+	mc.SetManagedFields(nil) // remove managed fields to avoid conflicts when SSA apply
+	opt := &client.PatchOptions{
+		Force:        ptr.To(true),
+		FieldManager: componentsv1.ModelControllerInstanceName,
+	}
+	if err := rr.Client.Patch(ctx, mc, client.Apply, opt); err != nil {
+		return fmt.Errorf("error update ownerreference for CR %s : %w", mc.GetName(), err)
+	}
+	l.Info("Update Ownerreference on modelmesh change")
 	return nil
 }

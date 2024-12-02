@@ -31,7 +31,6 @@ import (
 
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
@@ -67,8 +66,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Owns(&admissionregistrationv1.ValidatingWebhookConfiguration{}).
 		Owns(&templatev1.Template{}).
 		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(resources.NewDeploymentPredicate())).
-		WatchesGVK(gvk.ModelMeshServing, reconciler.Dynamic()).
-		WatchesGVK(gvk.Kserve, reconciler.Dynamic()).
 		Watches(&extv1.CustomResourceDefinition{}). // call ForLabel() + new predicates
 		// Add ModelController specific actions
 		WithAction(initialize).
@@ -82,7 +79,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).
-		WithAction(patchOwnerReference).
 		WithAction(updatestatus.NewAction()).
 		WithAction(gc.NewAction()).
 		Build(ctx) // include GenerationChangedPredicate no need set in each Owns() above

@@ -273,9 +273,7 @@ func (r *DataScienceClusterReconciler) ReconcileComponent(
 	r.Log.Info("Starting reconciliation of component: " + componentName)
 
 	enabled := component.GetManagementState(instance) == operatorv1.Managed
-	if componentName == componentsv1.ModelControllerComponentName {
-		enabled = instance.Spec.Components.ModelMeshServing.ManagementState == operatorv1.Managed || instance.Spec.Components.Kserve.ManagementState == operatorv1.Managed
-	}
+
 	componentCR := component.NewCRObject(instance)
 	err := r.apply(ctx, instance, componentCR)
 	if err != nil {
