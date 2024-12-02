@@ -327,7 +327,6 @@ func (a *Action) patch(
 		if err := RemoveDeploymentsResources(obj); err != nil {
 			return nil, fmt.Errorf("failed to apply allow list to Deployment %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
 		}
-
 	default:
 		// do nothing
 		break
@@ -391,6 +390,18 @@ func (a *Action) apply(
 		// [1] https://kubernetes.io/docs/reference/using-api/server-side-apply/#conflicts
 		if err := MergeDeployments(old, obj); err != nil {
 			return nil, fmt.Errorf("failed to merge Deployment %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
+		}
+	case gvk.ClusterRole:
+		// For ClusterRole, if AggregationRule is set, then the Rules are controller managed
+		// and direct changes to Rules will be stomped by the controller. This also happen if
+		// the rules are set to an empty slice or nil hence we are removing the rules field
+		// if the ClusterRole is set to be an aggregation role.
+		_, found, err := unstructured.NestedFieldNoCopy(obj.Object, "aggregationRule")
+		if err != nil {
+			return nil, err
+		}
+		if found {
+			unstructured.RemoveNestedField(obj.Object, "rules")
 		}
 	default:
 		// do nothing
