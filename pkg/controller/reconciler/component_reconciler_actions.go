@@ -34,15 +34,12 @@ func (a *dynamicWatchAction) run(ctx context.Context, rr *types.ReconciliationRe
 			continue
 		}
 
-		ok, err := a.shouldWatch(ctx, w, rr)
-		if err != nil {
-			return err
-		}
+		ok := a.shouldWatch(ctx, w, rr)
 		if !ok {
 			continue
 		}
 
-		err = a.fn(w.object, w.eventHandler, w.predicates...)
+		err := a.fn(w.object, w.eventHandler, w.predicates...)
 		if err != nil {
 			return fmt.Errorf("failed to create watcher for %s: %w", w.object.GetObjectKind().GroupVersionKind(), err)
 		}
@@ -54,16 +51,17 @@ func (a *dynamicWatchAction) run(ctx context.Context, rr *types.ReconciliationRe
 	return nil
 }
 
-func (a *dynamicWatchAction) shouldWatch(ctx context.Context, in watchInput, rr *types.ReconciliationRequest) (bool, error) {
+func (a *dynamicWatchAction) shouldWatch(ctx context.Context, in watchInput, rr *types.ReconciliationRequest) bool {
 	for pi := range in.dynamicPred {
 		ok := in.dynamicPred[pi](ctx, rr)
 		if !ok {
-			return false, nil
+			return false
 		}
 	}
 
-	return true, nil
+	return true
 }
+
 func newDynamicWatch(fn dynamicWatchFn, watches []watchInput) *dynamicWatchAction {
 	action := dynamicWatchAction{
 		fn:      fn,
