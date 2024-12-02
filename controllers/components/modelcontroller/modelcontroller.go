@@ -40,6 +40,17 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Obj
 	mcAnnotations := make(map[string]string)
 	mcAnnotations[annotations.ManagementStateAnnotation] = string(s.GetManagementState(dsc))
 
+	// extra logic to set the management .spec.component.managementState, to not leave blank {}
+	kState := operatorv1.Removed
+	if dsc.Spec.Components.Kserve.ManagementState == operatorv1.Managed {
+		kState = operatorv1.Managed
+	}
+
+	mState := operatorv1.Removed
+	if dsc.Spec.Components.ModelMeshServing.ManagementState == operatorv1.Managed {
+		mState = operatorv1.Managed
+	}
+
 	return client.Object(&componentsv1.ModelController{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentsv1.ModelControllerKind,
@@ -50,8 +61,17 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Obj
 			Annotations: mcAnnotations,
 		},
 		Spec: componentsv1.ModelControllerSpec{
-			ModelMeshServing: dsc.Spec.Components.ModelMeshServing.ManagementState,
-			Kserve:           dsc.Spec.Components.Kserve.ManagementState,
+			// ModelMeshServing:  &componentsv1.DSCModelMeshServing {
+			// 	dsc.Spec.Components.ModelMeshServing,
+			// },
+			ModelMeshServing: &componentsv1.ModelControllerMMSpec{
+				ManagementState: mState,
+				DevFlagsSpec:    dsc.Spec.Components.ModelMeshServing.DevFlagsSpec,
+			},
+			Kserve: &componentsv1.ModelControllerKerveSpec{
+				ManagementState: kState,
+				DevFlagsSpec:    dsc.Spec.Components.Kserve.DevFlagsSpec,
+			},
 		},
 	})
 }

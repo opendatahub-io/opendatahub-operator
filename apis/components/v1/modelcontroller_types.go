@@ -37,6 +37,7 @@ const (
 // +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-modelcontroller'",message="ModelController name must be default-modelcontroller"
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
 // +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
+// +kubebuilder:printcolumn:name="URI",type=string,JSONPath=`.status.URI`,description="devFlag's URI used to download"
 
 // ModelController is the Schema for the modelcontroller API, it is a shared component between kserve and modelmeshserving
 type ModelController struct {
@@ -49,14 +50,28 @@ type ModelController struct {
 
 // ModelControllerSpec defines the desired state of ModelController
 type ModelControllerSpec struct {
+	//ModelMeshServing DSCModelMeshServing `json:"modelMeshServing,omitempty"`
+	Kserve *ModelControllerKerveSpec `json:"kserve,omitempty"`
+	ModelMeshServing *ModelControllerMMSpec `json:"modelMeshServing,omitempty"`
+}
+
+// a mini version of the DSCKserve only keep devflags and management spec
+type ModelControllerKerveSpec struct {
+	ManagementState         operatorv1.ManagementState `json:"managementState,omitempty"`
 	common.DevFlagsSpec `json:",inline"`
-	ModelMeshServing    operatorv1.ManagementState `json:"modelMeshServing,omitempty"`
-	Kserve              operatorv1.ManagementState `json:"kserve,omitempty"`
+}
+
+// a mini version of the DSCModelMeshServing only keep devflags and management spec
+type  ModelControllerMMSpec struct {
+	ManagementState         operatorv1.ManagementState `json:"managementState,omitempty"`
+	common.DevFlagsSpec `json:",inline"`
 }
 
 // ModelControllerStatus defines the observed state of ModelController
 type ModelControllerStatus struct {
 	common.Status `json:",inline"`
+	// devflag's URI
+	URI string `json:"URI,omitempty"`
 }
 
 // +kubebuilder:object:root=true

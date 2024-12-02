@@ -93,6 +93,7 @@ func patchOwnerReference(ctx context.Context, rr *odhtypes.ReconciliationRequest
 		}
 		return odherrors.NewStopError("failed to get ModelController CR: %v", err)
 	}
+	l.Info("Get WEN CR", "ModelController", mc)
 	for _, owners := range mc.GetOwnerReferences() {
 		if owners.UID == mm.GetUID() {
 			return nil // modelmesh already as owner to modelcontroller, early exit
@@ -100,7 +101,14 @@ func patchOwnerReference(ctx context.Context, rr *odhtypes.ReconciliationRequest
 	}
 
 	owners := []metav1.OwnerReference{}
-	owners = append(owners, mc.GetOwnerReferences()...) // keep the existing ones
+	for _, o := range mc.GetOwnerReferences() {
+		if o.UID == mm.GetUID() {
+			return nil // same modelmesh already as owner to modelcontroller, early exit
+		}
+		if o.Kind != componentsv1.ModelMeshServingKind { // TODO: a workaround to ensure no old UID exist, this should be moved into finalizer later
+			owners = append(owners, o)
+		}
+	}
 	owners = append(owners, metav1.OwnerReference{
 		Kind:               componentsv1.ModelMeshServingKind,
 		APIVersion:         componentsv1.GroupVersion.String(),

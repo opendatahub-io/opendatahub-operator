@@ -758,6 +758,23 @@ _Appears in:_
 | `status` _[ModelControllerStatus](#modelcontrollerstatus)_ |  |  |  |
 
 
+#### ModelControllerKerveSpec
+
+
+
+a mini version of the DSCKserve only keep devflags and management spec
+
+
+
+_Appears in:_
+- [ModelControllerSpec](#modelcontrollerspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ |  |  |  |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+
+
 #### ModelControllerList
 
 
@@ -778,6 +795,23 @@ ModelControllerList contains a list of ModelController
 | `items` _[ModelController](#modelcontroller) array_ |  |  |  |
 
 
+#### ModelControllerMMSpec
+
+
+
+a mini version of the DSCModelMeshServing only keep devflags and management spec
+
+
+
+_Appears in:_
+- [ModelControllerSpec](#modelcontrollerspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ |  |  |  |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+
+
 #### ModelControllerSpec
 
 
@@ -791,9 +825,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
-| `modelMeshServing` _[ManagementState](#managementstate)_ |  |  |  |
-| `kserve` _[ManagementState](#managementstate)_ |  |  |  |
+| `kserve` _[ModelControllerKerveSpec](#modelcontrollerkervespec)_ | ModelMeshServing DSCModelMeshServing `json:"modelMeshServing,omitempty"` |  |  |
+| `modelMeshServing` _[ModelControllerMMSpec](#modelcontrollermmspec)_ |  |  |  |
 
 
 #### ModelControllerStatus
@@ -812,6 +845,7 @@ _Appears in:_
 | `phase` _string_ |  |  |  |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
+| `URI` _string_ | devflag's URI |  |  |
 
 
 #### ModelMeshServing
@@ -1381,11 +1415,6 @@ _Appears in:_
 
 
 
-<<<<<<< HEAD
-=======
-
-
->>>>>>> 5f29f321 (feat: add support for modelmeshserving as component)
 
 
 
@@ -1407,119 +1436,6 @@ _Appears in:_
 | `manifests` _[ManifestsConfig](#manifestsconfig) array_ | List of custom manifests for the given component |  |  |
 
 
-<<<<<<< HEAD
-=======
-#### DevFlagsSpec
-
-
-
-DevFlagsSpec struct defines the component's dev flags configuration.
-
-
-
-_Appears in:_
-- [CodeFlareCommonSpec](#codeflarecommonspec)
-- [CodeFlareSpec](#codeflarespec)
-- [Component](#component)
-- [DSCCodeFlare](#dsccodeflare)
-- [DSCDashboard](#dscdashboard)
-- [DSCDataSciencePipelines](#dscdatasciencepipelines)
-- [DSCKserve](#dsckserve)
-- [DSCKueue](#dsckueue)
-- [DSCModelMeshServing](#dscmodelmeshserving)
-- [DSCModelRegistry](#dscmodelregistry)
-- [DSCRay](#dscray)
-- [DSCTrainingOperator](#dsctrainingoperator)
-- [DSCTrustyAI](#dsctrustyai)
-- [DSCWorkbenches](#dscworkbenches)
-- [DashboardCommonSpec](#dashboardcommonspec)
-- [DashboardSpec](#dashboardspec)
-- [DataSciencePipelinesCommonSpec](#datasciencepipelinescommonspec)
-- [DataSciencePipelinesSpec](#datasciencepipelinesspec)
-- [KserveCommonSpec](#kservecommonspec)
-- [KserveSpec](#kservespec)
-- [KueueCommonSpec](#kueuecommonspec)
-- [KueueSpec](#kueuespec)
-- [ModelControllerSpec](#modelcontrollerspec)
-- [ModelMeshServingCommonSpec](#modelmeshservingcommonspec)
-- [ModelMeshServingSpec](#modelmeshservingspec)
-- [ModelRegistryCommonSpec](#modelregistrycommonspec)
-- [ModelRegistrySpec](#modelregistryspec)
-- [RayCommonSpec](#raycommonspec)
-- [RaySpec](#rayspec)
-- [TrainingOperatorCommonSpec](#trainingoperatorcommonspec)
-- [TrainingOperatorSpec](#trainingoperatorspec)
-- [TrustyAICommonSpec](#trustyaicommonspec)
-- [TrustyAISpec](#trustyaispec)
-- [WorkbenchesCommonSpec](#workbenchescommonspec)
-- [WorkbenchesSpec](#workbenchesspec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
-
-
-#### ManagementSpec
-
-
-
-ManagementSpec struct defines the component's management configuration.
-
-
-
-_Appears in:_
-- [Component](#component)
-- [DSCCodeFlare](#dsccodeflare)
-- [DSCDashboard](#dscdashboard)
-- [DSCDataSciencePipelines](#dscdatasciencepipelines)
-- [DSCKserve](#dsckserve)
-- [DSCKueue](#dsckueue)
-- [DSCModelMeshServing](#dscmodelmeshserving)
-- [DSCModelRegistry](#dscmodelregistry)
-- [DSCRay](#dscray)
-- [DSCTrainingOperator](#dsctrainingoperator)
-- [DSCTrustyAI](#dsctrustyai)
-- [DSCWorkbenches](#dscworkbenches)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
-
-
-
-
-#### Status
-
-
-
-
-
-
-
-_Appears in:_
-- [CodeFlareStatus](#codeflarestatus)
-- [DashboardStatus](#dashboardstatus)
-- [DataSciencePipelinesStatus](#datasciencepipelinesstatus)
-- [KserveStatus](#kservestatus)
-- [KueueStatus](#kueuestatus)
-- [ModelControllerStatus](#modelcontrollerstatus)
-- [ModelMeshServingStatus](#modelmeshservingstatus)
-- [ModelRegistryStatus](#modelregistrystatus)
-- [RayStatus](#raystatus)
-- [TrainingOperatorStatus](#trainingoperatorstatus)
-- [TrustyAIStatus](#trustyaistatus)
-- [WorkbenchesStatus](#workbenchesstatus)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
-| `observedGeneration` _integer_ |  |  |  |
-
-
-
-
->>>>>>> 5f29f321 (feat: add support for modelmeshserving as component)
 
 
 

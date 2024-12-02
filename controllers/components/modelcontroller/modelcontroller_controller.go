@@ -69,7 +69,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Watches(&extv1.CustomResourceDefinition{}). // call ForLabel() + new predicates
 		// Add ModelController specific actions
 		WithAction(initialize).
-		WithAction(devFlags). // devFlags triggerd by changes in DSC kserve and ModelMeshServing
+		WithAction(devFlags). // devFlags triggerd by changes in DSC kserve and ModelMeshServing, also update .status.devflagurl
 		WithAction(security.NewUpdatePodSecurityRoleBindingAction(serviceAccounts)).
 		WithAction(kustomize.NewAction(
 			kustomize.WithCache(),

@@ -23,6 +23,10 @@ spec:
       jsonPath: .status.conditions[?(@.type=="Ready")].reason
       name: Reason
       type: string
+    - description: devFlag's URI used to download
+      jsonPath: .status.URI
+      name: URI
+      type: string
     name: v1
     schema:
       openAPIV3Schema:
@@ -49,42 +53,84 @@ spec:
           spec:
             description: ModelControllerSpec defines the desired state of ModelController
             properties:
-              devFlags:
-                description: Add developer fields
-                properties:
-                  manifests:
-                    description: List of custom manifests for the given component
-                    items:
-                      properties:
-                        contextDir:
-                          default: manifests
-                          description: contextDir is the relative path to the folder
-                            containing manifests in a repository, default value "manifests"
-                          type: string
-                        sourcePath:
-                          default: ""
-                          description: 'sourcePath is the subpath within contextDir
-                            where kustomize builds start. Examples include any sub-folder
-                            or path: `base`, `overlays/dev`, `default`, `odh` etc.'
-                          type: string
-                        uri:
-                          default: ""
-                          description: uri is the URI point to a git repo with tag/branch.
-                            e.g.  https://github.com/org/repo/tarball/<tag/branch>
-                          type: string
-                      type: object
-                    type: array
-                type: object
               kserve:
-                pattern: ^(Managed|Unmanaged|Force|Removed)$
-                type: string
+                description: ModelMeshServing DSCModelMeshServing `json:"modelMeshServing,omitempty"`
+                properties:
+                  devFlags:
+                    description: Add developer fields
+                    properties:
+                      manifests:
+                        description: List of custom manifests for the given component
+                        items:
+                          properties:
+                            contextDir:
+                              default: manifests
+                              description: contextDir is the relative path to the
+                                folder containing manifests in a repository, default
+                                value "manifests"
+                              type: string
+                            sourcePath:
+                              default: ""
+                              description: 'sourcePath is the subpath within contextDir
+                                where kustomize builds start. Examples include any
+                                sub-folder or path: `base`, `overlays/dev`, `default`,
+                                `odh` etc.'
+                              type: string
+                            uri:
+                              default: ""
+                              description: uri is the URI point to a git repo with
+                                tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
+                              type: string
+                          type: object
+                        type: array
+                    type: object
+                  managementState:
+                    pattern: ^(Managed|Unmanaged|Force|Removed)$
+                    type: string
+                type: object
               modelMeshServing:
-                pattern: ^(Managed|Unmanaged|Force|Removed)$
-                type: string
+                description: a mini version of the DSCModelMeshServing only keep devflags
+                  and management spec
+                properties:
+                  devFlags:
+                    description: Add developer fields
+                    properties:
+                      manifests:
+                        description: List of custom manifests for the given component
+                        items:
+                          properties:
+                            contextDir:
+                              default: manifests
+                              description: contextDir is the relative path to the
+                                folder containing manifests in a repository, default
+                                value "manifests"
+                              type: string
+                            sourcePath:
+                              default: ""
+                              description: 'sourcePath is the subpath within contextDir
+                                where kustomize builds start. Examples include any
+                                sub-folder or path: `base`, `overlays/dev`, `default`,
+                                `odh` etc.'
+                              type: string
+                            uri:
+                              default: ""
+                              description: uri is the URI point to a git repo with
+                                tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
+                              type: string
+                          type: object
+                        type: array
+                    type: object
+                  managementState:
+                    pattern: ^(Managed|Unmanaged|Force|Removed)$
+                    type: string
+                type: object
             type: object
           status:
             description: ModelControllerStatus defines the observed state of ModelController
             properties:
+              URI:
+                description: devflag's URI
+                type: string
               conditions:
                 items:
                   description: Condition contains details for one aspect of the current

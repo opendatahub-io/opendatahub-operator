@@ -42,8 +42,9 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	return nil
 }
 
+// download devflag from kserve or modelmeshserving.
 func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	_, ok := rr.Instance.(*componentsv1.ModelController)
+	mc, ok := rr.Instance.(*componentsv1.ModelController)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentsv1.ModelController)", rr.Instance)
 	}
@@ -53,12 +54,14 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 		// Get ModelMeshServing if it is enabled and has devlfags
 		mm := rr.DSC.Spec.Components.ModelMeshServing
 		if mm.ManagementSpec.ManagementState != operatorv1.Managed || mm.DevFlags == nil || len(mm.DevFlags.Manifests) == 0 {
+			// no need devflag, no need update status.uri
 			return nil
 		}
 
-		for _, subcomponent := range rr.DSC.Spec.Components.ModelMeshServing.DevFlags.Manifests {
+		for _, subcomponent := range mc.Spec.ModelMeshServing.DevFlags.Manifests {
 			if strings.Contains(subcomponent.URI, ComponentName) {
-				// Download odh-model-controller
+				// update .status.uri and download odh-model-controller
+				mc.Status.URI = subcomponent.URI
 				if err := odhdeploy.DownloadManifests(ctx, ComponentName, subcomponent); err != nil {
 					return err
 				}
@@ -71,9 +74,10 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 		return nil
 	}
 
-	for _, subcomponent := range rr.DSC.Spec.Components.Kserve.DevFlags.Manifests {
+	for _, subcomponent := range mc.Spec.Kserve.DevFlags.Manifests {
 		if strings.Contains(subcomponent.URI, ComponentName) {
-			// Download odh-model-controller
+			// update .status.uri and download odh-model-controller
+			mc.Status.URI = subcomponent.URI
 			if err := odhdeploy.DownloadManifests(ctx, ComponentName, subcomponent); err != nil {
 				return err
 			}

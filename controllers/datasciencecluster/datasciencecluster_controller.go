@@ -291,7 +291,10 @@ func (r *DataScienceClusterReconciler) ReconcileComponent(
 		if saved.Status.InstalledComponents == nil {
 			saved.Status.InstalledComponents = make(map[string]bool)
 		}
-		saved.Status.InstalledComponents[componentName] = enabled
+		// only set non-modelcontroller component into DSC .status.InstalledComponents map
+		if componentName != componentsv1.ModelControllerComponentName {
+			saved.Status.InstalledComponents[componentName] = enabled
+		}
 		if enabled {
 			status.SetComponentCondition(&saved.Status.Conditions, componentName, status.ReconcileCompleted, "Component reconciled successfully", corev1.ConditionTrue)
 		} else {
