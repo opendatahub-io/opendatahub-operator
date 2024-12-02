@@ -9,7 +9,7 @@ metadata:
 spec:
   action: CUSTOM
   provider:
-    name: opendatahub-odh-auth-provider
+    name: {{ .AuthExtensionName }}
   rules:
   - to:
     - operation:

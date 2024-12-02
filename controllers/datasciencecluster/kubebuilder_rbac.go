@@ -162,7 +162,7 @@ package datasciencecluster
 //+kubebuilder:rbac:groups=components.opendatahub.io,resources=codeflares/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=components.opendatahub.io,resources=codeflares/finalizers,verbs=update
 
-// TODO: Kserve
+// Kserve
 // +kubebuilder:rbac:groups=components.opendatahub.io,resources=kserves,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=components.opendatahub.io,resources=kserves/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=components.opendatahub.io,resources=kserves/finalizers,verbs=update

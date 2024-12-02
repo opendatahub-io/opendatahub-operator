@@ -242,3 +242,22 @@ func KindForObject(scheme *runtime.Scheme, obj runtime.Object) (string, error) {
 
 	return gvk.Kind, nil
 }
+
+func EnsureGroupVersionKind(s *runtime.Scheme, obj client.Object) error {
+	if obj.GetObjectKind().GroupVersionKind().Kind != "" {
+		return nil
+	}
+
+	kinds, _, err := s.ObjectKinds(obj)
+	if err != nil {
+		return fmt.Errorf("cannot get kind of resource: %w", err)
+	}
+
+	if len(kinds) != 1 {
+		return fmt.Errorf("expected to find a single GVK for %v, but got %d", obj, len(kinds))
+	}
+
+	obj.GetObjectKind().SetGroupVersionKind(kinds[0])
+
+	return nil
+}

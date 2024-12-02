@@ -97,7 +97,7 @@ func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationReque
 
 	// Namespace
 
-	if err := rr.AddResource(
+	if err := rr.AddResources(
 		&corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: mr.Spec.RegistriesNamespace,
@@ -115,7 +115,7 @@ func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationReque
 		return fmt.Errorf("failed to find default ingress secret for model registry: %w", err)
 	}
 
-	if err := rr.AddResource(
+	if err := rr.AddResources(
 		&corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      DefaultModelRegistryCert,

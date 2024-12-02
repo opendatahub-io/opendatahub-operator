@@ -70,19 +70,13 @@ func creationTestSuite(t *testing.T) {
 			})
 		}
 
-		// // Kserve
-		// t.Run("Validate Knative resoruce", func(t *testing.T) {
-		//	err = testCtx.validateDSC()
-		//	require.NoError(t, err, "error getting Knatvie resrouce as part of DataScienceCluster validation")
-		// })
-		// t.Run("Validate default certs available", func(t *testing.T) {
-		//	// move it to be part of check with kserve since it is using serving's secret
-		//	err = testCtx.testDefaultCertsAvailable()
-		//	require.NoError(t, err, "error getting default cert secrets for Kserve")
-		// })
-		//
-		// ModelReg
+		// Kserve
+		t.Run("Validate Knative resource", func(t *testing.T) {
+			err = testCtx.validateDSC()
+			require.NoError(t, err, "error getting Knative resource as part of DataScienceCluster validation")
+		})
 
+		// ModelReg
 		if testCtx.testOpts.webhookTest {
 			t.Run("Validate model registry config", func(t *testing.T) {
 				err = testCtx.validateModelRegistryConfig()

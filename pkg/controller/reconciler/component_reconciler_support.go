@@ -13,25 +13,27 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/generation"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 var (
-	// defaultPredicate is the default set of predicates associated to
+	// DefaultPredicate is the default set of predicates associated to
 	// resources when there is no specific predicate configured via the
 	// builder.
 	//
 	// It would trigger a reconciliation if either the generation or
 	// metadata (labels, annotations) have changed.
-	defaultPredicate = predicate.Or(
+	DefaultPredicate = predicate.Or(
 		generation.New(),
 		predicate.LabelChangedPredicate{},
 		predicate.AnnotationChangedPredicate{},
@@ -44,12 +46,15 @@ type forInput struct {
 	gvk     schema.GroupVersionKind
 }
 
+type DynamicPredicate func(context.Context, *types.ReconciliationRequest) bool
+
 type watchInput struct {
 	object       client.Object
 	eventHandler handler.EventHandler
 	predicates   []predicate.Predicate
 	owned        bool
 	dynamic      bool
+	dynamicPred  []DynamicPredicate
 }
 
 type WatchOpts func(*watchInput)
@@ -72,9 +77,10 @@ func WithEventMapper(value handler.MapFunc) WatchOpts {
 	}
 }
 
-func Dynamic() WatchOpts {
+func Dynamic(predicates ...DynamicPredicate) WatchOpts {
 	return func(a *watchInput) {
 		a.dynamic = true
+		a.dynamicPred = slices.Clone(predicates)
 	}
 }
 
@@ -140,7 +146,7 @@ func (b *ComponentReconcilerBuilder) Watches(object client.Object, opts ...Watch
 
 	if len(in.predicates) == 0 {
 		in.predicates = append(in.predicates, predicate.And(
-			defaultPredicate,
+			DefaultPredicate,
 			// use the components.opendatahub.io/part-of label to filter
 			// events not related to the owner type
 			component.ForLabel(labels.ComponentPartOf, strings.ToLower(b.input.gvk.Kind)),
@@ -175,7 +181,7 @@ func (b *ComponentReconcilerBuilder) Owns(object client.Object, opts ...WatchOpt
 	}
 
 	if len(in.predicates) == 0 {
-		in.predicates = append(in.predicates, defaultPredicate)
+		in.predicates = append(in.predicates, DefaultPredicate)
 	}
 
 	b.watches = append(b.watches, in)
@@ -264,7 +270,14 @@ func (b *ComponentReconcilerBuilder) Build(_ context.Context) (*ComponentReconci
 	}
 
 	// internal action
-	r.AddAction(newDynamicWatchAction(b.mgr, cc, b.watches))
+	r.AddAction(
+		newDynamicWatchAction(
+			func(obj client.Object, eventHandler handler.EventHandler, predicates ...predicate.Predicate) error {
+				return cc.Watch(source.Kind(b.mgr.GetCache(), obj), eventHandler, predicates...)
+			},
+			b.watches,
+		),
+	)
 
 	return r, nil
 }

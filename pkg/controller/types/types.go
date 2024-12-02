@@ -9,7 +9,6 @@ import (
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	machineryrt "k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
@@ -95,39 +94,71 @@ type ReconciliationRequest struct {
 	Generated bool
 }
 
-func (rr *ReconciliationRequest) AddResource(in interface{}) error {
-	if obj, ok := in.(client.Object); ok {
-		err := rr.normalize(obj)
+// AddResources adds one or more resources to the ReconciliationRequest's Resources slice.
+// Each provided client.Object is normalized by ensuring it has the appropriate GVK and is
+// converted into an unstructured.Unstructured format before being appended to the list.
+func (rr *ReconciliationRequest) AddResources(values ...client.Object) error {
+	for i := range values {
+		if values[i] == nil {
+			continue
+		}
+
+		err := resources.EnsureGroupVersionKind(rr.Client.Scheme(), values[i])
 		if err != nil {
 			return fmt.Errorf("cannot normalize object: %w", err)
 		}
-	}
 
-	u, err := machineryrt.DefaultUnstructuredConverter.ToUnstructured(in)
-	if err != nil {
-		return err
-	}
+		u, err := resources.ToUnstructured(values[i])
+		if err != nil {
+			return fmt.Errorf("cannot convert object to Unstructured: %w", err)
+		}
 
-	rr.Resources = append(rr.Resources, unstructured.Unstructured{Object: u})
+		rr.Resources = append(rr.Resources, *u)
+	}
 
 	return nil
 }
 
-func (rr *ReconciliationRequest) normalize(obj client.Object) error {
-	if obj.GetObjectKind().GroupVersionKind().Kind != "" {
-		return nil
+// ForEachResource iterates over each resource in the ReconciliationRequest's Resources slice,
+// invoking the provided function `fn` for each resource. The function `fn` takes a pointer to
+// an unstructured.Unstructured object and returns a boolean and an error.
+//
+// The iteration stops early if:
+//   - `fn` returns an error.
+//   - `fn` returns `true` as the first return value (`stop`).
+func (rr *ReconciliationRequest) ForEachResource(fn func(*unstructured.Unstructured) (bool, error)) error {
+	for i := range rr.Resources {
+		stop, err := fn(&rr.Resources[i])
+		if err != nil {
+			return fmt.Errorf("cannot process resource %s: %w", rr.Resources[i].GroupVersionKind(), err)
+		}
+		if stop {
+			break
+		}
 	}
 
-	kinds, _, err := rr.Client.Scheme().ObjectKinds(obj)
-	if err != nil {
-		return fmt.Errorf("cannot get kind of resource: %w", err)
+	return nil
+}
+
+// RemoveResources removes resources from the ReconciliationRequest's Resources slice
+// based on a provided predicate function. The predicate determines whether a resource
+// should be removed.
+//
+// Parameters:
+//   - predicate: A function that takes a pointer to an unstructured.Unstructured object
+//     and returns a boolean indicating whether the resource should be removed.
+func (rr *ReconciliationRequest) RemoveResources(predicate func(*unstructured.Unstructured) bool) error {
+	filtered := rr.Resources[:0] // Create a slice with zero length but full capacity
+
+	for i := range rr.Resources {
+		if predicate(&rr.Resources[i]) {
+			continue
+		}
+
+		filtered = append(filtered, rr.Resources[i])
 	}
 
-	if len(kinds) != 1 {
-		return fmt.Errorf("expected to find a single GVK for %v, but got %d", obj, len(kinds))
-	}
-
-	obj.GetObjectKind().SetGroupVersionKind(kinds[0])
+	rr.Resources = filtered
 
 	return nil
 }

@@ -181,4 +181,22 @@ var (
 		Version: coordinationv1.SchemeGroupVersion.Version,
 		Kind:    "Lease",
 	}
+
+	EnvoyFilter = schema.GroupVersionKind{
+		Group:   "networking.istio.io",
+		Version: "v1alpha3",
+		Kind:    "EnvoyFilter",
+	}
+
+	AuthorizationPolicy = schema.GroupVersionKind{
+		Group:   "security.istio.io",
+		Version: "v1",
+		Kind:    "AuthorizationPolicy",
+	}
+
+	Gateway = schema.GroupVersionKind{
+		Group:   "networking.istio.io",
+		Version: "v1beta1",
+		Kind:    "Gateway",
+	}
 )

@@ -32,7 +32,6 @@ import (
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	componentsold "github.com/opendatahub-io/opendatahub-operator/v2/components"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -73,8 +72,8 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 				DataSciencePipelines: componentsv1.DSCDataSciencePipelines{
 					ManagementSpec: components.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
-				Kserve: kserve.Kserve{
-					Component: componentsold.Component{ManagementState: operatorv1.Managed},
+				Kserve: componentsv1.DSCKserve{
+					ManagementSpec: components.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
 				CodeFlare: componentsv1.DSCCodeFlare{
 					ManagementSpec: components.ManagementSpec{ManagementState: operatorv1.Managed},

@@ -96,7 +96,7 @@ func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationReque
 	if platform == cluster.SelfManagedRhods || platform == cluster.ManagedRhods {
 		// Intentionally leaving the ownership unset for this namespace.
 		// Specifying this label triggers its deletion when the operator is uninstalled.
-		if err := rr.AddResource(&corev1.Namespace{
+		if err := rr.AddResources(&corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: cluster.DefaultNotebooksNamespace,
 				Labels: map[string]string{
