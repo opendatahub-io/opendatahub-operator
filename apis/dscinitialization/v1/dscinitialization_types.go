@@ -17,7 +17,7 @@ limitations under the License.
 package v1
 
 import (
-	servicesv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -41,7 +41,7 @@ type DSCInitializationSpec struct {
 	// Enable monitoring on specified namespace
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=2
 	// +optional
-	Monitoring servicesv1.DSCMonitoring `json:"monitoring,omitempty"`
+	Monitoring serviceApi.DSCMonitoring `json:"monitoring,omitempty"`
 	// Configures Service Mesh as networking layer for Data Science Clusters components.
 	// The Service Mesh is a mandatory prerequisite for single model serving (KServe) and
 	// you should review this configuration if you are planning to use KServe.

@@ -26,7 +26,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -35,9 +35,9 @@ import (
 )
 
 func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	dsp, ok := rr.Instance.(*componentsv1.DataSciencePipelines)
+	dsp, ok := rr.Instance.(*componentApi.DataSciencePipelines)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentsv1.DataSciencePipelines", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a componentApi.DataSciencePipelines", rr.Instance)
 	}
 
 	workflowCRD := &apiextensionsv1.CustomResourceDefinition{}
@@ -50,7 +50,7 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 
 	// Verify if existing workflow is deployed by ODH with label
 	// if not then set Argo capability status condition to false
-	odhLabelValue, odhLabelExists := workflowCRD.Labels[labels.ODH.Component(componentsv1.DataSciencePipelinesComponentName)]
+	odhLabelValue, odhLabelExists := workflowCRD.Labels[labels.ODH.Component(componentApi.DataSciencePipelinesComponentName)]
 	if !odhLabelExists || odhLabelValue != "true" {
 		s := dsp.GetStatus()
 		s.Phase = "NotReady"
@@ -79,9 +79,9 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 }
 
 func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	dsp, ok := rr.Instance.(*componentsv1.DataSciencePipelines)
+	dsp, ok := rr.Instance.(*componentApi.DataSciencePipelines)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentsv1.DataSciencePipelines)", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a componentApi.DataSciencePipelines)", rr.Instance)
 	}
 
 	if dsp.Spec.DevFlags == nil {
@@ -92,13 +92,13 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	// If dev flags are set, update default manifests path
 	if len(dsp.Spec.DevFlags.Manifests) != 0 {
 		manifestConfig := dsp.Spec.DevFlags.Manifests[0]
-		if err := odhdeploy.DownloadManifests(ctx, componentsv1.DataSciencePipelinesComponentName, manifestConfig); err != nil {
+		if err := odhdeploy.DownloadManifests(ctx, componentApi.DataSciencePipelinesComponentName, manifestConfig); err != nil {
 			return err
 		}
 
 		if manifestConfig.SourcePath != "" {
 			rr.Manifests[0].Path = odhdeploy.DefaultManifestPath
-			rr.Manifests[0].ContextDir = componentsv1.DataSciencePipelinesComponentName
+			rr.Manifests[0].ContextDir = componentApi.DataSciencePipelinesComponentName
 			rr.Manifests[0].SourcePath = manifestConfig.SourcePath
 		}
 	}

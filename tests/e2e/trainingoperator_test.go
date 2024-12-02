@@ -19,13 +19,13 @@ import (
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 type TrainingOperatorTestCtx struct {
 	testCtx                      *testContext
-	testTrainingOperatorInstance componentsv1.TrainingOperator
+	testTrainingOperatorInstance componentApi.TrainingOperator
 }
 
 func trainingoperatorTestSuite(t *testing.T) {
@@ -79,7 +79,7 @@ func (tc *TrainingOperatorTestCtx) testTrainingOperatorCreation() error {
 	}
 
 	err := tc.testCtx.wait(func(ctx context.Context) (bool, error) {
-		existingTrainingOperatorList := &componentsv1.TrainingOperatorList{}
+		existingTrainingOperatorList := &componentApi.TrainingOperatorList{}
 
 		if err := tc.testCtx.customClient.List(ctx, existingTrainingOperatorList); err != nil {
 			return false, err
@@ -127,13 +127,13 @@ func (tc *TrainingOperatorTestCtx) testOwnerReferences() error {
 
 	// Test TrainingOperator resources
 	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-		LabelSelector: labels.ODH.Component(componentsv1.TrainingOperatorComponentName),
+		LabelSelector: labels.ODH.Component(componentApi.TrainingOperatorComponentName),
 	})
 	if err != nil {
 		return fmt.Errorf("error listing component deployments %w", err)
 	}
 	// test any one deployment for ownerreference
-	if len(appDeployments.Items) != 0 && appDeployments.Items[0].OwnerReferences[0].Kind != componentsv1.TrainingOperatorKind {
+	if len(appDeployments.Items) != 0 && appDeployments.Items[0].OwnerReferences[0].Kind != componentApi.TrainingOperatorKind {
 		return fmt.Errorf("expected ownerreference not found. Got ownereferrence: %v",
 			appDeployments.Items[0].OwnerReferences)
 	}
@@ -145,7 +145,7 @@ func (tc *TrainingOperatorTestCtx) testOwnerReferences() error {
 func (tc *TrainingOperatorTestCtx) validateTrainingOperatorReady() error {
 	err := wait.PollUntilContextTimeout(tc.testCtx.ctx, generalRetryInterval, componentReadyTimeout, true, func(ctx context.Context) (bool, error) {
 		key := types.NamespacedName{Name: tc.testTrainingOperatorInstance.Name}
-		trainingoperator := &componentsv1.TrainingOperator{}
+		trainingoperator := &componentApi.TrainingOperator{}
 
 		err := tc.testCtx.customClient.Get(ctx, key, trainingoperator)
 		if err != nil {
@@ -217,10 +217,10 @@ func (tc *TrainingOperatorTestCtx) testUpdateTrainingOperatorComponentDisabled()
 
 	if tc.testCtx.testDsc.Spec.Components.TrainingOperator.ManagementState == operatorv1.Managed {
 		appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-			LabelSelector: labels.ODH.Component(componentsv1.TrainingOperatorComponentName),
+			LabelSelector: labels.ODH.Component(componentApi.TrainingOperatorComponentName),
 		})
 		if err != nil {
-			return fmt.Errorf("error getting enabled component %v", componentsv1.TrainingOperatorComponentName)
+			return fmt.Errorf("error getting enabled component %v", componentApi.TrainingOperatorComponentName)
 		}
 		if len(appDeployments.Items) > 0 {
 			trainingoperatorDeploymentName = appDeployments.Items[0].Name
@@ -258,7 +258,7 @@ func (tc *TrainingOperatorTestCtx) testUpdateTrainingOperatorComponentDisabled()
 
 	if err = tc.testCtx.wait(func(ctx context.Context) (bool, error) {
 		// Verify TrainingOperator CR is deleted
-		trainingoperator := &componentsv1.TrainingOperator{}
+		trainingoperator := &componentApi.TrainingOperator{}
 		err = tc.testCtx.customClient.Get(ctx, client.ObjectKey{Name: tc.testTrainingOperatorInstance.Name}, trainingoperator)
 		return k8serr.IsNotFound(err), nil
 	}); err != nil {
@@ -275,7 +275,7 @@ func (tc *TrainingOperatorTestCtx) testUpdateTrainingOperatorComponentDisabled()
 		return fmt.Errorf("error getting component resource after reconcile: %w", err)
 	}
 	return fmt.Errorf("component %v is disabled, should not get its deployment %v from NS %v any more",
-		componentsv1.TrainingOperatorKind,
+		componentApi.TrainingOperatorKind,
 		trainingoperatorDeploymentName,
 		tc.testCtx.applicationsNamespace)
 }

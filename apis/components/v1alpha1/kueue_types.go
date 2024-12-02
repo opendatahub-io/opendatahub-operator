@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1
+package v1alpha1
 
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
@@ -22,10 +22,10 @@ import (
 )
 
 const (
-	TrustyAIComponentName = "trustyai"
+	KueueComponentName = "kueue"
 	// value should match whats set in the XValidation below
-	TrustyAIInstanceName = "default-trustyai"
-	TrustyAIKind         = "TrustyAI"
+	KueueInstanceName = "default-kueue"
+	KueueKind         = "Kueue"
 )
 
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
@@ -33,55 +33,55 @@ const (
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
-// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-trustyai'",message="TrustyAI name must be default-trustyai"
+// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-kueue'",message="Kueue name must be default-kueue"
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
 // +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
 
-// TrustyAI is the Schema for the trustyais API
-type TrustyAI struct {
+// Kueue is the Schema for the kueues API
+type Kueue struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   TrustyAISpec   `json:"spec,omitempty"`
-	Status TrustyAIStatus `json:"status,omitempty"`
+	Spec   KueueSpec   `json:"spec,omitempty"`
+	Status KueueStatus `json:"status,omitempty"`
 }
 
-// TrustyAISpec defines the desired state of TrustyAI
-type TrustyAISpec struct {
-	TrustyAICommonSpec `json:",inline"`
+// KueueSpec defines the desired state of Kueue
+type KueueSpec struct {
+	KueueCommonSpec `json:",inline"`
 }
 
-type TrustyAICommonSpec struct {
+type KueueCommonSpec struct {
 	common.DevFlagsSpec `json:",inline"`
 }
 
-// TrustyAIStatus defines the observed state of TrustyAI
-type TrustyAIStatus struct {
+// KueueStatus defines the observed state of Kueue
+type KueueStatus struct {
 	common.Status `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
-// TrustyAIList contains a list of TrustyAI
-type TrustyAIList struct {
+// KueueList contains a list of Kueue
+type KueueList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []TrustyAI `json:"items"`
+	Items           []Kueue `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&TrustyAI{}, &TrustyAIList{})
+	SchemeBuilder.Register(&Kueue{}, &KueueList{})
 }
 
-func (c *TrustyAI) GetDevFlags() *common.DevFlags {
+func (c *Kueue) GetDevFlags() *common.DevFlags {
 	return c.Spec.DevFlags
 }
-func (c *TrustyAI) GetStatus() *common.Status {
+func (c *Kueue) GetStatus() *common.Status {
 	return &c.Status.Status
 }
 
-// DSCTrustyAI contains all the configuration exposed in DSC instance for TrustyAI component
-type DSCTrustyAI struct {
+// DSCKueue contains all the configuration exposed in DSC instance for Kueue component
+type DSCKueue struct {
 	common.ManagementSpec `json:",inline"`
 	// configuration fields common across components
-	TrustyAICommonSpec `json:",inline"`
+	KueueCommonSpec `json:",inline"`
 }

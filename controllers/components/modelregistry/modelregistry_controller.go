@@ -27,7 +27,7 @@ import (
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
@@ -43,7 +43,7 @@ import (
 )
 
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	_, err := reconciler.ReconcilerFor(mgr, &componentsv1.ModelRegistry{}).
+	_, err := reconciler.ReconcilerFor(mgr, &componentApi.ModelRegistry{}).
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Secret{}).
 		Owns(&rbacv1.Role{}).
@@ -59,7 +59,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		// resource
 		Watches(
 			&dsciv1.DSCInitialization{},
-			reconciler.WithEventHandler(handlers.ToNamed(componentsv1.ModelRegistryInstanceName)),
+			reconciler.WithEventHandler(handlers.ToNamed(componentApi.ModelRegistryInstanceName)),
 			reconciler.WithPredicates(generation.New()),
 		).
 		Watches(&corev1.Namespace{}).

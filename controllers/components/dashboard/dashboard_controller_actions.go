@@ -11,7 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -37,9 +37,9 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 }
 
 func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	dashboard, ok := rr.Instance.(*componentsv1.Dashboard)
+	dashboard, ok := rr.Instance.(*componentApi.Dashboard)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentsv1.Dashboard)", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a componentApi.Dashboard)", rr.Instance)
 	}
 
 	if dashboard.Spec.DevFlags == nil {
@@ -99,7 +99,7 @@ func configureDependencies(_ context.Context, rr *odhtypes.ReconciliationRequest
 }
 
 func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	d, ok := rr.Instance.(*componentsv1.Dashboard)
+	d, ok := rr.Instance.(*componentApi.Dashboard)
 	if !ok {
 		return errors.New("instance is not of type *odhTypes.Dashboard")
 	}
@@ -111,7 +111,7 @@ func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 		&rl,
 		client.InNamespace(rr.DSCI.Spec.ApplicationsNamespace),
 		client.MatchingLabels(map[string]string{
-			labels.PlatformPartOf: strings.ToLower(componentsv1.DashboardKind),
+			labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind),
 		}),
 	)
 

@@ -16,7 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
@@ -141,9 +141,9 @@ func (d *DashboardTestCtx) updateComponent(fn func(dsc *dscv1.Components)) func(
 	}
 }
 
-func (d *DashboardTestCtx) getInstance() (*componentsv1.Dashboard, error) {
-	mri := componentsv1.Dashboard{}
-	nn := types.NamespacedName{Name: componentsv1.DashboardInstanceName}
+func (d *DashboardTestCtx) getInstance() (*componentApi.Dashboard, error) {
+	mri := componentApi.Dashboard{}
+	nn := types.NamespacedName{Name: componentApi.DashboardInstanceName}
 
 	err := d.customClient.Get(d.ctx, nn, &mri)
 	if err != nil {
@@ -194,12 +194,12 @@ func (d *DashboardTestCtx) validateOperandsOwnerReferences(t *testing.T) {
 		d.List(
 			gvk.Deployment,
 			client.InNamespace(d.applicationsNamespace),
-			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1.DashboardKind)},
+			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind)},
 		),
 	).Should(And(
 		HaveLen(1),
 		HaveEach(
-			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, componentsv1.DashboardKind),
+			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, componentApi.DashboardKind),
 		),
 	))
 }
@@ -230,7 +230,7 @@ func (d *DashboardTestCtx) validateOperandsDynamicallyWatchedResources(t *testin
 	g.Eventually(
 		d.List(
 			gvk.OdhApplication,
-			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1.DashboardKind)},
+			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind)},
 		),
 	).Should(And(
 		HaveEach(
@@ -245,7 +245,7 @@ func (d *DashboardTestCtx) validateUpdateOperandsResources(t *testing.T) {
 	appDeployments, err := d.kubeClient.AppsV1().Deployments(d.applicationsNamespace).List(
 		d.ctx,
 		metav1.ListOptions{
-			LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(componentsv1.DashboardKind),
+			LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(componentApi.DashboardKind),
 		},
 	)
 
@@ -279,7 +279,7 @@ func (d *DashboardTestCtx) validateUpdateOperandsResources(t *testing.T) {
 		d.List(
 			gvk.Deployment,
 			client.InNamespace(d.applicationsNamespace),
-			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1.DashboardKind)},
+			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind)},
 		),
 	).Should(And(
 		HaveLen(1),
@@ -292,7 +292,7 @@ func (d *DashboardTestCtx) validateUpdateOperandsResources(t *testing.T) {
 		d.List(
 			gvk.Deployment,
 			client.InNamespace(d.applicationsNamespace),
-			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1.DashboardKind)},
+			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind)},
 		),
 	).WithTimeout(30 * time.Second).WithPolling(1 * time.Second).Should(And(
 		HaveLen(1),
@@ -309,7 +309,7 @@ func (d *DashboardTestCtx) validateDashboardDisabled(t *testing.T) {
 		d.List(
 			gvk.Deployment,
 			client.InNamespace(d.applicationsNamespace),
-			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1.DashboardKind)},
+			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind)},
 		),
 	).Should(
 		HaveLen(1),
@@ -327,7 +327,7 @@ func (d *DashboardTestCtx) validateDashboardDisabled(t *testing.T) {
 		d.List(
 			gvk.Deployment,
 			client.InNamespace(d.applicationsNamespace),
-			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1.DashboardKind)},
+			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind)},
 		),
 	).Should(
 		BeEmpty(),

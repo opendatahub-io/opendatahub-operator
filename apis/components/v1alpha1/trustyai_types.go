@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1
+package v1alpha1
 
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
@@ -22,10 +22,10 @@ import (
 )
 
 const (
-	RayComponentName = "ray"
+	TrustyAIComponentName = "trustyai"
 	// value should match whats set in the XValidation below
-	RayInstanceName = "default-ray"
-	RayKind         = "Ray"
+	TrustyAIInstanceName = "default-trustyai"
+	TrustyAIKind         = "TrustyAI"
 )
 
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
@@ -33,55 +33,55 @@ const (
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
-// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-ray'",message="Ray name must be default-ray"
+// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-trustyai'",message="TrustyAI name must be default-trustyai"
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
 // +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
 
-// Ray is the Schema for the rays API
-type Ray struct {
+// TrustyAI is the Schema for the trustyais API
+type TrustyAI struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   RaySpec   `json:"spec,omitempty"`
-	Status RayStatus `json:"status,omitempty"`
+	Spec   TrustyAISpec   `json:"spec,omitempty"`
+	Status TrustyAIStatus `json:"status,omitempty"`
 }
 
-// RaySpec defines the desired state of Ray
-type RaySpec struct {
-	RayCommonSpec `json:",inline"`
+// TrustyAISpec defines the desired state of TrustyAI
+type TrustyAISpec struct {
+	TrustyAICommonSpec `json:",inline"`
 }
 
-type RayCommonSpec struct {
+type TrustyAICommonSpec struct {
 	common.DevFlagsSpec `json:",inline"`
 }
 
-// RayStatus defines the observed state of Ray
-type RayStatus struct {
+// TrustyAIStatus defines the observed state of TrustyAI
+type TrustyAIStatus struct {
 	common.Status `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
-// RayList contains a list of Ray
-type RayList struct {
+// TrustyAIList contains a list of TrustyAI
+type TrustyAIList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Ray `json:"items"`
+	Items           []TrustyAI `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&Ray{}, &RayList{})
+	SchemeBuilder.Register(&TrustyAI{}, &TrustyAIList{})
 }
 
-func (c *Ray) GetDevFlags() *common.DevFlags {
+func (c *TrustyAI) GetDevFlags() *common.DevFlags {
 	return c.Spec.DevFlags
 }
-func (c *Ray) GetStatus() *common.Status {
+func (c *TrustyAI) GetStatus() *common.Status {
 	return &c.Status.Status
 }
 
-// DSCRay contains all the configuration exposed in DSC instance for Ray component
-type DSCRay struct {
+// DSCTrustyAI contains all the configuration exposed in DSC instance for TrustyAI component
+type DSCTrustyAI struct {
 	common.ManagementSpec `json:",inline"`
 	// configuration fields common across components
-	RayCommonSpec `json:",inline"`
+	TrustyAICommonSpec `json:",inline"`
 }

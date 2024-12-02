@@ -59,11 +59,11 @@ import (
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
-	servicesv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/certconfigmapgenerator"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
@@ -100,8 +100,8 @@ var (
 )
 
 func init() { //nolint:gochecknoinits
-	utilruntime.Must(componentsv1.AddToScheme(scheme))
-	utilruntime.Must(servicesv1.AddToScheme(scheme))
+	utilruntime.Must(componentApi.AddToScheme(scheme))
+	utilruntime.Must(serviceApi.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(dsciv1.AddToScheme(scheme))

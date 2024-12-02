@@ -12,7 +12,7 @@ import (
 	ctrlClient "sigs.k8s.io/controller-runtime/pkg/client"
 	clientFake "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
@@ -22,7 +22,7 @@ func New(objs ...ctrlClient.Object) (*client.Client, error) {
 	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(appsv1.AddToScheme(scheme))
 	utilruntime.Must(rbacv1.AddToScheme(scheme))
-	utilruntime.Must(componentsv1.AddToScheme(scheme))
+	utilruntime.Must(componentApi.AddToScheme(scheme))
 
 	fakeMapper := meta.NewDefaultRESTMapper(scheme.PreferredVersionAllGroups())
 	for gvk := range scheme.AllKnownTypes() {

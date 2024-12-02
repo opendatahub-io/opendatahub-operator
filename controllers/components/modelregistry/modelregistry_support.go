@@ -4,13 +4,13 @@ import (
 	"embed"
 	"path"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 const (
-	ComponentName                   = componentsv1.ModelRegistryComponentName
+	ComponentName                   = componentApi.ModelRegistryComponentName
 	DefaultModelRegistriesNamespace = "odh-model-registries"
 	DefaultModelRegistryCert        = "default-modelregistry-cert"
 	BaseManifestsSourcePath         = "overlays/odh"

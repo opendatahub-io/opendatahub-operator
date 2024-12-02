@@ -9,7 +9,7 @@ import (
 	"github.com/rs/xid"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
@@ -39,7 +39,7 @@ func TestRenderTemplate(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client: cl,
-		Instance: &componentsv1.Dashboard{
+		Instance: &componentApi.Dashboard{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: ns,
 			},
@@ -96,7 +96,7 @@ func TestRenderTemplateWithData(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client: cl,
-		Instance: &componentsv1.Dashboard{
+		Instance: &componentApi.Dashboard{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: ns,
 			},
@@ -161,7 +161,7 @@ func TestRenderTemplateWithCache(t *testing.T) {
 	}
 
 	for i := int64(0); i < 3; i++ {
-		d := componentsv1.Dashboard{
+		d := componentApi.Dashboard{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: ns,
 			},

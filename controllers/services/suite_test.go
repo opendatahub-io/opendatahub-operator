@@ -28,7 +28,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	servicesv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -62,7 +62,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
 
-	err = servicesv1.AddToScheme(scheme.Scheme)
+	err = serviceApi.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	//+kubebuilder:scaffold:scheme

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1
+package v1alpha1
 
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
@@ -22,66 +22,66 @@ import (
 )
 
 const (
-	ModelMeshServingComponentName = "model-mesh"
+	TrainingOperatorComponentName = "trainingoperator"
 	// value should match whats set in the XValidation below
-	ModelMeshServingInstanceName = "default-modelmesh"
-	ModelMeshServingKind         = "ModelMeshServing"
+	TrainingOperatorInstanceName = "default-trainingoperator"
+	TrainingOperatorKind         = "TrainingOperator"
 )
 
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+// NOTE: json tags are required. Any new fields you add must have json tags for the fields to be serialized.
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
-// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-modelmesh'",message="ModelMeshServing name must be default-modelmesh"
+// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-trainingoperator'",message="TrainingOperator name must be default-trainingoperator"
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
 // +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
 
-// ModelMeshServing is the Schema for the modelmeshservings API
-type ModelMeshServing struct {
+// TrainingOperator is the Schema for the trainingoperators API
+type TrainingOperator struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ModelMeshServingSpec   `json:"spec,omitempty"`
-	Status ModelMeshServingStatus `json:"status,omitempty"`
+	Spec   TrainingOperatorSpec   `json:"spec,omitempty"`
+	Status TrainingOperatorStatus `json:"status,omitempty"`
 }
 
-// ModelMeshServingSpec defines the desired state of ModelMeshServing
-type ModelMeshServingSpec struct {
-	ModelMeshServingCommonSpec `json:",inline"`
+// TrainingOperatorSpec defines the desired state of TrainingOperator
+type TrainingOperatorSpec struct {
+	TrainingOperatorCommonSpec `json:",inline"`
 }
 
-type ModelMeshServingCommonSpec struct {
+type TrainingOperatorCommonSpec struct {
 	common.DevFlagsSpec `json:",inline"`
 }
 
-// ModelMeshServingStatus defines the observed state of ModelMeshServing
-type ModelMeshServingStatus struct {
+// TrainingOperatorStatus defines the observed state of TrainingOperator
+type TrainingOperatorStatus struct {
 	common.Status `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
-// ModelMeshServingList contains a list of ModelMeshServing
-type ModelMeshServingList struct {
+// TrainingOperatorList contains a list of TrainingOperator
+type TrainingOperatorList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ModelMeshServing `json:"items"`
+	Items           []TrainingOperator `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&ModelMeshServing{}, &ModelMeshServingList{})
+	SchemeBuilder.Register(&TrainingOperator{}, &TrainingOperatorList{})
 }
 
-func (c *ModelMeshServing) GetDevFlags() *common.DevFlags {
+func (c *TrainingOperator) GetDevFlags() *common.DevFlags {
 	return c.Spec.DevFlags
 }
-func (c *ModelMeshServing) GetStatus() *common.Status {
+func (c *TrainingOperator) GetStatus() *common.Status {
 	return &c.Status.Status
 }
 
-// DSCModelMeshServing contains all the configuration exposed in DSC instance for ModelMeshServing component
-type DSCModelMeshServing struct {
+// DSCTrainingOperator contains all the configuration exposed in DSC instance for TrainingOperator component
+type DSCTrainingOperator struct {
 	common.ManagementSpec `json:",inline"`
 	// configuration fields common across components
-	ModelMeshServingCommonSpec `json:",inline"`
+	TrainingOperatorCommonSpec `json:",inline"`
 }

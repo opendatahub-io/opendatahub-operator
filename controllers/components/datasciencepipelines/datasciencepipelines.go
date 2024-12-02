@@ -7,7 +7,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
@@ -26,7 +26,7 @@ func init() { //nolint:gochecknoinits
 }
 
 func (s *componentHandler) GetName() string {
-	return componentsv1.DataSciencePipelinesComponentName
+	return componentApi.DataSciencePipelinesComponentName
 }
 
 func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) operatorv1.ManagementState {
@@ -67,16 +67,16 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Obj
 	dataSciencePipelinesAnnotations := make(map[string]string)
 	dataSciencePipelinesAnnotations[annotations.ManagementStateAnnotation] = string(s.GetManagementState(dsc))
 
-	return client.Object(&componentsv1.DataSciencePipelines{
+	return client.Object(&componentApi.DataSciencePipelines{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       componentsv1.DataSciencePipelinesKind,
-			APIVersion: componentsv1.GroupVersion.String(),
+			Kind:       componentApi.DataSciencePipelinesKind,
+			APIVersion: componentApi.GroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        componentsv1.DataSciencePipelinesInstanceName,
+			Name:        componentApi.DataSciencePipelinesInstanceName,
 			Annotations: dataSciencePipelinesAnnotations,
 		},
-		Spec: componentsv1.DataSciencePipelinesSpec{
+		Spec: componentApi.DataSciencePipelinesSpec{
 			DataSciencePipelinesCommonSpec: dsc.Spec.Components.DataSciencePipelines.DataSciencePipelinesCommonSpec,
 		},
 	})

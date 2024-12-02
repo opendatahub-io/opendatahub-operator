@@ -13,7 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
@@ -31,7 +31,7 @@ var _ = Describe("Serverless feature", func() {
 	var (
 		dsci            *dsciv1.DSCInitialization
 		objectCleaner   *envtestutil.Cleaner
-		kserveComponent *componentsv1.Kserve
+		kserveComponent *componentApi.Kserve
 	)
 
 	BeforeEach(func(ctx context.Context) {
@@ -43,7 +43,7 @@ var _ = Describe("Serverless feature", func() {
 		namespace := envtestutil.AppendRandomNameTo("ns-serverless")
 		dsciName := envtestutil.AppendRandomNameTo("dsci-serverless")
 		dsci = fixtures.NewDSCInitialization(ctx, envTestClient, dsciName, namespace)
-		kserveComponent = &componentsv1.Kserve{}
+		kserveComponent = &componentApi.Kserve{}
 	})
 
 	Context("verifying preconditions", func() {
@@ -63,7 +63,7 @@ var _ = Describe("Serverless feature", func() {
 					return nil
 				}
 
-				featuresHandler := feature.ComponentFeaturesHandler(dsci, componentsv1.KserveComponentName, dsci.Spec.ApplicationsNamespace, featuresProvider)
+				featuresHandler := feature.ComponentFeaturesHandler(dsci, componentApi.KserveComponentName, dsci.Spec.ApplicationsNamespace, featuresProvider)
 
 				// when
 				applyErr := featuresHandler.Apply(ctx, envTestClient)
@@ -111,7 +111,7 @@ var _ = Describe("Serverless feature", func() {
 					return nil
 				}
 
-				featuresHandler := feature.ComponentFeaturesHandler(dsci, componentsv1.KserveComponentName, dsci.Spec.ApplicationsNamespace, featuresProvider)
+				featuresHandler := feature.ComponentFeaturesHandler(dsci, componentApi.KserveComponentName, dsci.Spec.ApplicationsNamespace, featuresProvider)
 
 				// then
 				Expect(featuresHandler.Apply(ctx, envTestClient)).To(Succeed())
@@ -130,7 +130,7 @@ var _ = Describe("Serverless feature", func() {
 					return nil
 				}
 
-				featuresHandler := feature.ComponentFeaturesHandler(dsci, componentsv1.KserveComponentName, dsci.Spec.ApplicationsNamespace, featuresProvider)
+				featuresHandler := feature.ComponentFeaturesHandler(dsci, componentApi.KserveComponentName, dsci.Spec.ApplicationsNamespace, featuresProvider)
 
 				// then
 				Expect(featuresHandler.Apply(ctx, envTestClient)).To(Succeed())
@@ -160,7 +160,7 @@ var _ = Describe("Serverless feature", func() {
 					return nil
 				}
 
-				featuresHandler := feature.ComponentFeaturesHandler(dsci, componentsv1.KserveComponentName, dsci.Spec.ApplicationsNamespace, featuresProvider)
+				featuresHandler := feature.ComponentFeaturesHandler(dsci, componentApi.KserveComponentName, dsci.Spec.ApplicationsNamespace, featuresProvider)
 
 				// then
 				Expect(featuresHandler.Apply(ctx, envTestClient)).ToNot(Succeed())
@@ -291,7 +291,7 @@ var _ = Describe("Serverless feature", func() {
 				return nil
 			}
 
-			featuresHandler := feature.ComponentFeaturesHandler(dsci, componentsv1.KserveComponentName, dsci.Spec.ApplicationsNamespace, featuresProvider)
+			featuresHandler := feature.ComponentFeaturesHandler(dsci, componentApi.KserveComponentName, dsci.Spec.ApplicationsNamespace, featuresProvider)
 
 			// when
 			Expect(featuresHandler.Apply(ctx, envTestClient)).To(Succeed())
@@ -333,7 +333,7 @@ var _ = Describe("Serverless feature", func() {
 				return nil
 			}
 
-			featuresHandler := feature.ComponentFeaturesHandler(dsci, componentsv1.KserveComponentName, dsci.Spec.ApplicationsNamespace, featuresProvider)
+			featuresHandler := feature.ComponentFeaturesHandler(dsci, componentApi.KserveComponentName, dsci.Spec.ApplicationsNamespace, featuresProvider)
 
 			// when
 			Expect(featuresHandler.Apply(ctx, envTestClient)).To(Succeed())

@@ -1,13 +1,13 @@
 # API Reference
 
 ## Packages
-- [components.opendatahub.io/v1](#componentsopendatahubiov1)
+- [components.opendatahub.io/v1alpha1](#componentsopendatahubiov1alpha1)
 - [datasciencecluster.opendatahub.io/v1](#datascienceclusteropendatahubiov1)
 - [dscinitialization.opendatahub.io/v1](#dscinitializationopendatahubiov1)
-- [services.opendatahub.io/v1](#servicesopendatahubiov1)
+- [services.opendatahub.io/v1alpha1](#servicesopendatahubiov1alpha1)
 
 
-## components.opendatahub.io/v1
+## components.opendatahub.io/v1alpha1
 
 Package v1 contains API Schema definitions for the components v1 API group
 
@@ -52,7 +52,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `apiVersion` _string_ | `components.opendatahub.io/v1alpha1` | | |
 | `kind` _string_ | `CodeFlare` | | |
 | `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
 | `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
@@ -90,7 +90,7 @@ CodeFlareList contains a list of CodeFlare
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `apiVersion` _string_ | `components.opendatahub.io/v1alpha1` | | |
 | `kind` _string_ | `CodeFlareList` | | |
 | `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
 | `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
@@ -352,7 +352,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `apiVersion` _string_ | `components.opendatahub.io/v1alpha1` | | |
 | `kind` _string_ | `Dashboard` | | |
 | `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
 | `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
@@ -390,7 +390,7 @@ DashboardList contains a list of Dashboard
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `apiVersion` _string_ | `components.opendatahub.io/v1alpha1` | | |
 | `kind` _string_ | `DashboardList` | | |
 | `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
 | `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
@@ -446,7 +446,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `apiVersion` _string_ | `components.opendatahub.io/v1alpha1` | | |
 | `kind` _string_ | `DataSciencePipelines` | | |
 | `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
 | `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
@@ -484,7 +484,7 @@ DataSciencePipelinesList contains a list of DataSciencePipelines
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `apiVersion` _string_ | `components.opendatahub.io/v1alpha1` | | |
 | `kind` _string_ | `DataSciencePipelinesList` | | |
 | `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
 | `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
@@ -559,7 +559,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `apiVersion` _string_ | `components.opendatahub.io/v1alpha1` | | |
 | `kind` _string_ | `Kserve` | | |
 | `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
 | `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
@@ -599,7 +599,7 @@ KserveList contains a list of Kserve
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `apiVersion` _string_ | `components.opendatahub.io/v1alpha1` | | |
 | `kind` _string_ | `KserveList` | | |
 | `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
 | `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
@@ -656,7 +656,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `apiVersion` _string_ | `components.opendatahub.io/v1alpha1` | | |
 | `kind` _string_ | `Kueue` | | |
 | `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
 | `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
@@ -694,7 +694,7 @@ KueueList contains a list of Kueue
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `apiVersion` _string_ | `components.opendatahub.io/v1alpha1` | | |
 | `kind` _string_ | `KueueList` | | |
 | `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
 | `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
@@ -861,7 +861,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `apiVersion` _string_ | `components.opendatahub.io/v1alpha1` | | |
 | `kind` _string_ | `ModelMeshServing` | | |
 | `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
 | `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
@@ -899,7 +899,7 @@ ModelMeshServingList contains a list of ModelMeshServing
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `apiVersion` _string_ | `components.opendatahub.io/v1alpha1` | | |
 | `kind` _string_ | `ModelMeshServingList` | | |
 | `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
 | `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
@@ -954,7 +954,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `apiVersion` _string_ | `components.opendatahub.io/v1alpha1` | | |
 | `kind` _string_ | `ModelRegistry` | | |
 | `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
 | `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
@@ -993,7 +993,7 @@ ModelRegistryList contains a list of ModelRegistry
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `apiVersion` _string_ | `components.opendatahub.io/v1alpha1` | | |
 | `kind` _string_ | `ModelRegistryList` | | |
 | `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
 | `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
@@ -1050,7 +1050,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `apiVersion` _string_ | `components.opendatahub.io/v1alpha1` | | |
 | `kind` _string_ | `Ray` | | |
 | `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
 | `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
@@ -1088,7 +1088,7 @@ RayList contains a list of Ray
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `apiVersion` _string_ | `components.opendatahub.io/v1alpha1` | | |
 | `kind` _string_ | `RayList` | | |
 | `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
 | `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
@@ -1143,7 +1143,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `apiVersion` _string_ | `components.opendatahub.io/v1alpha1` | | |
 | `kind` _string_ | `TrainingOperator` | | |
 | `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
 | `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
@@ -1181,7 +1181,7 @@ TrainingOperatorList contains a list of TrainingOperator
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `apiVersion` _string_ | `components.opendatahub.io/v1alpha1` | | |
 | `kind` _string_ | `TrainingOperatorList` | | |
 | `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
 | `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
@@ -1236,7 +1236,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `apiVersion` _string_ | `components.opendatahub.io/v1alpha1` | | |
 | `kind` _string_ | `TrustyAI` | | |
 | `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
 | `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
@@ -1274,7 +1274,7 @@ TrustyAIList contains a list of TrustyAI
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `apiVersion` _string_ | `components.opendatahub.io/v1alpha1` | | |
 | `kind` _string_ | `TrustyAIList` | | |
 | `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
 | `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
@@ -1329,7 +1329,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `apiVersion` _string_ | `components.opendatahub.io/v1alpha1` | | |
 | `kind` _string_ | `Workbenches` | | |
 | `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
 | `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
@@ -1367,7 +1367,7 @@ WorkbenchesList contains a list of Workbenches
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.opendatahub.io/v1` | | |
+| `apiVersion` _string_ | `components.opendatahub.io/v1alpha1` | | |
 | `kind` _string_ | `WorkbenchesList` | | |
 | `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
 | `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
@@ -1790,7 +1790,7 @@ _Appears in:_
 
 
 
-## services.opendatahub.io/v1
+## services.opendatahub.io/v1alpha1
 
 Package v1 contains API Schema definitions for the services v1 API group
 
@@ -1830,7 +1830,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `apiVersion` _string_ | `services.opendatahub.io/v1` | | |
+| `apiVersion` _string_ | `services.opendatahub.io/v1alpha1` | | |
 | `kind` _string_ | `Monitoring` | | |
 | `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
 | `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
@@ -1868,7 +1868,7 @@ MonitoringList contains a list of Monitoring
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `apiVersion` _string_ | `services.opendatahub.io/v1` | | |
+| `apiVersion` _string_ | `services.opendatahub.io/v1alpha1` | | |
 | `kind` _string_ | `MonitoringList` | | |
 | `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
 | `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |

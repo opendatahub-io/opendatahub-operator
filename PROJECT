@@ -32,99 +32,99 @@ resources:
     validation: true
     webhookVersion: v1
 - api:
-    crdVersion: v1
+    crdVersion: v1alpha1
   controller: true
   domain: opendatahub.io
   group: components
   kind: Dashboard
-  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1
-  version: v1
+  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1
+  version: v1alpha1
 - api:
-    crdVersion: v1
+    crdVersion: v1alpha1
   controller: true
   domain: opendatahub.io
   group: components
   kind: Workbenches
-  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1
-  version: v1
+  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1
+  version: v1alpha1
 - api:
-    crdVersion: v1
+    crdVersion: v1alpha1
   controller: true
   domain: opendatahub.io
   group: components
   kind: ModelMeshServing
-  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1
-  version: v1
+  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1
+  version: v1alpha1
 - api:
-    crdVersion: v1
+    crdVersion: v1alpha1
   controller: true
   domain: opendatahub.io
   group: components
   kind: DataSciencePipelines
-  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1
-  version: v1
+  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1
+  version: v1alpha1
 - api:
-    crdVersion: v1
+    crdVersion: v1alpha1
   controller: true
   domain: opendatahub.io
   group: components
   kind: Kserve
-  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1
-  version: v1
+  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1
+  version: v1alpha1
 - api:
-    crdVersion: v1
+    crdVersion: v1alpha1
   controller: true
   domain: opendatahub.io
   group: components
   kind: Kueue
-  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1
-  version: v1
+  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1
+  version: v1alpha1
 - api:
-    crdVersion: v1
+    crdVersion: v1alpha1
   controller: true
   domain: opendatahub.io
   group: components
   kind: CodeFlare
-  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1
-  version: v1
+  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1
+  version: v1alpha1
 - api:
-    crdVersion: v1
+    crdVersion: v1alpha1
   controller: true
   domain: opendatahub.io
   group: components
   kind: Ray
-  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1
-  version: v1
+  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1
+  version: v1alpha1
 - api:
-    crdVersion: v1
+    crdVersion: v1alpha1
   controller: true
   domain: opendatahub.io
   group: components
   kind: TrustyAI
-  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1
-  version: v1
+  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1
+  version: v1alpha1
 - api:
-    crdVersion: v1
+    crdVersion: v1alpha1
   controller: true
   domain: opendatahub.io
   group: components
   kind: ModelRegistry
-  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1
-  version: v1
+  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1
+  version: v1alpha1
 - api:
-    crdVersion: v1
+    crdVersion: v1alpha1
   controller: true
   domain: opendatahub.io
   group: components
   kind: TrainingOperator
-  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1
-  version: v1
+  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1
+  version: v1alpha1
 - api:
-    crdVersion: v1
+    crdVersion: v1alpha1
   controller: true
   domain: opendatahub.io
   group: services
   kind: Monitoring
-  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1
-  version: v1
+  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1
+  version: v1alpha1
 version: "3"

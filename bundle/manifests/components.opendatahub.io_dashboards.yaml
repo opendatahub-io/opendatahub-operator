@@ -27,7 +27,7 @@ spec:
       jsonPath: .status.url
       name: URL
       type: string
-    name: v1
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: Dashboard is the Schema for the dashboards API

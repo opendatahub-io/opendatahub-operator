@@ -23,7 +23,7 @@ spec:
       jsonPath: .status.conditions[?(@.type=="Ready")].reason
       name: Reason
       type: string
-    name: v1
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: Kserve is the Schema for the kserves API

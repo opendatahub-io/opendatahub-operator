@@ -20,7 +20,7 @@ import (
 	ctrlCli "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -41,7 +41,7 @@ func TestDeployWithCacheAction(t *testing.T) {
 	utilruntime.Must(corev1.AddToScheme(s))
 	utilruntime.Must(appsv1.AddToScheme(s))
 	utilruntime.Must(apiextensionsv1.AddToScheme(s))
-	utilruntime.Must(componentsv1.AddToScheme(s))
+	utilruntime.Must(componentApi.AddToScheme(s))
 
 	projectDir, err := envtestutil.FindProjectRoot()
 	g.Expect(err).NotTo(HaveOccurred())
@@ -149,7 +149,7 @@ func testResourceNotReDeployed(t *testing.T, cli *client.Client, obj ctrlCli.Obj
 			ApplicationsNamespace: in.GetNamespace()},
 		},
 		DSC: &dscv1.DataScienceCluster{},
-		Instance: &componentsv1.Dashboard{
+		Instance: &componentApi.Dashboard{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
 			},

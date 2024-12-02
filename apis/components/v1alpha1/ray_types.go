@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1
+package v1alpha1
 
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
@@ -22,10 +22,10 @@ import (
 )
 
 const (
-	KueueComponentName = "kueue"
+	RayComponentName = "ray"
 	// value should match whats set in the XValidation below
-	KueueInstanceName = "default-kueue"
-	KueueKind         = "Kueue"
+	RayInstanceName = "default-ray"
+	RayKind         = "Ray"
 )
 
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
@@ -33,55 +33,55 @@ const (
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
-// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-kueue'",message="Kueue name must be default-kueue"
+// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-ray'",message="Ray name must be default-ray"
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
 // +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
 
-// Kueue is the Schema for the kueues API
-type Kueue struct {
+// Ray is the Schema for the rays API
+type Ray struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   KueueSpec   `json:"spec,omitempty"`
-	Status KueueStatus `json:"status,omitempty"`
+	Spec   RaySpec   `json:"spec,omitempty"`
+	Status RayStatus `json:"status,omitempty"`
 }
 
-// KueueSpec defines the desired state of Kueue
-type KueueSpec struct {
-	KueueCommonSpec `json:",inline"`
+// RaySpec defines the desired state of Ray
+type RaySpec struct {
+	RayCommonSpec `json:",inline"`
 }
 
-type KueueCommonSpec struct {
+type RayCommonSpec struct {
 	common.DevFlagsSpec `json:",inline"`
 }
 
-// KueueStatus defines the observed state of Kueue
-type KueueStatus struct {
+// RayStatus defines the observed state of Ray
+type RayStatus struct {
 	common.Status `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
-// KueueList contains a list of Kueue
-type KueueList struct {
+// RayList contains a list of Ray
+type RayList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Kueue `json:"items"`
+	Items           []Ray `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&Kueue{}, &KueueList{})
+	SchemeBuilder.Register(&Ray{}, &RayList{})
 }
 
-func (c *Kueue) GetDevFlags() *common.DevFlags {
+func (c *Ray) GetDevFlags() *common.DevFlags {
 	return c.Spec.DevFlags
 }
-func (c *Kueue) GetStatus() *common.Status {
+func (c *Ray) GetStatus() *common.Status {
 	return &c.Status.Status
 }
 
-// DSCKueue contains all the configuration exposed in DSC instance for Kueue component
-type DSCKueue struct {
+// DSCRay contains all the configuration exposed in DSC instance for Ray component
+type DSCRay struct {
 	common.ManagementSpec `json:",inline"`
 	// configuration fields common across components
-	KueueCommonSpec `json:",inline"`
+	RayCommonSpec `json:",inline"`
 }
