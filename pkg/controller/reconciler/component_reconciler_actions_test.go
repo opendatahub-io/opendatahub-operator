@@ -136,7 +136,7 @@ func TestDynamicWatchAction_Run(t *testing.T) {
 			action := newDynamicWatch(mockFn, watches)
 			err := action.run(ctx, &types.ReconciliationRequest{Instance: test.object})
 
-			if test.cntMatcher != nil {
+			if test.errMatcher != nil {
 				g.Expect(err).To(test.errMatcher)
 			}
 			if test.cntMatcher != nil {
