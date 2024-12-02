@@ -17,7 +17,7 @@ limitations under the License.
 package v1
 
 import (
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -30,7 +30,7 @@ const (
 
 // CodeFlareStatus defines the observed state of CodeFlare
 type CodeFlareStatus struct {
-	components.Status `json:",inline"`
+	common.Status `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
@@ -54,14 +54,14 @@ type CodeFlareSpec struct {
 }
 
 type CodeFlareCommonSpec struct {
-	components.DevFlagsSpec `json:",inline"`
+	common.DevFlagsSpec `json:",inline"`
 }
 
-func (c *CodeFlare) GetDevFlags() *components.DevFlags {
+func (c *CodeFlare) GetDevFlags() *common.DevFlags {
 	return c.Spec.DevFlags
 }
 
-func (c *CodeFlare) GetStatus() *components.Status {
+func (c *CodeFlare) GetStatus() *common.Status {
 	return &c.Status.Status
 }
 
@@ -83,6 +83,6 @@ func init() {
 }
 
 type DSCCodeFlare struct {
-	components.ManagementSpec `json:",inline"`
-	CodeFlareCommonSpec       `json:",inline"`
+	common.ManagementSpec `json:",inline"`
+	CodeFlareCommonSpec   `json:",inline"`
 }

@@ -21,12 +21,11 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/services"
 	servicesv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1"
 	componentsold "github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
@@ -86,7 +85,7 @@ func setupDSCICR(name string) *dsciv1.DSCInitialization {
 		Spec: dsciv1.DSCInitializationSpec{
 			ApplicationsNamespace: "opendatahub",
 			Monitoring: servicesv1.DSCMonitoring{
-				ManagementSpec: services.ManagementSpec{ManagementState: operatorv1.Managed},
+				ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				MonitoringCommonSpec: servicesv1.MonitoringCommonSpec{
 					Namespace: "opendatahub",
 				},
@@ -117,12 +116,12 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 			Components: dscv1.Components{
 				// keep dashboard as enabled, because other test is rely on this
 				Dashboard: componentsv1.DSCDashboard{
-					ManagementSpec: components.ManagementSpec{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Managed,
 					},
 				},
 				Workbenches: componentsv1.DSCWorkbenches{
-					ManagementSpec: components.ManagementSpec{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Managed,
 					},
 				},
@@ -132,12 +131,12 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 					},
 				},
 				DataSciencePipelines: componentsv1.DSCDataSciencePipelines{
-					ManagementSpec: components.ManagementSpec{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Managed,
 					},
 				},
 				Kserve: componentsv1.DSCKserve{
-					ManagementSpec: components.ManagementSpec{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Managed,
 					},
 					KserveCommonSpec: componentsv1.KserveCommonSpec{
@@ -153,27 +152,27 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 					},
 				},
 				CodeFlare: componentsv1.DSCCodeFlare{
-					ManagementSpec: components.ManagementSpec{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Managed,
 					},
 				},
 				Ray: componentsv1.DSCRay{
-					ManagementSpec: components.ManagementSpec{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Managed,
 					},
 				},
 				Kueue: componentsv1.DSCKueue{
-					ManagementSpec: components.ManagementSpec{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Managed,
 					},
 				},
 				TrustyAI: componentsv1.DSCTrustyAI{
-					ManagementSpec: components.ManagementSpec{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Managed,
 					},
 				},
 				ModelRegistry: componentsv1.DSCModelRegistry{
-					ManagementSpec: components.ManagementSpec{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Managed,
 					},
 					ModelRegistryCommonSpec: componentsv1.ModelRegistryCommonSpec{
@@ -181,7 +180,7 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 					},
 				},
 				TrainingOperator: componentsv1.DSCTrainingOperator{
-					ManagementSpec: components.ManagementSpec{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Managed,
 					},
 				},

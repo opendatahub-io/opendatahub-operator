@@ -16,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
@@ -84,7 +85,7 @@ func Dynamic(predicates ...DynamicPredicate) WatchOpts {
 	}
 }
 
-type ReconcilerBuilder[T client.Object] struct {
+type ReconcilerBuilder[T common.BaseObject] struct {
 	mgr          ctrl.Manager
 	input        forInput
 	watches      []watchInput
@@ -95,7 +96,7 @@ type ReconcilerBuilder[T client.Object] struct {
 	errors       error
 }
 
-func ReconcilerFor[T client.Object](mgr ctrl.Manager, object T, opts ...builder.ForOption) *ReconcilerBuilder[T] {
+func ReconcilerFor[T common.BaseObject](mgr ctrl.Manager, object T, opts ...builder.ForOption) *ReconcilerBuilder[T] {
 	crb := ReconcilerBuilder[T]{
 		mgr: mgr,
 	}

@@ -19,7 +19,7 @@ package v1
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 )
 
@@ -43,7 +43,7 @@ const (
 
 // KserveCommonSpec spec defines the shared desired state of Kserve
 type KserveCommonSpec struct {
-	components.DevFlagsSpec `json:",inline"`
+	common.DevFlagsSpec `json:",inline"`
 	// Serving configures the KNative-Serving stack used for model serving. A Service
 	// Mesh (Istio) is prerequisite, since it is used as networking layer.
 	Serving infrav1.ServingSpec `json:"serving,omitempty"`
@@ -65,7 +65,7 @@ type KserveSpec struct {
 
 // KserveStatus defines the observed state of Kserve
 type KserveStatus struct {
-	components.Status `json:",inline"`
+	common.Status `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
@@ -84,11 +84,11 @@ type Kserve struct {
 	Status KserveStatus `json:"status,omitempty"`
 }
 
-func (c *Kserve) GetDevFlags() *components.DevFlags {
+func (c *Kserve) GetDevFlags() *common.DevFlags {
 	return c.Spec.DevFlags
 }
 
-func (c *Kserve) GetStatus() *components.Status {
+func (c *Kserve) GetStatus() *common.Status {
 	return &c.Status.Status
 }
 
@@ -108,7 +108,7 @@ func init() {
 // DSCKserve contains all the configuration exposed in DSC instance for Kserve component
 type DSCKserve struct {
 	// configuration fields common across components
-	components.ManagementSpec `json:",inline"`
+	common.ManagementSpec `json:",inline"`
 	// Kserve specific fields
 	KserveCommonSpec `json:",inline"`
 }

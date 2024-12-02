@@ -17,7 +17,7 @@ limitations under the License.
 package v1
 
 import (
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/services"
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -31,16 +31,14 @@ const (
 
 // MonitoringSpec defines the desired state of Monitoring
 type MonitoringSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of Monitoring. Edit monitoring_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// monitoring spec exposed to DSCI api
+	MonitoringCommonSpec `json:",inline"`
+	// monitoring spec exposed only to internal api
 }
 
 // MonitoringStatus defines the observed state of Monitoring
 type MonitoringStatus struct {
-	services.Status `json:",inline"`
+	common.Status `json:",inline"`
 
 	URL string `json:"url,omitempty"`
 }
@@ -72,13 +70,6 @@ type MonitoringCommonSpec struct {
 	Namespace string `json:"namespace,omitempty"`
 }
 
-// DashboardSpec defines the desired state of Dashboard
-type DashboardSpec struct {
-	// dashboard spec exposed to DSCI api
-	MonitoringCommonSpec `json:",inline"`
-	// dashboard spec exposed only to internal api
-}
-
 //+kubebuilder:object:root=true
 
 // MonitoringList contains a list of Monitoring
@@ -88,13 +79,21 @@ type MonitoringList struct {
 	Items           []Monitoring `json:"items"`
 }
 
+func (m *Monitoring) GetDevFlags() *common.DevFlags {
+	return nil
+}
+
+func (m *Monitoring) GetStatus() *common.Status {
+	return &m.Status.Status
+}
+
 func init() {
 	SchemeBuilder.Register(&Monitoring{}, &MonitoringList{})
 }
 
 type DSCMonitoring struct {
 	// configuration fields common across services
-	services.ManagementSpec `json:",inline"`
+	common.ManagementSpec `json:",inline"`
 	// monitoring specific fields
 	MonitoringCommonSpec `json:",inline"`
 }

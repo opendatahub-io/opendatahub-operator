@@ -17,7 +17,7 @@ limitations under the License.
 package v1
 
 import (
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -52,12 +52,12 @@ type KueueSpec struct {
 }
 
 type KueueCommonSpec struct {
-	components.DevFlagsSpec `json:",inline"`
+	common.DevFlagsSpec `json:",inline"`
 }
 
 // KueueStatus defines the observed state of Kueue
 type KueueStatus struct {
-	components.Status `json:",inline"`
+	common.Status `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
@@ -72,16 +72,16 @@ func init() {
 	SchemeBuilder.Register(&Kueue{}, &KueueList{})
 }
 
-func (c *Kueue) GetDevFlags() *components.DevFlags {
+func (c *Kueue) GetDevFlags() *common.DevFlags {
 	return c.Spec.DevFlags
 }
-func (c *Kueue) GetStatus() *components.Status {
+func (c *Kueue) GetStatus() *common.Status {
 	return &c.Status.Status
 }
 
 // DSCKueue contains all the configuration exposed in DSC instance for Kueue component
 type DSCKueue struct {
-	components.ManagementSpec `json:",inline"`
+	common.ManagementSpec `json:",inline"`
 	// configuration fields common across components
 	KueueCommonSpec `json:",inline"`
 }

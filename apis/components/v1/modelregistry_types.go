@@ -17,7 +17,7 @@ limitations under the License.
 package v1
 
 import (
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -32,7 +32,7 @@ const (
 // ModelRegistryCommonSpec spec defines the shared desired state of ModelRegistry
 type ModelRegistryCommonSpec struct {
 	// model registry spec exposed to DSC api
-	components.DevFlagsSpec `json:",inline"`
+	common.DevFlagsSpec `json:",inline"`
 
 	// Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries"
 	// +kubebuilder:default="odh-model-registries"
@@ -50,7 +50,7 @@ type ModelRegistrySpec struct {
 
 // ModelRegistryStatus defines the observed state of ModelRegistry
 type ModelRegistryStatus struct {
-	components.Status      `json:",inline"`
+	common.Status          `json:",inline"`
 	DSCModelRegistryStatus `json:",inline"`
 }
 
@@ -70,11 +70,11 @@ type ModelRegistry struct {
 	Status ModelRegistryStatus `json:"status,omitempty"`
 }
 
-func (c *ModelRegistry) GetDevFlags() *components.DevFlags {
+func (c *ModelRegistry) GetDevFlags() *common.DevFlags {
 	return c.Spec.DevFlags
 }
 
-func (c *ModelRegistry) GetStatus() *components.Status {
+func (c *ModelRegistry) GetStatus() *common.Status {
 	return &c.Status.Status
 }
 
@@ -98,7 +98,7 @@ func init() {
 // DSCModelRegistry contains all the configuration exposed in DSC instance for ModelRegistry component
 type DSCModelRegistry struct {
 	// configuration fields common across components
-	components.ManagementSpec `json:",inline"`
+	common.ManagementSpec `json:",inline"`
 	// model registry specific field
 	ModelRegistryCommonSpec `json:",inline"`
 }

@@ -9,7 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -79,7 +79,7 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 	var err error
 	var cachingKey []byte
 
-	inst, ok := rr.Instance.(components.ComponentObject)
+	inst, ok := rr.Instance.(common.BaseObject)
 	if ok && inst.GetDevFlags() != nil {
 		// if dev flags are enabled, caching is disabled as dev flags are meant for
 		// development time only where caching is not relevant

@@ -25,13 +25,12 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/services"
 	servicesv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1"
 	componentsold "github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
@@ -63,37 +62,37 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 		Spec: dscv1.DataScienceClusterSpec{
 			Components: dscv1.Components{
 				Dashboard: componentsv1.DSCDashboard{
-					ManagementSpec: components.ManagementSpec{ManagementState: operatorv1.Managed},
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
 				Workbenches: componentsv1.DSCWorkbenches{
-					ManagementSpec: components.ManagementSpec{ManagementState: operatorv1.Managed},
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
 				ModelMeshServing: modelmeshserving.ModelMeshServing{
 					Component: componentsold.Component{ManagementState: operatorv1.Managed},
 				},
 				DataSciencePipelines: componentsv1.DSCDataSciencePipelines{
-					ManagementSpec: components.ManagementSpec{ManagementState: operatorv1.Managed},
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
 				Kserve: componentsv1.DSCKserve{
-					ManagementSpec: components.ManagementSpec{ManagementState: operatorv1.Managed},
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
 				CodeFlare: componentsv1.DSCCodeFlare{
-					ManagementSpec: components.ManagementSpec{ManagementState: operatorv1.Managed},
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
 				Ray: componentsv1.DSCRay{
-					ManagementSpec: components.ManagementSpec{ManagementState: operatorv1.Managed},
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
 				Kueue: componentsv1.DSCKueue{
-					ManagementSpec: components.ManagementSpec{ManagementState: operatorv1.Managed},
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
 				TrustyAI: componentsv1.DSCTrustyAI{
-					ManagementSpec: components.ManagementSpec{ManagementState: operatorv1.Managed},
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
 				ModelRegistry: componentsv1.DSCModelRegistry{
-					ManagementSpec: components.ManagementSpec{ManagementState: operatorv1.Managed},
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
 				TrainingOperator: componentsv1.DSCTrainingOperator{
-					ManagementSpec: components.ManagementSpec{ManagementState: operatorv1.Managed},
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
 			},
 		},
@@ -112,7 +111,7 @@ func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ cluster.Platfor
 	defaultDsciSpec := &dsciv1.DSCInitializationSpec{
 		ApplicationsNamespace: appNamespace,
 		Monitoring: servicesv1.DSCMonitoring{
-			ManagementSpec: services.ManagementSpec{ManagementState: operatorv1.Managed},
+			ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 			MonitoringCommonSpec: servicesv1.MonitoringCommonSpec{
 				Namespace: monNamespace,
 			},

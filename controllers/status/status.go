@@ -24,7 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 )
 
 // These constants represent the overall Phase as used by .Status.Phase.
@@ -238,7 +238,7 @@ type ModelRegistryStatus struct {
 	RegistriesNamespace string `json:"registriesNamespace,omitempty"`
 }
 
-func SetStatusCondition(obj components.WithStatus, condition metav1.Condition) bool {
+func SetStatusCondition(obj common.WithStatus, condition metav1.Condition) bool {
 	s := obj.GetStatus()
 	return meta.SetStatusCondition(&s.Conditions, condition)
 }

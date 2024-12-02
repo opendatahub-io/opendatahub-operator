@@ -16,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
@@ -26,7 +27,7 @@ import (
 )
 
 // Reconciler provides generic reconciliation functionality for ODH objects.
-type Reconciler[T client.Object] struct {
+type Reconciler[T common.BaseObject] struct {
 	Client     *odhClient.Client
 	Scheme     *runtime.Scheme
 	Actions    []actions.Fn
@@ -42,7 +43,7 @@ type Reconciler[T client.Object] struct {
 }
 
 // NewReconciler creates a new reconciler for the given type.
-func NewReconciler[T client.Object](mgr manager.Manager, name string, object T) (*Reconciler[T], error) {
+func NewReconciler[T common.BaseObject](mgr manager.Manager, name string, object T) (*Reconciler[T], error) {
 	oc, err := odhClient.NewFromManager(mgr)
 	if err != nil {
 		return nil, err

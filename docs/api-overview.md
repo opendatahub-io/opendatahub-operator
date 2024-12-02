@@ -1267,23 +1267,6 @@ _Appears in:_
 
 
 
-#### Component
-
-
-
-Component struct defines the basis for each OpenDataHub component configuration.
-
-
-
-_Appears in:_
-- [ModelMeshServing](#modelmeshserving)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
-
-
 
 
 
@@ -1303,110 +1286,6 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `manifests` _[ManifestsConfig](#manifestsconfig) array_ | List of custom manifests for the given component |  |  |
-
-
-#### DevFlagsSpec
-
-
-
-DevFlagsSpec struct defines the component's dev flags configuration.
-
-
-
-_Appears in:_
-- [CodeFlareCommonSpec](#codeflarecommonspec)
-- [CodeFlareSpec](#codeflarespec)
-- [Component](#component)
-- [DSCCodeFlare](#dsccodeflare)
-- [DSCDashboard](#dscdashboard)
-- [DSCDataSciencePipelines](#dscdatasciencepipelines)
-- [DSCKserve](#dsckserve)
-- [DSCKueue](#dsckueue)
-- [DSCModelRegistry](#dscmodelregistry)
-- [DSCRay](#dscray)
-- [DSCTrainingOperator](#dsctrainingoperator)
-- [DSCTrustyAI](#dsctrustyai)
-- [DSCWorkbenches](#dscworkbenches)
-- [DashboardCommonSpec](#dashboardcommonspec)
-- [DashboardSpec](#dashboardspec)
-- [DataSciencePipelinesCommonSpec](#datasciencepipelinescommonspec)
-- [DataSciencePipelinesSpec](#datasciencepipelinesspec)
-- [KserveCommonSpec](#kservecommonspec)
-- [KserveSpec](#kservespec)
-- [KueueCommonSpec](#kueuecommonspec)
-- [KueueSpec](#kueuespec)
-- [ModelRegistryCommonSpec](#modelregistrycommonspec)
-- [ModelRegistrySpec](#modelregistryspec)
-- [RayCommonSpec](#raycommonspec)
-- [RaySpec](#rayspec)
-- [TrainingOperatorCommonSpec](#trainingoperatorcommonspec)
-- [TrainingOperatorSpec](#trainingoperatorspec)
-- [TrustyAICommonSpec](#trustyaicommonspec)
-- [TrustyAISpec](#trustyaispec)
-- [WorkbenchesCommonSpec](#workbenchescommonspec)
-- [WorkbenchesSpec](#workbenchesspec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
-
-
-#### ManagementSpec
-
-
-
-ManagementSpec struct defines the component's management configuration.
-
-
-
-_Appears in:_
-- [Component](#component)
-- [DSCCodeFlare](#dsccodeflare)
-- [DSCDashboard](#dscdashboard)
-- [DSCDataSciencePipelines](#dscdatasciencepipelines)
-- [DSCKserve](#dsckserve)
-- [DSCKueue](#dsckueue)
-- [DSCModelRegistry](#dscmodelregistry)
-- [DSCRay](#dscray)
-- [DSCTrainingOperator](#dsctrainingoperator)
-- [DSCTrustyAI](#dsctrustyai)
-- [DSCWorkbenches](#dscworkbenches)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
-
-
-
-
-#### Status
-
-
-
-
-
-
-
-_Appears in:_
-- [CodeFlareStatus](#codeflarestatus)
-- [DashboardStatus](#dashboardstatus)
-- [DataSciencePipelinesStatus](#datasciencepipelinesstatus)
-- [KserveStatus](#kservestatus)
-- [KueueStatus](#kueuestatus)
-- [ModelMeshServingStatus](#modelmeshservingstatus)
-- [ModelRegistryStatus](#modelregistrystatus)
-- [RayStatus](#raystatus)
-- [TrainingOperatorStatus](#trainingoperatorstatus)
-- [TrustyAIStatus](#trustyaistatus)
-- [WorkbenchesStatus](#workbenchesstatus)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
-| `observedGeneration` _integer_ |  |  |  |
-
-
 
 
 
@@ -1677,47 +1556,6 @@ _Appears in:_
 
 
 
-#### ManagementSpec
-
-
-
-ManagementSpec struct defines the component's management configuration.
-
-
-
-_Appears in:_
-- [DSCMonitoring](#dscmonitoring)
-- [Service](#service)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
-
-
-
-
-
-
-
-
-#### Status
-
-
-
-
-
-
-
-_Appears in:_
-- [MonitoringStatus](#monitoringstatus)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
-| `observedGeneration` _integer_ |  |  |  |
-
-
 
 
 
@@ -1854,8 +1692,6 @@ _Appears in:_
 | `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 
-
-
 #### Monitoring
 
 
@@ -1888,7 +1724,7 @@ MonitoringCommonSpec spec defines the shared desired state of Dashboard
 
 _Appears in:_
 - [DSCMonitoring](#dscmonitoring)
-- [DashboardSpec](#dashboardspec)
+- [MonitoringSpec](#monitoringspec)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -1928,7 +1764,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `foo` _string_ | Foo is an example field of Monitoring. Edit monitoring_types.go to remove/update |  |  |
+| `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 
 #### MonitoringStatus

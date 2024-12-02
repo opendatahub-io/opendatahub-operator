@@ -44,7 +44,7 @@ import (
 	"sigs.k8s.io/kustomize/api/resource"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/conversion"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -58,7 +58,7 @@ var (
 // DownloadManifests function performs following tasks:
 // 1. It takes component URI and only downloads folder specified by component.ContextDir field
 // 2. It saves the manifests in the odh-manifests/component-name/ folder.
-func DownloadManifests(ctx context.Context, componentName string, manifestConfig components.ManifestsConfig) error {
+func DownloadManifests(ctx context.Context, componentName string, manifestConfig common.ManifestsConfig) error {
 	// Get the component repo from the given url
 	// e.g.  https://github.com/example/tarball/master
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, manifestConfig.URI, nil)
