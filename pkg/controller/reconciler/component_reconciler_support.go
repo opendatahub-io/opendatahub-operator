@@ -46,7 +46,7 @@ type forInput struct {
 	gvk     schema.GroupVersionKind
 }
 
-type DynamicPredicate func(context.Context, *types.ReconciliationRequest) (bool, error)
+type DynamicPredicate func(context.Context, *types.ReconciliationRequest) bool
 
 type watchInput struct {
 	object       client.Object

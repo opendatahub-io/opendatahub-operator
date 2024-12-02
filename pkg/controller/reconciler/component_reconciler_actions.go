@@ -1,4 +1,3 @@
-//nilint:testpackage
 package reconciler
 
 import (
@@ -57,10 +56,7 @@ func (a *dynamicWatchAction) run(ctx context.Context, rr *types.ReconciliationRe
 
 func (a *dynamicWatchAction) shouldWatch(ctx context.Context, in watchInput, rr *types.ReconciliationRequest) (bool, error) {
 	for pi := range in.dynamicPred {
-		ok, err := in.dynamicPred[pi](ctx, rr)
-		if err != nil {
-			return false, err
-		}
+		ok := in.dynamicPred[pi](ctx, rr)
 		if !ok {
 			return false, nil
 		}

@@ -3,7 +3,6 @@ package reconciler
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	gomegaTypes "github.com/onsi/gomega/types"
@@ -42,11 +41,11 @@ func TestDynamicWatchAction_Run(t *testing.T) {
 		},
 
 		{
-			name:   "should register a watcher the predicate evaluate to true",
+			name:   "should register a watcher when the predicate evaluate to true",
 			object: &componentsv1.Dashboard{TypeMeta: metav1.TypeMeta{Kind: gvk.Dashboard.Kind}},
 			preds: []DynamicPredicate{
-				func(_ context.Context, rr *types.ReconciliationRequest) (bool, error) {
-					return true, nil
+				func(_ context.Context, rr *types.ReconciliationRequest) bool {
+					return true
 				},
 			},
 			errMatcher: Not(HaveOccurred()),
@@ -66,11 +65,11 @@ func TestDynamicWatchAction_Run(t *testing.T) {
 				},
 			},
 			preds: []DynamicPredicate{
-				func(_ context.Context, rr *types.ReconciliationRequest) (bool, error) {
-					return rr.Instance.GetGeneration() > 0, nil
+				func(_ context.Context, rr *types.ReconciliationRequest) bool {
+					return rr.Instance.GetGeneration() > 0
 				},
-				func(_ context.Context, rr *types.ReconciliationRequest) (bool, error) {
-					return rr.Instance.GetResourceVersion() != "", nil
+				func(_ context.Context, rr *types.ReconciliationRequest) bool {
+					return rr.Instance.GetResourceVersion() != ""
 				},
 			},
 			errMatcher: Not(HaveOccurred()),
@@ -82,8 +81,8 @@ func TestDynamicWatchAction_Run(t *testing.T) {
 			name:   "should not register a watcher the predicate returns false",
 			object: &componentsv1.Dashboard{TypeMeta: metav1.TypeMeta{Kind: gvk.Dashboard.Kind}},
 			preds: []DynamicPredicate{
-				func(_ context.Context, rr *types.ReconciliationRequest) (bool, error) {
-					return false, nil
+				func(_ context.Context, rr *types.ReconciliationRequest) bool {
+					return false
 				},
 			},
 			errMatcher: Not(HaveOccurred()),
@@ -103,38 +102,14 @@ func TestDynamicWatchAction_Run(t *testing.T) {
 				},
 			},
 			preds: []DynamicPredicate{
-				func(_ context.Context, rr *types.ReconciliationRequest) (bool, error) {
-					return rr.Instance.GetGeneration() > 0, nil
+				func(_ context.Context, rr *types.ReconciliationRequest) bool {
+					return rr.Instance.GetGeneration() > 0
 				},
-				func(_ context.Context, rr *types.ReconciliationRequest) (bool, error) {
-					return rr.Instance.GetResourceVersion() != "", nil
+				func(_ context.Context, rr *types.ReconciliationRequest) bool {
+					return rr.Instance.GetResourceVersion() != ""
 				},
 			},
 			errMatcher: Not(HaveOccurred()),
-			cntMatcher: BeNumerically("==", 0),
-			keyMatcher: BeEmpty(),
-		},
-
-		{
-			name: "should return an error when a predicate returns an error",
-			object: &componentsv1.Dashboard{
-				TypeMeta: metav1.TypeMeta{
-					Kind: gvk.Dashboard.Kind,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Generation:      1,
-					ResourceVersion: "",
-				},
-			},
-			preds: []DynamicPredicate{
-				func(_ context.Context, rr *types.ReconciliationRequest) (bool, error) {
-					return rr.Instance.GetGeneration() > 0, nil
-				},
-				func(_ context.Context, rr *types.ReconciliationRequest) (bool, error) {
-					return false, errors.New("error")
-				},
-			},
-			errMatcher: HaveOccurred(),
 			cntMatcher: BeNumerically("==", 0),
 			keyMatcher: BeEmpty(),
 		},
@@ -189,15 +164,15 @@ func TestDynamicWatchAction_Inputs(t *testing.T) {
 		{
 			object:  resources.GvkToUnstructured(gvk.Secret),
 			dynamic: true,
-			dynamicPred: []DynamicPredicate{func(_ context.Context, rr *types.ReconciliationRequest) (bool, error) {
-				return rr.Instance.GetGeneration() == 0, nil
+			dynamicPred: []DynamicPredicate{func(_ context.Context, rr *types.ReconciliationRequest) bool {
+				return rr.Instance.GetGeneration() == 0
 			}},
 		},
 		{
 			object:  resources.GvkToUnstructured(gvk.ConfigMap),
 			dynamic: true,
-			dynamicPred: []DynamicPredicate{func(_ context.Context, rr *types.ReconciliationRequest) (bool, error) {
-				return rr.Instance.GetGeneration() > 0, nil
+			dynamicPred: []DynamicPredicate{func(_ context.Context, rr *types.ReconciliationRequest) bool {
+				return rr.Instance.GetGeneration() > 0
 			}},
 		},
 	}
@@ -238,8 +213,8 @@ func TestDynamicWatchAction_NotTwice(t *testing.T) {
 		{
 			object:  resources.GvkToUnstructured(gvk.ConfigMap),
 			dynamic: true,
-			dynamicPred: []DynamicPredicate{func(_ context.Context, rr *types.ReconciliationRequest) (bool, error) {
-				return rr.Instance.GetGeneration() > 0, nil
+			dynamicPred: []DynamicPredicate{func(_ context.Context, rr *types.ReconciliationRequest) bool {
+				return rr.Instance.GetGeneration() > 0
 			}},
 		},
 	}
