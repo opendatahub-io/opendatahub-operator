@@ -133,8 +133,8 @@ make image-build
 By default, building an image without any local changes(as a clean build)
 This is what the production build system is doing.
 
-In order to build an image with local `opt/manifests` folder, to set `IMAGE_BUILD_FLAGS ="--build-arg USE_LOCAL=true"` in make.
-e.g `make image-build -e IMAGE_BUILD_FLAGS="--build-arg USE_LOCAL=true"`
+In order to build an image with local `opt/manifests` folder set `USE_LOCAL` make variable to `true`
+e.g `make image-build USE_LOCAL=true"`
 
 #### Build Image
 
