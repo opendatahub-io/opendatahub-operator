@@ -105,18 +105,45 @@ metadata:
     capabilities: Full Lifecycle
     categories: AI/Machine Learning, Big Data
     certified: "False"
+<<<<<<< HEAD
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.21.0
     createdAt: "2024-11-22T19:16:14Z"
     olm.skipRange: '>=1.0.0 <2.21.0'
+=======
+    containerImage: quay.io/opendatahub/opendatahub-operator:v2.19.0
+    createdAt: "2024-12-02T18:57:19Z"
+    olm.skipRange: '>=1.0.0 <2.19.0'
+>>>>>>> update_api_version
     operators.operatorframework.io/builder: operator-sdk-v1.31.0
+    operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
+      "codeflares.components.opendatahub.io", "dashboards.components.opendatahub.io",
+      "datasciencepipelines.components.opendatahub.io", "kserves.components.opendatahub.io",
+      "kueues.components.opendatahub.io", "modelmeshservings.components.opendatahub.io",
+      "modelregistries.components.opendatahub.io", "rays.components.opendatahub.io",
+      "trainingoperators.components.opendatahub.io", "trustyais.components.opendatahub.io",  "workbenches.components.opendatahub.io",
+      "monitorings.services.opendatahub.io" ]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/opendatahub-io/opendatahub-operator
+<<<<<<< HEAD
   name: opendatahub-operator.v2.21.0
+=======
+  name: opendatahub-operator.v2.19.0
+>>>>>>> update_api_version
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
   customresourcedefinitions:
     owned:
+    - description: CodeFlare is the Schema for the codeflares API
+      displayName: Code Flare
+      kind: CodeFlare
+      name: codeflares.components.opendatahub.io
+      version: v1alpha1
+    - description: Dashboard is the Schema for the dashboards API
+      displayName: Dashboard
+      kind: Dashboard
+      name: dashboards.components.opendatahub.io
+      version: v1alpha1
     - description: DataScienceCluster is the Schema for the datascienceclusters API.
       displayName: Data Science Cluster
       kind: DataScienceCluster
@@ -126,6 +153,12 @@ spec:
         displayName: Components
         path: components
       version: v1
+    - description: DataSciencePipelines is the Schema for the datasciencepipelines
+        API
+      displayName: Data Science Pipelines
+      kind: DataSciencePipelines
+      name: datasciencepipelines.components.opendatahub.io
+      version: v1alpha1
     - description: DSCInitialization is the Schema for the dscinitializations API.
       displayName: DSC Initialization
       kind: DSCInitialization
@@ -164,6 +197,51 @@ spec:
     - kind: FeatureTracker
       name: featuretrackers.features.opendatahub.io
       version: v1
+    - description: Kserve is the Schema for the kserves API
+      displayName: Kserve
+      kind: Kserve
+      name: kserves.components.opendatahub.io
+      version: v1alpha1
+    - description: Kueue is the Schema for the kueues API
+      displayName: Kueue
+      kind: Kueue
+      name: kueues.components.opendatahub.io
+      version: v1alpha1
+    - description: ModelMeshServing is the Schema for the modelmeshservings API
+      displayName: Model Mesh Serving
+      kind: ModelMeshServing
+      name: modelmeshservings.components.opendatahub.io
+      version: v1alpha1
+    - description: ModelRegistry is the Schema for the modelregistries API
+      displayName: Model Registry
+      kind: ModelRegistry
+      name: modelregistries.components.opendatahub.io
+      version: v1alpha1
+    - description: Monitoring is the Schema for the monitorings API
+      displayName: Monitoring
+      kind: Monitoring
+      name: monitorings.services.opendatahub.io
+      version: v1alpha1
+    - description: Ray is the Schema for the rays API
+      displayName: Ray
+      kind: Ray
+      name: rays.components.opendatahub.io
+      version: v1alpha1
+    - description: TrainingOperator is the Schema for the trainingoperators API
+      displayName: Training Operator
+      kind: TrainingOperator
+      name: trainingoperators.components.opendatahub.io
+      version: v1alpha1
+    - description: TrustyAI is the Schema for the trustyais API
+      displayName: Trusty AI
+      kind: TrustyAI
+      name: trustyais.components.opendatahub.io
+      version: v1alpha1
+    - description: Workbenches is the Schema for the workbenches API
+      displayName: Workbenches
+      kind: Workbenches
+      name: workbenches.components.opendatahub.io
+      version: v1alpha1
   description: "The Open Data Hub is a machine-learning-as-a-service platform built
     on Red Hat's Kubernetes-based OpenShift® Container Platform. Open Data Hub integrates
     multiple AI/ML open source components into one operator that can easily be downloaded
@@ -358,6 +436,73 @@ spec:
           - create
           - patch
         - apiGroups:
+          - components.opendatahub.io
+          resources:
+          - codeflares
+          - dashboards
+          - datasciencepipelines
+          - kserves
+          - kueues
+          - modelmeshservings
+          - modelregistries
+          - rays
+          - trainingoperators
+          - trustyais
+          - workbenches
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - components.opendatahub.io
+          resources:
+          - codeflares/finalizers
+          - datasciencepipelines/finalizers
+          - kserves/finalizers
+          - kueues/finalizers
+          - modelmeshservings/finalizers
+          - modelregistries/finalizers
+          - rays/finalizers
+          - trainingoperators/finalizers
+          - trustyais/finalizers
+          - workbenches/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - components.opendatahub.io
+          resources:
+          - codeflares/status
+          - dashboards/status
+          - datasciencepipelines/status
+          - kserves/status
+          - kueues/status
+          - modelmeshservings/status
+          - modelregistries/status
+          - rays/status
+          - trainingoperators/status
+          - trustyais/status
+          - workbenches/status
+          verbs:
+          - get
+          - patch
+          - update
+        - apiGroups:
+          - components.opendatahub.io
+          resources:
+          - dashboards/finalizers
+          verbs:
+          - create
+          - get
+          - list
+          - patch
+          - update
+          - use
+          - watch
+        - apiGroups:
           - config.openshift.io
           resources:
           - authentications
@@ -376,14 +521,6 @@ spec:
           - console.openshift.io
           resources:
           - consolelinks
-          verbs:
-          - create
-          - delete
-          - get
-          - patch
-        - apiGroups:
-          - console.openshift.io
-          resources:
           - odhquickstarts
           verbs:
           - create
@@ -391,6 +528,7 @@ spec:
           - get
           - list
           - patch
+          - watch
         - apiGroups:
           - controller-runtime.sigs.k8s.io
           resources:
@@ -506,6 +644,7 @@ spec:
           - get
           - list
           - patch
+          - watch
         - apiGroups:
           - datasciencecluster.opendatahub.io
           resources:
@@ -664,10 +803,22 @@ spec:
           resources:
           - servicemeshcontrolplanes
           - servicemeshmemberrolls
-          - servicemeshmembers
           - servicemeshmembers/finalizers
           verbs:
           - create
+          - get
+          - list
+          - patch
+          - update
+          - use
+          - watch
+        - apiGroups:
+          - maistra.io
+          resources:
+          - servicemeshmembers
+          verbs:
+          - create
+          - delete
           - get
           - list
           - patch
@@ -712,7 +863,6 @@ spec:
           - prometheuses
           - prometheuses/finalizers
           - prometheuses/status
-          - prometheusrules
           - thanosrulers
           - thanosrulers/finalizers
           - thanosrulers/status
@@ -733,6 +883,18 @@ spec:
           - list
           - patch
           - update
+          - watch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
+          - prometheusrules
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - list
+          - patch
           - watch
         - apiGroups:
           - monitoring.coreos.com
@@ -943,6 +1105,32 @@ spec:
           - securitycontextconstraints
           verbs:
           - '*'
+        - apiGroups:
+          - services.opendatahub.io
+          resources:
+          - monitorings
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - services.opendatahub.io
+          resources:
+          - monitorings/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - services.opendatahub.io
+          resources:
+          - monitorings/status
+          verbs:
+          - get
+          - patch
+          - update
         - apiGroups:
           - serving.knative.dev
           resources:
@@ -1170,7 +1358,11 @@ spec:
   selector:
     matchLabels:
       component: opendatahub-operator
+<<<<<<< HEAD
   version: 2.21.0
+=======
+  version: 2.19.0
+>>>>>>> update_api_version
   webhookdefinitions:
   - admissionReviewVersions:
     - v1

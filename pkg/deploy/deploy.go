@@ -44,7 +44,7 @@ import (
 	"sigs.k8s.io/kustomize/api/resource"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/conversion"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -58,7 +58,7 @@ var (
 // DownloadManifests function performs following tasks:
 // 1. It takes component URI and only downloads folder specified by component.ContextDir field
 // 2. It saves the manifests in the odh-manifests/component-name/ folder.
-func DownloadManifests(ctx context.Context, componentName string, manifestConfig components.ManifestsConfig) error {
+func DownloadManifests(ctx context.Context, componentName string, manifestConfig common.ManifestsConfig) error {
 	// Get the component repo from the given url
 	// e.g.  https://github.com/example/tarball/master
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, manifestConfig.URI, nil)
@@ -156,6 +156,28 @@ func DeployManifestsFromPath(
 	componentName string,
 	componentEnabled bool,
 ) error {
+	return DeployManifestsFromPathWithLabels(
+		ctx,
+		cli,
+		owner,
+		manifestPath,
+		namespace,
+		componentName,
+		componentEnabled, map[string]string{},
+	)
+}
+
+func DeployManifestsFromPathWithLabels(
+	ctx context.Context,
+	cli client.Client,
+	owner metav1.Object,
+	manifestPath string,
+	namespace string,
+	componentName string,
+	componentEnabled bool,
+	// TODO: this method must be refactored, left it just to avoid breaking compatibility
+	additionalLabels map[string]string,
+) error {
 	// Render the Kustomize manifests
 	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
 	fs := filesys.MakeFsOnDisk()
@@ -180,7 +202,22 @@ func DeployManifestsFromPath(
 		return fmt.Errorf("failed applying namespace plugin when preparing Kustomize resources. %w", err)
 	}
 
-	labelsPlugin := plugins.CreateAddLabelsPlugin(componentName)
+	resourceLabels := map[string]string{
+		labels.ODH.Component(componentName): "true",
+		labels.K8SCommon.PartOf:             componentName,
+	}
+
+	for k, v := range additionalLabels {
+		_, ok := resourceLabels[k]
+		if ok {
+			// don't override default labels
+			continue
+		}
+
+		resourceLabels[k] = v
+	}
+
+	labelsPlugin := plugins.CreateSetLabelsPlugin(resourceLabels)
 	if err := labelsPlugin.Transform(resMap); err != nil {
 		return fmt.Errorf("failed applying labels plugin when preparing Kustomize resources. %w", err)
 	}

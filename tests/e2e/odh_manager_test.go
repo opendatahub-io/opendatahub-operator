@@ -37,4 +37,59 @@ func (tc *testContext) validateOwnedCRDs(t *testing.T) {
 		require.NoErrorf(t, tc.validateCRD("featuretrackers.features.opendatahub.io"),
 			"error in validating CRD : featuretrackers.features.opendatahub.io")
 	})
+
+	// Validate component CRDs
+	t.Run("Validate Dashboard CRD", func(t *testing.T) {
+		t.Parallel()
+		require.NoErrorf(t, tc.validateCRD("dashboards.components.opendatahub.io"),
+			"error in validating CRD : dashboards.components.opendatahub.io")
+	})
+
+	t.Run("Validate Ray CRD", func(t *testing.T) {
+		t.Parallel()
+		require.NoErrorf(t, tc.validateCRD("rays.components.opendatahub.io"),
+			"error in validating CRD : rays.components.opendatahub.io")
+	})
+
+	t.Run("Validate ModelRegistry CRD", func(t *testing.T) {
+		t.Parallel()
+		require.NoErrorf(t, tc.validateCRD("modelregistries.components.opendatahub.io"),
+			"error in validating CRD : modelregistries.components.opendatahub.io")
+	})
+
+	t.Run("Validate TrustyAI CRD", func(t *testing.T) {
+		t.Parallel()
+		require.NoErrorf(t, tc.validateCRD("trustyais.components.opendatahub.io"),
+			"error in validating CRD : trustyais.components.opendatahub.io")
+	})
+
+	t.Run("Validate Kueue CRD", func(t *testing.T) {
+		t.Parallel()
+		require.NoErrorf(t, tc.validateCRD("kueues.components.opendatahub.io"),
+			"error in validating CRD : kueues.components.opendatahub.io")
+	})
+
+	t.Run("Validate TrainingOperator CRD", func(t *testing.T) {
+		t.Parallel()
+		require.NoErrorf(t, tc.validateCRD("trainingoperators.components.opendatahub.io"),
+			"error in validating CRD : trainingoperators.components.opendatahub.io")
+	})
+
+	t.Run("Validate DataSciencePipelines CRD", func(t *testing.T) {
+		t.Parallel()
+		require.NoErrorf(t, tc.validateCRD("datasciencepipelines.components.opendatahub.io"),
+			"error in validating CRD : datasciencepipelines.components.opendatahub.io")
+	})
+
+	t.Run("Validate Workbenches CRD", func(t *testing.T) {
+		t.Parallel()
+		require.NoErrorf(t, tc.validateCRD("workbenches.components.opendatahub.io"),
+			"error in validating CRD : workbenches.components.opendatahub.io")
+	})
+
+	t.Run("Validate Kserve CRD", func(t *testing.T) {
+		t.Parallel()
+		require.NoErrorf(t, tc.validateCRD("kserves.components.opendatahub.io"),
+			"error in validating CRD : kserves.components.opendatahub.io")
+	})
 }

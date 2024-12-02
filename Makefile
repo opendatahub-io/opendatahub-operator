@@ -89,7 +89,8 @@ SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
 # E2E tests additional flags
-E2E_TEST_FLAGS = "--skip-deletion=false" -timeout 25m # See README.md, default go test timeout 10m
+# See README.md, default go test timeout 10m
+E2E_TEST_FLAGS = -timeout 25m
 
 # Default image-build is to not use local odh-manifests folder
 # set to "true" to use local instead
@@ -190,7 +191,8 @@ run: manifests generate fmt vet ## Run a controller from your host.
 
 .PHONY: run-nowebhook
 run-nowebhook: GO_RUN_ARGS += -tags nowebhook
-run-nowebhook: run ## Run a controller from your host without webhook enabled
+run-nowebhook: manifests generate fmt vet ## Run a controller from your host without webhook enabled
+	$(GO_RUN_MAIN)
 
 .PHONY: image-build
 image-build: # unit-test ## Build image with the manager.

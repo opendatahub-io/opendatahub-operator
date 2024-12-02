@@ -40,6 +40,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	annotation "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
@@ -50,7 +51,7 @@ const (
 
 // SecretGeneratorReconciler holds the controller configuration.
 type SecretGeneratorReconciler struct {
-	Client client.Client
+	*odhClient.Client
 	Scheme *runtime.Scheme
 }
 

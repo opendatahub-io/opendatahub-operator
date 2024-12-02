@@ -21,21 +21,15 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
+	componentsv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/dashboard"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/kueue"
+	servicesv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
+	componentsold "github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/trainingoperator"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 )
 
 const (
@@ -53,6 +47,8 @@ const (
 	dscCreationTimeout       = 20 * time.Second // time required to wait till DSC is created.
 	generalRetryInterval     = 10 * time.Second
 	generalWaitTimeout       = 2 * time.Minute
+	readyStatus              = "Ready"
+	dscKind                  = "DataScienceCluster"
 )
 
 func (tc *testContext) waitForOperatorDeployment(name string, replicas int32) error {
@@ -88,9 +84,11 @@ func setupDSCICR(name string) *dsciv1.DSCInitialization {
 		},
 		Spec: dsciv1.DSCInitializationSpec{
 			ApplicationsNamespace: "opendatahub",
-			Monitoring: dsciv1.Monitoring{
-				ManagementState: "Managed",
-				Namespace:       "opendatahub",
+			Monitoring: servicesv1alpha1.DSCMonitoring{
+				ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+				MonitoringCommonSpec: servicesv1alpha1.MonitoringCommonSpec{
+					Namespace: "opendatahub",
+				},
 			},
 			TrustedCABundle: &dsciv1.TrustedCABundleSpec{
 				ManagementState: "Managed",
@@ -117,62 +115,73 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 		Spec: dscv1.DataScienceClusterSpec{
 			Components: dscv1.Components{
 				// keep dashboard as enabled, because other test is rely on this
-				Dashboard: dashboard.Dashboard{
-					Component: components.Component{
+				Dashboard: componentsv1alpha1.DSCDashboard{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Managed,
 					},
 				},
-				Workbenches: workbenches.Workbenches{
-					Component: components.Component{
+				Workbenches: componentsv1alpha1.DSCWorkbenches{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Managed,
 					},
 				},
 				ModelMeshServing: modelmeshserving.ModelMeshServing{
-					Component: components.Component{
-						ManagementState: operatorv1.Managed,
-					},
-				},
-				DataSciencePipelines: datasciencepipelines.DataSciencePipelines{
-					Component: components.Component{
-						ManagementState: operatorv1.Managed,
-					},
-				},
-				Kserve: kserve.Kserve{
-					Component: components.Component{
-						ManagementState: operatorv1.Managed,
-					},
-					Serving: infrav1.ServingSpec{
-						ManagementState: operatorv1.Managed,
-					},
-				},
-				CodeFlare: codeflare.CodeFlare{
-					Component: components.Component{
-						ManagementState: operatorv1.Managed,
-					},
-				},
-				Ray: ray.Ray{
-					Component: components.Component{
-						ManagementState: operatorv1.Managed,
-					},
-				},
-				Kueue: kueue.Kueue{
-					Component: components.Component{
-						ManagementState: operatorv1.Managed,
-					},
-				},
-				TrustyAI: trustyai.TrustyAI{
-					Component: components.Component{
-						ManagementState: operatorv1.Managed,
-					},
-				},
-				ModelRegistry: modelregistry.ModelRegistry{
-					Component: components.Component{
-						ManagementState: operatorv1.Managed,
-					},
-				},
-				TrainingOperator: trainingoperator.TrainingOperator{
-					Component: components.Component{
+					Component: componentsold.Component{
 						ManagementState: operatorv1.Removed,
+					},
+				},
+				DataSciencePipelines: componentsv1alpha1.DSCDataSciencePipelines{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Managed,
+					},
+				},
+				Kserve: componentsv1alpha1.DSCKserve{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Managed,
+					},
+					KserveCommonSpec: componentsv1alpha1.KserveCommonSpec{
+						Serving: infrav1.ServingSpec{
+							ManagementState: operatorv1.Managed,
+							Name:            "knative-serving",
+							IngressGateway: infrav1.GatewaySpec{
+								Certificate: infrav1.CertificateSpec{
+									Type: infrav1.OpenshiftDefaultIngress,
+								},
+							},
+						},
+					},
+				},
+				CodeFlare: componentsv1alpha1.DSCCodeFlare{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Managed,
+					},
+				},
+				Ray: componentsv1alpha1.DSCRay{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Managed,
+					},
+				},
+				Kueue: componentsv1alpha1.DSCKueue{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Managed,
+					},
+				},
+				TrustyAI: componentsv1alpha1.DSCTrustyAI{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Managed,
+					},
+				},
+				ModelRegistry: componentsv1alpha1.DSCModelRegistry{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Managed,
+					},
+					ModelRegistryCommonSpec: componentsv1alpha1.ModelRegistryCommonSpec{
+						RegistriesNamespace: modelregistry.DefaultModelRegistriesNamespace,
+					},
+				},
+				TrainingOperator: componentsv1alpha1.DSCTrainingOperator{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Managed,
 					},
 				},
 			},

@@ -169,9 +169,75 @@ rules:
   - create
   - patch
 - apiGroups:
+  - components.opendatahub.io
+  resources:
+  - codeflares
+  - dashboards
+  - datasciencepipelines
+  - kserves
+  - kueues
+  - modelmeshservings
+  - modelregistries
+  - rays
+  - trainingoperators
+  - trustyais
+  - workbenches
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - components.opendatahub.io
+  resources:
+  - codeflares/finalizers
+  - datasciencepipelines/finalizers
+  - kserves/finalizers
+  - kueues/finalizers
+  - modelmeshservings/finalizers
+  - modelregistries/finalizers
+  - rays/finalizers
+  - trainingoperators/finalizers
+  - trustyais/finalizers
+  - workbenches/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - components.opendatahub.io
+  resources:
+  - codeflares/status
+  - dashboards/status
+  - datasciencepipelines/status
+  - kserves/status
+  - kueues/status
+  - modelmeshservings/status
+  - modelregistries/status
+  - rays/status
+  - trainingoperators/status
+  - trustyais/status
+  - workbenches/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - components.opendatahub.io
+  resources:
+  - dashboards/finalizers
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - use
+  - watch
+- apiGroups:
   - config.openshift.io
   resources:
-  - authentications
   - clusterversions
   verbs:
   - get
@@ -187,14 +253,6 @@ rules:
   - console.openshift.io
   resources:
   - consolelinks
-  verbs:
-  - create
-  - delete
-  - get
-  - patch
-- apiGroups:
-  - console.openshift.io
-  resources:
   - odhquickstarts
   verbs:
   - create
@@ -202,6 +260,7 @@ rules:
   - get
   - list
   - patch
+  - watch
 - apiGroups:
   - controller-runtime.sigs.k8s.io
   resources:
@@ -317,6 +376,7 @@ rules:
   - get
   - list
   - patch
+  - watch
 - apiGroups:
   - datasciencecluster.opendatahub.io
   resources:
@@ -475,10 +535,22 @@ rules:
   resources:
   - servicemeshcontrolplanes
   - servicemeshmemberrolls
-  - servicemeshmembers
   - servicemeshmembers/finalizers
   verbs:
   - create
+  - get
+  - list
+  - patch
+  - update
+  - use
+  - watch
+- apiGroups:
+  - maistra.io
+  resources:
+  - servicemeshmembers
+  verbs:
+  - create
+  - delete
   - get
   - list
   - patch
@@ -523,7 +595,6 @@ rules:
   - prometheuses
   - prometheuses/finalizers
   - prometheuses/status
-  - prometheusrules
   - thanosrulers
   - thanosrulers/finalizers
   - thanosrulers/status
@@ -544,6 +615,18 @@ rules:
   - list
   - patch
   - update
+  - watch
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - prometheusrules
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - list
+  - patch
   - watch
 - apiGroups:
   - monitoring.coreos.com
@@ -754,6 +837,32 @@ rules:
   - securitycontextconstraints
   verbs:
   - '*'
+- apiGroups:
+  - services.opendatahub.io
+  resources:
+  - monitorings
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - services.opendatahub.io
+  resources:
+  - monitorings/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - services.opendatahub.io
+  resources:
+  - monitorings/status
+  verbs:
+  - get
+  - patch
+  - update
 - apiGroups:
   - serving.knative.dev
   resources:

@@ -24,19 +24,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	componentsv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/dashboard"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/kueue"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/trainingoperator"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
-	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
@@ -49,10 +38,10 @@ type DataScienceClusterSpec struct {
 
 type Components struct {
 	// Dashboard component configuration.
-	Dashboard dashboard.Dashboard `json:"dashboard,omitempty"`
+	Dashboard componentsv1alpha1.DSCDashboard `json:"dashboard,omitempty"`
 
 	// Workbenches component configuration.
-	Workbenches workbenches.Workbenches `json:"workbenches,omitempty"`
+	Workbenches componentsv1alpha1.DSCWorkbenches `json:"workbenches,omitempty"`
 
 	// ModelMeshServing component configuration.
 	// Does not support enabled Kserve at the same time
@@ -60,37 +49,37 @@ type Components struct {
 
 	// DataServicePipeline component configuration.
 	// Require OpenShift Pipelines Operator to be installed before enable component
-	DataSciencePipelines datasciencepipelines.DataSciencePipelines `json:"datasciencepipelines,omitempty"`
+	DataSciencePipelines componentsv1alpha1.DSCDataSciencePipelines `json:"datasciencepipelines,omitempty"`
 
 	// Kserve component configuration.
 	// Require OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component
 	// Does not support enabled ModelMeshServing at the same time
-	Kserve kserve.Kserve `json:"kserve,omitempty"`
+	Kserve componentsv1alpha1.DSCKserve `json:"kserve,omitempty"`
 
 	// Kueue component configuration.
-	Kueue kueue.Kueue `json:"kueue,omitempty"`
+	Kueue componentsv1alpha1.DSCKueue `json:"kueue,omitempty"`
 
 	// CodeFlare component configuration.
 	// If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabled component.
-	CodeFlare codeflare.CodeFlare `json:"codeflare,omitempty"`
+	CodeFlare componentsv1alpha1.DSCCodeFlare `json:"codeflare,omitempty"`
 
 	// Ray component configuration.
-	Ray ray.Ray `json:"ray,omitempty"`
+	Ray componentsv1alpha1.DSCRay `json:"ray,omitempty"`
 
 	// TrustyAI component configuration.
-	TrustyAI trustyai.TrustyAI `json:"trustyai,omitempty"`
+	TrustyAI componentsv1alpha1.DSCTrustyAI `json:"trustyai,omitempty"`
 
 	// ModelRegistry component configuration.
-	ModelRegistry modelregistry.ModelRegistry `json:"modelregistry,omitempty"`
+	ModelRegistry componentsv1alpha1.DSCModelRegistry `json:"modelregistry,omitempty"`
 
-	//Training Operator component configuration.
-	TrainingOperator trainingoperator.TrainingOperator `json:"trainingoperator,omitempty"`
+	// Training Operator component configuration.
+	TrainingOperator componentsv1alpha1.DSCTrainingOperator `json:"trainingoperator,omitempty"`
 }
 
 // ComponentsStatus defines the custom status of DataScienceCluster components.
 type ComponentsStatus struct {
 	// ModelRegistry component status
-	ModelRegistry *status.ModelRegistryStatus `json:"modelregistry,omitempty"`
+	ModelRegistry *componentsv1alpha1.DSCModelRegistryStatus `json:"modelregistry,omitempty"`
 }
 
 // DataScienceClusterStatus defines the observed state of DataScienceCluster.
@@ -120,10 +109,10 @@ type DataScienceClusterStatus struct {
 	Release cluster.Release `json:"release,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-//+kubebuilder:resource:scope=Cluster,shortName=dsc
-//+kubebuilder:storageversion
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:resource:scope=Cluster,shortName=dsc
+// +kubebuilder:storageversion
 
 // DataScienceCluster is the Schema for the datascienceclusters API.
 type DataScienceCluster struct {
@@ -134,7 +123,7 @@ type DataScienceCluster struct {
 	Status DataScienceClusterStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 
 // DataScienceClusterList contains a list of DataScienceCluster.
 type DataScienceClusterList struct {

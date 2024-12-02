@@ -36,7 +36,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
@@ -71,6 +71,15 @@ func newLogConstructor(name string) func(logr.Logger, *admission.Request) logr.L
 		l := admission.DefaultLogConstructor(base, req)
 		return l.WithValues("webhook", name)
 	}
+}
+
+func Init(mgr ctrl.Manager) {
+	(&OpenDataHubValidatingWebhook{
+		Client:  mgr.GetClient(),
+		Decoder: admission.NewDecoder(mgr.GetScheme()),
+	}).SetupWithManager(mgr)
+
+	(&DSCDefaulter{}).SetupWithManager(mgr)
 }
 
 func (w *OpenDataHubValidatingWebhook) SetupWithManager(mgr ctrl.Manager) {

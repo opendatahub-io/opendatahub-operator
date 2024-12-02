@@ -26,22 +26,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
+	componentsv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/dashboard"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/kueue"
+	servicesv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
+	componentsold "github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/trainingoperator"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -70,38 +63,38 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 		},
 		Spec: dscv1.DataScienceClusterSpec{
 			Components: dscv1.Components{
-				Dashboard: dashboard.Dashboard{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+				Dashboard: componentsv1alpha1.DSCDashboard{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
-				Workbenches: workbenches.Workbenches{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+				Workbenches: componentsv1alpha1.DSCWorkbenches{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
 				ModelMeshServing: modelmeshserving.ModelMeshServing{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+					Component: componentsold.Component{ManagementState: operatorv1.Managed},
 				},
-				DataSciencePipelines: datasciencepipelines.DataSciencePipelines{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+				DataSciencePipelines: componentsv1alpha1.DSCDataSciencePipelines{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
-				Kserve: kserve.Kserve{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+				Kserve: componentsv1alpha1.DSCKserve{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
-				CodeFlare: codeflare.CodeFlare{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+				CodeFlare: componentsv1alpha1.DSCCodeFlare{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
-				Ray: ray.Ray{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+				Ray: componentsv1alpha1.DSCRay{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
-				Kueue: kueue.Kueue{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+				Kueue: componentsv1alpha1.DSCKueue{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
-				TrustyAI: trustyai.TrustyAI{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+				TrustyAI: componentsv1alpha1.DSCTrustyAI{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
-				ModelRegistry: modelregistry.ModelRegistry{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+				ModelRegistry: componentsv1alpha1.DSCModelRegistry{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
-				TrainingOperator: trainingoperator.TrainingOperator{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+				TrainingOperator: componentsv1alpha1.DSCTrainingOperator{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
 			},
 		},
@@ -120,9 +113,11 @@ func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ cluster.Platfor
 	log := logf.FromContext(ctx)
 	defaultDsciSpec := &dsciv1.DSCInitializationSpec{
 		ApplicationsNamespace: appNamespace,
-		Monitoring: dsciv1.Monitoring{
-			ManagementState: operatorv1.Managed,
-			Namespace:       monNamespace,
+		Monitoring: servicesv1alpha1.DSCMonitoring{
+			ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+			MonitoringCommonSpec: servicesv1alpha1.MonitoringCommonSpec{
+				Namespace: monNamespace,
+			},
 		},
 		ServiceMesh: &infrav1.ServiceMeshSpec{
 			ManagementState: "Managed",

@@ -1,6 +1,12 @@
 package gvk
 
-import "k8s.io/apimachinery/pkg/runtime/schema"
+import (
+	appsv1 "k8s.io/api/apps/v1"
+	coordinationv1 "k8s.io/api/coordination/v1"
+	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+)
 
 var (
 	ClusterServiceVersion = schema.GroupVersionKind{
@@ -21,9 +27,33 @@ var (
 	}
 
 	Deployment = schema.GroupVersionKind{
-		Group:   "apps",
-		Version: "v1",
+		Group:   appsv1.SchemeGroupVersion.Group,
+		Version: appsv1.SchemeGroupVersion.Version,
 		Kind:    "Deployment",
+	}
+
+	ClusterRole = schema.GroupVersionKind{
+		Group:   "rbac.authorization.k8s.io",
+		Version: "v1",
+		Kind:    "ClusterRole",
+	}
+
+	RoleBinding = schema.GroupVersionKind{
+		Group:   rbacv1.SchemeGroupVersion.Group,
+		Version: rbacv1.SchemeGroupVersion.Version,
+		Kind:    "RoleBinding",
+	}
+
+	Secret = schema.GroupVersionKind{
+		Group:   corev1.SchemeGroupVersion.Group,
+		Version: corev1.SchemeGroupVersion.Version,
+		Kind:    "Secret",
+	}
+
+	ConfigMap = schema.GroupVersionKind{
+		Group:   corev1.SchemeGroupVersion.Group,
+		Version: corev1.SchemeGroupVersion.Version,
+		Kind:    "ConfigMap",
 	}
 
 	KnativeServing = schema.GroupVersionKind{
@@ -56,6 +86,12 @@ var (
 		Kind:    "OdhDocument",
 	}
 
+	AcceleratorProfile = schema.GroupVersionKind{
+		Group:   "dashboard.opendatahub.io",
+		Version: "v1",
+		Kind:    "AcceleratorProfile",
+	}
+
 	OdhQuickStart = schema.GroupVersionKind{
 		Group:   "console.openshift.io",
 		Version: "v1",
@@ -66,5 +102,101 @@ var (
 		Group:   "opendatahub.io",
 		Version: "v1alpha",
 		Kind:    "OdhDashboardConfig",
+	}
+
+	Dashboard = schema.GroupVersionKind{
+		Group:   "components.opendatahub.io",
+		Version: "v1",
+		Kind:    "Dashboard",
+	}
+
+	Workbenches = schema.GroupVersionKind{
+		Group:   "components.opendatahub.io",
+		Version: "v1",
+		Kind:    "Workbenches",
+	}
+
+	ModelMeshServing = schema.GroupVersionKind{
+		Group:   "components.opendatahub.io",
+		Version: "v1",
+		Kind:    "ModelMeshServing",
+	}
+
+	DataSciencePipelines = schema.GroupVersionKind{
+		Group:   "components.opendatahub.io",
+		Version: "v1",
+		Kind:    "DataSciencePipelines",
+	}
+
+	Kserve = schema.GroupVersionKind{
+		Group:   "components.opendatahub.io",
+		Version: "v1",
+		Kind:    "Kserve",
+	}
+
+	CodeFlare = schema.GroupVersionKind{
+		Group:   "components.opendatahub.io",
+		Version: "v1",
+		Kind:    "CodeFlare",
+	}
+
+	Ray = schema.GroupVersionKind{
+		Group:   "components.opendatahub.io",
+		Version: "v1",
+		Kind:    "Ray",
+	}
+
+	TrustyAI = schema.GroupVersionKind{
+		Group:   "components.opendatahub.io",
+		Version: "v1",
+		Kind:    "TrustyAI",
+	}
+
+	ModelRegistry = schema.GroupVersionKind{
+		Group:   "components.opendatahub.io",
+		Version: "v1",
+		Kind:    "ModelRegistry",
+	}
+
+	TrainingOperator = schema.GroupVersionKind{
+		Group:   "components.opendatahub.io",
+		Version: "v1",
+		Kind:    "TrainingOperator",
+	}
+
+	CustomResourceDefinition = schema.GroupVersionKind{
+		Group:   "apiextensions.k8s.io",
+		Version: "v1",
+		Kind:    "CustomResourceDefinition",
+	}
+
+	ServiceMeshMember = schema.GroupVersionKind{
+		Group:   "maistra.io",
+		Version: "v1",
+		Kind:    "ServiceMeshMember",
+	}
+
+	Lease = schema.GroupVersionKind{
+		Group:   coordinationv1.SchemeGroupVersion.Group,
+		Version: coordinationv1.SchemeGroupVersion.Version,
+		Kind:    "Lease",
+	}
+
+	EnvoyFilter = schema.GroupVersionKind{
+		Group:   "networking.istio.io",
+		Version: "v1alpha3",
+		Kind:    "EnvoyFilter",
+	}
+
+	AuthorizationPolicy = schema.GroupVersionKind{
+		Group:   "security.istio.io",
+		Version: "v1",
+		Kind:    "AuthorizationPolicy",
+	}
+
+	Gateway = schema.GroupVersionKind{
+		Group:   "networking.istio.io",
+		Version: "v1beta1",
+		Kind:    "Gateway",
 	}
 )

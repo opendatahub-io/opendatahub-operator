@@ -20,13 +20,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	annotation "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/trustedcabundle"
 )
 
 // CertConfigmapGeneratorReconciler holds the controller configuration.
 type CertConfigmapGeneratorReconciler struct {
-	Client client.Client
+	*odhClient.Client
 	Scheme *runtime.Scheme
 }
 

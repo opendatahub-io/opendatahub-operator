@@ -29,7 +29,7 @@ func UpdatePodSecurityRolebinding(ctx context.Context, cli client.Client, namesp
 
 	for _, sa := range serviceAccountsList {
 		// Append serviceAccount if not added already
-		if !subjectExistInRoleBinding(foundRoleBinding.Subjects, sa, namespace) {
+		if !SubjectExistInRoleBinding(foundRoleBinding.Subjects, sa, namespace) {
 			foundRoleBinding.Subjects = append(foundRoleBinding.Subjects, rbacv1.Subject{
 				Kind:      rbacv1.ServiceAccountKind,
 				Name:      sa,
@@ -45,9 +45,8 @@ func UpdatePodSecurityRolebinding(ctx context.Context, cli client.Client, namesp
 	return nil
 }
 
-// Internal function used by UpdatePodSecurityRolebinding()
-// Return whether Rolebinding matching service account and namespace exists or not.
-func subjectExistInRoleBinding(subjectList []rbacv1.Subject, serviceAccountName, namespace string) bool {
+// SubjectExistInRoleBinding return whether RoleBinding matching service account and namespace exists or not.
+func SubjectExistInRoleBinding(subjectList []rbacv1.Subject, serviceAccountName, namespace string) bool {
 	for _, subject := range subjectList {
 		if subject.Name == serviceAccountName && subject.Namespace == namespace {
 			return true

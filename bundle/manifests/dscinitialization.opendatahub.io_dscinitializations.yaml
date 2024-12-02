@@ -91,10 +91,12 @@ spec:
                   managementState:
                     description: |-
                       Set to one of the following values:
+
                       - "Managed" : the operator is actively managing the component and trying to keep it active.
-                                    It will only upgrade the component if it is safe to do so.
+                                    It will only upgrade the component if it is safe to do so
+
                       - "Removed" : the operator is actively managing the component and will not install it,
-                                    or if it is installed, the operator will try to remove it.
+                                    or if it is installed, the operator will try to remove it
                     enum:
                     - Managed
                     - Removed
@@ -102,7 +104,13 @@ spec:
                     type: string
                   namespace:
                     default: opendatahub
+<<<<<<< HEAD
                     description: Namespace for monitoring if it is enabled
+=======
+                    description: |-
+                      monitoring spec exposed to DSCI api
+                      Namespace for monitoring if it is enabled
+>>>>>>> update_api_version
                     maxLength: 63
                     pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
                     type: string
