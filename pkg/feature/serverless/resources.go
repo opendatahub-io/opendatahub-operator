@@ -27,7 +27,7 @@ func ServingCertificateResource(ctx context.Context, cli client.Client, f *featu
 	case infrav1.Provided:
 		return nil
 	default:
-		return cluster.PropagateDefaultIngressCertificate(ctx, cli, secretData.Name, secretData.Namespace)
+		return cluster.PropagateDefaultIngressCertificate(ctx, cli, secretData.Name, secretData.Namespace, feature.DefaultMetaOptions(f)...)
 	}
 }
 
