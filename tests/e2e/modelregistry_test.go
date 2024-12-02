@@ -16,7 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentsv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -143,9 +143,9 @@ func (mr *ModelRegistryTestCtx) updateComponent(fn func(dsc *dscv1.Components)) 
 	}
 }
 
-func (mr *ModelRegistryTestCtx) getInstance() (*componentsv1.ModelRegistry, error) {
-	mri := componentsv1.ModelRegistry{}
-	nn := types.NamespacedName{Name: componentsv1.ModelRegistryInstanceName}
+func (mr *ModelRegistryTestCtx) getInstance() (*componentsv1alpha1.ModelRegistry, error) {
+	mri := componentsv1alpha1.ModelRegistry{}
+	nn := types.NamespacedName{Name: componentsv1alpha1.ModelRegistryInstanceName}
 
 	err := mr.customClient.Get(mr.ctx, nn, &mri)
 	if err != nil {
@@ -200,12 +200,12 @@ func (mr *ModelRegistryTestCtx) validateOperandsOwnerReferences(t *testing.T) {
 		mr.List(
 			gvk.Deployment,
 			client.InNamespace(mr.applicationsNamespace),
-			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1.ModelRegistryKind)},
+			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1alpha1.ModelRegistryKind)},
 		),
 	).Should(And(
 		HaveLen(1),
 		HaveEach(
-			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, componentsv1.ModelRegistryKind),
+			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, componentsv1alpha1.ModelRegistryKind),
 		),
 	))
 }
@@ -216,7 +216,7 @@ func (mr *ModelRegistryTestCtx) validateOperandsWatchedResources(t *testing.T) {
 	g.Eventually(
 		mr.List(
 			gvk.ServiceMeshMember,
-			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1.ModelRegistryKind)},
+			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1alpha1.ModelRegistryKind)},
 		),
 	).Should(And(
 		HaveLen(1),
@@ -252,7 +252,7 @@ func (mr *ModelRegistryTestCtx) validateOperandsDynamicallyWatchedResources(t *t
 	g.Eventually(
 		mr.List(
 			gvk.ServiceMeshMember,
-			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1.ModelRegistryKind)},
+			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1alpha1.ModelRegistryKind)},
 		),
 	).Should(And(
 		HaveLen(1),
@@ -268,7 +268,7 @@ func (mr *ModelRegistryTestCtx) validateUpdateModelRegistryOperandsResources(t *
 	appDeployments, err := mr.kubeClient.AppsV1().Deployments(mr.applicationsNamespace).List(
 		mr.ctx,
 		metav1.ListOptions{
-			LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(componentsv1.ModelRegistryKind),
+			LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(componentsv1alpha1.ModelRegistryKind),
 		},
 	)
 
@@ -303,7 +303,7 @@ func (mr *ModelRegistryTestCtx) validateUpdateModelRegistryOperandsResources(t *
 		mr.List(
 			gvk.Deployment,
 			client.InNamespace(mr.applicationsNamespace),
-			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1.ModelRegistryKind)},
+			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1alpha1.ModelRegistryKind)},
 		),
 	).Should(And(
 		HaveLen(1),
@@ -316,7 +316,7 @@ func (mr *ModelRegistryTestCtx) validateUpdateModelRegistryOperandsResources(t *
 		mr.List(
 			gvk.Deployment,
 			client.InNamespace(mr.applicationsNamespace),
-			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1.ModelRegistryKind)},
+			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1alpha1.ModelRegistryKind)},
 		),
 	).WithTimeout(30 * time.Second).WithPolling(1 * time.Second).Should(And(
 		HaveLen(1),
@@ -362,7 +362,7 @@ func (mr *ModelRegistryTestCtx) validateModelRegistryDisabled(t *testing.T) {
 		mr.List(
 			gvk.Deployment,
 			client.InNamespace(mr.applicationsNamespace),
-			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1.ModelRegistryKind)},
+			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1alpha1.ModelRegistryKind)},
 		),
 	).Should(
 		HaveLen(1),
@@ -380,7 +380,7 @@ func (mr *ModelRegistryTestCtx) validateModelRegistryDisabled(t *testing.T) {
 		mr.List(
 			gvk.Deployment,
 			client.InNamespace(mr.applicationsNamespace),
-			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1.ModelRegistryKind)},
+			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1alpha1.ModelRegistryKind)},
 		),
 	).Should(
 		BeEmpty(),

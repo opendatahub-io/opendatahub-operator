@@ -30,7 +30,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentsv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
@@ -49,7 +49,7 @@ import (
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	ownedViaFTMapFunc := ownedViaFT(mgr.GetClient())
 
-	_, err := reconciler.ReconcilerFor(mgr, &componentsv1.Kserve{}).
+	_, err := reconciler.ReconcilerFor(mgr, &componentsv1alpha1.Kserve{}).
 		// operands - owned
 		Owns(&corev1.Secret{}).
 		Owns(&corev1.Service{}).
@@ -72,7 +72,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			handler.EnqueueRequestForOwner(
 				mgr.GetScheme(),
 				mgr.GetRESTMapper(),
-				&componentsv1.Kserve{},
+				&componentsv1alpha1.Kserve{},
 			))).
 		Owns(&networkingv1.NetworkPolicy{}).
 		Owns(&monitoringv1.ServiceMonitor{}).

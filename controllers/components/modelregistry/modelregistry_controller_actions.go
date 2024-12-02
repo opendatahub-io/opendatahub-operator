@@ -10,7 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentsv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -24,9 +24,9 @@ import (
 )
 
 func checkPreConditions(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
-	mr, ok := rr.Instance.(*componentsv1.ModelRegistry)
+	mr, ok := rr.Instance.(*componentsv1alpha1.ModelRegistry)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentsv1.ModelRegistry", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a componentsv1alpha1.ModelRegistry", rr.Instance)
 	}
 
 	if rr.DSCI.Spec.ServiceMesh != nil && rr.DSCI.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
@@ -48,9 +48,9 @@ func checkPreConditions(_ context.Context, rr *odhtypes.ReconciliationRequest) e
 }
 
 func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	mr, ok := rr.Instance.(*componentsv1.ModelRegistry)
+	mr, ok := rr.Instance.(*componentsv1alpha1.ModelRegistry)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentsv1.ModelRegistry)", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a componentsv1alpha1.ModelRegistry)", rr.Instance)
 	}
 
 	rr.Manifests = []odhtypes.ManifestInfo{
@@ -90,9 +90,9 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 }
 
 func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	mr, ok := rr.Instance.(*componentsv1.ModelRegistry)
+	mr, ok := rr.Instance.(*componentsv1alpha1.ModelRegistry)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentsv1.ModelRegistry)", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a componentsv1alpha1.ModelRegistry)", rr.Instance)
 	}
 
 	// Namespace
@@ -152,7 +152,7 @@ func customizeResources(_ context.Context, rr *odhtypes.ReconciliationRequest) e
 }
 
 func updateStatus(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
-	mr, ok := rr.Instance.(*componentsv1.ModelRegistry)
+	mr, ok := rr.Instance.(*componentsv1alpha1.ModelRegistry)
 	if !ok {
 		return errors.New("instance is not of type *odhTypes.ModelRegistry")
 	}

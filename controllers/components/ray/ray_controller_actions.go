@@ -20,7 +20,7 @@ import (
 	"context"
 	"fmt"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentsv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -38,9 +38,9 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 }
 
 func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	ray, ok := rr.Instance.(*componentsv1.Ray)
+	ray, ok := rr.Instance.(*componentsv1alpha1.Ray)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentsv1.Ray)", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a componentsv1alpha1.Ray)", rr.Instance)
 	}
 
 	if ray.Spec.DevFlags == nil {

@@ -18,7 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentsv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -54,7 +54,7 @@ func odhModelControllerManifestInfo(sourcePath string) odhtypes.ManifestInfo {
 	}
 }
 
-func configureServerlessFeatures(dsciSpec *dsciv1.DSCInitializationSpec, kserve *componentsv1.Kserve) feature.FeaturesProvider {
+func configureServerlessFeatures(dsciSpec *dsciv1.DSCInitializationSpec, kserve *componentsv1alpha1.Kserve) feature.FeaturesProvider {
 	return func(registry feature.FeaturesRegistry) error {
 		servingDeployment := feature.Define("serverless-serving-deployment").
 			Manifests(
@@ -158,12 +158,12 @@ func removeServiceMeshConfigurations(ctx context.Context, cli client.Client, own
 	return serviceMeshInitializer.Delete(ctx, cli)
 }
 
-func removeServerlessFeatures(ctx context.Context, cli client.Client, k *componentsv1.Kserve, dscispec *dsciv1.DSCInitializationSpec) error {
+func removeServerlessFeatures(ctx context.Context, cli client.Client, k *componentsv1alpha1.Kserve, dscispec *dsciv1.DSCInitializationSpec) error {
 	serverlessFeatures := feature.ComponentFeaturesHandler(k, componentName, dscispec.ApplicationsNamespace, configureServerlessFeatures(dscispec, k))
 	return serverlessFeatures.Delete(ctx, cli)
 }
 
-func setDefaultDeploymentMode(inferenceServiceConfigMap *corev1.ConfigMap, defaultmode componentsv1.DefaultDeploymentMode) error {
+func setDefaultDeploymentMode(inferenceServiceConfigMap *corev1.ConfigMap, defaultmode componentsv1alpha1.DefaultDeploymentMode) error {
 	// set data.deploy.defaultDeploymentMode to the model specified in the Kserve spec
 	var deployData map[string]interface{}
 	if err := json.Unmarshal([]byte(inferenceServiceConfigMap.Data["deploy"]), &deployData); err != nil {
@@ -182,7 +182,7 @@ func setDefaultDeploymentMode(inferenceServiceConfigMap *corev1.ConfigMap, defau
 		if err = json.Unmarshal([]byte(inferenceServiceConfigMap.Data["ingress"]), &ingressData); err != nil {
 			return fmt.Errorf("error retrieving value for key 'ingress' from configmap %s. %w", kserveConfigMapName, err)
 		}
-		if defaultmode == componentsv1.RawDeployment {
+		if defaultmode == componentsv1alpha1.RawDeployment {
 			ingressData["disableIngressCreation"] = true
 		} else {
 			ingressData["disableIngressCreation"] = false
@@ -252,7 +252,7 @@ func ownedViaFT(cli client.Client) handler.MapFunc {
 				}
 
 				for _, ftor := range ft.GetOwnerReferences() {
-					if ftor.Kind == componentsv1.KserveKind && ftor.Name != "" {
+					if ftor.Kind == componentsv1alpha1.KserveKind && ftor.Name != "" {
 						return []reconcile.Request{{
 							NamespacedName: types.NamespacedName{
 								Name: ftor.Name,

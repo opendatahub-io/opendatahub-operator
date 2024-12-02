@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1
+package v1alpha1
 
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
@@ -22,66 +22,66 @@ import (
 )
 
 const (
-	RayComponentName = "ray"
+	TrainingOperatorComponentName = "trainingoperator"
 	// value should match whats set in the XValidation below
-	RayInstanceName = "default-ray"
-	RayKind         = "Ray"
+	TrainingOperatorInstanceName = "default-trainingoperator"
+	TrainingOperatorKind         = "TrainingOperator"
 )
 
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+// NOTE: json tags are required. Any new fields you add must have json tags for the fields to be serialized.
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
-// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-ray'",message="Ray name must be default-ray"
+// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-trainingoperator'",message="TrainingOperator name must be default-trainingoperator"
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
 // +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
 
-// Ray is the Schema for the rays API
-type Ray struct {
+// TrainingOperator is the Schema for the trainingoperators API
+type TrainingOperator struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   RaySpec   `json:"spec,omitempty"`
-	Status RayStatus `json:"status,omitempty"`
+	Spec   TrainingOperatorSpec   `json:"spec,omitempty"`
+	Status TrainingOperatorStatus `json:"status,omitempty"`
 }
 
-// RaySpec defines the desired state of Ray
-type RaySpec struct {
-	RayCommonSpec `json:",inline"`
+// TrainingOperatorSpec defines the desired state of TrainingOperator
+type TrainingOperatorSpec struct {
+	TrainingOperatorCommonSpec `json:",inline"`
 }
 
-type RayCommonSpec struct {
+type TrainingOperatorCommonSpec struct {
 	common.DevFlagsSpec `json:",inline"`
 }
 
-// RayStatus defines the observed state of Ray
-type RayStatus struct {
+// TrainingOperatorStatus defines the observed state of TrainingOperator
+type TrainingOperatorStatus struct {
 	common.Status `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
-// RayList contains a list of Ray
-type RayList struct {
+// TrainingOperatorList contains a list of TrainingOperator
+type TrainingOperatorList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Ray `json:"items"`
+	Items           []TrainingOperator `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&Ray{}, &RayList{})
+	SchemeBuilder.Register(&TrainingOperator{}, &TrainingOperatorList{})
 }
 
-func (c *Ray) GetDevFlags() *common.DevFlags {
+func (c *TrainingOperator) GetDevFlags() *common.DevFlags {
 	return c.Spec.DevFlags
 }
-func (c *Ray) GetStatus() *common.Status {
+func (c *TrainingOperator) GetStatus() *common.Status {
 	return &c.Status.Status
 }
 
-// DSCRay contains all the configuration exposed in DSC instance for Ray component
-type DSCRay struct {
+// DSCTrainingOperator contains all the configuration exposed in DSC instance for TrainingOperator component
+type DSCTrainingOperator struct {
 	common.ManagementSpec `json:",inline"`
 	// configuration fields common across components
-	RayCommonSpec `json:",inline"`
+	TrainingOperatorCommonSpec `json:",inline"`
 }

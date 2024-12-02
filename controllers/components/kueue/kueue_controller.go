@@ -28,7 +28,7 @@ import (
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentsv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
@@ -39,7 +39,7 @@ import (
 )
 
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	_, err := reconciler.ReconcilerFor(mgr, &componentsv1.Kueue{}).
+	_, err := reconciler.ReconcilerFor(mgr, &componentsv1alpha1.Kueue{}).
 		// customized Owns() for Component with new predicates
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Secret{}).

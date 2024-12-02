@@ -7,7 +7,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentsv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	componentName                   = componentsv1.KserveComponentName
-	odhModelControllerComponentName = componentsv1.ModelControllerComponentName
+	componentName                   = componentsv1alpha1.KserveComponentName
+	odhModelControllerComponentName = componentsv1alpha1.ModelControllerComponentName
 
 	serviceMeshOperator = "servicemeshoperator"
 	serverlessOperator  = "serverless-operator"
@@ -67,16 +67,16 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Obj
 	kserveAnnotations := make(map[string]string)
 	kserveAnnotations[annotations.ManagementStateAnnotation] = string(s.GetManagementState(dsc))
 
-	return client.Object(&componentsv1.Kserve{
+	return client.Object(&componentsv1alpha1.Kserve{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       componentsv1.KserveKind,
-			APIVersion: componentsv1.GroupVersion.String(),
+			Kind:       componentsv1alpha1.KserveKind,
+			APIVersion: componentsv1alpha1.GroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        componentsv1.KserveInstanceName,
+			Name:        componentsv1alpha1.KserveInstanceName,
 			Annotations: kserveAnnotations,
 		},
-		Spec: componentsv1.KserveSpec{
+		Spec: componentsv1alpha1.KserveSpec{
 			KserveCommonSpec: dsc.Spec.Components.Kserve.KserveCommonSpec,
 		},
 	})

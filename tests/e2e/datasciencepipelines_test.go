@@ -19,13 +19,13 @@ import (
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentsv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 type DataSciencePipelinesTestCtx struct {
 	testCtx                          *testContext
-	testDataSciencePipelinesInstance componentsv1.DataSciencePipelines
+	testDataSciencePipelinesInstance componentsv1alpha1.DataSciencePipelines
 }
 
 func dataSciencePipelinesTestSuite(t *testing.T) {
@@ -85,7 +85,7 @@ func (tc *DataSciencePipelinesTestCtx) testDSPCreation() error {
 	}
 
 	err := tc.testCtx.wait(func(ctx context.Context) (bool, error) {
-		existingDSPList := &componentsv1.DataSciencePipelinesList{}
+		existingDSPList := &componentsv1alpha1.DataSciencePipelinesList{}
 
 		if err := tc.testCtx.customClient.List(ctx, existingDSPList); err != nil {
 			return false, err
@@ -124,7 +124,7 @@ func (tc *DataSciencePipelinesTestCtx) validateDataSciencePipelines() error {
 
 func (tc *DataSciencePipelinesTestCtx) getAndListDataSciencePipelines() error {
 	err := tc.testCtx.wait(func(ctx context.Context) (bool, error) {
-		dspList := &componentsv1.DataSciencePipelinesList{}
+		dspList := &componentsv1alpha1.DataSciencePipelinesList{}
 
 		if err := tc.testCtx.customClient.List(ctx, dspList); err != nil {
 			return false, err
@@ -135,7 +135,7 @@ func (tc *DataSciencePipelinesTestCtx) getAndListDataSciencePipelines() error {
 		}
 
 		key := types.NamespacedName{Name: dspList.Items[0].Name, Namespace: dspList.Items[0].Namespace}
-		dspInstance := &componentsv1.DataSciencePipelines{}
+		dspInstance := &componentsv1alpha1.DataSciencePipelines{}
 
 		if err := tc.testCtx.customClient.Get(ctx, key, dspInstance); err != nil {
 			return false, err
@@ -164,14 +164,14 @@ func (tc *DataSciencePipelinesTestCtx) testOwnerReferences() error {
 
 	// Test DataSciencePipelines resources
 	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-		LabelSelector: labels.ODH.Component(componentsv1.DataSciencePipelinesComponentName),
+		LabelSelector: labels.ODH.Component(componentsv1alpha1.DataSciencePipelinesComponentName),
 	})
 	if err != nil {
 		return fmt.Errorf("error listing component deployments %w", err)
 	}
 
 	// test any one deployment for ownerreference
-	if len(appDeployments.Items) != 0 && appDeployments.Items[0].OwnerReferences[0].Kind != componentsv1.DataSciencePipelinesKind {
+	if len(appDeployments.Items) != 0 && appDeployments.Items[0].OwnerReferences[0].Kind != componentsv1alpha1.DataSciencePipelinesKind {
 		return fmt.Errorf("expected ownerreference not found. Got ownereferrence: %v",
 			appDeployments.Items[0].OwnerReferences)
 	}
@@ -183,7 +183,7 @@ func (tc *DataSciencePipelinesTestCtx) testOwnerReferences() error {
 func (tc *DataSciencePipelinesTestCtx) validateDataSciencePipelinesReady() error {
 	err := wait.PollUntilContextTimeout(tc.testCtx.ctx, generalRetryInterval, componentReadyTimeout, true, func(ctx context.Context) (bool, error) {
 		key := types.NamespacedName{Name: tc.testDataSciencePipelinesInstance.Name}
-		dsp := &componentsv1.DataSciencePipelines{}
+		dsp := &componentsv1alpha1.DataSciencePipelines{}
 
 		err := tc.testCtx.customClient.Get(ctx, key, dsp)
 		if err != nil {
@@ -256,10 +256,10 @@ func (tc *DataSciencePipelinesTestCtx) testUpdateDataSciencePipelinesComponentDi
 
 	if tc.testCtx.testDsc.Spec.Components.DataSciencePipelines.ManagementState == operatorv1.Managed {
 		appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-			LabelSelector: labels.ODH.Component(componentsv1.DataSciencePipelinesComponentName),
+			LabelSelector: labels.ODH.Component(componentsv1alpha1.DataSciencePipelinesComponentName),
 		})
 		if err != nil {
-			return fmt.Errorf("error getting enabled component %v", componentsv1.DataSciencePipelinesComponentName)
+			return fmt.Errorf("error getting enabled component %v", componentsv1alpha1.DataSciencePipelinesComponentName)
 		}
 
 		if len(appDeployments.Items) > 0 {
@@ -300,7 +300,7 @@ func (tc *DataSciencePipelinesTestCtx) testUpdateDataSciencePipelinesComponentDi
 
 	if err = tc.testCtx.wait(func(ctx context.Context) (bool, error) {
 		// Verify datasciencepipelines CR is deleted
-		dsp := &componentsv1.DataSciencePipelines{}
+		dsp := &componentsv1alpha1.DataSciencePipelines{}
 		err = tc.testCtx.customClient.Get(ctx, client.ObjectKey{Name: tc.testDataSciencePipelinesInstance.Name}, dsp)
 		return k8serr.IsNotFound(err), nil
 	}); err != nil {
@@ -317,7 +317,7 @@ func (tc *DataSciencePipelinesTestCtx) testUpdateDataSciencePipelinesComponentDi
 		return fmt.Errorf("error getting component resource after reconcile: %w", err)
 	}
 	return fmt.Errorf("component %v is disabled, should not get its deployment %v from NS %v any more",
-		componentsv1.DataSciencePipelinesKind,
+		componentsv1alpha1.DataSciencePipelinesKind,
 		dspDeploymentName,
 		tc.testCtx.applicationsNamespace)
 }

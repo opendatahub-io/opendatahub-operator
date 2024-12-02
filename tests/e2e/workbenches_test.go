@@ -19,13 +19,13 @@ import (
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentsv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 type WorkbenchesTestCtx struct {
 	testCtx                 *testContext
-	testWorkbenchesInstance componentsv1.Workbenches
+	testWorkbenchesInstance componentsv1alpha1.Workbenches
 }
 
 func workbenchesTestSuite(t *testing.T) {
@@ -78,7 +78,7 @@ func (tc *WorkbenchesTestCtx) testWorkbenchesCreation() error {
 	}
 
 	err := tc.testCtx.wait(func(ctx context.Context) (bool, error) {
-		existingWorkbenchesList := &componentsv1.WorkbenchesList{}
+		existingWorkbenchesList := &componentsv1alpha1.WorkbenchesList{}
 
 		err := tc.testCtx.customClient.List(ctx, existingWorkbenchesList)
 		if err != nil {
@@ -129,13 +129,13 @@ func (tc *WorkbenchesTestCtx) testOwnerReferences() error {
 	// Test Workbenches resources
 
 	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-		LabelSelector: labels.ODH.Component(componentsv1.WorkbenchesComponentName),
+		LabelSelector: labels.ODH.Component(componentsv1alpha1.WorkbenchesComponentName),
 	})
 	if err != nil {
 		return fmt.Errorf("error listing component deployments %w", err)
 	}
 	// test any one deployment for ownerreference
-	if len(appDeployments.Items) != 0 && appDeployments.Items[0].OwnerReferences[0].Kind != componentsv1.WorkbenchesKind {
+	if len(appDeployments.Items) != 0 && appDeployments.Items[0].OwnerReferences[0].Kind != componentsv1alpha1.WorkbenchesKind {
 		return fmt.Errorf("expected ownerreference not found. Got ownerreferrence: %v",
 			appDeployments.Items[0].OwnerReferences)
 	}
@@ -147,7 +147,7 @@ func (tc *WorkbenchesTestCtx) testOwnerReferences() error {
 func (tc *WorkbenchesTestCtx) validateWorkbenchesReady() error {
 	err := wait.PollUntilContextTimeout(tc.testCtx.ctx, generalRetryInterval, componentReadyTimeout, true, func(ctx context.Context) (bool, error) {
 		key := types.NamespacedName{Name: tc.testWorkbenchesInstance.Name}
-		workbenches := &componentsv1.Workbenches{}
+		workbenches := &componentsv1alpha1.Workbenches{}
 
 		err := tc.testCtx.customClient.Get(ctx, key, workbenches)
 		if err != nil {
@@ -218,10 +218,10 @@ func (tc *WorkbenchesTestCtx) testUpdateWorkbenchesComponentDisabled() error {
 
 	if tc.testCtx.testDsc.Spec.Components.Workbenches.ManagementState == operatorv1.Managed {
 		appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-			LabelSelector: labels.ODH.Component(componentsv1.WorkbenchesComponentName),
+			LabelSelector: labels.ODH.Component(componentsv1alpha1.WorkbenchesComponentName),
 		})
 		if err != nil {
-			return fmt.Errorf("error getting enabled component %v", componentsv1.WorkbenchesComponentName)
+			return fmt.Errorf("error getting enabled component %v", componentsv1alpha1.WorkbenchesComponentName)
 		}
 		if len(appDeployments.Items) > 0 {
 			workbenchesDeploymentName = appDeployments.Items[0].Name
@@ -259,7 +259,7 @@ func (tc *WorkbenchesTestCtx) testUpdateWorkbenchesComponentDisabled() error {
 
 	err = tc.testCtx.wait(func(ctx context.Context) (bool, error) {
 		// Verify Workbenches CR is deleted
-		workbenches := &componentsv1.Workbenches{}
+		workbenches := &componentsv1alpha1.Workbenches{}
 		err = tc.testCtx.customClient.Get(ctx, client.ObjectKey{Name: tc.testWorkbenchesInstance.Name}, workbenches)
 		return k8serr.IsNotFound(err), nil
 	})
@@ -278,7 +278,7 @@ func (tc *WorkbenchesTestCtx) testUpdateWorkbenchesComponentDisabled() error {
 		return fmt.Errorf("error getting component resource after reconcile: %w", err)
 	}
 	return fmt.Errorf("component %v is disabled, should not get its deployment %v from NS %v any more",
-		componentsv1.WorkbenchesKind,
+		componentsv1alpha1.WorkbenchesKind,
 		workbenchesDeploymentName,
 		tc.testCtx.applicationsNamespace)
 }

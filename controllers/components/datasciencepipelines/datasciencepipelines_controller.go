@@ -27,7 +27,7 @@ import (
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentsv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
@@ -42,13 +42,13 @@ import (
 var (
 	defaultPath = types.ManifestInfo{
 		Path:       odhdeploy.DefaultManifestPath,
-		ContextDir: componentsv1.DataSciencePipelinesComponentName,
+		ContextDir: componentsv1alpha1.DataSciencePipelinesComponentName,
 		SourcePath: "/base",
 	}
 )
 
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	_, err := reconciler.ReconcilerFor(mgr, &componentsv1.DataSciencePipelines{}).
+	_, err := reconciler.ReconcilerFor(mgr, &componentsv1alpha1.DataSciencePipelines{}).
 		// customized Owns() for Component with new predicates
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Secret{}).
@@ -68,8 +68,8 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(devFlags).
 		WithAction(kustomize.NewAction(
 			kustomize.WithCache(),
-			kustomize.WithLabel(labels.ODH.Component(componentsv1.DataSciencePipelinesComponentName), "true"),
-			kustomize.WithLabel(labels.K8SCommon.PartOf, componentsv1.DataSciencePipelinesComponentName),
+			kustomize.WithLabel(labels.ODH.Component(componentsv1alpha1.DataSciencePipelinesComponentName), "true"),
+			kustomize.WithLabel(labels.K8SCommon.PartOf, componentsv1alpha1.DataSciencePipelinesComponentName),
 		)).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),

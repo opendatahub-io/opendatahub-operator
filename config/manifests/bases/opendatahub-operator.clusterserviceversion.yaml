@@ -33,55 +33,11 @@ spec:
       kind: Dashboard
       name: dashboards.components.opendatahub.io
       version: v1
-    - description: DataScienceCluster is the Schema for the datascienceclusters API.
-      displayName: Data Science Cluster
-      kind: DataScienceCluster
-      name: datascienceclusters.datasciencecluster.opendatahub.io
-      specDescriptors:
-      - description: Override and fine tune specific component configurations.
-        displayName: Components
-        path: components
-      version: v1
     - description: DataSciencePipelines is the Schema for the datasciencepipelines
         API
       displayName: Data Science Pipelines
       kind: DataSciencePipelines
       name: datasciencepipelines.components.opendatahub.io
-      version: v1
-    - description: DSCInitialization is the Schema for the dscinitializations API.
-      displayName: DSC Initialization
-      kind: DSCInitialization
-      name: dscinitializations.dscinitialization.opendatahub.io
-      specDescriptors:
-      - description: Namespace for applications to be installed, non-configurable,
-          default to "opendatahub"
-        displayName: Applications Namespace
-        path: applicationsNamespace
-      - description: Enable monitoring on specified namespace
-        displayName: Monitoring
-        path: monitoring
-      - description: Configures Service Mesh as networking layer for Data Science
-          Clusters components. The Service Mesh is a mandatory prerequisite for single
-          model serving (KServe) and you should review this configuration if you are
-          planning to use KServe. For other components, it enhances user experience;
-          e.g. it provides unified authentication giving a Single Sign On experience.
-        displayName: Service Mesh
-        path: serviceMesh
-      - description: When set to `Managed`, adds odh-trusted-ca-bundle Configmap to
-          all namespaces that includes cluster-wide Trusted CA Bundle in .data["ca-bundle.crt"].
-          Additionally, this fields allows admins to add custom CA bundles to the
-          configmap using the .CustomCABundle field.
-        displayName: Trusted CABundle
-        path: trustedCABundle
-      - description: Internal development useful field to test customizations. This
-          is not recommended to be used in production environment.
-        displayName: Dev Flags
-        path: devFlags
-      statusDescriptors:
-      - description: Conditions describes the state of the DSCInitializationStatus
-          resource
-        displayName: Conditions
-        path: conditions
       version: v1
     - description: Kserve is the Schema for the kserves API
       displayName: Kserve
@@ -128,6 +84,111 @@ spec:
       kind: Workbenches
       name: workbenches.components.opendatahub.io
       version: v1
+    - description: CodeFlare is the Schema for the codeflares API
+      displayName: Code Flare
+      kind: CodeFlare
+      name: codeflares.components.opendatahub.io
+      version: v1alpha1
+    - description: Dashboard is the Schema for the dashboards API
+      displayName: Dashboard
+      kind: Dashboard
+      name: dashboards.components.opendatahub.io
+      version: v1alpha1
+    - description: DataScienceCluster is the Schema for the datascienceclusters API.
+      displayName: Data Science Cluster
+      kind: DataScienceCluster
+      name: datascienceclusters.datasciencecluster.opendatahub.io
+      specDescriptors:
+      - description: Override and fine tune specific component configurations.
+        displayName: Components
+        path: components
+      version: v1
+    - description: DataSciencePipelines is the Schema for the datasciencepipelines
+        API
+      displayName: Data Science Pipelines
+      kind: DataSciencePipelines
+      name: datasciencepipelines.components.opendatahub.io
+      version: v1alpha1
+    - description: DSCInitialization is the Schema for the dscinitializations API.
+      displayName: DSC Initialization
+      kind: DSCInitialization
+      name: dscinitializations.dscinitialization.opendatahub.io
+      specDescriptors:
+      - description: Namespace for applications to be installed, non-configurable,
+          default to "opendatahub"
+        displayName: Applications Namespace
+        path: applicationsNamespace
+      - description: Enable monitoring on specified namespace
+        displayName: Monitoring
+        path: monitoring
+      - description: Configures Service Mesh as networking layer for Data Science
+          Clusters components. The Service Mesh is a mandatory prerequisite for single
+          model serving (KServe) and you should review this configuration if you are
+          planning to use KServe. For other components, it enhances user experience;
+          e.g. it provides unified authentication giving a Single Sign On experience.
+        displayName: Service Mesh
+        path: serviceMesh
+      - description: When set to `Managed`, adds odh-trusted-ca-bundle Configmap to
+          all namespaces that includes cluster-wide Trusted CA Bundle in .data["ca-bundle.crt"].
+          Additionally, this fields allows admins to add custom CA bundles to the
+          configmap using the .CustomCABundle field.
+        displayName: Trusted CABundle
+        path: trustedCABundle
+      - description: Internal development useful field to test customizations. This
+          is not recommended to be used in production environment.
+        displayName: Dev Flags
+        path: devFlags
+      statusDescriptors:
+      - description: Conditions describes the state of the DSCInitializationStatus
+          resource
+        displayName: Conditions
+        path: conditions
+      version: v1
+    - description: Kserve is the Schema for the kserves API
+      displayName: Kserve
+      kind: Kserve
+      name: kserves.components.opendatahub.io
+      version: v1alpha1
+    - description: Kueue is the Schema for the kueues API
+      displayName: Kueue
+      kind: Kueue
+      name: kueues.components.opendatahub.io
+      version: v1alpha1
+    - description: ModelMeshServing is the Schema for the modelmeshservings API
+      displayName: Model Mesh Serving
+      kind: ModelMeshServing
+      name: modelmeshservings.components.opendatahub.io
+      version: v1alpha1
+    - description: ModelRegistry is the Schema for the modelregistries API
+      displayName: Model Registry
+      kind: ModelRegistry
+      name: modelregistries.components.opendatahub.io
+      version: v1alpha1
+    - description: Monitoring is the Schema for the monitorings API
+      displayName: Monitoring
+      kind: Monitoring
+      name: monitorings.services.opendatahub.io
+      version: v1alpha1
+    - description: Ray is the Schema for the rays API
+      displayName: Ray
+      kind: Ray
+      name: rays.components.opendatahub.io
+      version: v1alpha1
+    - description: TrainingOperator is the Schema for the trainingoperators API
+      displayName: Training Operator
+      kind: TrainingOperator
+      name: trainingoperators.components.opendatahub.io
+      version: v1alpha1
+    - description: TrustyAI is the Schema for the trustyais API
+      displayName: Trusty AI
+      kind: TrustyAI
+      name: trustyais.components.opendatahub.io
+      version: v1alpha1
+    - description: Workbenches is the Schema for the workbenches API
+      displayName: Workbenches
+      kind: Workbenches
+      name: workbenches.components.opendatahub.io
+      version: v1alpha1
   description: This will be replaced by Kustomize
   displayName: Open Data Hub Operator
   icon:

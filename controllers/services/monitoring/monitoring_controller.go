@@ -28,7 +28,7 @@ import (
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	servicesv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1"
+	servicesv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/updatestatus"
@@ -41,7 +41,7 @@ const serviceName = "monitoring"
 
 // NewServiceReconciler creates a ServiceReconciler for the Monitoring API.
 func NewServiceReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	_, err := reconciler.ReconcilerFor(mgr, &servicesv1.Monitoring{}).
+	_, err := reconciler.ReconcilerFor(mgr, &servicesv1alpha1.Monitoring{}).
 		// operands - owned
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Secret{}).
@@ -87,11 +87,11 @@ func NewServiceReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		)).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
-			deploy.WithFieldOwner(servicesv1.MonitoringInstanceName),
-			deploy.WithLabel(labels.PlatformPartOf, servicesv1.MonitoringServiceName),
+			deploy.WithFieldOwner(servicesv1alpha1.MonitoringInstanceName),
+			deploy.WithLabel(labels.PlatformPartOf, servicesv1alpha1.MonitoringServiceName),
 		)).
 		WithAction(updatestatus.NewAction(
-			updatestatus.WithSelectorLabel(labels.PlatformPartOf, servicesv1.MonitoringServiceName),
+			updatestatus.WithSelectorLabel(labels.PlatformPartOf, servicesv1alpha1.MonitoringServiceName),
 		)).
 		WithAction(updateStatus).
 		Build(ctx)

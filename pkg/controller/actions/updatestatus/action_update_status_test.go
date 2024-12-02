@@ -11,7 +11,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentsv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
@@ -77,7 +77,7 @@ func TestUpdateStatusActionNotReady(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client:   cl,
-		Instance: &componentsv1.Dashboard{},
+		Instance: &componentsv1alpha1.Dashboard{},
 		DSCI:     &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
 		DSC:      &dscv1.DataScienceCluster{},
 		Release:  cluster.Release{Name: cluster.OpenDataHub},
@@ -148,7 +148,7 @@ func TestUpdateStatusActionReady(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client:   cl,
-		Instance: &componentsv1.Dashboard{},
+		Instance: &componentsv1alpha1.Dashboard{},
 		DSCI:     &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
 		DSC:      &dscv1.DataScienceCluster{},
 		Release:  cluster.Release{Name: cluster.OpenDataHub},
@@ -185,7 +185,7 @@ func TestUpdateStatusActionReadyAutoSelector(t *testing.T) {
 				Name:      "my-deployment",
 				Namespace: ns,
 				Labels: map[string]string{
-					labels.PlatformPartOf: strings.ToLower(componentsv1.DashboardKind),
+					labels.PlatformPartOf: strings.ToLower(componentsv1alpha1.DashboardKind),
 				},
 			},
 			Status: appsv1.DeploymentStatus{
@@ -202,7 +202,7 @@ func TestUpdateStatusActionReadyAutoSelector(t *testing.T) {
 				Name:      "my-deployment-2",
 				Namespace: ns,
 				Labels: map[string]string{
-					labels.PlatformPartOf: strings.ToLower(componentsv1.DashboardKind),
+					labels.PlatformPartOf: strings.ToLower(componentsv1alpha1.DashboardKind),
 				},
 			},
 			Status: appsv1.DeploymentStatus{
@@ -218,7 +218,7 @@ func TestUpdateStatusActionReadyAutoSelector(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client:   cl,
-		Instance: &componentsv1.Dashboard{},
+		Instance: &componentsv1alpha1.Dashboard{},
 		DSCI:     &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
 		DSC:      &dscv1.DataScienceCluster{},
 		Release:  cluster.Release{Name: cluster.OpenDataHub},
@@ -288,7 +288,7 @@ func TestUpdateStatusActionNotReadyNotFound(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client:   cl,
-		Instance: &componentsv1.Dashboard{},
+		Instance: &componentsv1alpha1.Dashboard{},
 		DSCI:     &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
 		DSC:      &dscv1.DataScienceCluster{},
 		Release:  cluster.Release{Name: cluster.OpenDataHub},

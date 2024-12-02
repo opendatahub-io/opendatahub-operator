@@ -24,7 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentsv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 )
 
 // ModelMeshServingReconciler reconciles a ModelMeshServing object.
@@ -53,6 +53,6 @@ func (r *ModelMeshServingReconciler) Reconcile(ctx context.Context, req ctrl.Req
 // SetupWithManager sets up the controller with the Manager.
 func (r *ModelMeshServingReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&componentsv1.ModelMeshServing{}).
+		For(&componentsv1alpha1.ModelMeshServing{}).
 		Complete(r)
 }

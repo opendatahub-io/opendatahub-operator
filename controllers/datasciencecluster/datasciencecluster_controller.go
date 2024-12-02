@@ -48,7 +48,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentsv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	datasciencepipelinesctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/datasciencepipelines"
@@ -486,16 +486,16 @@ func (r *DataScienceClusterReconciler) SetupWithManager(ctx context.Context, mgr
 			builder.WithPredicates(modelMeshwebhookPredicates),
 		).
 		// components CRs
-		Owns(&componentsv1.Dashboard{}).
-		Owns(&componentsv1.Workbenches{}).
-		Owns(&componentsv1.Ray{}).
-		Owns(&componentsv1.ModelRegistry{}).
-		Owns(&componentsv1.TrustyAI{}).
-		Owns(&componentsv1.Kueue{}).
-		Owns(&componentsv1.CodeFlare{}).
-		Owns(&componentsv1.TrainingOperator{}).
-		Owns(&componentsv1.DataSciencePipelines{}).
-		Owns(&componentsv1.Kserve{}).
+		Owns(&componentsv1alpha1.Dashboard{}).
+		Owns(&componentsv1alpha1.Workbenches{}).
+		Owns(&componentsv1alpha1.Ray{}).
+		Owns(&componentsv1alpha1.ModelRegistry{}).
+		Owns(&componentsv1alpha1.TrustyAI{}).
+		Owns(&componentsv1alpha1.Kueue{}).
+		Owns(&componentsv1alpha1.CodeFlare{}).
+		Owns(&componentsv1alpha1.TrainingOperator{}).
+		Owns(&componentsv1alpha1.DataSciencePipelines{}).
+		Owns(&componentsv1alpha1.Kserve{}).
 		Owns(
 			&corev1.ServiceAccount{},
 			builder.WithPredicates(saPredicates),
@@ -596,7 +596,7 @@ var argoWorkflowCRDPredicates = predicate.Funcs{
 		if e.Object.GetName() == datasciencepipelinesctrl.ArgoWorkflowCRD {
 			labelList := e.Object.GetLabels()
 			// CRD to be deleted with label "app.opendatahub.io/datasciencepipeline":"true", should not trigger reconcile
-			if value, exist := labelList[labels.ODH.Component(componentsv1.DataSciencePipelinesComponentName)]; exist && value == "true" {
+			if value, exist := labelList[labels.ODH.Component(componentsv1alpha1.DataSciencePipelinesComponentName)]; exist && value == "true" {
 				return false
 			}
 		}

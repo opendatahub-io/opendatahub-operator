@@ -1,14 +1,14 @@
 package workbenches
 
 import (
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentsv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 const (
-	ComponentName          = componentsv1.WorkbenchesComponentName
+	ComponentName          = componentsv1alpha1.WorkbenchesComponentName
 	DependentComponentName = "notebooks"
 
 	notebookControllerManifestSourcePath = "base"

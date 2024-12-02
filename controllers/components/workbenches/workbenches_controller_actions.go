@@ -8,7 +8,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentsv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -26,9 +26,9 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 }
 
 func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	workbenches, ok := rr.Instance.(*componentsv1.Workbenches)
+	workbenches, ok := rr.Instance.(*componentsv1alpha1.Workbenches)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentsv1.Workbenches)", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a componentsv1alpha1.Workbenches)", rr.Instance)
 	}
 
 	if workbenches.Spec.DevFlags == nil || len(workbenches.Spec.DevFlags.Manifests) == 0 {
@@ -87,9 +87,9 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 }
 
 func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	_, ok := rr.Instance.(*componentsv1.Workbenches)
+	_, ok := rr.Instance.(*componentsv1alpha1.Workbenches)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentsv1.Workbenches)", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a componentsv1alpha1.Workbenches)", rr.Instance)
 	}
 
 	platform := rr.Release.Name

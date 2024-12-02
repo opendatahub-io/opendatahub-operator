@@ -7,7 +7,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentsv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	ComponentName = componentsv1.CodeFlareComponentName
+	ComponentName = componentsv1alpha1.CodeFlareComponentName
 )
 
 var (
@@ -29,7 +29,7 @@ func init() { //nolint:gochecknoinits
 	cr.Add(&componentHandler{})
 }
 func (s *componentHandler) GetName() string {
-	return componentsv1.CodeFlareComponentName
+	return componentsv1alpha1.CodeFlareComponentName
 }
 func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) operatorv1.ManagementState {
 	if dsc.Spec.Components.CodeFlare.ManagementState == operatorv1.Managed {
@@ -42,16 +42,16 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Obj
 	codeflareAnnotations := make(map[string]string)
 	codeflareAnnotations[annotations.ManagementStateAnnotation] = string(s.GetManagementState(dsc))
 
-	return client.Object(&componentsv1.CodeFlare{
+	return client.Object(&componentsv1alpha1.CodeFlare{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       componentsv1.CodeFlareKind,
-			APIVersion: componentsv1.GroupVersion.String(),
+			Kind:       componentsv1alpha1.CodeFlareKind,
+			APIVersion: componentsv1alpha1.GroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        componentsv1.CodeFlareInstanceName,
+			Name:        componentsv1alpha1.CodeFlareInstanceName,
 			Annotations: codeflareAnnotations,
 		},
-		Spec: componentsv1.CodeFlareSpec{
+		Spec: componentsv1alpha1.CodeFlareSpec{
 			CodeFlareCommonSpec: dsc.Spec.Components.CodeFlare.CodeFlareCommonSpec,
 		},
 	})

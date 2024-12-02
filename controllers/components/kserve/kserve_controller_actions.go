@@ -13,7 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentsv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -25,9 +25,9 @@ import (
 )
 
 func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	k, ok := rr.Instance.(*componentsv1.Kserve)
+	k, ok := rr.Instance.(*componentsv1alpha1.Kserve)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentsv1.Kserve)", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a componentsv1alpha1.Kserve)", rr.Instance)
 	}
 
 	if k.Spec.Serving.ManagementState != operatorv1.Managed {
@@ -100,9 +100,9 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 }
 
 func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	k, ok := rr.Instance.(*componentsv1.Kserve)
+	k, ok := rr.Instance.(*componentsv1alpha1.Kserve)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentsv1.Kserve)", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a componentsv1alpha1.Kserve)", rr.Instance)
 	}
 
 	df := k.GetDevFlags()
@@ -147,9 +147,9 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 }
 
 func configureServerless(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	k, ok := rr.Instance.(*componentsv1.Kserve)
+	k, ok := rr.Instance.(*componentsv1alpha1.Kserve)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentsv1.Kserve)", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a componentsv1alpha1.Kserve)", rr.Instance)
 	}
 
 	logger := logf.FromContext(ctx)
@@ -187,9 +187,9 @@ func configureServerless(ctx context.Context, rr *odhtypes.ReconciliationRequest
 }
 
 func configureServiceMesh(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	k, ok := rr.Instance.(*componentsv1.Kserve)
+	k, ok := rr.Instance.(*componentsv1alpha1.Kserve)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentsv1.Kserve)", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a componentsv1alpha1.Kserve)", rr.Instance)
 	}
 
 	cli := rr.Client
@@ -208,9 +208,9 @@ func configureServiceMesh(ctx context.Context, rr *odhtypes.ReconciliationReques
 }
 
 func customizeKserveConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	k, ok := rr.Instance.(*componentsv1.Kserve)
+	k, ok := rr.Instance.(*componentsv1alpha1.Kserve)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentsv1.Kserve)", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a componentsv1alpha1.Kserve)", rr.Instance)
 	}
 
 	logger := logf.FromContext(ctx)
@@ -225,7 +225,7 @@ func customizeKserveConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRe
 	case operatorv1.Managed, operatorv1.Unmanaged:
 		if k.Spec.DefaultDeploymentMode == "" {
 			// if the default mode is empty in the DSC, assume mode is "Serverless" since k.Serving is Managed
-			if err := setDefaultDeploymentMode(&kserveConfigMap, componentsv1.Serverless); err != nil {
+			if err := setDefaultDeploymentMode(&kserveConfigMap, componentsv1alpha1.Serverless); err != nil {
 				return err
 			}
 		} else {
@@ -235,13 +235,13 @@ func customizeKserveConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRe
 			}
 		}
 	case operatorv1.Removed:
-		if k.Spec.DefaultDeploymentMode == componentsv1.Serverless {
+		if k.Spec.DefaultDeploymentMode == componentsv1alpha1.Serverless {
 			return errors.New("setting defaultdeployment mode as Serverless is incompatible with having Serving 'Removed'")
 		}
 		if k.Spec.DefaultDeploymentMode == "" {
 			logger.Info("Serving is removed, Kserve will default to RawDeployment")
 		}
-		if err := setDefaultDeploymentMode(&kserveConfigMap, componentsv1.RawDeployment); err != nil {
+		if err := setDefaultDeploymentMode(&kserveConfigMap, componentsv1alpha1.RawDeployment); err != nil {
 			return err
 		}
 	}

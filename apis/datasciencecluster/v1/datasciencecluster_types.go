@@ -24,7 +24,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentsv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -39,10 +39,10 @@ type DataScienceClusterSpec struct {
 
 type Components struct {
 	// Dashboard component configuration.
-	Dashboard componentsv1.DSCDashboard `json:"dashboard,omitempty"`
+	Dashboard componentsv1alpha1.DSCDashboard `json:"dashboard,omitempty"`
 
 	// Workbenches component configuration.
-	Workbenches componentsv1.DSCWorkbenches `json:"workbenches,omitempty"`
+	Workbenches componentsv1alpha1.DSCWorkbenches `json:"workbenches,omitempty"`
 
 	// ModelMeshServing component configuration.
 	// Does not support enabled Kserve at the same time
@@ -50,37 +50,37 @@ type Components struct {
 
 	// DataServicePipeline component configuration.
 	// Require OpenShift Pipelines Operator to be installed before enable component
-	DataSciencePipelines componentsv1.DSCDataSciencePipelines `json:"datasciencepipelines,omitempty"`
+	DataSciencePipelines componentsv1alpha1.DSCDataSciencePipelines `json:"datasciencepipelines,omitempty"`
 
 	// Kserve component configuration.
 	// Require OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component
 	// Does not support enabled ModelMeshServing at the same time
-	Kserve componentsv1.DSCKserve `json:"kserve,omitempty"`
+	Kserve componentsv1alpha1.DSCKserve `json:"kserve,omitempty"`
 
 	// Kueue component configuration.
-	Kueue componentsv1.DSCKueue `json:"kueue,omitempty"`
+	Kueue componentsv1alpha1.DSCKueue `json:"kueue,omitempty"`
 
 	// CodeFlare component configuration.
 	// If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabled component.
-	CodeFlare componentsv1.DSCCodeFlare `json:"codeflare,omitempty"`
+	CodeFlare componentsv1alpha1.DSCCodeFlare `json:"codeflare,omitempty"`
 
 	// Ray component configuration.
-	Ray componentsv1.DSCRay `json:"ray,omitempty"`
+	Ray componentsv1alpha1.DSCRay `json:"ray,omitempty"`
 
 	// TrustyAI component configuration.
-	TrustyAI componentsv1.DSCTrustyAI `json:"trustyai,omitempty"`
+	TrustyAI componentsv1alpha1.DSCTrustyAI `json:"trustyai,omitempty"`
 
 	// ModelRegistry component configuration.
-	ModelRegistry componentsv1.DSCModelRegistry `json:"modelregistry,omitempty"`
+	ModelRegistry componentsv1alpha1.DSCModelRegistry `json:"modelregistry,omitempty"`
 
 	// Training Operator component configuration.
-	TrainingOperator componentsv1.DSCTrainingOperator `json:"trainingoperator,omitempty"`
+	TrainingOperator componentsv1alpha1.DSCTrainingOperator `json:"trainingoperator,omitempty"`
 }
 
 // ComponentsStatus defines the custom status of DataScienceCluster components.
 type ComponentsStatus struct {
 	// ModelRegistry component status
-	ModelRegistry *componentsv1.DSCModelRegistryStatus `json:"modelregistry,omitempty"`
+	ModelRegistry *componentsv1alpha1.DSCModelRegistryStatus `json:"modelregistry,omitempty"`
 }
 
 // DataScienceClusterStatus defines the observed state of DataScienceCluster.

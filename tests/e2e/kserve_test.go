@@ -15,7 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentsv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -80,12 +80,12 @@ func (k *KserveTestCtx) validateOperandsOwnerReferences(t *testing.T) {
 		k.List(
 			gvk.Deployment,
 			client.InNamespace(k.applicationsNamespace),
-			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1.KserveKind)},
+			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1alpha1.KserveKind)},
 		),
 	).Should(And(
 		HaveLen(2),
 		HaveEach(
-			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, componentsv1.KserveKind),
+			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, componentsv1alpha1.KserveKind),
 		),
 	))
 }
@@ -95,7 +95,7 @@ func (k *KserveTestCtx) validateUpdateKserveOperandsResources(t *testing.T) {
 
 	matchLabels := map[string]string{
 		"control-plane":       "kserve-controller-manager",
-		labels.PlatformPartOf: strings.ToLower(componentsv1.KserveKind),
+		labels.PlatformPartOf: strings.ToLower(componentsv1alpha1.KserveKind),
 	}
 
 	listOpts := []client.ListOption{
@@ -169,7 +169,7 @@ func (k *KserveTestCtx) validateKserveDisabled(t *testing.T) {
 		k.List(
 			gvk.Deployment,
 			client.InNamespace(k.applicationsNamespace),
-			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1.KserveKind)},
+			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1alpha1.KserveKind)},
 		),
 	).Should(
 		HaveLen(2),
@@ -187,7 +187,7 @@ func (k *KserveTestCtx) validateKserveDisabled(t *testing.T) {
 		k.List(
 			gvk.Deployment,
 			client.InNamespace(k.applicationsNamespace),
-			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1.KserveKind)},
+			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1alpha1.KserveKind)},
 		),
 	).Should(
 		BeEmpty(),

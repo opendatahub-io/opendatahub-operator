@@ -22,11 +22,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentsv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
-	servicesv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1"
+	servicesv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
 	componentsold "github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
@@ -84,9 +84,9 @@ func setupDSCICR(name string) *dsciv1.DSCInitialization {
 		},
 		Spec: dsciv1.DSCInitializationSpec{
 			ApplicationsNamespace: "opendatahub",
-			Monitoring: servicesv1.DSCMonitoring{
+			Monitoring: servicesv1alpha1.DSCMonitoring{
 				ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
-				MonitoringCommonSpec: servicesv1.MonitoringCommonSpec{
+				MonitoringCommonSpec: servicesv1alpha1.MonitoringCommonSpec{
 					Namespace: "opendatahub",
 				},
 			},
@@ -115,12 +115,12 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 		Spec: dscv1.DataScienceClusterSpec{
 			Components: dscv1.Components{
 				// keep dashboard as enabled, because other test is rely on this
-				Dashboard: componentsv1.DSCDashboard{
+				Dashboard: componentsv1alpha1.DSCDashboard{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Managed,
 					},
 				},
-				Workbenches: componentsv1.DSCWorkbenches{
+				Workbenches: componentsv1alpha1.DSCWorkbenches{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Managed,
 					},
@@ -130,16 +130,16 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				DataSciencePipelines: componentsv1.DSCDataSciencePipelines{
+				DataSciencePipelines: componentsv1alpha1.DSCDataSciencePipelines{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Managed,
 					},
 				},
-				Kserve: componentsv1.DSCKserve{
+				Kserve: componentsv1alpha1.DSCKserve{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Managed,
 					},
-					KserveCommonSpec: componentsv1.KserveCommonSpec{
+					KserveCommonSpec: componentsv1alpha1.KserveCommonSpec{
 						Serving: infrav1.ServingSpec{
 							ManagementState: operatorv1.Managed,
 							Name:            "knative-serving",
@@ -151,35 +151,35 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 						},
 					},
 				},
-				CodeFlare: componentsv1.DSCCodeFlare{
+				CodeFlare: componentsv1alpha1.DSCCodeFlare{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Managed,
 					},
 				},
-				Ray: componentsv1.DSCRay{
+				Ray: componentsv1alpha1.DSCRay{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Managed,
 					},
 				},
-				Kueue: componentsv1.DSCKueue{
+				Kueue: componentsv1alpha1.DSCKueue{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Managed,
 					},
 				},
-				TrustyAI: componentsv1.DSCTrustyAI{
+				TrustyAI: componentsv1alpha1.DSCTrustyAI{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Managed,
 					},
 				},
-				ModelRegistry: componentsv1.DSCModelRegistry{
+				ModelRegistry: componentsv1alpha1.DSCModelRegistry{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Managed,
 					},
-					ModelRegistryCommonSpec: componentsv1.ModelRegistryCommonSpec{
+					ModelRegistryCommonSpec: componentsv1alpha1.ModelRegistryCommonSpec{
 						RegistriesNamespace: modelregistry.DefaultModelRegistriesNamespace,
 					},
 				},
-				TrainingOperator: componentsv1.DSCTrainingOperator{
+				TrainingOperator: componentsv1alpha1.DSCTrainingOperator{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Managed,
 					},

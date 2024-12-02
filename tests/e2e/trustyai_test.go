@@ -19,13 +19,13 @@ import (
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentsv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 type TrustyaiTestCtx struct {
 	testCtx              *testContext
-	testTrustyaiInstance componentsv1.TrustyAI
+	testTrustyaiInstance componentsv1alpha1.TrustyAI
 }
 
 func trustyAITestSuite(t *testing.T) {
@@ -79,7 +79,7 @@ func (tc *TrustyaiTestCtx) testTrustyaiCreation() error {
 	}
 
 	err := tc.testCtx.wait(func(ctx context.Context) (bool, error) {
-		existingTrustyaiList := &componentsv1.TrustyAIList{}
+		existingTrustyaiList := &componentsv1alpha1.TrustyAIList{}
 
 		if err := tc.testCtx.customClient.List(ctx, existingTrustyaiList); err != nil {
 			return false, err
@@ -127,13 +127,13 @@ func (tc *TrustyaiTestCtx) testOwnerReferences() error {
 
 	// Test Trustyai resources
 	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-		LabelSelector: labels.ODH.Component(componentsv1.TrustyAIComponentName),
+		LabelSelector: labels.ODH.Component(componentsv1alpha1.TrustyAIComponentName),
 	})
 	if err != nil {
 		return fmt.Errorf("error listing component deployments %w", err)
 	}
 	// test any one deployment for ownerreference
-	if len(appDeployments.Items) != 0 && appDeployments.Items[0].OwnerReferences[0].Kind != componentsv1.TrustyAIKind {
+	if len(appDeployments.Items) != 0 && appDeployments.Items[0].OwnerReferences[0].Kind != componentsv1alpha1.TrustyAIKind {
 		return fmt.Errorf("expected ownerreference not found. Got ownereferrence: %v",
 			appDeployments.Items[0].OwnerReferences)
 	}
@@ -145,7 +145,7 @@ func (tc *TrustyaiTestCtx) testOwnerReferences() error {
 func (tc *TrustyaiTestCtx) validateTrustyaiReady() error {
 	err := wait.PollUntilContextTimeout(tc.testCtx.ctx, generalRetryInterval, componentReadyTimeout, true, func(ctx context.Context) (bool, error) {
 		key := types.NamespacedName{Name: tc.testTrustyaiInstance.Name}
-		trustyai := &componentsv1.TrustyAI{}
+		trustyai := &componentsv1alpha1.TrustyAI{}
 
 		err := tc.testCtx.customClient.Get(ctx, key, trustyai)
 		if err != nil {
@@ -217,10 +217,10 @@ func (tc *TrustyaiTestCtx) testUpdateTrustyaiComponentDisabled() error {
 
 	if tc.testCtx.testDsc.Spec.Components.TrustyAI.ManagementState == operatorv1.Managed {
 		appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-			LabelSelector: labels.ODH.Component(componentsv1.TrustyAIComponentName),
+			LabelSelector: labels.ODH.Component(componentsv1alpha1.TrustyAIComponentName),
 		})
 		if err != nil {
-			return fmt.Errorf("error getting enabled component %v", componentsv1.TrustyAIComponentName)
+			return fmt.Errorf("error getting enabled component %v", componentsv1alpha1.TrustyAIComponentName)
 		}
 		if len(appDeployments.Items) > 0 {
 			trustyaiDeploymentName = appDeployments.Items[0].Name
@@ -258,7 +258,7 @@ func (tc *TrustyaiTestCtx) testUpdateTrustyaiComponentDisabled() error {
 
 	if err = tc.testCtx.wait(func(ctx context.Context) (bool, error) {
 		// Verify trustyai CR is deleted
-		trustyai := &componentsv1.TrustyAI{}
+		trustyai := &componentsv1alpha1.TrustyAI{}
 		err = tc.testCtx.customClient.Get(ctx, client.ObjectKey{Name: tc.testTrustyaiInstance.Name}, trustyai)
 		return k8serr.IsNotFound(err), nil
 	}); err != nil {
@@ -275,7 +275,7 @@ func (tc *TrustyaiTestCtx) testUpdateTrustyaiComponentDisabled() error {
 		return fmt.Errorf("error getting component resource after reconcile: %w", err)
 	}
 	return fmt.Errorf("component %v is disabled, should not get its deployment %v from NS %v any more",
-		componentsv1.TrustyAIKind,
+		componentsv1alpha1.TrustyAIKind,
 		trustyaiDeploymentName,
 		tc.testCtx.applicationsNamespace)
 }

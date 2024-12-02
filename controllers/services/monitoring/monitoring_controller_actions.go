@@ -8,7 +8,7 @@ import (
 	routev1 "github.com/openshift/api/route/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	servicesv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1"
+	servicesv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -19,7 +19,7 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 }
 
 func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	d, ok := rr.Instance.(*servicesv1.Monitoring)
+	d, ok := rr.Instance.(*servicesv1alpha1.Monitoring)
 	if !ok {
 		return errors.New("instance is not of type *services.Monitoring")
 	}
@@ -31,7 +31,7 @@ func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 		&rl,
 		client.InNamespace(rr.DSCI.Spec.Monitoring.Namespace),
 		client.MatchingLabels(map[string]string{
-			labels.PlatformPartOf: servicesv1.MonitoringServiceName,
+			labels.PlatformPartOf: servicesv1alpha1.MonitoringServiceName,
 		}),
 	)
 

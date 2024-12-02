@@ -26,7 +26,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentsv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
@@ -145,7 +145,7 @@ func TestOdhOperator(t *testing.T) {
 	utilruntime.Must(monitoringv1.AddToScheme(scheme))
 	utilruntime.Must(ofapi.AddToScheme(scheme))
 	utilruntime.Must(operatorv1.AddToScheme(scheme))
-	utilruntime.Must(componentsv1.AddToScheme(scheme))
+	utilruntime.Must(componentsv1alpha1.AddToScheme(scheme))
 
 	log.SetLogger(zap.New(zap.UseDevMode(true)))
 
