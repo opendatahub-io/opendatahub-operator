@@ -126,14 +126,8 @@ func (tc *ModelControllerTestCtx) testModelControllerAvaile() error {
 }
 
 func (tc *ModelControllerTestCtx) testOwnerReferences() error {
-	// TODO: need to add test case for this later
-	// can be 1( when just created and no other compoment enabled yet) 2 (only one dependent component) or even 3 (enable both components)
-	// if len(tc.testModelControllerInstance.OwnerReferences) != 0 {
-	// 	return errors.New("expect CR has ownerreferences set")
-	// }
-
 	// Test ModelController CR ownerref
-	if tc.testModelControllerInstance.OwnerReferences[0].Kind != dscKind { // TODO: we might need to udpate this once we do not set DSC as ownerref
+	if tc.testModelControllerInstance.OwnerReferences[0].Kind != dscKind {
 		return fmt.Errorf("expected ownerreference DataScienceCluster not found. Got ownereferrence: %v",
 			tc.testModelControllerInstance.OwnerReferences[0].Kind)
 	}

@@ -78,7 +78,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).
-		WithAction(patchOwnerReference).
 		WithAction(updatestatus.NewAction()).
 		WithAction(gc.NewAction()).
 		Build(ctx) // include GenerationChangedPredicate no need set in each Owns() above

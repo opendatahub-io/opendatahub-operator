@@ -151,7 +151,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			deploy.WithCache(),
 		)).
 		WithAction(security.NewUpdatePodSecurityRoleBindingAction(serviceAccounts)).
-		WithAction(patchOwnerReference).
 		WithAction(updatestatus.NewAction()).
 		// must be the final action
 		WithAction(gc.NewAction()).

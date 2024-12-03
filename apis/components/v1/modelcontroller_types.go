@@ -51,8 +51,8 @@ type ModelController struct {
 // ModelControllerSpec defines the desired state of ModelController
 type ModelControllerSpec struct {
 	//ModelMeshServing DSCModelMeshServing `json:"modelMeshServing,omitempty"`
-	Kserve *ModelControllerKerveSpec `json:"kserve,omitempty"`
-	ModelMeshServing *ModelControllerMMSpec `json:"modelMeshServing,omitempty"`
+	Kserve           *ModelControllerKerveSpec `json:"kserve,omitempty"`
+	ModelMeshServing *ModelControllerMMSpec    `json:"modelMeshServing,omitempty"`
 }
 
 // a mini version of the DSCKserve only keep devflags and management spec
@@ -62,7 +62,7 @@ type ModelControllerKerveSpec struct {
 }
 
 // a mini version of the DSCModelMeshServing only keep devflags and management spec
-type  ModelControllerMMSpec struct {
+type ModelControllerMMSpec struct {
 	ManagementState         operatorv1.ManagementState `json:"managementState,omitempty"`
 	common.DevFlagsSpec `json:",inline"`
 }
