@@ -85,7 +85,7 @@ func Dynamic(predicates ...DynamicPredicate) WatchOpts {
 	}
 }
 
-type ReconcilerBuilder[T common.BaseObject] struct {
+type ReconcilerBuilder[T common.PlatformObject] struct {
 	mgr          ctrl.Manager
 	input        forInput
 	watches      []watchInput
@@ -96,7 +96,7 @@ type ReconcilerBuilder[T common.BaseObject] struct {
 	errors       error
 }
 
-func ReconcilerFor[T common.BaseObject](mgr ctrl.Manager, object T, opts ...builder.ForOption) *ReconcilerBuilder[T] {
+func ReconcilerFor[T common.PlatformObject](mgr ctrl.Manager, object T, opts ...builder.ForOption) *ReconcilerBuilder[T] {
 	crb := ReconcilerBuilder[T]{
 		mgr: mgr,
 	}

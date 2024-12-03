@@ -27,7 +27,7 @@ import (
 )
 
 // Reconciler provides generic reconciliation functionality for ODH objects.
-type Reconciler[T common.BaseObject] struct {
+type Reconciler[T common.PlatformObject] struct {
 	Client     *odhClient.Client
 	Scheme     *runtime.Scheme
 	Actions    []actions.Fn
@@ -43,7 +43,7 @@ type Reconciler[T common.BaseObject] struct {
 }
 
 // NewReconciler creates a new reconciler for the given type.
-func NewReconciler[T common.BaseObject](mgr manager.Manager, name string, object T) (*Reconciler[T], error) {
+func NewReconciler[T common.PlatformObject](mgr manager.Manager, name string, object T) (*Reconciler[T], error) {
 	oc, err := odhClient.NewFromManager(mgr)
 	if err != nil {
 		return nil, err

@@ -73,7 +73,7 @@ type WithDevFlags interface {
 	GetDevFlags() *DevFlags
 }
 
-type BaseObject interface {
+type PlatformObject interface {
 	client.Object
 	WithStatus
 	WithDevFlags

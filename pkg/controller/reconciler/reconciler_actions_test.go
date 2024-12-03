@@ -25,7 +25,7 @@ import (
 func TestDynamicWatchAction_Run(t *testing.T) {
 	tests := []struct {
 		name       string
-		object     common.BaseObject
+		object     common.PlatformObject
 		preds      []DynamicPredicate
 		errMatcher gomegaTypes.GomegaMatcher
 		cntMatcher gomegaTypes.GomegaMatcher
