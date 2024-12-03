@@ -39,6 +39,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/security"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/updatestatus"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/clusterrole"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/crd"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/hash"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
@@ -88,7 +89,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		//   for to objects that have the label components.opendatahub.io/managed-by
 		//   set to the current owner
 		//
-		Watches(&extv1.CustomResourceDefinition{}).
+		Watches(&extv1.CustomResourceDefinition{}, reconciler.WithPredicates(crd.ServingCRD())).
 
 		// operands - dynamically watched
 		//
