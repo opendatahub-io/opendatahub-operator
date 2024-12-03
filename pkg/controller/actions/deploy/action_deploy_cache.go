@@ -31,8 +31,8 @@ func newCache(opts ...CacheOpt) *Cache {
 		ttl: DefaultCacheTTL,
 	}
 
-	for i := range opts {
-		opts[i](&c)
+	for _, opt := range opts {
+		opt(&c)
 	}
 
 	c.s = cache.NewTTLStore(
