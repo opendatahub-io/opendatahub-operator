@@ -100,9 +100,9 @@ func WithAnnotations(values map[string]string) ActionOpts {
 	}
 }
 
-func WithCache() ActionOpts {
+func WithCache(opts ...CacheOpt) ActionOpts {
 	return func(action *Action) {
-		action.cache = newCache()
+		action.cache = newCache(opts...)
 	}
 }
 

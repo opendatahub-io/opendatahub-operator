@@ -10,27 +10,44 @@ import (
 // This code is heavily inspired by https://github.com/kubernetes-sigs/cluster-api/tree/main/internal/util/ssa
 
 const (
-	// ttl is the duration for which we keep the keys in the cache.
-	ttl = 10 * time.Minute
+	DefaultCacheTTL = 10 * time.Minute
 )
 
 type Cache struct {
-	s cache.Store
+	s   cache.Store
+	ttl time.Duration
 }
 
-func newCache() *Cache {
-	r := &Cache{
-		s: cache.NewTTLStore(func(obj interface{}) (string, error) {
+type CacheOpt func(*Cache)
+
+func WithTTL(ttl time.Duration) CacheOpt {
+	return func(c *Cache) {
+		c.ttl = ttl
+	}
+}
+
+func newCache(opts ...CacheOpt) *Cache {
+	c := Cache{
+		ttl: DefaultCacheTTL,
+	}
+
+	for i := range opts {
+		opts[i](&c)
+	}
+
+	c.s = cache.NewTTLStore(
+		func(obj interface{}) (string, error) {
 			s, ok := obj.(string)
 			if !ok {
 				return "", errors.New("failed to cast object to string")
 			}
 
 			return s, nil
-		}, ttl),
-	}
+		},
+		c.ttl,
+	)
 
-	return r
+	return &c
 }
 
 func (r *Cache) Add(key string) {

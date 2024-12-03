@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/blang/semver/v4"
 	"github.com/operator-framework/api/pkg/lib/version"
@@ -102,6 +103,22 @@ func TestDeployWithCacheAction(t *testing.T) {
 			},
 			false)
 	})
+
+	t.Run("CacheTTL(", func(t *testing.T) {
+		testCacheTTL(
+			t,
+			cli,
+			&corev1.ConfigMap{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: gvk.ConfigMap.GroupVersion().String(),
+					Kind:       gvk.ConfigMap.Kind,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      xid.New().String(),
+					Namespace: xid.New().String(),
+				},
+			})
+	})
 }
 
 func testResourceNotReDeployed(t *testing.T, cli *client.Client, obj ctrlCli.Object, create bool) {
@@ -181,4 +198,67 @@ func testResourceNotReDeployed(t *testing.T, cli *client.Client, obj ctrlCli.Obj
 
 	// check that the resource version has not changed
 	g.Expect(out1.GetResourceVersion()).Should(Equal(out2.GetResourceVersion()))
+}
+
+func testCacheTTL(t *testing.T, cli *client.Client, obj ctrlCli.Object) {
+	t.Helper()
+
+	g := NewWithT(t)
+	ctx := context.Background()
+
+	in, err := resources.ToUnstructured(obj)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	err = cli.Create(ctx, &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: in.GetNamespace(),
+		},
+	})
+
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	rr := types.ReconciliationRequest{
+		Client: cli,
+		DSCI: &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{
+			ApplicationsNamespace: in.GetNamespace()},
+		},
+		DSC: &dscv1.DataScienceCluster{},
+		Instance: &componentsv1.Dashboard{
+			ObjectMeta: metav1.ObjectMeta{
+				Generation: 1,
+			},
+		},
+		Release: cluster.Release{
+			Name: cluster.OpenDataHub,
+			Version: version.OperatorVersion{Version: semver.Version{
+				Major: 1, Minor: 2, Patch: 3,
+			}}},
+		Resources: []unstructured.Unstructured{
+			*in.DeepCopy(),
+		},
+	}
+
+	ttl := 1 * time.Second
+
+	action := deploy.NewAction(
+		deploy.WithCache(deploy.WithTTL(ttl)),
+		deploy.WithMode(deploy.ModeSSA),
+		deploy.WithFieldOwner(xid.New().String()),
+	)
+
+	deploy.DeployedResourcesTotal.Reset()
+
+	err = action(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(testutil.ToFloat64(deploy.DeployedResourcesTotal)).Should(BeNumerically("==", 1))
+
+	g.Eventually(func() (float64, error) {
+		if err := action(ctx, &rr); err != nil {
+			return 0, err
+		}
+
+		return testutil.ToFloat64(deploy.DeployedResourcesTotal), nil
+	}).WithTimeout(5 * ttl).WithPolling(2 * ttl).Should(
+		BeNumerically("==", 2),
+	)
 }
