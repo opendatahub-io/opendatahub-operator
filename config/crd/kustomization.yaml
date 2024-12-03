@@ -25,7 +25,6 @@ resources:
 #- patches/webhook_in_dscinitiatlizations.yaml
 #- patches/webhook_in_dscinitializations.yaml
 #- patches/webhook_in_datascienceclusters.yaml
-#- patches/webhook_in_dscmonitorings.yaml
 #- patches/webhook_in_monitorings.yaml
 #+kubebuilder:scaffold:crdkustomizewebhookpatch
 
@@ -34,7 +33,6 @@ resources:
 #- patches/cainjection_in_dscinitiatlizations.yaml
 #- patches/cainjection_in_dscinitializations.yaml
 #- patches/cainjection_in_datascienceclusters.yaml
-#- patches/cainjection_in_dscmonitorings.yaml
 #- patches/cainjection_in_monitorings.yaml
 #+kubebuilder:scaffold:crdkustomizecainjectionpatch
 

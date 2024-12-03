@@ -97,13 +97,21 @@ metadata:
               "managementState": "Managed"
             }
           }
+        },
+        {
+          "apiVersion": "services.opendatahub.io/v1",
+          "kind": "Monitoring",
+          "metadata": {
+            "name": "monitoring-sample"
+          },
+          "spec": null
         }
       ]
     capabilities: Full Lifecycle
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.19.0
-    createdAt: "2024-11-21T09:22:44Z"
+    createdAt: "2024-12-03T12:47:13Z"
     olm.skipRange: '>=1.0.0 <2.19.0'
     operators.operatorframework.io/builder: operator-sdk-v1.31.0
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
@@ -111,7 +119,8 @@ metadata:
       "datasciencepipelines.components.opendatahub.io", "kserves.components.opendatahub.io",
       "kueues.components.opendatahub.io", "modelmeshservings.components.opendatahub.io",
       "modelregistries.components.opendatahub.io", "rays.components.opendatahub.io",
-      "trainingoperators.components.opendatahub.io", "trustyais.components.opendatahub.io",  "workbenches.components.opendatahub.io"]'
+      "trainingoperators.components.opendatahub.io", "trustyais.components.opendatahub.io",  "workbenches.components.opendatahub.io",
+      "monitorings.services.opendatahub.io" ]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/opendatahub-io/opendatahub-operator
   name: opendatahub-operator.v2.19.0
@@ -202,6 +211,11 @@ spec:
       displayName: Model Registry
       kind: ModelRegistry
       name: modelregistries.components.opendatahub.io
+      version: v1
+    - description: Monitoring is the Schema for the monitorings API
+      displayName: Monitoring
+      kind: Monitoring
+      name: monitorings.services.opendatahub.io
       version: v1
     - description: Ray is the Schema for the rays API
       displayName: Ray
@@ -1085,6 +1099,32 @@ spec:
           - securitycontextconstraints
           verbs:
           - '*'
+        - apiGroups:
+          - services.opendatahub.io
+          resources:
+          - monitorings
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - services.opendatahub.io
+          resources:
+          - monitorings/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - services.opendatahub.io
+          resources:
+          - monitorings/status
+          verbs:
+          - get
+          - patch
+          - update
         - apiGroups:
           - serving.knative.dev
           resources:
