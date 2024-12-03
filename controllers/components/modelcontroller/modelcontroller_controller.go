@@ -66,7 +66,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Owns(&admissionregistrationv1.ValidatingWebhookConfiguration{}).
 		Owns(&templatev1.Template{}).
 		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(resources.NewDeploymentPredicate())).
-		Watches(&extv1.CustomResourceDefinition{}). // call ForLabel() + new predicates
+		Watches(&extv1.CustomResourceDefinition{}). // for NIM
 		// Add ModelController specific actions
 		WithAction(initialize).
 		WithAction(devFlags). // devFlags triggerd by changes in DSC kserve and ModelMeshServing, also update .status.devflagurl

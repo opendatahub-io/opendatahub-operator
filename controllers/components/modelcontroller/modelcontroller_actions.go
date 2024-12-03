@@ -18,12 +18,14 @@ package modelcontroller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -48,11 +50,19 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentsv1.ModelController)", rr.Instance)
 	}
+	// since we do not initialize the rr with DSC CR any more, add this into function
+	dscl := dscv1.DataScienceClusterList{}
+	if err := rr.Client.List(ctx, &dscl); err != nil {
+		return err
+	}
+	if len(dscl.Items) != 1 {
+		return errors.New("unable to find DataScienceCluster CR")
+	}
 	// Get Kserve which can override Kserve devflags
-	k := rr.DSC.Spec.Components.Kserve
+	k := &dscl.Items[0].Spec.Components.Kserve
 	if k.ManagementSpec.ManagementState != operatorv1.Managed || k.DevFlags == nil || len(k.DevFlags.Manifests) == 0 {
 		// Get ModelMeshServing if it is enabled and has devlfags
-		mm := rr.DSC.Spec.Components.ModelMeshServing
+		mm := &dscl.Items[0].Spec.Components.ModelMeshServing
 		if mm.ManagementSpec.ManagementState != operatorv1.Managed || mm.DevFlags == nil || len(mm.DevFlags.Manifests) == 0 {
 			// no need devflag, no need update status.uri
 			return nil
