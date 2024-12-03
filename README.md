@@ -143,13 +143,13 @@ e.g `make image-build USE_LOCAL=true"`
 - Custom operator image can be built using your local repository
 
   ```commandline
-  make image -e IMG=quay.io/<username>/opendatahub-operator:<custom-tag>
+  make image IMG=quay.io/<username>/opendatahub-operator:<custom-tag>
   ```
   
   or (for example to user <username>)
 
   ```commandline
-  make image -e IMAGE_OWNER=<username>
+  make image IMAGE_OWNER=<username>
   ```
 
   The default image used is `quay.io/opendatahub/opendatahub-operator:dev-0.0.1` when not supply argument for `make image`
@@ -174,7 +174,7 @@ e.g `make image-build USE_LOCAL=true"`
 - Deploy the created image in your cluster using following command:
 
   ```commandline
-  make deploy -e IMG=quay.io/<username>/opendatahub-operator:<custom-tag> -e OPERATOR_NAMESPACE=<namespace-to-install-operator>
+  make deploy IMG=quay.io/<username>/opendatahub-operator:<custom-tag> OPERATOR_NAMESPACE=<namespace-to-install-operator>
   ```
 
 - To remove resources created during installation use:
@@ -393,7 +393,7 @@ Example command to run full test suite skipping the test
 for DataScienceCluster deletion.
 
 ```shell
-make e2e-test -e OPERATOR_NAMESPACE=<namespace> -e E2E_TEST_FLAGS="--skip-deletion=true"
+make e2e-test OPERATOR_NAMESPACE=<namespace> E2E_TEST_FLAGS="--skip-deletion=true"
 ```
 ### API Overview
 
