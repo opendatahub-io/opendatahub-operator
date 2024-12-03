@@ -11,7 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -22,7 +22,7 @@ import (
 
 type ResourceObject interface {
 	client.Object
-	components.WithStatus
+	common.WithStatus
 }
 
 type WithLogger interface {
@@ -58,7 +58,7 @@ type ReconciliationRequest struct {
 	*odhClient.Client
 
 	Manager   *manager.Manager
-	Instance  components.ComponentObject
+	Instance  client.Object
 	DSC       *dscv1.DataScienceCluster
 	DSCI      *dsciv1.DSCInitialization
 	Release   cluster.Release

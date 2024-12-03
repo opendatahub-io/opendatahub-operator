@@ -165,7 +165,7 @@ func (tc *KueueTestCtx) testUpdateOnKueueResources() error {
 	// Test Updating Kueue Replicas
 
 	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-		LabelSelector: labels.ComponentPartOf + "=" + strings.ToLower(tc.testKueueInstance.Kind),
+		LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(tc.testKueueInstance.Kind),
 	})
 	if err != nil {
 		return err

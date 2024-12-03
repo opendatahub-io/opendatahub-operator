@@ -17,7 +17,7 @@ limitations under the License.
 package v1
 
 import (
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -48,19 +48,19 @@ type DataSciencePipelinesSpec struct {
 }
 
 type DataSciencePipelinesCommonSpec struct {
-	components.DevFlagsSpec `json:",inline"`
+	common.DevFlagsSpec `json:",inline"`
 }
 
 // DataSciencePipelinesStatus defines the observed state of DataSciencePipelines
 type DataSciencePipelinesStatus struct {
-	components.Status `json:",inline"`
+	common.Status `json:",inline"`
 }
 
-func (c *DataSciencePipelines) GetDevFlags() *components.DevFlags {
+func (c *DataSciencePipelines) GetDevFlags() *common.DevFlags {
 	return c.Spec.DevFlags
 }
 
-func (c *DataSciencePipelines) GetStatus() *components.Status {
+func (c *DataSciencePipelines) GetStatus() *common.Status {
 	return &c.Status.Status
 }
 
@@ -80,7 +80,7 @@ func init() {
 // DSCDataSciencePipelines contains all the configuration exposed in DSC instance for DataSciencePipelines component
 type DSCDataSciencePipelines struct {
 	// configuration fields common across components
-	components.ManagementSpec `json:",inline"`
+	common.ManagementSpec `json:",inline"`
 	// datasciencepipelines specific field
 	DataSciencePipelinesCommonSpec `json:",inline"`
 }

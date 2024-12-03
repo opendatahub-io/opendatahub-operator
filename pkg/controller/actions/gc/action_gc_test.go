@@ -213,7 +213,7 @@ func TestGcAction(t *testing.T) {
 				l[k] = v
 			}
 
-			l[labels.ComponentPartOf] = strings.ToLower(componentsv1.DashboardKind)
+			l[labels.PlatformPartOf] = strings.ToLower(componentsv1.DashboardKind)
 
 			cm := corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{

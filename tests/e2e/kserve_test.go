@@ -80,7 +80,7 @@ func (k *KserveTestCtx) validateOperandsOwnerReferences(t *testing.T) {
 		k.List(
 			gvk.Deployment,
 			client.InNamespace(k.applicationsNamespace),
-			client.MatchingLabels{labels.ComponentPartOf: strings.ToLower(componentsv1.KserveKind)},
+			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1.KserveKind)},
 		),
 	).Should(And(
 		HaveLen(2),
@@ -94,8 +94,8 @@ func (k *KserveTestCtx) validateUpdateKserveOperandsResources(t *testing.T) {
 	g := k.WithT(t)
 
 	matchLabels := map[string]string{
-		"control-plane":        "kserve-controller-manager",
-		labels.ComponentPartOf: strings.ToLower(componentsv1.KserveKind),
+		"control-plane":       "kserve-controller-manager",
+		labels.PlatformPartOf: strings.ToLower(componentsv1.KserveKind),
 	}
 
 	listOpts := []client.ListOption{
@@ -169,7 +169,7 @@ func (k *KserveTestCtx) validateKserveDisabled(t *testing.T) {
 		k.List(
 			gvk.Deployment,
 			client.InNamespace(k.applicationsNamespace),
-			client.MatchingLabels{labels.ComponentPartOf: strings.ToLower(componentsv1.KserveKind)},
+			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1.KserveKind)},
 		),
 	).Should(
 		HaveLen(2),
@@ -187,7 +187,7 @@ func (k *KserveTestCtx) validateKserveDisabled(t *testing.T) {
 		k.List(
 			gvk.Deployment,
 			client.InNamespace(k.applicationsNamespace),
-			client.MatchingLabels{labels.ComponentPartOf: strings.ToLower(componentsv1.KserveKind)},
+			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentsv1.KserveKind)},
 		),
 	).Should(
 		BeEmpty(),

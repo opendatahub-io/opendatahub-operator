@@ -17,7 +17,7 @@ limitations under the License.
 package v1
 
 import (
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -52,12 +52,12 @@ type RaySpec struct {
 }
 
 type RayCommonSpec struct {
-	components.DevFlagsSpec `json:",inline"`
+	common.DevFlagsSpec `json:",inline"`
 }
 
 // RayStatus defines the observed state of Ray
 type RayStatus struct {
-	components.Status `json:",inline"`
+	common.Status `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
@@ -72,16 +72,16 @@ func init() {
 	SchemeBuilder.Register(&Ray{}, &RayList{})
 }
 
-func (c *Ray) GetDevFlags() *components.DevFlags {
+func (c *Ray) GetDevFlags() *common.DevFlags {
 	return c.Spec.DevFlags
 }
-func (c *Ray) GetStatus() *components.Status {
+func (c *Ray) GetStatus() *common.Status {
 	return &c.Status.Status
 }
 
 // DSCRay contains all the configuration exposed in DSC instance for Ray component
 type DSCRay struct {
-	components.ManagementSpec `json:",inline"`
+	common.ManagementSpec `json:",inline"`
 	// configuration fields common across components
 	RayCommonSpec `json:",inline"`
 }

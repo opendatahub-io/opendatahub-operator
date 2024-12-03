@@ -17,7 +17,7 @@ limitations under the License.
 package v1
 
 import (
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -35,7 +35,7 @@ type ModelMeshServingSpec struct {
 
 // ModelMeshServingStatus defines the observed state of ModelMeshServing
 type ModelMeshServingStatus struct {
-	components.Status `json:",inline"`
+	common.Status `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
@@ -51,11 +51,11 @@ type ModelMeshServing struct {
 	Status ModelMeshServingStatus `json:"status,omitempty"`
 }
 
-func (c *ModelMeshServing) GetDevFlags() *components.DevFlags {
+func (c *ModelMeshServing) GetDevFlags() *common.DevFlags {
 	return nil
 }
 
-func (c *ModelMeshServing) GetStatus() *components.Status {
+func (c *ModelMeshServing) GetStatus() *common.Status {
 	return &c.Status.Status
 }
 

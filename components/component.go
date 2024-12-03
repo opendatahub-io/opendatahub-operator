@@ -13,7 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
@@ -58,7 +58,7 @@ func (c *Component) Cleanup(_ context.Context, _ client.Client, _ metav1.Object,
 type DevFlags struct {
 	// List of custom manifests for the given component
 	// +optional
-	Manifests []components.ManifestsConfig `json:"manifests,omitempty"`
+	Manifests []common.ManifestsConfig `json:"manifests,omitempty"`
 }
 
 type ManifestsConfig struct {

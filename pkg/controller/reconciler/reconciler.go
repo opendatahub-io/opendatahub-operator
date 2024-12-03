@@ -16,8 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
@@ -27,7 +26,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
-type ComponentReconciler struct {
+// Reconciler provides generic reconciliation functionality for ODH objects.
+type Reconciler[T common.BaseObject] struct {
 	Client     *odhClient.Client
 	Scheme     *runtime.Scheme
 	Actions    []actions.Fn
@@ -39,20 +39,17 @@ type ComponentReconciler struct {
 
 	name            string
 	m               *odhManager.Manager
-	instanceFactory func() (components.ComponentObject, error)
+	instanceFactory func() (T, error)
 }
 
-func NewComponentReconciler(
-	mgr manager.Manager,
-	name string,
-	object components.ComponentObject,
-) (*ComponentReconciler, error) {
+// NewReconciler creates a new reconciler for the given type.
+func NewReconciler[T common.BaseObject](mgr manager.Manager, name string, object T) (*Reconciler[T], error) {
 	oc, err := odhClient.NewFromManager(mgr)
 	if err != nil {
 		return nil, err
 	}
 
-	cc := ComponentReconciler{
+	cc := Reconciler[T]{
 		Client:   oc,
 		Scheme:   mgr.GetScheme(),
 		Log:      ctrl.Log.WithName("controllers").WithName(name),
@@ -60,9 +57,9 @@ func NewComponentReconciler(
 		Release:  cluster.GetRelease(),
 		name:     name,
 		m:        odhManager.New(mgr),
-		instanceFactory: func() (components.ComponentObject, error) {
+		instanceFactory: func() (T, error) {
 			t := reflect.TypeOf(object).Elem()
-			res, ok := reflect.New(t).Interface().(components.ComponentObject)
+			res, ok := reflect.New(t).Interface().(T)
 			if !ok {
 				return res, fmt.Errorf("unable to construct instance of %v", t)
 			}
@@ -74,31 +71,31 @@ func NewComponentReconciler(
 	return &cc, nil
 }
 
-func (r *ComponentReconciler) GetRelease() cluster.Release {
+func (r *Reconciler[T]) GetRelease() cluster.Release {
 	return r.Release
 }
 
-func (r *ComponentReconciler) GetLogger() logr.Logger {
+func (r *Reconciler[T]) GetLogger() logr.Logger {
 	return r.Log
 }
 
-func (r *ComponentReconciler) AddOwnedType(gvk schema.GroupVersionKind) {
+func (r *Reconciler[T]) AddOwnedType(gvk schema.GroupVersionKind) {
 	r.m.AddGVK(gvk, true)
 }
 
-func (r *ComponentReconciler) Owns(obj client.Object) bool {
+func (r *Reconciler[T]) Owns(obj client.Object) bool {
 	return r.m.Owns(obj.GetObjectKind().GroupVersionKind())
 }
 
-func (r *ComponentReconciler) AddAction(action actions.Fn) {
+func (r *Reconciler[T]) AddAction(action actions.Fn) {
 	r.Actions = append(r.Actions, action)
 }
 
-func (r *ComponentReconciler) AddFinalizer(action actions.Fn) {
+func (r *Reconciler[T]) AddFinalizer(action actions.Fn) {
 	r.Finalizer = append(r.Finalizer, action)
 }
 
-func (r *ComponentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler[T]) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	l := log.FromContext(ctx)
 	l.Info("reconcile")
 
@@ -109,15 +106,6 @@ func (r *ComponentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	if err := r.Client.Get(ctx, client.ObjectKey{Name: req.Name}, res); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
-	}
-
-	dscl := dscv1.DataScienceClusterList{}
-	if err := r.Client.List(ctx, &dscl); err != nil {
-		return ctrl.Result{}, err
-	}
-
-	if len(dscl.Items) != 1 {
-		return ctrl.Result{}, errors.New("unable to find DataScienceCluster")
 	}
 
 	dscil := dsciv1.DSCInitializationList{}
@@ -133,7 +121,6 @@ func (r *ComponentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		Client:    r.Client,
 		Manager:   r.m,
 		Instance:  res,
-		DSC:       &dscl.Items[0],
 		DSCI:      &dscil.Items[0],
 		Release:   r.Release,
 		Manifests: make([]types.ManifestInfo, 0),

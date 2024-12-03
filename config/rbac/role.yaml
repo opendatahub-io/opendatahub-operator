@@ -838,6 +838,32 @@ rules:
   verbs:
   - '*'
 - apiGroups:
+  - services.opendatahub.io
+  resources:
+  - monitorings
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - services.opendatahub.io
+  resources:
+  - monitorings/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - services.opendatahub.io
+  resources:
+  - monitorings/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - serving.knative.dev
   resources:
   - services

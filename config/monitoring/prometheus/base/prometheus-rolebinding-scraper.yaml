@@ -1,0 +1,11 @@
+---
+apiVersion: authorization.openshift.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus-scraper
+roleRef:
+  name: prometheus-scraper
+subjects:
+- kind: ServiceAccount
+  name: prometheus
+  namespace: redhat-ods-monitoring

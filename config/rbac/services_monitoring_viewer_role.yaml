@@ -1,0 +1,20 @@
+# permissions for end users to view monitorings.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: monitoring-viewer-role
+rules:
+- apiGroups:
+  - services.opendatahub.io
+  resources:
+  - monitorings
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - services.opendatahub.io
+  resources:
+  - monitorings/status
+  verbs:
+  - get

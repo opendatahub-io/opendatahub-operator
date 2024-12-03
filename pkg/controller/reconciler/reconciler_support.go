@@ -2,6 +2,7 @@ package reconciler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -15,7 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
@@ -41,7 +42,7 @@ var (
 )
 
 type forInput struct {
-	object  components.ComponentObject
+	object  client.Object
 	options []builder.ForOption
 	gvk     schema.GroupVersionKind
 }
@@ -84,22 +85,21 @@ func Dynamic(predicates ...DynamicPredicate) WatchOpts {
 	}
 }
 
-type ComponentReconcilerBuilder struct {
-	mgr           ctrl.Manager
-	input         forInput
-	watches       []watchInput
-	predicates    []predicate.Predicate
-	componentName string
-	actions       []actions.Fn
-	finalizers    []actions.Fn
-	errors        error
+type ReconcilerBuilder[T common.BaseObject] struct {
+	mgr          ctrl.Manager
+	input        forInput
+	watches      []watchInput
+	predicates   []predicate.Predicate
+	instanceName string
+	actions      []actions.Fn
+	finalizers   []actions.Fn
+	errors       error
 }
 
-func ComponentReconcilerFor(mgr ctrl.Manager, object components.ComponentObject, opts ...builder.ForOption) *ComponentReconcilerBuilder {
-	crb := ComponentReconcilerBuilder{
+func ReconcilerFor[T common.BaseObject](mgr ctrl.Manager, object T, opts ...builder.ForOption) *ReconcilerBuilder[T] {
+	crb := ReconcilerBuilder[T]{
 		mgr: mgr,
 	}
-
 	gvk, err := mgr.GetClient().GroupVersionKindFor(object)
 	if err != nil {
 		crb.errors = multierror.Append(crb.errors, fmt.Errorf("unable to determine GVK: %w", err))
@@ -110,26 +110,25 @@ func ComponentReconcilerFor(mgr ctrl.Manager, object components.ComponentObject,
 		options: slices.Clone(opts),
 		gvk:     gvk,
 	}
-
 	return &crb
 }
 
-func (b *ComponentReconcilerBuilder) WithComponentName(componentName string) *ComponentReconcilerBuilder {
-	b.componentName = componentName
+func (b *ReconcilerBuilder[T]) WithInstanceName(instanceName string) *ReconcilerBuilder[T] {
+	b.instanceName = instanceName
 	return b
 }
 
-func (b *ComponentReconcilerBuilder) WithAction(value actions.Fn) *ComponentReconcilerBuilder {
+func (b *ReconcilerBuilder[T]) WithAction(value actions.Fn) *ReconcilerBuilder[T] {
 	b.actions = append(b.actions, value)
 	return b
 }
 
-func (b *ComponentReconcilerBuilder) WithFinalizer(value actions.Fn) *ComponentReconcilerBuilder {
+func (b *ReconcilerBuilder[T]) WithFinalizer(value actions.Fn) *ReconcilerBuilder[T] {
 	b.finalizers = append(b.finalizers, value)
 	return b
 }
 
-func (b *ComponentReconcilerBuilder) Watches(object client.Object, opts ...WatchOpts) *ComponentReconcilerBuilder {
+func (b *ReconcilerBuilder[T]) Watches(object client.Object, opts ...WatchOpts) *ReconcilerBuilder[T] {
 	in := watchInput{}
 	in.object = object
 	in.owned = false
@@ -147,9 +146,9 @@ func (b *ComponentReconcilerBuilder) Watches(object client.Object, opts ...Watch
 	if len(in.predicates) == 0 {
 		in.predicates = append(in.predicates, predicate.And(
 			DefaultPredicate,
-			// use the components.opendatahub.io/part-of label to filter
+			// use the platform.opendatahub.io/part-of label to filter
 			// events not related to the owner type
-			component.ForLabel(labels.ComponentPartOf, strings.ToLower(b.input.gvk.Kind)),
+			component.ForLabel(labels.PlatformPartOf, strings.ToLower(b.input.gvk.Kind)),
 		))
 	}
 
@@ -158,11 +157,11 @@ func (b *ComponentReconcilerBuilder) Watches(object client.Object, opts ...Watch
 	return b
 }
 
-func (b *ComponentReconcilerBuilder) WatchesGVK(gvk schema.GroupVersionKind, opts ...WatchOpts) *ComponentReconcilerBuilder {
+func (b *ReconcilerBuilder[T]) WatchesGVK(gvk schema.GroupVersionKind, opts ...WatchOpts) *ReconcilerBuilder[T] {
 	return b.Watches(resources.GvkToUnstructured(gvk), opts...)
 }
 
-func (b *ComponentReconcilerBuilder) Owns(object client.Object, opts ...WatchOpts) *ComponentReconcilerBuilder {
+func (b *ReconcilerBuilder[T]) Owns(object client.Object, opts ...WatchOpts) *ReconcilerBuilder[T] {
 	in := watchInput{}
 	in.object = object
 	in.owned = true
@@ -189,26 +188,29 @@ func (b *ComponentReconcilerBuilder) Owns(object client.Object, opts ...WatchOpt
 	return b
 }
 
-func (b *ComponentReconcilerBuilder) OwnsGVK(gvk schema.GroupVersionKind, opts ...WatchOpts) *ComponentReconcilerBuilder {
-	return b.Owns(resources.GvkToUnstructured(gvk), opts...)
-}
-
-func (b *ComponentReconcilerBuilder) WithEventFilter(p predicate.Predicate) *ComponentReconcilerBuilder {
+func (b *ReconcilerBuilder[T]) WithEventFilter(p predicate.Predicate) *ReconcilerBuilder[T] {
 	b.predicates = append(b.predicates, p)
 	return b
 }
 
-func (b *ComponentReconcilerBuilder) Build(_ context.Context) (*ComponentReconciler, error) {
+func (b *ReconcilerBuilder[T]) OwnsGVK(gvk schema.GroupVersionKind, opts ...WatchOpts) *ReconcilerBuilder[T] {
+	return b.Owns(resources.GvkToUnstructured(gvk), opts...)
+}
+
+func (b *ReconcilerBuilder[T]) Build(_ context.Context) (*Reconciler[T], error) {
 	if b.errors != nil {
 		return nil, b.errors
 	}
-
-	name := b.componentName
+	name := b.instanceName
 	if name == "" {
 		name = strings.ToLower(b.input.gvk.Kind)
 	}
 
-	r, err := NewComponentReconciler(b.mgr, name, b.input.object)
+	obj, ok := b.input.object.(T)
+	if !ok {
+		return nil, errors.New("invalid type for object")
+	}
+	r, err := NewReconciler(b.mgr, name, obj)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create reconciler for component %s: %w", name, err)
 	}

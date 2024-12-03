@@ -13,7 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -25,7 +25,7 @@ import (
 func TestDynamicWatchAction_Run(t *testing.T) {
 	tests := []struct {
 		name       string
-		object     components.ComponentObject
+		object     common.BaseObject
 		preds      []DynamicPredicate
 		errMatcher gomegaTypes.GomegaMatcher
 		cntMatcher gomegaTypes.GomegaMatcher

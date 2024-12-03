@@ -40,10 +40,11 @@ import (
 	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	servicesv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1"
 	componentsold "github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
 	modelregistry2 "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
@@ -238,9 +239,11 @@ func newDSCI(appName string) *dsciv1.DSCInitialization {
 		},
 		Spec: dsciv1.DSCInitializationSpec{
 			ApplicationsNamespace: namespace,
-			Monitoring: dsciv1.Monitoring{
-				Namespace:       monitoringNS,
-				ManagementState: operatorv1.Managed,
+			Monitoring: servicesv1.DSCMonitoring{
+				ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+				MonitoringCommonSpec: servicesv1.MonitoringCommonSpec{
+					Namespace: monitoringNS,
+				},
 			},
 			TrustedCABundle: &dsciv1.TrustedCABundleSpec{
 				ManagementState: operatorv1.Managed,
@@ -257,12 +260,12 @@ func newDSC(name string, namespace string) *dscv1.DataScienceCluster {
 		Spec: dscv1.DataScienceClusterSpec{
 			Components: dscv1.Components{
 				Dashboard: componentsv1.DSCDashboard{
-					ManagementSpec: components.ManagementSpec{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},
 				Workbenches: componentsv1.DSCWorkbenches{
-					ManagementSpec: components.ManagementSpec{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},
@@ -272,32 +275,32 @@ func newDSC(name string, namespace string) *dscv1.DataScienceCluster {
 					},
 				},
 				DataSciencePipelines: componentsv1.DSCDataSciencePipelines{
-					ManagementSpec: components.ManagementSpec{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},
 				Kserve: componentsv1.DSCKserve{
-					ManagementSpec: components.ManagementSpec{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},
 				CodeFlare: componentsv1.DSCCodeFlare{
-					ManagementSpec: components.ManagementSpec{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},
 				Ray: componentsv1.DSCRay{
-					ManagementSpec: components.ManagementSpec{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},
 				TrustyAI: componentsv1.DSCTrustyAI{
-					ManagementSpec: components.ManagementSpec{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},
 				ModelRegistry: componentsv1.DSCModelRegistry{
-					ManagementSpec: components.ManagementSpec{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},
@@ -315,7 +318,7 @@ func newMRDSC1(name string, mrNamespace string, _ operatorv1.ManagementState) *d
 		Spec: dscv1.DataScienceClusterSpec{
 			Components: dscv1.Components{
 				ModelRegistry: componentsv1.DSCModelRegistry{
-					ManagementSpec: components.ManagementSpec{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 					ModelRegistryCommonSpec: componentsv1.ModelRegistryCommonSpec{
@@ -336,7 +339,7 @@ func newMRDSC2(name string) *dscv1.DataScienceCluster {
 		Spec: dscv1.DataScienceClusterSpec{
 			Components: dscv1.Components{
 				Workbenches: componentsv1.DSCWorkbenches{
-					ManagementSpec: components.ManagementSpec{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},

@@ -39,7 +39,7 @@ import (
 // CodeFlareReconciler reconciles a CodeFlare object.
 
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	_, err := reconciler.ComponentReconcilerFor(
+	_, err := reconciler.ReconcilerFor(
 		mgr,
 		&componentsv1.CodeFlare{},
 	).

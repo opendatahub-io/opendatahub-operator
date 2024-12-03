@@ -48,13 +48,13 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 		l[k] = v
 	}
 
-	if l[labels.ComponentPartOf] == "" {
+	if l[labels.PlatformPartOf] == "" {
 		kind, err := resources.KindForObject(rr.Client.Scheme(), rr.Instance)
 		if err != nil {
 			return err
 		}
 
-		l[labels.ComponentPartOf] = strings.ToLower(kind)
+		l[labels.PlatformPartOf] = strings.ToLower(kind)
 	}
 
 	obj, ok := rr.Instance.(types.ResourceObject)
