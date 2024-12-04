@@ -4,14 +4,14 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.1
-  name: trustyais.components.opendatahub.io
+  name: monitorings.services.platform.opendatahub.io
 spec:
-  group: components.opendatahub.io
+  group: services.platform.opendatahub.io
   names:
-    kind: TrustyAI
-    listKind: TrustyAIList
-    plural: trustyais
-    singular: trustyai
+    kind: Monitoring
+    listKind: MonitoringList
+    plural: monitorings
+    singular: monitoring
   scope: Cluster
   versions:
   - additionalPrinterColumns:
@@ -23,10 +23,14 @@ spec:
       jsonPath: .status.conditions[?(@.type=="Ready")].reason
       name: Reason
       type: string
+    - description: URL
+      jsonPath: .status.url
+      name: URL
+      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: TrustyAI is the Schema for the trustyais API
+        description: Monitoring is the Schema for the monitorings API
         properties:
           apiVersion:
             description: |-
@@ -46,37 +50,19 @@ spec:
           metadata:
             type: object
           spec:
-            description: TrustyAISpec defines the desired state of TrustyAI
+            description: MonitoringSpec defines the desired state of Monitoring
             properties:
-              devFlags:
-                description: Add developer fields
-                properties:
-                  manifests:
-                    description: List of custom manifests for the given component
-                    items:
-                      properties:
-                        contextDir:
-                          default: manifests
-                          description: contextDir is the relative path to the folder
-                            containing manifests in a repository, default value "manifests"
-                          type: string
-                        sourcePath:
-                          default: ""
-                          description: 'sourcePath is the subpath within contextDir
-                            where kustomize builds start. Examples include any sub-folder
-                            or path: `base`, `overlays/dev`, `default`, `odh` etc.'
-                          type: string
-                        uri:
-                          default: ""
-                          description: uri is the URI point to a git repo with tag/branch.
-                            e.g.  https://github.com/org/repo/tarball/<tag/branch>
-                          type: string
-                      type: object
-                    type: array
-                type: object
+              namespace:
+                default: opendatahub
+                description: |-
+                  monitoring spec exposed to DSCI api
+                  Namespace for monitoring if it is enabled
+                maxLength: 63
+                pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
+                type: string
             type: object
           status:
-            description: TrustyAIStatus defines the observed state of TrustyAI
+            description: MonitoringStatus defines the observed state of Monitoring
             properties:
               conditions:
                 items:
@@ -139,11 +125,13 @@ spec:
                 type: integer
               phase:
                 type: string
+              url:
+                type: string
             type: object
         type: object
         x-kubernetes-validations:
-        - message: TrustyAI name must be default-trustyai
-          rule: self.metadata.name == 'default-trustyai'
+        - message: Monitoring name must be default-monitoring
+          rule: self.metadata.name == 'default-monitoring'
     served: true
     storage: true
     subresources:

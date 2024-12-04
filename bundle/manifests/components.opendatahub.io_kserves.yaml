@@ -4,9 +4,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.1
   creationTimestamp: null
-  name: kserves.components.opendatahub.io
+  name: kserves.components.platform.opendatahub.io
 spec:
-  group: components.opendatahub.io
+  group: components.platform.opendatahub.io
   names:
     kind: Kserve
     listKind: KserveList

@@ -21,16 +21,16 @@ import (
 	"fmt"
 	"strings"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	// early exit
-	_, ok := rr.Instance.(*componentsv1.ModelMeshServing)
+	_, ok := rr.Instance.(*componentApi.ModelMeshServing)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentsv1.ModelMeshServing)", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a componentApi.ModelMeshServing)", rr.Instance)
 	}
 	// setup Manifets[0] for modelmeshserving
 	rr.Manifests = append(rr.Manifests, odhtypes.ManifestInfo{
@@ -42,9 +42,9 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 }
 
 func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	mm, ok := rr.Instance.(*componentsv1.ModelMeshServing)
+	mm, ok := rr.Instance.(*componentApi.ModelMeshServing)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentsv1.ModelMeshServing)", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a componentApi.ModelMeshServing)", rr.Instance)
 	}
 	df := mm.GetDevFlags()
 	if df == nil {

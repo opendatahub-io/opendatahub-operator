@@ -44,7 +44,7 @@ type Components struct {
 	Workbenches componentApi.DSCWorkbenches `json:"workbenches,omitempty"`
 
 	// ModelMeshServing component configuration.
-	ModelMeshServing componentsv1.DSCModelMeshServing `json:"modelmeshserving,omitempty"`
+	ModelMeshServing componentApi.DSCModelMeshServing `json:"modelmeshserving,omitempty"`
 
 	// DataServicePipeline component configuration.
 	// Require OpenShift Pipelines Operator to be installed before enable component

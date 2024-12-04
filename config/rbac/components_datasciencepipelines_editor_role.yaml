@@ -5,7 +5,7 @@ metadata:
   name: datasciencepipelines-editor-role
 rules:
 - apiGroups:
-  - components.opendatahub.io
+  - components.platform.opendatahub.io
   resources:
   - datasciencepipelines
   verbs:
@@ -17,7 +17,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - components.opendatahub.io
+  - components.platform.opendatahub.io
   resources:
   - datasciencepipelines/status
   verbs:

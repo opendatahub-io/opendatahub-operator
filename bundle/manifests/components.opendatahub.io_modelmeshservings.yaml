@@ -4,9 +4,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.1
   creationTimestamp: null
-  name: modelmeshservings.components.opendatahub.io
+  name: modelmeshservings.components.platform.opendatahub.io
 spec:
-  group: components.opendatahub.io
+  group: components.platform.opendatahub.io
   names:
     kind: ModelMeshServing
     listKind: ModelMeshServingList

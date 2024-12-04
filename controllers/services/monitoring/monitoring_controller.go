@@ -64,10 +64,10 @@ func NewServiceReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		//
 		// By default the Watches functions adds:
 		// - an event handler mapping to a cluster scope resource identified by the
-		//   components.opendatahub.io/part-of annotation
+		//   components.platform.opendatahub.io/part-of annotation
 		// - a predicate that check for generation change for Delete/Updates events
-		//   for to objects that have the label components.opendatahub.io/part-of
-		// or services.opendatahub.io/part-of set to the current owner
+		//   for to objects that have the label components.platform.opendatahub.io/part-of
+		// or services.platform.opendatahub.io/part-of set to the current owner
 		//
 		Watches(&extv1.CustomResourceDefinition{}).
 		// actions

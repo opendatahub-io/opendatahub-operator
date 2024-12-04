@@ -4,9 +4,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.1
   creationTimestamp: null
-  name: modelregistries.components.opendatahub.io
+  name: modelregistries.components.platform.opendatahub.io
 spec:
-  group: components.opendatahub.io
+  group: components.platform.opendatahub.io
   names:
     kind: ModelRegistry
     listKind: ModelRegistryList

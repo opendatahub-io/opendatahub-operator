@@ -71,9 +71,9 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		//
 		// By default the Watches functions adds:
 		// - an event handler mapping to a cluster scope resource identified by the
-		//   components.opendatahub.io/part-of annotation
+		//   components.platform.opendatahub.io/part-of annotation
 		// - a predicate that check for generation change for Delete/Updates events
-		//   for to objects that have the label components.opendatahub.io/part-of
+		//   for to objects that have the label components.platform.opendatahub.io/part-of
 		//   set to the current owner
 		//
 		Watches(&extv1.CustomResourceDefinition{}).

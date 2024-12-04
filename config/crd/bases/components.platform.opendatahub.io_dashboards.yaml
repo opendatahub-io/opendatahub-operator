@@ -4,14 +4,14 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.1
-  name: monitorings.services.opendatahub.io
+  name: dashboards.components.platform.opendatahub.io
 spec:
-  group: services.opendatahub.io
+  group: components.platform.opendatahub.io
   names:
-    kind: Monitoring
-    listKind: MonitoringList
-    plural: monitorings
-    singular: monitoring
+    kind: Dashboard
+    listKind: DashboardList
+    plural: dashboards
+    singular: dashboard
   scope: Cluster
   versions:
   - additionalPrinterColumns:
@@ -30,7 +30,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Monitoring is the Schema for the monitorings API
+        description: Dashboard is the Schema for the dashboards API
         properties:
           apiVersion:
             description: |-
@@ -50,19 +50,37 @@ spec:
           metadata:
             type: object
           spec:
-            description: MonitoringSpec defines the desired state of Monitoring
+            description: DashboardSpec defines the desired state of Dashboard
             properties:
-              namespace:
-                default: opendatahub
-                description: |-
-                  monitoring spec exposed to DSCI api
-                  Namespace for monitoring if it is enabled
-                maxLength: 63
-                pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
-                type: string
+              devFlags:
+                description: Add developer fields
+                properties:
+                  manifests:
+                    description: List of custom manifests for the given component
+                    items:
+                      properties:
+                        contextDir:
+                          default: manifests
+                          description: contextDir is the relative path to the folder
+                            containing manifests in a repository, default value "manifests"
+                          type: string
+                        sourcePath:
+                          default: ""
+                          description: 'sourcePath is the subpath within contextDir
+                            where kustomize builds start. Examples include any sub-folder
+                            or path: `base`, `overlays/dev`, `default`, `odh` etc.'
+                          type: string
+                        uri:
+                          default: ""
+                          description: uri is the URI point to a git repo with tag/branch.
+                            e.g.  https://github.com/org/repo/tarball/<tag/branch>
+                          type: string
+                      type: object
+                    type: array
+                type: object
             type: object
           status:
-            description: MonitoringStatus defines the observed state of Monitoring
+            description: DashboardStatus defines the observed state of Dashboard
             properties:
               conditions:
                 items:
@@ -130,8 +148,8 @@ spec:
             type: object
         type: object
         x-kubernetes-validations:
-        - message: Monitoring name must be default-monitoring
-          rule: self.metadata.name == 'default-monitoring'
+        - message: Dashboard name must be default-dashboard
+          rule: self.metadata.name == 'default-dashboard'
     served: true
     storage: true
     subresources:

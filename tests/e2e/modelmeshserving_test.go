@@ -19,13 +19,13 @@ import (
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 type ModelMeshServingTestCtx struct {
 	testCtx                      *testContext
-	testModelMeshServingInstance componentsv1.ModelMeshServing
+	testModelMeshServingInstance componentApi.ModelMeshServing
 }
 
 func modelMeshServingTestSuite(t *testing.T) {
@@ -79,7 +79,7 @@ func (tc *ModelMeshServingTestCtx) testModelMeshServingCreation() error {
 	}
 
 	err := tc.testCtx.wait(func(ctx context.Context) (bool, error) {
-		existingModelMeshServingList := &componentsv1.ModelMeshServingList{}
+		existingModelMeshServingList := &componentApi.ModelMeshServingList{}
 
 		if err := tc.testCtx.customClient.List(ctx, existingModelMeshServingList); err != nil {
 			return false, err
@@ -127,13 +127,13 @@ func (tc *ModelMeshServingTestCtx) testOwnerReferences() error {
 
 	// Test ModelMeshServing resources
 	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-		LabelSelector: labels.ODH.Component(componentsv1.ModelMeshServingComponentName),
+		LabelSelector: labels.ODH.Component(componentApi.ModelMeshServingComponentName),
 	})
 	if err != nil {
 		return fmt.Errorf("error listing component deployments %w", err)
 	}
 	// test any one deployment for ownerreference
-	if len(appDeployments.Items) != 0 && appDeployments.Items[0].OwnerReferences[0].Kind != componentsv1.ModelMeshServingKind {
+	if len(appDeployments.Items) != 0 && appDeployments.Items[0].OwnerReferences[0].Kind != componentApi.ModelMeshServingKind {
 		return fmt.Errorf("expected ownerreference not found. Got ownereferrence: %v",
 			appDeployments.Items[0].OwnerReferences)
 	}
@@ -145,7 +145,7 @@ func (tc *ModelMeshServingTestCtx) testOwnerReferences() error {
 func (tc *ModelMeshServingTestCtx) validateModelMeshServingReady() error {
 	err := wait.PollUntilContextTimeout(tc.testCtx.ctx, generalRetryInterval, componentReadyTimeout, true, func(ctx context.Context) (bool, error) {
 		key := types.NamespacedName{Name: tc.testModelMeshServingInstance.Name}
-		mm := &componentsv1.ModelMeshServing{}
+		mm := &componentApi.ModelMeshServing{}
 
 		err := tc.testCtx.customClient.Get(ctx, key, mm)
 		if err != nil {
@@ -165,14 +165,14 @@ func (tc *ModelMeshServingTestCtx) testUpdateOnModelMeshServingResources() error
 	// Test Updating ModelMeshServing Replicas
 
 	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-		LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(componentsv1.ModelMeshServingKind),
+		LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(componentApi.ModelMeshServingKind),
 	})
 	if err != nil {
 		return err
 	}
 
 	if len(appDeployments.Items) != 2 { // modelmesh has 2 deployments: modelmesh and etcd
-		return fmt.Errorf("error getting deployment for component by label %s", labels.PlatformPartOf+"="+strings.ToLower(componentsv1.ModelMeshServingKind))
+		return fmt.Errorf("error getting deployment for component by label %s", labels.PlatformPartOf+"="+strings.ToLower(componentApi.ModelMeshServingKind))
 	}
 
 	const expectedReplica int32 = 2 // from 1 to 2
@@ -217,10 +217,10 @@ func (tc *ModelMeshServingTestCtx) testUpdateModelMeshServingComponentDisabled()
 
 	if tc.testCtx.testDsc.Spec.Components.ModelMeshServing.ManagementState == operatorv1.Managed {
 		appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-			LabelSelector: labels.ODH.Component(componentsv1.ModelMeshServingComponentName),
+			LabelSelector: labels.ODH.Component(componentApi.ModelMeshServingComponentName),
 		})
 		if err != nil {
-			return fmt.Errorf("error getting enabled component %v", componentsv1.ModelMeshServingComponentName)
+			return fmt.Errorf("error getting enabled component %v", componentApi.ModelMeshServingComponentName)
 		}
 		if len(appDeployments.Items) > 0 {
 			mmDeploymentName = appDeployments.Items[0].Name
@@ -258,7 +258,7 @@ func (tc *ModelMeshServingTestCtx) testUpdateModelMeshServingComponentDisabled()
 
 	if err = tc.testCtx.wait(func(ctx context.Context) (bool, error) {
 		// Verify ModeMeshServing CR is deleted
-		mm := &componentsv1.ModelMeshServing{}
+		mm := &componentApi.ModelMeshServing{}
 		err = tc.testCtx.customClient.Get(ctx, client.ObjectKey{Name: tc.testModelMeshServingInstance.Name}, mm)
 		return k8serr.IsNotFound(err), nil
 	}); err != nil {
@@ -275,7 +275,7 @@ func (tc *ModelMeshServingTestCtx) testUpdateModelMeshServingComponentDisabled()
 		return fmt.Errorf("error getting component resource after reconcile: %w", err)
 	}
 	return fmt.Errorf("component %v is disabled, should not get its deployment %v from NS %v any more",
-		componentsv1.ModelMeshServingKind,
+		componentApi.ModelMeshServingKind,
 		mmDeploymentName,
 		tc.testCtx.applicationsNamespace)
 }

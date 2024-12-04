@@ -4,9 +4,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.1
   creationTimestamp: null
-  name: kueues.components.opendatahub.io
+  name: kueues.components.platform.opendatahub.io
 spec:
-  group: components.opendatahub.io
+  group: components.platform.opendatahub.io
   names:
     kind: Kueue
     listKind: KueueList

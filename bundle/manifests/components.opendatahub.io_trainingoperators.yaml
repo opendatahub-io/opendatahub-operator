@@ -4,9 +4,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.1
   creationTimestamp: null
-  name: trainingoperators.components.opendatahub.io
+  name: trainingoperators.components.platform.opendatahub.io
 spec:
-  group: components.opendatahub.io
+  group: components.platform.opendatahub.io
   names:
     kind: TrainingOperator
     listKind: TrainingOperatorList

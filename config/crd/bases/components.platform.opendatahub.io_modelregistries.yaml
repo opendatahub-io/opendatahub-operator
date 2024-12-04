@@ -4,14 +4,14 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.1
-  name: workbenches.components.opendatahub.io
+  name: modelregistries.components.platform.opendatahub.io
 spec:
-  group: components.opendatahub.io
+  group: components.platform.opendatahub.io
   names:
-    kind: Workbenches
-    listKind: WorkbenchesList
-    plural: workbenches
-    singular: workbenches
+    kind: ModelRegistry
+    listKind: ModelRegistryList
+    plural: modelregistries
+    singular: modelregistry
   scope: Cluster
   versions:
   - additionalPrinterColumns:
@@ -26,7 +26,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Workbenches is the Schema for the workbenches API
+        description: ModelRegistry is the Schema for the modelregistries API
         properties:
           apiVersion:
             description: |-
@@ -46,7 +46,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: WorkbenchesSpec defines the desired state of Workbenches
+            description: ModelRegistrySpec defines the desired state of ModelRegistry
             properties:
               devFlags:
                 description: Add developer fields
@@ -74,9 +74,16 @@ spec:
                       type: object
                     type: array
                 type: object
+              registriesNamespace:
+                default: odh-model-registries
+                description: Namespace for model registries to be installed, configurable
+                  only once when model registry is enabled, defaults to "odh-model-registries"
+                maxLength: 63
+                pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
+                type: string
             type: object
           status:
-            description: WorkbenchesStatus defines the observed state of Workbenches
+            description: ModelRegistryStatus defines the observed state of ModelRegistry
             properties:
               conditions:
                 items:
@@ -139,11 +146,13 @@ spec:
                 type: integer
               phase:
                 type: string
+              registriesNamespace:
+                type: string
             type: object
         type: object
         x-kubernetes-validations:
-        - message: Workbenches name must be default-workbenches
-          rule: self.metadata.name == 'default-workbenches'
+        - message: ModelRegistry name must be default-model-registry
+          rule: self.metadata.name == 'default-model-registry'
     served: true
     storage: true
     subresources:

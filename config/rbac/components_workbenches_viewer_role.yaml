@@ -5,7 +5,7 @@ metadata:
   name: workbenches-viewer-role
 rules:
 - apiGroups:
-  - components.opendatahub.io
+  - components.platform.opendatahub.io
   resources:
   - workbenches
   verbs:
@@ -13,7 +13,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - components.opendatahub.io
+  - components.platform.opendatahub.io
   resources:
   - workbenches/status
   verbs:

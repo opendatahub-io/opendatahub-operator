@@ -4,14 +4,14 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.1
-  name: rays.components.opendatahub.io
+  name: workbenches.components.platform.opendatahub.io
 spec:
-  group: components.opendatahub.io
+  group: components.platform.opendatahub.io
   names:
-    kind: Ray
-    listKind: RayList
-    plural: rays
-    singular: ray
+    kind: Workbenches
+    listKind: WorkbenchesList
+    plural: workbenches
+    singular: workbenches
   scope: Cluster
   versions:
   - additionalPrinterColumns:
@@ -26,7 +26,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Ray is the Schema for the rays API
+        description: Workbenches is the Schema for the workbenches API
         properties:
           apiVersion:
             description: |-
@@ -46,7 +46,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: RaySpec defines the desired state of Ray
+            description: WorkbenchesSpec defines the desired state of Workbenches
             properties:
               devFlags:
                 description: Add developer fields
@@ -76,7 +76,7 @@ spec:
                 type: object
             type: object
           status:
-            description: RayStatus defines the observed state of Ray
+            description: WorkbenchesStatus defines the observed state of Workbenches
             properties:
               conditions:
                 items:
@@ -142,8 +142,8 @@ spec:
             type: object
         type: object
         x-kubernetes-validations:
-        - message: Ray name must be default-ray
-          rule: self.metadata.name == 'default-ray'
+        - message: Workbenches name must be default-workbenches
+          rule: self.metadata.name == 'default-workbenches'
     served: true
     storage: true
     subresources:

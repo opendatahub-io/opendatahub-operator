@@ -4,21 +4,29 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.1
-  name: datasciencepipelines.components.opendatahub.io
+  name: trainingoperators.components.platform.opendatahub.io
 spec:
-  group: components.opendatahub.io
+  group: components.platform.opendatahub.io
   names:
-    kind: DataSciencePipelines
-    listKind: DataSciencePipelinesList
-    plural: datasciencepipelines
-    singular: datasciencepipelines
+    kind: TrainingOperator
+    listKind: TrainingOperatorList
+    plural: trainingoperators
+    singular: trainingoperator
   scope: Cluster
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - description: Ready
+      jsonPath: .status.conditions[?(@.type=="Ready")].status
+      name: Ready
+      type: string
+    - description: Reason
+      jsonPath: .status.conditions[?(@.type=="Ready")].reason
+      name: Reason
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: DataSciencePipelines is the Schema for the datasciencepipelines
-          API
+        description: TrainingOperator is the Schema for the trainingoperators API
         properties:
           apiVersion:
             description: |-
@@ -38,7 +46,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: DataSciencePipelinesSpec defines the desired state of DataSciencePipelines
+            description: TrainingOperatorSpec defines the desired state of TrainingOperator
             properties:
               devFlags:
                 description: Add developer fields
@@ -68,8 +76,7 @@ spec:
                 type: object
             type: object
           status:
-            description: DataSciencePipelinesStatus defines the observed state of
-              DataSciencePipelines
+            description: TrainingOperatorStatus defines the observed state of TrainingOperator
             properties:
               conditions:
                 items:
@@ -135,8 +142,8 @@ spec:
             type: object
         type: object
         x-kubernetes-validations:
-        - message: DataSciencePipelines name must be default-datasciencepipelines
-          rule: self.metadata.name == 'default-datasciencepipelines'
+        - message: TrainingOperator name must be default-trainingoperator
+          rule: self.metadata.name == 'default-trainingoperator'
     served: true
     storage: true
     subresources:

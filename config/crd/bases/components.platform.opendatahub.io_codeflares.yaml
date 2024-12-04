@@ -4,14 +4,14 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.1
-  name: modelmeshservings.components.opendatahub.io
+  name: codeflares.components.platform.opendatahub.io
 spec:
-  group: components.opendatahub.io
+  group: components.platform.opendatahub.io
   names:
-    kind: ModelMeshServing
-    listKind: ModelMeshServingList
-    plural: modelmeshservings
-    singular: modelmeshserving
+    kind: CodeFlare
+    listKind: CodeFlareList
+    plural: codeflares
+    singular: codeflare
   scope: Cluster
   versions:
   - additionalPrinterColumns:
@@ -26,7 +26,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: ModelMeshServing is the Schema for the modelmeshservings API
+        description: CodeFlare is the Schema for the codeflares API
         properties:
           apiVersion:
             description: |-
@@ -46,7 +46,6 @@ spec:
           metadata:
             type: object
           spec:
-            description: ModelMeshServingSpec defines the desired state of ModelMeshServing
             properties:
               devFlags:
                 description: Add developer fields
@@ -76,7 +75,7 @@ spec:
                 type: object
             type: object
           status:
-            description: ModelMeshServingStatus defines the observed state of ModelMeshServing
+            description: CodeFlareStatus defines the observed state of CodeFlare
             properties:
               conditions:
                 items:
@@ -142,8 +141,8 @@ spec:
             type: object
         type: object
         x-kubernetes-validations:
-        - message: ModelMeshServing name must be default-modelmesh
-          rule: self.metadata.name == 'default-modelmesh'
+        - message: CodeFlare name must be default-codeflare
+          rule: self.metadata.name == 'default-codeflare'
     served: true
     storage: true
     subresources:

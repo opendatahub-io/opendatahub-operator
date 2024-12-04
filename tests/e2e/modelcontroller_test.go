@@ -18,13 +18,13 @@ import (
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 type ModelControllerTestCtx struct {
 	testCtx                     *testContext
-	testModelControllerInstance componentsv1.ModelController
+	testModelControllerInstance componentApi.ModelController
 }
 
 func modelControllerTestSuite(t *testing.T) {
@@ -100,7 +100,7 @@ func (tc *ModelControllerTestCtx) testModelControllerAvaile() error {
 	}
 
 	err = tc.testCtx.wait(func(ctx context.Context) (bool, error) {
-		existingModelControllerList := &componentsv1.ModelControllerList{}
+		existingModelControllerList := &componentApi.ModelControllerList{}
 
 		if err := tc.testCtx.customClient.List(ctx, existingModelControllerList); err != nil {
 			return false, err
@@ -134,13 +134,13 @@ func (tc *ModelControllerTestCtx) testOwnerReferences() error {
 
 	// Test ModelController resources
 	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-		LabelSelector: labels.ODH.Component(componentsv1.ModelControllerComponentName),
+		LabelSelector: labels.ODH.Component(componentApi.ModelControllerComponentName),
 	})
 	if err != nil {
 		return fmt.Errorf("error listing component deployments %w", err)
 	}
 	// test any one deployment for ownerreference
-	if len(appDeployments.Items) != 0 && appDeployments.Items[0].OwnerReferences[0].Kind != componentsv1.ModelControllerKind {
+	if len(appDeployments.Items) != 0 && appDeployments.Items[0].OwnerReferences[0].Kind != componentApi.ModelControllerKind {
 		return fmt.Errorf("expected ownerreference not found. Got ownereferrence: %v",
 			appDeployments.Items[0].OwnerReferences)
 	}
@@ -152,7 +152,7 @@ func (tc *ModelControllerTestCtx) testOwnerReferences() error {
 func (tc *ModelControllerTestCtx) validateModelControllerReady() error {
 	err := wait.PollUntilContextTimeout(tc.testCtx.ctx, generalRetryInterval, componentReadyTimeout, true, func(ctx context.Context) (bool, error) {
 		key := types.NamespacedName{Name: tc.testModelControllerInstance.Name}
-		mc := &componentsv1.ModelController{}
+		mc := &componentApi.ModelController{}
 
 		err := tc.testCtx.customClient.Get(ctx, key, mc)
 		if err != nil {
@@ -172,7 +172,7 @@ func (tc *ModelControllerTestCtx) testUpdateOnModelControllerResources() error {
 	// Test Updating ModelController Replicas
 
 	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-		LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(componentsv1.ModelControllerKind),
+		LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(componentApi.ModelControllerKind),
 	})
 	if err != nil {
 		return err
@@ -224,10 +224,10 @@ func (tc *ModelControllerTestCtx) testUpdateModelControllerComponentDisabled() e
 
 	if tc.testCtx.testDsc.Spec.Components.ModelMeshServing.ManagementState == operatorv1.Managed {
 		appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-			LabelSelector: labels.ODH.Component(componentsv1.ModelControllerComponentName),
+			LabelSelector: labels.ODH.Component(componentApi.ModelControllerComponentName),
 		})
 		if err != nil {
-			return fmt.Errorf("error getting enabled component %v", componentsv1.ModelControllerComponentName)
+			return fmt.Errorf("error getting enabled component %v", componentApi.ModelControllerComponentName)
 		}
 		if len(appDeployments.Items) > 0 {
 			mcDeploymentName = appDeployments.Items[0].Name
@@ -266,7 +266,7 @@ func (tc *ModelControllerTestCtx) testUpdateModelControllerComponentDisabled() e
 
 	if err = tc.testCtx.wait(func(ctx context.Context) (bool, error) {
 		// Verify ModelController CR is deleted
-		mc := &componentsv1.ModelController{}
+		mc := &componentApi.ModelController{}
 		err = tc.testCtx.customClient.Get(ctx, client.ObjectKey{Name: tc.testModelControllerInstance.Name}, mc)
 		return k8serr.IsNotFound(err), nil
 	}); err != nil {
@@ -283,7 +283,7 @@ func (tc *ModelControllerTestCtx) testUpdateModelControllerComponentDisabled() e
 		return fmt.Errorf("error getting component resource after reconcile: %w", err)
 	}
 	return fmt.Errorf("component %v is disabled, should not get its deployment %v from NS %v any more",
-		componentsv1.ModelControllerKind,
+		componentApi.ModelControllerKind,
 		mcDeploymentName,
 		tc.testCtx.applicationsNamespace)
 }

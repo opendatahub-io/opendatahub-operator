@@ -41,67 +41,67 @@ func (tc *testContext) validateOwnedCRDs(t *testing.T) {
 	// Validate component CRDs
 	t.Run("Validate Dashboard CRD", func(t *testing.T) {
 		t.Parallel()
-		require.NoErrorf(t, tc.validateCRD("dashboards.components.opendatahub.io"),
-			"error in validating CRD : dashboards.components.opendatahub.io")
+		require.NoErrorf(t, tc.validateCRD("dashboards.components.platform.opendatahub.io"),
+			"error in validating CRD : dashboards.components.platform.opendatahub.io")
 	})
 
 	t.Run("Validate Ray CRD", func(t *testing.T) {
 		t.Parallel()
-		require.NoErrorf(t, tc.validateCRD("rays.components.opendatahub.io"),
-			"error in validating CRD : rays.components.opendatahub.io")
+		require.NoErrorf(t, tc.validateCRD("rays.components.platform.opendatahub.io"),
+			"error in validating CRD : rays.components.platform.opendatahub.io")
 	})
 
 	t.Run("Validate ModelRegistry CRD", func(t *testing.T) {
 		t.Parallel()
-		require.NoErrorf(t, tc.validateCRD("modelregistries.components.opendatahub.io"),
-			"error in validating CRD : modelregistries.components.opendatahub.io")
+		require.NoErrorf(t, tc.validateCRD("modelregistries.components.platform.opendatahub.io"),
+			"error in validating CRD : modelregistries.components.platform.opendatahub.io")
 	})
 
 	t.Run("Validate TrustyAI CRD", func(t *testing.T) {
 		t.Parallel()
-		require.NoErrorf(t, tc.validateCRD("trustyais.components.opendatahub.io"),
-			"error in validating CRD : trustyais.components.opendatahub.io")
+		require.NoErrorf(t, tc.validateCRD("trustyais.components.platform.opendatahub.io"),
+			"error in validating CRD : trustyais.components.platform.opendatahub.io")
 	})
 
 	t.Run("Validate Kueue CRD", func(t *testing.T) {
 		t.Parallel()
-		require.NoErrorf(t, tc.validateCRD("kueues.components.opendatahub.io"),
-			"error in validating CRD : kueues.components.opendatahub.io")
+		require.NoErrorf(t, tc.validateCRD("kueues.components.platform.opendatahub.io"),
+			"error in validating CRD : kueues.components.platform.opendatahub.io")
 	})
 
 	t.Run("Validate TrainingOperator CRD", func(t *testing.T) {
 		t.Parallel()
-		require.NoErrorf(t, tc.validateCRD("trainingoperators.components.opendatahub.io"),
-			"error in validating CRD : trainingoperators.components.opendatahub.io")
+		require.NoErrorf(t, tc.validateCRD("trainingoperators.components.platform.opendatahub.io"),
+			"error in validating CRD : trainingoperators.components.platform.opendatahub.io")
 	})
 
 	t.Run("Validate DataSciencePipelines CRD", func(t *testing.T) {
 		t.Parallel()
-		require.NoErrorf(t, tc.validateCRD("datasciencepipelines.components.opendatahub.io"),
-			"error in validating CRD : datasciencepipelines.components.opendatahub.io")
+		require.NoErrorf(t, tc.validateCRD("datasciencepipelines.components.platform.opendatahub.io"),
+			"error in validating CRD : datasciencepipelines.components.platform.opendatahub.io")
 	})
 
 	t.Run("Validate Workbenches CRD", func(t *testing.T) {
 		t.Parallel()
-		require.NoErrorf(t, tc.validateCRD("workbenches.components.opendatahub.io"),
-			"error in validating CRD : workbenches.components.opendatahub.io")
+		require.NoErrorf(t, tc.validateCRD("workbenches.components.platform.opendatahub.io"),
+			"error in validating CRD : workbenches.components.platform.opendatahub.io")
 	})
 
 	t.Run("Validate Kserve CRD", func(t *testing.T) {
 		t.Parallel()
-		require.NoErrorf(t, tc.validateCRD("kserves.components.opendatahub.io"),
-			"error in validating CRD : kserves.components.opendatahub.io")
+		require.NoErrorf(t, tc.validateCRD("kserves.components.platform.opendatahub.io"),
+			"error in validating CRD : kserves.components.platform.opendatahub.io")
 	})
 
 	t.Run("Validate ModelMeshServing CRD", func(t *testing.T) {
 		t.Parallel()
-		require.NoErrorf(t, tc.validateCRD("modelmeshservings.components.opendatahub.io"),
-			"error in validating CRD : modelmeshservings.components.opendatahub.io")
+		require.NoErrorf(t, tc.validateCRD("modelmeshservings.components.platform.opendatahub.io"),
+			"error in validating CRD : modelmeshservings.components.platform.opendatahub.io")
 	})
 
 	t.Run("Validate ModelController CRD", func(t *testing.T) {
 		t.Parallel()
-		require.NoErrorf(t, tc.validateCRD("modelcontrollers.components.opendatahub.io"),
-			"error in validating CRD : modelcontrollers.components.opendatahub.io")
+		require.NoErrorf(t, tc.validateCRD("modelcontrollers.components.platform.opendatahub.io"),
+			"error in validating CRD : modelcontrollers.components.platform.opendatahub.io")
 	})
 }

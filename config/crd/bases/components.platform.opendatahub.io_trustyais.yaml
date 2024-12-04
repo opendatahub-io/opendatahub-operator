@@ -4,14 +4,14 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.1
-  name: codeflares.components.opendatahub.io
+  name: trustyais.components.platform.opendatahub.io
 spec:
-  group: components.opendatahub.io
+  group: components.platform.opendatahub.io
   names:
-    kind: CodeFlare
-    listKind: CodeFlareList
-    plural: codeflares
-    singular: codeflare
+    kind: TrustyAI
+    listKind: TrustyAIList
+    plural: trustyais
+    singular: trustyai
   scope: Cluster
   versions:
   - additionalPrinterColumns:
@@ -26,7 +26,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: CodeFlare is the Schema for the codeflares API
+        description: TrustyAI is the Schema for the trustyais API
         properties:
           apiVersion:
             description: |-
@@ -46,6 +46,7 @@ spec:
           metadata:
             type: object
           spec:
+            description: TrustyAISpec defines the desired state of TrustyAI
             properties:
               devFlags:
                 description: Add developer fields
@@ -75,7 +76,7 @@ spec:
                 type: object
             type: object
           status:
-            description: CodeFlareStatus defines the observed state of CodeFlare
+            description: TrustyAIStatus defines the observed state of TrustyAI
             properties:
               conditions:
                 items:
@@ -141,8 +142,8 @@ spec:
             type: object
         type: object
         x-kubernetes-validations:
-        - message: CodeFlare name must be default-codeflare
-          rule: self.metadata.name == 'default-codeflare'
+        - message: TrustyAI name must be default-trustyai
+          rule: self.metadata.name == 'default-trustyai'
     served: true
     storage: true
     subresources:

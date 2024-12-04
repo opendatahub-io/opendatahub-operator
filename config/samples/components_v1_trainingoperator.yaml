@@ -1,4 +1,4 @@
-apiVersion: components.opendatahub.io/v1
+apiVersion: components.platform.opendatahub.io/v1
 kind: TrainingOperator
 metadata:
   name: trainingoperator-sample

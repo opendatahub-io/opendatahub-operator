@@ -169,7 +169,7 @@ rules:
   - create
   - patch
 - apiGroups:
-  - components.opendatahub.io
+  - components.platform.opendatahub.io
   resources:
   - codeflares
   - dashboards
@@ -192,7 +192,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - components.opendatahub.io
+  - components.platform.opendatahub.io
   resources:
   - codeflares/finalizers
   - datasciencepipelines/finalizers
@@ -208,7 +208,7 @@ rules:
   verbs:
   - update
 - apiGroups:
-  - components.opendatahub.io
+  - components.platform.opendatahub.io
   resources:
   - codeflares/status
   - dashboards/status
@@ -227,7 +227,7 @@ rules:
   - patch
   - update
 - apiGroups:
-  - components.opendatahub.io
+  - components.platform.opendatahub.io
   resources:
   - dashboards/finalizers
   verbs:
@@ -841,7 +841,7 @@ rules:
   verbs:
   - '*'
 - apiGroups:
-  - services.opendatahub.io
+  - services.platform.opendatahub.io
   resources:
   - monitorings
   verbs:
@@ -853,13 +853,13 @@ rules:
   - update
   - watch
 - apiGroups:
-  - services.opendatahub.io
+  - services.platform.opendatahub.io
   resources:
   - monitorings/finalizers
   verbs:
   - update
 - apiGroups:
-  - services.opendatahub.io
+  - services.platform.opendatahub.io
   resources:
   - monitorings/status
   verbs:

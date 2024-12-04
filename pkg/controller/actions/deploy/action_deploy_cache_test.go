@@ -223,7 +223,7 @@ func testCacheTTL(t *testing.T, cli *client.Client, obj ctrlCli.Object) {
 			ApplicationsNamespace: in.GetNamespace()},
 		},
 		DSC: &dscv1.DataScienceCluster{},
-		Instance: &componentsv1.Dashboard{
+		Instance: &componentApi.Dashboard{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
 			},

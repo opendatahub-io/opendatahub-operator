@@ -4,9 +4,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.1
   creationTimestamp: null
-  name: monitorings.services.opendatahub.io
+  name: monitorings.services.platform.opendatahub.io
 spec:
-  group: services.opendatahub.io
+  group: services.platform.opendatahub.io
   names:
     kind: Monitoring
     listKind: MonitoringList

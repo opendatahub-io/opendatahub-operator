@@ -97,34 +97,22 @@ metadata:
               "managementState": "Managed"
             }
           }
-        },
-        {
-          "apiVersion": "services.opendatahub.io/v1",
-          "kind": "Monitoring",
-          "metadata": {
-            "name": "monitoring-sample"
-          },
-          "spec": null
         }
       ]
     capabilities: Full Lifecycle
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.19.0
-<<<<<<< HEAD
-    createdAt: "2024-12-03T14:47:46Z"
-=======
-    createdAt: "2024-12-02T18:57:19Z"
->>>>>>> 5a7651d2 (Update api version for internal apis to v1alpha1)
+    createdAt: "2024-12-04T17:07:19Z"
     olm.skipRange: '>=1.0.0 <2.19.0'
     operators.operatorframework.io/builder: operator-sdk-v1.31.0
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
-      "codeflares.components.opendatahub.io", "dashboards.components.opendatahub.io",
-      "datasciencepipelines.components.opendatahub.io", "kserves.components.opendatahub.io",
-      "kueues.components.opendatahub.io", "modelmeshservings.components.opendatahub.io",
-      "modelregistries.components.opendatahub.io", "rays.components.opendatahub.io",
-      "trainingoperators.components.opendatahub.io", "trustyais.components.opendatahub.io",  "workbenches.components.opendatahub.io",
-      "monitorings.services.opendatahub.io","modelcontrollers.components.opendatahub.io"]'
+      "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
+      "datasciencepipelines.components.platform.opendatahub.io", "kserves.components.platform.opendatahub.io",
+      "kueues.components.platform.opendatahub.io", "modelmeshservings.components.platform.opendatahub.io",
+      "modelregistries.components.platform.opendatahub.io", "rays.components.platform.opendatahub.io",
+      "trainingoperators.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io",  "workbenches.components.platform.opendatahub.io",
+      "monitorings.services.platform.opendatahub.io","modelcontrollers.components.platform.opendatahub.io"]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/opendatahub-io/opendatahub-operator
   name: opendatahub-operator.v2.19.0
@@ -136,12 +124,12 @@ spec:
     - description: CodeFlare is the Schema for the codeflares API
       displayName: Code Flare
       kind: CodeFlare
-      name: codeflares.components.opendatahub.io
+      name: codeflares.components.platform.opendatahub.io
       version: v1alpha1
     - description: Dashboard is the Schema for the dashboards API
       displayName: Dashboard
       kind: Dashboard
-      name: dashboards.components.opendatahub.io
+      name: dashboards.components.platform.opendatahub.io
       version: v1alpha1
     - description: DataScienceCluster is the Schema for the datascienceclusters API.
       displayName: Data Science Cluster
@@ -156,7 +144,7 @@ spec:
         API
       displayName: Data Science Pipelines
       kind: DataSciencePipelines
-      name: datasciencepipelines.components.opendatahub.io
+      name: datasciencepipelines.components.platform.opendatahub.io
       version: v1alpha1
     - description: DSCInitialization is the Schema for the dscinitializations API.
       displayName: DSC Initialization
@@ -199,50 +187,50 @@ spec:
     - description: Kserve is the Schema for the kserves API
       displayName: Kserve
       kind: Kserve
-      name: kserves.components.opendatahub.io
+      name: kserves.components.platform.opendatahub.io
       version: v1alpha1
     - description: Kueue is the Schema for the kueues API
       displayName: Kueue
       kind: Kueue
-      name: kueues.components.opendatahub.io
+      name: kueues.components.platform.opendatahub.io
       version: v1alpha1
     - kind: ModelController
-      name: modelcontrollers.components.opendatahub.io
+      name: modelcontrollers.components.platform.opendatahub.io
       version: v1alpha1
     - description: ModelMeshServing is the Schema for the modelmeshservings API
       displayName: Model Mesh Serving
       kind: ModelMeshServing
-      name: modelmeshservings.components.opendatahub.io
+      name: modelmeshservings.components.platform.opendatahub.io
       version: v1alpha1
     - description: ModelRegistry is the Schema for the modelregistries API
       displayName: Model Registry
       kind: ModelRegistry
-      name: modelregistries.components.opendatahub.io
+      name: modelregistries.components.platform.opendatahub.io
       version: v1alpha1
     - description: Monitoring is the Schema for the monitorings API
       displayName: Monitoring
       kind: Monitoring
-      name: monitorings.services.opendatahub.io
+      name: monitorings.services.platform.opendatahub.io
       version: v1alpha1
     - description: Ray is the Schema for the rays API
       displayName: Ray
       kind: Ray
-      name: rays.components.opendatahub.io
+      name: rays.components.platform.opendatahub.io
       version: v1alpha1
     - description: TrainingOperator is the Schema for the trainingoperators API
       displayName: Training Operator
       kind: TrainingOperator
-      name: trainingoperators.components.opendatahub.io
+      name: trainingoperators.components.platform.opendatahub.io
       version: v1alpha1
     - description: TrustyAI is the Schema for the trustyais API
       displayName: Trusty AI
       kind: TrustyAI
-      name: trustyais.components.opendatahub.io
+      name: trustyais.components.platform.opendatahub.io
       version: v1alpha1
     - description: Workbenches is the Schema for the workbenches API
       displayName: Workbenches
       kind: Workbenches
-      name: workbenches.components.opendatahub.io
+      name: workbenches.components.platform.opendatahub.io
       version: v1alpha1
   description: "The Open Data Hub is a machine-learning-as-a-service platform built
     on Red Hat's Kubernetes-based OpenShift® Container Platform. Open Data Hub integrates
@@ -438,7 +426,7 @@ spec:
           - create
           - patch
         - apiGroups:
-          - components.opendatahub.io
+          - components.platform.opendatahub.io
           resources:
           - codeflares
           - dashboards
@@ -461,7 +449,7 @@ spec:
           - update
           - watch
         - apiGroups:
-          - components.opendatahub.io
+          - components.platform.opendatahub.io
           resources:
           - codeflares/finalizers
           - datasciencepipelines/finalizers
@@ -477,7 +465,7 @@ spec:
           verbs:
           - update
         - apiGroups:
-          - components.opendatahub.io
+          - components.platform.opendatahub.io
           resources:
           - codeflares/status
           - dashboards/status
@@ -496,7 +484,7 @@ spec:
           - patch
           - update
         - apiGroups:
-          - components.opendatahub.io
+          - components.platform.opendatahub.io
           resources:
           - dashboards/finalizers
           verbs:
@@ -1110,7 +1098,7 @@ spec:
           verbs:
           - '*'
         - apiGroups:
-          - services.opendatahub.io
+          - services.platform.opendatahub.io
           resources:
           - monitorings
           verbs:
@@ -1122,13 +1110,13 @@ spec:
           - update
           - watch
         - apiGroups:
-          - services.opendatahub.io
+          - services.platform.opendatahub.io
           resources:
           - monitorings/finalizers
           verbs:
           - update
         - apiGroups:
-          - services.opendatahub.io
+          - services.platform.opendatahub.io
           resources:
           - monitorings/status
           verbs:

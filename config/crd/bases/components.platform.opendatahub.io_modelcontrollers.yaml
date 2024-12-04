@@ -4,14 +4,14 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.1
-  name: kueues.components.opendatahub.io
+  name: modelcontrollers.components.platform.opendatahub.io
 spec:
-  group: components.opendatahub.io
+  group: components.platform.opendatahub.io
   names:
-    kind: Kueue
-    listKind: KueueList
-    plural: kueues
-    singular: kueue
+    kind: ModelController
+    listKind: ModelControllerList
+    plural: modelcontrollers
+    singular: modelcontroller
   scope: Cluster
   versions:
   - additionalPrinterColumns:
@@ -23,10 +23,15 @@ spec:
       jsonPath: .status.conditions[?(@.type=="Ready")].reason
       name: Reason
       type: string
+    - description: devFlag's URI used to download
+      jsonPath: .status.URI
+      name: URI
+      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Kueue is the Schema for the kueues API
+        description: ModelController is the Schema for the modelcontroller API, it
+          is a shared component between kserve and modelmeshserving
         properties:
           apiVersion:
             description: |-
@@ -46,38 +51,86 @@ spec:
           metadata:
             type: object
           spec:
-            description: KueueSpec defines the desired state of Kueue
+            description: ModelControllerSpec defines the desired state of ModelController
             properties:
-              devFlags:
-                description: Add developer fields
+              kserve:
+                description: ModelMeshServing DSCModelMeshServing `json:"modelMeshServing,omitempty"`
                 properties:
-                  manifests:
-                    description: List of custom manifests for the given component
-                    items:
-                      properties:
-                        contextDir:
-                          default: manifests
-                          description: contextDir is the relative path to the folder
-                            containing manifests in a repository, default value "manifests"
-                          type: string
-                        sourcePath:
-                          default: ""
-                          description: 'sourcePath is the subpath within contextDir
-                            where kustomize builds start. Examples include any sub-folder
-                            or path: `base`, `overlays/dev`, `default`, `odh` etc.'
-                          type: string
-                        uri:
-                          default: ""
-                          description: uri is the URI point to a git repo with tag/branch.
-                            e.g.  https://github.com/org/repo/tarball/<tag/branch>
-                          type: string
-                      type: object
-                    type: array
+                  devFlags:
+                    description: Add developer fields
+                    properties:
+                      manifests:
+                        description: List of custom manifests for the given component
+                        items:
+                          properties:
+                            contextDir:
+                              default: manifests
+                              description: contextDir is the relative path to the
+                                folder containing manifests in a repository, default
+                                value "manifests"
+                              type: string
+                            sourcePath:
+                              default: ""
+                              description: 'sourcePath is the subpath within contextDir
+                                where kustomize builds start. Examples include any
+                                sub-folder or path: `base`, `overlays/dev`, `default`,
+                                `odh` etc.'
+                              type: string
+                            uri:
+                              default: ""
+                              description: uri is the URI point to a git repo with
+                                tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
+                              type: string
+                          type: object
+                        type: array
+                    type: object
+                  managementState:
+                    pattern: ^(Managed|Unmanaged|Force|Removed)$
+                    type: string
+                type: object
+              modelMeshServing:
+                description: a mini version of the DSCModelMeshServing only keep devflags
+                  and management spec
+                properties:
+                  devFlags:
+                    description: Add developer fields
+                    properties:
+                      manifests:
+                        description: List of custom manifests for the given component
+                        items:
+                          properties:
+                            contextDir:
+                              default: manifests
+                              description: contextDir is the relative path to the
+                                folder containing manifests in a repository, default
+                                value "manifests"
+                              type: string
+                            sourcePath:
+                              default: ""
+                              description: 'sourcePath is the subpath within contextDir
+                                where kustomize builds start. Examples include any
+                                sub-folder or path: `base`, `overlays/dev`, `default`,
+                                `odh` etc.'
+                              type: string
+                            uri:
+                              default: ""
+                              description: uri is the URI point to a git repo with
+                                tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
+                              type: string
+                          type: object
+                        type: array
+                    type: object
+                  managementState:
+                    pattern: ^(Managed|Unmanaged|Force|Removed)$
+                    type: string
                 type: object
             type: object
           status:
-            description: KueueStatus defines the observed state of Kueue
+            description: ModelControllerStatus defines the observed state of ModelController
             properties:
+              URI:
+                description: devflag's URI
+                type: string
               conditions:
                 items:
                   description: Condition contains details for one aspect of the current
@@ -142,8 +195,8 @@ spec:
             type: object
         type: object
         x-kubernetes-validations:
-        - message: Kueue name must be default-kueue
-          rule: self.metadata.name == 'default-kueue'
+        - message: ModelController name must be default-modelcontroller
+          rule: self.metadata.name == 'default-modelcontroller'
     served: true
     storage: true
     subresources:
