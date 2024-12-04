@@ -244,7 +244,7 @@ func newDSCI(appName string) *dsciv1.DSCInitialization {
 		},
 		Spec: dsciv1.DSCInitializationSpec{
 			ApplicationsNamespace: namespace,
-			Monitoring: dsciv1.Monitoring{
+			Monitoring: &dsciv1.Monitoring{
 				Namespace:       monitoringNS,
 				ManagementState: operatorv1.Managed,
 			},

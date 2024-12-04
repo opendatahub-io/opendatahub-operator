@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -235,7 +234,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsciv1.DSCInitialization
 		prometheusConfigPath,
 		dsciInit.Spec.Monitoring.Namespace,
 		"prometheus",
-		dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed); err != nil {
+		common.IsMonitoringEnabled(dsciInit.Spec.Monitoring)); err != nil {
 		log.Error(err, "error to deploy manifests for prometheus configs", "path", prometheusConfigPath)
 		return err
 	}
@@ -384,7 +383,7 @@ func configureBlackboxExporter(ctx context.Context, dsciInit *dsciv1.DSCInitiali
 			filepath.Join(blackBoxPath, "internal"),
 			dsciInit.Spec.Monitoring.Namespace,
 			"blackbox-exporter",
-			dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed); err != nil {
+			common.IsMonitoringEnabled(dsciInit.Spec.Monitoring)); err != nil {
 			log.Error(err, "error to deploy manifests: %w", "error", err)
 			return err
 		}
@@ -394,7 +393,7 @@ func configureBlackboxExporter(ctx context.Context, dsciInit *dsciv1.DSCInitiali
 			filepath.Join(blackBoxPath, "external"),
 			dsciInit.Spec.Monitoring.Namespace,
 			"blackbox-exporter",
-			dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed); err != nil {
+			common.IsMonitoringEnabled(dsciInit.Spec.Monitoring)); err != nil {
 			log.Error(err, "error to deploy manifests: %w", "error", err)
 			return err
 		}
@@ -458,7 +457,7 @@ func (r *DSCInitializationReconciler) configureSegmentIO(ctx context.Context, ds
 				segmentPath,
 				dsciInit.Spec.ApplicationsNamespace,
 				"segment-io",
-				dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed); err != nil {
+				common.IsMonitoringEnabled(dsciInit.Spec.Monitoring)); err != nil {
 				log.Error(err, "error to deploy manifests under "+segmentPath)
 				return err
 			}
@@ -492,7 +491,7 @@ func (r *DSCInitializationReconciler) configureCommonMonitoring(ctx context.Cont
 		monitoringBasePath,
 		"",
 		"monitoring-base",
-		dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed); err != nil {
+		common.IsMonitoringEnabled(dsciInit.Spec.Monitoring)); err != nil {
 		log.Error(err, "error to deploy manifests under "+monitoringBasePath)
 		return err
 	}

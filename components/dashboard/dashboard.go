@@ -20,6 +20,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
@@ -92,7 +93,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 	entryPath := DefaultPath
 	l := logf.FromContext(ctx)
 	enabled := d.GetManagementState() == operatorv1.Managed
-	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
+	monitoringEnabled := common.IsMonitoringEnabled(dscispec.Monitoring)
 
 	if enabled {
 		// 1. cleanup OAuth client related secret and CR if dashboard is in 'installed false' status

@@ -20,6 +20,7 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/conversion"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 
@@ -100,7 +101,7 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, platform cluster.Platform, _ bool) error {
 	l := logf.FromContext(ctx)
 	enabled := m.GetManagementState() == operatorv1.Managed
-	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
+	monitoringEnabled := common.IsMonitoringEnabled(dscispec.Monitoring)
 
 	if enabled {
 		// return error if ServiceMesh is not enabled, as it's a required feature
