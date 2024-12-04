@@ -234,22 +234,13 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			if !createUsergroup {
 				log.Info("DSCI disabled usergroup creation")
 			} else {
-				err := r.createUserGroup(ctx, instance, "rhods-admins")
-				if err != nil {
-					return reconcile.Result{}, err
-				}
-			}
-			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
-				log.Info("Monitoring enabled, won't apply changes", "cluster", "Self-Managed RHODS Mode")
-				err = r.configureCommonMonitoring(ctx, instance)
-				if err != nil {
+				if err := r.createUserGroup(ctx, instance, "rhods-admins"); err != nil {
 					return reconcile.Result{}, err
 				}
 			}
 		case cluster.ManagedRhoai:
 			osdConfigsPath := filepath.Join(deploy.DefaultManifestPath, "osd-configs")
-			err = deploy.DeployManifestsFromPath(ctx, r.Client, instance, osdConfigsPath, r.ApplicationsNamespace, "osd", true)
-			if err != nil {
+			if err = deploy.DeployManifestsFromPath(ctx, r.Client, instance, osdConfigsPath, r.ApplicationsNamespace, "osd", true); err != nil {
 				log.Error(err, "Failed to apply osd specific configs from manifests", "Manifests path", osdConfigsPath)
 				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to apply "+osdConfigsPath)
 
@@ -257,12 +248,10 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			}
 			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
 				log.Info("Monitoring enabled in initialization stage", "cluster", "Managed Service Mode")
-				err := r.configureManagedMonitoring(ctx, instance, "init")
-				if err != nil {
+				if err := r.configureManagedMonitoring(ctx, instance, "init"); err != nil {
 					return reconcile.Result{}, err
 				}
-				err = r.configureCommonMonitoring(ctx, instance)
-				if err != nil {
+				if err = r.configureCommonMonitoring(ctx, instance); err != nil {
 					return reconcile.Result{}, err
 				}
 			}
