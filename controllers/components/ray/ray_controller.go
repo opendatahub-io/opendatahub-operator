@@ -31,6 +31,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/updatestatus"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -48,13 +50,19 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Owns(&corev1.ServiceAccount{}).
 		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(resources.NewDeploymentPredicate())).
 		Owns(&securityv1.SecurityContextConstraints{}).
-		Watches(&extv1.CustomResourceDefinition{}). // call ForLabel() + new predicates
+		Watches(
+			&extv1.CustomResourceDefinition{},
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.RayInstanceName)),
+			reconciler.WithPredicates(
+				component.ForLabel(labels.ODH.Component(ComponentName), labels.True)),
+		).
 		// Add Ray-specific actions
 		WithAction(initialize).
 		WithAction(devFlags).
 		WithAction(kustomize.NewAction(
 			kustomize.WithCache(),
-			kustomize.WithLabel(labels.ODH.Component(ComponentName), "true"),
+			kustomize.WithLabel(labels.ODH.Component(ComponentName), labels.True),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, ComponentName),
 		)).
 		WithAction(deploy.NewAction(

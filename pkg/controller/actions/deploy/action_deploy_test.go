@@ -27,6 +27,7 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	odhCli "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -373,4 +374,107 @@ func deployClusterRoles(t *testing.T, ctx context.Context, cli *odhCli.Client, r
 
 	err := deploy.NewAction()(ctx, &rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
+}
+
+func TestDeployCRD(t *testing.T) {
+	g := NewWithT(t)
+	s := runtime.NewScheme()
+
+	ctx := context.Background()
+	id := xid.New().String()
+
+	utilruntime.Must(corev1.AddToScheme(s))
+	utilruntime.Must(appsv1.AddToScheme(s))
+	utilruntime.Must(apiextensionsv1.AddToScheme(s))
+	utilruntime.Must(componentApi.AddToScheme(s))
+	utilruntime.Must(rbacv1.AddToScheme(s))
+
+	projectDir, err := envtestutil.FindProjectRoot()
+	g.Expect(err).NotTo(HaveOccurred())
+
+	envTest := &envtest.Environment{
+		CRDInstallOptions: envtest.CRDInstallOptions{
+			Scheme: s,
+			Paths: []string{
+				filepath.Join(projectDir, "config", "crd", "bases"),
+			},
+			ErrorIfPathMissing: true,
+			CleanUpAfterUse:    false,
+		},
+	}
+
+	t.Cleanup(func() {
+		_ = envTest.Stop()
+	})
+
+	cfg, err := envTest.Start()
+	g.Expect(err).NotTo(HaveOccurred())
+
+	envTestClient, err := client.New(cfg, client.Options{Scheme: s})
+	g.Expect(err).NotTo(HaveOccurred())
+
+	cli, err := odhCli.NewFromConfig(cfg, envTestClient)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	rr := types.ReconciliationRequest{
+		Client: cli,
+		DSCI: &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{
+			ApplicationsNamespace: id,
+		}},
+		DSC: &dscv1.DataScienceCluster{},
+		Instance: &componentApi.Dashboard{
+			ObjectMeta: metav1.ObjectMeta{
+				Generation: 1,
+				UID:        apimachinery.UID(id),
+			},
+		},
+		Release: cluster.Release{
+			Name: cluster.OpenDataHub,
+			Version: version.OperatorVersion{Version: semver.Version{
+				Major: 1, Minor: 2, Patch: 3,
+			}}},
+	}
+
+	err = rr.AddResources(&apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "acceleratorprofiles.dashboard.opendatahub.io",
+		},
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+			Group: "dashboard.opendatahub.io",
+			Names: apiextensionsv1.CustomResourceDefinitionNames{
+				Kind:     "AcceleratorProfile",
+				ListKind: "AcceleratorProfileList",
+				Plural:   "acceleratorprofiles",
+				Singular: "acceleratorprofile",
+			},
+			Scope: apiextensionsv1.NamespaceScoped,
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
+				{
+					Name:    "v1",
+					Served:  true,
+					Storage: true,
+					Schema: &apiextensionsv1.CustomResourceValidation{
+						OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+							Type: "object",
+						},
+					},
+				},
+			},
+		},
+	})
+
+	g.Expect(err).NotTo(HaveOccurred())
+
+	err = deploy.NewAction()(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	out := resources.GvkToUnstructured(gvk.CustomResourceDefinition)
+	out.SetName("acceleratorprofiles.dashboard.opendatahub.io")
+
+	err = cli.Get(ctx, client.ObjectKeyFromObject(out), out)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(out).Should(And(
+		jq.Match(`.metadata.labels."%s" == "%s"`, labels.PlatformPartOf, labels.Platform),
+		Not(jq.Match(`.metadata | has ("annotations")`)),
+	))
 }

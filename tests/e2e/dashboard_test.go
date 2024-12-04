@@ -77,6 +77,26 @@ func (d *DashboardTestCtx) Get(
 	}
 }
 
+func (d *DashboardTestCtx) Delete(
+	gvk schema.GroupVersionKind,
+	ns string,
+	name string,
+	option ...client.DeleteOption,
+) func() error {
+	return func() error {
+		u := resources.GvkToUnstructured(gvk)
+		u.SetName(name)
+		u.SetNamespace(ns)
+
+		err := d.customClient.Delete(d.ctx, u, option...)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+}
+
 func (d *DashboardTestCtx) Update(
 	obj client.Object,
 	fn func(obj *unstructured.Unstructured) error,
@@ -168,6 +188,7 @@ func dashboardTestSuite(t *testing.T) {
 		t.Run("Validate Dashboard operands have OwnerReferences", componentCtx.validateOperandsOwnerReferences)
 		t.Run("Validate Dashboard dynamically watches operands", componentCtx.validateOperandsDynamicallyWatchedResources)
 		t.Run("Validate Dashboard update operand resources", componentCtx.validateUpdateOperandsResources)
+		t.Run("Validate Dashboard CRDs reinstated", componentCtx.validateCRDReinstated)
 		// must be the latest one
 		t.Run("Validate Disabling Dashboard Component", componentCtx.validateDashboardDisabled)
 	})
@@ -300,6 +321,64 @@ func (d *DashboardTestCtx) validateUpdateOperandsResources(t *testing.T) {
 			jq.Match(`.spec.replicas == %d`, expectedReplica),
 		),
 	))
+}
+
+func (d *DashboardTestCtx) validateCRDReinstated(t *testing.T) {
+	g := d.WithT(t)
+	crdName := "acceleratorprofiles.dashboard.opendatahub.io"
+	crdSel := client.MatchingFields{"metadata.name": crdName}
+
+	g.Eventually(
+		d.updateComponent(func(c *dscv1.Components) { c.Dashboard.ManagementState = operatorv1.Removed }),
+	).ShouldNot(
+		HaveOccurred(),
+	)
+
+	g.Eventually(
+		d.List(gvk.Dashboard),
+	).Should(
+		BeEmpty(),
+	)
+
+	g.Eventually(
+		d.List(gvk.CustomResourceDefinition, crdSel),
+	).Should(
+		HaveLen(1),
+	)
+
+	g.Eventually(
+		d.Delete(
+			gvk.CustomResourceDefinition,
+			"", crdName,
+			client.PropagationPolicy(metav1.DeletePropagationForeground),
+		),
+	).ShouldNot(
+		HaveOccurred(),
+	)
+
+	g.Eventually(
+		d.List(gvk.CustomResourceDefinition, crdSel),
+	).Should(
+		BeEmpty(),
+	)
+
+	g.Eventually(
+		d.updateComponent(func(c *dscv1.Components) { c.Dashboard.ManagementState = operatorv1.Managed }),
+	).ShouldNot(
+		HaveOccurred(),
+	)
+
+	g.Eventually(
+		d.List(gvk.Dashboard),
+	).Should(
+		HaveLen(1),
+	)
+
+	g.Eventually(
+		d.List(gvk.CustomResourceDefinition, crdSel),
+	).Should(
+		HaveLen(1),
+	)
 }
 
 func (d *DashboardTestCtx) validateDashboardDisabled(t *testing.T) {

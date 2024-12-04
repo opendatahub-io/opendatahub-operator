@@ -32,6 +32,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/updatestatus"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -42,7 +44,7 @@ import (
 var (
 	defaultPath = types.ManifestInfo{
 		Path:       odhdeploy.DefaultManifestPath,
-		ContextDir: componentApi.DataSciencePipelinesComponentName,
+		ContextDir: ComponentName,
 		SourcePath: "/base",
 	}
 )
@@ -61,15 +63,21 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Owns(&monitoringv1.ServiceMonitor{}).
 		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(resources.NewDeploymentPredicate())).
 		Owns(&securityv1.SecurityContextConstraints{}).
-		Watches(&extv1.CustomResourceDefinition{}). // call ForLabel() + new predicates
+		Watches(
+			&extv1.CustomResourceDefinition{},
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.DataSciencePipelinesInstanceName)),
+			reconciler.WithPredicates(
+				component.ForLabel(labels.ODH.Component(ComponentName), labels.True)),
+		).
 		// Add datasciencepipelines-specific actions
 		WithAction(checkPreConditions).
 		WithAction(initialize).
 		WithAction(devFlags).
 		WithAction(kustomize.NewAction(
 			kustomize.WithCache(),
-			kustomize.WithLabel(labels.ODH.Component(componentApi.DataSciencePipelinesComponentName), "true"),
-			kustomize.WithLabel(labels.K8SCommon.PartOf, componentApi.DataSciencePipelinesComponentName),
+			kustomize.WithLabel(labels.ODH.Component(ComponentName), labels.True),
+			kustomize.WithLabel(labels.K8SCommon.PartOf, ComponentName),
 		)).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),

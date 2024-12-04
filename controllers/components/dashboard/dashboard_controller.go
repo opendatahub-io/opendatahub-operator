@@ -35,6 +35,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/security"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/updatestatus"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -67,16 +69,17 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		OwnsGVK(gvk.OdhApplication, reconciler.Dynamic()).
 		OwnsGVK(gvk.OdhDocument, reconciler.Dynamic()).
 		OwnsGVK(gvk.OdhQuickStart, reconciler.Dynamic()).
-		// operands - watched
-		//
-		// By default the Watches functions adds:
-		// - an event handler mapping to a cluster scope resource identified by the
-		//   components.platform.opendatahub.io/part-of annotation
-		// - a predicate that check for generation change for Delete/Updates events
-		//   for to objects that have the label components.platform.opendatahub.io/part-of
-		//   set to the current owner
-		//
-		Watches(&extv1.CustomResourceDefinition{}).
+		// CRDs are not owned by the component and should be left on the cluster,
+		// so by default, the deploy action won't add all the annotation added to
+		// other resources. Hence, a custom handling is required in order to minimize
+		// chattering and avoid noisy neighborhoods
+		Watches(
+			&extv1.CustomResourceDefinition{},
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.DashboardInstanceName)),
+			reconciler.WithPredicates(
+				component.ForLabel(labels.ODH.Component(componentName), labels.True)),
+		).
 		// The OdhDashboardConfig resource is expected to be created by the operator
 		// but then owned by the user so we only re-create it with factory values if
 		// it gets deleted
@@ -99,7 +102,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			//
 			// Additional labels/annotations MUST be added by the deploy action
 			// so they would affect only objects metadata without side effects
-			kustomize.WithLabel(labels.ODH.Component(componentName), "true"),
+			kustomize.WithLabel(labels.ODH.Component(componentName), labels.True),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, componentName),
 		)).
 		WithAction(customizeResources).
