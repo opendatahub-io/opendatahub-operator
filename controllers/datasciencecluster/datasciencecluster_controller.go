@@ -388,6 +388,19 @@ var configMapPredicates = predicate.Funcs{
 	},
 }
 
+var UninstallconfigMapPredicates = predicate.Funcs{
+	UpdateFunc: func(e event.UpdateEvent) bool {
+		// Trigger reconcile function for updated CM in operator namespace
+		operatorNs, _ := cluster.GetOperatorNamespace()
+		return e.ObjectNew.GetNamespace() == operatorNs
+	},
+	CreateFunc: func(e event.CreateEvent) bool {
+		// Trigger reconcile function for created CM in operator namespace
+		operatorNs, _ := cluster.GetOperatorNamespace()
+		return e.Object.GetNamespace() == operatorNs
+	},
+}
+
 // reduce unnecessary reconcile triggered by odh component's deployment change due to ManagedByODHOperator annotation.
 var componentDeploymentPredicates = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
@@ -519,10 +532,8 @@ func (r *DataScienceClusterReconciler) SetupWithManager(ctx context.Context, mgr
 			)).
 		Watches(
 			&corev1.ConfigMap{},
-			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {
-				return r.watchDataScienceClusterResources(ctx, a)
-			}),
-			builder.WithPredicates(configMapPredicates),
+			&handler.EnqueueRequestForObject{},
+			builder.WithPredicates(UninstallconfigMapPredicates),
 		).
 		Watches(
 			&apiextensionsv1.CustomResourceDefinition{},
@@ -568,19 +579,6 @@ func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(ctx cont
 		}}
 	}
 
-	// Trigger reconcile function when uninstall configmap is created
-	operatorNs, err := cluster.GetOperatorNamespace()
-	if err != nil {
-		return nil
-	}
-	if a.GetNamespace() == operatorNs {
-		cmLabels := a.GetLabels()
-		if val, ok := cmLabels[upgrade.DeleteConfigMapLabel]; ok && val == "true" {
-			return []reconcile.Request{{
-				NamespacedName: types.NamespacedName{Name: requestName},
-			}}
-		}
-	}
 	return nil
 }
 
@@ -595,7 +593,7 @@ func (r *DataScienceClusterReconciler) getRequestName(ctx context.Context) (stri
 	case len(instanceList.Items) == 1:
 		return instanceList.Items[0].Name, nil
 	case len(instanceList.Items) == 0:
-		return "default-dsc", nil
+		return "", errors.New("none DataScienceCluster instance found")
 	default:
 		return "", errors.New("multiple DataScienceCluster instances found")
 	}
