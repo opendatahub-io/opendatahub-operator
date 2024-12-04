@@ -661,11 +661,161 @@ spec:
               components:
                 description: Expose component's specific status
                 properties:
+                  codeflare:
+                    properties:
+                      releases:
+                        items:
+                          properties:
+                            name:
+                              type: string
+                            repoURL:
+                              type: string
+                            version:
+                              type: string
+                          type: object
+                        type: array
+                    type: object
+                  dashboard:
+                    properties:
+                      releases:
+                        items:
+                          properties:
+                            name:
+                              type: string
+                            repoURL:
+                              type: string
+                            version:
+                              type: string
+                          type: object
+                        type: array
+                    type: object
+                  datasciencepipelines:
+                    properties:
+                      releases:
+                        items:
+                          properties:
+                            name:
+                              type: string
+                            repoURL:
+                              type: string
+                            version:
+                              type: string
+                          type: object
+                        type: array
+                    type: object
+                  kserve:
+                    properties:
+                      releases:
+                        items:
+                          properties:
+                            name:
+                              type: string
+                            repoURL:
+                              type: string
+                            version:
+                              type: string
+                          type: object
+                        type: array
+                    type: object
+                  kueue:
+                    properties:
+                      releases:
+                        items:
+                          properties:
+                            name:
+                              type: string
+                            repoURL:
+                              type: string
+                            version:
+                              type: string
+                          type: object
+                        type: array
+                    type: object
+                  modelmeshserving:
+                    properties:
+                      releases:
+                        items:
+                          properties:
+                            name:
+                              type: string
+                            repoURL:
+                              type: string
+                            version:
+                              type: string
+                          type: object
+                        type: array
+                    type: object
                   modelregistry:
-                    description: ModelRegistry component status
                     properties:
                       registriesNamespace:
                         type: string
+                      releases:
+                        items:
+                          properties:
+                            name:
+                              type: string
+                            repoURL:
+                              type: string
+                            version:
+                              type: string
+                          type: object
+                        type: array
+                    type: object
+                  ray:
+                    properties:
+                      releases:
+                        items:
+                          properties:
+                            name:
+                              type: string
+                            repoURL:
+                              type: string
+                            version:
+                              type: string
+                          type: object
+                        type: array
+                    type: object
+                  trainingoperator:
+                    properties:
+                      releases:
+                        items:
+                          properties:
+                            name:
+                              type: string
+                            repoURL:
+                              type: string
+                            version:
+                              type: string
+                          type: object
+                        type: array
+                    type: object
+                  trustyai:
+                    properties:
+                      releases:
+                        items:
+                          properties:
+                            name:
+                              type: string
+                            repoURL:
+                              type: string
+                            version:
+                              type: string
+                          type: object
+                        type: array
+                    type: object
+                  workbenches:
+                    properties:
+                      releases:
+                        items:
+                          properties:
+                            name:
+                              type: string
+                            repoURL:
+                              type: string
+                            version:
+                              type: string
+                          type: object
+                        type: array
                     type: object
                 type: object
               conditions:

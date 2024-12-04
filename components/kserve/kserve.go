@@ -16,6 +16,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -109,6 +110,26 @@ func (k *Kserve) OverrideManifests(ctx context.Context, _ cluster.Platform) erro
 
 func (k *Kserve) GetComponentName() string {
 	return ComponentName
+}
+
+func (k *Kserve) UpdateStatus(in *status.ComponentsStatus) error {
+	if k.GetManagementState() != operatorv1.Managed {
+		in.Kserve = nil
+		return nil
+	}
+
+	releases, err := status.GetReleaseStatus(deploy.DefaultManifestPath, ComponentName)
+
+	if err != nil {
+		return err
+	}
+
+	in.Kserve = &status.KserveStatus{
+		ComponentStatus: status.ComponentStatus{
+			Releases: releases,
+		},
+	}
+	return nil
 }
 
 func (k *Kserve) ReconcileComponent(ctx context.Context, cli client.Client,

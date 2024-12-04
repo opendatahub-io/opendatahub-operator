@@ -85,6 +85,26 @@ func (d *DataSciencePipelines) GetComponentName() string {
 	return ComponentName
 }
 
+func (d *DataSciencePipelines) UpdateStatus(in *status.ComponentsStatus) error {
+	if d.GetManagementState() != operatorv1.Managed {
+		in.DataSciencePipelines = nil
+		return nil
+	}
+
+	releases, err := status.GetReleaseStatus(deploy.DefaultManifestPath, ComponentName)
+
+	if err != nil {
+		return err
+	}
+
+	in.DataSciencePipelines = &status.DataSciencePipelinesStatus{
+		ComponentStatus: status.ComponentStatus{
+			Releases: releases,
+		},
+	}
+	return nil
+}
+
 func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 	cli client.Client,
 	owner metav1.Object,
