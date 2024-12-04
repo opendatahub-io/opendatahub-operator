@@ -31,6 +31,7 @@ func init() { //nolint:gochecknoinits
 	cr.Add(&componentHandler{})
 }
 
+// Init for set images.
 func (s *componentHandler) Init(platform cluster.Platform) error {
 	return nil
 }
@@ -64,4 +65,8 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Obj
 			KserveCommonSpec: dsc.Spec.Components.Kserve.KserveCommonSpec,
 		},
 	})
+}
+
+func (s *componentHandler) Cleanup() error {
+	return nil
 }

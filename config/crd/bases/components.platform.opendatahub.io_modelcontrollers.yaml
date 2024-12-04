@@ -87,6 +87,17 @@ spec:
                   managementState:
                     pattern: ^(Managed|Unmanaged|Force|Removed)$
                     type: string
+                  nim:
+                    description: nimSpec enables NVIDIA NIM integration
+                    properties:
+                      managementState:
+                        default: Managed
+                        enum:
+                        - Managed
+                        - Removed
+                        pattern: ^(Managed|Unmanaged|Force|Removed)$
+                        type: string
+                    type: object
                 type: object
               modelMeshServing:
                 description: a mini version of the DSCModelMeshServing only keep devflags

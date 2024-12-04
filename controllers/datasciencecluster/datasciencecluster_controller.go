@@ -273,6 +273,12 @@ func (r *DataScienceClusterReconciler) ReconcileComponent(
 	r.Log.Info("Starting reconciliation of component: " + componentName)
 
 	enabled := component.GetManagementState(instance) == operatorv1.Managed
+	if !enabled {
+		if err := component.Cleanup(); err != nil {
+			r.Log.Error(err, "Failed to run cleanup for component CR: "+componentName)
+			return instance, err
+		}
+	}
 
 	componentCR := component.NewCRObject(instance)
 	err := r.apply(ctx, instance, componentCR)

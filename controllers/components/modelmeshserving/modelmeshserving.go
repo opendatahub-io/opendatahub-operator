@@ -71,3 +71,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Obj
 		},
 	})
 }
+
+func (s *componentHandler) Cleanup() error {
+	return nil
+}

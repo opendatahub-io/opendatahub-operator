@@ -30,6 +30,9 @@ metadata:
               },
               "kserve": {
                 "managementState": "Managed",
+                "nim": {
+                  "managementState": "Managed"
+                },
                 "serving": {
                   "ingressGateway": {
                     "certificate": {
@@ -103,7 +106,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.19.0
-    createdAt: "2024-12-04T17:35:30Z"
+    createdAt: "2024-12-05T10:53:52Z"
     olm.skipRange: '>=1.0.0 <2.19.0'
     operators.operatorframework.io/builder: operator-sdk-v1.31.0
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
@@ -1265,7 +1268,7 @@ spec:
                   value: /opt/manifests
                 - name: ODH_PLATFORM_TYPE
                   value: OpenDataHub
-                image: REPLACE_IMAGE:latest
+                image: quay.io/wenzhou/opendatahub-operator:2.19.0
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:

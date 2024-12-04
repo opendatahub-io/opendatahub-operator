@@ -84,6 +84,17 @@ spec:
                       type: object
                     type: array
                 type: object
+              nim:
+                description: Configures and enables NVIDIA NIM integration
+                properties:
+                  managementState:
+                    default: Managed
+                    enum:
+                    - Managed
+                    - Removed
+                    pattern: ^(Managed|Unmanaged|Force|Removed)$
+                    type: string
+                type: object
               serving:
                 description: |-
                   Serving configures the KNative-Serving stack used for model serving. A Service
