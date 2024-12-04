@@ -27,6 +27,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
 	buildv1 "github.com/openshift/api/build/v1"
+	configv1 "github.com/openshift/api/config/v1"
 	imagev1 "github.com/openshift/api/image/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -57,6 +58,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	annotations "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
@@ -501,7 +503,6 @@ func (r *DataScienceClusterReconciler) SetupWithManager(ctx context.Context, mgr
 		Owns(&imagev1.ImageStream{}).
 		Owns(&buildv1.BuildConfig{}).
 		Owns(&apiregistrationv1.APIService{}).
-		Owns(&operatorv1.IngressController{}).
 		Owns(&admissionregistrationv1.MutatingWebhookConfiguration{}).
 		Owns(
 			&admissionregistrationv1.ValidatingWebhookConfiguration{},
@@ -531,12 +532,20 @@ func (r *DataScienceClusterReconciler) SetupWithManager(ctx context.Context, mgr
 			}),
 			builder.WithPredicates(argoWorkflowCRDPredicates),
 		).
+		Watches( // ingress
+			&configv1.Ingress{},
+			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {
+				return r.watchIngressResources(ctx, a)
+			}),
+			builder.WithPredicates(generalUpdatePredicates),
+		).
 		Watches(
 			&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {
 				return r.watchDefaultIngressSecret(ctx, a)
 			}),
-			builder.WithPredicates(defaultIngressCertSecretPredicates)).
+			builder.WithPredicates(defaultIngressCertSecretPredicates),
+		).
 		// this predicates prevents meaningless reconciliations from being triggered
 		WithEventFilter(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{})).
 		Complete(r)
@@ -633,6 +642,22 @@ func (r *DataScienceClusterReconciler) watchDefaultIngressSecret(ctx context.Con
 		}}
 	}
 	return nil
+}
+
+func (r *DataScienceClusterReconciler) watchIngressResources(ctx context.Context, a client.Object) []reconcile.Request {
+	requestName, err := r.getRequestName(ctx)
+	if err != nil || a.GetName() != "cluster" || a.GetObjectKind().GroupVersionKind() != gvk.OpenshiftIngress {
+		return nil
+	}
+	return []reconcile.Request{{
+		NamespacedName: types.NamespacedName{Name: requestName},
+	}}
+}
+
+var generalUpdatePredicates = predicate.Funcs{
+	UpdateFunc: func(e event.UpdateEvent) bool {
+		return true
+	},
 }
 
 // defaultIngressCertSecretPredicates filters delete and create events to trigger reconcile when default ingress cert secret is expired

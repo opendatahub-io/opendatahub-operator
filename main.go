@@ -179,9 +179,14 @@ func main() { //nolint:funlen,maintidx
 
 	secretCache := createSecretCacheConfig(platform)
 	deploymentCache := createDeploymentCacheConfig(platform)
+
 	cacheOptions := cache.Options{
 		Scheme: scheme,
 		ByObject: map[client.Object]cache.ByObject{
+			// for Ingress from config.openshift.io/v1
+			&configv1.Ingress{}: {
+				Field: fields.Set{"metadata.name": "cluster"}.AsSelector(),
+			},
 			// all CRD: mainly for pipeline v1 teckon and v2 argo and dashboard's own CRD
 			&apiextensionsv1.CustomResourceDefinition{}: {},
 			// Cannot find a label on various screts, so we need to watch all secrets
