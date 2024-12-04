@@ -27,7 +27,7 @@ spec:
       jsonPath: .status.URI
       name: URI
       type: string
-    name: v1
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: ModelController is the Schema for the modelcontroller API, it

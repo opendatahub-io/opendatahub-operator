@@ -1,10 +1,10 @@
 # API Reference
 
 ## Packages
-- [components.platform.opendatahub.io/v1alpha1](#componentsopendatahubiov1alpha1)
+- [components.platform.opendatahub.io/v1alpha1](#componentsplatformopendatahubiov1alpha1)
 - [datasciencecluster.opendatahub.io/v1](#datascienceclusteropendatahubiov1)
 - [dscinitialization.opendatahub.io/v1](#dscinitializationopendatahubiov1)
-- [services.platform.opendatahub.io/v1alpha1](#servicesopendatahubiov1alpha1)
+- [services.platform.opendatahub.io/v1alpha1](#servicesplatformopendatahubiov1alpha1)
 
 
 ## components.platform.opendatahub.io/v1alpha1
@@ -749,7 +749,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1` | | |
+| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
 | `kind` _string_ | `ModelController` | | |
 | `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
 | `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
@@ -787,7 +787,7 @@ ModelControllerList contains a list of ModelController
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1` | | |
+| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
 | `kind` _string_ | `ModelControllerList` | | |
 | `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
 | `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
