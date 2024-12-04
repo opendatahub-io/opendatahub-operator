@@ -7,12 +7,10 @@ import (
 	"log"
 	"reflect"
 	"testing"
-	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -23,11 +21,9 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/serverless"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 func creationTestSuite(t *testing.T) {
@@ -238,73 +234,75 @@ func (tc *testContext) testDSCDuplication(t *testing.T) { //nolint:thelper
 	tc.testDuplication(t, gvk, dup)
 }
 
-func (tc *testContext) testAllComponentCreation(t *testing.T) error { //nolint:funlen,thelper
-	// Validate all components are in Ready state
+// TODO: cleanup
+// func (tc *testContext) testAllComponentCreation(t *testing.T) error { //nolint:funlen,thelper
+// 	// Validate all components are in Ready state
 
-	dscLookupKey := types.NamespacedName{Name: tc.testDsc.Name}
-	createdDSC := &dscv1.DataScienceCluster{}
+// 	dscLookupKey := types.NamespacedName{Name: tc.testDsc.Name}
+// 	createdDSC := &dscv1.DataScienceCluster{}
 
-	// Wait for components to get deployed
-	time.Sleep(1 * time.Minute)
+// 	// Wait for components to get deployed
+// 	time.Sleep(1 * time.Minute)
 
-	err := tc.customClient.Get(tc.ctx, dscLookupKey, createdDSC)
-	if err != nil {
-		return fmt.Errorf("error getting DataScienceCluster instance :%v", tc.testDsc.Name)
-	}
-	tc.testDsc = createdDSC
+// 	err := tc.customClient.Get(tc.ctx, dscLookupKey, createdDSC)
+// 	if err != nil {
+// 		return fmt.Errorf("error getting DataScienceCluster instance :%v", tc.testDsc.Name)
+// 	}
+// 	tc.testDsc = createdDSC
 
-	components, err := tc.testDsc.GetComponents()
-	if err != nil {
-		return err
-	}
+// 	components, err := tc.testDsc.GetComponents()
+// 	if err != nil {
+// 		return err
+// 	}
 
-	for _, c := range components {
-		c := c
-		name := c.GetComponentName()
-		t.Run("Validate "+name, func(t *testing.T) {
-			t.Parallel()
-			err = tc.testComponentCreation(c)
-			require.NoError(t, err, "error validating component %s when %v", name, c.GetManagementState())
-		})
-	}
-	return nil
-}
+// 	for _, c := range components {
+// 		c := c
+// 		name := c.GetComponentName()
+// 		t.Run("Validate "+name, func(t *testing.T) {
+// 			t.Parallel()
+// 			err = tc.testComponentCreation(c)
+// 			require.NoError(t, err, "error validating component %s when %v", name, c.GetManagementState())
+// 		})
+// 	}
+// 	return nil
+// }
 
-func (tc *testContext) testComponentCreation(component components.ComponentInterface) error {
-	err := wait.PollUntilContextTimeout(tc.ctx, generalRetryInterval, componentReadyTimeout, true, func(ctx context.Context) (bool, error) {
-		// TODO: see if checking deployment is a good test, CF does not create deployment
-		appList, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(ctx, metav1.ListOptions{
-			LabelSelector: labels.ODH.Component(component.GetComponentName()),
-		})
-		if err != nil {
-			log.Printf("error listing component deployments :%v", err)
-			return false, fmt.Errorf("error listing component deployments :%w", err)
-		}
-		if len(appList.Items) != 0 {
-			if component.GetManagementState() == operatorv1.Removed {
-				// deployment exists for removed component, retrying
-				return false, nil
-			}
+// TODO: cleanup
+// func (tc *testContext) testComponentCreation(component components.ComponentInterface) error {
+// 	err := wait.PollUntilContextTimeout(tc.ctx, generalRetryInterval, componentReadyTimeout, true, func(ctx context.Context) (bool, error) {
+// 		// TODO: see if checking deployment is a good test, CF does not create deployment
+// 		appList, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(ctx, metav1.ListOptions{
+// 			LabelSelector: labels.ODH.Component(component.GetComponentName()),
+// 		})
+// 		if err != nil {
+// 			log.Printf("error listing component deployments :%v", err)
+// 			return false, fmt.Errorf("error listing component deployments :%w", err)
+// 		}
+// 		if len(appList.Items) != 0 {
+// 			if component.GetManagementState() == operatorv1.Removed {
+// 				// deployment exists for removed component, retrying
+// 				return false, nil
+// 			}
 
-			for _, deployment := range appList.Items {
-				if deployment.Status.ReadyReplicas < 1 {
-					log.Printf("waiting for component deployments to be in Ready state: %s", deployment.Name)
-					return false, nil
-				}
-			}
-			return true, nil
-		}
-		// when no deployment is found
-		// It's ok not to have deployements for unmanaged component
-		if component.GetManagementState() != operatorv1.Managed {
-			return true, nil
-		}
+// 			for _, deployment := range appList.Items {
+// 				if deployment.Status.ReadyReplicas < 1 {
+// 					log.Printf("waiting for component deployments to be in Ready state: %s", deployment.Name)
+// 					return false, nil
+// 				}
+// 			}
+// 			return true, nil
+// 		}
+// 		// when no deployment is found
+// 		// It's ok not to have deployements for unmanaged component
+// 		if component.GetManagementState() != operatorv1.Managed {
+// 			return true, nil
+// 		}
 
-		return false, nil
-	})
+// 		return false, nil
+// 	})
 
-	return err
-}
+// 	return err
+// }
 
 func (tc *testContext) validateDSCI() error {
 	// expected

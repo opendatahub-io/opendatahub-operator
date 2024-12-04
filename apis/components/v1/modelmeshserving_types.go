@@ -21,26 +21,21 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
+const (
+	ModelMeshServingComponentName = "model-mesh"
+	// value should match whats set in the XValidation below
+	ModelMeshServingInstanceName = "default-modelmesh"
+	ModelMeshServingKind         = "ModelMeshServing"
+)
+
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
-// ModelMeshServingSpec defines the desired state of ModelMeshServing
-type ModelMeshServingSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of ModelMeshServing. Edit modelmeshserving_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
-}
-
-// ModelMeshServingStatus defines the observed state of ModelMeshServing
-type ModelMeshServingStatus struct {
-	common.Status `json:",inline"`
-}
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
+// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-modelmesh'",message="ModelMeshServing name must be default-modelmesh"
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
+// +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
 
 // ModelMeshServing is the Schema for the modelmeshservings API
 type ModelMeshServing struct {
@@ -51,16 +46,21 @@ type ModelMeshServing struct {
 	Status ModelMeshServingStatus `json:"status,omitempty"`
 }
 
-func (c *ModelMeshServing) GetDevFlags() *common.DevFlags {
-	return nil
+// ModelMeshServingSpec defines the desired state of ModelMeshServing
+type ModelMeshServingSpec struct {
+	ModelMeshServingCommonSpec `json:",inline"`
 }
 
-func (c *ModelMeshServing) GetStatus() *common.Status {
-	return &c.Status.Status
+type ModelMeshServingCommonSpec struct {
+	common.DevFlagsSpec `json:",inline"`
+}
+
+// ModelMeshServingStatus defines the observed state of ModelMeshServing
+type ModelMeshServingStatus struct {
+	common.Status `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
-
 // ModelMeshServingList contains a list of ModelMeshServing
 type ModelMeshServingList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -70,4 +70,18 @@ type ModelMeshServingList struct {
 
 func init() {
 	SchemeBuilder.Register(&ModelMeshServing{}, &ModelMeshServingList{})
+}
+
+func (c *ModelMeshServing) GetDevFlags() *common.DevFlags {
+	return c.Spec.DevFlags
+}
+func (c *ModelMeshServing) GetStatus() *common.Status {
+	return &c.Status.Status
+}
+
+// DSCModelMeshServing contains all the configuration exposed in DSC instance for ModelMeshServing component
+type DSCModelMeshServing struct {
+	common.ManagementSpec `json:",inline"`
+	// configuration fields common across components
+	ModelMeshServingCommonSpec `json:",inline"`
 }

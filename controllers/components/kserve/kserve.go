@@ -1,8 +1,6 @@
 package kserve
 
 import (
-	"fmt"
-
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -11,7 +9,6 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
@@ -34,6 +31,10 @@ func init() { //nolint:gochecknoinits
 	cr.Add(&componentHandler{})
 }
 
+func (s *componentHandler) Init(platform cluster.Platform) error {
+	return nil
+}
+
 func (s *componentHandler) GetName() string {
 	return componentName
 }
@@ -43,23 +44,6 @@ func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) ope
 		return operatorv1.Managed
 	}
 	return operatorv1.Removed
-}
-
-// Init for set images.
-func (s *componentHandler) Init(platform cluster.Platform) error {
-	omcManifestInfo := odhModelControllerManifestInfo(odhModelControllerManifestSourcePath)
-
-	// dependentParamMap for odh-model-controller to use.
-	var dependentParamMap = map[string]string{
-		odhModelControllerComponentName: "RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
-	}
-
-	// Update image parameters for odh-model-controller
-	if err := deploy.ApplyParams(omcManifestInfo.String(), dependentParamMap); err != nil {
-		return fmt.Errorf("failed to update images on path %s: %w", omcManifestInfo.String(), err)
-	}
-
-	return nil
 }
 
 // for DSC to get compoment Kserve's CR.

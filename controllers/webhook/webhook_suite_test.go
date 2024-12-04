@@ -45,8 +45,6 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	servicesv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1"
-	componentsold "github.com/opendatahub-io/opendatahub-operator/v2/components"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
 	modelregistry2 "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/webhook"
 
@@ -269,8 +267,8 @@ func newDSC(name string, namespace string) *dscv1.DataScienceCluster {
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				ModelMeshServing: modelmeshserving.ModelMeshServing{
-					Component: componentsold.Component{
+				ModelMeshServing: componentsv1.DSCModelMeshServing{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},

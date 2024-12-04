@@ -32,8 +32,6 @@ import (
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	servicesv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1"
-	componentsold "github.com/opendatahub-io/opendatahub-operator/v2/components"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
@@ -67,8 +65,8 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 				Workbenches: componentsv1.DSCWorkbenches{
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
-				ModelMeshServing: modelmeshserving.ModelMeshServing{
-					Component: componentsold.Component{ManagementState: operatorv1.Managed},
+				ModelMeshServing: componentsv1.DSCModelMeshServing{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
 				DataSciencePipelines: componentsv1.DSCDataSciencePipelines{
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},

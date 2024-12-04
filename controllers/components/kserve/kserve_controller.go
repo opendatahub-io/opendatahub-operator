@@ -26,7 +26,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 
@@ -87,8 +86,8 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		// - a predicate that check for generation change for Delete/Updates events
 		//   for to objects that have the label components.opendatahub.io/managed-by
 		//   set to the current owner
-		//
-		Watches(&extv1.CustomResourceDefinition{}).
+		// TODO: uncomment below watch on CRD
+		// Watches(&extv1.CustomResourceDefinition{}).
 
 		// operands - dynamically watched
 		//

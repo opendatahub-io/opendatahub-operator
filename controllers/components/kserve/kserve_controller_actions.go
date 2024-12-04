@@ -93,7 +93,6 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	rr.Manifests = []odhtypes.ManifestInfo{
 		kserveManifestInfo(kserveManifestSourcePath),
-		odhModelControllerManifestInfo(odhModelControllerManifestSourcePath),
 	}
 
 	return nil
@@ -114,19 +113,8 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	}
 
 	kSourcePath := kserveManifestSourcePath
-	omcSourcePath := odhModelControllerManifestSourcePath
 
 	for _, subcomponent := range df.Manifests {
-		if strings.Contains(subcomponent.URI, odhModelControllerComponentName) {
-			if err := deploy.DownloadManifests(ctx, odhModelControllerComponentName, subcomponent); err != nil {
-				return err
-			}
-
-			if subcomponent.SourcePath != "" {
-				omcSourcePath = subcomponent.SourcePath
-			}
-		}
-
 		if strings.Contains(subcomponent.URI, componentName) {
 			if err := deploy.DownloadManifests(ctx, componentName, subcomponent); err != nil {
 				return err
@@ -140,7 +128,6 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 
 	rr.Manifests = []odhtypes.ManifestInfo{
 		kserveManifestInfo(kSourcePath),
-		odhModelControllerManifestInfo(omcSourcePath),
 	}
 
 	return nil

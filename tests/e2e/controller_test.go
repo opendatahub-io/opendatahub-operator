@@ -39,6 +39,7 @@ var (
 	scheme   = runtime.NewScheme()
 
 	componentsTestSuites = map[string]TestFn{
+		// do not add modelcontroller here, due to dependency, test it separately below
 		"dashboard":             dashboardTestSuite,
 		"ray":                   rayTestSuite,
 		"modelregistry":         modelRegistryTestSuite,
@@ -49,6 +50,7 @@ var (
 		"codeflare":             codeflareTestSuite,
 		"workbenches":           workbenchesTestSuite,
 		"kserve":                kserveTestSuite,
+		"modelmesh":             modelMeshServingTestSuite,
 	}
 )
 
@@ -167,6 +169,9 @@ func TestOdhOperator(t *testing.T) {
 
 		t.Run("validate installation of "+k+" component", v)
 	}
+
+	// Run test on modelcontroller
+	t.Run("validate installation of modelcontroller component", modelControllerTestSuite)
 
 	// Run deletion if skipDeletion is not set
 	if !testOpts.skipDeletion {

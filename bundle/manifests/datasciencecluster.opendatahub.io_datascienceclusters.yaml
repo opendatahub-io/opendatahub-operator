@@ -351,9 +351,7 @@ spec:
                         type: string
                     type: object
                   modelmeshserving:
-                    description: |-
-                      ModelMeshServing component configuration.
-                      Does not support enabled Kserve at the same time
+                    description: ModelMeshServing component configuration.
                     properties:
                       devFlags:
                         description: Add developer fields
