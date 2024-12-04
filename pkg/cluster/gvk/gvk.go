@@ -106,61 +106,61 @@ var (
 
 	Dashboard = schema.GroupVersionKind{
 		Group:   "components.platform.opendatahub.io",
-		Version: "v1",
+		Version: "v1alpha1",
 		Kind:    "Dashboard",
 	}
 
 	Workbenches = schema.GroupVersionKind{
 		Group:   "components.platform.opendatahub.io",
-		Version: "v1",
+		Version: "v1alpha1",
 		Kind:    "Workbenches",
 	}
 
 	ModelMeshServing = schema.GroupVersionKind{
 		Group:   "components.platform.opendatahub.io",
-		Version: "v1",
+		Version: "v1alpha1",
 		Kind:    "ModelMeshServing",
 	}
 
 	DataSciencePipelines = schema.GroupVersionKind{
 		Group:   "components.platform.opendatahub.io",
-		Version: "v1",
+		Version: "v1alpha1",
 		Kind:    "DataSciencePipelines",
 	}
 
 	Kserve = schema.GroupVersionKind{
 		Group:   "components.platform.opendatahub.io",
-		Version: "v1",
+		Version: "v1alpha1",
 		Kind:    "Kserve",
 	}
 
 	CodeFlare = schema.GroupVersionKind{
 		Group:   "components.platform.opendatahub.io",
-		Version: "v1",
+		Version: "v1alpha1",
 		Kind:    "CodeFlare",
 	}
 
 	Ray = schema.GroupVersionKind{
 		Group:   "components.platform.opendatahub.io",
-		Version: "v1",
+		Version: "v1alpha1",
 		Kind:    "Ray",
 	}
 
 	TrustyAI = schema.GroupVersionKind{
 		Group:   "components.platform.opendatahub.io",
-		Version: "v1",
+		Version: "v1alpha1",
 		Kind:    "TrustyAI",
 	}
 
 	ModelRegistry = schema.GroupVersionKind{
 		Group:   "components.platform.opendatahub.io",
-		Version: "v1",
+		Version: "v1alpha1",
 		Kind:    "ModelRegistry",
 	}
 
 	TrainingOperator = schema.GroupVersionKind{
 		Group:   "components.platform.opendatahub.io",
-		Version: "v1",
+		Version: "v1alpha1",
 		Kind:    "TrainingOperator",
 	}
 
