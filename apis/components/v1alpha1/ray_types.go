@@ -55,9 +55,14 @@ type RayCommonSpec struct {
 	common.DevFlagsSpec `json:",inline"`
 }
 
+// RayCommonStatus defines the shared observed state of Ray
+type RayCommonStatus struct {
+}
+
 // RayStatus defines the observed state of Ray
 type RayStatus struct {
-	common.Status `json:",inline"`
+	common.Status   `json:",inline"`
+	RayCommonStatus `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
@@ -84,4 +89,10 @@ type DSCRay struct {
 	common.ManagementSpec `json:",inline"`
 	// configuration fields common across components
 	RayCommonSpec `json:",inline"`
+}
+
+// DSCRayStatus struct holds the status for the Ray component exposed in the DSC
+type DSCRayStatus struct {
+	common.ManagementSpec `json:",inline"`
+	*RayCommonStatus      `json:",inline"`
 }

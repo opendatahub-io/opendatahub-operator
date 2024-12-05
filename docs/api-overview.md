@@ -78,6 +78,20 @@ _Appears in:_
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
+#### CodeFlareCommonStatus
+
+
+
+CodeFlareCommonStatus defines the shared observed state of CodeFlare
+
+
+
+_Appears in:_
+- [CodeFlareStatus](#codeflarestatus)
+- [DSCCodeFlareStatus](#dsccodeflarestatus)
+
+
+
 #### CodeFlareList
 
 
@@ -128,8 +142,8 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 
 
 #### DSCCodeFlare
@@ -149,6 +163,22 @@ _Appears in:_
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
+#### DSCCodeFlareStatus
+
+
+
+DSCCodeFlareStatus contains the observed state of the CodeFlare exposed in the DSC instance
+
+
+
+_Appears in:_
+- [ComponentsStatus](#componentsstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+
+
 #### DSCDashboard
 
 
@@ -166,6 +196,22 @@ _Appears in:_
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
+#### DSCDashboardStatus
+
+
+
+DSCDashboardStatus contains the observed state of the Dashboard exposed in the DSC instance
+
+
+
+_Appears in:_
+- [ComponentsStatus](#componentsstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+
+
 #### DSCDataSciencePipelines
 
 
@@ -181,6 +227,22 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+
+
+#### DSCDataSciencePipelinesStatus
+
+
+
+DSCDataSciencePipelinesStatus contains the observed state of the DataSciencePipelines exposed in the DSC instance
+
+
+
+_Appears in:_
+- [ComponentsStatus](#componentsstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
 #### DSCKserve
@@ -203,6 +265,22 @@ _Appears in:_
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration |  |  |
 
 
+#### DSCKserveStatus
+
+
+
+DSCKserveStatus contains the observed state of the Kserve exposed in the DSC instance
+
+
+
+_Appears in:_
+- [ComponentsStatus](#componentsstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+
+
 #### DSCKueue
 
 
@@ -220,6 +298,22 @@ _Appears in:_
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
+#### DSCKueueStatus
+
+
+
+DSCKueueStatus contains the observed state of the Kueue exposed in the DSC instance
+
+
+
+_Appears in:_
+- [ComponentsStatus](#componentsstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+
+
 #### DSCModelMeshServing
 
 
@@ -235,6 +329,22 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+
+
+#### DSCModelMeshServingStatus
+
+
+
+DSCModelMeshServingStatus contains the observed state of the ModelMeshServing exposed in the DSC instance
+
+
+
+_Appears in:_
+- [ComponentsStatus](#componentsstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
 #### DSCModelRegistry
@@ -265,11 +375,10 @@ DSCModelRegistryStatus struct holds the status for the ModelRegistry component e
 
 _Appears in:_
 - [ComponentsStatus](#componentsstatus)
-- [ModelRegistryStatus](#modelregistrystatus)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `registriesNamespace` _string_ |  |  |  |
+| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
 #### DSCRay
@@ -289,6 +398,22 @@ _Appears in:_
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
+#### DSCRayStatus
+
+
+
+DSCRayStatus struct holds the status for the Ray component exposed in the DSC
+
+
+
+_Appears in:_
+- [ComponentsStatus](#componentsstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+
+
 #### DSCTrainingOperator
 
 
@@ -304,6 +429,22 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+
+
+#### DSCTrainingOperatorStatus
+
+
+
+DSCTrainingOperatorStatus struct holds the status for the TrainingOperator component exposed in the DSC
+
+
+
+_Appears in:_
+- [ComponentsStatus](#componentsstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
 #### DSCTrustyAI
@@ -323,6 +464,22 @@ _Appears in:_
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
+#### DSCTrustyAIStatus
+
+
+
+DSCTrustyAIStatus struct holds the status for the TrustyAI component exposed in the DSC
+
+
+
+_Appears in:_
+- [ComponentsStatus](#componentsstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+
+
 #### DSCWorkbenches
 
 
@@ -338,6 +495,22 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+
+
+#### DSCWorkbenchesStatus
+
+
+
+DSCWorkbenchesStatus struct holds the status for the Workbenches component exposed in the DSC
+
+
+
+_Appears in:_
+- [ComponentsStatus](#componentsstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
 #### Dashboard
@@ -377,6 +550,23 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+
+
+#### DashboardCommonStatus
+
+
+
+DashboardCommonStatus defines the shared observed state of Dashboard
+
+
+
+_Appears in:_
+- [DSCDashboardStatus](#dscdashboardstatus)
+- [DashboardStatus](#dashboardstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `url` _string_ |  |  |  |
 
 
 #### DashboardList
@@ -429,8 +619,8 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 | `url` _string_ |  |  |  |
 
 
@@ -471,6 +661,20 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+
+
+#### DataSciencePipelinesCommonStatus
+
+
+
+DataSciencePipelinesCommonStatus defines the shared observed state of DataSciencePipelines
+
+
+
+_Appears in:_
+- [DSCDataSciencePipelinesStatus](#dscdatasciencepipelinesstatus)
+- [DataSciencePipelinesStatus](#datasciencepipelinesstatus)
+
 
 
 #### DataSciencePipelinesList
@@ -523,8 +727,8 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 
 
 #### DefaultDeploymentMode
@@ -589,6 +793,20 @@ _Appears in:_
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration |  |  |
 
 
+#### KserveCommonStatus
+
+
+
+KserveCommonStatus defines the shared observed state of Kserve
+
+
+
+_Appears in:_
+- [DSCKserveStatus](#dsckservestatus)
+- [KserveStatus](#kservestatus)
+
+
+
 #### KserveList
 
 
@@ -642,8 +860,8 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 
 
 #### Kueue
@@ -683,6 +901,20 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+
+
+#### KueueCommonStatus
+
+
+
+KueueCommonStatus defines the shared observed state of Kueue
+
+
+
+_Appears in:_
+- [DSCKueueStatus](#dsckueuestatus)
+- [KueueStatus](#kueuestatus)
+
 
 
 #### KueueList
@@ -735,8 +967,8 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 
 
 #### ModelController
@@ -847,8 +1079,8 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 
 
 #### ModelMeshServing
@@ -888,6 +1120,20 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+
+
+#### ModelMeshServingCommonStatus
+
+
+
+ModelMeshServingCommonStatus defines the shared observed state of ModelMeshServing
+
+
+
+_Appears in:_
+- [DSCModelMeshServingStatus](#dscmodelmeshservingstatus)
+- [ModelMeshServingStatus](#modelmeshservingstatus)
+
 
 
 #### ModelMeshServingList
@@ -940,8 +1186,8 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 
 
 #### ModelRegistry
@@ -982,6 +1228,23 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 | `registriesNamespace` _string_ | Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries" | odh-model-registries | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+
+
+#### ModelRegistryCommonStatus
+
+
+
+ModelRegistryCommonStatus defines the shared observed state of ModelRegistry
+
+
+
+_Appears in:_
+- [DSCModelRegistryStatus](#dscmodelregistrystatus)
+- [ModelRegistryStatus](#modelregistrystatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `registriesNamespace` _string_ |  |  |  |
 
 
 #### ModelRegistryList
@@ -1035,8 +1298,8 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 | `registriesNamespace` _string_ |  |  |  |
 
 
@@ -1098,6 +1361,20 @@ _Appears in:_
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
+#### RayCommonStatus
+
+
+
+RayCommonStatus defines the shared observed state of Ray
+
+
+
+_Appears in:_
+- [DSCRayStatus](#dscraystatus)
+- [RayStatus](#raystatus)
+
+
+
 #### RayList
 
 
@@ -1148,8 +1425,8 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 
 
 #### TrainingOperator
@@ -1189,6 +1466,20 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+
+
+#### TrainingOperatorCommonStatus
+
+
+
+TrainingOperatorCommonStatus defines the shared observed state of TrainingOperator
+
+
+
+_Appears in:_
+- [DSCTrainingOperatorStatus](#dsctrainingoperatorstatus)
+- [TrainingOperatorStatus](#trainingoperatorstatus)
+
 
 
 #### TrainingOperatorList
@@ -1241,8 +1532,8 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 
 
 #### TrustyAI
@@ -1282,6 +1573,20 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+
+
+#### TrustyAICommonStatus
+
+
+
+TrustyAICommonStatus defines the shared observed state of TrustyAI
+
+
+
+_Appears in:_
+- [DSCTrustyAIStatus](#dsctrustyaistatus)
+- [TrustyAIStatus](#trustyaistatus)
+
 
 
 #### TrustyAIList
@@ -1334,8 +1639,8 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 
 
 #### Workbenches
@@ -1375,6 +1680,20 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+
+
+#### WorkbenchesCommonStatus
+
+
+
+WorkbenchesCommonStatus defines the shared observed state of Workbenches
+
+
+
+_Appears in:_
+- [DSCWorkbenchesStatus](#dscworkbenchesstatus)
+- [WorkbenchesStatus](#workbenchesstatus)
+
 
 
 #### WorkbenchesList
@@ -1427,8 +1746,8 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 
 
 
@@ -1517,10 +1836,10 @@ _Appears in:_
 | `dashboard` _[DSCDashboard](#dscdashboard)_ | Dashboard component configuration. |  |  |
 | `workbenches` _[DSCWorkbenches](#dscworkbenches)_ | Workbenches component configuration. |  |  |
 | `modelmeshserving` _[DSCModelMeshServing](#dscmodelmeshserving)_ | ModelMeshServing component configuration. |  |  |
-| `datasciencepipelines` _[DSCDataSciencePipelines](#dscdatasciencepipelines)_ | DataServicePipeline component configuration.<br />Require OpenShift Pipelines Operator to be installed before enable component |  |  |
-| `kserve` _[DSCKserve](#dsckserve)_ | Kserve component configuration.<br />Require OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component<br />Does not support enabled ModelMeshServing at the same time |  |  |
+| `datasciencepipelines` _[DSCDataSciencePipelines](#dscdatasciencepipelines)_ | DataSciencePipeline component configuration.<br />Requires OpenShift Pipelines Operator to be installed before enable component |  |  |
+| `kserve` _[DSCKserve](#dsckserve)_ | Kserve component configuration.<br />Requires OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component<br />Does not support enabled ModelMeshServing at the same time |  |  |
 | `kueue` _[DSCKueue](#dsckueue)_ | Kueue component configuration. |  |  |
-| `codeflare` _[DSCCodeFlare](#dsccodeflare)_ | CodeFlare component configuration.<br />If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabled component. |  |  |
+| `codeflare` _[DSCCodeFlare](#dsccodeflare)_ | CodeFlare component configuration.<br />If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabling component. |  |  |
 | `ray` _[DSCRay](#dscray)_ | Ray component configuration. |  |  |
 | `trustyai` _[DSCTrustyAI](#dsctrustyai)_ | TrustyAI component configuration. |  |  |
 | `modelregistry` _[DSCModelRegistry](#dscmodelregistry)_ | ModelRegistry component configuration. |  |  |
@@ -1540,7 +1859,17 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `modelregistry` _[DSCModelRegistryStatus](#dscmodelregistrystatus)_ | ModelRegistry component status |  |  |
+| `dashboard` _[DSCDashboardStatus](#dscdashboardstatus)_ | Dashboard component status. |  |  |
+| `workbenches` _[DSCWorkbenchesStatus](#dscworkbenchesstatus)_ | Workbenches component status. |  |  |
+| `modelmeshserving` _[DSCModelMeshServingStatus](#dscmodelmeshservingstatus)_ | ModelMeshServing component status. |  |  |
+| `datasciencepipelines` _[DSCDataSciencePipelinesStatus](#dscdatasciencepipelinesstatus)_ | DataSciencePipeline component status. |  |  |
+| `kserve` _[DSCKserveStatus](#dsckservestatus)_ | Kserve component status. |  |  |
+| `kueue` _[DSCKueueStatus](#dsckueuestatus)_ | Kueue component status. |  |  |
+| `codeflare` _[DSCCodeFlareStatus](#dsccodeflarestatus)_ | CodeFlare component status. |  |  |
+| `ray` _[DSCRayStatus](#dscraystatus)_ | Ray component status. |  |  |
+| `trustyai` _[DSCTrustyAIStatus](#dsctrustyaistatus)_ | TrustyAI component status. |  |  |
+| `modelregistry` _[DSCModelRegistryStatus](#dscmodelregistrystatus)_ | ModelRegistry component status. |  |  |
+| `trainingoperator` _[DSCTrainingOperatorStatus](#dsctrainingoperatorstatus)_ | Training Operator component status. |  |  |
 
 
 #### ControlPlaneSpec
@@ -1613,6 +1942,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _string_ | Phase describes the Phase of DataScienceCluster reconciliation state<br />This is used by OLM UI to provide status information to the user |  |  |
 | `conditions` _Condition array_ | Conditions describes the state of the DataScienceCluster resource. |  |  |
+| `observedGeneration` _integer_ | The generation observed by the deployment controller. |  |  |
 | `relatedObjects` _[ObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectreference-v1-core) array_ | RelatedObjects is a list of objects created and maintained by this operator.<br />Object references will be added to this list after they have been created AND found in the cluster. |  |  |
 | `errorMessage` _string_ |  |  |  |
 | `installedComponents` _object (keys:string, values:boolean)_ | List of components with status if installed or not |  |  |
@@ -1908,8 +2238,8 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 | `url` _string_ |  |  |  |
 
 

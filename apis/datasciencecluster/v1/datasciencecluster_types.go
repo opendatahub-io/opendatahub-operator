@@ -42,12 +42,12 @@ type Components struct {
 	// ModelMeshServing component configuration.
 	ModelMeshServing componentApi.DSCModelMeshServing `json:"modelmeshserving,omitempty"`
 
-	// DataServicePipeline component configuration.
-	// Require OpenShift Pipelines Operator to be installed before enable component
+	// DataSciencePipeline component configuration.
+	// Requires OpenShift Pipelines Operator to be installed before enable component
 	DataSciencePipelines componentApi.DSCDataSciencePipelines `json:"datasciencepipelines,omitempty"`
 
 	// Kserve component configuration.
-	// Require OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component
+	// Requires OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component
 	// Does not support enabled ModelMeshServing at the same time
 	Kserve componentApi.DSCKserve `json:"kserve,omitempty"`
 
@@ -55,7 +55,7 @@ type Components struct {
 	Kueue componentApi.DSCKueue `json:"kueue,omitempty"`
 
 	// CodeFlare component configuration.
-	// If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabled component.
+	// If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabling component.
 	CodeFlare componentApi.DSCCodeFlare `json:"codeflare,omitempty"`
 
 	// Ray component configuration.
@@ -73,8 +73,38 @@ type Components struct {
 
 // ComponentsStatus defines the custom status of DataScienceCluster components.
 type ComponentsStatus struct {
-	// ModelRegistry component status
-	ModelRegistry *componentApi.DSCModelRegistryStatus `json:"modelregistry,omitempty"`
+	// Dashboard component status.
+	Dashboard componentApi.DSCDashboardStatus `json:"dashboard,omitempty"`
+
+	// Workbenches component status.
+	Workbenches componentApi.DSCWorkbenchesStatus `json:"workbenches,omitempty"`
+
+	// ModelMeshServing component status.
+	ModelMeshServing componentApi.DSCModelMeshServingStatus `json:"modelmeshserving,omitempty"`
+
+	// DataSciencePipeline component status.
+	DataSciencePipelines componentApi.DSCDataSciencePipelinesStatus `json:"datasciencepipelines,omitempty"`
+
+	// Kserve component status.
+	Kserve componentApi.DSCKserveStatus `json:"kserve,omitempty"`
+
+	// Kueue component status.
+	Kueue componentApi.DSCKueueStatus `json:"kueue,omitempty"`
+
+	// CodeFlare component status.
+	CodeFlare componentApi.DSCCodeFlareStatus `json:"codeflare,omitempty"`
+
+	// Ray component status.
+	Ray componentApi.DSCRayStatus `json:"ray,omitempty"`
+
+	// TrustyAI component status.
+	TrustyAI componentApi.DSCTrustyAIStatus `json:"trustyai,omitempty"`
+
+	// ModelRegistry component status.
+	ModelRegistry componentApi.DSCModelRegistryStatus `json:"modelregistry,omitempty"`
+
+	// Training Operator component status.
+	TrainingOperator componentApi.DSCTrainingOperatorStatus `json:"trainingoperator,omitempty"`
 }
 
 // DataScienceClusterStatus defines the observed state of DataScienceCluster.
@@ -87,6 +117,9 @@ type DataScienceClusterStatus struct {
 	// +optional
 	Conditions []conditionsv1.Condition `json:"conditions,omitempty"`
 
+	// The generation observed by the deployment controller.
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
 	// RelatedObjects is a list of objects created and maintained by this operator.
 	// Object references will be added to this list after they have been created AND found in the cluster.
 	// +optional
@@ -98,7 +131,7 @@ type DataScienceClusterStatus struct {
 
 	// Expose component's specific status
 	// +optional
-	Components ComponentsStatus `json:"components,omitempty"`
+	Components ComponentsStatus `json:"components"`
 
 	// Version and release type
 	Release cluster.Release `json:"release,omitempty"`

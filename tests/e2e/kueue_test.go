@@ -12,6 +12,7 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
+	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -20,6 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
@@ -74,11 +76,30 @@ func kueueTestSuite(t *testing.T) {
 }
 
 func (tc *KueueTestCtx) testKueueCreation() error {
-	if tc.testCtx.testDsc.Spec.Components.Kueue.ManagementState != operatorv1.Managed {
-		return nil
+	err := tc.testCtx.wait(func(ctx context.Context) (bool, error) {
+		key := client.ObjectKeyFromObject(tc.testCtx.testDsc)
+
+		err := tc.testCtx.customClient.Get(ctx, key, tc.testCtx.testDsc)
+		if err != nil {
+			return false, fmt.Errorf("error getting resource %w", err)
+		}
+
+		tc.testCtx.testDsc.Spec.Components.Kueue.ManagementState = operatorv1.Managed
+
+		switch err = tc.testCtx.customClient.Update(ctx, tc.testCtx.testDsc); {
+		case err == nil:
+			return true, nil
+		case k8serr.IsConflict(err):
+			return false, nil
+		default:
+			return false, fmt.Errorf("error updating resource %w", err)
+		}
+	})
+	if err != nil {
+		return fmt.Errorf("error after retry %w", err)
 	}
 
-	err := tc.testCtx.wait(func(ctx context.Context) (bool, error) {
+	err = tc.testCtx.wait(func(ctx context.Context) (bool, error) {
 		existingKueueList := &componentApi.KueueList{}
 
 		if err := tc.testCtx.customClient.List(ctx, existingKueueList); err != nil {
@@ -155,7 +176,31 @@ func (tc *KueueTestCtx) validateKueueReady() error {
 	})
 
 	if err != nil {
-		return fmt.Errorf("error waiting Ready state for Kueue %v: %w", tc.testKueueInstance.Name, err)
+		return fmt.Errorf("error waiting on Ready state for Kueue %v: %w", tc.testKueueInstance.Name, err)
+	}
+
+	err = wait.PollUntilContextTimeout(tc.testCtx.ctx, generalRetryInterval, componentReadyTimeout, true, func(ctx context.Context) (bool, error) {
+		list := dscv1.DataScienceClusterList{}
+		err := tc.testCtx.customClient.List(ctx, &list)
+		if err != nil {
+			return false, err
+		}
+
+		if len(list.Items) != 1 {
+			return false, fmt.Errorf("expected 1 DataScience Cluster CR but found %v", len(list.Items))
+		}
+
+		for _, c := range list.Items[0].Status.Conditions {
+			if c.Type == componentApi.KueueComponentName+"Ready" {
+				return c.Status == corev1.ConditionTrue, nil
+			}
+		}
+
+		return false, nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("error waiting on Ready state for Kueue component in DSC: %w", err)
 	}
 
 	return nil

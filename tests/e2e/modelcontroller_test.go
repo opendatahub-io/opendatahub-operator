@@ -1,8 +1,6 @@
 package e2e_test
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -11,176 +9,235 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
-)
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 
-type ModelControllerTestCtx struct {
-	testCtx                     *testContext
-	testModelControllerInstance componentApi.ModelController
-}
+	. "github.com/onsi/gomega"
+)
 
 func modelControllerTestSuite(t *testing.T) {
 	t.Helper()
 
-	mcCtx := ModelControllerTestCtx{}
-	var err error
-	mcCtx.testCtx, err = NewTestContext()
+	tc, err := NewTestContext()
 	require.NoError(t, err)
 
-	testCtx := mcCtx.testCtx
+	componentCtx := ModelControllerTestCtx{
+		testContext: tc,
+	}
 
-	t.Run(testCtx.testDsc.Name, func(t *testing.T) {
-		// creation
-		t.Run("Check ModelController CR exist", func(t *testing.T) {
-			err = mcCtx.testModelControllerAvaile()
-			require.NoError(t, err, "error creating ModelController CR")
-		})
-
-		t.Run("Validate Ownerrefrences exist", func(t *testing.T) {
-			err = mcCtx.testOwnerReferences()
-			require.NoError(t, err, "error getting ModelController's Ownerrefrences")
-		})
-
-		t.Run("Validate ModelController Ready", func(t *testing.T) {
-			err = mcCtx.validateModelControllerReady()
-			require.NoError(t, err, "ModelController instance is not Ready")
-		})
-
-		// reconcile
-		t.Run("Validate Controller reconcile", func(t *testing.T) {
-			err = mcCtx.testUpdateOnModelControllerResources()
-			require.NoError(t, err, "error testing updates for ModelController's managed resources")
-		})
-
-		t.Run("Validate Disabling modelmesh and kserve Component then ModelController is removed", func(t *testing.T) {
-			err = mcCtx.testUpdateModelControllerComponentDisabled()
-			require.NoError(t, err, "error testing modemeshserving component enabled field")
-		})
+	t.Run(componentCtx.testDsc.Name, func(t *testing.T) {
+		t.Run("Validate ModelController instance", componentCtx.validateModelControllerInstance)
+		t.Run("Validate ModelController operands OwnerReferences", componentCtx.validateOperandsOwnerReferences)
+		t.Run("Validate Update ModelController operands resources", componentCtx.validateUpdateModelControllerOperandsResources)
+		// must be the latest one
+		t.Run("Validate Disabling ModelMesh and KServer Component then ModelController is removed", componentCtx.validateModelControllerDisabled)
 	})
 }
 
-func (tc *ModelControllerTestCtx) testModelControllerAvaile() error {
-	// force to set modelmesh
-	err := tc.testCtx.customClient.Get(tc.testCtx.ctx, types.NamespacedName{Name: tc.testCtx.testDsc.Name}, tc.testCtx.testDsc)
-	if err != nil {
-		return fmt.Errorf("error getting DSC %w", err)
-	}
-	if tc.testCtx.testDsc.Spec.Components.ModelMeshServing.ManagementState != operatorv1.Managed {
-		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			err := tc.testCtx.customClient.Get(tc.testCtx.ctx, types.NamespacedName{Name: tc.testCtx.testDsc.Name}, tc.testCtx.testDsc)
-			if err != nil {
-				return fmt.Errorf("error getting DSC %w", err)
-			}
-			// Enable the DSC ModelMeshServing
-			tc.testCtx.testDsc.Spec.Components.ModelMeshServing.ManagementState = operatorv1.Managed
+type ModelControllerTestCtx struct {
+	*testContext
+}
 
-			// Try to update
-			err = tc.testCtx.customClient.Update(tc.testCtx.ctx, tc.testCtx.testDsc)
-			if err != nil {
-				return fmt.Errorf("error updating DSC from removed to managed: %w", err)
-			}
+func (tc *ModelControllerTestCtx) WithT(t *testing.T) *WithT {
+	t.Helper()
 
-			return nil
-		})
+	g := NewWithT(t)
+	g.SetDefaultEventuallyTimeout(generalWaitTimeout)
+	g.SetDefaultEventuallyPollingInterval(1 * time.Second)
+
+	return g
+}
+
+func (tc *ModelControllerTestCtx) List(
+	gvk schema.GroupVersionKind,
+	option ...client.ListOption,
+) func() ([]unstructured.Unstructured, error) {
+	return func() ([]unstructured.Unstructured, error) {
+		items := unstructured.UnstructuredList{}
+		items.SetGroupVersionKind(gvk)
+
+		err := tc.customClient.List(tc.ctx, &items, option...)
 		if err != nil {
-			return fmt.Errorf("error after retry %w", err)
-		}
-	}
-	err = tc.testCtx.customClient.Get(tc.testCtx.ctx, types.NamespacedName{Name: tc.testCtx.testDsc.Name}, tc.testCtx.testDsc)
-	if err != nil {
-		return fmt.Errorf("error getting DSC resource again %w", err)
-	}
-
-	err = tc.testCtx.wait(func(ctx context.Context) (bool, error) {
-		existingModelControllerList := &componentApi.ModelControllerList{}
-
-		if err := tc.testCtx.customClient.List(ctx, existingModelControllerList); err != nil {
-			return false, err
+			return nil, err
 		}
 
-		switch {
-		case len(existingModelControllerList.Items) == 1:
-			tc.testModelControllerInstance = existingModelControllerList.Items[0]
-			return true, nil
-		case len(existingModelControllerList.Items) > 1:
-			return false, fmt.Errorf(
-				"unexpected ModelController CR instances. Expected 1 , Found %v instance", len(existingModelControllerList.Items))
-		default:
-			return false, nil
-		}
-	})
-
-	if err != nil {
-		return fmt.Errorf("unable to find ModelController CR instance: %w", err)
+		return items.Items, nil
 	}
-
-	return nil
 }
 
-func (tc *ModelControllerTestCtx) testOwnerReferences() error {
-	// Test ModelController CR ownerref
-	if tc.testModelControllerInstance.OwnerReferences[0].Kind != dscKind {
-		return fmt.Errorf("expected ownerreference DataScienceCluster not found. Got ownereferrence: %v",
-			tc.testModelControllerInstance.OwnerReferences[0].Kind)
-	}
+func (tc *ModelControllerTestCtx) Get(
+	gvk schema.GroupVersionKind,
+	ns string,
+	name string,
+	option ...client.GetOption,
+) func() (*unstructured.Unstructured, error) {
+	return func() (*unstructured.Unstructured, error) {
+		u := unstructured.Unstructured{}
+		u.SetGroupVersionKind(gvk)
 
-	// Test ModelController resources
-	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-		LabelSelector: labels.ODH.Component(componentApi.ModelControllerComponentName),
-	})
-	if err != nil {
-		return fmt.Errorf("error listing component deployments %w", err)
-	}
-	// test any one deployment for ownerreference
-	if len(appDeployments.Items) != 0 && appDeployments.Items[0].OwnerReferences[0].Kind != componentApi.ModelControllerKind {
-		return fmt.Errorf("expected ownerreference not found. Got ownereferrence: %v",
-			appDeployments.Items[0].OwnerReferences)
-	}
-
-	return nil
-}
-
-// Verify ModelController instance is in Ready phase when ModelMesh deployments are up and running.
-func (tc *ModelControllerTestCtx) validateModelControllerReady() error {
-	err := wait.PollUntilContextTimeout(tc.testCtx.ctx, generalRetryInterval, componentReadyTimeout, true, func(ctx context.Context) (bool, error) {
-		key := types.NamespacedName{Name: tc.testModelControllerInstance.Name}
-		mc := &componentApi.ModelController{}
-
-		err := tc.testCtx.customClient.Get(ctx, key, mc)
+		err := tc.customClient.Get(tc.ctx, client.ObjectKey{Namespace: ns, Name: name}, &u, option...)
 		if err != nil {
-			return false, err
+			return nil, err
 		}
-		return mc.Status.Phase == readyStatus, nil
-	})
 
-	if err != nil {
-		return fmt.Errorf("error waiting Ready state for ModelController %v: %w", tc.testModelControllerInstance.Name, err)
+		return &u, nil
 	}
-
-	return nil
 }
 
-func (tc *ModelControllerTestCtx) testUpdateOnModelControllerResources() error {
-	// Test Updating ModelController Replicas
+func (tc *ModelControllerTestCtx) Update(
+	obj client.Object,
+	fn func(obj *unstructured.Unstructured) error,
+	option ...client.GetOption,
+) func() (*unstructured.Unstructured, error) {
+	return func() (*unstructured.Unstructured, error) {
+		if err := tc.customClient.Get(tc.ctx, client.ObjectKeyFromObject(obj), obj, option...); err != nil {
+			return nil, fmt.Errorf("failed to fetch resource: %w", err)
+		}
 
-	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-		LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(componentApi.ModelControllerKind),
-	})
-	if err != nil {
-		return err
-	}
+		in, err := resources.ToUnstructured(obj)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert to unstructured: %w", err)
+		}
 
-	if len(appDeployments.Items) != 1 {
-		return fmt.Errorf("error getting deployment for component %s", tc.testModelControllerInstance.Name)
+		if err := fn(in); err != nil {
+			return nil, fmt.Errorf("failed to apply function: %w", err)
+		}
+
+		if err := tc.customClient.Update(tc.ctx, in); err != nil {
+			return nil, fmt.Errorf("failed to update resource: %w", err)
+		}
+
+		return in, nil
 	}
+}
+
+func (tc *ModelControllerTestCtx) Delete(
+	gvk schema.GroupVersionKind,
+	ns string,
+	name string,
+	option ...client.DeleteOption,
+) func() error {
+	return func() error {
+		u := resources.GvkToUnstructured(gvk)
+		u.SetName(name)
+		u.SetNamespace(ns)
+
+		err := tc.customClient.Delete(tc.ctx, u, option...)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+}
+
+func (tc *ModelControllerTestCtx) MergePatch(
+	obj client.Object,
+	patch []byte,
+) func() (*unstructured.Unstructured, error) {
+	return func() (*unstructured.Unstructured, error) {
+		u, err := resources.ToUnstructured(obj)
+		if err != nil {
+			return nil, err
+		}
+
+		err = tc.customClient.Patch(tc.ctx, u, client.RawPatch(types.MergePatchType, patch))
+		if err != nil {
+			return nil, err
+		}
+
+		return u, nil
+	}
+}
+
+func (tc *ModelControllerTestCtx) updateComponent(fn func(dsc *dscv1.Components)) func() error {
+	return func() error {
+		err := tc.customClient.Get(tc.ctx, types.NamespacedName{Name: tc.testDsc.Name}, tc.testDsc)
+		if err != nil {
+			return err
+		}
+
+		fn(&tc.testDsc.Spec.Components)
+
+		err = tc.customClient.Update(tc.ctx, tc.testDsc)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+}
+
+func (tc *ModelControllerTestCtx) validateModelControllerInstance(t *testing.T) {
+	g := tc.WithT(t)
+
+	g.Eventually(
+		tc.updateComponent(func(c *dscv1.Components) {
+			c.ModelMeshServing.ManagementState = operatorv1.Managed
+		}),
+	).ShouldNot(
+		HaveOccurred(),
+	)
+
+	g.Eventually(
+		tc.List(gvk.ModelController),
+	).Should(And(
+		HaveLen(1),
+		HaveEach(And(
+			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.DataScienceCluster.Kind),
+			jq.Match(`.status.phase == "%s"`, readyStatus),
+		)),
+	))
+
+	g.Eventually(
+		tc.List(gvk.DataScienceCluster),
+	).Should(And(
+		HaveLen(1),
+		HaveEach(And(
+			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.ModelControllerComponentName, metav1.ConditionTrue),
+		)),
+	))
+}
+
+func (tc *ModelControllerTestCtx) validateOperandsOwnerReferences(t *testing.T) {
+	g := tc.WithT(t)
+
+	g.Eventually(
+		tc.List(
+			gvk.Deployment,
+			client.InNamespace(tc.applicationsNamespace),
+			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentApi.ModelControllerKind)},
+		),
+	).Should(And(
+		HaveLen(1),
+		HaveEach(
+			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, componentApi.ModelControllerKind),
+		),
+	))
+}
+
+func (tc *ModelControllerTestCtx) validateUpdateModelControllerOperandsResources(t *testing.T) {
+	g := tc.WithT(t)
+
+	appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(
+		tc.ctx,
+		metav1.ListOptions{
+			LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(componentApi.ModelControllerKind),
+		},
+	)
+
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(appDeployments.Items).To(HaveLen(1))
 
 	const expectedReplica int32 = 2 // from 1 to 2
 
@@ -195,95 +252,82 @@ func (tc *ModelControllerTestCtx) testUpdateOnModelControllerResources() error {
 		},
 		Status: autoscalingv1.ScaleStatus{},
 	}
-	updatedDep, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).UpdateScale(tc.testCtx.ctx,
-		testDeployment.Name, patchedReplica, metav1.UpdateOptions{})
-	if err != nil {
-		return fmt.Errorf("error patching component resources : %w", err)
-	}
-	if updatedDep.Spec.Replicas != patchedReplica.Spec.Replicas {
-		return fmt.Errorf("failed to patch replicas : expect to be %v but got %v", patchedReplica.Spec.Replicas, updatedDep.Spec.Replicas)
-	}
 
-	// Sleep for 20 seconds to allow the operator to reconcile
-	// we expect it should not revert back to original value because of AllowList
-	time.Sleep(2 * generalRetryInterval)
-	reconciledDep, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).Get(tc.testCtx.ctx, testDeployment.Name, metav1.GetOptions{})
-	if err != nil {
-		return fmt.Errorf("error getting component resource after reconcile: %w", err)
-	}
-	if *reconciledDep.Spec.Replicas != expectedReplica {
-		return fmt.Errorf("failed to revert back replicas : expect to be %v but got %v", expectedReplica, *reconciledDep.Spec.Replicas)
-	}
+	updatedDep, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).UpdateScale(
+		tc.ctx,
+		testDeployment.Name,
+		patchedReplica,
+		metav1.UpdateOptions{},
+	)
 
-	return nil
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(updatedDep.Spec.Replicas).Should(Equal(patchedReplica.Spec.Replicas))
+
+	g.Eventually(
+		tc.Get(
+			gvk.Deployment,
+			appDeployments.Items[0].Namespace,
+			appDeployments.Items[0].Name,
+		),
+	).Should(
+		jq.Match(`.spec.replicas == %d`, expectedReplica),
+	)
+
+	g.Consistently(
+		tc.Get(
+			gvk.Deployment,
+			appDeployments.Items[0].Namespace,
+			appDeployments.Items[0].Name,
+		),
+	).WithTimeout(30 * time.Second).WithPolling(1 * time.Second).Should(
+		jq.Match(`.spec.replicas == %d`, expectedReplica),
+	)
 }
 
-func (tc *ModelControllerTestCtx) testUpdateModelControllerComponentDisabled() error {
-	// Test Updating ModelMesh and kserve to be disabled then ModelController is removed
-	var mcDeploymentName string
+func (tc *ModelControllerTestCtx) validateModelControllerDisabled(t *testing.T) {
+	g := tc.WithT(t)
 
-	if tc.testCtx.testDsc.Spec.Components.ModelMeshServing.ManagementState == operatorv1.Managed {
-		appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-			LabelSelector: labels.ODH.Component(componentApi.ModelControllerComponentName),
-		})
-		if err != nil {
-			return fmt.Errorf("error getting enabled component %v", componentApi.ModelControllerComponentName)
-		}
-		if len(appDeployments.Items) > 0 {
-			mcDeploymentName = appDeployments.Items[0].Name
-			if appDeployments.Items[0].Status.ReadyReplicas == 0 {
-				return fmt.Errorf("error getting enabled component: %s its deployment 'ReadyReplicas'", mcDeploymentName)
-			}
-		}
-	} else {
-		return errors.New("ModelMesh spec should be in 'enabled: true' state in order to perform modelcontroller test")
-	}
+	g.Eventually(
+		tc.List(
+			gvk.Deployment,
+			client.InNamespace(tc.applicationsNamespace),
+			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentApi.ModelControllerKind)},
+		),
+	).Should(
+		HaveLen(1),
+	)
 
-	// Disable component ModleMeshServing
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		// refresh DSC instance in case it was updated during the reconcile
-		err := tc.testCtx.customClient.Get(tc.testCtx.ctx, types.NamespacedName{Name: tc.testCtx.testDsc.Name}, tc.testCtx.testDsc)
-		if err != nil {
-			return fmt.Errorf("error getting resource %w", err)
-		}
-		// Disable modelmesh and kserve Component
-		tc.testCtx.testDsc.Spec.Components.ModelMeshServing.ManagementState = operatorv1.Removed
-		tc.testCtx.testDsc.Spec.Components.Kserve.ManagementState = operatorv1.Removed
+	g.Eventually(
+		tc.updateComponent(func(c *dscv1.Components) {
+			c.ModelMeshServing.ManagementState = operatorv1.Removed
+			c.Kserve.ManagementState = operatorv1.Removed
+		}),
+	).ShouldNot(
+		HaveOccurred(),
+	)
 
-		// Try to update
-		err = tc.testCtx.customClient.Update(tc.testCtx.ctx, tc.testCtx.testDsc)
-		// Return err itself here (not wrapped inside another error)
-		// so that RetryOnConflict can identify it correctly.
-		if err != nil {
-			return fmt.Errorf("error updating component from 'enabled: true' to 'enabled: false': %w", err)
-		}
+	g.Eventually(
+		tc.List(
+			gvk.Deployment,
+			client.InNamespace(tc.applicationsNamespace),
+			client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(componentApi.ModelControllerKind)},
+		),
+	).Should(
+		BeEmpty(),
+	)
 
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("error after retry %w", err)
-	}
+	g.Eventually(
+		tc.List(gvk.ModelController),
+	).Should(
+		BeEmpty(),
+	)
 
-	if err = tc.testCtx.wait(func(ctx context.Context) (bool, error) {
-		// Verify ModelController CR is deleted
-		mc := &componentApi.ModelController{}
-		err = tc.testCtx.customClient.Get(ctx, client.ObjectKey{Name: tc.testModelControllerInstance.Name}, mc)
-		return k8serr.IsNotFound(err), nil
-	}); err != nil {
-		return fmt.Errorf("component modemeshserving is disabled, should not get the ModelController CR %v", tc.testModelControllerInstance.Name)
-	}
-
-	// Sleep for 20 seconds to see if operator reconcile back modelcontroller cr and deployment
-	time.Sleep(2 * generalRetryInterval)
-	_, err = tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).Get(tc.testCtx.ctx, mcDeploymentName, metav1.GetOptions{})
-	if err != nil {
-		if k8serr.IsNotFound(err) {
-			return nil // correct result: should not find deployment after we disable it already
-		}
-		return fmt.Errorf("error getting component resource after reconcile: %w", err)
-	}
-	return fmt.Errorf("component %v is disabled, should not get its deployment %v from NS %v any more",
-		componentApi.ModelControllerKind,
-		mcDeploymentName,
-		tc.testCtx.applicationsNamespace)
+	g.Eventually(
+		tc.List(gvk.DataScienceCluster),
+	).Should(And(
+		HaveLen(1),
+		HaveEach(
+			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.ModelControllerComponentName, metav1.ConditionFalse),
+		),
+	))
 }

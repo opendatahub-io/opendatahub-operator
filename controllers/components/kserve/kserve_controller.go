@@ -37,6 +37,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/security"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/updatestatus"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/clusterrole"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/hash"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
@@ -104,27 +105,27 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			gvk.KnativeServing,
 			reconciler.Dynamic(),
 			reconciler.WithEventMapper(ownedViaFTMapFunc),
-			reconciler.WithPredicates(reconciler.DefaultPredicate)).
+			reconciler.WithPredicates(predicates.DefaultPredicate)).
 		WatchesGVK(
 			gvk.ServiceMeshMember,
 			reconciler.Dynamic(),
 			reconciler.WithEventMapper(ownedViaFTMapFunc),
-			reconciler.WithPredicates(reconciler.DefaultPredicate)).
+			reconciler.WithPredicates(predicates.DefaultPredicate)).
 		WatchesGVK(
 			gvk.EnvoyFilter,
 			reconciler.Dynamic(),
 			reconciler.WithEventMapper(ownedViaFTMapFunc),
-			reconciler.WithPredicates(reconciler.DefaultPredicate)).
+			reconciler.WithPredicates(predicates.DefaultPredicate)).
 		WatchesGVK(
 			gvk.AuthorizationPolicy,
 			reconciler.Dynamic(),
 			reconciler.WithEventMapper(ownedViaFTMapFunc),
-			reconciler.WithPredicates(reconciler.DefaultPredicate)).
+			reconciler.WithPredicates(predicates.DefaultPredicate)).
 		WatchesGVK(
 			gvk.Gateway,
 			reconciler.Dynamic(),
 			reconciler.WithEventMapper(ownedViaFTMapFunc),
-			reconciler.WithPredicates(reconciler.DefaultPredicate)).
+			reconciler.WithPredicates(predicates.DefaultPredicate)).
 
 		// actions
 		WithAction(checkPreConditions).
