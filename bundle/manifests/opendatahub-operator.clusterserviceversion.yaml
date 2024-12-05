@@ -30,6 +30,9 @@ metadata:
               },
               "kserve": {
                 "managementState": "Managed",
+                "nim": {
+                  "managementState": "Managed"
+                },
                 "serving": {
                   "ingressGateway": {
                     "certificate": {

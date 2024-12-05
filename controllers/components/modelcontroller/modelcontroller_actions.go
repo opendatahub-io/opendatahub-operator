@@ -32,7 +32,7 @@ import (
 
 func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	// early exist
-	_, ok := rr.Instance.(*componentApi.ModelController)
+	mc, ok := rr.Instance.(*componentApi.ModelController)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentApi.ModelController)", rr.Instance)
 	}
@@ -41,6 +41,18 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 		ContextDir: ComponentName,
 		SourcePath: "base",
 	})
+
+	nimState := operatorv1.Removed
+	if mc.Spec.Kserve.ManagementState == operatorv1.Managed {
+		nimState = mc.Spec.Kserve.NIM.ManagementState
+	}
+	extraParamsMap := map[string]string{
+		"nim-state": strings.ToLower(string(nimState)),
+	}
+	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), nil, extraParamsMap); err != nil {
+		return fmt.Errorf("failed to update images on path %s: %w", rr.Manifests[0].String(), err)
+	}
+
 	return nil
 }
 

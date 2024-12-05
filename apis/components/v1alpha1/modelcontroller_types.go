@@ -58,6 +58,7 @@ type ModelControllerSpec struct {
 // a mini version of the DSCKserve only keep devflags and management spec
 type ModelControllerKerveSpec struct {
 	ManagementState     operatorv1.ManagementState `json:"managementState,omitempty"`
+	NIM                 NimSpec                    `json:"nim,omitempty"`
 	common.DevFlagsSpec `json:",inline"`
 }
 

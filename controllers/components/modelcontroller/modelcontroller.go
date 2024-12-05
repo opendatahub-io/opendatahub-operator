@@ -19,6 +19,8 @@ const (
 	ComponentName = componentApi.ModelControllerComponentName
 )
 
+var DefaultPath = odhdeploy.DefaultManifestPath + "/" + ComponentName + "/base"
+
 type componentHandler struct{}
 
 func init() { //nolint:gochecknoinits
@@ -61,9 +63,6 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Obj
 			Annotations: mcAnnotations,
 		},
 		Spec: componentApi.ModelControllerSpec{
-			// ModelMeshServing:  &componentsv1.DSCModelMeshServing {
-			// 	dsc.Spec.Components.ModelMeshServing,
-			// },
 			ModelMeshServing: &componentApi.ModelControllerMMSpec{
 				ManagementState: mState,
 				DevFlagsSpec:    dsc.Spec.Components.ModelMeshServing.DevFlagsSpec,
@@ -71,6 +70,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Obj
 			Kserve: &componentApi.ModelControllerKerveSpec{
 				ManagementState: kState,
 				DevFlagsSpec:    dsc.Spec.Components.Kserve.DevFlagsSpec,
+				NIM:             dsc.Spec.Components.Kserve.NIM,
 			},
 		},
 	})
@@ -78,7 +78,6 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Obj
 
 // Init for set images.
 func (s *componentHandler) Init(platform cluster.Platform) error {
-	DefaultPath := odhdeploy.DefaultManifestPath + "/" + ComponentName + "/base"
 	var imageParamMap = map[string]string{
 		"odh-model-controller": "RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
 	}

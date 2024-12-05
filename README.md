@@ -315,6 +315,8 @@ spec:
       managementState: Managed
     kserve:
       managementState: Managed
+      nim:
+        managementState: Managed
       serving:
         ingressGateway:
           certificate:

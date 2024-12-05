@@ -31,6 +31,7 @@ func init() { //nolint:gochecknoinits
 	cr.Add(&componentHandler{})
 }
 
+// Init for set images.
 func (s *componentHandler) Init(platform cluster.Platform) error {
 	return nil
 }
