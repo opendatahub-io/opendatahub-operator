@@ -29,6 +29,7 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -45,6 +46,8 @@ import (
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
@@ -280,6 +283,12 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			return reconcile.Result{}, errServiceMesh
 		}
 
+		err = r.createAuthSingleton(ctx)
+		if err != nil {
+			log.Info("failed to create Auth singleton")
+			return ctrl.Result{}, err
+		}
+
 		// Finish reconciling
 		_, err = status.UpdateWithRetry[*dsciv1.DSCInitialization](ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
 			status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, status.ReconcileCompletedMessage)
@@ -355,6 +364,11 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 			&corev1.ConfigMap{},
 			handler.EnqueueRequestsFromMapFunc(r.watchMonitoringConfigMapResource),
 			builder.WithPredicates(CMContentChangedPredicate),
+		).
+		Watches(
+			&serviceApi.Auth{},
+			handler.EnqueueRequestsFromMapFunc(r.watchAuthResource),
+			builder.WithPredicates(DSCDeletionPredicate),
 		).
 		Complete(r)
 }
@@ -434,4 +448,34 @@ func (r *DSCInitializationReconciler) watchDSCResource(ctx context.Context) []re
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "backup"}}}
 	}
 	return nil
+}
+
+func (r *DSCInitializationReconciler) createAuthSingleton(ctx context.Context) error {
+	// Create Auth CR singleton
+	defaultAuth := client.Object(&serviceApi.Auth{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       serviceApi.AuthKind,
+			APIVersion: serviceApi.GroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: serviceApi.AuthInstanceName,
+		},
+		Spec: serviceApi.AuthSpec{
+			AdminGroups:   []string{dashboard.GetAdminGroup()},
+			AllowedGroups: []string{"system:authenticated"},
+		},
+	},
+	)
+	err := r.Create(ctx, defaultAuth)
+	if err != nil && !k8serr.IsAlreadyExists(err) {
+		return err
+	}
+
+	return nil
+}
+
+func (r *DSCInitializationReconciler) watchAuthResource(ctx context.Context, a client.Object) []reconcile.Request {
+	log := logf.FromContext(ctx)
+	log.Info("Auth CR deleted, start reconcile")
+	return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "auth", Namespace: r.ApplicationsNamespace}}}
 }
