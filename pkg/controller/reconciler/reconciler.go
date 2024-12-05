@@ -112,10 +112,10 @@ func (r *Reconciler[T]) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		if err := r.delete(ctx, res); err != nil {
 			return ctrl.Result{}, err
 		}
-	}
-
-	if err := r.apply(ctx, res); err != nil {
-		return ctrl.Result{}, err
+	} else {
+		if err := r.apply(ctx, res); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	return ctrl.Result{}, nil

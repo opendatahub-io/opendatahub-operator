@@ -19,26 +19,12 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/generation"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
-)
-
-var (
-	// DefaultPredicate is the default set of predicates associated to
-	// resources when there is no specific predicate configured via the
-	// builder.
-	//
-	// It would trigger a reconciliation if either the generation or
-	// metadata (labels, annotations) have changed.
-	DefaultPredicate = predicate.Or(
-		generation.New(),
-		predicate.LabelChangedPredicate{},
-		predicate.AnnotationChangedPredicate{},
-	)
 )
 
 type forInput struct {
@@ -96,20 +82,45 @@ type ReconcilerBuilder[T common.PlatformObject] struct {
 	errors       error
 }
 
+/*
+	predicate.Funcs{
+		UpdateFunc: func(event event.UpdateEvent) bool {
+			fmt.Println(
+				">>>",
+				"gvk", event.ObjectNew.GetObjectKind().GroupVersionKind(),
+				"namespace", event.ObjectNew.GetNamespace(),
+				"name", event.ObjectNew.GetName(),
+				"diff", cmp.Diff(event.ObjectOld, event.ObjectNew),
+			)
+
+			return true
+		},
+	}),
+*/
+
 func ReconcilerFor[T common.PlatformObject](mgr ctrl.Manager, object T, opts ...builder.ForOption) *ReconcilerBuilder[T] {
 	crb := ReconcilerBuilder[T]{
 		mgr: mgr,
 	}
+
 	gvk, err := mgr.GetClient().GroupVersionKindFor(object)
 	if err != nil {
 		crb.errors = multierror.Append(crb.errors, fmt.Errorf("unable to determine GVK: %w", err))
 	}
 
+	iops := slices.Clone(opts)
+	if len(iops) == 0 {
+		iops = append(iops, builder.WithPredicates(
+			predicates.DefaultPredicate),
+		)
+	}
+
 	crb.input = forInput{
 		object:  object,
-		options: slices.Clone(opts),
+		options: iops,
 		gvk:     gvk,
 	}
+
 	return &crb
 }
 
@@ -145,7 +156,7 @@ func (b *ReconcilerBuilder[T]) Watches(object client.Object, opts ...WatchOpts) 
 
 	if len(in.predicates) == 0 {
 		in.predicates = append(in.predicates, predicate.And(
-			DefaultPredicate,
+			predicates.DefaultPredicate,
 			// use the platform.opendatahub.io/part-of label to filter
 			// events not related to the owner type
 			component.ForLabel(labels.PlatformPartOf, strings.ToLower(b.input.gvk.Kind)),
@@ -180,7 +191,7 @@ func (b *ReconcilerBuilder[T]) Owns(object client.Object, opts ...WatchOpts) *Re
 	}
 
 	if len(in.predicates) == 0 {
-		in.predicates = append(in.predicates, DefaultPredicate)
+		in.predicates = append(in.predicates, predicates.DefaultPredicate)
 	}
 
 	b.watches = append(b.watches, in)

@@ -68,35 +68,27 @@ func modelControllerTestSuite(t *testing.T) {
 }
 
 func (tc *ModelControllerTestCtx) testModelControllerAvaile() error {
-	// force to set modelmesh
-	err := tc.testCtx.customClient.Get(tc.testCtx.ctx, types.NamespacedName{Name: tc.testCtx.testDsc.Name}, tc.testCtx.testDsc)
-	if err != nil {
-		return fmt.Errorf("error getting DSC %w", err)
-	}
-	if tc.testCtx.testDsc.Spec.Components.ModelMeshServing.ManagementState != operatorv1.Managed {
-		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			err := tc.testCtx.customClient.Get(tc.testCtx.ctx, types.NamespacedName{Name: tc.testCtx.testDsc.Name}, tc.testCtx.testDsc)
-			if err != nil {
-				return fmt.Errorf("error getting DSC %w", err)
-			}
-			// Enable the DSC ModelMeshServing
-			tc.testCtx.testDsc.Spec.Components.ModelMeshServing.ManagementState = operatorv1.Managed
+	err := tc.testCtx.wait(func(ctx context.Context) (bool, error) {
+		key := client.ObjectKeyFromObject(tc.testCtx.testDsc)
 
-			// Try to update
-			err = tc.testCtx.customClient.Update(tc.testCtx.ctx, tc.testCtx.testDsc)
-			if err != nil {
-				return fmt.Errorf("error updating DSC from removed to managed: %w", err)
-			}
-
-			return nil
-		})
+		err := tc.testCtx.customClient.Get(ctx, key, tc.testCtx.testDsc)
 		if err != nil {
-			return fmt.Errorf("error after retry %w", err)
+			return false, fmt.Errorf("error getting resource %w", err)
 		}
-	}
-	err = tc.testCtx.customClient.Get(tc.testCtx.ctx, types.NamespacedName{Name: tc.testCtx.testDsc.Name}, tc.testCtx.testDsc)
+
+		tc.testCtx.testDsc.Spec.Components.ModelMeshServing.ManagementState = operatorv1.Managed
+
+		switch err = tc.testCtx.customClient.Update(ctx, tc.testCtx.testDsc); {
+		case err == nil:
+			return true, nil
+		case k8serr.IsConflict(err):
+			return false, nil
+		default:
+			return false, fmt.Errorf("error updating resource %w", err)
+		}
+	})
 	if err != nil {
-		return fmt.Errorf("error getting DSC resource again %w", err)
+		return fmt.Errorf("error after retry %w", err)
 	}
 
 	err = tc.testCtx.wait(func(ctx context.Context) (bool, error) {

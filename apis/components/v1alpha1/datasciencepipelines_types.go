@@ -51,9 +51,14 @@ type DataSciencePipelinesCommonSpec struct {
 	common.DevFlagsSpec `json:",inline"`
 }
 
+// DataSciencePipelinesCommonStatus defines the shared observed state of DataSciencePipelines
+type DataSciencePipelinesCommonStatus struct {
+}
+
 // DataSciencePipelinesStatus defines the observed state of DataSciencePipelines
 type DataSciencePipelinesStatus struct {
-	common.Status `json:",inline"`
+	common.Status                    `json:",inline"`
+	DataSciencePipelinesCommonStatus `json:",inline"`
 }
 
 func (c *DataSciencePipelines) GetDevFlags() *common.DevFlags {
@@ -83,4 +88,10 @@ type DSCDataSciencePipelines struct {
 	common.ManagementSpec `json:",inline"`
 	// datasciencepipelines specific field
 	DataSciencePipelinesCommonSpec `json:",inline"`
+}
+
+// DSCDataSciencePipelinesStatus contains the observed state of the DataSciencePipelines exposed in the DSC instance
+type DSCDataSciencePipelinesStatus struct {
+	common.ManagementSpec             `json:",inline"`
+	*DataSciencePipelinesCommonStatus `json:",inline"`
 }

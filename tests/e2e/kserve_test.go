@@ -53,6 +53,14 @@ func (k *KserveTestCtx) validateKserveInstance(t *testing.T) {
 	g := k.WithT(t)
 
 	g.Eventually(
+		k.updateComponent(func(c *dscv1.Components) {
+			c.Kserve.ManagementState = operatorv1.Managed
+		}),
+	).ShouldNot(
+		HaveOccurred(),
+	)
+
+	g.Eventually(
 		k.List(gvk.Kserve),
 	).Should(And(
 		HaveLen(1),
@@ -66,6 +74,15 @@ func (k *KserveTestCtx) validateKserveInstance(t *testing.T) {
 			jq.Match(`.status.phase == "%s"`, readyStatus),
 		)),
 	))
+
+	g.Eventually(
+		k.List(gvk.DataScienceCluster),
+	).Should(And(
+		HaveLen(1),
+		HaveEach(
+			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.KserveComponentName, metav1.ConditionTrue),
+		),
+	))
 }
 
 func (k *KserveTestCtx) validateDefaultCertsAvailable(t *testing.T) {
@@ -77,6 +94,14 @@ func (k *KserveTestCtx) validateOperandsOwnerReferences(t *testing.T) {
 	g := k.WithT(t)
 
 	g.Eventually(
+		k.updateComponent(func(c *dscv1.Components) {
+			c.Kserve.ManagementState = operatorv1.Managed
+		}),
+	).ShouldNot(
+		HaveOccurred(),
+	)
+
+	g.Eventually(
 		k.List(
 			gvk.Deployment,
 			client.InNamespace(k.applicationsNamespace),
@@ -86,6 +111,15 @@ func (k *KserveTestCtx) validateOperandsOwnerReferences(t *testing.T) {
 		HaveLen(1), // only kserve-controller-manager
 		HaveEach(
 			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, componentApi.KserveKind),
+		),
+	))
+
+	g.Eventually(
+		k.List(gvk.DataScienceCluster),
+	).Should(And(
+		HaveLen(1),
+		HaveEach(
+			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.KserveComponentName, metav1.ConditionTrue),
 		),
 	))
 }

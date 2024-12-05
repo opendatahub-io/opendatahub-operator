@@ -48,10 +48,15 @@ type ModelRegistrySpec struct {
 	//  model registry spec exposed only to internal api
 }
 
+// ModelRegistryCommonStatus defines the shared observed state of ModelRegistry
+type ModelRegistryCommonStatus struct {
+	RegistriesNamespace string `json:"registriesNamespace,omitempty"`
+}
+
 // ModelRegistryStatus defines the observed state of ModelRegistry
 type ModelRegistryStatus struct {
-	common.Status          `json:",inline"`
-	DSCModelRegistryStatus `json:",inline"`
+	common.Status             `json:",inline"`
+	ModelRegistryCommonStatus `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
@@ -105,5 +110,6 @@ type DSCModelRegistry struct {
 
 // DSCModelRegistryStatus struct holds the status for the ModelRegistry component exposed in the DSC
 type DSCModelRegistryStatus struct {
-	RegistriesNamespace string `json:"registriesNamespace,omitempty"`
+	common.ManagementSpec      `json:",inline"`
+	*ModelRegistryCommonStatus `json:",inline"`
 }

@@ -55,9 +55,14 @@ type ModelMeshServingCommonSpec struct {
 	common.DevFlagsSpec `json:",inline"`
 }
 
+// ModelMeshServingCommonStatus defines the shared observed state of ModelMeshServing
+type ModelMeshServingCommonStatus struct {
+}
+
 // ModelMeshServingStatus defines the observed state of ModelMeshServing
 type ModelMeshServingStatus struct {
-	common.Status `json:",inline"`
+	common.Status                `json:",inline"`
+	ModelMeshServingCommonStatus `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
@@ -84,4 +89,10 @@ type DSCModelMeshServing struct {
 	common.ManagementSpec `json:",inline"`
 	// configuration fields common across components
 	ModelMeshServingCommonSpec `json:",inline"`
+}
+
+// DSCModelMeshServingStatus contains the observed state of the ModelMeshServing exposed in the DSC instance
+type DSCModelMeshServingStatus struct {
+	common.ManagementSpec         `json:",inline"`
+	*ModelMeshServingCommonStatus `json:",inline"`
 }
