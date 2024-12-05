@@ -1,0 +1,7 @@
+apiVersion: services.platform.opendatahub.io/v1
+kind: Auth
+metadata:
+  labels:
+  name: auth
+spec:
+  # TODO(user): Add fields here
