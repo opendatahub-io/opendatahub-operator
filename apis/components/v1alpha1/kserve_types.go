@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
@@ -53,7 +54,14 @@ type KserveCommonSpec struct {
 	// +kubebuilder:validation:Enum=Serverless;RawDeployment
 	DefaultDeploymentMode DefaultDeploymentMode `json:"defaultDeploymentMode,omitempty"`
 	// Configures and enables NVIDIA NIM integration
-	NIM infrav1.NimSpec `json:"nim,omitempty"`
+	NIM NimSpec `json:"nim,omitempty"`
+}
+
+// nimSpec enables NVIDIA NIM integration
+type NimSpec struct {
+	// +kubebuilder:validation:Enum=Managed;Removed
+	// +kubebuilder:default=Managed
+	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 }
 
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.

@@ -1041,6 +1041,25 @@ _Appears in:_
 | `registriesNamespace` _string_ |  |  |  |
 
 
+#### NimSpec
+
+
+
+nimSpec enables NVIDIA NIM integration
+
+
+
+_Appears in:_
+- [DSCKserve](#dsckserve)
+- [KserveCommonSpec](#kservecommonspec)
+- [KserveSpec](#kservespec)
+- [ModelControllerKerveSpec](#modelcontrollerkervespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ |  | Managed | Enum: [Managed Removed] <br /> |
+
+
 #### Ray
 
 
@@ -1638,25 +1657,6 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `domain` _string_ | Domain specifies the host name for intercepting incoming requests.<br />Most likely, you will want to use a wildcard name, like *.example.com.<br />If not set, the domain of the OpenShift Ingress is used.<br />If you choose to generate a certificate, this is the domain used for the certificate request. |  |  |
 | `certificate` _[CertificateSpec](#certificatespec)_ | Certificate specifies configuration of the TLS certificate securing communication<br />for the gateway. |  |  |
-
-
-#### NimSpec
-
-
-
-nimSpec enables NVIDIA NIM integration
-
-
-
-_Appears in:_
-- [DSCKserve](#dsckserve)
-- [KserveCommonSpec](#kservecommonspec)
-- [KserveSpec](#kservespec)
-- [ModelControllerKerveSpec](#modelcontrollerkervespec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ |  | Managed | Enum: [Managed Removed] <br /> |
 
 
 #### ServiceMeshSpec

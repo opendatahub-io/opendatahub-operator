@@ -18,7 +18,6 @@ package v1alpha1
 
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
-	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -59,7 +58,7 @@ type ModelControllerSpec struct {
 // a mini version of the DSCKserve only keep devflags and management spec
 type ModelControllerKerveSpec struct {
 	ManagementState     operatorv1.ManagementState `json:"managementState,omitempty"`
-	NIM                 infrav1.NimSpec            `json:"nim,omitempty"`
+	NIM                 NimSpec                    `json:"nim,omitempty"`
 	common.DevFlagsSpec `json:",inline"`
 }
 
