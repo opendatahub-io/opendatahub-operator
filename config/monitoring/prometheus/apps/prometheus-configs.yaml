@@ -1652,11 +1652,11 @@ data:
     groups:
       - name: SLOs-probe_success_model_controller
         rules:
-        - alert: Model Registry Operator Probe Success Burn Rate
+        - alert: Model Registry Operator Probe Success 5m and 1h Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
             triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhoai-model-registry-operator-probe-success-burn-rate.md"
-            summary: Model Registry Operator Probe Success Burn Rate
+            summary: Model Registry Operator Probe Success 5m and 1h Burn Rate high
           expr: |
             sum(probe_success:burnrate5m{instance=~"model-registry-operator"}) by (instance) > (14.40 * (1-0.98000))
             and
@@ -1665,11 +1665,11 @@ data:
           labels:
             severity: critical
             namespace: redhat-ods-applications
-        - alert: Model Registry Operator Probe Success Burn Rate
+        - alert: Model Registry Operator Probe Success 30m and 6h Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
             triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhoai-model-registry-operator-probe-success-burn-rate.md"
-            summary: Model Registry Operator Probe Success Burn Rate
+            summary: Model Registry Operator Probe Success 30m and 6h Burn Rate high
           expr: |
             sum(probe_success:burnrate30m{instance=~"model-registry-operator"}) by (instance) > (6.00 * (1-0.98000))
             and
@@ -1678,11 +1678,11 @@ data:
           labels:
             severity: critical
             namespace: redhat-ods-applications
-        - alert: Model Registry Operator Probe Success Burn Rate
+        - alert: Model Registry Operator Probe Success 2h and 1d Burn Rate high
           annotations:
             message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
             triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhoai-model-registry-operator-probe-success-burn-rate.md"
-            summary: Model Registry Operator Probe Success Burn Rate
+            summary: Model Registry Operator Probe Success 2h and 1d Burn Rate high
           expr: |
             sum(probe_success:burnrate2h{instance=~"model-registry-operator"}) by (instance) > (3.00 * (1-0.98000))
             and
