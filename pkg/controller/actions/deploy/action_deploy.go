@@ -198,7 +198,7 @@ func (a *Action) deployCRD(
 	}
 
 	if err != nil {
-		return false, err
+		return false, client.IgnoreNotFound(err)
 	}
 
 	if a.cache != nil {
@@ -306,7 +306,7 @@ func (a *Action) deploy(
 		}
 
 		if err != nil {
-			return false, err
+			return false, client.IgnoreNotFound(err)
 		}
 
 		deployed = true
@@ -475,12 +475,7 @@ func (a *Action) apply(
 		break
 	}
 
-	err := c.Apply(
-		ctx,
-		obj,
-		opts...,
-	)
-
+	err := c.Apply(ctx, obj, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("apply failed %s: %w", obj.GroupVersionKind(), err)
 	}
