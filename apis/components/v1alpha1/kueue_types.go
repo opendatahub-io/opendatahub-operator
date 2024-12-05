@@ -55,9 +55,14 @@ type KueueCommonSpec struct {
 	common.DevFlagsSpec `json:",inline"`
 }
 
+// KueueCommonStatus defines the shared observed state of Kueue
+type KueueCommonStatus struct {
+}
+
 // KueueStatus defines the observed state of Kueue
 type KueueStatus struct {
-	common.Status `json:",inline"`
+	common.Status     `json:",inline"`
+	KueueCommonStatus `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
@@ -84,4 +89,10 @@ type DSCKueue struct {
 	common.ManagementSpec `json:",inline"`
 	// configuration fields common across components
 	KueueCommonSpec `json:",inline"`
+}
+
+// DSCKueueStatus contains the observed state of the Kueue exposed in the DSC instance
+type DSCKueueStatus struct {
+	common.ManagementSpec `json:",inline"`
+	*KueueCommonStatus    `json:",inline"`
 }

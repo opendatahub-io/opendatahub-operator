@@ -55,9 +55,14 @@ type TrustyAICommonSpec struct {
 	common.DevFlagsSpec `json:",inline"`
 }
 
+// TrustyAICommonStatus defines the shared observed state of TrustyAI
+type TrustyAICommonStatus struct {
+}
+
 // TrustyAIStatus defines the observed state of TrustyAI
 type TrustyAIStatus struct {
-	common.Status `json:",inline"`
+	common.Status        `json:",inline"`
+	TrustyAICommonStatus `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
@@ -84,4 +89,10 @@ type DSCTrustyAI struct {
 	common.ManagementSpec `json:",inline"`
 	// configuration fields common across components
 	TrustyAICommonSpec `json:",inline"`
+}
+
+// DSCTrustyAIStatus struct holds the status for the TrustyAI component exposed in the DSC
+type DSCTrustyAIStatus struct {
+	common.ManagementSpec `json:",inline"`
+	*TrustyAICommonStatus `json:",inline"`
 }

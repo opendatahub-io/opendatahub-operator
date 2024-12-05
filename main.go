@@ -293,13 +293,8 @@ func main() { //nolint:funlen,maintidx
 	}
 
 	if err = (&dscctrl.DataScienceClusterReconciler{
-		Client: oc,
-		Scheme: mgr.GetScheme(),
-		DataScienceCluster: &dscctrl.DataScienceClusterConfig{
-			DSCISpec: &dsciv1.DSCInitializationSpec{
-				ApplicationsNamespace: dscApplicationsNamespace,
-			},
-		},
+		Client:   oc,
+		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorderFor("datasciencecluster-controller"),
 	}).SetupWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DataScienceCluster")

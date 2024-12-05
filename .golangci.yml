@@ -63,6 +63,7 @@ linters-settings:
       - dynamic.Interface
       - predicate.Predicate
       - client.Object
+      - common.PlatformObject
   revive:
     rules:
       - name: dot-imports

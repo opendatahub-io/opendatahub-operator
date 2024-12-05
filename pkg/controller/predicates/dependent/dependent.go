@@ -66,13 +66,7 @@ func (p Predicate) Generic(event.GenericEvent) bool {
 }
 
 func (p Predicate) Delete(e event.DeleteEvent) bool {
-	if !p.WatchDelete {
-		return false
-	}
-
-	_, ok := e.Object.(*unstructured.Unstructured)
-
-	return ok
+	return p.WatchDelete
 }
 
 func (p Predicate) Update(e event.UpdateEvent) bool {
@@ -101,8 +95,8 @@ func (p Predicate) Update(e event.UpdateEvent) bool {
 		// Update filters out events that change only the dependent resource
 		// status. It is not typical for the controller of a primary
 		// resource to write to the status of one its dependent resources.
-		delete(oldObj.Object, "status")
-		delete(newObj.Object, "status")
+		unstructured.RemoveNestedField(oldObj.Object, "status")
+		unstructured.RemoveNestedField(newObj.Object, "status")
 	}
 
 	// Reset field not meaningful for comparison
