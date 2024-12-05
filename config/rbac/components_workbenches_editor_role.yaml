@@ -5,7 +5,7 @@ metadata:
   name: workbenches-editor-role
 rules:
 - apiGroups:
-  - components.opendatahub.io
+  - components.platform.opendatahub.io
   resources:
   - workbenches
   verbs:
@@ -17,7 +17,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - components.opendatahub.io
+  - components.platform.opendatahub.io
   resources:
   - workbenches/status
   verbs:

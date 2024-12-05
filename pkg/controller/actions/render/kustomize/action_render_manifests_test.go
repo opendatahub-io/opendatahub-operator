@@ -9,7 +9,7 @@ import (
 	"github.com/rs/xid"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -128,7 +128,7 @@ func TestRenderResourcesAction(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client:    cl,
-		Instance:  &componentsv1.Dashboard{},
+		Instance:  &componentApi.Dashboard{},
 		DSCI:      &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
 		DSC:       &dscv1.DataScienceCluster{},
 		Release:   cluster.Release{Name: cluster.OpenDataHub},
@@ -207,7 +207,7 @@ func TestRenderResourcesWithCacheAction(t *testing.T) {
 	render.RenderedResourcesTotal.Reset()
 
 	for i := int64(0); i < 3; i++ {
-		d := componentsv1.Dashboard{}
+		d := componentApi.Dashboard{}
 
 		if i >= 1 {
 			d.Generation = 1

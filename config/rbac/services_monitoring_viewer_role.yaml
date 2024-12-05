@@ -5,7 +5,7 @@ metadata:
   name: monitoring-viewer-role
 rules:
 - apiGroups:
-  - services.opendatahub.io
+  - services.platform.opendatahub.io
   resources:
   - monitorings
   verbs:
@@ -13,7 +13,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - services.opendatahub.io
+  - services.platform.opendatahub.io
   resources:
   - monitorings/status
   verbs:

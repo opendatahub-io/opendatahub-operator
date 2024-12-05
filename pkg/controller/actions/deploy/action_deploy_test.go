@@ -23,7 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -72,7 +72,7 @@ func TestDeployAction(t *testing.T) {
 		Client: cl,
 		DSCI:   &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
 		DSC:    &dscv1.DataScienceCluster{},
-		Instance: &componentsv1.Dashboard{
+		Instance: &componentApi.Dashboard{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
 			},
@@ -92,7 +92,7 @@ func TestDeployAction(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	g.Expect(obj1).Should(And(
-		jq.Match(`.metadata.labels."%s" == "%s"`, labels.PlatformPartOf, strings.ToLower(componentsv1.DashboardKind)),
+		jq.Match(`.metadata.labels."%s" == "%s"`, labels.PlatformPartOf, strings.ToLower(componentApi.DashboardKind)),
 		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.InstanceGeneration, strconv.FormatInt(rr.Instance.GetGeneration(), 10)),
 		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformVersion, "1.2.3"),
 		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformType, string(cluster.OpenDataHub)),
@@ -159,7 +159,7 @@ func TestDeployNotOwnedSkip(t *testing.T) {
 		Client: cl,
 		DSCI:   &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
 		DSC:    &dscv1.DataScienceCluster{},
-		Instance: &componentsv1.Dashboard{
+		Instance: &componentApi.Dashboard{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
 			},
@@ -226,7 +226,7 @@ func TestDeployNotOwnedCreate(t *testing.T) {
 		Client: cl,
 		DSCI:   &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
 		DSC:    &dscv1.DataScienceCluster{},
-		Instance: &componentsv1.Dashboard{
+		Instance: &componentApi.Dashboard{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
 			},
@@ -258,7 +258,7 @@ func TestDeployClusterRole(t *testing.T) {
 	utilruntime.Must(corev1.AddToScheme(s))
 	utilruntime.Must(appsv1.AddToScheme(s))
 	utilruntime.Must(apiextensionsv1.AddToScheme(s))
-	utilruntime.Must(componentsv1.AddToScheme(s))
+	utilruntime.Must(componentApi.AddToScheme(s))
 	utilruntime.Must(rbacv1.AddToScheme(s))
 
 	projectDir, err := envtestutil.FindProjectRoot()
@@ -353,7 +353,7 @@ func deployClusterRoles(t *testing.T, ctx context.Context, cli *odhCli.Client, r
 			ApplicationsNamespace: xid.New().String(),
 		}},
 		DSC: &dscv1.DataScienceCluster{},
-		Instance: &componentsv1.Dashboard{
+		Instance: &componentApi.Dashboard{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
 				UID:        apimachinery.UID(xid.New().String()),

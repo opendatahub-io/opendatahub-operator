@@ -1,4 +1,4 @@
-apiVersion: services.opendatahub.io/v1
+apiVersion: services.platform.opendatahub.io/v1
 kind: Monitoring
 metadata:
   name: monitoring-sample

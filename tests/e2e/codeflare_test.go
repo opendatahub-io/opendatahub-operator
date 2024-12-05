@@ -19,13 +19,13 @@ import (
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 type CodeFlareTestCtx struct {
 	testCtx               *testContext
-	testCodeFlareInstance componentsv1.CodeFlare
+	testCodeFlareInstance componentApi.CodeFlare
 }
 
 func codeflareTestSuite(t *testing.T) {
@@ -79,7 +79,7 @@ func (tc *CodeFlareTestCtx) testCodeFlareCreation() error {
 	}
 
 	err := tc.testCtx.wait(func(ctx context.Context) (bool, error) {
-		existingCodeFlareList := &componentsv1.CodeFlareList{}
+		existingCodeFlareList := &componentApi.CodeFlareList{}
 
 		if err := tc.testCtx.customClient.List(ctx, existingCodeFlareList); err != nil {
 			return false, err
@@ -127,13 +127,13 @@ func (tc *CodeFlareTestCtx) testOwnerReferences() error {
 
 	// Test CodeFlare resources
 	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-		LabelSelector: labels.ODH.Component(componentsv1.CodeFlareComponentName),
+		LabelSelector: labels.ODH.Component(componentApi.CodeFlareComponentName),
 	})
 	if err != nil {
 		return fmt.Errorf("error listing component deployments %w", err)
 	}
 	// test any one deployment for ownerreference
-	if len(appDeployments.Items) != 0 && appDeployments.Items[0].OwnerReferences[0].Kind != componentsv1.CodeFlareKind {
+	if len(appDeployments.Items) != 0 && appDeployments.Items[0].OwnerReferences[0].Kind != componentApi.CodeFlareKind {
 		return fmt.Errorf("expected ownerreference not found. Got ownereferrence: %v",
 			appDeployments.Items[0].OwnerReferences)
 	}
@@ -145,7 +145,7 @@ func (tc *CodeFlareTestCtx) testOwnerReferences() error {
 func (tc *CodeFlareTestCtx) validateCodeFlareReady() error {
 	err := wait.PollUntilContextTimeout(tc.testCtx.ctx, generalRetryInterval, componentReadyTimeout, true, func(ctx context.Context) (bool, error) {
 		key := types.NamespacedName{Name: tc.testCodeFlareInstance.Name}
-		CodeFlare := &componentsv1.CodeFlare{}
+		CodeFlare := &componentApi.CodeFlare{}
 
 		err := tc.testCtx.customClient.Get(ctx, key, CodeFlare)
 		if err != nil {
@@ -217,10 +217,10 @@ func (tc *CodeFlareTestCtx) testUpdateCodeFlareComponentDisabled() error {
 
 	if tc.testCtx.testDsc.Spec.Components.CodeFlare.ManagementState == operatorv1.Managed {
 		appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-			LabelSelector: labels.ODH.Component(componentsv1.CodeFlareComponentName),
+			LabelSelector: labels.ODH.Component(componentApi.CodeFlareComponentName),
 		})
 		if err != nil {
-			return fmt.Errorf("error getting enabled component %v", componentsv1.CodeFlareComponentName)
+			return fmt.Errorf("error getting enabled component %v", componentApi.CodeFlareComponentName)
 		}
 		if len(appDeployments.Items) > 0 {
 			codeflareDeploymentName = appDeployments.Items[0].Name
@@ -258,7 +258,7 @@ func (tc *CodeFlareTestCtx) testUpdateCodeFlareComponentDisabled() error {
 
 	if err = tc.testCtx.wait(func(ctx context.Context) (bool, error) {
 		// Verify CodeFlare CR is deleted
-		CodeFlare := &componentsv1.CodeFlare{}
+		CodeFlare := &componentApi.CodeFlare{}
 		err = tc.testCtx.customClient.Get(ctx, client.ObjectKey{Name: tc.testCodeFlareInstance.Name}, CodeFlare)
 		return k8serr.IsNotFound(err), nil
 	}); err != nil {
@@ -275,7 +275,7 @@ func (tc *CodeFlareTestCtx) testUpdateCodeFlareComponentDisabled() error {
 		return fmt.Errorf("error getting component resource after reconcile: %w", err)
 	}
 	return fmt.Errorf("component %v is disabled, should not get its deployment %v from NS %v any more",
-		componentsv1.CodeFlareKind,
+		componentApi.CodeFlareKind,
 		codeflareDeploymentName,
 		tc.testCtx.applicationsNamespace)
 }

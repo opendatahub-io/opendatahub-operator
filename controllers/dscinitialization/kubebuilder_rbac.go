@@ -40,6 +40,6 @@ package dscinitialization
 // +kubebuilder:rbac:groups="monitoring.coreos.com",resources=thanosrulers/status,verbs=get;create;patch;delete;deletecollection
 // +kubebuilder:rbac:groups="monitoring.coreos.com",resources=probes,verbs=get;create;patch;delete;deletecollection
 
-//+kubebuilder:rbac:groups=services.opendatahub.io,resources=monitorings,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=services.opendatahub.io,resources=monitorings/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=services.opendatahub.io,resources=monitorings/finalizers,verbs=update
+//+kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=monitorings,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=monitorings/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=monitorings/finalizers,verbs=update

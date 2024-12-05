@@ -19,13 +19,13 @@ import (
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 type KueueTestCtx struct {
 	testCtx           *testContext
-	testKueueInstance componentsv1.Kueue
+	testKueueInstance componentApi.Kueue
 }
 
 func kueueTestSuite(t *testing.T) {
@@ -79,7 +79,7 @@ func (tc *KueueTestCtx) testKueueCreation() error {
 	}
 
 	err := tc.testCtx.wait(func(ctx context.Context) (bool, error) {
-		existingKueueList := &componentsv1.KueueList{}
+		existingKueueList := &componentApi.KueueList{}
 
 		if err := tc.testCtx.customClient.List(ctx, existingKueueList); err != nil {
 			return false, err
@@ -127,13 +127,13 @@ func (tc *KueueTestCtx) testOwnerReferences() error {
 
 	// Test Kueue resources
 	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-		LabelSelector: labels.ODH.Component(componentsv1.KueueComponentName),
+		LabelSelector: labels.ODH.Component(componentApi.KueueComponentName),
 	})
 	if err != nil {
 		return fmt.Errorf("error listing component deployments %w", err)
 	}
 	// test any one deployment for ownerreference
-	if len(appDeployments.Items) != 0 && appDeployments.Items[0].OwnerReferences[0].Kind != componentsv1.KueueKind {
+	if len(appDeployments.Items) != 0 && appDeployments.Items[0].OwnerReferences[0].Kind != componentApi.KueueKind {
 		return fmt.Errorf("expected ownerreference not found. Got ownereferrence: %v",
 			appDeployments.Items[0].OwnerReferences)
 	}
@@ -145,7 +145,7 @@ func (tc *KueueTestCtx) testOwnerReferences() error {
 func (tc *KueueTestCtx) validateKueueReady() error {
 	err := wait.PollUntilContextTimeout(tc.testCtx.ctx, generalRetryInterval, componentReadyTimeout, true, func(ctx context.Context) (bool, error) {
 		key := types.NamespacedName{Name: tc.testKueueInstance.Name}
-		kueue := &componentsv1.Kueue{}
+		kueue := &componentApi.Kueue{}
 
 		err := tc.testCtx.customClient.Get(ctx, key, kueue)
 		if err != nil {
@@ -217,10 +217,10 @@ func (tc *KueueTestCtx) testUpdateKueueComponentDisabled() error {
 
 	if tc.testCtx.testDsc.Spec.Components.Kueue.ManagementState == operatorv1.Managed {
 		appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-			LabelSelector: labels.ODH.Component(componentsv1.KueueComponentName),
+			LabelSelector: labels.ODH.Component(componentApi.KueueComponentName),
 		})
 		if err != nil {
-			return fmt.Errorf("error getting enabled component %v", componentsv1.KueueComponentName)
+			return fmt.Errorf("error getting enabled component %v", componentApi.KueueComponentName)
 		}
 		if len(appDeployments.Items) > 0 {
 			kueueDeploymentName = appDeployments.Items[0].Name
@@ -258,7 +258,7 @@ func (tc *KueueTestCtx) testUpdateKueueComponentDisabled() error {
 
 	if err = tc.testCtx.wait(func(ctx context.Context) (bool, error) {
 		// Verify kueue CR is deleted
-		kueue := &componentsv1.Kueue{}
+		kueue := &componentApi.Kueue{}
 		err = tc.testCtx.customClient.Get(ctx, client.ObjectKey{Name: tc.testKueueInstance.Name}, kueue)
 		return k8serr.IsNotFound(err), nil
 	}); err != nil {
@@ -275,7 +275,7 @@ func (tc *KueueTestCtx) testUpdateKueueComponentDisabled() error {
 		return fmt.Errorf("error getting component resource after reconcile: %w", err)
 	}
 	return fmt.Errorf("component %v is disabled, should not get its deployment %v from NS %v any more",
-		componentsv1.KueueKind,
+		componentApi.KueueKind,
 		kueueDeploymentName,
 		tc.testCtx.applicationsNamespace)
 }

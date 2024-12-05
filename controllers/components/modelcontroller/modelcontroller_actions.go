@@ -24,7 +24,7 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -32,9 +32,9 @@ import (
 
 func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	// early exist
-	_, ok := rr.Instance.(*componentsv1.ModelController)
+	_, ok := rr.Instance.(*componentApi.ModelController)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentsv1.ModelController)", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a componentApi.ModelController)", rr.Instance)
 	}
 	rr.Manifests = append(rr.Manifests, odhtypes.ManifestInfo{
 		Path:       odhdeploy.DefaultManifestPath,
@@ -46,9 +46,9 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 
 // download devflag from kserve or modelmeshserving.
 func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	mc, ok := rr.Instance.(*componentsv1.ModelController)
+	mc, ok := rr.Instance.(*componentApi.ModelController)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentsv1.ModelController)", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a componentApi.ModelController)", rr.Instance)
 	}
 	// since we do not initialize the rr with DSC CR any more, add this into function
 	dscl := dscv1.DataScienceClusterList{}

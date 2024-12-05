@@ -7,7 +7,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	ComponentName = componentsv1.ModelMeshServingComponentName
+	ComponentName = componentApi.ModelMeshServingComponentName
 )
 
 type componentHandler struct{}
@@ -26,7 +26,7 @@ func init() { //nolint:gochecknoinits
 }
 
 func (s *componentHandler) GetName() string {
-	return componentsv1.ModelMeshServingComponentName
+	return componentApi.ModelMeshServingComponentName
 }
 
 func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) operatorv1.ManagementState {
@@ -57,16 +57,16 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Obj
 	mmAnnotations := make(map[string]string)
 	mmAnnotations[annotations.ManagementStateAnnotation] = string(s.GetManagementState(dsc))
 
-	return client.Object(&componentsv1.ModelMeshServing{
+	return client.Object(&componentApi.ModelMeshServing{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       componentsv1.ModelMeshServingKind,
-			APIVersion: componentsv1.GroupVersion.String(),
+			Kind:       componentApi.ModelMeshServingKind,
+			APIVersion: componentApi.GroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        componentsv1.ModelMeshServingInstanceName,
+			Name:        componentApi.ModelMeshServingInstanceName,
 			Annotations: mmAnnotations,
 		},
-		Spec: componentsv1.ModelMeshServingSpec{
+		Spec: componentApi.ModelMeshServingSpec{
 			ModelMeshServingCommonSpec: dsc.Spec.Components.ModelMeshServing.ModelMeshServingCommonSpec,
 		},
 	})

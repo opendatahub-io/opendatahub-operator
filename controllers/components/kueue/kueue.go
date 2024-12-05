@@ -7,7 +7,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	ComponentName = componentsv1.KueueComponentName
+	ComponentName = componentApi.KueueComponentName
 )
 
 var (
@@ -30,7 +30,7 @@ func init() { //nolint:gochecknoinits
 }
 
 func (s *componentHandler) GetName() string {
-	return componentsv1.KueueComponentName
+	return componentApi.KueueComponentName
 }
 
 func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) operatorv1.ManagementState {
@@ -43,16 +43,16 @@ func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) ope
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Object {
 	kueueAnnotations := make(map[string]string)
 	kueueAnnotations[annotations.ManagementStateAnnotation] = string(s.GetManagementState(dsc))
-	return client.Object(&componentsv1.Kueue{
+	return client.Object(&componentApi.Kueue{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       componentsv1.KueueKind,
-			APIVersion: componentsv1.GroupVersion.String(),
+			Kind:       componentApi.KueueKind,
+			APIVersion: componentApi.GroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        componentsv1.KueueInstanceName,
+			Name:        componentApi.KueueInstanceName,
 			Annotations: kueueAnnotations,
 		},
-		Spec: componentsv1.KueueSpec{
+		Spec: componentApi.KueueSpec{
 			KueueCommonSpec: dsc.Spec.Components.Kueue.KueueCommonSpec,
 		},
 	})

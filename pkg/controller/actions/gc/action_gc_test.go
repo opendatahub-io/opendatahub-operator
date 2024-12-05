@@ -23,7 +23,7 @@ import (
 	ctrlCli "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -189,10 +189,10 @@ func TestGcAction(t *testing.T) {
 						Generation: 1,
 					},
 				},
-				Instance: &componentsv1.Dashboard{
+				Instance: &componentApi.Dashboard{
 					TypeMeta: metav1.TypeMeta{
-						APIVersion: componentsv1.GroupVersion.String(),
-						Kind:       componentsv1.DashboardKind,
+						APIVersion: componentApi.GroupVersion.String(),
+						Kind:       componentApi.DashboardKind,
 					},
 					ObjectMeta: metav1.ObjectMeta{
 						Generation: 1,
@@ -213,7 +213,7 @@ func TestGcAction(t *testing.T) {
 				l[k] = v
 			}
 
-			l[labels.PlatformPartOf] = strings.ToLower(componentsv1.DashboardKind)
+			l[labels.PlatformPartOf] = strings.ToLower(componentApi.DashboardKind)
 
 			cm := corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{

@@ -41,10 +41,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	servicesv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
 	modelregistry2 "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/webhook"
 
@@ -237,9 +237,9 @@ func newDSCI(appName string) *dsciv1.DSCInitialization {
 		},
 		Spec: dsciv1.DSCInitializationSpec{
 			ApplicationsNamespace: namespace,
-			Monitoring: servicesv1.DSCMonitoring{
+			Monitoring: serviceApi.DSCMonitoring{
 				ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
-				MonitoringCommonSpec: servicesv1.MonitoringCommonSpec{
+				MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
 					Namespace: monitoringNS,
 				},
 			},
@@ -257,47 +257,47 @@ func newDSC(name string, namespace string) *dscv1.DataScienceCluster {
 		},
 		Spec: dscv1.DataScienceClusterSpec{
 			Components: dscv1.Components{
-				Dashboard: componentsv1.DSCDashboard{
+				Dashboard: componentApi.DSCDashboard{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				Workbenches: componentsv1.DSCWorkbenches{
+				Workbenches: componentApi.DSCWorkbenches{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				ModelMeshServing: componentsv1.DSCModelMeshServing{
+				ModelMeshServing: componentApi.DSCModelMeshServing{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				DataSciencePipelines: componentsv1.DSCDataSciencePipelines{
+				DataSciencePipelines: componentApi.DSCDataSciencePipelines{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				Kserve: componentsv1.DSCKserve{
+				Kserve: componentApi.DSCKserve{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				CodeFlare: componentsv1.DSCCodeFlare{
+				CodeFlare: componentApi.DSCCodeFlare{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				Ray: componentsv1.DSCRay{
+				Ray: componentApi.DSCRay{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				TrustyAI: componentsv1.DSCTrustyAI{
+				TrustyAI: componentApi.DSCTrustyAI{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				ModelRegistry: componentsv1.DSCModelRegistry{
+				ModelRegistry: componentApi.DSCModelRegistry{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
@@ -315,11 +315,11 @@ func newMRDSC1(name string, mrNamespace string, _ operatorv1.ManagementState) *d
 		},
 		Spec: dscv1.DataScienceClusterSpec{
 			Components: dscv1.Components{
-				ModelRegistry: componentsv1.DSCModelRegistry{
+				ModelRegistry: componentApi.DSCModelRegistry{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
-					ModelRegistryCommonSpec: componentsv1.ModelRegistryCommonSpec{
+					ModelRegistryCommonSpec: componentApi.ModelRegistryCommonSpec{
 						RegistriesNamespace: mrNamespace,
 					},
 				},
@@ -336,7 +336,7 @@ func newMRDSC2(name string) *dscv1.DataScienceCluster {
 		},
 		Spec: dscv1.DataScienceClusterSpec{
 			Components: dscv1.Components{
-				Workbenches: componentsv1.DSCWorkbenches{
+				Workbenches: componentApi.DSCWorkbenches{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},

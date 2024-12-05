@@ -7,7 +7,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	ComponentName = componentsv1.TrainingOperatorComponentName
+	ComponentName = componentApi.TrainingOperatorComponentName
 )
 
 var (
@@ -30,7 +30,7 @@ func init() { //nolint:gochecknoinits
 }
 
 func (s *componentHandler) GetName() string {
-	return componentsv1.TrainingOperatorComponentName
+	return componentApi.TrainingOperatorComponentName
 }
 
 func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) operatorv1.ManagementState {
@@ -43,16 +43,16 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) k8sclient.
 	trainingoperatorAnnotations := make(map[string]string)
 	trainingoperatorAnnotations[annotations.ManagementStateAnnotation] = string(s.GetManagementState(dsc))
 
-	return k8sclient.Object(&componentsv1.TrainingOperator{
+	return k8sclient.Object(&componentApi.TrainingOperator{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       componentsv1.TrainingOperatorKind,
-			APIVersion: componentsv1.GroupVersion.String(),
+			Kind:       componentApi.TrainingOperatorKind,
+			APIVersion: componentApi.GroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        componentsv1.TrainingOperatorInstanceName,
+			Name:        componentApi.TrainingOperatorInstanceName,
 			Annotations: trainingoperatorAnnotations,
 		},
-		Spec: componentsv1.TrainingOperatorSpec{
+		Spec: componentApi.TrainingOperatorSpec{
 			TrainingOperatorCommonSpec: dsc.Spec.Components.TrainingOperator.TrainingOperatorCommonSpec,
 		},
 	})

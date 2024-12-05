@@ -42,7 +42,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	datasciencepipelinesctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/datasciencepipelines"
@@ -292,7 +292,7 @@ func (r *DataScienceClusterReconciler) ReconcileComponent(
 			saved.Status.InstalledComponents = make(map[string]bool)
 		}
 		// only set non-modelcontroller component into DSC .status.InstalledComponents map
-		if componentName != componentsv1.ModelControllerComponentName {
+		if componentName != componentApi.ModelControllerComponentName {
 			saved.Status.InstalledComponents[componentName] = enabled
 		}
 		if enabled {
@@ -397,18 +397,18 @@ func (r *DataScienceClusterReconciler) SetupWithManager(ctx context.Context, mgr
 		Owns(&admissionregistrationv1.ValidatingWebhookConfiguration{}).
 		Owns(&corev1.ServiceAccount{}).
 		// components CRs
-		Owns(&componentsv1.Dashboard{}).
-		Owns(&componentsv1.Workbenches{}).
-		Owns(&componentsv1.Ray{}).
-		Owns(&componentsv1.ModelRegistry{}).
-		Owns(&componentsv1.TrustyAI{}).
-		Owns(&componentsv1.Kueue{}).
-		Owns(&componentsv1.CodeFlare{}).
-		Owns(&componentsv1.TrainingOperator{}).
-		Owns(&componentsv1.DataSciencePipelines{}).
-		Owns(&componentsv1.Kserve{}).
-		Owns(&componentsv1.ModelMeshServing{}).
-		Owns(&componentsv1.ModelController{}).
+		Owns(&componentApi.Dashboard{}).
+		Owns(&componentApi.Workbenches{}).
+		Owns(&componentApi.Ray{}).
+		Owns(&componentApi.ModelRegistry{}).
+		Owns(&componentApi.TrustyAI{}).
+		Owns(&componentApi.Kueue{}).
+		Owns(&componentApi.CodeFlare{}).
+		Owns(&componentApi.TrainingOperator{}).
+		Owns(&componentApi.DataSciencePipelines{}).
+		Owns(&componentApi.Kserve{}).
+		Owns(&componentApi.ModelMeshServing{}).
+		Owns(&componentApi.ModelController{}).
 		Watches(
 			&dsciv1.DSCInitialization{},
 			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {
@@ -505,7 +505,7 @@ var argoWorkflowCRDPredicates = predicate.Funcs{
 		if e.Object.GetName() == datasciencepipelinesctrl.ArgoWorkflowCRD {
 			labelList := e.Object.GetLabels()
 			// CRD to be deleted with label "app.opendatahub.io/datasciencepipeline":"true", should not trigger reconcile
-			if value, exist := labelList[labels.ODH.Component(componentsv1.DataSciencePipelinesComponentName)]; exist && value == "true" {
+			if value, exist := labelList[labels.ODH.Component(componentApi.DataSciencePipelinesComponentName)]; exist && value == "true" {
 				return false
 			}
 		}
