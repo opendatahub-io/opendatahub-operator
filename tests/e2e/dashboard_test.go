@@ -206,6 +206,15 @@ func (d *DashboardTestCtx) validateDashboardInstance(t *testing.T) {
 			jq.Match(`.status.phase == "%s"`, readyStatus),
 		)),
 	))
+
+	g.Eventually(
+		d.List(gvk.DataScienceCluster),
+	).Should(And(
+		HaveLen(1),
+		HaveEach(
+			jq.Match(`.status.conditions[] | select(.Type == "dashboardReady") | .status == "%s"`, readyStatus),
+		),
+	))
 }
 
 func (d *DashboardTestCtx) validateOperandsOwnerReferences(t *testing.T) {

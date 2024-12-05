@@ -55,9 +55,14 @@ type TrainingOperatorCommonSpec struct {
 	common.DevFlagsSpec `json:",inline"`
 }
 
+// TrainingOperatorCommonStatus defines the shared observed state of TrainingOperator
+type TrainingOperatorCommonStatus struct {
+}
+
 // TrainingOperatorStatus defines the observed state of TrainingOperator
 type TrainingOperatorStatus struct {
-	common.Status `json:",inline"`
+	common.Status                `json:",inline"`
+	TrainingOperatorCommonStatus `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
@@ -84,4 +89,10 @@ type DSCTrainingOperator struct {
 	common.ManagementSpec `json:",inline"`
 	// configuration fields common across components
 	TrainingOperatorCommonSpec `json:",inline"`
+}
+
+// DSCTrainingOperatorStatus struct holds the status for the TrainingOperator component exposed in the DSC
+type DSCTrainingOperatorStatus struct {
+	common.ManagementSpec         `json:",inline"`
+	*TrainingOperatorCommonStatus `json:",inline"`
 }

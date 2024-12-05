@@ -17,15 +17,11 @@ limitations under the License.
 package v1
 
 import (
-	"errors"
-	"reflect"
-
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
@@ -77,8 +73,42 @@ type Components struct {
 
 // ComponentsStatus defines the custom status of DataScienceCluster components.
 type ComponentsStatus struct {
-	// ModelRegistry component status
-	ModelRegistry *componentApi.DSCModelRegistryStatus `json:"modelregistry,omitempty"`
+	// Dashboard component status.
+	Dashboard componentApi.DSCDashboardStatus `json:"dashboard,omitempty"`
+
+	// Workbenches component status.
+	Workbenches componentApi.DSCWorkbenchesStatus `json:"workbenches,omitempty"`
+
+	// ModelMeshServing component status.
+	ModelMeshServing componentApi.DSCModelMeshServingStatus `json:"modelmeshserving,omitempty"`
+
+	// DataServicePipeline component status.
+	// Require OpenShift Pipelines Operator to be installed before enable component
+	DataSciencePipelines componentApi.DSCDataSciencePipelinesStatus `json:"datasciencepipelines,omitempty"`
+
+	// Kserve component status.
+	// Require OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component
+	// Does not support enabled ModelMeshServing at the same time
+	Kserve componentApi.DSCKserveStatus `json:"kserve,omitempty"`
+
+	// Kueue component status.
+	Kueue componentApi.DSCKueueStatus `json:"kueue,omitempty"`
+
+	// CodeFlare component status.
+	// If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabled component.
+	CodeFlare componentApi.DSCCodeFlareStatus `json:"codeflare,omitempty"`
+
+	// Ray component status.
+	Ray componentApi.DSCRayStatus `json:"ray,omitempty"`
+
+	// TrustyAI component status.
+	TrustyAI componentApi.DSCTrustyAIStatus `json:"trustyai,omitempty"`
+
+	// ModelRegistry component status.
+	ModelRegistry componentApi.DSCModelRegistryStatus `json:"modelregistry,omitempty"`
+
+	// Training Operator component status.
+	TrainingOperator componentApi.DSCTrainingOperatorStatus `json:"trainingoperator,omitempty"`
 }
 
 // DataScienceClusterStatus defines the observed state of DataScienceCluster.
@@ -91,6 +121,9 @@ type DataScienceClusterStatus struct {
 	// +optional
 	Conditions []conditionsv1.Condition `json:"conditions,omitempty"`
 
+	// The generation observed by the deployment controller.
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
 	// RelatedObjects is a list of objects created and maintained by this operator.
 	// Object references will be added to this list after they have been created AND found in the cluster.
 	// +optional
@@ -102,7 +135,7 @@ type DataScienceClusterStatus struct {
 
 	// Expose component's specific status
 	// +optional
-	Components ComponentsStatus `json:"components,omitempty"`
+	Components ComponentsStatus `json:"components"`
 
 	// Version and release type
 	Release cluster.Release `json:"release,omitempty"`
@@ -133,25 +166,4 @@ type DataScienceClusterList struct {
 
 func init() {
 	SchemeBuilder.Register(&DataScienceCluster{}, &DataScienceClusterList{})
-}
-
-func (d *DataScienceCluster) GetComponents() ([]components.ComponentInterface, error) {
-	var allComponents []components.ComponentInterface
-
-	c := &d.Spec.Components
-
-	definedComponents := reflect.ValueOf(c).Elem()
-	for i := 0; i < definedComponents.NumField(); i++ {
-		c := definedComponents.Field(i)
-		if c.CanAddr() {
-			component, ok := c.Addr().Interface().(components.ComponentInterface)
-			if !ok {
-				return allComponents, errors.New("this is not a pointer to ComponentInterface")
-			}
-
-			allComponents = append(allComponents, component)
-		}
-	}
-
-	return allComponents, nil
 }
