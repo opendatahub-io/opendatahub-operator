@@ -108,7 +108,7 @@ metadata:
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.21.0
     createdAt: "2024-11-22T19:16:14Z"
     olm.skipRange: '>=1.0.0 <2.21.0'
-    operators.operatorframework.io/builder: operator-sdk-v1.31.0
+    operators.operatorframework.io/builder: operator-sdk-v1.32.0
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
       "datasciencepipelines.components.platform.opendatahub.io", "kserves.components.platform.opendatahub.io",
