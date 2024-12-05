@@ -382,13 +382,13 @@ func (mr *ModelRegistryTestCtx) validateCRDReinstated(t *testing.T) {
 	crdSel := client.MatchingFields{"metadata.name": crdName}
 
 	g.Eventually(
-		mr.updateComponent(func(c *dscv1.Components) { c.Dashboard.ManagementState = operatorv1.Removed }),
+		mr.updateComponent(func(c *dscv1.Components) { c.ModelRegistry.ManagementState = operatorv1.Removed }),
 	).ShouldNot(
 		HaveOccurred(),
 	)
 
 	g.Eventually(
-		mr.List(gvk.Dashboard),
+		mr.List(gvk.ModelRegistry),
 	).Should(
 		BeEmpty(),
 	)
@@ -416,13 +416,13 @@ func (mr *ModelRegistryTestCtx) validateCRDReinstated(t *testing.T) {
 	)
 
 	g.Eventually(
-		mr.updateComponent(func(c *dscv1.Components) { c.Dashboard.ManagementState = operatorv1.Managed }),
+		mr.updateComponent(func(c *dscv1.Components) { c.ModelRegistry.ManagementState = operatorv1.Managed }),
 	).ShouldNot(
 		HaveOccurred(),
 	)
 
 	g.Eventually(
-		mr.List(gvk.Dashboard),
+		mr.List(gvk.ModelRegistry),
 	).Should(
 		HaveLen(1),
 	)
