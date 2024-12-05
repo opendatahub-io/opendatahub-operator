@@ -15,7 +15,7 @@ metadata:
       "kueues.components.platform.opendatahub.io", "modelmeshservings.components.platform.opendatahub.io",
       "modelregistries.components.platform.opendatahub.io", "rays.components.platform.opendatahub.io",
       "trainingoperators.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io",  "workbenches.components.platform.opendatahub.io",
-      "monitorings.services.platform.opendatahub.io","modelcontrollers.components.platform.opendatahub.io"]'
+      "monitorings.services.platform.opendatahub.io","modelcontrollers.components.platform.opendatahub.io", "auths.services.platform.opendatahub.io"]'
     repository: https://github.com/opendatahub-io/opendatahub-operator
   name: opendatahub-operator.v2.21.0
   namespace: placeholder
@@ -23,6 +23,11 @@ spec:
   apiservicedefinitions: {}
   customresourcedefinitions:
     owned:
+    - description: Auth is the Schema for the auths API
+      displayName: Auth
+      kind: Auth
+      name: auths.services.platform.opendatahub.io
+      version: v1alpha1
     - description: CodeFlare is the Schema for the codeflares API
       displayName: Code Flare
       kind: CodeFlare

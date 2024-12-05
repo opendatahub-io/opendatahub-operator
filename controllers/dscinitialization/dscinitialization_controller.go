@@ -45,6 +45,7 @@ import (
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
@@ -280,6 +281,12 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			return reconcile.Result{}, errServiceMesh
 		}
 
+		err = r.createAuth(ctx)
+		if err != nil {
+			log.Info("failed to create Auth")
+			return ctrl.Result{}, err
+		}
+
 		// Finish reconciling
 		_, err = status.UpdateWithRetry[*dsciv1.DSCInitialization](ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
 			status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, status.ReconcileCompletedMessage)
@@ -355,6 +362,10 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 			&corev1.ConfigMap{},
 			handler.EnqueueRequestsFromMapFunc(r.watchMonitoringConfigMapResource),
 			builder.WithPredicates(CMContentChangedPredicate),
+		).
+		Watches(
+			&serviceApi.Auth{},
+			handler.EnqueueRequestsFromMapFunc(r.watchAuthResource),
 		).
 		Complete(r)
 }
@@ -433,5 +444,22 @@ func (r *DSCInitializationReconciler) watchDSCResource(ctx context.Context) []re
 
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "backup"}}}
 	}
+	return nil
+}
+
+func (r *DSCInitializationReconciler) watchAuthResource(ctx context.Context, a client.Object) []reconcile.Request {
+	log := logf.FromContext(ctx)
+	instanceList := &serviceApi.AuthList{}
+	if err := r.Client.List(ctx, instanceList); err != nil {
+		// do not handle if cannot get list
+		log.Error(err, "Failed to get AuthList")
+		return nil
+	}
+	if len(instanceList.Items) == 0 {
+		log.Info("Found no Auth instance in cluster, reconciling to recreate")
+
+		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "auth", Namespace: r.ApplicationsNamespace}}}
+	}
+
 	return nil
 }

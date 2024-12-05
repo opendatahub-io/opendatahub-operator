@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -115,4 +116,22 @@ func GetMonitoringData(data string) (string, error) {
 	encodedData := b64.StdEncoding.EncodeToString(hashSum)
 
 	return encodedData, nil
+}
+
+func sliceAddMissing(s *[]string, e string) int {
+	e = strings.TrimSpace(e)
+	if slices.Contains(*s, e) {
+		return 0
+	}
+	*s = append(*s, e)
+	return 1
+}
+
+// adds elements of comma separated list.
+func AddMissing(s *[]string, list string) int {
+	added := 0
+	for _, e := range strings.Split(list, ",") {
+		added += sliceAddMissing(s, e)
+	}
+	return added
 }
