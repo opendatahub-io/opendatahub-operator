@@ -20,7 +20,7 @@ Issues are tracked using [Jira](https://issues.redhat.com/secure/RapidBoard.jspa
 1. **Fork the Repository:** Create your own fork of the repository to work on your changes.
 2. **Create a Branch:** Create your own branch to include changes for the feature or a bug fix off of `incubation` branch.
 3. **Work on Your Changes:** Commit often, and ensure your code adheres to these [Code Style Guidelines](#code-style-guidelines) and passes all the [quality gates](#quality-gates) for the operator.
-4. **Testing:** Make sure your code passes all the tests, including any new tests you've added. 
+4. **Testing:** Make sure your code passes all the tests, including any new tests you've added. And that your changes do not decrease the test coverage as shown on report. Every new feature should come with unit tests that cover that new part of the code.
 
 ### Open a Pull Request:
 

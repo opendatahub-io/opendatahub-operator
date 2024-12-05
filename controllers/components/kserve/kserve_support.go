@@ -34,8 +34,8 @@ import (
 var serviceAccounts = map[cluster.Platform][]string{
 	cluster.Unknown:          {odhModelControllerComponentName},
 	cluster.OpenDataHub:      {odhModelControllerComponentName},
-	cluster.ManagedRhods:     {odhModelControllerComponentName},
-	cluster.SelfManagedRhods: {odhModelControllerComponentName},
+	cluster.ManagedRhoai:     {odhModelControllerComponentName},
+	cluster.SelfManagedRhoai: {odhModelControllerComponentName},
 }
 
 func kserveManifestInfo(sourcePath string) odhtypes.ManifestInfo {

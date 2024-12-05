@@ -14,7 +14,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -53,7 +53,7 @@ func (tc *testContext) waitForOperatorDeployment(name string, replicas int32) er
 	err := wait.PollUntilContextTimeout(tc.ctx, generalRetryInterval, operatorReadyTimeout, false, func(ctx context.Context) (bool, error) {
 		controllerDeployment, err := tc.kubeClient.AppsV1().Deployments(tc.operatorNamespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
-			if errors.IsNotFound(err) {
+			if k8serr.IsNotFound(err) {
 				return false, nil
 			}
 			log.Printf("Failed to get %s controller deployment", name)
@@ -214,7 +214,7 @@ func (tc *testContext) validateCRD(crdName string) error {
 	err := wait.PollUntilContextTimeout(tc.ctx, generalRetryInterval, crdReadyTimeout, false, func(ctx context.Context) (bool, error) {
 		err := tc.customClient.Get(ctx, obj, crd)
 		if err != nil {
-			if errors.IsNotFound(err) {
+			if k8serr.IsNotFound(err) {
 				return false, nil
 			}
 			log.Printf("Failed to get CRD %s", crdName)
@@ -263,7 +263,7 @@ func getCSV(ctx context.Context, cli client.Client, name string, namespace strin
 		}
 	}
 
-	return nil, errors.NewNotFound(schema.GroupResource{}, name)
+	return nil, k8serr.NewNotFound(schema.GroupResource{}, name)
 }
 
 // Use existing or create a new one.
@@ -286,7 +286,7 @@ func getSubscription(tc *testContext, name string, ns string) (*ofapi.Subscripti
 	}
 
 	err := tc.customClient.Get(tc.ctx, key, sub)
-	if errors.IsNotFound(err) {
+	if k8serr.IsNotFound(err) {
 		return createSubscription(name, ns)
 	}
 	if err != nil {
@@ -300,7 +300,7 @@ func waitCSV(tc *testContext, name string, ns string) error {
 	interval := generalRetryInterval
 	isReady := func(ctx context.Context) (bool, error) {
 		csv, err := getCSV(ctx, tc.customClient, name, ns)
-		if errors.IsNotFound(err) {
+		if k8serr.IsNotFound(err) {
 			return false, nil
 		}
 		if err != nil {

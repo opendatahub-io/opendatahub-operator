@@ -27,8 +27,8 @@ func TestUpdatePodSecurityRoleBindingAction(t *testing.T) {
 
 	m := map[cluster.Platform][]string{
 		cluster.OpenDataHub:      {"odh-dashboard"},
-		cluster.SelfManagedRhods: {"rhods-dashboard"},
-		cluster.ManagedRhods:     {"rhods-dashboard", "fake-account"},
+		cluster.SelfManagedRhoai: {"rhods-dashboard"},
+		cluster.ManagedRhoai:     {"rhods-dashboard", "fake-account"},
 	}
 
 	action := security.NewUpdatePodSecurityRoleBindingAction(m)

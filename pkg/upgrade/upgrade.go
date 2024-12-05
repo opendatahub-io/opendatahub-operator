@@ -13,6 +13,7 @@ import (
 	routev1 "github.com/openshift/api/route/v1"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -22,8 +23,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
@@ -34,6 +35,7 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 type ResourceSpec struct {
@@ -106,6 +108,7 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 // If there exists default-dsci instance already, it will not update DSCISpec on it.
 // Note: DSCI CR modifcations are not supported, as it is the initial prereq setting for the components.
 func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ cluster.Platform, appNamespace, monNamespace string) error {
+	log := logf.FromContext(ctx)
 	defaultDsciSpec := &dsciv1.DSCInitializationSpec{
 		ApplicationsNamespace: appNamespace,
 		Monitoring: serviceApi.DSCMonitoring{
@@ -145,14 +148,14 @@ func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ cluster.Platfor
 
 	switch {
 	case len(instances.Items) > 1:
-		ctrl.Log.Info("only one instance of DSCInitialization object is allowed. Please delete other instances.")
+		log.Info("only one instance of DSCInitialization object is allowed. Please delete other instances.")
 		return nil
 	case len(instances.Items) == 1:
 		// Do not patch/update if DSCI already exists.
-		ctrl.Log.Info("DSCInitialization resource already exists. It will not be updated with default DSCI.")
+		log.Info("DSCInitialization resource already exists. It will not be updated with default DSCI.")
 		return nil
 	case len(instances.Items) == 0:
-		ctrl.Log.Info("create default DSCI CR.")
+		log.Info("create default DSCI CR.")
 		err := cluster.CreateWithRetry(ctx, cli, defaultDsci, 1) // 1 min timeout
 		if err != nil {
 			return err
@@ -209,7 +212,7 @@ func CleanupExistingResource(ctx context.Context,
 ) error {
 	var multiErr *multierror.Error
 	// Special Handling of cleanup of deprecated model monitoring stack
-	if platform == cluster.ManagedRhods {
+	if platform == cluster.ManagedRhoai {
 		deprecatedDeployments := []string{"rhods-prometheus-operator"}
 		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedDeployments, &appsv1.DeploymentList{}))
 
@@ -262,8 +265,14 @@ func CleanupExistingResource(ctx context.Context,
 		})
 	multiErr = multierror.Append(multiErr, deleteResources(ctx, cli, &odhDocJPH))
 	// only apply on RHOAI since ODH has a different way to create this CR by dashboard
-	if platform == cluster.SelfManagedRhods || platform == cluster.ManagedRhods {
+	if platform == cluster.SelfManagedRhoai || platform == cluster.ManagedRhoai {
 		if err := upgradeODCCR(ctx, cli, "odh-dashboard-config", dscApplicationsNamespace, oldReleaseVersion); err != nil {
+			return err
+		}
+	}
+	// remove modelreg proxy container from deployment in ODH
+	if platform == cluster.OpenDataHub {
+		if err := removeRBACProxyModelRegistry(ctx, cli, "model-registry-operator", "kube-rbac-proxy", dscApplicationsNamespace); err != nil {
 			return err
 		}
 	}
@@ -271,6 +280,9 @@ func CleanupExistingResource(ctx context.Context,
 	// to take a reference
 	toDelete := getDashboardWatsonResources(dscApplicationsNamespace)
 	multiErr = multierror.Append(multiErr, deleteResources(ctx, cli, &toDelete))
+
+	// cleanup nvidia nim integration remove tech preview
+	multiErr = multierror.Append(multiErr, cleanupNimIntegrationTechPreview(ctx, cli, oldReleaseVersion, dscApplicationsNamespace))
 
 	return multiErr.ErrorOrNil()
 }
@@ -287,13 +299,14 @@ func deleteResources(ctx context.Context, c client.Client, resources *[]Resource
 }
 
 func deleteOneResource(ctx context.Context, c client.Client, res ResourceSpec) error {
+	log := logf.FromContext(ctx)
 	list := &unstructured.UnstructuredList{}
 	list.SetGroupVersionKind(res.Gvk)
 
 	err := c.List(ctx, list, client.InNamespace(res.Namespace))
 	if err != nil {
 		if errors.Is(err, &meta.NoKindMatchError{}) {
-			ctrl.Log.Info("CRD not found, will not delete " + res.Gvk.String())
+			log.Info("CRD not found, will not delete " + res.Gvk.String())
 			return nil
 		}
 		return fmt.Errorf("failed to list %s: %w", res.Gvk.Kind, err)
@@ -316,7 +329,7 @@ func deleteOneResource(ctx context.Context, c client.Client, res ResourceSpec) e
 				if err != nil {
 					return fmt.Errorf("failed to delete %s %s/%s: %w", res.Gvk.Kind, res.Namespace, item.GetName(), err)
 				}
-				ctrl.Log.Info("Deleted object " + item.GetName() + " " + res.Gvk.String() + "in namespace" + res.Namespace)
+				log.Info("Deleted object " + item.GetName() + " " + res.Gvk.String() + "in namespace" + res.Namespace)
 			}
 		}
 	}
@@ -325,6 +338,7 @@ func deleteOneResource(ctx context.Context, c client.Client, res ResourceSpec) e
 }
 
 func deleteDeprecatedResources(ctx context.Context, cli client.Client, namespace string, resourceList []string, resourceType client.ObjectList) error {
+	log := logf.FromContext(ctx)
 	var multiErr *multierror.Error
 	listOpts := &client.ListOptions{Namespace: namespace}
 	if err := cli.List(ctx, resourceType, listOpts); err != nil {
@@ -335,16 +349,16 @@ func deleteDeprecatedResources(ctx context.Context, cli client.Client, namespace
 		item := items.Index(i).Addr().Interface().(client.Object) //nolint:errcheck,forcetypeassert
 		for _, name := range resourceList {
 			if name == item.GetName() {
-				ctrl.Log.Info("Attempting to delete " + item.GetName() + " in namespace " + namespace)
+				log.Info("Attempting to delete " + item.GetName() + " in namespace " + namespace)
 				err := cli.Delete(ctx, item)
 				if err != nil {
 					if k8serr.IsNotFound(err) {
-						ctrl.Log.Info("Could not find " + item.GetName() + " in namespace " + namespace)
+						log.Info("Could not find " + item.GetName() + " in namespace " + namespace)
 					} else {
 						multiErr = multierror.Append(multiErr, err)
 					}
 				}
-				ctrl.Log.Info("Successfully deleted " + item.GetName())
+				log.Info("Successfully deleted " + item.GetName())
 			}
 		}
 	}
@@ -353,6 +367,7 @@ func deleteDeprecatedResources(ctx context.Context, cli client.Client, namespace
 
 // Need to handle ServiceMonitor deletion separately as the generic function does not work for ServiceMonitors because of how the package is built.
 func deleteDeprecatedServiceMonitors(ctx context.Context, cli client.Client, namespace string, resourceList []string) error {
+	log := logf.FromContext(ctx)
 	var multiErr *multierror.Error
 	listOpts := &client.ListOptions{Namespace: namespace}
 	servicemonitors := &monitoringv1.ServiceMonitorList{}
@@ -364,16 +379,16 @@ func deleteDeprecatedServiceMonitors(ctx context.Context, cli client.Client, nam
 		servicemonitor := servicemonitor
 		for _, name := range resourceList {
 			if name == servicemonitor.Name {
-				ctrl.Log.Info("Attempting to delete " + servicemonitor.Name + " in namespace " + namespace)
+				log.Info("Attempting to delete " + servicemonitor.Name + " in namespace " + namespace)
 				err := cli.Delete(ctx, servicemonitor)
 				if err != nil {
 					if k8serr.IsNotFound(err) {
-						ctrl.Log.Info("Could not find " + servicemonitor.Name + " in namespace " + namespace)
+						log.Info("Could not find " + servicemonitor.Name + " in namespace " + namespace)
 					} else {
 						multiErr = multierror.Append(multiErr, err)
 					}
 				}
-				ctrl.Log.Info("Successfully deleted " + servicemonitor.Name)
+				log.Info("Successfully deleted " + servicemonitor.Name)
 			}
 		}
 	}
@@ -444,10 +459,11 @@ func unsetOwnerReference(ctx context.Context, cli client.Client, instanceName st
 }
 
 func updateODCBiasMetrics(ctx context.Context, cli client.Client, instanceName string, oldRelease cluster.Release, odhObject *unstructured.Unstructured) error {
+	log := logf.FromContext(ctx)
 	// "from version" as oldRelease, if return "0.0.0" meaning running on 2.10- release/dummy CI build
 	// if oldRelease is lower than 2.14.0(e.g 2.13.x-a), flip disableBiasMetrics to false (even the field did not exist)
 	if oldRelease.Version.Minor < 14 {
-		ctrl.Log.Info("Upgrade force BiasMetrics to false in " + instanceName + " CR due to old release < 2.14.0")
+		log.Info("Upgrade force BiasMetrics to false in " + instanceName + " CR due to old release < 2.14.0")
 		// flip TrustyAI BiasMetrics to false (.spec.dashboardConfig.disableBiasMetrics)
 		disableBiasMetricsValue := []byte(`{"spec": {"dashboardConfig": {"disableBiasMetrics": false}}}`)
 		if err := cli.Patch(ctx, odhObject, client.RawPatch(types.MergePatchType, disableBiasMetricsValue)); err != nil {
@@ -455,22 +471,55 @@ func updateODCBiasMetrics(ctx context.Context, cli client.Client, instanceName s
 		}
 		return nil
 	}
-	ctrl.Log.Info("Upgrade does not force BiasMetrics to false due to from release >= 2.14.0")
+	log.Info("Upgrade does not force BiasMetrics to false due to from release >= 2.14.0")
 	return nil
 }
 
 func updateODCModelRegistry(ctx context.Context, cli client.Client, instanceName string, oldRelease cluster.Release, odhObject *unstructured.Unstructured) error {
+	log := logf.FromContext(ctx)
 	// "from version" as oldRelease, if return "0.0.0" meaning running on 2.10- release/dummy CI build
 	// if oldRelease is lower than 2.14.0(e.g 2.13.x-a), flip disableModelRegistry to false (even the field did not exist)
 	if oldRelease.Version.Minor < 14 {
-		ctrl.Log.Info("Upgrade force ModelRegistry to false in " + instanceName + " CR due to old release < 2.14.0")
+		log.Info("Upgrade force ModelRegistry to false in " + instanceName + " CR due to old release < 2.14.0")
 		disableModelRegistryValue := []byte(`{"spec": {"dashboardConfig": {"disableModelRegistry": false}}}`)
 		if err := cli.Patch(ctx, odhObject, client.RawPatch(types.MergePatchType, disableModelRegistryValue)); err != nil {
 			return fmt.Errorf("error enable ModelRegistry in CR %s : %w", instanceName, err)
 		}
 		return nil
 	}
-	ctrl.Log.Info("Upgrade does not force ModelRegistry to false due to from release >= 2.14.0")
+	log.Info("Upgrade does not force ModelRegistry to false due to from release >= 2.14.0")
+	return nil
+}
+
+// workaround for RHOAIENG-15328
+// TODO: this can be removed from ODH 2.22.
+func removeRBACProxyModelRegistry(ctx context.Context, cli client.Client, componentName string, containerName string, applicationNS string) error {
+	log := logf.FromContext(ctx)
+	deploymentList := &appsv1.DeploymentList{}
+	if err := cli.List(ctx, deploymentList, client.InNamespace(applicationNS), client.HasLabels{labels.ODH.Component(componentName)}); err != nil {
+		return fmt.Errorf("error fetching list of deployments: %w", err)
+	}
+
+	if len(deploymentList.Items) != 1 { // ModelRegistry operator is not deployed
+		return nil
+	}
+	mrDeployment := deploymentList.Items[0]
+	mrContainerList := mrDeployment.Spec.Template.Spec.Containers
+	// if only one container in deployment, we are already on newer deployment, no need more action
+	if len(mrContainerList) == 1 {
+		return nil
+	}
+
+	log.Info("Upgrade force ModelRegistry to remove container from deployment")
+	for i, container := range mrContainerList {
+		if container.Name == containerName {
+			removeUnusedKubeRbacProxy := []byte(fmt.Sprintf("[{\"op\": \"remove\", \"path\": \"/spec/template/spec/containers/%d\"}]", i))
+			if err := cli.Patch(ctx, &mrDeployment, client.RawPatch(types.JSONPatchType, removeUnusedKubeRbacProxy)); err != nil {
+				return fmt.Errorf("error removing ModelRegistry %s container from deployment: %w", containerName, err)
+			}
+			break
+		}
+	}
 	return nil
 }
 
@@ -490,6 +539,7 @@ func RemoveLabel(ctx context.Context, cli client.Client, objectName string, labe
 }
 
 func deleteDeprecatedNamespace(ctx context.Context, cli client.Client, namespace string) error {
+	log := logf.FromContext(ctx)
 	foundNamespace := &corev1.Namespace{}
 	if err := cli.Get(ctx, client.ObjectKey{Name: namespace}, foundNamespace); err != nil {
 		if k8serr.IsNotFound(err) {
@@ -518,7 +568,7 @@ func deleteDeprecatedNamespace(ctx context.Context, cli client.Client, namespace
 		return fmt.Errorf("error getting pods from namespace %s: %w", namespace, err)
 	}
 	if len(podList.Items) != 0 {
-		ctrl.Log.Info("Skip deletion of namespace " + namespace + " due to running Pods in it")
+		log.Info("Skip deletion of namespace " + namespace + " due to running Pods in it")
 		return nil
 	}
 
@@ -549,4 +599,53 @@ func GetDeployedRelease(ctx context.Context, cli client.Client) (cluster.Release
 	}
 	// could be a clean installation or both CRs are deleted already
 	return cluster.Release{}, nil
+}
+
+func cleanupNimIntegrationTechPreview(ctx context.Context, cli client.Client, oldRelease cluster.Release, applicationNS string) error {
+	var errs *multierror.Error
+
+	if oldRelease.Version.Minor >= 14 && oldRelease.Version.Minor <= 15 {
+		log := logf.FromContext(ctx)
+		nimCronjob := "nvidia-nim-periodic-validator"
+		nimConfigMap := "nvidia-nim-validation-result"
+		nimAPISec := "nvidia-nim-access"
+
+		deleteObjs := []struct {
+			obj        client.Object
+			name, desc string
+		}{
+			{
+				obj:  &batchv1.CronJob{},
+				name: nimCronjob,
+				desc: "validator CronJob",
+			},
+			{
+				obj:  &corev1.ConfigMap{},
+				name: nimConfigMap,
+				desc: "data ConfigMap",
+			},
+			{
+				obj:  &corev1.Secret{},
+				name: nimAPISec,
+				desc: "API key Secret",
+			},
+		}
+		for _, delObj := range deleteObjs {
+			if gErr := cli.Get(ctx, types.NamespacedName{Name: delObj.name, Namespace: applicationNS}, delObj.obj); gErr != nil {
+				if !k8serr.IsNotFound(gErr) {
+					log.V(1).Error(gErr, fmt.Sprintf("failed to get NIM %s %s", delObj.desc, delObj.name))
+					errs = multierror.Append(errs, gErr)
+				}
+			} else {
+				if dErr := cli.Delete(ctx, delObj.obj); dErr != nil {
+					log.Error(dErr, fmt.Sprintf("failed to remove NIM %s %s", delObj.desc, delObj.name))
+					errs = multierror.Append(errs, dErr)
+				} else {
+					log.Info(fmt.Sprintf("removed NIM %s successfully", delObj.desc))
+				}
+			}
+		}
+	}
+
+	return errs.ErrorOrNil()
 }

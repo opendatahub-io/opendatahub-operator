@@ -9,10 +9,12 @@ import (
 
 	"github.com/blang/semver/v4"
 	"github.com/go-logr/logr"
+	configv1 "github.com/openshift/api/config/v1"
 	"github.com/operator-framework/api/pkg/lib/version"
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -135,11 +137,11 @@ func GetClusterServiceVersion(ctx context.Context, c client.Client, namespace st
 		gvk.ClusterServiceVersion.Kind)
 }
 
-// detectSelfManaged detects if it is Self Managed Rhods or OpenDataHub.
+// detectSelfManaged detects if it is Self Managed Rhoai or OpenDataHub.
 func detectSelfManaged(ctx context.Context, cli client.Client) (Platform, error) {
 	variants := map[string]Platform{
 		"opendatahub-operator": OpenDataHub,
-		"rhods-operator":       SelfManagedRhods,
+		"rhods-operator":       SelfManagedRhoai,
 	}
 
 	for k, v := range variants {
@@ -155,29 +157,36 @@ func detectSelfManaged(ctx context.Context, cli client.Client) (Platform, error)
 	return Unknown, nil
 }
 
-// detectManagedRHODS checks if catsrc CR add-on exists ManagedRhods.
-func detectManagedRHODS(ctx context.Context, cli client.Client) (Platform, error) {
+// detectManagedRhoai checks if catsrc CR add-on exists ManagedRhoai.
+func detectManagedRhoai(ctx context.Context, cli client.Client) (Platform, error) {
 	catalogSource := &ofapiv1alpha1.CatalogSource{}
-	err := cli.Get(ctx, client.ObjectKey{Name: "addon-managed-odh-catalog", Namespace: "redhat-ods-operator"}, catalogSource)
+	operatorNs, err := GetOperatorNamespace()
+	if err != nil {
+		operatorNs = "redhat-ods-operator"
+	}
+	err = cli.Get(ctx, client.ObjectKey{Name: "addon-managed-odh-catalog", Namespace: operatorNs}, catalogSource)
 	if err != nil {
 		return Unknown, client.IgnoreNotFound(err)
 	}
-	return ManagedRhods, nil
+	return ManagedRhoai, nil
 }
 
 func getPlatform(ctx context.Context, cli client.Client) (Platform, error) {
 	switch os.Getenv("ODH_PLATFORM_TYPE") {
-	case "OpenDataHub", "":
+	case "OpenDataHub":
 		return OpenDataHub, nil
 	case "ManagedRHOAI":
-		return ManagedRhods, nil
+		return ManagedRhoai, nil
 	case "SelfManagedRHOAI":
-		return SelfManagedRhods, nil
-	default: // fall back to detect platform if ODH_PLATFORM_TYPE env is not provided
-		if platform, err := detectManagedRHODS(ctx, cli); err != nil {
+		return SelfManagedRhoai, nil
+	default:
+		// fall back to detect platform if ODH_PLATFORM_TYPE env is not provided in CSV or set to ""
+		platform, err := detectManagedRhoai(ctx, cli)
+		if err != nil {
 			return Unknown, err
-		} else if platform == ManagedRhods {
-			return ManagedRhods, nil
+		}
+		if platform == ManagedRhoai {
+			return ManagedRhoai, nil
 		}
 		return detectSelfManaged(ctx, cli)
 	}
@@ -219,4 +228,21 @@ func getRelease(ctx context.Context, cli client.Client) (Release, error) {
 	}
 	initRelease.Version = csv.Spec.Version
 	return initRelease, nil
+}
+
+// IsDefaultAuthMethod returns true if the default authentication method is IntegratedOAuth or empty.
+// This will give indication that Operator should create userGroups or not in the cluster.
+func IsDefaultAuthMethod(ctx context.Context, cli client.Client) (bool, error) {
+	authenticationobj := &configv1.Authentication{}
+	if err := cli.Get(ctx, client.ObjectKey{Name: ClusterAuthenticationObj, Namespace: ""}, authenticationobj); err != nil {
+		if errors.Is(err, &meta.NoKindMatchError{}) { // when CRD is missing, conver error type
+			return false, k8serr.NewNotFound(configv1.Resource("authentications"), ClusterAuthenticationObj)
+		}
+		return false, err
+	}
+
+	// for now, HPC support "" "None" "IntegratedOAuth"(default) "OIDC"
+	// other offering support "" "None" "IntegratedOAuth"(default)
+	// we only create userGroups for "IntegratedOAuth" or "" and leave other or new supported type value in the future
+	return authenticationobj.Spec.Type == configv1.AuthenticationTypeIntegratedOAuth || authenticationobj.Spec.Type == "", nil
 }

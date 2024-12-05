@@ -25,36 +25,36 @@ var (
 	PathManagedDownstream = PathDownstream + "/addon"
 
 	adminGroups = map[cluster.Platform]string{
-		cluster.SelfManagedRhods: "rhods-admins",
-		cluster.ManagedRhods:     "dedicated-admins",
+		cluster.SelfManagedRhoai: "rhods-admins",
+		cluster.ManagedRhoai:     "dedicated-admins",
 		cluster.OpenDataHub:      "odh-admins",
 		cluster.Unknown:          "odh-admins",
 	}
 
 	sectionTitle = map[cluster.Platform]string{
-		cluster.SelfManagedRhods: "OpenShift Self Managed Services",
-		cluster.ManagedRhods:     "OpenShift Managed Services",
+		cluster.SelfManagedRhoai: "OpenShift Self Managed Services",
+		cluster.ManagedRhoai:     "OpenShift Managed Services",
 		cluster.OpenDataHub:      "OpenShift Open Data Hub",
 		cluster.Unknown:          "OpenShift Open Data Hub",
 	}
 
 	baseConsoleURL = map[cluster.Platform]string{
-		cluster.SelfManagedRhods: "https://rhods-dashboard-",
-		cluster.ManagedRhods:     "https://rhods-dashboard-",
+		cluster.SelfManagedRhoai: "https://rhods-dashboard-",
+		cluster.ManagedRhoai:     "https://rhods-dashboard-",
 		cluster.OpenDataHub:      "https://odh-dashboard-",
 		cluster.Unknown:          "https://odh-dashboard-",
 	}
 
 	manifestPaths = map[cluster.Platform]string{
-		cluster.SelfManagedRhods: PathSelfDownstream,
-		cluster.ManagedRhods:     PathManagedDownstream,
+		cluster.SelfManagedRhoai: PathSelfDownstream,
+		cluster.ManagedRhoai:     PathManagedDownstream,
 		cluster.OpenDataHub:      PathUpstream,
 		cluster.Unknown:          PathUpstream,
 	}
 
 	serviceAccounts = map[cluster.Platform][]string{
-		cluster.SelfManagedRhods: {"rhods-dashboard"},
-		cluster.ManagedRhods:     {"rhods-dashboard"},
+		cluster.SelfManagedRhoai: {"rhods-dashboard"},
+		cluster.ManagedRhoai:     {"rhods-dashboard"},
 		cluster.OpenDataHub:      {"odh-dashboard"},
 		cluster.Unknown:          {"odh-dashboard"},
 	}
@@ -89,7 +89,7 @@ func computeComponentName() string {
 	release := cluster.GetRelease()
 
 	name := ComponentNameUpstream
-	if release.Name == cluster.SelfManagedRhods || release.Name == cluster.ManagedRhods {
+	if release.Name == cluster.SelfManagedRhoai || release.Name == cluster.ManagedRhoai {
 		name = ComponentNameDownstream
 	}
 

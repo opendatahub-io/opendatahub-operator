@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	configv1 "github.com/openshift/api/config/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	templatev1 "github.com/openshift/api/template/v1"
 	userv1 "github.com/openshift/api/user/v1"
@@ -119,6 +120,7 @@ var _ = BeforeSuite(func() {
 	utilruntime.Must(userv1.Install(testScheme))
 	utilruntime.Must(monitoringv1.AddToScheme(testScheme))
 	utilruntime.Must(templatev1.Install(testScheme))
+	utilruntime.Must(configv1.Install(testScheme))
 	// +kubebuilder:scaffold:scheme
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: testScheme})
@@ -144,7 +146,6 @@ var _ = BeforeSuite(func() {
 	err = (&dscictrl.DSCInitializationReconciler{
 		Client:   odhClient,
 		Scheme:   testScheme,
-		Log:      ctrl.Log.WithName("controllers").WithName("DSCInitialization"),
 		Recorder: mgr.GetEventRecorderFor("dscinitialization-controller"),
 	}).SetupWithManager(gCtx, mgr)
 

@@ -41,8 +41,8 @@ import (
 )
 
 var serviceAccounts = map[cluster.Platform][]string{
-	cluster.SelfManagedRhods: {"modelmesh", "modelmesh-controller"},
-	cluster.ManagedRhods:     {"modelmesh", "modelmesh-controller"},
+	cluster.SelfManagedRhoai: {"modelmesh", "modelmesh-controller"},
+	cluster.ManagedRhoai:     {"modelmesh", "modelmesh-controller"},
 	cluster.OpenDataHub:      {"modelmesh", "modelmesh-controller"},
 	cluster.Unknown:          {"modelmesh", "modelmesh-controller"},
 }
