@@ -42,13 +42,12 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 		SourcePath: "base",
 	})
 
-	nimState := strings.ToLower(string(operatorv1.Removed))
-	// only when kserve is managed and nim is managed, set it to managed
-	if mc.Spec.Kserve.ManagementState == operatorv1.Managed && mc.Spec.Kserve.NIM.ManagementState == operatorv1.Managed {
-		nimState = strings.ToLower(string(operatorv1.Managed))
+	nimState := operatorv1.Removed
+	if mc.Spec.Kserve.ManagementState == operatorv1.Managed {
+		nimState = mc.Spec.Kserve.NIM.ManagementState
 	}
 	extraParamsMap := map[string]string{
-		"nim-state": nimState,
+		"nim-state": strings.ToLower(string(nimState)),
 	}
 	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), nil, extraParamsMap); err != nil {
 		return fmt.Errorf("failed to update images on path %s: %w", rr.Manifests[0].String(), err)
