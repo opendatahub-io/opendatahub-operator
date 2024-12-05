@@ -27,9 +27,6 @@ type ComponentHandler interface {
 	// It returns interface, but it simplifies DSC reconciler code a lot
 	NewCRObject(dsc *dscv1.DataScienceCluster) client.Object
 	NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error
-	// Cleanup is called when the component is removed from the DSC but extra steps need to be performed
-	// in most of the cases, resources belong to component should be auto removed but could be config or resource not covered.
-	Cleanup() error
 }
 
 var registry = []ComponentHandler{}

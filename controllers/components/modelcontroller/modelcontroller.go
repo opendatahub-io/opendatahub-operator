@@ -2,7 +2,6 @@ package modelcontroller
 
 import (
 	"fmt"
-	"strings"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -87,17 +86,5 @@ func (s *componentHandler) Init(platform cluster.Platform) error {
 		return fmt.Errorf("failed to update images on path %s: %w", DefaultPath, err)
 	}
 
-	return nil
-}
-
-// to make it up for the case if modelmesh is not enabled, kserve turned from enabled to disabled but with nim as enabled
-// it causes kserve CR deleted, modelcontroller CR deleted, and leave nim-state in Operator as "managed".
-func (s *componentHandler) Cleanup() error {
-	var extraParamsMap = map[string]string{
-		"nim-state": strings.ToLower(string(operatorv1.Removed)), // odh-modl-controller explictily check "removed" as value
-	}
-	if err := odhdeploy.ApplyParams(DefaultPath, nil, extraParamsMap); err != nil {
-		return fmt.Errorf("failed to update nim-state on path %s: %w", DefaultPath, err)
-	}
 	return nil
 }

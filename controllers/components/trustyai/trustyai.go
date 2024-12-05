@@ -76,6 +76,3 @@ func (s *componentHandler) Init(platform cluster.Platform) error {
 
 	return nil
 }
-func (s *componentHandler) Cleanup() error {
-	return nil
-}
