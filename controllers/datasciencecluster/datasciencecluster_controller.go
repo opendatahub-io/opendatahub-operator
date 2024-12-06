@@ -351,12 +351,19 @@ func (r *DataScienceClusterReconciler) apply(ctx context.Context, dsc *dscv1.Dat
 
 	managementStateAnn, exists := obj.GetAnnotations()[annotations.ManagementStateAnnotation]
 	if exists && managementStateAnn == string(operatorv1.Removed) {
+		if len(obj.GetFinalizers()) != 0 {
+			patch := []byte(`{"metadata":{"finalizers":[]}}`)
+			if err := r.Client.Patch(ctx, obj, client.RawPatch(types.MergePatchType, patch)); err != nil {
+				return fmt.Errorf("failed to remove finalizer from component CR: %w", err)
+			}
+		}
 		err := r.Client.Delete(ctx, obj)
 		if k8serr.IsNotFound(err) {
 			return nil
 		}
 		return err
 	}
+
 	if err := r.Client.Apply(ctx, obj, client.FieldOwner(dsc.Name), client.ForceOwnership); err != nil {
 		return client.IgnoreNotFound(err)
 	}

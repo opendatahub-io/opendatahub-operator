@@ -17,6 +17,7 @@ import (
 
 const (
 	ComponentName = componentApi.RayComponentName
+	finalizerName = "ray.components.platform.opendatahub.io/finalizer"
 )
 
 var (
@@ -40,6 +41,11 @@ func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) ope
 	return operatorv1.Removed
 }
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Object {
+	var finalizerlist []string
+	if s.GetManagementState(dsc) == operatorv1.Managed {
+		finalizerlist = append(finalizerlist, finalizerName)
+	}
+
 	rayAnnotations := make(map[string]string)
 	rayAnnotations[annotations.ManagementStateAnnotation] = string(s.GetManagementState(dsc))
 
@@ -51,6 +57,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Obj
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        componentApi.RayInstanceName,
 			Annotations: rayAnnotations,
+			Finalizers:  finalizerlist,
 		},
 		Spec: componentApi.RaySpec{
 			RayCommonSpec: dsc.Spec.Components.Ray.RayCommonSpec,

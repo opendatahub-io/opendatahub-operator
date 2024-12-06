@@ -17,6 +17,7 @@ import (
 
 const (
 	ComponentName = componentApi.TrainingOperatorComponentName
+	finalizerName = "trainingoperator.components.platform.opendatahub.io/finalizer"
 )
 
 var (
@@ -40,6 +41,11 @@ func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) ope
 	return operatorv1.Removed
 }
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) k8sclient.Object {
+	var finalizerlist []string
+	if s.GetManagementState(dsc) == operatorv1.Managed {
+		finalizerlist = append(finalizerlist, finalizerName)
+	}
+
 	trainingoperatorAnnotations := make(map[string]string)
 	trainingoperatorAnnotations[annotations.ManagementStateAnnotation] = string(s.GetManagementState(dsc))
 
@@ -51,6 +57,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) k8sclient.
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        componentApi.TrainingOperatorInstanceName,
 			Annotations: trainingoperatorAnnotations,
+			Finalizers:  finalizerlist,
 		},
 		Spec: componentApi.TrainingOperatorSpec{
 			TrainingOperatorCommonSpec: dsc.Spec.Components.TrainingOperator.TrainingOperatorCommonSpec,

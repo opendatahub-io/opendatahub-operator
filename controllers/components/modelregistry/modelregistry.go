@@ -17,6 +17,8 @@ import (
 
 type componentHandler struct{}
 
+const finalizerName = "modelregistry.components.platform.opendatahub.io/finalizer"
+
 func init() { //nolint:gochecknoinits
 	cr.Add(&componentHandler{})
 }
@@ -51,6 +53,11 @@ func (s *componentHandler) Init(_ cluster.Platform) error {
 }
 
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Object {
+	var finalizerlist []string
+	if s.GetManagementState(dsc) == operatorv1.Managed{
+		finalizerlist = append(finalizerlist, finalizerName)
+	}
+
 	componentAnnotations := make(map[string]string)
 	componentAnnotations[annotations.ManagementStateAnnotation] = string(s.GetManagementState(dsc))
 	return client.Object(&componentApi.ModelRegistry{
@@ -61,6 +68,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Obj
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        componentApi.ModelRegistryInstanceName,
 			Annotations: componentAnnotations,
+			Finalizers:  finalizerlist,
 		},
 		Spec: componentApi.ModelRegistrySpec{
 			ModelRegistryCommonSpec: dsc.Spec.Components.ModelRegistry.ModelRegistryCommonSpec,

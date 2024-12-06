@@ -17,6 +17,7 @@ import (
 
 const (
 	ComponentName = componentApi.CodeFlareComponentName
+	finalizerName = "codeflare.components.platform.opendatahub.io/finalizer"
 )
 
 var (
@@ -39,6 +40,10 @@ func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) ope
 }
 
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Object {
+	var finalizerlist []string
+	if s.GetManagementState(dsc) == operatorv1.Managed {
+		finalizerlist = append(finalizerlist, finalizerName)
+	}
 	codeflareAnnotations := make(map[string]string)
 	codeflareAnnotations[annotations.ManagementStateAnnotation] = string(s.GetManagementState(dsc))
 
@@ -50,6 +55,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Obj
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        componentApi.CodeFlareInstanceName,
 			Annotations: codeflareAnnotations,
+			Finalizers:  finalizerlist,
 		},
 		Spec: componentApi.CodeFlareSpec{
 			CodeFlareCommonSpec: dsc.Spec.Components.CodeFlare.CodeFlareCommonSpec,

@@ -17,6 +17,7 @@ import (
 
 const (
 	ComponentName = componentApi.ModelMeshServingComponentName
+	finalizerName = "model-mesh.components.platform.opendatahub.io/finalizer"
 )
 
 type componentHandler struct{}
@@ -54,6 +55,11 @@ func (s *componentHandler) Init(platform cluster.Platform) error {
 
 // for DSC to get compoment ModelMeshServing's CR.
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Object {
+	var finalizerlist []string
+	if s.GetManagementState(dsc) == operatorv1.Managed {
+		finalizerlist = append(finalizerlist, finalizerName)
+	}
+
 	mmAnnotations := make(map[string]string)
 	mmAnnotations[annotations.ManagementStateAnnotation] = string(s.GetManagementState(dsc))
 
@@ -65,6 +71,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Obj
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        componentApi.ModelMeshServingInstanceName,
 			Annotations: mmAnnotations,
+			Finalizers:  finalizerlist,
 		},
 		Spec: componentApi.ModelMeshServingSpec{
 			ModelMeshServingCommonSpec: dsc.Spec.Components.ModelMeshServing.ModelMeshServingCommonSpec,
