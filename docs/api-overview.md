@@ -1659,8 +1659,6 @@ _Appears in:_
 | `certificate` _[CertificateSpec](#certificatespec)_ | Certificate specifies configuration of the TLS certificate securing communication<br />for the gateway. |  |  |
 
 
-
-
 #### ServiceMeshSpec
 
 
