@@ -201,8 +201,12 @@ func main() { //nolint:funlen,maintidx
 		os.Exit(1)
 	}
 
-	secretCache := createSecretCacheConfig(platform)
-	deploymentCache := createDeploymentCacheConfig(platform)
+	// get old release version before we create default DSCI CR
+	oldReleaseVersion, _ := upgrade.GetDeployedRelease(ctx, setupClient)
+
+	secretCache := createSecretCacheConfig(ctx, setupClient, !(len(oldReleaseVersion.Name) == 0), platform)
+	oDHCache := createODHGeneralCacheConfig(ctx, setupClient, !(len(oldReleaseVersion.Name) == 0), platform)
+
 	cacheOptions := cache.Options{
 		Scheme: scheme,
 		ByObject: map[client.Object]cache.ByObject{
@@ -231,9 +235,33 @@ func main() { //nolint:funlen,maintidx
 				Field: fields.Set{"metadata.name": cluster.ClusterAuthenticationObj}.AsSelector(),
 			},
 			// for prometheus and black-box deployment and ones we owns
-			&appsv1.Deployment{}: {Namespaces: deploymentCache},
-			// kueue need prometheusrules
-			&promv1.PrometheusRule{}: {Namespaces: deploymentCache},
+			&appsv1.Deployment{}: {
+				Namespaces: oDHCache,
+			},
+			// kueue + monitoring need prometheusrules
+			&promv1.PrometheusRule{}: {
+				Namespaces: oDHCache,
+			},
+			&promv1.ServiceMonitor{}: {
+				Namespaces: oDHCache,
+			},
+			&routev1.Route{}: {
+				Namespaces: oDHCache,
+			},
+			&networkingv1.NetworkPolicy{}: {
+				Namespaces: oDHCache,
+			},
+			&rbacv1.Role{}: {
+				Namespaces: oDHCache,
+			},
+			&rbacv1.RoleBinding{}: {
+				Namespaces: oDHCache,
+			},
+			&rbacv1.ClusterRole{}:        {},
+			&rbacv1.ClusterRoleBinding{}: {},
+			&securityv1.SecurityContextConstraints{}: {
+				Namespaces: oDHCache,
+			},
 		},
 	}
 
@@ -354,7 +382,7 @@ func main() { //nolint:funlen,maintidx
 	}
 
 	// get old release version before we create default DSCI CR
-	oldReleaseVersion, _ := upgrade.GetDeployedRelease(ctx, setupClient)
+	oldReleaseVersion, _ = upgrade.GetDeployedRelease(ctx, setupClient)
 
 	// Check if user opted for disabling DSC configuration
 	disableDSCConfig, existDSCConfig := os.LookupEnv("DISABLE_DSC_CONFIG")
@@ -423,11 +451,37 @@ func main() { //nolint:funlen,maintidx
 	}
 }
 
-func createSecretCacheConfig(platform cluster.Platform) map[string]cache.Config {
+func createSecretCacheConfig(ctx context.Context, cli client.Client, upgrade bool, platform cluster.Platform) map[string]cache.Config {
 	namespaceConfigs := map[string]cache.Config{
-		"istio-system":      {}, // for both knative-serving-cert and default-modelregistry-cert,as an easy workarond, to watch all in this namespace for now
+		"istio-system":      {}, // for both knative-serving-cert and default-modelregistry-cert, as an easy workarond, to watch both in this namespace
 		"openshift-ingress": {},
 	}
+	// upgrade cache
+	if upgrade {
+		// TODO: if we dont want harcoded above two namespace we can add them with label selector
+		// maistra.io/member-of=istio-system
+		// network.openshift.io/policy-group=ingress
+
+		labelSelector := client.MatchingLabels{
+			"opendatahub.io/generated-namespace": "true",
+		}
+		namespaceList := &corev1.NamespaceList{}
+		if err := cli.List(ctx, namespaceList, labelSelector); err != nil {
+			// return application (+ monitoring + default wb ) namespace
+			return namespaceConfigs
+		}
+
+		for _, ns := range namespaceList.Items {
+			namespaceConfigs[ns.Name] = cache.Config{}
+		}
+		// on managed, we keep operator namespace fixed
+		if platform == cluster.ManagedRhoai {
+			namespaceConfigs["redhat-ods-operator"] = cache.Config{}
+		}
+		return namespaceConfigs
+	}
+
+	// clean install cache
 	switch platform {
 	case cluster.ManagedRhoai:
 		namespaceConfigs["redhat-ods-monitoring"] = cache.Config{}
@@ -442,11 +496,40 @@ func createSecretCacheConfig(platform cluster.Platform) map[string]cache.Config 
 	default:
 		namespaceConfigs["opendatahub"] = cache.Config{}
 	}
+	// if user create namespace and want it to be used as application namespace
+	// they need to create label "opendatahub.io/watched-namespace": "true" then set DSCI to use it
+	labelSelector := client.MatchingLabels{
+		"opendatahub.io/watched-namespace": "true",
+	}
+	namespaceList := &corev1.NamespaceList{}
+	if err := cli.List(ctx, namespaceList, labelSelector); err != nil {
+		return namespaceConfigs
+	}
+	for _, ns := range namespaceList.Items {
+		namespaceConfigs[ns.Name] = cache.Config{}
+	}
 	return namespaceConfigs
 }
 
-func createDeploymentCacheConfig(platform cluster.Platform) map[string]cache.Config {
+func createODHGeneralCacheConfig(ctx context.Context, cli client.Client, upgrade bool, platform cluster.Platform) map[string]cache.Config {
 	namespaceConfigs := map[string]cache.Config{}
+	// upgrade cache
+	if upgrade {
+		labelSelector := client.MatchingLabels{
+			"opendatahub.io/generated-namespace": "true",
+		}
+		namespaceList := &corev1.NamespaceList{}
+		if err := cli.List(ctx, namespaceList, labelSelector); err != nil {
+			return namespaceConfigs
+		}
+		for _, ns := range namespaceList.Items {
+			namespaceConfigs[ns.Name] = cache.Config{}
+		}
+		// remove rhods-notebooks if it exists since we do not have deployment in this namespace, only SFS
+		delete(namespaceConfigs, cluster.DefaultNotebooksNamespace)
+		return namespaceConfigs
+	}
+	// clean install cache
 	switch platform {
 	case cluster.ManagedRhoai: // no need workbench NS, only SFS no Deployment
 		namespaceConfigs["redhat-ods-monitoring"] = cache.Config{}
@@ -455,6 +538,18 @@ func createDeploymentCacheConfig(platform cluster.Platform) map[string]cache.Con
 		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
 	default:
 		namespaceConfigs["opendatahub"] = cache.Config{}
+	}
+	// if user create namespace and want it to be used as application namespace
+	// they need to create label "opendatahub.io/watched-namespace": "true" then set DSCI to use it
+	labelSelector := client.MatchingLabels{
+		"opendatahub.io/watched-namespace": "true",
+	}
+	namespaceList := &corev1.NamespaceList{}
+	if err := cli.List(ctx, namespaceList, labelSelector); err != nil {
+		return namespaceConfigs
+	}
+	for _, ns := range namespaceList.Items {
+		namespaceConfigs[ns.Name] = cache.Config{}
 	}
 	return namespaceConfigs
 }
