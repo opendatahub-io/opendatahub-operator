@@ -184,7 +184,7 @@ func (a *Action) deployCRD(
 	ops := []client.PatchOption{
 		client.ForceOwnership,
 		// Since CRDs are not bound to a component, set the field
-		// order to the platform itself
+		// owner to the platform itself
 		client.FieldOwner(PlatformFieldOwner),
 	}
 
@@ -264,7 +264,7 @@ func (a *Action) deploy(
 	}
 
 	var deployedObj *unstructured.Unstructured
-	var deployed bool
+	var err error
 
 	switch {
 	// The object is explicitly marked as not owned by the operator in the manifests,
@@ -274,10 +274,8 @@ func (a *Action) deploy(
 		// to the actual object in this case
 		resources.RemoveAnnotation(&obj, annotations.ManagedByODHOperator)
 
-		var err error
-
-		deployedObj, deployed, err = a.create(ctx, rr.Client, &obj)
-		if err != nil {
+		deployedObj, err = a.create(ctx, rr.Client, &obj)
+		if err != nil && !k8serr.IsAlreadyExists(err) {
 			return false, err
 		}
 
@@ -288,8 +286,6 @@ func (a *Action) deploy(
 				return false, err
 			}
 		}
-
-		var err error
 
 		ops := []client.PatchOption{
 			client.ForceOwnership,
@@ -308,8 +304,6 @@ func (a *Action) deploy(
 		if err != nil {
 			return false, client.IgnoreNotFound(err)
 		}
-
-		deployed = true
 	}
 
 	if a.cache != nil {
@@ -319,7 +313,7 @@ func (a *Action) deploy(
 		}
 	}
 
-	return deployed, nil
+	return true, nil
 }
 
 func (a *Action) lookup(
@@ -346,21 +340,18 @@ func (a *Action) create(
 	ctx context.Context,
 	c *odhClient.Client,
 	obj *unstructured.Unstructured,
-) (*unstructured.Unstructured, bool, error) {
+) (*unstructured.Unstructured, error) {
 	logf.FromContext(ctx).V(3).Info("create",
 		"gvk", obj.GroupVersionKind(),
 		"name", client.ObjectKeyFromObject(obj),
 	)
 
 	err := c.Create(ctx, obj)
-	switch {
-	case err == nil:
-		return obj, true, nil
-	case k8serr.IsAlreadyExists(err):
-		return obj, false, nil
-	default:
-		return nil, false, err
+	if err != nil {
+		return nil, err
 	}
+
+	return obj, nil
 }
 
 func (a *Action) patch(
