@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"log"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
+	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -98,6 +100,10 @@ func creationTestSuite(t *testing.T) {
 		t.Run("Validate default model registry cert available", func(t *testing.T) {
 			err = testCtx.testDefaultModelRegistryCertAvailable()
 			require.NoError(t, err, "error getting default cert secret for ModelRegistry")
+		})
+		t.Run("Validate trusted CA bundle", func(t *testing.T) {
+			err = testCtx.testTrustedCABundle()
+			require.NoError(t, err, "error validating trusted CA bundle")
 		})
 		t.Run("Validate model registry servicemeshmember available", func(t *testing.T) {
 			err = testCtx.testMRServiceMeshMember()
@@ -440,6 +446,46 @@ func (tc *testContext) testDefaultCertsAvailable() error {
 
 	if string(defaultIngressSecret.Data["tls.key"]) != string(ctrlPlaneSecret.Data["tls.key"]) {
 		return fmt.Errorf("default cert secret not expected. Epected %v, Got %v", defaultIngressSecret.Data["tls.crt"], ctrlPlaneSecret.Data["tls.crt"])
+	}
+	return nil
+}
+
+func (tc *testContext) testTrustedCABundle() error {
+	CAConfigMapName := "odh-trusted-ca-bundle"
+	CADataFieldName := "odh-ca-bundle.crt"
+
+	if tc.testDSCI.Spec.TrustedCABundle.ManagementState == operatorv1.Managed {
+		foundConfigMap := &corev1.ConfigMap{}
+		err := tc.customClient.Get(tc.ctx, client.ObjectKey{
+			Name:      CAConfigMapName,
+			Namespace: tc.testDSCI.Spec.ApplicationsNamespace,
+		}, foundConfigMap)
+
+		if err != nil {
+			return fmt.Errorf("Config map not found, %w", err)
+		}
+
+		checkNewline := strings.HasSuffix(foundConfigMap.Data[CADataFieldName], "\n")
+
+		if checkNewline == false {
+			fmt.Print("Newline not found at the end of configmap")
+		}
+
+		if strings.TrimSpace(foundConfigMap.Data[CADataFieldName]) != tc.testDSCI.Spec.TrustedCABundle.CustomCABundle {
+			return fmt.Errorf("odh-trusted-ca-bundle in config map does not match with DSCI's TrustedCABundle.CustomCABundle, needs update: %w", err)
+		}
+	} else {
+		foundConfigMap := &corev1.ConfigMap{}
+		err := tc.customClient.Get(tc.ctx, client.ObjectKey{
+			Name:      CAConfigMapName,
+			Namespace: tc.testDSCI.Spec.ApplicationsNamespace,
+		}, foundConfigMap)
+
+		if k8serr.IsNotFound(err) {
+			fmt.Printf("Config map not found in the namespace")
+		} else {
+			return fmt.Errorf("failed to validate trusted CA bundle %w", err)
+		}
 	}
 	return nil
 }
