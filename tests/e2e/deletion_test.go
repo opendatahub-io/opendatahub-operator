@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -42,7 +42,7 @@ func (tc *testContext) testDeletionExistDSC() error {
 		if dscerr != nil {
 			return fmt.Errorf("error deleting DSC instance %s: %w", expectedDSC.Name, dscerr)
 		}
-	} else if !errors.IsNotFound(err) {
+	} else if !k8serr.IsNotFound(err) {
 		if err != nil {
 			return fmt.Errorf("could not find DSC instance to delete: %w", err)
 		}
@@ -65,7 +65,7 @@ func (tc *testContext) testDeletionExistDSCI() error {
 		if dscierr != nil {
 			return fmt.Errorf("error deleting DSCI instance %s: %w", expectedDSCI.Name, dscierr)
 		}
-	} else if !errors.IsNotFound(err) {
+	} else if !k8serr.IsNotFound(err) {
 		if err != nil {
 			return fmt.Errorf("could not find DSCI instance to delete :%w", err)
 		}

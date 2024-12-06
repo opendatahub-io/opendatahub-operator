@@ -22,8 +22,8 @@ const (
 
 var (
 	SourcePath = map[cluster.Platform]string{
-		cluster.SelfManagedRhods: "/overlays/rhoai",
-		cluster.ManagedRhods:     "/overlays/rhoai",
+		cluster.SelfManagedRhoai: "/overlays/rhoai",
+		cluster.ManagedRhoai:     "/overlays/rhoai",
 		cluster.OpenDataHub:      "/overlays/odh",
 		cluster.Unknown:          "/overlays/odh",
 	}

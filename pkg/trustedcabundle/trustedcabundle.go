@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -47,6 +48,9 @@ func HasCABundleAnnotationDisabled(ns client.Object) bool {
 // or update existing odh-trusted-ca-bundle configmap if already exists with new content of .data.odh-ca-bundle.crt
 // this is certificates for the cluster trusted CA Cert Bundle.
 func CreateOdhTrustedCABundleConfigMap(ctx context.Context, cli client.Client, namespace string, customCAData string) error {
+	// Adding newline breaker if user input does not have it
+	customCAData = strings.TrimSpace(customCAData) + "\n"
+
 	// Expected configmap for the given namespace
 	desiredConfigMap := &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
@@ -71,10 +75,7 @@ func CreateOdhTrustedCABundleConfigMap(ctx context.Context, cli client.Client, n
 
 	// Create Configmap if doesn't exist
 	foundConfigMap := &corev1.ConfigMap{}
-	if err := cli.Get(ctx, client.ObjectKey{
-		Name:      CAConfigMapName,
-		Namespace: namespace,
-	}, foundConfigMap); err != nil {
+	if err := cli.Get(ctx, client.ObjectKeyFromObject(desiredConfigMap), foundConfigMap); err != nil {
 		if k8serr.IsNotFound(err) {
 			err = cli.Create(ctx, desiredConfigMap)
 			if err != nil && !k8serr.IsAlreadyExists(err) {
@@ -105,12 +106,12 @@ func DeleteOdhTrustedCABundleConfigMap(ctx context.Context, cli client.Client, n
 	return cli.Delete(ctx, foundConfigMap)
 }
 
-// IsTrustedCABundleUpdated check if data in CM "odh-trusted-ca-bundle" from applciation namespace matches DSCI's TrustedCABundle.CustomCABundle
+// IsTrustedCABundleUpdated check if data in CM "odh-trusted-ca-bundle" from application namespace matches DSCI's TrustedCABundle.CustomCABundle
 // return false when these two are matching => skip update
 // return true when not match => need upate.
 func IsTrustedCABundleUpdated(ctx context.Context, cli client.Client, dscInit *dsciv1.DSCInitialization) (bool, error) {
-	userNamespace := &corev1.Namespace{}
-	if err := cli.Get(ctx, client.ObjectKey{Name: dscInit.Spec.ApplicationsNamespace}, userNamespace); err != nil {
+	appNamespace := &corev1.Namespace{}
+	if err := cli.Get(ctx, client.ObjectKey{Name: dscInit.Spec.ApplicationsNamespace}, appNamespace); err != nil {
 		if k8serr.IsNotFound(err) {
 			// if namespace is not found, return true. This is to ensure we reconcile, and check for other namespaces.
 			return true, nil
@@ -118,7 +119,7 @@ func IsTrustedCABundleUpdated(ctx context.Context, cli client.Client, dscInit *d
 		return false, err
 	}
 
-	if !ShouldInjectTrustedBundle(userNamespace) {
+	if !ShouldInjectTrustedBundle(appNamespace) {
 		return false, nil
 	}
 

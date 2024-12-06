@@ -21,6 +21,7 @@ and configure these applications.
     - [Deployment](#deployment)
   - [Test with customized manifests](#test-with-customized-manifests)
   - [Update API docs](#update-api-docs)
+  - [Enabled logging](#enabled-logging)
   - [Example DSCInitialization](#example-dscinitialization)
   - [Example DataScienceCluster](#example-datasciencecluster)
   - [Run functional Tests](#run-functional-tests)
@@ -134,21 +135,21 @@ make image-build
 By default, building an image without any local changes(as a clean build)
 This is what the production build system is doing.
 
-In order to build an image with local `opt/manifests` folder, to set `IMAGE_BUILD_FLAGS ="--build-arg USE_LOCAL=true"` in make.
-e.g `make image-build -e IMAGE_BUILD_FLAGS="--build-arg USE_LOCAL=true"`
+In order to build an image with local `opt/manifests` folder set `USE_LOCAL` make variable to `true`
+e.g `make image-build USE_LOCAL=true"`
 
 #### Build Image
 
 - Custom operator image can be built using your local repository
 
   ```commandline
-  make image -e IMG=quay.io/<username>/opendatahub-operator:<custom-tag>
+  make image IMG=quay.io/<username>/opendatahub-operator:<custom-tag>
   ```
   
   or (for example to user <username>)
 
   ```commandline
-  make image -e IMAGE_OWNER=<username>
+  make image IMAGE_OWNER=<username>
   ```
 
   The default image used is `quay.io/opendatahub/opendatahub-operator:dev-0.0.1` when not supply argument for `make image`
@@ -173,7 +174,7 @@ e.g `make image-build -e IMAGE_BUILD_FLAGS="--build-arg USE_LOCAL=true"`
 - Deploy the created image in your cluster using following command:
 
   ```commandline
-  make deploy -e IMG=quay.io/<username>/opendatahub-operator:<custom-tag> -e OPERATOR_NAMESPACE=<namespace-to-install-operator>
+  make deploy IMG=quay.io/<username>/opendatahub-operator:<custom-tag> OPERATOR_NAMESPACE=<namespace-to-install-operator>
   ```
 
 - To remove resources created during installation use:
@@ -222,26 +223,18 @@ This will ensure that the doc for the apis are updated accordingly.
 
 ### Enabled logging
 
-#### Controller level
+Global logger configuration can be changed with an environemnt variable `ZAP_LOG_LEVEL`
+or a command line switch `--log-mode <mode>` for example from CSV.
+Command line switch has higher priority.
+Valid values for `<mode>`: "" (as default) || prod || production || devel || development.
 
-Logger on all controllers can only be changed from CSV with parameters: --log-mode devel
-valid value: "" (as default) || prod || production || devel || development
+Verbosity level is INFO.
+To fine tune zap backend [standard operator sdk zap switches](https://sdk.operatorframework.io/docs/building-operators/golang/references/logging/)
+can be used.
 
-This mainly impacts logging for operator pod startup, generating common resource, monitoring deployment.
-
-| --log-mode value | mapping Log level   | Comments       |
-| ---------------- | ------------------- | -------------- |
-| devel            | debug  / 0          | lowest level   |
-| ""               | info / 1            | default option |
-| default          | info / 1            | default option |
-| prod             | error / 2           | highest level  |
-
-#### Component level
-
-Logger on components can be changed by DSCI devFlags during runtime.
-By default, if not set .spec.devFlags.logmode, it uses INFO level
-Modification applies to all components, not only these "Managed" ones.
-Update DSCI CR with .spec.devFlags.logmode, see example :
+Log level can be changed by DSCI devFlags during runtime by setting
+.spec.devFlags.logLevel. It accepts the same values as `--zap-log-level`
+command line switch. See example :
 
 ```console
 apiVersion: dscinitialization.opendatahub.io/v1
@@ -250,20 +243,17 @@ metadata:
   name: default-dsci
 spec:
   devFlags:
-    logmode: development
+    logLevel: debug
   ...
 ```
 
-Avaiable value for logmode is "devel", "development", "prod", "production".
-The first two work the same set to DEBUG level; the later two work the same as using ERROR level.
-
-| .spec.devFlags.logmode | stacktrace level | verbosity | Output   | Comments       |
-| ---------------------- | ---------------- | --------- | -------- | -------------- |
-| devel                  | WARN             | INFO      | Console  | lowest level, using epoch time  |
-| development            | WARN             | INFO      | Console  | same as devel  |
-| ""                     | ERROR            | INFO      | JSON     | default option |
-| prod                   | ERROR            | INFO      | JSON     | highest level, using human readable timestamp  |
-| production             | ERROR            | INFO      | JSON     | same as prod   |
+| logmode     | stacktrace level | verbosity | Output  | Comments                                      |
+|-------------|------------------|-----------|---------|-----------------------------------------------|
+| devel       | WARN             | INFO      | Console | lowest level, using epoch time                |
+| development | WARN             | INFO      | Console | same as devel                                 |
+| ""          | ERROR            | INFO      | JSON    | default option                                |
+| prod        | ERROR            | INFO      | JSON    | highest level, using human readable timestamp |
+| production  | ERROR            | INFO      | JSON    | same as prod                                  |
 
 ### Example DSCInitialization
 
@@ -405,7 +395,7 @@ variable. Following table lists all the available flags to run the tests:
 Example command to run full test suite skipping the test for DataScienceCluster deletion.
 
 ```shell
-make e2e-test -e OPERATOR_NAMESPACE=<namespace> -e E2E_TEST_FLAGS="--skip-deletion=true"
+make e2e-test OPERATOR_NAMESPACE=<namespace> E2E_TEST_FLAGS="--skip-deletion=true"
 ```
 
 Example commands to run test suite for the dashboard `component` only, with the operator running out of the cluster.

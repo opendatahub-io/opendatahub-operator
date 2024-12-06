@@ -15,6 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -35,7 +36,7 @@ var (
 // only when reconcile on DSCI CR, initial set to true
 // if reconcile from monitoring, initial set to false, skip blackbox and rolebinding.
 func (r *DSCInitializationReconciler) configureManagedMonitoring(ctx context.Context, dscInit *dsciv1.DSCInitialization, initial string) error {
-	log := r.Log
+	log := logf.FromContext(ctx)
 	if initial == "init" {
 		// configure Blackbox exporter
 		if err := configureBlackboxExporter(ctx, dscInit, r); err != nil {
@@ -85,7 +86,7 @@ func (r *DSCInitializationReconciler) configureManagedMonitoring(ctx context.Con
 }
 
 func configureAlertManager(ctx context.Context, dsciInit *dsciv1.DSCInitialization, r *DSCInitializationReconciler) error {
-	log := r.Log
+	log := logf.FromContext(ctx)
 	// Get Deadmansnitch secret
 	deadmansnitchSecret, err := r.waitForManagedSecret(ctx, "redhat-rhods-deadmanssnitch", dsciInit.Spec.Monitoring.Namespace)
 	if err != nil {
@@ -196,7 +197,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsciv1.DSCInitializati
 }
 
 func configurePrometheus(ctx context.Context, dsciInit *dsciv1.DSCInitialization, r *DSCInitializationReconciler) error {
-	log := r.Log
+	log := logf.FromContext(ctx)
 	// Update rolebinding-viewer
 	err := common.ReplaceStringsInFile(filepath.Join(prometheusManifestsPath, "prometheus-rolebinding-viewer.yaml"),
 		map[string]string{
@@ -344,7 +345,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsciv1.DSCInitialization
 }
 
 func configureBlackboxExporter(ctx context.Context, dsciInit *dsciv1.DSCInitialization, r *DSCInitializationReconciler) error {
-	log := r.Log
+	log := logf.FromContext(ctx)
 	consoleRoute := &routev1.Route{}
 	err := r.Client.Get(ctx, client.ObjectKey{Name: "console", Namespace: "openshift-console"}, consoleRoute)
 	if err != nil {
@@ -414,7 +415,7 @@ func createMonitoringProxySecret(ctx context.Context, cli client.Client, name st
 	}
 
 	foundProxySecret := &corev1.Secret{}
-	err = cli.Get(ctx, client.ObjectKey{Name: name, Namespace: dsciInit.Spec.Monitoring.Namespace}, foundProxySecret)
+	err = cli.Get(ctx, client.ObjectKeyFromObject(desiredProxySecret), foundProxySecret)
 	if err != nil {
 		if k8serr.IsNotFound(err) {
 			// Set Controller reference
@@ -434,7 +435,7 @@ func createMonitoringProxySecret(ctx context.Context, cli client.Client, name st
 }
 
 func (r *DSCInitializationReconciler) configureSegmentIO(ctx context.Context, dsciInit *dsciv1.DSCInitialization) error {
-	log := r.Log
+	log := logf.FromContext(ctx)
 	// create segment.io only when configmap does not exist in the cluster
 	segmentioConfigMap := &corev1.ConfigMap{}
 	if err := r.Client.Get(ctx, client.ObjectKey{
@@ -463,7 +464,7 @@ func (r *DSCInitializationReconciler) configureSegmentIO(ctx context.Context, ds
 }
 
 func (r *DSCInitializationReconciler) configureCommonMonitoring(ctx context.Context, dsciInit *dsciv1.DSCInitialization) error {
-	log := r.Log
+	log := logf.FromContext(ctx)
 	if err := r.configureSegmentIO(ctx, dsciInit); err != nil {
 		return err
 	}

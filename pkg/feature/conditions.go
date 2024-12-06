@@ -64,6 +64,7 @@ func WaitForPodsToBeReady(namespace string) Action {
 				return false, err
 			}
 
+			podList.Items = filterEvictedPods(podList.Items)
 			readyPods := 0
 			totalPods := len(podList.Items)
 
@@ -100,6 +101,18 @@ func WaitForPodsToBeReady(namespace string) Action {
 			return done, nil
 		})
 	}
+}
+
+func filterEvictedPods(pods []corev1.Pod) []corev1.Pod {
+	var filteredPods []corev1.Pod
+
+	for _, pod := range pods {
+		if pod.Status.Phase != corev1.PodFailed || pod.Status.Reason != "Evicted" {
+			filteredPods = append(filteredPods, pod)
+		}
+	}
+
+	return filteredPods
 }
 
 func WaitForResourceToBeCreated(namespace string, gvk schema.GroupVersionKind) Action {

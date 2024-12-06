@@ -18,6 +18,7 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -37,7 +38,7 @@ var (
 // - Network Policies 'opendatahub' that allow traffic between the ODH namespaces
 // - RoleBinding 'opendatahub'.
 func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, dscInit *dsciv1.DSCInitialization, name string, platform cluster.Platform) error {
-	log := r.Log
+	log := logf.FromContext(ctx)
 	// Expected application namespace for the given name
 	desiredNamespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -51,7 +52,7 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 
 	// Create Application Namespace if it doesn't exist
 	foundNamespace := &corev1.Namespace{}
-	err := r.Get(ctx, client.ObjectKey{Name: name}, foundNamespace)
+	err := r.Get(ctx, client.ObjectKeyFromObject(desiredNamespace), foundNamespace)
 	if err != nil {
 		if k8serr.IsNotFound(err) {
 			log.Info("Creating namespace", "name", name)
@@ -142,7 +143,7 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 }
 
 func (r *DSCInitializationReconciler) createDefaultRoleBinding(ctx context.Context, name string, dscInit *dsciv1.DSCInitialization) error {
-	log := r.Log
+	log := logf.FromContext(ctx)
 	// Expected namespace for the given name
 	desiredRoleBinding := &rbacv1.RoleBinding{
 		TypeMeta: metav1.TypeMeta{
@@ -169,10 +170,7 @@ func (r *DSCInitializationReconciler) createDefaultRoleBinding(ctx context.Conte
 
 	// Create RoleBinding if doesn't exists
 	foundRoleBinding := &rbacv1.RoleBinding{}
-	err := r.Client.Get(ctx, client.ObjectKey{
-		Name:      name,
-		Namespace: name,
-	}, foundRoleBinding)
+	err := r.Client.Get(ctx, client.ObjectKeyFromObject(desiredRoleBinding), foundRoleBinding)
 	if err != nil {
 		if k8serr.IsNotFound(err) {
 			// Set Controller reference
@@ -193,10 +191,16 @@ func (r *DSCInitializationReconciler) createDefaultRoleBinding(ctx context.Conte
 }
 
 func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.Context, name string, dscInit *dsciv1.DSCInitialization, platform cluster.Platform) error {
-	log := r.Log
-	if platform == cluster.ManagedRhods || platform == cluster.SelfManagedRhods {
+	log := logf.FromContext(ctx)
+	if platform == cluster.ManagedRhoai || platform == cluster.SelfManagedRhoai {
+		// Get operator namepsace
+		operatorNs, err := cluster.GetOperatorNamespace()
+		if err != nil {
+			log.Error(err, "error getting operator namespace for networkplicy creation")
+			return err
+		}
 		// Deploy networkpolicy for operator namespace
-		err := deploy.DeployManifestsFromPath(ctx, r.Client, dscInit, networkpolicyPath+"/operator", "redhat-ods-operator", "networkpolicy", true)
+		err = deploy.DeployManifestsFromPath(ctx, r.Client, dscInit, networkpolicyPath+"/operator", operatorNs, "networkpolicy", true)
 		if err != nil {
 			log.Error(err, "error to set networkpolicy in operator namespace", "path", networkpolicyPath)
 			return err
@@ -286,10 +290,7 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.
 		// Create NetworkPolicy if it doesn't exist
 		foundNetworkPolicy := &networkingv1.NetworkPolicy{}
 		justCreated := false
-		err := r.Client.Get(ctx, client.ObjectKey{
-			Name:      name,
-			Namespace: name,
-		}, foundNetworkPolicy)
+		err := r.Client.Get(ctx, client.ObjectKeyFromObject(desiredNetworkPolicy), foundNetworkPolicy)
 		if err != nil {
 			if k8serr.IsNotFound(err) {
 				// Set Controller reference
@@ -375,7 +376,7 @@ func GenerateRandomHex(length int) ([]byte, error) {
 }
 
 func (r *DSCInitializationReconciler) createOdhCommonConfigMap(ctx context.Context, name string, dscInit *dsciv1.DSCInitialization) error {
-	log := r.Log
+	log := logf.FromContext(ctx)
 	// Expected configmap for the given namespace
 	desiredConfigMap := &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
@@ -391,10 +392,7 @@ func (r *DSCInitializationReconciler) createOdhCommonConfigMap(ctx context.Conte
 
 	// Create Configmap if doesn't exists
 	foundConfigMap := &corev1.ConfigMap{}
-	err := r.Client.Get(ctx, client.ObjectKey{
-		Name:      name,
-		Namespace: name,
-	}, foundConfigMap)
+	err := r.Client.Get(ctx, client.ObjectKeyFromObject(desiredConfigMap), foundConfigMap)
 	if err != nil {
 		if k8serr.IsNotFound(err) {
 			// Set Controller reference
@@ -424,10 +422,7 @@ func (r *DSCInitializationReconciler) createUserGroup(ctx context.Context, dscIn
 		// Otherwise is errors with "error": "Group.user.openshift.io \"odh-admins\" is invalid: users: Invalid value: \"null\": users in body must be of type array: \"null\""}
 		Users: []string{},
 	}
-	err := r.Client.Get(ctx, client.ObjectKey{
-		Name:      userGroup.Name,
-		Namespace: dscInit.Spec.ApplicationsNamespace,
-	}, userGroup)
+	err := r.Client.Get(ctx, client.ObjectKeyFromObject(userGroup), userGroup)
 	if err != nil {
 		if k8serr.IsNotFound(err) {
 			err = r.Client.Create(ctx, userGroup)

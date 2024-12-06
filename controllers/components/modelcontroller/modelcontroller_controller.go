@@ -42,8 +42,8 @@ import (
 )
 
 var serviceAccounts = map[cluster.Platform][]string{
-	cluster.SelfManagedRhods: {componentApi.ModelControllerComponentName},
-	cluster.ManagedRhods:     {componentApi.ModelControllerComponentName},
+	cluster.SelfManagedRhoai: {componentApi.ModelControllerComponentName},
+	cluster.ManagedRhoai:     {componentApi.ModelControllerComponentName},
 	cluster.OpenDataHub:      {componentApi.ModelControllerComponentName},
 	cluster.Unknown:          {componentApi.ModelControllerComponentName},
 }

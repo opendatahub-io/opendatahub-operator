@@ -1792,7 +1792,8 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `manifestsUri` _string_ | Custom manifests uri for odh-manifests |  |  |
-| `logmode` _string_ |  | production | Enum: [devel development prod production default] <br /> |
+| `logmode` _string_ | ## DEPRECATED ##: Ignored, use LogLevel instead | production | Enum: [devel development prod production default] <br /> |
+| `logLevel` _string_ | Override Zap log level. Can be "debug", "info", "error" or a number (more verbose). |  |  |
 
 
 #### TrustedCABundleSpec

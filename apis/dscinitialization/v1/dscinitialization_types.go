@@ -69,9 +69,13 @@ type DevFlags struct {
 	// Custom manifests uri for odh-manifests
 	// +optional
 	ManifestsUri string `json:"manifestsUri,omitempty"`
+	// ## DEPRECATED ##: Ignored, use LogLevel instead
 	// +kubebuilder:validation:Enum=devel;development;prod;production;default
 	// +kubebuilder:default="production"
 	LogMode string `json:"logmode,omitempty"`
+	// Override Zap log level. Can be "debug", "info", "error" or a number (more verbose).
+	// +optional
+	LogLevel string `json:"logLevel,omitempty"`
 }
 
 type TrustedCABundleSpec struct {

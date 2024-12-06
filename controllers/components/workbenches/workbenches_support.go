@@ -23,8 +23,8 @@ const (
 )
 
 var serviceAccounts = map[cluster.Platform][]string{
-	cluster.SelfManagedRhods: {nbcServiceAccountName},
-	cluster.ManagedRhods:     {nbcServiceAccountName},
+	cluster.SelfManagedRhoai: {nbcServiceAccountName},
+	cluster.ManagedRhoai:     {nbcServiceAccountName},
 	cluster.OpenDataHub:      {nbcServiceAccountName},
 	cluster.Unknown:          {nbcServiceAccountName},
 }
