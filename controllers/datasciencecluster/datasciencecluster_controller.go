@@ -358,7 +358,7 @@ func (r *DataScienceClusterReconciler) apply(ctx context.Context, dsc *dscv1.Dat
 		return err
 	}
 	if err := r.Client.Apply(ctx, obj, client.FieldOwner(dsc.Name), client.ForceOwnership); err != nil {
-		return err
+		return client.IgnoreNotFound(err)
 	}
 
 	return nil

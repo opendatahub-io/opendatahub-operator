@@ -36,6 +36,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/updatestatus"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/generation"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
@@ -63,7 +64,13 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithPredicates(generation.New()),
 		).
 		Watches(&corev1.Namespace{}).
-		Watches(&extv1.CustomResourceDefinition{}).
+		Watches(
+			&extv1.CustomResourceDefinition{},
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.ModelRegistryInstanceName)),
+			reconciler.WithPredicates(
+				component.ForLabel(labels.ODH.Component(ComponentName), labels.True)),
+		).
 		// Some ClusterRoles are part of the component deployment, but not owned by
 		// the operator (overlays/odh/extras), so in order to properly keep them
 		// in sync with the manifests, we should also create an additional watcher
@@ -81,7 +88,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		)).
 		WithAction(kustomize.NewAction(
 			kustomize.WithCache(),
-			kustomize.WithLabel(labels.ODH.Component(ComponentName), "true"),
+			kustomize.WithLabel(labels.ODH.Component(ComponentName), labels.True),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, ComponentName),
 		)).
 		WithAction(customizeResources).

@@ -3,6 +3,8 @@ package component
 import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 func ForLabel(name string, value string) predicate.Funcs {
@@ -11,26 +13,10 @@ func ForLabel(name string, value string) predicate.Funcs {
 			return false
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
-			values := e.Object.GetLabels()
-
-			if v, exist := values[name]; exist && v == value {
-				return true
-			}
-
-			return false
+			return resources.HasLabel(e.Object, name, value)
 		},
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			oldValues := e.ObjectOld.GetLabels()
-			if v, exist := oldValues[name]; exist && v == value {
-				return true
-			}
-
-			newValues := e.ObjectNew.GetLabels()
-			if v, exist := newValues[name]; exist && v == value {
-				return true
-			}
-
-			return false
+			return resources.HasLabel(e.ObjectNew, name, value) || resources.HasLabel(e.ObjectOld, name, value)
 		},
 	}
 }
@@ -41,26 +27,10 @@ func ForAnnotation(name string, value string) predicate.Funcs {
 			return false
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
-			values := e.Object.GetAnnotations()
-
-			if v, exist := values[name]; exist && v == value {
-				return true
-			}
-
-			return false
+			return resources.HasAnnotation(e.Object, name, value)
 		},
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			oldValues := e.ObjectOld.GetAnnotations()
-			if v, exist := oldValues[name]; exist && v == value {
-				return true
-			}
-
-			newValues := e.ObjectNew.GetAnnotations()
-			if v, exist := newValues[name]; exist && v == value {
-				return true
-			}
-
-			return false
+			return resources.HasAnnotation(e.ObjectNew, name, value) || resources.HasAnnotation(e.ObjectOld, name, value)
 		},
 	}
 }

@@ -17,6 +17,7 @@ import (
 
 const (
 	ArgoWorkflowCRD = "workflows.argoproj.io"
+	ComponentName   = componentApi.DataSciencePipelinesComponentName
 )
 
 type componentHandler struct{}

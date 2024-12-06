@@ -142,7 +142,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			//
 			// Additional labels/annotations MUST be added by the deploy action
 			// so they would affect only objects metadata without side effects
-			kustomize.WithLabel(labels.ODH.Component(componentName), "true"),
+			kustomize.WithLabel(labels.ODH.Component(componentName), labels.True),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, componentName),
 		)).
 		WithAction(customizeKserveConfigMap).

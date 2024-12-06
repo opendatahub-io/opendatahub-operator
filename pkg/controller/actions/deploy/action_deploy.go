@@ -2,7 +2,6 @@ package deploy
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -11,7 +10,6 @@ import (
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -30,6 +28,8 @@ type Mode string
 const (
 	ModePatch Mode = "patch"
 	ModeSSA   Mode = "ssa"
+
+	PlatformFieldOwner = "platform.opendatahub.io"
 )
 
 // Action deploys the resources that are included in the ReconciliationRequest using
@@ -120,9 +120,20 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 	controllerName := strings.ToLower(kind)
 
 	for i := range rr.Resources {
-		ok, err := a.deploy(ctx, rr, rr.Resources[i])
+		res := rr.Resources[i]
+
+		var ok bool
+		var err error
+
+		switch rr.Resources[i].GroupVersionKind() {
+		case gvk.CustomResourceDefinition:
+			ok, err = a.deployCRD(ctx, rr, res)
+		default:
+			ok, err = a.deploy(ctx, rr, res)
+		}
+
 		if err != nil {
-			return fmt.Errorf("failure deploying %s: %w", rr.Resources[i], err)
+			return fmt.Errorf("failure deploying resource %s: %w", res, err)
 		}
 
 		if ok {
@@ -131,6 +142,73 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 	}
 
 	return nil
+}
+
+func (a *Action) deployCRD(
+	ctx context.Context,
+	rr *odhTypes.ReconciliationRequest,
+	obj unstructured.Unstructured,
+) (bool, error) {
+	current, lookupErr := a.lookup(ctx, rr.Client, obj)
+	if lookupErr != nil {
+		return false, fmt.Errorf("failed to lookup object %s/%s: %w", obj.GetNamespace(), obj.GetName(), lookupErr)
+	}
+
+	// the user has explicitly marked the current object as not owned by the operator, so
+	// skip any further processing
+	if current != nil && resources.GetAnnotation(current, annotations.ManagedByODHOperator) == "false" {
+		return false, nil
+	}
+
+	resources.SetLabels(&obj, a.labels)
+	resources.SetAnnotations(&obj, a.annotations)
+	resources.SetLabel(&obj, labels.PlatformPartOf, labels.Platform)
+
+	// backup copy for caching
+	origObj := obj.DeepCopy()
+
+	if a.cache != nil {
+		cached, err := a.cache.Has(current, &obj)
+		if err != nil {
+			return false, fmt.Errorf("failed to check cache for object: %w", err)
+		}
+		if cached {
+			// no changes, no need to re-deploy it
+			return false, nil
+		}
+	}
+
+	var deployedObj *unstructured.Unstructured
+	var err error
+
+	ops := []client.PatchOption{
+		client.ForceOwnership,
+		// Since CRDs are not bound to a component, set the field
+		// owner to the platform itself
+		client.FieldOwner(PlatformFieldOwner),
+	}
+
+	switch a.deployMode {
+	case ModePatch:
+		deployedObj, err = a.patch(ctx, rr.Client, &obj, current, ops...)
+	case ModeSSA:
+		deployedObj, err = a.apply(ctx, rr.Client, &obj, current, ops...)
+	default:
+		err = fmt.Errorf("unsupported deploy mode %s", a.deployMode)
+	}
+
+	if err != nil {
+		return false, client.IgnoreNotFound(err)
+	}
+
+	if a.cache != nil {
+		err := a.cache.Add(deployedObj, origObj)
+		if err != nil {
+			return false, fmt.Errorf("failed to cache object: %w", err)
+		}
+	}
+
+	return true, nil
 }
 
 func (a *Action) deploy(
@@ -174,20 +252,19 @@ func (a *Action) deploy(
 	// backup copy for caching
 	origObj := obj.DeepCopy()
 
-	if a.cache != nil && current != nil {
-		ck, err := a.computeCacheKey(current, &obj)
+	if a.cache != nil {
+		cached, err := a.cache.Has(current, &obj)
 		if err != nil {
-			return false, fmt.Errorf("failed to compute request identifier: %w", err)
+			return false, fmt.Errorf("failed to check cache for object: %w", err)
 		}
-
-		// no changes, no need to re-deploy it
-		if a.cache.Has(ck) {
+		if cached {
+			// no changes, no need to re-deploy it
 			return false, nil
 		}
 	}
 
 	var deployedObj *unstructured.Unstructured
-	var deployed bool
+	var err error
 
 	switch {
 	// The object is explicitly marked as not owned by the operator in the manifests,
@@ -197,10 +274,8 @@ func (a *Action) deploy(
 		// to the actual object in this case
 		resources.RemoveAnnotation(&obj, annotations.ManagedByODHOperator)
 
-		var err error
-
-		deployedObj, deployed, err = a.create(ctx, rr.Client, &obj)
-		if err != nil {
+		deployedObj, err = a.create(ctx, rr.Client, &obj)
+		if err != nil && !k8serr.IsAlreadyExists(err) {
 			return false, err
 		}
 
@@ -212,47 +287,33 @@ func (a *Action) deploy(
 			}
 		}
 
-		var err error
+		ops := []client.PatchOption{
+			client.ForceOwnership,
+			client.FieldOwner(fo),
+		}
 
 		switch a.deployMode {
 		case ModePatch:
-			deployedObj, err = a.patch(
-				ctx,
-				rr.Client,
-				&obj,
-				current,
-				client.ForceOwnership,
-				client.FieldOwner(fo))
+			deployedObj, err = a.patch(ctx, rr.Client, &obj, current, ops...)
 		case ModeSSA:
-			deployedObj, err = a.apply(
-				ctx,
-				rr.Client,
-				&obj,
-				current,
-				client.ForceOwnership,
-				client.FieldOwner(fo))
+			deployedObj, err = a.apply(ctx, rr.Client, &obj, current, ops...)
 		default:
 			err = fmt.Errorf("unsupported deploy mode %s", a.deployMode)
 		}
 
 		if err != nil {
-			return false, err
+			return false, client.IgnoreNotFound(err)
 		}
-
-		deployed = true
 	}
 
-	// If the deployment did not update the object, add the request to the cache.
 	if a.cache != nil {
-		ck, err := a.computeCacheKey(deployedObj, origObj)
+		err := a.cache.Add(deployedObj, origObj)
 		if err != nil {
-			return false, fmt.Errorf("failed to compute request identifier after apply: %w", err)
+			return false, fmt.Errorf("failed to cache object: %w", err)
 		}
-
-		a.cache.Add(ck)
 	}
 
-	return deployed, nil
+	return true, nil
 }
 
 func (a *Action) lookup(
@@ -279,21 +340,18 @@ func (a *Action) create(
 	ctx context.Context,
 	c *odhClient.Client,
 	obj *unstructured.Unstructured,
-) (*unstructured.Unstructured, bool, error) {
+) (*unstructured.Unstructured, error) {
 	logf.FromContext(ctx).V(3).Info("create",
 		"gvk", obj.GroupVersionKind(),
 		"name", client.ObjectKeyFromObject(obj),
 	)
 
 	err := c.Create(ctx, obj)
-	switch {
-	case err == nil:
-		return obj, true, nil
-	case k8serr.IsAlreadyExists(err):
-		return obj, false, nil
-	default:
-		return nil, false, err
+	if err != nil {
+		return nil, err
 	}
+
+	return obj, nil
 }
 
 func (a *Action) patch(
@@ -408,35 +466,12 @@ func (a *Action) apply(
 		break
 	}
 
-	err := c.Apply(
-		ctx,
-		obj,
-		opts...,
-	)
-
+	err := c.Apply(ctx, obj, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("apply failed %s: %w", obj.GroupVersionKind(), err)
 	}
 
 	return obj, nil
-}
-
-func (a *Action) computeCacheKey(
-	original *unstructured.Unstructured,
-	modified *unstructured.Unstructured,
-) (string, error) {
-	modifiedObjectHash, err := resources.Hash(modified)
-	if err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf("%s.%s.%s.%s.%s",
-		original.GroupVersionKind().GroupVersion(),
-		original.GroupVersionKind().Kind,
-		klog.KObj(original),
-		original.GetResourceVersion(),
-		base64.RawURLEncoding.EncodeToString(modifiedObjectHash),
-	), nil
 }
 
 func NewAction(opts ...ActionOpts) actions.Fn {

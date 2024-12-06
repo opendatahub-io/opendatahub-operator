@@ -51,6 +51,7 @@ var (
 		"workbenches":           workbenchesTestSuite,
 		"kserve":                kserveTestSuite,
 		"modelmesh":             modelMeshServingTestSuite,
+		"modelController":       modelControllerTestSuite,
 	}
 )
 
@@ -169,9 +170,6 @@ func TestOdhOperator(t *testing.T) {
 
 		t.Run("validate installation of "+k+" component", v)
 	}
-
-	// Run test on modelcontroller
-	t.Run("validate installation of modelcontroller component", modelControllerTestSuite)
 
 	// Run deletion if skipDeletion is not set
 	if !testOpts.skipDeletion {

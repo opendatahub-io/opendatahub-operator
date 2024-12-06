@@ -10,6 +10,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	routev1 "github.com/openshift/api/route/v1"
+	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -102,6 +103,24 @@ func IngressHost(r routev1.Route) string {
 	return ""
 }
 
+func HasLabel(obj client.Object, k string, values ...string) bool {
+	if obj == nil {
+		return false
+	}
+
+	target := obj.GetLabels()
+	if target == nil {
+		return false
+	}
+
+	val, found := target[k]
+	if !found {
+		return false
+	}
+
+	return slices.Contains(values, val)
+}
+
 func SetLabels(obj client.Object, values map[string]string) {
 	target := obj.GetLabels()
 	if target == nil {
@@ -147,6 +166,24 @@ func GetLabel(obj client.Object, k string) string {
 	}
 
 	return target[k]
+}
+
+func HasAnnotation(obj client.Object, k string, values ...string) bool {
+	if obj == nil {
+		return false
+	}
+
+	target := obj.GetAnnotations()
+	if target == nil {
+		return false
+	}
+
+	val, found := target[k]
+	if !found {
+		return false
+	}
+
+	return slices.Contains(values, val)
 }
 
 func SetAnnotations(obj client.Object, values map[string]string) {

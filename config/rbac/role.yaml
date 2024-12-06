@@ -47,6 +47,7 @@ rules:
   - get
   - list
   - patch
+  - update
   - watch
 - apiGroups:
   - apiregistration.k8s.io

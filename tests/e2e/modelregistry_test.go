@@ -106,6 +106,26 @@ func (mr *ModelRegistryTestCtx) Update(
 	}
 }
 
+func (mr *ModelRegistryTestCtx) Delete(
+	gvk schema.GroupVersionKind,
+	ns string,
+	name string,
+	option ...client.DeleteOption,
+) func() error {
+	return func() error {
+		u := resources.GvkToUnstructured(gvk)
+		u.SetName(name)
+		u.SetNamespace(ns)
+
+		err := mr.customClient.Delete(mr.ctx, u, option...)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+}
+
 func (mr *ModelRegistryTestCtx) MergePatch(
 	obj client.Object,
 	patch []byte,
@@ -173,6 +193,7 @@ func modelRegistryTestSuite(t *testing.T) {
 		t.Run("Validate Update ModelRegistry operands resources", componentCtx.validateUpdateModelRegistryOperandsResources)
 		t.Run("Validate ModelRegistry Cert", componentCtx.validateModelRegistryCert)
 		t.Run("Validate ModelRegistry ServiceMeshMember", componentCtx.validateModelRegistryServiceMeshMember)
+		t.Run("Validate ModelRegistry CRDs reinstated", componentCtx.validateCRDReinstated)
 		// must be the latest one
 		t.Run("Validate Disabling ModelRegistry Component", componentCtx.validateModelRegistryDisabled)
 	})
@@ -352,6 +373,64 @@ func (mr *ModelRegistryTestCtx) validateModelRegistryServiceMeshMember(t *testin
 		mr.Get(gvk.ServiceMeshMember, modelregistry.DefaultModelRegistriesNamespace, "default"),
 	).Should(
 		jq.Match(`.spec | has("controlPlaneRef")`),
+	)
+}
+
+func (mr *ModelRegistryTestCtx) validateCRDReinstated(t *testing.T) {
+	g := mr.WithT(t)
+	crdName := "modelregistries.modelregistry.opendatahub.io"
+	crdSel := client.MatchingFields{"metadata.name": crdName}
+
+	g.Eventually(
+		mr.updateComponent(func(c *dscv1.Components) { c.ModelRegistry.ManagementState = operatorv1.Removed }),
+	).ShouldNot(
+		HaveOccurred(),
+	)
+
+	g.Eventually(
+		mr.List(gvk.ModelRegistry),
+	).Should(
+		BeEmpty(),
+	)
+
+	g.Eventually(
+		mr.List(gvk.CustomResourceDefinition, crdSel),
+	).Should(
+		HaveLen(1),
+	)
+
+	g.Eventually(
+		mr.Delete(
+			gvk.CustomResourceDefinition,
+			"", crdName,
+			client.PropagationPolicy(metav1.DeletePropagationForeground),
+		),
+	).ShouldNot(
+		HaveOccurred(),
+	)
+
+	g.Eventually(
+		mr.List(gvk.CustomResourceDefinition, crdSel),
+	).Should(
+		BeEmpty(),
+	)
+
+	g.Eventually(
+		mr.updateComponent(func(c *dscv1.Components) { c.ModelRegistry.ManagementState = operatorv1.Managed }),
+	).ShouldNot(
+		HaveOccurred(),
+	)
+
+	g.Eventually(
+		mr.List(gvk.ModelRegistry),
+	).Should(
+		HaveLen(1),
+	)
+
+	g.Eventually(
+		mr.List(gvk.CustomResourceDefinition, crdSel),
+	).Should(
+		HaveLen(1),
 	)
 }
 
