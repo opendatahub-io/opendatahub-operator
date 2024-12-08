@@ -92,7 +92,6 @@ func TestNewSecret(t *testing.T) {
 	}
 
 	for name, tc := range cases {
-		tc := tc
 		t.Run(name, func(t *testing.T) {
 			secret, err := secretgenerator.NewSecretFrom(tc.annotations)
 			if err != nil {
