@@ -79,7 +79,6 @@ func TestDataScienceClusterInitialization(t *testing.T) {
 
 var testScheme = runtime.NewScheme()
 
-//nolint:fatcontext
 var _ = BeforeSuite(func() {
 	// can't use suite's context as the manager should survive the function
 	gCtx, gCancel = context.WithCancel(context.Background())
