@@ -17,15 +17,11 @@ limitations under the License.
 package v1
 
 import (
-	"errors"
-	"reflect"
-
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
@@ -133,25 +129,4 @@ type DataScienceClusterList struct {
 
 func init() {
 	SchemeBuilder.Register(&DataScienceCluster{}, &DataScienceClusterList{})
-}
-
-func (d *DataScienceCluster) GetComponents() ([]components.ComponentInterface, error) {
-	var allComponents []components.ComponentInterface
-
-	c := &d.Spec.Components
-
-	definedComponents := reflect.ValueOf(c).Elem()
-	for i := 0; i < definedComponents.NumField(); i++ {
-		c := definedComponents.Field(i)
-		if c.CanAddr() {
-			component, ok := c.Addr().Interface().(components.ComponentInterface)
-			if !ok {
-				return allComponents, errors.New("this is not a pointer to ComponentInterface")
-			}
-
-			allComponents = append(allComponents, component)
-		}
-	}
-
-	return allComponents, nil
 }
