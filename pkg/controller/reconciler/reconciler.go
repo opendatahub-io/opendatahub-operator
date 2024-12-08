@@ -108,13 +108,71 @@ func (r *Reconciler[T]) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	dscil := dsciv1.DSCInitializationList{}
-	if err := r.Client.List(ctx, &dscil); err != nil {
+	if !res.GetDeletionTimestamp().IsZero() {
+		if err := r.delete(ctx, res); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
+	if err := r.apply(ctx, res); err != nil {
 		return ctrl.Result{}, err
 	}
 
+	return ctrl.Result{}, nil
+}
+
+func (r *Reconciler[T]) delete(ctx context.Context, res client.Object) error {
+	l := log.FromContext(ctx)
+	l.Info("delete")
+
+	rr := types.ReconciliationRequest{
+		Client:    r.Client,
+		Manager:   r.m,
+		Instance:  res,
+		Release:   r.Release,
+		Manifests: make([]types.ManifestInfo, 0),
+
+		// The DSCI should not be required when deleting a component, if the
+		// component requires some additional info, then such info should be
+		// stored as part of the spec/status
+		DSCI: nil,
+	}
+
+	// Execute finalizers
+	for _, action := range r.Finalizer {
+		l.V(3).Info("Executing finalizer", "action", action)
+
+		actx := log.IntoContext(
+			ctx,
+			l.WithName(actions.ActionGroup).WithName(action.String()),
+		)
+
+		if err := action(actx, &rr); err != nil {
+			se := odherrors.StopError{}
+			if !errors.As(err, &se) {
+				l.Error(err, "Failed to execute finalizer", "action", action)
+				return err
+			}
+
+			l.V(3).Info("detected stop marker", "action", action)
+			break
+		}
+	}
+
+	return nil
+}
+
+func (r *Reconciler[T]) apply(ctx context.Context, res client.Object) error {
+	l := log.FromContext(ctx)
+	l.Info("apply")
+
+	dscil := dsciv1.DSCInitializationList{}
+	if err := r.Client.List(ctx, &dscil); err != nil {
+		return err
+	}
+
 	if len(dscil.Items) != 1 {
-		return ctrl.Result{}, errors.New("unable to find DSCInitialization")
+		return errors.New("unable to find DSCInitialization")
 	}
 
 	rr := types.ReconciliationRequest{
@@ -124,32 +182,6 @@ func (r *Reconciler[T]) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		DSCI:      &dscil.Items[0],
 		Release:   r.Release,
 		Manifests: make([]types.ManifestInfo, 0),
-	}
-
-	// Handle deletion
-	if !res.GetDeletionTimestamp().IsZero() {
-		// Execute finalizers
-		for _, action := range r.Finalizer {
-			l.V(3).Info("Executing finalizer", "action", action)
-
-			actx := log.IntoContext(
-				ctx,
-				l.WithName(actions.ActionGroup).WithName(action.String()),
-			)
-
-			if err := action(actx, &rr); err != nil {
-				se := odherrors.StopError{}
-				if !errors.As(err, &se) {
-					l.Error(err, "Failed to execute finalizer", "action", action)
-					return ctrl.Result{}, err
-				}
-
-				l.V(3).Info("detected stop marker", "action", action)
-				break
-			}
-		}
-
-		return ctrl.Result{}, nil
 	}
 
 	// Execute actions
@@ -165,7 +197,7 @@ func (r *Reconciler[T]) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 			se := odherrors.StopError{}
 			if !errors.As(err, &se) {
 				l.Error(err, "Failed to execute action", "action", action)
-				return ctrl.Result{}, err
+				return err
 			}
 
 			l.V(3).Info("detected stop marker", "action", action)
@@ -173,7 +205,7 @@ func (r *Reconciler[T]) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		}
 	}
 
-	err = r.Client.ApplyStatus(
+	err := r.Client.ApplyStatus(
 		ctx,
 		rr.Instance,
 		client.FieldOwner(r.name),
@@ -181,8 +213,8 @@ func (r *Reconciler[T]) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	)
 
 	if err != nil {
-		return ctrl.Result{}, err
+		return err
 	}
 
-	return ctrl.Result{}, err
+	return nil
 }
