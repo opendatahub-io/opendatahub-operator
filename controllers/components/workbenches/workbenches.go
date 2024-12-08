@@ -17,6 +17,8 @@ import (
 
 type componentHandler struct{}
 
+const finalizerName = "workbenches.components.platform.opendatahub.io/finalizer"
+
 func init() { //nolint:gochecknoinits
 	cr.Add(&componentHandler{})
 }
@@ -33,6 +35,9 @@ func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) ope
 }
 
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Object {
+	var finalizerlist []string
+	finalizerlist = append(finalizerlist, finalizerName)
+
 	workbenchesAnnotations := make(map[string]string)
 	workbenchesAnnotations[annotations.ManagementStateAnnotation] = string(s.GetManagementState(dsc))
 
@@ -44,6 +49,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Obj
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        componentApi.WorkbenchesInstanceName,
 			Annotations: workbenchesAnnotations,
+			Finalizers:  finalizerlist,
 		},
 		Spec: componentApi.WorkbenchesSpec{
 			WorkbenchesCommonSpec: dsc.Spec.Components.Workbenches.WorkbenchesCommonSpec,

@@ -17,6 +17,7 @@ import (
 
 const (
 	ComponentName = componentApi.KueueComponentName
+	finalizerName = "kueue.components.platform.opendatahub.io/finalizer"
 )
 
 var (
@@ -41,6 +42,9 @@ func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) ope
 }
 
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Object {
+	var finalizerlist []string
+	finalizerlist = append(finalizerlist, finalizerName)
+
 	kueueAnnotations := make(map[string]string)
 	kueueAnnotations[annotations.ManagementStateAnnotation] = string(s.GetManagementState(dsc))
 	return client.Object(&componentApi.Kueue{
@@ -51,6 +55,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Obj
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        componentApi.KueueInstanceName,
 			Annotations: kueueAnnotations,
+			Finalizers:  finalizerlist,
 		},
 		Spec: componentApi.KueueSpec{
 			KueueCommonSpec: dsc.Spec.Components.Kueue.KueueCommonSpec,
