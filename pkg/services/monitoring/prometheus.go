@@ -1,5 +1,4 @@
-// +groupName=datasciencecluster.opendatahub.io
-package components
+package monitoring
 
 import (
 	"context"
@@ -7,95 +6,21 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/go-logr/logr"
-	operatorv1 "github.com/openshift/api/operator/v1"
 	"gopkg.in/yaml.v2"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
-// Component struct defines the basis for each OpenDataHub component configuration.
-// +kubebuilder:object:generate=true
-type Component struct {
-	// Set to one of the following values:
-	//
-	// - "Managed" : the operator is actively managing the component and trying to keep it active.
-	//               It will only upgrade the component if it is safe to do so
-	//
-	// - "Removed" : the operator is actively managing the component and will not install it,
-	//               or if it is installed, the operator will try to remove it
-	//
-	// +kubebuilder:validation:Enum=Managed;Removed
-	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
-	// Add any other common fields across components below
-
-	// Add developer fields
-	// +optional
-	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=2
-	DevFlags *DevFlags `json:"devFlags,omitempty"`
-}
-
-func (c *Component) Init(_ context.Context, _ cluster.Platform) error {
-	return nil
-}
-
-func (c *Component) GetManagementState() operatorv1.ManagementState {
-	return c.ManagementState
-}
-
-func (c *Component) Cleanup(_ context.Context, _ client.Client, _ metav1.Object, _ *dsciv1.DSCInitializationSpec) error {
-	// noop
-	return nil
-}
-
-// DevFlags defines list of fields that can be used by developers to test customizations. This is not recommended
-// to be used in production environment.
-// +kubebuilder:object:generate=true
-type DevFlags struct {
-	// List of custom manifests for the given component
-	// +optional
-	Manifests []common.ManifestsConfig `json:"manifests,omitempty"`
-}
-
-type ManifestsConfig struct {
-	// uri is the URI point to a git repo with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
-	// +optional
-	// +kubebuilder:default:=""
-	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=1
-	URI string `json:"uri,omitempty"`
-
-	// contextDir is the relative path to the folder containing manifests in a repository, default value "manifests"
-	// +optional
-	// +kubebuilder:default:="manifests"
-	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=2
-	ContextDir string `json:"contextDir,omitempty"`
-
-	// sourcePath is the subpath within contextDir where kustomize builds start. Examples include any sub-folder or path: `base`, `overlays/dev`, `default`, `odh` etc.
-	// +optional
-	// +kubebuilder:default:=""
-	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=3
-	SourcePath string `json:"sourcePath,omitempty"`
-}
-
-type ComponentInterface interface {
-	Init(ctx context.Context, platform cluster.Platform) error
-	ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
-		owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec, platform cluster.Platform, currentComponentStatus bool) error
-	Cleanup(ctx context.Context, cli client.Client, owner metav1.Object, DSCISpec *dsciv1.DSCInitializationSpec) error
-	GetComponentName() string
-	GetManagementState() operatorv1.ManagementState
-	OverrideManifests(ctx context.Context, platform cluster.Platform) error
-	UpdatePrometheusConfig(cli client.Client, logger logr.Logger, enable bool, component string) error
-}
+var (
+	prometheusConfigPath = filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps", "prometheus-configs.yaml")
+)
 
 // UpdatePrometheusConfig update prometheus-configs.yaml to include/exclude <component>.rules
 // parameter enable when set to true to add new rules, when set to false to remove existing rules.
-func (c *Component) UpdatePrometheusConfig(_ client.Client, logger logr.Logger, enable bool, component string) error {
-	prometheusconfigPath := filepath.Join("/opt/manifests", "monitoring", "prometheus", "apps", "prometheus-configs.yaml")
+func UpdatePrometheusConfig(ctx context.Context, _ client.Client, enable bool, component string) error {
+	l := logf.FromContext(ctx)
 
 	// create a struct to mock poremtheus.yml
 	type ConfigMap struct {
@@ -134,12 +59,13 @@ func (c *Component) UpdatePrometheusConfig(_ client.Client, logger logr.Logger, 
 			ModelRegistryARules    string `yaml:"model-registry-operator-alerting.rules"`
 		} `yaml:"data"`
 	}
+
 	var configMap ConfigMap
 	// prometheusContent will represent content of prometheus.yml due to its dynamic struct
 	var prometheusContent map[interface{}]interface{}
 
 	// read prometheus.yml from local disk /opt/mainfests/monitoring/prometheus/apps/
-	yamlData, err := os.ReadFile(prometheusconfigPath)
+	yamlData, err := os.ReadFile(prometheusConfigPath)
 	if err != nil {
 		return err
 	}
@@ -166,7 +92,7 @@ func (c *Component) UpdatePrometheusConfig(_ client.Client, logger logr.Logger, 
 			}
 		}
 	} else { // to remove component rules if it is there
-		logger.Info("Removing prometheus rule: " + component + "*.rules")
+		l.Info("Removing prometheus rule: " + component + "*.rules")
 		if ruleList, ok := prometheusContent["rule_files"].([]interface{}); ok {
 			for i, item := range ruleList {
 				if rule, isStr := item.(string); isStr && rule == component+"*.rules" {
@@ -192,7 +118,7 @@ func (c *Component) UpdatePrometheusConfig(_ client.Client, logger logr.Logger, 
 	}
 
 	// Write the modified content back to the file
-	err = os.WriteFile(prometheusconfigPath, newyamlData, 0)
+	err = os.WriteFile(prometheusConfigPath, newyamlData, 0)
 
 	return err
 }
