@@ -18,7 +18,7 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
+	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
@@ -357,7 +357,7 @@ func (mr *ModelRegistryTestCtx) validateModelRegistryCert(t *testing.T) {
 		mr.Get(
 			gvk.Secret,
 			mr.testDSCI.Spec.ServiceMesh.ControlPlane.Namespace,
-			modelregistry.DefaultModelRegistryCert,
+			modelregistryctrl.DefaultModelRegistryCert,
 		),
 	).Should(And(
 		jq.Match(`.type == "%s"`, is.Type),
@@ -370,7 +370,7 @@ func (mr *ModelRegistryTestCtx) validateModelRegistryServiceMeshMember(t *testin
 	g := mr.WithT(t)
 
 	g.Eventually(
-		mr.Get(gvk.ServiceMeshMember, modelregistry.DefaultModelRegistriesNamespace, "default"),
+		mr.Get(gvk.ServiceMeshMember, modelregistryctrl.DefaultModelRegistriesNamespace, "default"),
 	).Should(
 		jq.Match(`.spec | has("controlPlaneRef")`),
 	)
