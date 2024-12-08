@@ -163,8 +163,13 @@ CLEANFILES += $(GOLANGCI_TMP_FILE)
 vet: ## Run go vet against code.
 	go vet ./...
 
+GOLANGCI_LINT_TIMEOUT ?= 5m0s
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint against code.
+	$(GOLANGCI_LINT) run --timeout=$(GOLANGCI_LINT_TIMEOUT) --sort-results
+
+.PHONY: lint-fix
+lint-fix: golangci-lint ## Run golangci-lint against code.
 	$(GOLANGCI_LINT) run --fix --sort-results
 
 .PHONY: get-manifests
