@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -154,10 +155,20 @@ func (a *Action) deployCRD(
 		return false, fmt.Errorf("failed to lookup object %s/%s: %w", obj.GetNamespace(), obj.GetName(), lookupErr)
 	}
 
-	// the user has explicitly marked the current object as not owned by the operator, so
-	// skip any further processing
-	if current != nil && resources.GetAnnotation(current, annotations.ManagedByODHOperator) == "false" {
-		return false, nil
+	if current != nil {
+		// Remove the DSC owner reference if set, This is required during the
+		// transition from the old to the new operator.
+		if err := removeOwnerReferences(ctx, rr.Client, current, func(or metav1.OwnerReference) bool {
+			return or.APIVersion == gvk.DataScienceCluster.GroupVersion().String() && or.Kind == gvk.DataScienceCluster.Kind
+		}); err != nil {
+			return false, err
+		}
+
+		// the user has explicitly marked the current object as not owned by the operator, so
+		// skip any further processing
+		if resources.GetAnnotation(current, annotations.ManagedByODHOperator) == "false" {
+			return false, nil
+		}
 	}
 
 	resources.SetLabels(&obj, a.labels)
@@ -221,10 +232,20 @@ func (a *Action) deploy(
 		return false, fmt.Errorf("failed to lookup object %s/%s: %w", obj.GetNamespace(), obj.GetName(), lookupErr)
 	}
 
-	// the user has explicitly marked the current object as not owned by the operator, so
-	// skip any further processing
-	if current != nil && resources.GetAnnotation(current, annotations.ManagedByODHOperator) == "false" {
-		return false, nil
+	if current != nil {
+		// Remove the DSC owner reference if set, This is required during the
+		// transition from the old to the new operator.
+		if err := removeOwnerReferences(ctx, rr.Client, current, func(or metav1.OwnerReference) bool {
+			return or.APIVersion == gvk.DataScienceCluster.GroupVersion().String() && or.Kind == gvk.DataScienceCluster.Kind
+		}); err != nil {
+			return false, err
+		}
+
+		// the user has explicitly marked the current object as not owned by the operator, so
+		// skip any further processing
+		if resources.GetAnnotation(current, annotations.ManagedByODHOperator) == "false" {
+			return false, nil
+		}
 	}
 
 	fo := a.fieldOwner

@@ -21,6 +21,7 @@ import (
 	apimachinery "k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
@@ -30,6 +31,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	odhCli "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -72,7 +74,6 @@ func TestDeployAction(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client: cl,
 		DSCI:   &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
-		DSC:    &dscv1.DataScienceCluster{},
 		Instance: &componentApi.Dashboard{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
@@ -159,7 +160,6 @@ func TestDeployNotOwnedSkip(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client: cl,
 		DSCI:   &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
-		DSC:    &dscv1.DataScienceCluster{},
 		Instance: &componentApi.Dashboard{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
@@ -226,7 +226,6 @@ func TestDeployNotOwnedCreate(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client: cl,
 		DSCI:   &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
-		DSC:    &dscv1.DataScienceCluster{},
 		Instance: &componentApi.Dashboard{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
@@ -353,7 +352,6 @@ func deployClusterRoles(t *testing.T, ctx context.Context, cli *odhCli.Client, r
 		DSCI: &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{
 			ApplicationsNamespace: xid.New().String(),
 		}},
-		DSC: &dscv1.DataScienceCluster{},
 		Instance: &componentApi.Dashboard{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
@@ -421,7 +419,6 @@ func TestDeployCRD(t *testing.T) {
 		DSCI: &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{
 			ApplicationsNamespace: id,
 		}},
-		DSC: &dscv1.DataScienceCluster{},
 		Instance: &componentApi.Dashboard{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
@@ -477,4 +474,163 @@ func TestDeployCRD(t *testing.T) {
 		jq.Match(`.metadata.labels."%s" == "%s"`, labels.PlatformPartOf, labels.Platform),
 		Not(jq.Match(`.metadata | has ("annotations")`)),
 	))
+}
+
+func TestDeployOwnerRef(t *testing.T) {
+	g := NewWithT(t)
+	s := runtime.NewScheme()
+
+	ctx := context.Background()
+	id := xid.New().String()
+	ns := xid.New().String()
+
+	utilruntime.Must(corev1.AddToScheme(s))
+	utilruntime.Must(appsv1.AddToScheme(s))
+	utilruntime.Must(apiextensionsv1.AddToScheme(s))
+	utilruntime.Must(dscv1.AddToScheme(s))
+	utilruntime.Must(componentApi.AddToScheme(s))
+	utilruntime.Must(rbacv1.AddToScheme(s))
+
+	projectDir, err := envtestutil.FindProjectRoot()
+	g.Expect(err).NotTo(HaveOccurred())
+
+	envTest := &envtest.Environment{
+		CRDInstallOptions: envtest.CRDInstallOptions{
+			Scheme: s,
+			Paths: []string{
+				filepath.Join(projectDir, "config", "crd", "bases"),
+			},
+			ErrorIfPathMissing: true,
+			CleanUpAfterUse:    false,
+		},
+	}
+
+	t.Cleanup(func() {
+		_ = envTest.Stop()
+	})
+
+	cfg, err := envTest.Start()
+	g.Expect(err).NotTo(HaveOccurred())
+
+	envTestClient, err := client.New(cfg, client.Options{Scheme: s})
+	g.Expect(err).NotTo(HaveOccurred())
+
+	cli, err := odhCli.NewFromConfig(cfg, envTestClient)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	err = cli.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
+	g.Expect(err).ToNot(HaveOccurred())
+
+	dsc := &dscv1.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: "default-dsc"}}
+	dsc.SetGroupVersionKind(gvk.DataScienceCluster)
+
+	err = cli.Create(ctx, dsc)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	instance := &componentApi.Dashboard{ObjectMeta: metav1.ObjectMeta{Name: componentApi.DashboardInstanceName}}
+	instance.SetGroupVersionKind(gvk.Dashboard)
+
+	err = cli.Create(ctx, instance)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	//
+	// ConfigMap
+	//
+
+	configMapRef := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "cm1", Namespace: ns}}
+	configMapRef.SetGroupVersionKind(gvk.ConfigMap)
+
+	configMap := configMapRef.DeepCopy()
+	err = controllerutil.SetOwnerReference(dsc, configMap, s)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	err = cli.Create(ctx, configMap.DeepCopy())
+	g.Expect(err).ToNot(HaveOccurred())
+
+	//
+	// CustomResourceDefinition
+	//
+
+	crdRef := &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "acceleratorprofiles.dashboard.opendatahub.io",
+		},
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+			Group: "dashboard.opendatahub.io",
+			Names: apiextensionsv1.CustomResourceDefinitionNames{
+				Kind:     "AcceleratorProfile",
+				ListKind: "AcceleratorProfileList",
+				Plural:   "acceleratorprofiles",
+				Singular: "acceleratorprofile",
+			},
+			Scope: apiextensionsv1.NamespaceScoped,
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
+				{
+					Name:    "v1",
+					Served:  true,
+					Storage: true,
+					Schema: &apiextensionsv1.CustomResourceValidation{
+						OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+							Type: "object",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	crdRef.SetGroupVersionKind(gvk.CustomResourceDefinition)
+
+	crd := crdRef.DeepCopy()
+	err = controllerutil.SetOwnerReference(dsc, crd, s)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	err = cli.Create(ctx, crd.DeepCopy())
+	g.Expect(err).ToNot(HaveOccurred())
+
+	//
+	// deploy
+	//
+
+	rr := types.ReconciliationRequest{
+		Client: cli,
+		DSCI: &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{
+			ApplicationsNamespace: id,
+		}},
+		Instance: instance,
+		Release: cluster.Release{
+			Name: cluster.OpenDataHub,
+			Version: version.OperatorVersion{Version: semver.Version{
+				Major: 1, Minor: 2, Patch: 3,
+			}}},
+		Manager: manager.New(nil),
+	}
+
+	rr.Manager.AddGVK(gvk.ConfigMap, true)
+
+	err = rr.AddResources(configMapRef.DeepCopy(), crdRef.DeepCopy())
+	g.Expect(err).NotTo(HaveOccurred())
+
+	err = deploy.NewAction()(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	updatedConfigMap := &corev1.ConfigMap{}
+	err = cli.Get(ctx, client.ObjectKeyFromObject(configMapRef), updatedConfigMap)
+
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(updatedConfigMap.GetOwnerReferences()).Should(And(
+		HaveLen(1),
+		HaveEach(gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+			"Name":       Equal(instance.Name),
+			"APIVersion": Equal(gvk.Dashboard.GroupVersion().String()),
+			"Kind":       Equal(gvk.Dashboard.Kind),
+			"UID":        Equal(instance.UID),
+		})),
+	))
+
+	updatedCRD := &apiextensionsv1.CustomResourceDefinition{}
+	err = cli.Get(ctx, client.ObjectKeyFromObject(crdRef), updatedCRD)
+
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(updatedCRD.GetOwnerReferences()).Should(BeEmpty())
 }

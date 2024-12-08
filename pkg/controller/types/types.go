@@ -12,7 +12,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
@@ -59,7 +58,6 @@ type ReconciliationRequest struct {
 
 	Manager   *manager.Manager
 	Instance  client.Object
-	DSC       *dscv1.DataScienceCluster
 	DSCI      *dsciv1.DSCInitialization
 	Release   cluster.Release
 	Manifests []ManifestInfo
