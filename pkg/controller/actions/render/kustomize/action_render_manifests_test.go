@@ -206,7 +206,7 @@ func TestRenderResourcesWithCacheAction(t *testing.T) {
 
 	render.RenderedResourcesTotal.Reset()
 
-	for i := int64(0); i < 3; i++ {
+	for i := range 3 {
 		d := componentApi.Dashboard{}
 
 		if i >= 1 {

@@ -1,5 +1,5 @@
 # Build the manager binary
-ARG GOLANG_VERSION=1.21
+ARG GOLANG_VERSION=1.22
 
 ################################################################################
 FROM registry.access.redhat.com/ubi8/toolbox as manifests
