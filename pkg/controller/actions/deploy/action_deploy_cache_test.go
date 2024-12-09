@@ -21,7 +21,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -87,7 +86,7 @@ func TestDeployWithCacheAction(t *testing.T) {
 			true)
 	})
 
-	t.Run("NonExistingResource(", func(t *testing.T) {
+	t.Run("NonExistingResource", func(t *testing.T) {
 		testResourceNotReDeployed(
 			t,
 			cli,
@@ -104,7 +103,7 @@ func TestDeployWithCacheAction(t *testing.T) {
 			false)
 	})
 
-	t.Run("CacheTTL(", func(t *testing.T) {
+	t.Run("CacheTTL", func(t *testing.T) {
 		testCacheTTL(
 			t,
 			cli,
@@ -148,7 +147,6 @@ func testResourceNotReDeployed(t *testing.T, cli *client.Client, obj ctrlCli.Obj
 		DSCI: &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{
 			ApplicationsNamespace: in.GetNamespace()},
 		},
-		DSC: &dscv1.DataScienceCluster{},
 		Instance: &componentApi.Dashboard{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
@@ -222,7 +220,6 @@ func testCacheTTL(t *testing.T, cli *client.Client, obj ctrlCli.Object) {
 		DSCI: &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{
 			ApplicationsNamespace: in.GetNamespace()},
 		},
-		DSC: &dscv1.DataScienceCluster{},
 		Instance: &componentApi.Dashboard{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
