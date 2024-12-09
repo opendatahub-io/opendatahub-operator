@@ -1440,27 +1440,6 @@ _Appears in:_
 
 
 
-
-#### DevFlags
-
-
-
-DevFlags defines list of fields that can be used by developers to test customizations. This is not recommended
-to be used in production environment.
-
-
-
-_Appears in:_
-- [Component](#component)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `manifests` _[ManifestsConfig](#manifestsconfig) array_ | List of custom manifests for the given component |  |  |
-
-
-
-
-
 ## datasciencecluster.opendatahub.io/v1
 
 
