@@ -176,7 +176,7 @@ func (tc *TrainingOperatorTestCtx) validateTrainingOperatorReady() error {
 	})
 
 	if err != nil {
-		return fmt.Errorf("error waiting Ready state for TrainingOperator %v: %w", tc.testTrainingOperatorInstance.Name, err)
+		return fmt.Errorf("error waiting on Ready state for TrainingOperator %v: %w", tc.testTrainingOperatorInstance.Name, err)
 	}
 
 	err = wait.PollUntilContextTimeout(tc.testCtx.ctx, generalRetryInterval, componentReadyTimeout, true, func(ctx context.Context) (bool, error) {
@@ -200,7 +200,7 @@ func (tc *TrainingOperatorTestCtx) validateTrainingOperatorReady() error {
 	})
 
 	if err != nil {
-		return fmt.Errorf("error waiting Ready state for TrainingOperator componetn in DSC: %w", err)
+		return fmt.Errorf("error waiting on Ready state for TrainingOperator component in DSC: %w", err)
 	}
 
 	return nil

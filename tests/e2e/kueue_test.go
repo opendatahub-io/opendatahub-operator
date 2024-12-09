@@ -176,7 +176,7 @@ func (tc *KueueTestCtx) validateKueueReady() error {
 	})
 
 	if err != nil {
-		return fmt.Errorf("error waiting Ready state for Kueue %v: %w", tc.testKueueInstance.Name, err)
+		return fmt.Errorf("error waiting on Ready state for Kueue %v: %w", tc.testKueueInstance.Name, err)
 	}
 
 	err = wait.PollUntilContextTimeout(tc.testCtx.ctx, generalRetryInterval, componentReadyTimeout, true, func(ctx context.Context) (bool, error) {
@@ -200,7 +200,7 @@ func (tc *KueueTestCtx) validateKueueReady() error {
 	})
 
 	if err != nil {
-		return fmt.Errorf("error waiting Ready state for Kueue componetn in DSC: %w", err)
+		return fmt.Errorf("error waiting on Ready state for Kueue component in DSC: %w", err)
 	}
 
 	return nil

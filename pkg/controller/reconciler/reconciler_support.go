@@ -82,22 +82,6 @@ type ReconcilerBuilder[T common.PlatformObject] struct {
 	errors       error
 }
 
-/*
-	predicate.Funcs{
-		UpdateFunc: func(event event.UpdateEvent) bool {
-			fmt.Println(
-				">>>",
-				"gvk", event.ObjectNew.GetObjectKind().GroupVersionKind(),
-				"namespace", event.ObjectNew.GetNamespace(),
-				"name", event.ObjectNew.GetName(),
-				"diff", cmp.Diff(event.ObjectOld, event.ObjectNew),
-			)
-
-			return true
-		},
-	}),
-*/
-
 func ReconcilerFor[T common.PlatformObject](mgr ctrl.Manager, object T, opts ...builder.ForOption) *ReconcilerBuilder[T] {
 	crb := ReconcilerBuilder[T]{
 		mgr: mgr,

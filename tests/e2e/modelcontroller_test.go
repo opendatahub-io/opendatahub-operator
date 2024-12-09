@@ -154,7 +154,7 @@ func (tc *ModelControllerTestCtx) validateModelControllerReady() error {
 	})
 
 	if err != nil {
-		return fmt.Errorf("error waiting Ready state for ModelController %v: %w", tc.testModelControllerInstance.Name, err)
+		return fmt.Errorf("error waiting on Ready state for ModelController %v: %w", tc.testModelControllerInstance.Name, err)
 	}
 
 	return nil

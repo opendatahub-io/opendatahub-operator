@@ -28,7 +28,7 @@ type ComponentHandler interface {
 	// It returns interface, but it simplifies DSC reconciler code a lot
 	NewCRObject(dsc *dscv1.DataScienceCluster) common.PlatformObject
 	NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error
-	// UpdateDSCStatus update the component specific status part od the DSC
+	// UpdateDSCStatus updates the component specific status part of the DSC
 	UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj client.Object) error
 }
 

@@ -176,7 +176,7 @@ func (tc *RayTestCtx) validateRayReady() error {
 	})
 
 	if err != nil {
-		return fmt.Errorf("error waiting Ready state for Ray %v: %w", tc.testRayInstance.Name, err)
+		return fmt.Errorf("error waiting on Ready state for Ray %v: %w", tc.testRayInstance.Name, err)
 	}
 
 	err = wait.PollUntilContextTimeout(tc.testCtx.ctx, generalRetryInterval, componentReadyTimeout, true, func(ctx context.Context) (bool, error) {
@@ -200,7 +200,7 @@ func (tc *RayTestCtx) validateRayReady() error {
 	})
 
 	if err != nil {
-		return fmt.Errorf("error waiting Ready state for Ray componetn in DSC: %w", err)
+		return fmt.Errorf("error waiting on Ready state for Ray component in DSC: %w", err)
 	}
 
 	return nil

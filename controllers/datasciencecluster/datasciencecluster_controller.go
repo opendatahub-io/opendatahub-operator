@@ -36,7 +36,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
@@ -67,6 +69,7 @@ const (
 )
 
 // TODO: all the logic about the deletion configmap should be moved to another controller
+//       https://issues.redhat.com/browse/RHOAIENG-16674
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -274,7 +277,7 @@ func (r *DataScienceClusterReconciler) reconcileComponent(
 			return nil, err
 		}
 	default:
-		return nil, fmt.Errorf("unsuported management state: %s", ms)
+		return nil, fmt.Errorf("unsupported management state: %s", ms)
 	}
 
 	if instance.Status.InstalledComponents == nil {
@@ -315,32 +318,54 @@ func (r *DataScienceClusterReconciler) SetupWithManager(_ context.Context, mgr c
 		Owns(&componentApi.ModelMeshServing{}, builder.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.ModelController{}, builder.WithPredicates(componentsPredicate)).
 		// others
-		Watches(&dsciv1.DSCInitialization{}, handlers.Fn(r.watchDataScienceClusters)).
-		Watches(&corev1.ConfigMap{}, handlers.Fn(r.watchDeleteConfigMap)).
+		Watches(
+			&dsciv1.DSCInitialization{},
+			handlers.Fn(r.watchDataScienceClusters)).
+		Watches(
+			&corev1.ConfigMap{},
+			handlers.Fn(r.watchDataScienceClusters),
+			builder.WithPredicates(r.filterDeleteConfigMap())).
 		Complete(r)
 }
 
-func (r *DataScienceClusterReconciler) watchDeleteConfigMap(ctx context.Context, a client.Object) []reconcile.Request {
-	cm, ok := a.(*corev1.ConfigMap)
-	if !ok {
-		return nil
+func (r *DataScienceClusterReconciler) filterDeleteConfigMap() predicate.Funcs {
+	filter := func(obj client.Object) bool {
+		cm, ok := obj.(*corev1.ConfigMap)
+		if !ok {
+			return false
+		}
+
+		// Trigger reconcile function when uninstall configmap is created
+		operatorNs, err := cluster.GetOperatorNamespace()
+		if err != nil {
+			return false
+		}
+
+		if cm.Namespace != operatorNs {
+			return false
+		}
+
+		if cm.Labels[upgrade.DeleteConfigMapLabel] != "true" {
+			return false
+		}
+
+		return true
 	}
 
-	// Trigger reconcile function when uninstall configmap is created
-	operatorNs, err := cluster.GetOperatorNamespace()
-	if err != nil {
-		return nil
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return filter(e.Object)
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			return filter(e.ObjectNew)
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return false
+		},
+		GenericFunc: func(e event.GenericEvent) bool {
+			return false
+		},
 	}
-
-	if cm.Namespace != operatorNs {
-		return nil
-	}
-
-	if cm.Labels[upgrade.DeleteConfigMapLabel] != "true" {
-		return nil
-	}
-
-	return r.watchDataScienceClusters(ctx, a)
 }
 
 func (r *DataScienceClusterReconciler) watchDataScienceClusters(ctx context.Context, _ client.Object) []reconcile.Request {

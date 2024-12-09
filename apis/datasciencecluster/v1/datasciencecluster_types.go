@@ -42,12 +42,12 @@ type Components struct {
 	// ModelMeshServing component configuration.
 	ModelMeshServing componentApi.DSCModelMeshServing `json:"modelmeshserving,omitempty"`
 
-	// DataServicePipeline component configuration.
-	// Require OpenShift Pipelines Operator to be installed before enable component
+	// DataSciencePipeline component configuration.
+	// Requires OpenShift Pipelines Operator to be installed before enable component
 	DataSciencePipelines componentApi.DSCDataSciencePipelines `json:"datasciencepipelines,omitempty"`
 
 	// Kserve component configuration.
-	// Require OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component
+	// Requires OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component
 	// Does not support enabled ModelMeshServing at the same time
 	Kserve componentApi.DSCKserve `json:"kserve,omitempty"`
 
@@ -55,7 +55,7 @@ type Components struct {
 	Kueue componentApi.DSCKueue `json:"kueue,omitempty"`
 
 	// CodeFlare component configuration.
-	// If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabled component.
+	// If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabling component.
 	CodeFlare componentApi.DSCCodeFlare `json:"codeflare,omitempty"`
 
 	// Ray component configuration.
@@ -82,20 +82,16 @@ type ComponentsStatus struct {
 	// ModelMeshServing component status.
 	ModelMeshServing componentApi.DSCModelMeshServingStatus `json:"modelmeshserving,omitempty"`
 
-	// DataServicePipeline component status.
-	// Require OpenShift Pipelines Operator to be installed before enable component
+	// DataSciencePipeline component status.
 	DataSciencePipelines componentApi.DSCDataSciencePipelinesStatus `json:"datasciencepipelines,omitempty"`
 
 	// Kserve component status.
-	// Require OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component
-	// Does not support enabled ModelMeshServing at the same time
 	Kserve componentApi.DSCKserveStatus `json:"kserve,omitempty"`
 
 	// Kueue component status.
 	Kueue componentApi.DSCKueueStatus `json:"kueue,omitempty"`
 
 	// CodeFlare component status.
-	// If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabled component.
 	CodeFlare componentApi.DSCCodeFlareStatus `json:"codeflare,omitempty"`
 
 	// Ray component status.

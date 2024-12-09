@@ -214,7 +214,7 @@ func (tc *DataSciencePipelinesTestCtx) validateDataSciencePipelinesReady() error
 	})
 
 	if err != nil {
-		return fmt.Errorf("error waiting Ready state for DataSciencePipelines %v: %w", tc.testDataSciencePipelinesInstance.Name, err)
+		return fmt.Errorf("error waiting on Ready state for DataSciencePipelines %v: %w", tc.testDataSciencePipelinesInstance.Name, err)
 	}
 
 	err = wait.PollUntilContextTimeout(tc.testCtx.ctx, generalRetryInterval, componentReadyTimeout, true, func(ctx context.Context) (bool, error) {
@@ -238,7 +238,7 @@ func (tc *DataSciencePipelinesTestCtx) validateDataSciencePipelinesReady() error
 	})
 
 	if err != nil {
-		return fmt.Errorf("error waiting Ready state for DataSciencePipelines componetn in DSC: %w", err)
+		return fmt.Errorf("error waiting on Ready state for DataSciencePipelines component in DSC: %w", err)
 	}
 
 	return nil

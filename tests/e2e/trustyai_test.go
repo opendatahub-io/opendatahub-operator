@@ -176,7 +176,7 @@ func (tc *TrustyaiTestCtx) validateTrustyaiReady() error {
 	})
 
 	if err != nil {
-		return fmt.Errorf("error waiting Ready state for Trustyai %v: %w", tc.testTrustyaiInstance.Name, err)
+		return fmt.Errorf("error waiting on Ready state for Trustyai %v: %w", tc.testTrustyaiInstance.Name, err)
 	}
 
 	err = wait.PollUntilContextTimeout(tc.testCtx.ctx, generalRetryInterval, componentReadyTimeout, true, func(ctx context.Context) (bool, error) {
@@ -200,7 +200,7 @@ func (tc *TrustyaiTestCtx) validateTrustyaiReady() error {
 	})
 
 	if err != nil {
-		return fmt.Errorf("error waiting Ready state for TrustyAI componetn in DSC: %w", err)
+		return fmt.Errorf("error waiting on Ready state for TrustyAI component in DSC: %w", err)
 	}
 
 	return nil

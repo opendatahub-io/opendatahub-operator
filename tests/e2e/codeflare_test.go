@@ -176,7 +176,7 @@ func (tc *CodeFlareTestCtx) validateCodeFlareReady() error {
 	})
 
 	if err != nil {
-		return fmt.Errorf("error waiting Ready state for CodeFlare %v: %w", tc.testCodeFlareInstance.Name, err)
+		return fmt.Errorf("error waiting on Ready state for CodeFlare %v: %w", tc.testCodeFlareInstance.Name, err)
 	}
 
 	err = wait.PollUntilContextTimeout(tc.testCtx.ctx, generalRetryInterval, componentReadyTimeout, true, func(ctx context.Context) (bool, error) {
@@ -200,7 +200,7 @@ func (tc *CodeFlareTestCtx) validateCodeFlareReady() error {
 	})
 
 	if err != nil {
-		return fmt.Errorf("error waiting Ready state for CodeFlare componetn in DSC: %w", err)
+		return fmt.Errorf("error waiting on Ready state for CodeFlare component in DSC: %w", err)
 	}
 
 	return nil

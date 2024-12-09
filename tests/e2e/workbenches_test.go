@@ -178,7 +178,7 @@ func (tc *WorkbenchesTestCtx) validateWorkbenchesReady() error {
 	})
 
 	if err != nil {
-		return fmt.Errorf("error waiting Ready state for Workbenches %v: %w", tc.testWorkbenchesInstance.Name, err)
+		return fmt.Errorf("error waiting on Ready state for Workbenches %v: %w", tc.testWorkbenchesInstance.Name, err)
 	}
 
 	err = wait.PollUntilContextTimeout(tc.testCtx.ctx, generalRetryInterval, componentReadyTimeout, true, func(ctx context.Context) (bool, error) {
@@ -202,7 +202,7 @@ func (tc *WorkbenchesTestCtx) validateWorkbenchesReady() error {
 	})
 
 	if err != nil {
-		return fmt.Errorf("error waiting Ready state for Workbenches componetn in DSC: %w", err)
+		return fmt.Errorf("error waiting on Ready state for Workbenches component in DSC: %w", err)
 	}
 
 	return nil
