@@ -48,7 +48,7 @@ spec:
                   codeflare:
                     description: |-
                       CodeFlare component configuration.
-                      If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabled component.
+                      If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabling component.
                     properties:
                       devFlags:
                         description: Add developer fields
@@ -141,8 +141,8 @@ spec:
                     type: object
                   datasciencepipelines:
                     description: |-
-                      DataServicePipeline component configuration.
-                      Require OpenShift Pipelines Operator to be installed before enable component
+                      DataSciencePipeline component configuration.
+                      Requires OpenShift Pipelines Operator to be installed before enable component
                     properties:
                       devFlags:
                         description: Add developer fields
@@ -190,7 +190,7 @@ spec:
                   kserve:
                     description: |-
                       Kserve component configuration.
-                      Require OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component
+                      Requires OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component
                       Does not support enabled ModelMeshServing at the same time
                     properties:
                       defaultDeploymentMode:
@@ -660,9 +660,7 @@ spec:
                 description: Expose component's specific status
                 properties:
                   codeflare:
-                    description: |-
-                      CodeFlare component status.
-                      If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabled component.
+                    description: CodeFlare component status.
                     properties:
                       managementState:
                         description: |-
@@ -700,9 +698,7 @@ spec:
                         type: string
                     type: object
                   datasciencepipelines:
-                    description: |-
-                      DataServicePipeline component status.
-                      Require OpenShift Pipelines Operator to be installed before enable component
+                    description: DataSciencePipeline component status.
                     properties:
                       managementState:
                         description: |-
@@ -720,10 +716,7 @@ spec:
                         type: string
                     type: object
                   kserve:
-                    description: |-
-                      Kserve component status.
-                      Require OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component
-                      Does not support enabled ModelMeshServing at the same time
+                    description: Kserve component status.
                     properties:
                       managementState:
                         description: |-
