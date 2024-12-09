@@ -123,7 +123,7 @@ func unpackTarFromReader(reader io.Reader, basePath, componentName, contextDir s
 			return err
 		}
 
-		err = processTarHeader(header, tarReader, targetPath)
+		err = extractFileOrDirectory(header, tarReader, targetPath)
 		if err != nil {
 			return err
 		}
@@ -152,7 +152,7 @@ func resolveTargetPath(headerName, basePath, contextDir, componentName string) (
 }
 
 // processTarHeader processes a TAR header, creating files or directories as needed.
-func processTarHeader(header *tar.Header, tarReader *tar.Reader, targetPath string) error {
+func extractFileOrDirectory(header *tar.Header, tarReader *tar.Reader, targetPath string) error {
 	switch header.Typeflag {
 	case tar.TypeDir:
 		// Create a directory for the current header
