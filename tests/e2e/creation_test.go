@@ -3,19 +3,23 @@ package e2e_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"reflect"
+	"strings"
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
@@ -79,6 +83,15 @@ func creationTestSuite(t *testing.T) {
 				require.NoError(t, err, "error validating ModelRegistry config")
 			})
 		}
+		// Trusted CA Bundle
+		t.Run("Validate trusted CA bundle when Managed", func(t *testing.T) {
+			err = testCtx.testTrustedCABundleWhenManaged(t)
+			require.NoError(t, err, "error validating trusted CA bundle")
+		})
+		t.Run("Validate trusted CA bundle when Removed", func(t *testing.T) {
+			err = testCtx.testTrustedCABundleWhenRemoved(t)
+			require.NoError(t, err, "error validating trusted CA bundle")
+		})
 	})
 }
 
@@ -348,6 +361,79 @@ func (tc *testContext) validateDSC() error {
 		err := fmt.Errorf("Expected serving spec %v, got %v",
 			expServingSpec, act.Spec.Components.Kserve.Serving)
 		return err
+	}
+
+	return nil
+}
+
+func (tc *testContext) testTrustedCABundleWhenManaged(t *testing.T) error {
+	t.Helper()
+	CAConfigMapName := "odh-trusted-ca-bundle"
+	CADataFieldName := "odh-ca-bundle.crt"
+
+	tc.testDSCI.Spec.TrustedCABundle.ManagementState = "Managed"
+
+	foundConfigMap := &corev1.ConfigMap{}
+	err := tc.customClient.Get(tc.ctx, client.ObjectKey{
+		Name:      CAConfigMapName,
+		Namespace: tc.testDSCI.Spec.ApplicationsNamespace,
+	}, foundConfigMap)
+
+	if err != nil {
+		return fmt.Errorf("Config map not found, %w", err)
+	}
+
+	checkNewline := strings.HasSuffix(foundConfigMap.Data[CADataFieldName], "\n")
+
+	// When ManagementState is Managed the newline will be present at the end of configmap.
+	if checkNewline == false {
+		return errors.New("Newline not found at the end of configmap")
+	}
+
+	if strings.TrimSpace(foundConfigMap.Data[CADataFieldName]) != tc.testDSCI.Spec.TrustedCABundle.CustomCABundle {
+		return fmt.Errorf("odh-trusted-ca-bundle in config map does not match with DSCI's TrustedCABundle.CustomCABundle, needs update: %w", err)
+	}
+
+	return nil
+}
+
+func (tc *testContext) testTrustedCABundleWhenRemoved(t *testing.T) error {
+	t.Helper()
+	CAConfigMapName := "odh-trusted-ca-bundle"
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		// refresh the instance in case it was updated during the reconcile
+		err := tc.customClient.Get(tc.ctx, types.NamespacedName{Name: tc.testDsc.Name}, tc.testDsc)
+		if err != nil {
+			return fmt.Errorf("error getting resource %w", err)
+		}
+
+		// Disable the TrustedCABundle
+		tc.testDSCI.Spec.TrustedCABundle.ManagementState = operatorv1.Removed
+
+		// Try to update
+		err = tc.customClient.Update(tc.ctx, tc.testDsc)
+		// Return err itself here (not wrapped inside another error)
+		// so that RetryOnConflict can identify it correctly.
+		if err != nil {
+			return fmt.Errorf("error updating component from 'enabled: true' to 'enabled: false': %w", err)
+		}
+		return nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("error after retry %w", err)
+	}
+
+	foundConfigMap := &corev1.ConfigMap{}
+	err = tc.customClient.Get(tc.ctx, client.ObjectKey{
+		Name:      CAConfigMapName,
+		Namespace: tc.testDSCI.Spec.ApplicationsNamespace,
+	}, foundConfigMap)
+
+	if k8serr.IsNotFound(err) {
+		t.Log("Config map not found in the namespace")
+	} else {
+		return fmt.Errorf("failed to validate trusted CA bundle %w", err)
 	}
 
 	return nil
