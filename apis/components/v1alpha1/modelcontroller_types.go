@@ -50,7 +50,7 @@ type ModelController struct {
 
 // ModelControllerSpec defines the desired state of ModelController
 type ModelControllerSpec struct {
-	//ModelMeshServing DSCModelMeshServing `json:"modelMeshServing,omitempty"`
+	// ModelMeshServing DSCModelMeshServing `json:"modelMeshServing,omitempty"`
 	Kserve           *ModelControllerKerveSpec `json:"kserve,omitempty"`
 	ModelMeshServing *ModelControllerMMSpec    `json:"modelMeshServing,omitempty"`
 }
@@ -62,17 +62,23 @@ type ModelControllerKerveSpec struct {
 	common.DevFlagsSpec `json:",inline"`
 }
 
+func (s *ModelControllerKerveSpec) GetDevFlags() *common.DevFlags {
+	return s.DevFlags
+}
+
 // a mini version of the DSCModelMeshServing only keep devflags and management spec
 type ModelControllerMMSpec struct {
 	ManagementState     operatorv1.ManagementState `json:"managementState,omitempty"`
 	common.DevFlagsSpec `json:",inline"`
 }
 
+func (s *ModelControllerMMSpec) GetDevFlags() *common.DevFlags {
+	return s.DevFlags
+}
+
 // ModelControllerStatus defines the observed state of ModelController
 type ModelControllerStatus struct {
 	common.Status `json:",inline"`
-	// devflag's URI
-	URI string `json:"URI,omitempty"`
 }
 
 // +kubebuilder:object:root=true

@@ -18,19 +18,20 @@ package modelcontroller
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
-func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	// early exist
 	mc, ok := rr.Instance.(*componentApi.ModelController)
 	if !ok {
@@ -62,52 +63,43 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentApi.ModelController)", rr.Instance)
 	}
-	// since we do not initialize the rr with DSC CR any more, add this into function
-	dscl := dscv1.DataScienceClusterList{}
-	if err := rr.Client.List(ctx, &dscl); err != nil {
-		return err
-	}
-	if len(dscl.Items) != 1 {
-		return errors.New("unable to find DataScienceCluster CR")
-	}
-	// Get Kserve which can override Kserve devflags
-	k := &dscl.Items[0].Spec.Components.Kserve
-	if k.ManagementSpec.ManagementState != operatorv1.Managed || k.DevFlags == nil || len(k.DevFlags.Manifests) == 0 {
-		// Get ModelMeshServing if it is enabled and has devlfags
-		mm := &dscl.Items[0].Spec.Components.ModelMeshServing
-		if mm.ManagementSpec.ManagementState != operatorv1.Managed || mm.DevFlags == nil || len(mm.DevFlags.Manifests) == 0 {
-			// no need devflag, no need update status.uri
-			return nil
-		}
 
-		for _, subcomponent := range mc.Spec.ModelMeshServing.DevFlags.Manifests {
-			if strings.Contains(subcomponent.URI, ComponentName) {
-				// update .status.uri and download odh-model-controller
-				mc.Status.URI = subcomponent.URI
-				if err := odhdeploy.DownloadManifests(ctx, ComponentName, subcomponent); err != nil {
-					return err
-				}
-				// If overlay is defined, update paths
-				if subcomponent.SourcePath != "" {
-					rr.Manifests[0].SourcePath = subcomponent.SourcePath
-				}
-			}
-		}
+	l := logf.FromContext(ctx)
+
+	var df *common.DevFlags
+
+	ks := mc.Spec.Kserve
+	ms := mc.Spec.ModelMeshServing
+
+	switch {
+	case ks != nil && ks.ManagementState == operatorv1.Managed && resources.HasDevFlags(ks):
+		l.V(3).Info("Using DevFlags from KServe")
+		df = ks.GetDevFlags()
+	case ms != nil && ms.ManagementState == operatorv1.Managed && resources.HasDevFlags(ms):
+		l.V(3).Info("Using DevFlags from ModelMesh")
+		df = ms.GetDevFlags()
+	default:
 		return nil
 	}
 
-	for _, subcomponent := range mc.Spec.Kserve.DevFlags.Manifests {
-		if strings.Contains(subcomponent.URI, ComponentName) {
-			// update .status.uri and download odh-model-controller
-			mc.Status.URI = subcomponent.URI
-			if err := odhdeploy.DownloadManifests(ctx, ComponentName, subcomponent); err != nil {
-				return err
-			}
-			// If overlay is defined, update paths
-			if subcomponent.SourcePath != "" {
-				rr.Manifests[0].SourcePath = subcomponent.SourcePath
-			}
+	for _, subcomponent := range df.Manifests {
+		if !strings.Contains(subcomponent.URI, ComponentName) {
+			continue
 		}
+
+		l.V(3).Info("Downloading manifests", "uri", subcomponent.URI)
+
+		if err := odhdeploy.DownloadManifests(ctx, ComponentName, subcomponent); err != nil {
+			return err
+		}
+
+		// If overlay is defined, update paths
+		if subcomponent.SourcePath != "" {
+			rr.Manifests[0].SourcePath = subcomponent.SourcePath
+		}
+
+		break
 	}
+
 	return nil
 }

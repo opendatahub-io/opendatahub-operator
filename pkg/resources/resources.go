@@ -18,6 +18,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 )
 
 func ToUnstructured(obj any) (*unstructured.Unstructured, error) {
@@ -297,4 +299,14 @@ func EnsureGroupVersionKind(s *runtime.Scheme, obj client.Object) error {
 	obj.GetObjectKind().SetGroupVersionKind(kinds[0])
 
 	return nil
+}
+
+func HasDevFlags(in common.WithDevFlags) bool {
+	if in == nil {
+		return false
+	}
+
+	df := in.GetDevFlags()
+
+	return df != nil && len(df.Manifests) != 0
 }
