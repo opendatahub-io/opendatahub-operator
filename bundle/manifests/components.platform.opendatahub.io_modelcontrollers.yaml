@@ -139,9 +139,6 @@ spec:
           status:
             description: ModelControllerStatus defines the observed state of ModelController
             properties:
-              URI:
-                description: devflag's URI
-                type: string
               conditions:
                 items:
                   description: Condition contains details for one aspect of the current

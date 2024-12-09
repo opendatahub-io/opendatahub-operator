@@ -849,7 +849,6 @@ _Appears in:_
 | `phase` _string_ |  |  |  |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
-| `URI` _string_ | devflag's URI |  |  |
 
 
 #### ModelMeshServing
