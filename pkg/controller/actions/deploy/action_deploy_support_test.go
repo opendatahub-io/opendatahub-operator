@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/onsi/gomega/gstruct"
+	"github.com/onsi/gomega/types"
 	"github.com/rs/xid"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -28,6 +29,73 @@ import (
 
 	. "github.com/onsi/gomega"
 )
+
+func TestIsLegacyOwnerRef(t *testing.T) {
+	t.Parallel()
+
+	g := NewWithT(t)
+
+	tests := []struct {
+		name     string
+		ownerRef metav1.OwnerReference
+		matcher  types.GomegaMatcher
+	}{
+		{
+			name: "Valid DataScienceCluster owner reference",
+			ownerRef: metav1.OwnerReference{
+				APIVersion: gvk.DataScienceCluster.GroupVersion().String(),
+				Kind:       gvk.DataScienceCluster.Kind,
+			},
+			matcher: BeTrue(),
+		},
+		{
+			name: "Valid DSCInitialization owner reference",
+			ownerRef: metav1.OwnerReference{
+				APIVersion: gvk.DSCInitialization.GroupVersion().String(),
+				Kind:       gvk.DSCInitialization.Kind,
+			},
+			matcher: BeTrue(),
+		},
+		{
+			name: "Invalid owner reference (different group)",
+			ownerRef: metav1.OwnerReference{
+				APIVersion: "othergroup/v1",
+				Kind:       gvk.DSCInitialization.Kind,
+			},
+			matcher: BeFalse(),
+		},
+		{
+			name: "Invalid owner reference (different kind)",
+			ownerRef: metav1.OwnerReference{
+				APIVersion: gvk.DSCInitialization.GroupVersion().String(),
+				Kind:       "OtherKind",
+			},
+			matcher: BeFalse(),
+		},
+		{
+			name: "Invalid owner reference (different group and kind)",
+			ownerRef: metav1.OwnerReference{
+				APIVersion: "othergroup/v1",
+				Kind:       "OtherKind",
+			},
+			matcher: BeFalse(),
+		},
+		{
+			name:     "Empty owner reference",
+			ownerRef: metav1.OwnerReference{},
+			matcher:  BeFalse(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := isLegacyOwnerRef(tt.ownerRef)
+			g.Expect(result).To(tt.matcher)
+		})
+	}
+}
 
 func TestRemoveOwnerRef(t *testing.T) {
 	g := NewWithT(t)
