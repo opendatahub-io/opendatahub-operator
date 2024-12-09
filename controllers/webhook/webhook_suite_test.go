@@ -75,7 +75,7 @@ func TestAPIs(t *testing.T) {
 
 var _ = BeforeSuite(func() {
 	// can't use suite's context as the manager should survive the function
-	//nolint:fatcontext
+
 	gCtx, gCancel = context.WithCancel(context.Background())
 
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))

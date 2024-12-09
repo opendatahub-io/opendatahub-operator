@@ -83,6 +83,16 @@ func (k *KserveTestCtx) validateKserveInstance(t *testing.T) {
 			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.KserveComponentName, metav1.ConditionTrue),
 		),
 	))
+
+	g.Eventually(
+		k.List(gvk.ModelController),
+	).Should(And(
+		HaveLen(1),
+		HaveEach(And(
+			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.DataScienceCluster.Kind),
+			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.ModelControllerComponentName, metav1.ConditionTrue),
+		)),
+	))
 }
 
 func (k *KserveTestCtx) validateDefaultCertsAvailable(t *testing.T) {
@@ -232,6 +242,15 @@ func (k *KserveTestCtx) validateKserveDisabled(t *testing.T) {
 	).Should(
 		BeEmpty(),
 	)
+
+	g.Eventually(
+		k.List(gvk.DataScienceCluster),
+	).Should(And(
+		HaveLen(1),
+		HaveEach(
+			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.KserveComponentName, metav1.ConditionFalse),
+		),
+	))
 }
 
 func (k *KserveTestCtx) WithT(t *testing.T) *WithT {
