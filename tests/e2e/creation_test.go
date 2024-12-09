@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"log"
 	"reflect"
+	"strings"
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -79,6 +81,11 @@ func creationTestSuite(t *testing.T) {
 				require.NoError(t, err, "error validating ModelRegistry config")
 			})
 		}
+		// Trusted CA Bundle
+		t.Run("Validate trusted CA bundle", func(t *testing.T) {
+			err = testCtx.testTrustedCABundle(t)
+			require.NoError(t, err, "error validating trusted CA bundle")
+		})
 	})
 }
 
@@ -350,6 +357,46 @@ func (tc *testContext) validateDSC() error {
 		return err
 	}
 
+	return nil
+}
+
+func (tc *testContext) testTrustedCABundle(t *testing.T) error {
+	CAConfigMapName := "odh-trusted-ca-bundle"
+	CADataFieldName := "odh-ca-bundle.crt"
+
+	if tc.testDSCI.Spec.TrustedCABundle.ManagementState == operatorv1.Managed {
+		foundConfigMap := &corev1.ConfigMap{}
+		err := tc.customClient.Get(tc.ctx, client.ObjectKey{
+			Name:      CAConfigMapName,
+			Namespace: tc.testDSCI.Spec.ApplicationsNamespace,
+		}, foundConfigMap)
+
+		if err != nil {
+			return fmt.Errorf("Config map not found, %w", err)
+		}
+
+		checkNewline := strings.HasSuffix(foundConfigMap.Data[CADataFieldName], "\n")
+
+		if checkNewline == false {
+			t.Log("Newline not found at the end of configmap")
+		}
+
+		if strings.TrimSpace(foundConfigMap.Data[CADataFieldName]) != tc.testDSCI.Spec.TrustedCABundle.CustomCABundle {
+			return fmt.Errorf("odh-trusted-ca-bundle in config map does not match with DSCI's TrustedCABundle.CustomCABundle, needs update: %w", err)
+		}
+	} else {
+		foundConfigMap := &corev1.ConfigMap{}
+		err := tc.customClient.Get(tc.ctx, client.ObjectKey{
+			Name:      CAConfigMapName,
+			Namespace: tc.testDSCI.Spec.ApplicationsNamespace,
+		}, foundConfigMap)
+
+		if k8serr.IsNotFound(err) {
+			t.Log("Config map not found in the namespace")
+		} else {
+			return fmt.Errorf("failed to validate trusted CA bundle %w", err)
+		}
+	}
 	return nil
 }
 
