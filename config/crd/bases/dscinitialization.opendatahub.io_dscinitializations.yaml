@@ -82,7 +82,9 @@ spec:
                     - default
                     type: string
                   manifestsUri:
-                    description: Custom manifests uri for odh-manifests
+                    description: |-
+                      ## DEPRECATED ## : ManifestsUri set on DSCI is not maintained.
+                      Custom manifests uri for odh-manifests
                     type: string
                 type: object
               monitoring:
