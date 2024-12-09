@@ -198,6 +198,14 @@ func (d *DashboardTestCtx) validateDashboardInstance(t *testing.T) {
 	g := d.WithT(t)
 
 	g.Eventually(
+		d.updateComponent(func(c *dscv1.Components) {
+			c.Dashboard.ManagementState = operatorv1.Managed
+		}),
+	).ShouldNot(
+		HaveOccurred(),
+	)
+
+	g.Eventually(
 		d.List(gvk.Dashboard),
 	).Should(And(
 		HaveLen(1),
@@ -205,6 +213,15 @@ func (d *DashboardTestCtx) validateDashboardInstance(t *testing.T) {
 			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.DataScienceCluster.Kind),
 			jq.Match(`.status.phase == "%s"`, readyStatus),
 		)),
+	))
+
+	g.Eventually(
+		d.List(gvk.DataScienceCluster),
+	).Should(And(
+		HaveLen(1),
+		HaveEach(
+			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.DashboardComponentName, metav1.ConditionTrue),
+		),
 	))
 }
 

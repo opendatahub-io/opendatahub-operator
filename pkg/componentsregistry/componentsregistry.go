@@ -10,6 +10,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
@@ -25,8 +26,10 @@ type ComponentHandler interface {
 	// NewCRObject constructs components specific Custom Resource
 	// e.g. Dashboard in datasciencecluster.opendatahub.io group
 	// It returns interface, but it simplifies DSC reconciler code a lot
-	NewCRObject(dsc *dscv1.DataScienceCluster) client.Object
+	NewCRObject(dsc *dscv1.DataScienceCluster) common.PlatformObject
 	NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error
+	// UpdateDSCStatus updates the component specific status part of the DSC
+	UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj client.Object) error
 }
 
 var registry = []ComponentHandler{}
@@ -46,4 +49,8 @@ func ForEach(f func(ch ComponentHandler) error) error {
 		errs = multierror.Append(errs, f(ch))
 	}
 	return errs.ErrorOrNil()
+}
+
+func IsManaged(ch ComponentHandler, dsc *dscv1.DataScienceCluster) bool {
+	return ch.GetManagementState(dsc) == operatorv1.Managed
 }

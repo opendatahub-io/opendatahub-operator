@@ -203,6 +203,14 @@ func (mr *ModelRegistryTestCtx) validateModelRegistryInstance(t *testing.T) {
 	g := mr.WithT(t)
 
 	g.Eventually(
+		mr.updateComponent(func(c *dscv1.Components) {
+			c.ModelRegistry.ManagementState = operatorv1.Managed
+		}),
+	).ShouldNot(
+		HaveOccurred(),
+	)
+
+	g.Eventually(
 		mr.List(gvk.ModelRegistry),
 	).Should(And(
 		HaveLen(1),
@@ -211,6 +219,15 @@ func (mr *ModelRegistryTestCtx) validateModelRegistryInstance(t *testing.T) {
 			jq.Match(`.spec.registriesNamespace == "%s"`, mr.testDsc.Spec.Components.ModelRegistry.RegistriesNamespace),
 			jq.Match(`.status.phase == "%s"`, readyStatus),
 		)),
+	))
+
+	g.Eventually(
+		mr.List(gvk.DataScienceCluster),
+	).Should(And(
+		HaveLen(1),
+		HaveEach(
+			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.ModelRegistryComponentName, metav1.ConditionTrue),
+		),
 	))
 }
 

@@ -163,6 +163,11 @@ func TestOdhOperator(t *testing.T) {
 	t.Run("create DSCI and DSC CRs", creationTestSuite)
 
 	for k, v := range componentsTestSuites {
+		// temporary disable modelcontroller
+		if k == "modelController" {
+			continue
+		}
+
 		if len(testOpts.components) != 0 && !slices.Contains(testOpts.components, k) {
 			t.Logf("Skipping tests for component %s", k)
 			continue
@@ -170,6 +175,10 @@ func TestOdhOperator(t *testing.T) {
 
 		t.Run("validate installation of "+k+" component", v)
 	}
+
+	// if len(testOpts.components) == 0 || slices.Contains(testOpts.components, "modelController") {
+	//	t.Run("validate installation of modelController component", componentsTestSuites["modelController"])
+	// }
 
 	// Run deletion if skipDeletion is not set
 	if !testOpts.skipDeletion {

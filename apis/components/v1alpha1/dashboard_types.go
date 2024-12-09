@@ -43,11 +43,15 @@ type DashboardSpec struct {
 	// dashboard spec exposed only to internal api
 }
 
+// DashboardCommonStatus defines the shared observed state of Dashboard
+type DashboardCommonStatus struct {
+	URL string `json:"url,omitempty"`
+}
+
 // DashboardStatus defines the observed state of Dashboard
 type DashboardStatus struct {
-	common.Status `json:",inline"`
-
-	URL string `json:"url,omitempty"`
+	common.Status         `json:",inline"`
+	DashboardCommonStatus `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
@@ -94,4 +98,10 @@ type DSCDashboard struct {
 	common.ManagementSpec `json:",inline"`
 	// dashboard specific field
 	DashboardCommonSpec `json:",inline"`
+}
+
+// DSCDashboardStatus contains the observed state of the Dashboard exposed in the DSC instance
+type DSCDashboardStatus struct {
+	common.ManagementSpec  `json:",inline"`
+	*DashboardCommonStatus `json:",inline"`
 }
