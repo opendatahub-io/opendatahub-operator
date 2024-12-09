@@ -23,6 +23,7 @@ const (
 
 	kserveManifestSourcePath             = "overlays/odh"
 	odhModelControllerManifestSourcePath = "base"
+	finalizerName                        = "kserve.components.platform.opendatahub.io/finalizer"
 )
 
 type componentHandler struct{}
@@ -49,6 +50,11 @@ func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) ope
 
 // for DSC to get compoment Kserve's CR.
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Object {
+	var finalizerlist []string
+	if s.GetManagementState(dsc) == operatorv1.Managed {
+		finalizerlist = append(finalizerlist, finalizerName)
+	}
+
 	kserveAnnotations := make(map[string]string)
 	kserveAnnotations[annotations.ManagementStateAnnotation] = string(s.GetManagementState(dsc))
 
@@ -60,6 +66,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Obj
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        componentApi.KserveInstanceName,
 			Annotations: kserveAnnotations,
+			Finalizers:  finalizerlist,
 		},
 		Spec: componentApi.KserveSpec{
 			KserveCommonSpec: dsc.Spec.Components.Kserve.KserveCommonSpec,

@@ -17,6 +17,7 @@ import (
 
 const (
 	ComponentName = componentApi.ModelControllerComponentName
+	finalizerName = "modelcontroller.components.platform.opendatahub.io/finalizer"
 )
 
 var DefaultPath = odhdeploy.DefaultManifestPath + "/" + ComponentName + "/base"
@@ -39,6 +40,11 @@ func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) ope
 }
 
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Object {
+	var finalizerlist []string
+	if s.GetManagementState(dsc) == operatorv1.Managed {
+		finalizerlist = append(finalizerlist, finalizerName)
+	}
+
 	mcAnnotations := make(map[string]string)
 	mcAnnotations[annotations.ManagementStateAnnotation] = string(s.GetManagementState(dsc))
 
@@ -61,6 +67,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Obj
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        componentApi.ModelControllerInstanceName,
 			Annotations: mcAnnotations,
+			Finalizers:  finalizerlist,
 		},
 		Spec: componentApi.ModelControllerSpec{
 			ModelMeshServing: &componentApi.ModelControllerMMSpec{
