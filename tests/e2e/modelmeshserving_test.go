@@ -214,6 +214,7 @@ func (tc *ModelMeshServingTestCtx) validateModelMeshServingInstance(t *testing.T
 		HaveLen(1),
 		HaveEach(And(
 			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.DataScienceCluster.Kind),
+			jq.Match(`.spec.modelMeshServing.managementState == "%s"`, operatorv1.Managed),
 			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.ModelControllerComponentName, metav1.ConditionTrue),
 		)),
 	))

@@ -90,6 +90,7 @@ func (k *KserveTestCtx) validateKserveInstance(t *testing.T) {
 		HaveLen(1),
 		HaveEach(And(
 			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.DataScienceCluster.Kind),
+			jq.Match(`.spec.kserve.managementState == "%s"`, operatorv1.Managed),
 			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.ModelControllerComponentName, metav1.ConditionTrue),
 		)),
 	))
