@@ -121,15 +121,38 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 
 	for i := range rr.Resources {
 		res := rr.Resources[i]
+		current := resources.GvkToUnstructured(res.GroupVersionKind())
+
+		lookupErr := rr.Client.Get(ctx, client.ObjectKeyFromObject(&res), current)
+		switch {
+		case k8serr.IsNotFound(lookupErr):
+			// set it to nil fto pass it down to other methods and signal
+			// that there's no previous known state of the resource
+			current = nil
+		case lookupErr != nil:
+			return fmt.Errorf("failed to lookup object %s/%s: %w", res.GetNamespace(), res.GetName(), lookupErr)
+		default:
+			// Remove the DSC and DSCI owner reference if set, This is required during the
+			// transition from the old to the new operator.
+			if err := removeOwnerReferences(ctx, rr.Client, current, isLegacyOwnerRef); err != nil {
+				return err
+			}
+
+			// the user has explicitly marked the current object as not owned by the operator, so
+			// skip any further processing
+			if resources.GetAnnotation(current, annotations.ManagedByODHOperator) == "false" {
+				continue
+			}
+		}
 
 		var ok bool
 		var err error
 
 		switch rr.Resources[i].GroupVersionKind() {
 		case gvk.CustomResourceDefinition:
-			ok, err = a.deployCRD(ctx, rr, res)
+			ok, err = a.deployCRD(ctx, rr, res, current)
 		default:
-			ok, err = a.deploy(ctx, rr, res)
+			ok, err = a.deploy(ctx, rr, res, current)
 		}
 
 		if err != nil {
@@ -148,18 +171,8 @@ func (a *Action) deployCRD(
 	ctx context.Context,
 	rr *odhTypes.ReconciliationRequest,
 	obj unstructured.Unstructured,
+	current *unstructured.Unstructured,
 ) (bool, error) {
-	current, lookupErr := a.lookup(ctx, rr.Client, obj)
-	if lookupErr != nil {
-		return false, fmt.Errorf("failed to lookup object %s/%s: %w", obj.GetNamespace(), obj.GetName(), lookupErr)
-	}
-
-	// the user has explicitly marked the current object as not owned by the operator, so
-	// skip any further processing
-	if current != nil && resources.GetAnnotation(current, annotations.ManagedByODHOperator) == "false" {
-		return false, nil
-	}
-
 	resources.SetLabels(&obj, a.labels)
 	resources.SetAnnotations(&obj, a.annotations)
 	resources.SetLabel(&obj, labels.PlatformPartOf, labels.Platform)
@@ -215,18 +228,8 @@ func (a *Action) deploy(
 	ctx context.Context,
 	rr *odhTypes.ReconciliationRequest,
 	obj unstructured.Unstructured,
+	current *unstructured.Unstructured,
 ) (bool, error) {
-	current, lookupErr := a.lookup(ctx, rr.Client, obj)
-	if lookupErr != nil {
-		return false, fmt.Errorf("failed to lookup object %s/%s: %w", obj.GetNamespace(), obj.GetName(), lookupErr)
-	}
-
-	// the user has explicitly marked the current object as not owned by the operator, so
-	// skip any further processing
-	if current != nil && resources.GetAnnotation(current, annotations.ManagedByODHOperator) == "false" {
-		return false, nil
-	}
-
 	fo := a.fieldOwner
 	if fo == "" {
 		kind, err := resources.KindForObject(rr.Client.Scheme(), rr.Instance)
@@ -314,26 +317,6 @@ func (a *Action) deploy(
 	}
 
 	return true, nil
-}
-
-func (a *Action) lookup(
-	ctx context.Context,
-	c *odhClient.Client,
-	obj unstructured.Unstructured,
-) (*unstructured.Unstructured, error) {
-	found := unstructured.Unstructured{}
-	found.SetGroupVersionKind(obj.GroupVersionKind())
-
-	// TODO: use PartialObjectMetadata for resources where it make sense
-	err := c.Get(ctx, client.ObjectKeyFromObject(&obj), &found)
-	switch {
-	case err == nil:
-		return &found, nil
-	case k8serr.IsNotFound(err):
-		return nil, nil
-	default:
-		return nil, err
-	}
 }
 
 func (a *Action) create(
