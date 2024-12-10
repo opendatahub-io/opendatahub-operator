@@ -48,7 +48,6 @@ func OperatorUninstall(ctx context.Context, cli client.Client, platform cluster.
 	}
 
 	for _, namespace := range generatedNamespaces.Items {
-		namespace := namespace //nolint: copyloopvar
 		if namespace.Status.Phase == corev1.NamespaceActive {
 			if err := cli.Delete(ctx, &namespace); err != nil {
 				return fmt.Errorf("error deleting namespace %v: %w", namespace.Name, err)
@@ -95,7 +94,6 @@ func removeDSCInitialization(ctx context.Context, cli client.Client) error {
 
 	var multiErr *multierror.Error
 	for _, dsciInstance := range instanceList.Items {
-		dsciInstance := dsciInstance //nolint: copyloopvar
 		if err := cli.Delete(ctx, &dsciInstance); !k8serr.IsNotFound(err) {
 			multiErr = multierror.Append(multiErr, err)
 		}
