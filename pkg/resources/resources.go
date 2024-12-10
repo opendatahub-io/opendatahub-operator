@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 
@@ -282,21 +283,30 @@ func KindForObject(scheme *runtime.Scheme, obj runtime.Object) (string, error) {
 	return gvk.Kind, nil
 }
 
-func EnsureGroupVersionKind(s *runtime.Scheme, obj client.Object) error {
-	if obj.GetObjectKind().GroupVersionKind().Kind != "" {
-		return nil
+func GroupVersionKindForObject(s *runtime.Scheme, obj runtime.Object) (schema.GroupVersionKind, error) {
+	if obj.GetObjectKind().GroupVersionKind().Version != "" && obj.GetObjectKind().GroupVersionKind().Kind != "" {
+		return obj.GetObjectKind().GroupVersionKind(), nil
 	}
 
 	kinds, _, err := s.ObjectKinds(obj)
 	if err != nil {
-		return fmt.Errorf("cannot get kind of resource: %w", err)
+		return schema.GroupVersionKind{}, fmt.Errorf("cannot get kind of resource: %w", err)
 	}
 
 	if len(kinds) != 1 {
-		return fmt.Errorf("expected to find a single GVK for %v, but got %d", obj, len(kinds))
+		return schema.GroupVersionKind{}, fmt.Errorf("expected to find a single GVK for %v, but got %d", obj, len(kinds))
 	}
 
-	obj.GetObjectKind().SetGroupVersionKind(kinds[0])
+	return kinds[0], nil
+}
+
+func EnsureGroupVersionKind(s *runtime.Scheme, obj client.Object) error {
+	gvk, err := GroupVersionKindForObject(s, obj)
+	if err != nil {
+		return err
+	}
+
+	obj.GetObjectKind().SetGroupVersionKind(gvk)
 
 	return nil
 }
@@ -309,4 +319,11 @@ func HasDevFlags(in common.WithDevFlags) bool {
 	df := in.GetDevFlags()
 
 	return df != nil && len(df.Manifests) != 0
+}
+
+func NamespacedNameFromObject(obj client.Object) types.NamespacedName {
+	return types.NamespacedName{
+		Namespace: obj.GetNamespace(),
+		Name:      obj.GetName(),
+	}
 }

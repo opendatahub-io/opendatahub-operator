@@ -49,6 +49,10 @@ type Client struct {
 	dynamic    dynamic.Interface
 }
 
+func (c *Client) Kubernetes() kubernetes.Interface {
+	return c.kubernetes
+}
+
 func (c *Client) Discovery() discovery.DiscoveryInterface {
 	return c.kubernetes.Discovery()
 }
