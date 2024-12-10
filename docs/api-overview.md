@@ -849,7 +849,6 @@ _Appears in:_
 | `phase` _string_ |  |  |  |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
-| `URI` _string_ | devflag's URI |  |  |
 
 
 #### ModelMeshServing
@@ -1436,27 +1435,6 @@ _Appears in:_
 ## datasciencecluster.opendatahub.io/components
 
 
-
-
-
-
-
-
-#### DevFlags
-
-
-
-DevFlags defines list of fields that can be used by developers to test customizations. This is not recommended
-to be used in production environment.
-
-
-
-_Appears in:_
-- [Component](#component)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `manifests` _[ManifestsConfig](#manifestsconfig) array_ | List of custom manifests for the given component |  |  |
 
 
 
