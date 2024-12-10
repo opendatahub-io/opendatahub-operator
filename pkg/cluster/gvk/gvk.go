@@ -122,6 +122,12 @@ var (
 		Kind:    "ModelMeshServing",
 	}
 
+	ModelController = schema.GroupVersionKind{
+		Group:   "components.opendatahub.io",
+		Version: "v1",
+		Kind:    "ModelController",
+	}
+
 	DataSciencePipelines = schema.GroupVersionKind{
 		Group:   "components.platform.opendatahub.io",
 		Version: "v1alpha1",

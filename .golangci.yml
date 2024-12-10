@@ -38,6 +38,10 @@ linters-settings:
         alias: dscv1
       - pkg: github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1
         alias: infrav1
+      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1
+        alias: componentApi
+      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1
+        alias: serviceApi
       - pkg: k8s.io/apimachinery/pkg/api/errors
         alias: k8serr
       # Ensures that i.e. k8s.io/api/rbac/v1 is aliased as rbacv1
@@ -49,6 +53,10 @@ linters-settings:
         alias: dscctrl
       - pkg: github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization
         alias: dscictrl
+      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/(\w+)
+        alias: ${1}ctrl
+      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/controllers/services/(\w+)
+        alias: ${1}ctrl
   ireturn:
     allow:
       # defaults https://golangci-lint.run/usage/linters/#ireturn
