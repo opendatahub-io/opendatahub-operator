@@ -43,7 +43,7 @@ func CreateCleaner(c client.Client, config *rest.Config, timeout, interval time.
 
 func (c *Cleaner) DeleteAll(ctx context.Context, objects ...client.Object) {
 	for _, obj := range objects {
-		obj := obj
+		obj := obj //nolint: copyloopvar
 		Expect(client.IgnoreNotFound(c.client.Delete(ctx, obj))).Should(Succeed())
 
 		if ns, ok := obj.(*corev1.Namespace); ok {
