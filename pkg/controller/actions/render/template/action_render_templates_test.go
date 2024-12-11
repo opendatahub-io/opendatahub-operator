@@ -157,7 +157,7 @@ func TestRenderTemplateWithCache(t *testing.T) {
 		},
 	}
 
-	for i := int64(0); i < 3; i++ { //nolint: intrange
+	for i := range 3 {
 		d := componentApi.Dashboard{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: ns,

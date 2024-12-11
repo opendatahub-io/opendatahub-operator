@@ -258,7 +258,7 @@ func getCSV(ctx context.Context, cli client.Client, name string, namespace strin
 	}
 
 	// do not use range Items to avoid pointer to the loop variable
-	for i := 0; i < len(csvList.Items); i++ { //nolint: intrange
+	for i := range len(csvList.Items) {
 		csv := &csvList.Items[i]
 		if isMatched(csv, name) {
 			return csv, nil
@@ -418,7 +418,6 @@ func ensureServicemeshOperators(t *testing.T, tc *testContext) error { //nolint:
 	c := make(chan error)
 
 	for _, op := range ops {
-		op := op //nolint: copyloopvar
 		t.Logf("Ensuring %s is installed", op)
 		go func(op string) {
 			err := ensureOperator(tc, op, servicemeshNamespace)
@@ -426,7 +425,7 @@ func ensureServicemeshOperators(t *testing.T, tc *testContext) error { //nolint:
 		}(op)
 	}
 
-	for i := 0; i < len(ops); i++ { //nolint: intrange
+	for range len(ops) {
 		err := <-c
 		errors = multierror.Append(errors, err)
 	}
