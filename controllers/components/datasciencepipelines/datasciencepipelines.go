@@ -18,6 +18,7 @@ import (
 const (
 	ArgoWorkflowCRD = "workflows.argoproj.io"
 	ComponentName   = componentApi.DataSciencePipelinesComponentName
+	finalizerName   = "datasciencepipelines.components.platform.opendatahub.io/finalizer"
 )
 
 type componentHandler struct{}
@@ -65,6 +66,10 @@ func (s *componentHandler) Init(platform cluster.Platform) error {
 }
 
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Object {
+	var finalizerlist []string
+	if s.GetManagementState(dsc) == operatorv1.Managed {
+		finalizerlist = append(finalizerlist, finalizerName)
+	}
 	dataSciencePipelinesAnnotations := make(map[string]string)
 	dataSciencePipelinesAnnotations[annotations.ManagementStateAnnotation] = string(s.GetManagementState(dsc))
 
@@ -76,6 +81,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Obj
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        componentApi.DataSciencePipelinesInstanceName,
 			Annotations: dataSciencePipelinesAnnotations,
+			Finalizers:  finalizerlist,
 		},
 		Spec: componentApi.DataSciencePipelinesSpec{
 			DataSciencePipelinesCommonSpec: dsc.Spec.Components.DataSciencePipelines.DataSciencePipelinesCommonSpec,

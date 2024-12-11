@@ -15,6 +15,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
+const finalizerName = "dashboard.components.platform.opendatahub.io/finalizer"
+
 type componentHandler struct{}
 
 func init() { //nolint:gochecknoinits
@@ -43,6 +45,10 @@ func (s *componentHandler) Init(platform cluster.Platform) error {
 }
 
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Object {
+	var finalizerlist []string
+	if s.GetManagementState(dsc) == operatorv1.Managed {
+		finalizerlist = append(finalizerlist, finalizerName)
+	}
 	dashboardAnnotations := make(map[string]string)
 	dashboardAnnotations[annotations.ManagementStateAnnotation] = string(s.GetManagementState(dsc))
 
@@ -54,6 +60,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Obj
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        componentApi.DashboardInstanceName,
 			Annotations: dashboardAnnotations,
+			Finalizers:  finalizerlist,
 		},
 		Spec: componentApi.DashboardSpec{
 			DashboardCommonSpec: dsc.Spec.Components.Dashboard.DashboardCommonSpec,

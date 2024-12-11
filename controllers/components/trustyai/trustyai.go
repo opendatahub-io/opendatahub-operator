@@ -18,6 +18,7 @@ import (
 const (
 	ComponentName     = componentApi.TrustyAIComponentName
 	ComponentPathName = "trustyai-service-operator"
+	finalizerName     = "trustyai.components.platform.opendatahub.io/finalizer"
 )
 
 var (
@@ -47,6 +48,11 @@ func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) ope
 }
 
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Object {
+	var finalizerlist []string
+	if s.GetManagementState(dsc) == operatorv1.Managed {
+		finalizerlist = append(finalizerlist, finalizerName)
+	}
+
 	trustyaiAnnotations := make(map[string]string)
 	trustyaiAnnotations[annotations.ManagementStateAnnotation] = string(s.GetManagementState(dsc))
 	return client.Object(&componentApi.TrustyAI{
@@ -57,6 +63,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) client.Obj
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        componentApi.TrustyAIInstanceName,
 			Annotations: trustyaiAnnotations,
+			Finalizers:  finalizerlist,
 		},
 		Spec: componentApi.TrustyAISpec{
 			TrustyAICommonSpec: dsc.Spec.Components.TrustyAI.TrustyAICommonSpec,
