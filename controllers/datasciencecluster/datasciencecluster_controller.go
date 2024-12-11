@@ -191,8 +191,11 @@ func (r *DataScienceClusterReconciler) reconcileComponents(ctx context.Context, 
 			return err
 		}
 
-		readyCondition := meta.FindStatusCondition(ci.GetStatus().Conditions, status.ConditionTypeReady)
-		if readyCondition != nil && readyCondition.Status != metav1.ConditionTrue {
+		if !cr.IsManaged(component, instance) {
+			return nil
+		}
+
+		if !meta.IsStatusConditionTrue(ci.GetStatus().Conditions, status.ConditionTypeReady) {
 			notReadyComponents = append(notReadyComponents, component.GetName())
 		}
 
@@ -229,7 +232,7 @@ func (r *DataScienceClusterReconciler) reconcileComponents(ctx context.Context, 
 		conditionsv1.SetStatusCondition(&instance.Status.Conditions, conditionsv1.Condition{
 			Type:    conditionsv1.ConditionType(status.ConditionTypeReady),
 			Status:  corev1.ConditionFalse,
-			Reason:  "ComponentsNotReady",
+			Reason:  "NotReady",
 			Message: fmt.Sprintf("Some components are not ready: %s", strings.Join(notReadyComponents, ",")),
 		})
 	} else {
@@ -238,8 +241,8 @@ func (r *DataScienceClusterReconciler) reconcileComponents(ctx context.Context, 
 		conditionsv1.SetStatusCondition(&instance.Status.Conditions, conditionsv1.Condition{
 			Type:    conditionsv1.ConditionType(status.ConditionTypeReady),
 			Status:  corev1.ConditionTrue,
-			Reason:  "ComponentsReady",
-			Message: "All components are ready",
+			Reason:  "Ready",
+			Message: "Ready",
 		})
 	}
 
