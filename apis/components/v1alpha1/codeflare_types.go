@@ -28,9 +28,14 @@ const (
 	CodeFlareKind         = "CodeFlare"
 )
 
+// CodeFlareCommonStatus defines the shared observed state of CodeFlare
+type CodeFlareCommonStatus struct {
+}
+
 // CodeFlareStatus defines the observed state of CodeFlare
 type CodeFlareStatus struct {
-	common.Status `json:",inline"`
+	common.Status         `json:",inline"`
+	CodeFlareCommonStatus `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
@@ -85,4 +90,10 @@ func init() {
 type DSCCodeFlare struct {
 	common.ManagementSpec `json:",inline"`
 	CodeFlareCommonSpec   `json:",inline"`
+}
+
+// DSCCodeFlareStatus contains the observed state of the CodeFlare exposed in the DSC instance
+type DSCCodeFlareStatus struct {
+	common.ManagementSpec  `json:",inline"`
+	*CodeFlareCommonStatus `json:",inline"`
 }

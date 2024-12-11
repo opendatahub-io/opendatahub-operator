@@ -60,9 +60,14 @@ type ManifestsConfig struct {
 
 // +kubebuilder:object:generate=true
 type Status struct {
-	Phase              string             `json:"phase,omitempty"`
-	Conditions         []metav1.Condition `json:"conditions,omitempty"`
-	ObservedGeneration int64              `json:"observedGeneration,omitempty"`
+	Phase              string `json:"phase,omitempty"`
+	ObservedGeneration int64  `json:"observedGeneration,omitempty"`
+
+	// +patchMergeKey=type
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 type WithStatus interface {

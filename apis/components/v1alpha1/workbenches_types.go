@@ -42,9 +42,14 @@ type WorkbenchesSpec struct {
 	// workbenches spec exposed only to internal api
 }
 
+// WorkbenchesCommonStatus defines the shared observed state of Workbenches
+type WorkbenchesCommonStatus struct {
+}
+
 // WorkbenchesStatus defines the observed state of Workbenches
 type WorkbenchesStatus struct {
-	common.Status `json:",inline"`
+	common.Status           `json:",inline"`
+	WorkbenchesCommonStatus `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
@@ -90,4 +95,10 @@ type DSCWorkbenches struct {
 	common.ManagementSpec `json:",inline"`
 	// workbenches specific field
 	WorkbenchesCommonSpec `json:",inline"`
+}
+
+// DSCWorkbenchesStatus struct holds the status for the Workbenches component exposed in the DSC
+type DSCWorkbenchesStatus struct {
+	common.ManagementSpec    `json:",inline"`
+	*WorkbenchesCommonStatus `json:",inline"`
 }

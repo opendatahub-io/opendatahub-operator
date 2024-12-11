@@ -73,9 +73,14 @@ type KserveSpec struct {
 	// kserve spec exposed only to internal api
 }
 
+// KserveCommonStatus defines the shared observed state of Kserve
+type KserveCommonStatus struct {
+}
+
 // KserveStatus defines the observed state of Kserve
 type KserveStatus struct {
-	common.Status `json:",inline"`
+	common.Status      `json:",inline"`
+	KserveCommonStatus `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
@@ -121,4 +126,10 @@ type DSCKserve struct {
 	common.ManagementSpec `json:",inline"`
 	// Kserve specific fields
 	KserveCommonSpec `json:",inline"`
+}
+
+// DSCKserveStatus contains the observed state of the Kserve exposed in the DSC instance
+type DSCKserveStatus struct {
+	common.ManagementSpec `json:",inline"`
+	*KserveCommonStatus   `json:",inline"`
 }

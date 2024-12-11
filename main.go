@@ -86,6 +86,7 @@ import (
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/kueue"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelcontroller"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelmeshserving"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/ray"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/trainingoperator"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/trustyai"
@@ -292,13 +293,8 @@ func main() { //nolint:funlen,maintidx
 	}
 
 	if err = (&dscctrl.DataScienceClusterReconciler{
-		Client: oc,
-		Scheme: mgr.GetScheme(),
-		DataScienceCluster: &dscctrl.DataScienceClusterConfig{
-			DSCISpec: &dsciv1.DSCInitializationSpec{
-				ApplicationsNamespace: dscApplicationsNamespace,
-			},
-		},
+		Client:   oc,
+		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorderFor("datasciencecluster-controller"),
 	}).SetupWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DataScienceCluster")

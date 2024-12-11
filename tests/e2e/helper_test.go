@@ -83,13 +83,15 @@ func setupDSCICR(name string) *dsciv1.DSCInitialization {
 		Spec: dsciv1.DSCInitializationSpec{
 			ApplicationsNamespace: "opendatahub",
 			Monitoring: serviceApi.DSCMonitoring{
-				ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Managed,
+				},
 				MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
 					Namespace: "opendatahub",
 				},
 			},
 			TrustedCABundle: &dsciv1.TrustedCABundleSpec{
-				ManagementState: "Managed",
+				ManagementState: operatorv1.Managed,
 				CustomCABundle:  "",
 			},
 			ServiceMesh: &infrav1.ServiceMeshSpec{
@@ -98,7 +100,7 @@ func setupDSCICR(name string) *dsciv1.DSCInitialization {
 					Name:              "data-science-smcp",
 					Namespace:         "istio-system",
 				},
-				ManagementState: "Managed",
+				ManagementState: operatorv1.Managed,
 			},
 		},
 	}
@@ -115,27 +117,27 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 				// keep dashboard as enabled, because other test is rely on this
 				Dashboard: componentApi.DSCDashboard{
 					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Managed,
+						ManagementState: operatorv1.Removed,
 					},
 				},
 				Workbenches: componentApi.DSCWorkbenches{
 					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Managed,
+						ManagementState: operatorv1.Removed,
 					},
 				},
 				ModelMeshServing: componentApi.DSCModelMeshServing{
 					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Managed,
+						ManagementState: operatorv1.Removed,
 					},
 				},
 				DataSciencePipelines: componentApi.DSCDataSciencePipelines{
 					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Managed,
+						ManagementState: operatorv1.Removed,
 					},
 				},
 				Kserve: componentApi.DSCKserve{
 					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Managed,
+						ManagementState: operatorv1.Removed,
 					},
 					KserveCommonSpec: componentApi.KserveCommonSpec{
 						Serving: infrav1.ServingSpec{
@@ -151,27 +153,27 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 				},
 				CodeFlare: componentApi.DSCCodeFlare{
 					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Managed,
+						ManagementState: operatorv1.Removed,
 					},
 				},
 				Ray: componentApi.DSCRay{
 					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Managed,
+						ManagementState: operatorv1.Removed,
 					},
 				},
 				Kueue: componentApi.DSCKueue{
 					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Managed,
+						ManagementState: operatorv1.Removed,
 					},
 				},
 				TrustyAI: componentApi.DSCTrustyAI{
 					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Managed,
+						ManagementState: operatorv1.Removed,
 					},
 				},
 				ModelRegistry: componentApi.DSCModelRegistry{
 					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Managed,
+						ManagementState: operatorv1.Removed,
 					},
 					ModelRegistryCommonSpec: componentApi.ModelRegistryCommonSpec{
 						RegistriesNamespace: modelregistry.DefaultModelRegistriesNamespace,
@@ -179,7 +181,7 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 				},
 				TrainingOperator: componentApi.DSCTrainingOperator{
 					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Managed,
+						ManagementState: operatorv1.Removed,
 					},
 				},
 			},

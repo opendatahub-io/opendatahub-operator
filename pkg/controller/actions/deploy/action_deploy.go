@@ -331,7 +331,7 @@ func (a *Action) create(
 
 	err := c.Create(ctx, obj)
 	if err != nil {
-		return nil, err
+		return obj, err
 	}
 
 	return obj, nil

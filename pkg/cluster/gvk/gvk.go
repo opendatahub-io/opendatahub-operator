@@ -116,6 +116,12 @@ var (
 		Kind:    "Workbenches",
 	}
 
+	ModelController = schema.GroupVersionKind{
+		Group:   "components.platform.opendatahub.io",
+		Version: "v1alpha1",
+		Kind:    "ModelController",
+	}
+
 	ModelMeshServing = schema.GroupVersionKind{
 		Group:   "components.platform.opendatahub.io",
 		Version: "v1alpha1",
