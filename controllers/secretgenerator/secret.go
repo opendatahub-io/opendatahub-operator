@@ -90,7 +90,7 @@ func generateSecretValue(secret *Secret) error {
 	switch secret.Type {
 	case "random":
 		randomValue := make([]byte, secret.Complexity)
-		for i := 0; i < secret.Complexity; i++ {
+		for i := 0; i < secret.Complexity; i++ { //nolint: intrange
 			num, err := rand.Int(rand.Reader, big.NewInt(int64(len(letterRunes))))
 			if err != nil {
 				return err
