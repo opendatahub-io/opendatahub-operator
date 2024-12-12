@@ -145,12 +145,6 @@ e.g `make image-build USE_LOCAL=true"`
   ```commandline
   make image IMG=quay.io/<username>/opendatahub-operator:<custom-tag>
   ```
-  
-  or (for example to user <username>)
-
-  ```commandline
-  make image IMAGE_OWNER=<username>
-  ```
 
   The default image used is `quay.io/opendatahub/opendatahub-operator:dev-0.0.1` when not supply argument for `make image`
 
