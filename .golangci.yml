@@ -72,6 +72,12 @@ linters-settings:
   perfsprint:
     sprintf1: false
     strconcat: false
+  # Enable gocritic for detecting bugs, performance, and style issues: https://golangci-lint.run/usage/linters/#gocritic
+  gocritic:
+    # https://go-critic.com/overview.html#checkers
+    enabled-checks:
+      - deferInLoop
+      - unnecessaryDefer
 
 linters:
   enable-all: true
