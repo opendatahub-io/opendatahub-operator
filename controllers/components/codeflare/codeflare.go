@@ -21,14 +21,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
-const (
-	ComponentName = componentApi.CodeFlareComponentName
-)
-
-var (
-	DefaultPath = odhdeploy.DefaultManifestPath + "/" + ComponentName + "/default" // same path for both odh and rhoai
-)
-
 type componentHandler struct{}
 
 func init() { //nolint:gochecknoinits
@@ -65,12 +57,8 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.Pla
 }
 
 func (s *componentHandler) Init(_ cluster.Platform) error {
-	imageParamMap := map[string]string{
-		"codeflare-operator-controller-image": "RELATED_IMAGE_ODH_CODEFLARE_OPERATOR_IMAGE",
-	}
-
-	if err := odhdeploy.ApplyParams(DefaultPath, imageParamMap); err != nil {
-		return fmt.Errorf("failed to update images on path %s: %w", DefaultPath, err)
+	if err := odhdeploy.ApplyParams(paramsPath, imageParamMap); err != nil {
+		return fmt.Errorf("failed to update images on path %s: %w", paramsPath, err)
 	}
 
 	return nil

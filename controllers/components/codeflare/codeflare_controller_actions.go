@@ -9,15 +9,13 @@ import (
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
-func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	rr.Manifests = append(rr.Manifests, odhtypes.ManifestInfo{
-		Path:       DefaultPath,
-		ContextDir: "",
-		SourcePath: "",
-	})
-	if err := odhdeploy.ApplyParams(DefaultPath, nil, map[string]string{"namespace": rr.DSCI.Spec.ApplicationsNamespace}); err != nil {
-		return fmt.Errorf("failed to update params.env from %s : %w", rr.Manifests[0], err)
+func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
+	rr.Manifests = append(rr.Manifests, manifestsPath())
+
+	if err := odhdeploy.ApplyParams(paramsPath, nil, map[string]string{"namespace": rr.DSCI.Spec.ApplicationsNamespace}); err != nil {
+		return fmt.Errorf("failed to update params.env from %s : %w", paramsPath, err)
 	}
+
 	return nil
 }
 
