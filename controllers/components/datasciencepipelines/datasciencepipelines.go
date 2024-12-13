@@ -21,11 +21,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
-const (
-	ArgoWorkflowCRD = "workflows.argoproj.io"
-	ComponentName   = componentApi.DataSciencePipelinesComponentName
-)
-
 type componentHandler struct{}
 
 func init() { //nolint:gochecknoinits
@@ -43,28 +38,9 @@ func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) ope
 	return operatorv1.Removed
 }
 
-func (s *componentHandler) Init(platform cluster.Platform) error {
-	var imageParamMap = map[string]string{
-		// v1
-		"IMAGES_APISERVER":         "RELATED_IMAGE_ODH_ML_PIPELINES_API_SERVER_IMAGE",
-		"IMAGES_ARTIFACT":          "RELATED_IMAGE_ODH_ML_PIPELINES_ARTIFACT_MANAGER_IMAGE",
-		"IMAGES_PERSISTENTAGENT":   "RELATED_IMAGE_ODH_ML_PIPELINES_PERSISTENCEAGENT_IMAGE",
-		"IMAGES_SCHEDULEDWORKFLOW": "RELATED_IMAGE_ODH_ML_PIPELINES_SCHEDULEDWORKFLOW_IMAGE",
-		"IMAGES_CACHE":             "RELATED_IMAGE_ODH_ML_PIPELINES_CACHE_IMAGE",
-		"IMAGES_DSPO":              "RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_OPERATOR_CONTROLLER_IMAGE",
-		// v2
-		"IMAGESV2_ARGO_APISERVER":          "RELATED_IMAGE_ODH_ML_PIPELINES_API_SERVER_V2_IMAGE",
-		"IMAGESV2_ARGO_PERSISTENCEAGENT":   "RELATED_IMAGE_ODH_ML_PIPELINES_PERSISTENCEAGENT_V2_IMAGE",
-		"IMAGESV2_ARGO_SCHEDULEDWORKFLOW":  "RELATED_IMAGE_ODH_ML_PIPELINES_SCHEDULEDWORKFLOW_V2_IMAGE",
-		"IMAGESV2_ARGO_ARGOEXEC":           "RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_ARGO_ARGOEXEC_IMAGE",
-		"IMAGESV2_ARGO_WORKFLOWCONTROLLER": "RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_ARGO_WORKFLOWCONTROLLER_IMAGE",
-		"V2_DRIVER_IMAGE":                  "RELATED_IMAGE_ODH_ML_PIPELINES_DRIVER_IMAGE",
-		"V2_LAUNCHER_IMAGE":                "RELATED_IMAGE_ODH_ML_PIPELINES_LAUNCHER_IMAGE",
-		"IMAGESV2_ARGO_MLMDGRPC":           "RELATED_IMAGE_ODH_MLMD_GRPC_SERVER_IMAGE",
-	}
-
-	if err := deploy.ApplyParams(defaultPath.String(), imageParamMap); err != nil {
-		return fmt.Errorf("failed to update images on path %s: %w", defaultPath.String(), err)
+func (s *componentHandler) Init(_ cluster.Platform) error {
+	if err := deploy.ApplyParams(paramsPath().String(), imageParamMap); err != nil {
+		return fmt.Errorf("failed to update images on path %s: %w", paramsPath(), err)
 	}
 
 	return nil
