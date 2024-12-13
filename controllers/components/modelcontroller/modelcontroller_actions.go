@@ -37,11 +37,7 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentApi.ModelController)", rr.Instance)
 	}
-	rr.Manifests = append(rr.Manifests, odhtypes.ManifestInfo{
-		Path:       odhdeploy.DefaultManifestPath,
-		ContextDir: ComponentName,
-		SourcePath: "base",
-	})
+	rr.Manifests = append(rr.Manifests, manifestsPath())
 
 	nimState := operatorv1.Removed
 	if mc.Spec.Kserve.ManagementState == operatorv1.Managed {
