@@ -22,6 +22,7 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
@@ -169,13 +170,13 @@ func (tc *WorkbenchesTestCtx) testOwnerReferences() error {
 func (tc *WorkbenchesTestCtx) validateWorkbenchesReady() error {
 	err := wait.PollUntilContextTimeout(tc.testCtx.ctx, generalRetryInterval, componentReadyTimeout, true, func(ctx context.Context) (bool, error) {
 		key := types.NamespacedName{Name: tc.testWorkbenchesInstance.Name}
-		workbenches := &componentApi.Workbenches{}
+		wb := &componentApi.Workbenches{}
 
-		err := tc.testCtx.customClient.Get(ctx, key, workbenches)
+		err := tc.testCtx.customClient.Get(ctx, key, wb)
 		if err != nil {
 			return false, err
 		}
-		return workbenches.Status.Phase == readyStatus, nil
+		return wb.Status.Phase == readyStatus, nil
 	})
 
 	if err != nil {
@@ -194,7 +195,7 @@ func (tc *WorkbenchesTestCtx) validateWorkbenchesReady() error {
 		}
 
 		for _, c := range list.Items[0].Status.Conditions {
-			if c.Type == componentApi.WorkbenchesComponentName+"Ready" {
+			if c.Type == workbenches.ReadyConditionType {
 				return c.Status == corev1.ConditionTrue, nil
 			}
 		}
@@ -305,8 +306,8 @@ func (tc *WorkbenchesTestCtx) testUpdateWorkbenchesComponentDisabled() error {
 
 	err = tc.testCtx.wait(func(ctx context.Context) (bool, error) {
 		// Verify Workbenches CR is deleted
-		workbenches := &componentApi.Workbenches{}
-		err = tc.testCtx.customClient.Get(ctx, client.ObjectKey{Name: tc.testWorkbenchesInstance.Name}, workbenches)
+		wb := &componentApi.Workbenches{}
+		err = tc.testCtx.customClient.Get(ctx, client.ObjectKey{Name: tc.testWorkbenchesInstance.Name}, wb)
 		return k8serr.IsNotFound(err), nil
 	})
 

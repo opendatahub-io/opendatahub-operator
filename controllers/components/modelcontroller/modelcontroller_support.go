@@ -1,7 +1,10 @@
 package modelcontroller
 
 import (
+	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
+
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -9,6 +12,8 @@ import (
 
 const (
 	ComponentName = componentApi.ModelControllerComponentName
+
+	ReadyConditionType = conditionsv1.ConditionType(componentApi.ModelControllerKind + status.ReadySuffix)
 
 	// LegacyComponentName is the name of the component that is assigned to deployments
 	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing

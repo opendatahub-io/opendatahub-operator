@@ -22,6 +22,7 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/trainingoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
@@ -167,13 +168,13 @@ func (tc *TrainingOperatorTestCtx) testOwnerReferences() error {
 func (tc *TrainingOperatorTestCtx) validateTrainingOperatorReady() error {
 	err := wait.PollUntilContextTimeout(tc.testCtx.ctx, generalRetryInterval, componentReadyTimeout, true, func(ctx context.Context) (bool, error) {
 		key := types.NamespacedName{Name: tc.testTrainingOperatorInstance.Name}
-		trainingoperator := &componentApi.TrainingOperator{}
+		to := &componentApi.TrainingOperator{}
 
-		err := tc.testCtx.customClient.Get(ctx, key, trainingoperator)
+		err := tc.testCtx.customClient.Get(ctx, key, to)
 		if err != nil {
 			return false, err
 		}
-		return trainingoperator.Status.Phase == readyStatus, nil
+		return to.Status.Phase == readyStatus, nil
 	})
 
 	if err != nil {
@@ -192,7 +193,7 @@ func (tc *TrainingOperatorTestCtx) validateTrainingOperatorReady() error {
 		}
 
 		for _, c := range list.Items[0].Status.Conditions {
-			if c.Type == componentApi.TrainingOperatorComponentName+"Ready" {
+			if c.Type == trainingoperator.ReadyConditionType {
 				return c.Status == corev1.ConditionTrue, nil
 			}
 		}
@@ -304,8 +305,8 @@ func (tc *TrainingOperatorTestCtx) testUpdateTrainingOperatorComponentDisabled()
 
 	if err = tc.testCtx.wait(func(ctx context.Context) (bool, error) {
 		// Verify TrainingOperator CR is deleted
-		trainingoperator := &componentApi.TrainingOperator{}
-		err = tc.testCtx.customClient.Get(ctx, client.ObjectKey{Name: tc.testTrainingOperatorInstance.Name}, trainingoperator)
+		to := &componentApi.TrainingOperator{}
+		err = tc.testCtx.customClient.Get(ctx, client.ObjectKey{Name: tc.testTrainingOperatorInstance.Name}, to)
 		return k8serr.IsNotFound(err), nil
 	}); err != nil {
 		return fmt.Errorf("component TrainingOperator is disabled, should not get the TrainingOperator CR %v", tc.testTrainingOperatorInstance.Name)

@@ -226,7 +226,7 @@ func (mr *ModelRegistryTestCtx) validateModelRegistryInstance(t *testing.T) {
 	).Should(And(
 		HaveLen(1),
 		HaveEach(And(
-			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.ModelRegistryComponentName, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, modelregistry.ReadyConditionType, metav1.ConditionTrue),
 			jq.Match(`.status.installedComponents."%s" == true`, modelregistry.LegacyComponentName),
 			jq.Match(`.status.components.%s.managementState == "%s"`, componentApi.ModelRegistryComponentName, operatorv1.Managed),
 		)),
