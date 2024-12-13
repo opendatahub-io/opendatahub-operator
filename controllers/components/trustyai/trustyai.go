@@ -21,20 +21,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
-const (
-	ComponentName     = componentApi.TrustyAIComponentName
-	ComponentPathName = "trustyai-service-operator"
-)
-
-var (
-	SourcePath = map[cluster.Platform]string{
-		cluster.SelfManagedRhoai: "/overlays/rhoai",
-		cluster.ManagedRhoai:     "/overlays/rhoai",
-		cluster.OpenDataHub:      "/overlays/odh",
-		cluster.Unknown:          "/overlays/odh",
-	}
-)
-
 type componentHandler struct{}
 
 func init() { //nolint:gochecknoinits
@@ -71,13 +57,10 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.Pla
 }
 
 func (s *componentHandler) Init(platform cluster.Platform) error {
-	imageParamMap := map[string]string{
-		"trustyaiServiceImage":  "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE",
-		"trustyaiOperatorImage": "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE",
-	}
-	DefaultPath := odhdeploy.DefaultManifestPath + "/" + ComponentPathName + SourcePath[platform]
-	if err := odhdeploy.ApplyParams(DefaultPath, imageParamMap); err != nil {
-		return fmt.Errorf("failed to update images on path %s: %w", DefaultPath, err)
+	mp := manifestsPath(platform)
+
+	if err := odhdeploy.ApplyParams(mp.String(), imageParamMap); err != nil {
+		return fmt.Errorf("failed to update images on path %s: %w", mp, err)
 	}
 
 	return nil

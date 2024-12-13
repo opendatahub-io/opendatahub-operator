@@ -25,15 +25,8 @@ import (
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
-func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	rr.Manifests = append(rr.Manifests, odhtypes.ManifestInfo{
-		Path:       odhdeploy.DefaultManifestPath,
-		ContextDir: ComponentPathName,
-		SourcePath: SourcePath[rr.Release.Name],
-	})
-	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), nil, map[string]string{"namespace": rr.DSCI.Spec.ApplicationsNamespace}); err != nil {
-		return fmt.Errorf("failed to update params.env from %s : %w", rr.Manifests[0], err)
-	}
+func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
+	rr.Manifests = append(rr.Manifests, manifestsPath(rr.Release.Name))
 	return nil
 }
 
@@ -46,6 +39,7 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	if trustyai.Spec.DevFlags == nil {
 		return nil
 	}
+
 	// Implement devflags support logic
 	// If dev flags are set, update default manifests path
 	if len(trustyai.Spec.DevFlags.Manifests) != 0 {
@@ -57,6 +51,6 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 			rr.Manifests[0].SourcePath = manifestConfig.SourcePath
 		}
 	}
-	// TODO: Implement devflags logmode logic
+
 	return nil
 }
