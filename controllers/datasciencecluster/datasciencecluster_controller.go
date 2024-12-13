@@ -28,7 +28,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -78,20 +77,18 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	log.Info("Reconciling DataScienceCluster resources", "Request.Name", req.Name)
 
 	instance := &dscv1.DataScienceCluster{}
-	err := r.Client.Get(ctx, req.NamespacedName, instance)
-	//Removed operator uninstall to the setup operator
+
+	// Removed operator uninstall to the setup operator
 	// We don't need finalizer anymore, remove it if present to handle the
 	// upgrade case
+
 	if controllerutil.RemoveFinalizer(instance, finalizerName) {
 		if err := r.Client.Update(ctx, instance); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
 
-	// If DSC CR exist and deletion CM exist
-	// delete DSC CR and let reconcile requeue - Moved to setup controller
-	//No longer needed as setup is watches the HasDeleteConfigMap
-	/*if !instance.ObjectMeta.DeletionTimestamp.IsZero() {
+	if !instance.ObjectMeta.DeletionTimestamp.IsZero() {
 		log.Info("Finalization DataScienceCluster start deleting instance", "name", instance.Name)
 
 		if upgrade.HasDeleteConfigMap(ctx, r.Client) {
@@ -99,7 +96,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 
 		return ctrl.Result{}, nil
-	}*/
+	}
 
 	// validate pre-requisites
 	if err := r.validate(ctx, instance); err != nil {
@@ -118,7 +115,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return strings.Compare(string(a.Type), string(b.Type))
 	})
 
-	err = r.Client.ApplyStatus(ctx, instance, client.FieldOwner(fieldOwner), client.ForceOwnership)
+	err := r.Client.ApplyStatus(ctx, instance, client.FieldOwner(fieldOwner), client.ForceOwnership)
 	switch {
 	case err == nil:
 		return ctrl.Result{}, nil

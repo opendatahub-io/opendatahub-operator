@@ -45,11 +45,12 @@ func (r *SetupControllerReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{}, err
 	}
 
-	//upgrade
+	// If DSC CR exist and deletion CM exist
+	// delete DSC CR
 	if upgrade.HasDeleteConfigMap(ctx, r.Client) {
-		err := r.Client.Delete(ctx, instance, client.PropagationPolicy(metav1.DeletePropagationForeground))
-		if err != nil {
-			return ctrl.Result{}, client.IgnoreNotFound(err)
+		deleteErr := r.Client.Delete(ctx, instance, client.PropagationPolicy(metav1.DeletePropagationForeground))
+		if deleteErr != nil {
+			return ctrl.Result{}, fmt.Errorf("error while deleting DSC CR: %w", deleteErr)
 		}
 
 		return ctrl.Result{}, nil
