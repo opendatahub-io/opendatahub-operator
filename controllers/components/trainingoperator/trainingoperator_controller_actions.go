@@ -26,11 +26,7 @@ import (
 )
 
 func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	rr.Manifests = append(rr.Manifests, odhtypes.ManifestInfo{
-		Path:       odhdeploy.DefaultManifestPath,
-		ContextDir: ComponentName,
-		SourcePath: "rhoai",
-	})
+	rr.Manifests = append(rr.Manifests, manifestPath())
 	return nil
 }
 

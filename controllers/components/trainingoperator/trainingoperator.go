@@ -21,14 +21,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
-const (
-	ComponentName = componentApi.TrainingOperatorComponentName
-)
-
-var (
-	DefaultPath = odhdeploy.DefaultManifestPath + "/" + ComponentName + "/rhoai"
-)
-
 type componentHandler struct{}
 
 func init() { //nolint:gochecknoinits
@@ -64,12 +56,8 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.Pla
 }
 
 func (s *componentHandler) Init(platform cluster.Platform) error {
-	imageParamMap := map[string]string{
-		"odh-training-operator-controller-image": "RELATED_IMAGE_ODH_TRAINING_OPERATOR_IMAGE",
-	}
-
-	if err := odhdeploy.ApplyParams(DefaultPath, imageParamMap); err != nil {
-		return fmt.Errorf("failed to update images on path %s: %w", DefaultPath, err)
+	if err := odhdeploy.ApplyParams(manifestPath().String(), imageParamMap); err != nil {
+		return fmt.Errorf("failed to update images on path %s: %w", manifestPath(), err)
 	}
 
 	return nil
