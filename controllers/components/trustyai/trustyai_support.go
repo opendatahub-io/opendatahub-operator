@@ -29,7 +29,7 @@ var (
 func manifestsPath(p cluster.Platform) types.ManifestInfo {
 	return types.ManifestInfo{
 		Path:       odhdeploy.DefaultManifestPath,
-		ContextDir: ComponentName,
+		ContextDir: ComponentPathName,
 		SourcePath: overlaysSourcePaths[p],
 	}
 }
