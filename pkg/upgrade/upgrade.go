@@ -629,7 +629,7 @@ func cleanupNimIntegrationTechPreview(ctx context.Context, cli client.Client, ol
 			{
 				obj:  &corev1.ConfigMap{},
 				name: nimConfigMap,
-				desc: "data ConfigMap",
+				desc: "validation result ConfigMap",
 			},
 			{
 				obj:  &corev1.Secret{},
