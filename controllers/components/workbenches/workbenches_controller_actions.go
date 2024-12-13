@@ -45,7 +45,7 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	for _, subcomponent := range workbenches.Spec.DevFlags.Manifests {
 		if strings.Contains(subcomponent.ContextDir, "components/odh-notebook-controller") {
 			// Download subcomponent
-			if err := odhdeploy.DownloadManifests(ctx, notebookControllerManifestContextDir, subcomponent); err != nil {
+			if err := odhdeploy.DownloadManifests(ctx, notebookControllerContextDir, subcomponent); err != nil {
 				return err
 			}
 			// If overlay is defined, update paths
@@ -56,7 +56,7 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 
 		if strings.Contains(subcomponent.ContextDir, "components/notebook-controller") {
 			// Download subcomponent
-			if err := odhdeploy.DownloadManifests(ctx, kfNotebookControllerManifestContextDir, subcomponent); err != nil {
+			if err := odhdeploy.DownloadManifests(ctx, kfNotebookControllerContextDir, subcomponent); err != nil {
 				return err
 			}
 			// If overlay is defined, update paths
@@ -65,9 +65,9 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 			}
 		}
 
-		if strings.Contains(subcomponent.URI, DependentComponentName) {
+		if strings.Contains(subcomponent.URI, notebooksPath) {
 			// Download subcomponent
-			if err := odhdeploy.DownloadManifests(ctx, DependentComponentName, subcomponent); err != nil {
+			if err := odhdeploy.DownloadManifests(ctx, notebookContextDir, subcomponent); err != nil {
 				return err
 			}
 			// If overlay is defined, update paths

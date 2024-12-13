@@ -23,9 +23,10 @@ import (
 )
 
 const (
+	ModelControllerComponentName = "modelcontroller"
 	// shared by kserve and modelmeshserving
 	// value should match whats set in the XValidation below
-	ModelControllerInstanceName = "default-modelcontroller"
+	ModelControllerInstanceName = "default-" + ModelControllerComponentName
 	ModelControllerKind         = "ModelController"
 )
 

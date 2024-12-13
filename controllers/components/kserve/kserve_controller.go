@@ -26,6 +26,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 
@@ -36,8 +37,10 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/updatestatus"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/clusterrole"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/hash"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
@@ -86,8 +89,13 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		// - a predicate that check for generation change for Delete/Updates events
 		//   for to objects that have the label components.platform.opendatahub.io/managed-by
 		//   set to the current owner
-		// TODO: uncomment below watch on CRD
-		// Watches(&extv1.CustomResourceDefinition{}).
+		Watches(
+			&extv1.CustomResourceDefinition{},
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.KserveInstanceName)),
+			reconciler.WithPredicates(
+				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True)),
+		).
 
 		// operands - dynamically watched
 		//
@@ -142,8 +150,8 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			//
 			// Additional labels/annotations MUST be added by the deploy action
 			// so they would affect only objects metadata without side effects
-			kustomize.WithLabel(labels.ODH.Component(componentName), labels.True),
-			kustomize.WithLabel(labels.K8SCommon.PartOf, componentName),
+			kustomize.WithLabel(labels.ODH.Component(LegacyComponentName), labels.True),
+			kustomize.WithLabel(labels.K8SCommon.PartOf, LegacyComponentName),
 		)).
 		WithAction(customizeKserveConfigMap).
 		WithAction(deploy.NewAction(

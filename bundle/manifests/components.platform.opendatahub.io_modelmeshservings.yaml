@@ -145,8 +145,8 @@ spec:
             type: object
         type: object
         x-kubernetes-validations:
-        - message: ModelMeshServing name must be default-modelmesh
-          rule: self.metadata.name == 'default-modelmesh'
+        - message: ModelMeshServing name must be default-modelmeshserving
+          rule: self.metadata.name == 'default-modelmeshserving'
     served: true
     storage: true
     subresources:

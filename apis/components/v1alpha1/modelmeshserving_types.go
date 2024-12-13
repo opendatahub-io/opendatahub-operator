@@ -22,9 +22,9 @@ import (
 )
 
 const (
-	ModelMeshServingComponentName = "model-mesh"
+	ModelMeshServingComponentName = "modelmeshserving"
 	// value should match whats set in the XValidation below
-	ModelMeshServingInstanceName = "default-modelmesh"
+	ModelMeshServingInstanceName = "default-" + ModelMeshServingComponentName
 	ModelMeshServingKind         = "ModelMeshServing"
 )
 
@@ -33,7 +33,7 @@ const (
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
-// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-modelmesh'",message="ModelMeshServing name must be default-modelmesh"
+// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-modelmeshserving'",message="ModelMeshServing name must be default-modelmeshserving"
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
 // +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
 

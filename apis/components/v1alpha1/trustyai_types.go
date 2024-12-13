@@ -24,7 +24,7 @@ import (
 const (
 	TrustyAIComponentName = "trustyai"
 	// value should match whats set in the XValidation below
-	TrustyAIInstanceName = "default-trustyai"
+	TrustyAIInstanceName = "default-" + TrustyAIComponentName
 	TrustyAIKind         = "TrustyAI"
 )
 

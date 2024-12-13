@@ -49,12 +49,12 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	// If dev flags are set, update default manifests path
 	if len(dashboard.Spec.DevFlags.Manifests) != 0 {
 		manifestConfig := dashboard.Spec.DevFlags.Manifests[0]
-		if err := odhdeploy.DownloadManifests(ctx, ComponentNameUpstream, manifestConfig); err != nil {
+		if err := odhdeploy.DownloadManifests(ctx, ComponentName, manifestConfig); err != nil {
 			return err
 		}
 		if manifestConfig.SourcePath != "" {
 			rr.Manifests[0].Path = odhdeploy.DefaultManifestPath
-			rr.Manifests[0].ContextDir = ComponentNameUpstream
+			rr.Manifests[0].ContextDir = ComponentName
 			rr.Manifests[0].SourcePath = manifestConfig.SourcePath
 		}
 	}

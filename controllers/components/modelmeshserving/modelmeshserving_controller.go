@@ -25,27 +25,22 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/security"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/updatestatus"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/clusterrole"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
-
-var serviceAccounts = map[cluster.Platform][]string{
-	cluster.SelfManagedRhoai: {"modelmesh", "modelmesh-controller"},
-	cluster.ManagedRhoai:     {"modelmesh", "modelmesh-controller"},
-	cluster.OpenDataHub:      {"modelmesh", "modelmesh-controller"},
-	cluster.Unknown:          {"modelmesh", "modelmesh-controller"},
-}
 
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	_, err := reconciler.ReconcilerFor(
@@ -64,16 +59,21 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Owns(&rbacv1.RoleBinding{}).
 		Owns(&rbacv1.ClusterRoleBinding{}).
 		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(resources.NewDeploymentPredicate())).
-		// TODO: uncomment below watch on CRD
-		// Watches(&extv1.CustomResourceDefinition{}).
+		Watches(
+			&extv1.CustomResourceDefinition{},
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.ModelMeshServingInstanceName)),
+			reconciler.WithPredicates(
+				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True)),
+		).
 		// Add ModelMeshServing specific actions
 		WithAction(initialize).
 		WithAction(devFlags).
 		WithAction(security.NewUpdatePodSecurityRoleBindingAction(serviceAccounts)).
 		WithAction(kustomize.NewAction(
 			kustomize.WithCache(),
-			kustomize.WithLabel(labels.ODH.Component(ComponentName), "true"),
-			kustomize.WithLabel(labels.K8SCommon.PartOf, ComponentName),
+			kustomize.WithLabel(labels.ODH.Component(LegacyComponentName), labels.True),
+			kustomize.WithLabel(labels.K8SCommon.PartOf, LegacyComponentName),
 		)).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),

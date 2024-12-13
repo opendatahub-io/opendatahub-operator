@@ -25,7 +25,7 @@ const (
 	DashboardComponentName = "dashboard"
 	// DashboardInstanceName the name of the Dashboard instance singleton.
 	// value should match whats set in the XValidation below
-	DashboardInstanceName = "default-dashboard"
+	DashboardInstanceName = "default-" + DashboardComponentName
 	DashboardKind         = "Dashboard"
 )
 

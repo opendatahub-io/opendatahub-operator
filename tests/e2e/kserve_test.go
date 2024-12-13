@@ -17,6 +17,7 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -82,6 +83,8 @@ func (k *KserveTestCtx) validateKserveInstance(t *testing.T) {
 		HaveEach(And(
 			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.KserveComponentName, metav1.ConditionTrue),
 			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.ModelControllerComponentName, metav1.ConditionTrue),
+			jq.Match(`.status.installedComponents."%s" == true`, kserve.LegacyComponentName),
+			jq.Match(`.status.components.%s.managementState == "%s"`, componentApi.KserveComponentName, operatorv1.Managed),
 		)),
 	))
 

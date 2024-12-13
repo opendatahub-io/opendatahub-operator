@@ -22,9 +22,9 @@ import (
 )
 
 const (
-	DataSciencePipelinesComponentName = "data-science-pipelines-operator"
+	DataSciencePipelinesComponentName = "datasciencepipelines"
 	// value should match whats set in the XValidation below
-	DataSciencePipelinesInstanceName = "default-datasciencepipelines"
+	DataSciencePipelinesInstanceName = "default-" + DataSciencePipelinesComponentName
 	DataSciencePipelinesKind         = "DataSciencePipelines"
 )
 

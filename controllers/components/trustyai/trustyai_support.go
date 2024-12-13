@@ -8,8 +8,12 @@ import (
 )
 
 const (
-	ComponentName     = componentApi.TrustyAIComponentName
-	ComponentPathName = "trustyai-service-operator"
+	ComponentName = componentApi.TrustyAIComponentName
+
+	// LegacyComponentName is the name of the component that is assigned to deployments
+	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
+	// deployment to the new component name, so keep it around till we figure out a solution.
+	LegacyComponentName = "trustyai"
 )
 
 var (
@@ -29,7 +33,7 @@ var (
 func manifestsPath(p cluster.Platform) types.ManifestInfo {
 	return types.ManifestInfo{
 		Path:       odhdeploy.DefaultManifestPath,
-		ContextDir: ComponentPathName,
+		ContextDir: ComponentName,
 		SourcePath: overlaysSourcePaths[p],
 	}
 }

@@ -25,7 +25,7 @@ const (
 	WorkbenchesComponentName = "workbenches"
 	// WorkbenchesInstanceName the name of the Workbenches instance singleton.
 	// value should match what is set in the XValidation below.
-	WorkbenchesInstanceName = "default-workbenches"
+	WorkbenchesInstanceName = "default-" + WorkbenchesComponentName
 	WorkbenchesKind         = "Workbenches"
 )
 

@@ -24,7 +24,7 @@ import (
 const (
 	CodeFlareComponentName = "codeflare"
 	// value should match whats set in the XValidation below
-	CodeFlareInstanceName = "default-codeflare"
+	CodeFlareInstanceName = "default-" + CodeFlareComponentName
 	CodeFlareKind         = "CodeFlare"
 )
 

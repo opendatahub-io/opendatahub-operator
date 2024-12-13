@@ -70,7 +70,7 @@ func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj cl
 		return errors.New("failed to convert to Ray")
 	}
 
-	dsc.Status.InstalledComponents[s.GetName()] = false
+	dsc.Status.InstalledComponents[LegacyComponentName] = false
 	dsc.Status.Components.Ray.ManagementSpec.ManagementState = s.GetManagementState(dsc)
 	dsc.Status.Components.Ray.RayCommonStatus = nil
 
@@ -83,7 +83,7 @@ func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj cl
 
 	switch s.GetManagementState(dsc) {
 	case operatorv1.Managed:
-		dsc.Status.InstalledComponents[s.GetName()] = true
+		dsc.Status.InstalledComponents[LegacyComponentName] = true
 		dsc.Status.Components.Ray.RayCommonStatus = c.Status.RayCommonStatus.DeepCopy()
 
 		if rc := meta.FindStatusCondition(c.Status.Conditions, status.ConditionTypeReady); rc != nil {
