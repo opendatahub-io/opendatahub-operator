@@ -31,13 +31,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
-var serviceAccounts = map[cluster.Platform][]string{
-	cluster.Unknown:          {odhModelControllerComponentName},
-	cluster.OpenDataHub:      {odhModelControllerComponentName},
-	cluster.ManagedRhoai:     {odhModelControllerComponentName},
-	cluster.SelfManagedRhoai: {odhModelControllerComponentName},
-}
-
 func kserveManifestInfo(sourcePath string) odhtypes.ManifestInfo {
 	return odhtypes.ManifestInfo{
 		Path:       deploy.DefaultManifestPath,
