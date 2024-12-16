@@ -32,6 +32,8 @@ const (
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
 // +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-datasciencepipelines'",message="DataSciencePipelines name must be default-datasciencepipelines"
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
+// +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
 
 // DataSciencePipelines is the Schema for the datasciencepipelines API
 type DataSciencePipelines struct {

@@ -14,7 +14,16 @@ spec:
     singular: datasciencepipelines
   scope: Cluster
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - description: Ready
+      jsonPath: .status.conditions[?(@.type=="Ready")].status
+      name: Ready
+      type: string
+    - description: Reason
+      jsonPath: .status.conditions[?(@.type=="Ready")].reason
+      name: Reason
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: DataSciencePipelines is the Schema for the datasciencepipelines
