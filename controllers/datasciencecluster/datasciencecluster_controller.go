@@ -74,10 +74,15 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	log := logf.FromContext(ctx).WithName("DataScienceCluster")
 	log.Info("Reconciling DataScienceCluster resources", "Request.Name", req.Name)
 	instance := &dscv1.DataScienceCluster{}
+	err := r.Client.Get(ctx, req.NamespacedName, instance)
 
-	if err := r.Client.Get(ctx, req.NamespacedName, instance); k8serr.IsNotFound(err) {
+	switch {
+	case k8serr.IsNotFound(err):
+		return ctrl.Result{}, nil
+	case err != nil:
 		return ctrl.Result{}, err
 	}
+
 	if controllerutil.RemoveFinalizer(instance, finalizerName) {
 		if err := r.Client.Update(ctx, instance); err != nil {
 			return ctrl.Result{}, err
@@ -111,7 +116,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return strings.Compare(string(a.Type), string(b.Type))
 	})
 
-	err := r.Client.ApplyStatus(ctx, instance, client.FieldOwner(fieldOwner), client.ForceOwnership)
+	err = r.Client.ApplyStatus(ctx, instance, client.FieldOwner(fieldOwner), client.ForceOwnership)
 	switch {
 	case err == nil:
 		return ctrl.Result{}, nil
