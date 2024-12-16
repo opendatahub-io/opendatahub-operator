@@ -34,7 +34,7 @@ type ManifestInfo struct {
 	SourcePath string
 }
 
-func (mi *ManifestInfo) String() string {
+func (mi ManifestInfo) String() string {
 	result := mi.Path
 
 	if mi.ContextDir != "" {

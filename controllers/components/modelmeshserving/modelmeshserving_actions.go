@@ -26,18 +26,9 @@ import (
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
-func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	// early exit
-	_, ok := rr.Instance.(*componentApi.ModelMeshServing)
-	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentApi.ModelMeshServing)", rr.Instance)
-	}
-	// setup Manifets[0] for modelmeshserving
-	rr.Manifests = append(rr.Manifests, odhtypes.ManifestInfo{
-		Path:       odhdeploy.DefaultManifestPath,
-		ContextDir: ComponentName,
-		SourcePath: "overlays/odh",
-	})
+func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
+	rr.Manifests = append(rr.Manifests, manifestsPath())
+
 	return nil
 }
 
@@ -46,6 +37,7 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentApi.ModelMeshServing)", rr.Instance)
 	}
+
 	df := mm.GetDevFlags()
 	if df == nil {
 		return nil
@@ -68,6 +60,6 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 			}
 		}
 	}
-	// TODO: Implement devflags logmode logic
+
 	return nil
 }

@@ -21,14 +21,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
-const (
-	ComponentName = componentApi.RayComponentName
-)
-
-var (
-	DefaultPath = odhdeploy.DefaultManifestPath + "/" + ComponentName + "/openshift"
-)
-
 type componentHandler struct{}
 
 func init() { //nolint:gochecknoinits
@@ -45,6 +37,7 @@ func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) ope
 	}
 	return operatorv1.Removed
 }
+
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.PlatformObject {
 	return &componentApi.Ray{
 		TypeMeta: metav1.TypeMeta{
@@ -63,13 +56,9 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.Pla
 	}
 }
 
-func (s *componentHandler) Init(platform cluster.Platform) error {
-	imageParamMap := map[string]string{
-		"odh-kuberay-operator-controller-image": "RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE",
-	}
-
-	if err := odhdeploy.ApplyParams(DefaultPath, imageParamMap); err != nil {
-		return fmt.Errorf("failed to update images on path %s: %w", DefaultPath, err)
+func (s *componentHandler) Init(_ cluster.Platform) error {
+	if err := odhdeploy.ApplyParams(manifestPath().String(), imageParamMap); err != nil {
+		return fmt.Errorf("failed to update images on path %s: %w", manifestPath(), err)
 	}
 
 	return nil

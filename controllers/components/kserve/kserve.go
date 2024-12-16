@@ -21,16 +21,11 @@ import (
 )
 
 const (
-	componentName                   = componentApi.KserveComponentName
-	odhModelControllerComponentName = componentApi.ModelControllerComponentName
-
-	serviceMeshOperator = "servicemeshoperator"
-	serverlessOperator  = "serverless-operator"
-
-	kserveConfigMapName = "inferenceservice-config"
-
-	kserveManifestSourcePath             = "overlays/odh"
-	odhModelControllerManifestSourcePath = "base"
+	componentName            = componentApi.KserveComponentName
+	serviceMeshOperator      = "servicemeshoperator"
+	serverlessOperator       = "serverless-operator"
+	kserveConfigMapName      = "inferenceservice-config"
+	kserveManifestSourcePath = "overlays/odh"
 )
 
 type componentHandler struct{}

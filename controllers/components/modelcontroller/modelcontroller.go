@@ -21,12 +21,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
-const (
-	ComponentName = componentApi.ModelControllerComponentName
-)
-
-var DefaultPath = odhdeploy.DefaultManifestPath + "/" + ComponentName + "/base"
-
 type componentHandler struct{}
 
 func init() { //nolint:gochecknoinits
@@ -82,13 +76,10 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.Pla
 }
 
 // Init for set images.
-func (s *componentHandler) Init(platform cluster.Platform) error {
-	var imageParamMap = map[string]string{
-		"odh-model-controller": "RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
-	}
+func (s *componentHandler) Init(_ cluster.Platform) error {
 	// Update image parameters
-	if err := odhdeploy.ApplyParams(DefaultPath, imageParamMap); err != nil {
-		return fmt.Errorf("failed to update images on path %s: %w", DefaultPath, err)
+	if err := odhdeploy.ApplyParams(manifestsPath().String(), imageParamMap); err != nil {
+		return fmt.Errorf("failed to update images on path %s: %w", manifestsPath(), err)
 	}
 
 	return nil

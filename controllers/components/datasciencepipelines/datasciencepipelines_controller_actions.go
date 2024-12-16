@@ -69,12 +69,9 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 	return nil
 }
 
-func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	rr.Manifests = append(rr.Manifests, defaultPath)
+func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
+	rr.Manifests = append(rr.Manifests, manifestPath(rr.Release.Name))
 
-	if err := odhdeploy.ApplyParams(defaultPath.String(), nil, map[string]string{"namespace": rr.DSCI.Spec.ApplicationsNamespace}); err != nil {
-		return fmt.Errorf("failed to update params.env from %s : %w", rr.Manifests[0], err)
-	}
 	return nil
 }
 
@@ -92,13 +89,13 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	// If dev flags are set, update default manifests path
 	if len(dsp.Spec.DevFlags.Manifests) != 0 {
 		manifestConfig := dsp.Spec.DevFlags.Manifests[0]
-		if err := odhdeploy.DownloadManifests(ctx, componentApi.DataSciencePipelinesComponentName, manifestConfig); err != nil {
+		if err := odhdeploy.DownloadManifests(ctx, ComponentName, manifestConfig); err != nil {
 			return err
 		}
 
 		if manifestConfig.SourcePath != "" {
 			rr.Manifests[0].Path = odhdeploy.DefaultManifestPath
-			rr.Manifests[0].ContextDir = componentApi.DataSciencePipelinesComponentName
+			rr.Manifests[0].ContextDir = ComponentName
 			rr.Manifests[0].SourcePath = manifestConfig.SourcePath
 		}
 	}

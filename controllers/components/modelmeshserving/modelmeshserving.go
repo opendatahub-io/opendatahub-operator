@@ -21,10 +21,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
-const (
-	ComponentName = componentApi.ModelMeshServingComponentName
-)
-
 type componentHandler struct{}
 
 func init() { //nolint:gochecknoinits
@@ -42,17 +38,10 @@ func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) ope
 	return operatorv1.Removed
 }
 
-func (s *componentHandler) Init(platform cluster.Platform) error {
-	DefaultPath := odhdeploy.DefaultManifestPath + "/" + ComponentName + "/overlays/odh"
-	imageParamMap := map[string]string{
-		"odh-mm-rest-proxy":             "RELATED_IMAGE_ODH_MM_REST_PROXY_IMAGE",
-		"odh-modelmesh-runtime-adapter": "RELATED_IMAGE_ODH_MODELMESH_RUNTIME_ADAPTER_IMAGE",
-		"odh-modelmesh":                 "RELATED_IMAGE_ODH_MODELMESH_IMAGE",
-		"odh-modelmesh-controller":      "RELATED_IMAGE_ODH_MODELMESH_CONTROLLER_IMAGE",
-	}
+func (s *componentHandler) Init(_ cluster.Platform) error {
 	// Update image parameters
-	if err := odhdeploy.ApplyParams(DefaultPath, imageParamMap); err != nil {
-		return fmt.Errorf("failed to update images on path %s: %w", DefaultPath, err)
+	if err := odhdeploy.ApplyParams(manifestsPath().String(), imageParamMap); err != nil {
+		return fmt.Errorf("failed to update images on path %s: %w", manifestsPath(), err)
 	}
 
 	return nil
