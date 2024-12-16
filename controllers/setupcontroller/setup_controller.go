@@ -22,19 +22,18 @@ type SetupControllerReconciler struct {
 }
 
 func (r *SetupControllerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := logf.FromContext(ctx).WithName("SetupContoller")
+	log := logf.FromContext(ctx).WithName("SetupController")
 	log.Info("Reconciling setup controller", "Request.Name", req.Name) // log.V(1).Info(...)
 
 	if !upgrade.HasDeleteConfigMap(ctx, r.Client) {
 		return ctrl.Result{}, nil
 	}
 
-	if err := upgrade.OperatorUninstall(ctx, r.Client, cluster.GetRelease().Name, req); err != nil {
+	if err := upgrade.OperatorUninstall(ctx, r.Client, cluster.GetRelease().Name); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to uninstall setup controller: %w", err)
 	}
 
 	return ctrl.Result{}, nil
-
 }
 
 func (r *SetupControllerReconciler) SetupWithManager(mgr ctrl.Manager) error {

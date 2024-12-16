@@ -5,17 +5,15 @@ import (
 	"fmt"
 	"time"
 
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"github.com/hashicorp/go-multierror"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -29,20 +27,12 @@ const (
 
 // OperatorUninstall deletes all the externally generated resources.
 // This includes DSCI, namespace created by operator (but not workbench or MR's), subscription and CSV.
-func OperatorUninstall(ctx context.Context, cli client.Client, platform cluster.Platform, req ctrl.Request) error {
+func OperatorUninstall(ctx context.Context, cli client.Client, platform cluster.Platform) error {
 	log := logf.FromContext(ctx)
-	instance := &dscv1.DataScienceCluster{}
-	err := cli.Get(ctx, req.NamespacedName, instance)
-	if err != nil {
-		return fmt.Errorf("getting DataScienceCluster %s/%s failed: %w", req.Namespace, req.Name, err)
-	}
-	// if DSC exists then delete DSC
-	if !k8serr.IsNotFound(err) {
-		if deleteError := removeDSC(ctx, cli, req); deleteError != nil {
-			return fmt.Errorf("error deleting DSC : %w", deleteError)
-		}
-	}
 
+	if deleteError := removeDSC(ctx, cli); deleteError != nil {
+		return fmt.Errorf("error deleting DSC : %w", deleteError)
+	}
 	// If DSC doesn't continue deleting DSCI and other resources
 	if err := removeDSCInitialization(ctx, cli); err != nil {
 		return err
@@ -111,7 +101,7 @@ func removeDSCInitialization(ctx context.Context, cli client.Client) error {
 
 	var multiErr *multierror.Error
 	for _, dsciInstance := range instanceList.Items {
-		if err := cli.Delete(ctx, &dsciInstance); !k8serr.IsNotFound(err) {
+		if err := cli.Delete(ctx, &dsciInstance); !k8serr.IsNotFound(err) { // DeleteAll
 			multiErr = multierror.Append(multiErr, err)
 		}
 	}
@@ -119,18 +109,14 @@ func removeDSCInitialization(ctx context.Context, cli client.Client) error {
 	return multiErr.ErrorOrNil()
 }
 
-func removeDSC(ctx context.Context, cli client.Client, req ctrl.Request) error {
+func removeDSC(ctx context.Context, cli client.Client) error {
 	instance := &dscv1.DataScienceCluster{}
-	if err := cli.Get(ctx, req.NamespacedName, instance); err != nil {
-		return err
+
+	if deleteErr := cli.DeleteAllOf(ctx, instance, client.PropagationPolicy(metav1.DeletePropagationForeground)); deleteErr != nil {
+		return fmt.Errorf("failure deleting DSC: %w", deleteErr)
 	}
 
-	var multiErr *multierror.Error
-	if deleteErr := cli.Delete(ctx, instance, client.PropagationPolicy(metav1.DeletePropagationForeground)); !k8serr.IsNotFound(deleteErr) {
-		multiErr = multierror.Append(multiErr, deleteErr)
-	}
-
-	return multiErr.ErrorOrNil()
+	return nil
 }
 
 // HasDeleteConfigMap returns true if delete configMap is added to the operator namespace by managed-tenants repo.
