@@ -49,6 +49,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/dependent"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
 
 // DataScienceClusterReconciler reconciles a DataScienceCluster object.
@@ -72,12 +73,12 @@ const (
 func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx).WithName("DataScienceCluster")
 	log.Info("Reconciling DataScienceCluster resources", "Request.Name", req.Name)
-
 	instance := &dscv1.DataScienceCluster{}
 
-	// Removed operator uninstall to the setup operator
-	// We don't need finalizer anymore, remove it if present to handle the
-	// upgrade case
+	if err := r.Client.Get(ctx, req.NamespacedName, instance); err != nil {
+		log := logf.Log.WithValues("namespace", req.NamespacedName.Namespace, "name", req.NamespacedName.Name)
+		log.Error(err, "Failed to get instance")
+	}
 
 	if controllerutil.RemoveFinalizer(instance, finalizerName) {
 		if err := r.Client.Update(ctx, instance); err != nil {
