@@ -75,11 +75,9 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	log.Info("Reconciling DataScienceCluster resources", "Request.Name", req.Name)
 	instance := &dscv1.DataScienceCluster{}
 
-	if err := r.Client.Get(ctx, req.NamespacedName, instance); err != nil {
-		log := logf.Log.WithValues("namespace", req.NamespacedName.Namespace, "name", req.NamespacedName.Name)
-		log.Error(err, "Failed to get instance")
+	if err := r.Client.Get(ctx, req.NamespacedName, instance); k8serr.IsNotFound(err) {
+		return ctrl.Result{}, err
 	}
-
 	if controllerutil.RemoveFinalizer(instance, finalizerName) {
 		if err := r.Client.Update(ctx, instance); err != nil {
 			return ctrl.Result{}, err
