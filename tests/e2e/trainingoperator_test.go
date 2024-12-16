@@ -22,6 +22,7 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
@@ -148,7 +149,7 @@ func (tc *TrainingOperatorTestCtx) testOwnerReferences() error {
 
 	// Test TrainingOperator resources
 	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-		LabelSelector: labels.ODH.Component(componentApi.TrainingOperatorComponentName),
+		LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(gvk.TrainingOperator.Kind),
 	})
 	if err != nil {
 		return fmt.Errorf("error listing component deployments %w", err)
@@ -262,7 +263,7 @@ func (tc *TrainingOperatorTestCtx) testUpdateTrainingOperatorComponentDisabled()
 
 	if tc.testCtx.testDsc.Spec.Components.TrainingOperator.ManagementState == operatorv1.Managed {
 		appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-			LabelSelector: labels.ODH.Component(componentApi.TrainingOperatorComponentName),
+			LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(gvk.TrainingOperator.Kind),
 		})
 		if err != nil {
 			return fmt.Errorf("error getting enabled component %v", componentApi.TrainingOperatorComponentName)
@@ -310,17 +311,18 @@ func (tc *TrainingOperatorTestCtx) testUpdateTrainingOperatorComponentDisabled()
 		return fmt.Errorf("component TrainingOperator is disabled, should not get the TrainingOperator CR %v", tc.testTrainingOperatorInstance.Name)
 	}
 
-	// Sleep for 20 seconds to allow the operator to reconcile
-	time.Sleep(2 * generalRetryInterval)
-	_, err = tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).Get(tc.testCtx.ctx, trainingoperatorDeploymentName, metav1.GetOptions{})
+	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
+		LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(gvk.TrustyAI.Kind),
+	})
+
 	if err != nil {
-		if k8serr.IsNotFound(err) {
-			return nil // correct result: should not find deployment after we disable it already
-		}
 		return fmt.Errorf("error getting component resource after reconcile: %w", err)
 	}
-	return fmt.Errorf("component %v is disabled, should not get its deployment %v from NS %v any more",
-		componentApi.TrainingOperatorKind,
-		trainingoperatorDeploymentName,
-		tc.testCtx.applicationsNamespace)
+	if len(appDeployments.Items) != 0 {
+		return fmt.Errorf("component %v is disabled, should not have deployments in namespace %v any more",
+			componentApi.TrainingOperatorKind,
+			tc.testCtx.applicationsNamespace)
+	}
+
+	return nil
 }

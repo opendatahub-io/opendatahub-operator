@@ -140,6 +140,12 @@ var (
 		Kind:    "Kserve",
 	}
 
+	Kueue = schema.GroupVersionKind{
+		Group:   "components.platform.opendatahub.io",
+		Version: "v1alpha1",
+		Kind:    "Kueue",
+	}
+
 	CodeFlare = schema.GroupVersionKind{
 		Group:   "components.platform.opendatahub.io",
 		Version: "v1alpha1",

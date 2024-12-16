@@ -22,6 +22,7 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
@@ -185,7 +186,7 @@ func (tc *DataSciencePipelinesTestCtx) testOwnerReferences() error {
 
 	// Test DataSciencePipelines resources
 	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-		LabelSelector: labels.ODH.Component(componentApi.DataSciencePipelinesComponentName),
+		LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(gvk.DataSciencePipelines.Kind),
 	})
 	if err != nil {
 		return fmt.Errorf("error listing component deployments %w", err)
@@ -246,7 +247,7 @@ func (tc *DataSciencePipelinesTestCtx) validateDataSciencePipelinesReady() error
 
 func (tc *DataSciencePipelinesTestCtx) testUpdateOnDataSciencePipelinesResources() error {
 	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-		LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(tc.testDataSciencePipelinesInstance.Kind),
+		LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(gvk.DataSciencePipelines.Kind),
 	})
 	if err != nil {
 		return err
@@ -301,7 +302,7 @@ func (tc *DataSciencePipelinesTestCtx) testUpdateDataSciencePipelinesComponentDi
 
 	if tc.testCtx.testDsc.Spec.Components.DataSciencePipelines.ManagementState == operatorv1.Managed {
 		appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-			LabelSelector: labels.ODH.Component(componentApi.DataSciencePipelinesComponentName),
+			LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(gvk.DataSciencePipelines.Kind),
 		})
 		if err != nil {
 			return fmt.Errorf("error getting enabled component %v", componentApi.DataSciencePipelinesComponentName)
@@ -352,17 +353,18 @@ func (tc *DataSciencePipelinesTestCtx) testUpdateDataSciencePipelinesComponentDi
 		return fmt.Errorf("component datasciencepipelines is disabled, should not get the DataSciencePipelines CR %v", tc.testDataSciencePipelinesInstance.Name)
 	}
 
-	// Sleep for 20 seconds to allow the operator to reconcile
-	time.Sleep(2 * generalRetryInterval)
-	_, err = tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).Get(tc.testCtx.ctx, dspDeploymentName, metav1.GetOptions{})
+	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
+		LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(gvk.DataSciencePipelines.Kind),
+	})
+
 	if err != nil {
-		if k8serr.IsNotFound(err) {
-			return nil // correct result: should not find deployment after we disable it already
-		}
 		return fmt.Errorf("error getting component resource after reconcile: %w", err)
 	}
-	return fmt.Errorf("component %v is disabled, should not get its deployment %v from NS %v any more",
-		componentApi.DataSciencePipelinesKind,
-		dspDeploymentName,
-		tc.testCtx.applicationsNamespace)
+	if len(appDeployments.Items) != 0 {
+		return fmt.Errorf("component %v is disabled, should not have deployments in namespace %v any more",
+			componentApi.DataSciencePipelinesKind,
+			tc.testCtx.applicationsNamespace)
+	}
+
+	return nil
 }

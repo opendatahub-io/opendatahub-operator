@@ -22,6 +22,7 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
@@ -150,7 +151,7 @@ func (tc *WorkbenchesTestCtx) testOwnerReferences() error {
 	// Test Workbenches resources
 
 	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-		LabelSelector: labels.ODH.Component(componentApi.WorkbenchesComponentName),
+		LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(gvk.Workbenches.Kind),
 	})
 	if err != nil {
 		return fmt.Errorf("error listing component deployments %w", err)
@@ -263,7 +264,7 @@ func (tc *WorkbenchesTestCtx) testUpdateWorkbenchesComponentDisabled() error {
 
 	if tc.testCtx.testDsc.Spec.Components.Workbenches.ManagementState == operatorv1.Managed {
 		appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-			LabelSelector: labels.ODH.Component(componentApi.WorkbenchesComponentName),
+			LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(gvk.Workbenches.Kind),
 		})
 		if err != nil {
 			return fmt.Errorf("error getting enabled component %v", componentApi.WorkbenchesComponentName)
@@ -313,17 +314,18 @@ func (tc *WorkbenchesTestCtx) testUpdateWorkbenchesComponentDisabled() error {
 		return fmt.Errorf("component %v is disabled, should not get the Workbenches CR %v", tc.testWorkbenchesInstance.Name, tc.testWorkbenchesInstance.Name)
 	}
 
-	// Sleep for 20 seconds to allow the operator to reconcile
-	time.Sleep(2 * generalRetryInterval)
-	_, err = tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).Get(tc.testCtx.ctx, workbenchesDeploymentName, metav1.GetOptions{})
+	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
+		LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(gvk.Workbenches.Kind),
+	})
+
 	if err != nil {
-		if k8serr.IsNotFound(err) {
-			return nil // correct result: should not find deployment after we disable it already
-		}
 		return fmt.Errorf("error getting component resource after reconcile: %w", err)
 	}
-	return fmt.Errorf("component %v is disabled, should not get its deployment %v from NS %v any more",
-		componentApi.WorkbenchesKind,
-		workbenchesDeploymentName,
-		tc.testCtx.applicationsNamespace)
+	if len(appDeployments.Items) != 0 {
+		return fmt.Errorf("component %v is disabled, should not have deployments in namespace %v any more",
+			componentApi.WorkbenchesKind,
+			tc.testCtx.applicationsNamespace)
+	}
+
+	return nil
 }
