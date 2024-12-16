@@ -1,13 +1,9 @@
 map:
   notebooks:
-    git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: github.ref_name
     src: manifests
-    dest: jupyterhub/notebooks
+    dest: notebooks
     ref_type: branch
   kserve:
-    git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: github.ref_name
     src: config
     dest: kserve
     ref_type: branch
@@ -35,7 +31,10 @@ map:
   odh-model-controller:
     src: config
     dest: odh-model-controller
-  odh-modelmesh:
+  odh-model-registry-operator:
+    src: config
+    dest: model-registry-operator
+  odh-modelmesh-serving-controller:
     src: config
     dest: model-mesh
   odh-dashboard:
