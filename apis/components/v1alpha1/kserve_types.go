@@ -52,6 +52,7 @@ type KserveCommonSpec struct {
 	// The value specified in this field will be used to set the default deployment mode in the 'inferenceservice-config' configmap for Kserve.
 	// This field is optional. If no default deployment mode is specified, Kserve will use Serverless mode.
 	// +kubebuilder:validation:Enum=Serverless;RawDeployment
+	// +kubebuilder:default=Serverless
 	DefaultDeploymentMode DefaultDeploymentMode `json:"defaultDeploymentMode,omitempty"`
 	// Configures and enables NVIDIA NIM integration
 	NIM NimSpec `json:"nim,omitempty"`
