@@ -31,7 +31,7 @@ func OperatorUninstall(ctx context.Context, cli client.Client, platform cluster.
 	log := logf.FromContext(ctx)
 
 	if deleteError := removeDSC(ctx, cli); deleteError != nil {
-		return fmt.Errorf("error deleting DSC : %w", deleteError)
+		return deleteError
 	}
 	// If DSC doesn't continue deleting DSCI and other resources
 	if err := removeDSCInitialization(ctx, cli); err != nil {

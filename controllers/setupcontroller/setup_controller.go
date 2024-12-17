@@ -23,7 +23,7 @@ type SetupControllerReconciler struct {
 
 func (r *SetupControllerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx).WithName("SetupController")
-	log.Info("Reconciling setup controller", "Request.Name", req.Name) // log.V(1).Info(...)
+	log.Info("Reconciling setup controller")
 
 	if !upgrade.HasDeleteConfigMap(ctx, r.Client) {
 		return ctrl.Result{}, nil
@@ -37,21 +37,21 @@ func (r *SetupControllerReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 }
 
 func (r *SetupControllerReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	operatorNs, err := cluster.GetOperatorNamespace()
+
+	if err != nil {
+		return fmt.Errorf("failed to get operator namespace: %w", err)
+	}
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&corev1.ConfigMap{}, builder.WithPredicates(r.filterDeleteConfigMap())).
+		For(&corev1.ConfigMap{}, builder.WithPredicates(r.filterDeleteConfigMap(operatorNs))).
 		Complete(r)
 }
 
-func (r *SetupControllerReconciler) filterDeleteConfigMap() predicate.Funcs {
+func (r *SetupControllerReconciler) filterDeleteConfigMap(operatorNs string) predicate.Funcs {
 	filter := func(obj client.Object) bool {
 		cm, ok := obj.(*corev1.ConfigMap)
-		if !ok {
-			return false
-		}
 
-		// Trigger reconcile function when uninstall configmap is created
-		operatorNs, err := cluster.GetOperatorNamespace()
-		if err != nil {
+		if !ok {
 			return false
 		}
 
