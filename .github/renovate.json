@@ -1,79 +1,124 @@
 {
-  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:recommended"
-  ],
-  "branchPrefix": "renovate/",
-  "baseBranches": ["main", "rhoai-2.16"],
-  "ignoreTests": true,
-  "automergeType": "pr",
-  "automerge": true,
-  "enabledManagers": ["dockerfile", "tekton"],
-  "dockerfile": {
-    "schedule": ["at any time"],
-    "enabled": true,
-    "additionalBranchPrefix": "{{baseBranch}}/",
-    "branchPrefix": "konflux/mintmaker/",
+    "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+    "extends": ["config:recommended"],
+    "branchPrefix": "renovate/",
+    "baseBranches": ["main", "rhoai-2.16", "rhoai-2.17"],
     "ignoreTests": true,
     "automergeType": "pr",
     "automerge": true,
+    "enabledManagers": ["dockerfile", "tekton", "rpm"],
     "packageRules": [
       {
-        "matchUpdateTypes": ["major", "minor", "pin", "pinDigest", "patch", "bump"],
-        "enabled": false
-      },
-      {
+        "matchManagers": ["dockerfile"],
+        "matchBaseBranches": ["main", "rhoai-2.16"],
         "matchUpdateTypes": ["digest"],
-        "enabled": true
+        "matchFileNames": ["*Dockerfile.konflux*"],
+        "enabled": true,
+        "ignoreTests": true,
+        "automergeType": "pr",
+        "automerge": true,
+        "groupName": "Dockerfile Digest Updates",
+        "branchPrefix": "renovate/docker-main/",
+        "semanticCommits": "enabled"
       },
       {
-        "matchFileNames": ["*Dockerfile.konflux*"],
-        "enabled": true
-      }
-    ]
-  },
-  "tekton": {
-    "fileMatch": [
-      "\\.yaml$",
-      "\\.yml$"
-    ],
-    "includePaths": [
-      ".tekton/**"
-    ],
-    "packageRules": [
-      {
-        "matchUpdateTypes": ["major", "minor", "pin", "pinDigest", "patch", "bump"],
+        "matchManagers": ["dockerfile"],
+        "matchBaseBranches": ["rhoai-2.17"],
         "enabled": false
       },
       {
-        "matchPackagePatterns": [
-          "^quay.io/redhat-appstudio-tekton-catalog/",
-          "^quay.io/konflux-ci/tekton-catalog/"
-        ],
+        "matchManagers": ["tekton"],
+        "matchBaseBranches": ["rhoai-2.16", "rhoai-2.17"],
         "matchUpdateTypes": ["digest"],
         "enabled": true,
-        "groupName": "Konflux references",
-        "branchPrefix": "konflux/references/",
-        "group": {
-          "branchTopic": "{{{baseBranch}}}",
-          "commitMessageTopic": "{{{groupName}}}"
-        },
-        "commitMessageTopic": "Konflux references",
+        "groupName": "Tekton Updates",
+        "branchPrefix": "renovate/tekton-rhoai-2.16/",
         "semanticCommits": "enabled",
         "prFooter": "To execute skipped test pipelines write comment `/ok-to-test`",
-        "prBodyColumns": [
-          "Package",
-          "Change",
-          "Notes"
-        ],
-        "prBodyDefinitions": {
-          "Notes": "{{#if (or (containsString updateType 'minor') (containsString updateType 'major'))}}:warning:[migration](https://github.com/redhat-appstudio/build-definitions/blob/main/task/{{{replace '^quay.io/(redhat-appstudio-tekton-catalog|konflux-ci/tekton-catalog)/task-' '' packageName}}}/{{{newVersion}}}/MIGRATION.md):warning:{{/if}}"
+        "matchPackageNames": [
+          "/^quay.io/redhat-appstudio-tekton-catalog//",
+          "/^quay.io/konflux-ci/tekton-catalog//"
+        ]
+      },
+      {
+        "matchManagers": ["rpm"],
+        "matchBaseBranches": ["main", "rhoai-2.16],
+        "groupName": "RPM Updates",
+        "commitMessageTopic": "RPM updates",
+        "enabled": true,
+        "schedule": ["at any time"],
+        "branchPrefix": "renovate/rpm/",
+       "semanticCommits": "enabled"
+      }    
+    ],
+    "dockerfile": {
+      "enabled": true,
+      "schedule": ["at any time"],
+      "additionalBranchPrefix": "{{baseBranch}}/",
+      "branchPrefix": "konflux/mintmaker/",
+      "ignoreTests": true,
+      "automergeType": "pr",
+      "automerge": true,
+      "packageRules": [
+        {
+          "matchUpdateTypes": [
+            "major",
+            "minor",
+            "pin",
+            "pinDigest",
+            "patch",
+            "bump"
+          ],
+          "enabled": false
+        }
+      ],
+      "ignorePaths": [
+        "**/Dockerfile",
+        "!**/Dockerfile.konflux*"
+      ],
+      "pinDigests": true
+    },
+    "tekton": {
+      "enabled": true,
+      "schedule": ["at any time"],
+      "fileMatch": ["\\.yaml$", "\\.yml$"],
+      "includePaths": [".tekton/**"],
+      "packageRules": [
+        {
+          "matchUpdateTypes": [
+            "major",
+            "minor",
+            "pin",
+            "pinDigest",
+            "patch",
+            "bump"
+          ],
+          "enabled": false
         },
-        "prBodyTemplate": "{{{header}}}{{{table}}}{{{notes}}}{{{changelogs}}}{{{controls}}}{{{footer}}}",
-        "recreateWhen": "always",
-        "rebaseWhen": "behind-base-branch"
-      }
-    ]
+        {
+          "matchUpdateTypes": ["digest"],
+          "enabled": true,
+          "groupName": "Konflux references",
+          "branchPrefix": "konflux/references/",
+          "semanticCommits": "enabled",
+          "prFooter": "To execute skipped test pipelines write comment `/ok-to-test`",
+          "prBodyColumns": ["Package", "Change", "Notes"],
+          "prBodyDefinitions": {
+            "Notes": "{{#if (or (containsString updateType 'minor') (containsString updateType 'major'))}}:warning:[migration](https://github.com/redhat-appstudio/build-definitions/blob/main/task/{{{replace '^quay.io/(redhat-appstudio-tekton-catalog|konflux-ci/tekton-catalog)/task-' '' packageName}}}/{{{newVersion}}}/MIGRATION.md):warning:{{/if}}"
+          },
+          "prBodyTemplate": "{{{header}}}{{{table}}}{{{notes}}}{{{changelogs}}}{{{controls}}}{{{footer}}}",
+          "recreateWhen": "always",
+          "rebaseWhen": "behind-base-branch",
+          "matchPackageNames": [
+            "/^quay.io/redhat-appstudio-tekton-catalog//",
+            "/^quay.io/konflux-ci/tekton-catalog//"
+          ]
+        }
+      ]
+    },
+    "rpm": {
+    "enabled": true,   
+    "schedule": ["at any time"]
   },
- "prHourlyLimit": 0
-}
+    "prHourlyLimit": 0
+  }
