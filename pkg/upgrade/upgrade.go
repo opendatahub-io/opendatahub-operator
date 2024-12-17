@@ -11,7 +11,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
-	openshiftv1 "github.com/openshift/api/template/v1"
+	templatev1 "github.com/openshift/api/template/v1"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -618,7 +618,7 @@ func cleanupNimIntegration(ctx context.Context, cli client.Client, oldRelease cl
 				desc: "data ConfigMap",
 			},
 			{
-				obj:  &openshiftv1.Template{},
+				obj:  &templatev1.Template{},
 				name: "nvidia-nim-serving-template",
 				desc: "runtime Template",
 			},
