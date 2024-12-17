@@ -311,18 +311,17 @@ func (tc *TrainingOperatorTestCtx) testUpdateTrainingOperatorComponentDisabled()
 		return fmt.Errorf("component TrainingOperator is disabled, should not get the TrainingOperator CR %v", tc.testTrainingOperatorInstance.Name)
 	}
 
-	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-		LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(gvk.TrustyAI.Kind),
-	})
-
+	// Sleep for 20 seconds to allow the operator to reconcile
+	time.Sleep(2 * generalRetryInterval)
+	_, err = tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).Get(tc.testCtx.ctx, trainingoperatorDeploymentName, metav1.GetOptions{})
 	if err != nil {
+		if k8serr.IsNotFound(err) {
+			return nil // correct result: should not find deployment after we disable it already
+		}
 		return fmt.Errorf("error getting component resource after reconcile: %w", err)
 	}
-	if len(appDeployments.Items) != 0 {
-		return fmt.Errorf("component %v is disabled, should not have deployments in namespace %v any more",
-			componentApi.TrainingOperatorKind,
-			tc.testCtx.applicationsNamespace)
-	}
-
-	return nil
+	return fmt.Errorf("component %v is disabled, should not get its deployment %v from NS %v any more",
+		componentApi.TrainingOperatorKind,
+		trainingoperatorDeploymentName,
+		tc.testCtx.applicationsNamespace)
 }
