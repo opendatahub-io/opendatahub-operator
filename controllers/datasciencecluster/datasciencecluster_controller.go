@@ -49,7 +49,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/dependent"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
 
 // DataScienceClusterReconciler reconciles a DataScienceCluster object.
@@ -91,11 +90,6 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	if !instance.ObjectMeta.DeletionTimestamp.IsZero() {
 		log.Info("Finalization DataScienceCluster start deleting instance", "name", instance.Name)
-
-		if upgrade.HasDeleteConfigMap(ctx, r.Client) {
-			return ctrl.Result{Requeue: true}, nil
-		}
-
 		return ctrl.Result{}, nil
 	}
 
