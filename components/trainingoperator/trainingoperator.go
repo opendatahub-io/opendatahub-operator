@@ -15,6 +15,7 @@ import (
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -67,6 +68,26 @@ func (r *TrainingOperator) OverrideManifests(ctx context.Context, _ cluster.Plat
 
 func (r *TrainingOperator) GetComponentName() string {
 	return ComponentName
+}
+
+func (r *TrainingOperator) UpdateStatus(in *status.ComponentsStatus) error {
+	if r.GetManagementState() != operatorv1.Managed {
+		in.TrainingOperator = nil
+		return nil
+	}
+
+	releases, err := status.GetReleaseStatus(deploy.DefaultManifestPath, ComponentName)
+
+	if err != nil {
+		return err
+	}
+
+	in.TrainingOperator = &status.TrainingOperatorStatus{
+		ComponentStatus: status.ComponentStatus{
+			Releases: releases,
+		},
+	}
+	return nil
 }
 
 func (r *TrainingOperator) ReconcileComponent(ctx context.Context, cli client.Client,
