@@ -30,10 +30,10 @@ const (
 func OperatorUninstall(ctx context.Context, cli client.Client, platform cluster.Platform) error {
 	log := logf.FromContext(ctx)
 
-	if deleteError := removeDSC(ctx, cli); deleteError != nil {
-		return deleteError
+	if err := removeDSC(ctx, cli); err != nil {
+		return err
 	}
-	// If DSC doesn't continue deleting DSCI and other resources
+
 	if err := removeDSCInitialization(ctx, cli); err != nil {
 		return err
 	}
@@ -101,7 +101,7 @@ func removeDSCInitialization(ctx context.Context, cli client.Client) error {
 
 	var multiErr *multierror.Error
 	for _, dsciInstance := range instanceList.Items {
-		if err := cli.Delete(ctx, &dsciInstance); !k8serr.IsNotFound(err) { // DeleteAll
+		if err := cli.Delete(ctx, &dsciInstance); !k8serr.IsNotFound(err) {
 			multiErr = multierror.Append(multiErr, err)
 		}
 	}
@@ -112,8 +112,8 @@ func removeDSCInitialization(ctx context.Context, cli client.Client) error {
 func removeDSC(ctx context.Context, cli client.Client) error {
 	instance := &dscv1.DataScienceCluster{}
 
-	if deleteErr := cli.DeleteAllOf(ctx, instance, client.PropagationPolicy(metav1.DeletePropagationForeground)); deleteErr != nil {
-		return fmt.Errorf("failure deleting DSC: %w", deleteErr)
+	if err := cli.DeleteAllOf(ctx, instance, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
+		return fmt.Errorf("failure deleting DSC: %w", err)
 	}
 
 	return nil
