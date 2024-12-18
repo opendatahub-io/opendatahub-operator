@@ -49,16 +49,20 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	// Implement devflags support logic
 	// If dev flags are set, update default manifests path
 	for _, subcomponent := range df.Manifests {
-		if strings.Contains(subcomponent.URI, ComponentName) {
-			// Download modelmeshserving
-			if err := odhdeploy.DownloadManifests(ctx, ComponentName, subcomponent); err != nil {
-				return err
-			}
-			// If overlay is defined, update paths
-			if subcomponent.SourcePath != "" {
-				rr.Manifests[0].SourcePath = subcomponent.SourcePath
-			}
+		if !strings.Contains(subcomponent.URI, ComponentName) && !strings.Contains(subcomponent.URI, LegacyComponentName) {
+			continue
 		}
+
+		// Download modelmeshserving
+		if err := odhdeploy.DownloadManifests(ctx, ComponentName, subcomponent); err != nil {
+			return err
+		}
+		// If overlay is defined, update paths
+		if subcomponent.SourcePath != "" {
+			rr.Manifests[0].SourcePath = subcomponent.SourcePath
+		}
+
+		break
 	}
 
 	return nil

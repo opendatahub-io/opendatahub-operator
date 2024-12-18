@@ -79,7 +79,7 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	}
 
 	for _, subcomponent := range df.Manifests {
-		if !strings.Contains(subcomponent.URI, ComponentName) {
+		if !strings.Contains(subcomponent.URI, ComponentName) && !strings.Contains(subcomponent.URI, LegacyComponentName) {
 			continue
 		}
 
