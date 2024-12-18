@@ -30,7 +30,7 @@ func (r *SetupControllerReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	}
 
 	if err := upgrade.OperatorUninstall(ctx, r.Client, cluster.GetRelease().Name); err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to uninstall setup controller: %w", err)
+		return ctrl.Result{}, fmt.Errorf("operator uninstall failed : %w", err)
 	}
 
 	return ctrl.Result{}, nil
