@@ -24,7 +24,7 @@ import (
 const (
 	RayComponentName = "ray"
 	// value should match whats set in the XValidation below
-	RayInstanceName = "default-ray"
+	RayInstanceName = "default-" + RayComponentName
 	RayKind         = "Ray"
 )
 

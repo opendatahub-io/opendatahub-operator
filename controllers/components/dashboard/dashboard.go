@@ -42,7 +42,7 @@ func (s *componentHandler) Init(platform cluster.Platform) error {
 	mi := defaultManifestInfo(platform)
 
 	if err := odhdeploy.ApplyParams(mi.String(), imagesMap); err != nil {
-		return fmt.Errorf("failed to update images on path %s: %w", manifestPaths[platform], err)
+		return fmt.Errorf("failed to update images on path %s: %w", mi, err)
 	}
 
 	return nil
@@ -72,7 +72,7 @@ func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj cl
 		return errors.New("failed to convert to Dashboard")
 	}
 
-	dsc.Status.InstalledComponents[s.GetName()] = false
+	dsc.Status.InstalledComponents[LegacyComponentNameUpstream] = false
 	dsc.Status.Components.Dashboard.ManagementSpec.ManagementState = s.GetManagementState(dsc)
 	dsc.Status.Components.Dashboard.DashboardCommonStatus = nil
 
@@ -85,7 +85,7 @@ func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj cl
 
 	switch s.GetManagementState(dsc) {
 	case operatorv1.Managed:
-		dsc.Status.InstalledComponents[s.GetName()] = true
+		dsc.Status.InstalledComponents[LegacyComponentNameUpstream] = true
 		dsc.Status.Components.Dashboard.DashboardCommonStatus = c.Status.DashboardCommonStatus.DeepCopy()
 
 		if rc := meta.FindStatusCondition(c.Status.Conditions, status.ConditionTypeReady); rc != nil {

@@ -22,6 +22,7 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
@@ -185,7 +186,7 @@ func (tc *DataSciencePipelinesTestCtx) testOwnerReferences() error {
 
 	// Test DataSciencePipelines resources
 	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-		LabelSelector: labels.ODH.Component(componentApi.DataSciencePipelinesComponentName),
+		LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(gvk.DataSciencePipelines.Kind),
 	})
 	if err != nil {
 		return fmt.Errorf("error listing component deployments %w", err)
@@ -246,7 +247,7 @@ func (tc *DataSciencePipelinesTestCtx) validateDataSciencePipelinesReady() error
 
 func (tc *DataSciencePipelinesTestCtx) testUpdateOnDataSciencePipelinesResources() error {
 	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-		LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(tc.testDataSciencePipelinesInstance.Kind),
+		LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(gvk.DataSciencePipelines.Kind),
 	})
 	if err != nil {
 		return err
@@ -301,7 +302,7 @@ func (tc *DataSciencePipelinesTestCtx) testUpdateDataSciencePipelinesComponentDi
 
 	if tc.testCtx.testDsc.Spec.Components.DataSciencePipelines.ManagementState == operatorv1.Managed {
 		appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-			LabelSelector: labels.ODH.Component(componentApi.DataSciencePipelinesComponentName),
+			LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(gvk.DataSciencePipelines.Kind),
 		})
 		if err != nil {
 			return fmt.Errorf("error getting enabled component %v", componentApi.DataSciencePipelinesComponentName)

@@ -22,6 +22,7 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
@@ -148,7 +149,7 @@ func (tc *RayTestCtx) testOwnerReferences() error {
 
 	// Test Ray resources
 	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-		LabelSelector: labels.ODH.Component(componentApi.RayComponentName),
+		LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(gvk.Ray.Kind),
 	})
 	if err != nil {
 		return fmt.Errorf("error listing component deployments %w", err)
@@ -262,7 +263,7 @@ func (tc *RayTestCtx) testUpdateRayComponentDisabled() error {
 
 	if tc.testCtx.testDsc.Spec.Components.Ray.ManagementState == operatorv1.Managed {
 		appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-			LabelSelector: labels.ODH.Component(componentApi.RayComponentName),
+			LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(gvk.Ray.Kind),
 		})
 		if err != nil {
 			return fmt.Errorf("error getting enabled component %v", componentApi.RayComponentName)

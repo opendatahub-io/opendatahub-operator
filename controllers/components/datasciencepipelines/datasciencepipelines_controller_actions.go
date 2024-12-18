@@ -50,7 +50,7 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 
 	// Verify if existing workflow is deployed by ODH with label
 	// if not then set Argo capability status condition to false
-	odhLabelValue, odhLabelExists := workflowCRD.Labels[labels.ODH.Component(componentApi.DataSciencePipelinesComponentName)]
+	odhLabelValue, odhLabelExists := workflowCRD.Labels[labels.ODH.Component(LegacyComponentName)]
 	if !odhLabelExists || odhLabelValue != "true" {
 		s := dsp.GetStatus()
 		s.Phase = "NotReady"

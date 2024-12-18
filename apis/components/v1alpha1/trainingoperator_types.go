@@ -24,7 +24,7 @@ import (
 const (
 	TrainingOperatorComponentName = "trainingoperator"
 	// value should match whats set in the XValidation below
-	TrainingOperatorInstanceName = "default-trainingoperator"
+	TrainingOperatorInstanceName = "default-" + TrainingOperatorComponentName
 	TrainingOperatorKind         = "TrainingOperator"
 )
 

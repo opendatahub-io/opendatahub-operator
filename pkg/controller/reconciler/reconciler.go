@@ -213,7 +213,7 @@ func (r *Reconciler[T]) apply(ctx context.Context, res client.Object) error {
 	)
 
 	if err != nil {
-		return err
+		return client.IgnoreNotFound(err)
 	}
 
 	return nil

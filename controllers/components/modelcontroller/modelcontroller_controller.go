@@ -30,23 +30,17 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/security"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/updatestatus"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
-
-var serviceAccounts = map[cluster.Platform][]string{
-	cluster.SelfManagedRhoai: {componentApi.ModelControllerComponentName},
-	cluster.ManagedRhoai:     {componentApi.ModelControllerComponentName},
-	cluster.OpenDataHub:      {componentApi.ModelControllerComponentName},
-	cluster.Unknown:          {componentApi.ModelControllerComponentName},
-}
 
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	_, err := reconciler.ReconcilerFor(
@@ -66,15 +60,21 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Owns(&admissionregistrationv1.ValidatingWebhookConfiguration{}).
 		Owns(&templatev1.Template{}).
 		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(resources.NewDeploymentPredicate())).
-		Watches(&extv1.CustomResourceDefinition{}). // for NIM
+		Watches(
+			&extv1.CustomResourceDefinition{},
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.ModelControllerInstanceName)),
+			reconciler.WithPredicates(
+				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True)),
+		).
 		// Add ModelController specific actions
 		WithAction(initialize).
 		WithAction(devFlags). // devFlags triggerd by changes in DSC kserve and ModelMeshServing, also update .status.devflagurl
 		WithAction(security.NewUpdatePodSecurityRoleBindingAction(serviceAccounts)).
 		WithAction(kustomize.NewAction(
 			kustomize.WithCache(),
-			kustomize.WithLabel(labels.ODH.Component(ComponentName), "true"),
-			kustomize.WithLabel(labels.K8SCommon.PartOf, ComponentName),
+			kustomize.WithLabel(labels.ODH.Component(LegacyComponentName), labels.True),
+			kustomize.WithLabel(labels.K8SCommon.PartOf, LegacyComponentName),
 		)).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),

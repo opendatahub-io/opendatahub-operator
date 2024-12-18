@@ -22,6 +22,7 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
@@ -148,7 +149,7 @@ func (tc *TrustyaiTestCtx) testOwnerReferences() error {
 
 	// Test Trustyai resources
 	appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-		LabelSelector: labels.ODH.Component(componentApi.TrustyAIComponentName),
+		LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(gvk.TrustyAI.Kind),
 	})
 	if err != nil {
 		return fmt.Errorf("error listing component deployments %w", err)
@@ -262,7 +263,7 @@ func (tc *TrustyaiTestCtx) testUpdateTrustyaiComponentDisabled() error {
 
 	if tc.testCtx.testDsc.Spec.Components.TrustyAI.ManagementState == operatorv1.Managed {
 		appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-			LabelSelector: labels.ODH.Component(componentApi.TrustyAIComponentName),
+			LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(gvk.TrustyAI.Kind),
 		})
 		if err != nil {
 			return fmt.Errorf("error getting enabled component %v", componentApi.TrustyAIComponentName)

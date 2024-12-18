@@ -144,12 +144,15 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	})
 
 	err = r.Client.ApplyStatus(ctx, instance, client.FieldOwner(fieldOwner), client.ForceOwnership)
-	if err != nil {
+	switch {
+	case err == nil:
+		return ctrl.Result{}, nil
+	case k8serr.IsNotFound(err):
+		return ctrl.Result{}, nil
+	default:
 		r.reportError(ctx, err, instance, "failed to update DataScienceCluster status")
 		return ctrl.Result{}, err
 	}
-
-	return ctrl.Result{}, nil
 }
 
 func (r *DataScienceClusterReconciler) validate(ctx context.Context, _ *dscv1.DataScienceCluster) error {

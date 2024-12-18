@@ -6,6 +6,7 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	componentsApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -13,17 +14,17 @@ import (
 )
 
 const (
-	ComponentName           = "dashboard"
-	ComponentNameUpstream   = ComponentName
-	ComponentNameDownstream = "rhods-dashboard"
+	ComponentName = componentsApi.DashboardComponentName
+
+	// Legacy component names are the name of the component that is assigned to deployments
+	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
+	// deployment to the new component name, so keep it around till we figure out a solution.
+
+	LegacyComponentNameUpstream   = "dashboard"
+	LegacyComponentNameDownstream = "rhods-dashboard"
 )
 
 var (
-	PathUpstream          = odhdeploy.DefaultManifestPath + "/" + ComponentNameUpstream + "/odh"
-	PathDownstream        = odhdeploy.DefaultManifestPath + "/" + ComponentNameUpstream + "/rhoai"
-	PathSelfDownstream    = PathDownstream + "/onprem"
-	PathManagedDownstream = PathDownstream + "/addon"
-
 	adminGroups = map[cluster.Platform]string{
 		cluster.SelfManagedRhoai: "rhods-admins",
 		cluster.ManagedRhoai:     "dedicated-admins",
@@ -45,11 +46,11 @@ var (
 		cluster.Unknown:          "https://odh-dashboard-",
 	}
 
-	manifestPaths = map[cluster.Platform]string{
-		cluster.SelfManagedRhoai: PathSelfDownstream,
-		cluster.ManagedRhoai:     PathManagedDownstream,
-		cluster.OpenDataHub:      PathUpstream,
-		cluster.Unknown:          PathUpstream,
+	overlaysSourcePaths = map[cluster.Platform]string{
+		cluster.SelfManagedRhoai: "/rhoai/onprem",
+		cluster.ManagedRhoai:     "/rhoai/addon",
+		cluster.OpenDataHub:      "/odh",
+		cluster.Unknown:          "/odh",
 	}
 
 	serviceAccounts = map[cluster.Platform][]string{
@@ -66,9 +67,9 @@ var (
 
 func defaultManifestInfo(p cluster.Platform) odhtypes.ManifestInfo {
 	return odhtypes.ManifestInfo{
-		Path:       manifestPaths[p],
-		ContextDir: "",
-		SourcePath: "",
+		Path:       odhdeploy.DefaultManifestPath,
+		ContextDir: ComponentName,
+		SourcePath: overlaysSourcePaths[p],
 	}
 }
 
@@ -88,9 +89,9 @@ func computeKustomizeVariable(ctx context.Context, cli client.Client, platform c
 func computeComponentName() string {
 	release := cluster.GetRelease()
 
-	name := ComponentNameUpstream
+	name := LegacyComponentNameUpstream
 	if release.Name == cluster.SelfManagedRhoai || release.Name == cluster.ManagedRhoai {
-		name = ComponentNameDownstream
+		name = LegacyComponentNameDownstream
 	}
 
 	return name

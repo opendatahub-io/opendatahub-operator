@@ -154,8 +154,8 @@ spec:
             type: object
         type: object
         x-kubernetes-validations:
-        - message: ModelRegistry name must be default-model-registry
-          rule: self.metadata.name == 'default-model-registry'
+        - message: ModelRegistry name must be default-modelregistry
+          rule: self.metadata.name == 'default-modelregistry'
     served: true
     storage: true
     subresources:

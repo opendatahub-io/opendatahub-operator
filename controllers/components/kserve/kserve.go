@@ -26,6 +26,11 @@ const (
 	serverlessOperator       = "serverless-operator"
 	kserveConfigMapName      = "inferenceservice-config"
 	kserveManifestSourcePath = "overlays/odh"
+
+	// LegacyComponentName is the name of the component that is assigned to deployments
+	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
+	// deployment to the new component name, so keep it around till we figure out a solution.
+	LegacyComponentName = "kserve"
 )
 
 type componentHandler struct{}
@@ -75,7 +80,7 @@ func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj cl
 		return errors.New("failed to convert to Kserve")
 	}
 
-	dsc.Status.InstalledComponents[s.GetName()] = false
+	dsc.Status.InstalledComponents[LegacyComponentName] = false
 	dsc.Status.Components.Kserve.ManagementSpec.ManagementState = s.GetManagementState(dsc)
 	dsc.Status.Components.Kserve.KserveCommonStatus = nil
 
@@ -88,7 +93,7 @@ func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj cl
 
 	switch s.GetManagementState(dsc) {
 	case operatorv1.Managed:
-		dsc.Status.InstalledComponents[s.GetName()] = true
+		dsc.Status.InstalledComponents[LegacyComponentName] = true
 		dsc.Status.Components.Kserve.KserveCommonStatus = c.Status.KserveCommonStatus.DeepCopy()
 
 		if rc := meta.FindStatusCondition(c.Status.Conditions, status.ConditionTypeReady); rc != nil {

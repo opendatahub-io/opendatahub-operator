@@ -24,7 +24,7 @@ import (
 const (
 	KueueComponentName = "kueue"
 	// value should match whats set in the XValidation below
-	KueueInstanceName = "default-kueue"
+	KueueInstanceName = "default-" + KueueComponentName
 	KueueKind         = "Kueue"
 )
 

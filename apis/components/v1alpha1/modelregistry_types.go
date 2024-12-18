@@ -22,10 +22,10 @@ import (
 )
 
 const (
-	ModelRegistryComponentName = "model-registry-operator"
+	ModelRegistryComponentName = "modelregistry"
 	// ModelRegistryInstanceName the name of the ModelRegistry instance singleton.
 	// value should match what's set in the XValidation below
-	ModelRegistryInstanceName = "default-model-registry"
+	ModelRegistryInstanceName = "default-" + ModelRegistryComponentName
 	ModelRegistryKind         = "ModelRegistry"
 )
 
@@ -62,7 +62,7 @@ type ModelRegistryStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
-// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-model-registry'",message="ModelRegistry name must be default-model-registry"
+// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-modelregistry'",message="ModelRegistry name must be default-modelregistry"
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
 // +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
 

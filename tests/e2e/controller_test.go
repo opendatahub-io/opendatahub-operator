@@ -40,18 +40,18 @@ var (
 
 	componentsTestSuites = map[string]TestFn{
 		// do not add modelcontroller here, due to dependency, test it separately below
-		"dashboard":             dashboardTestSuite,
-		"ray":                   rayTestSuite,
-		"modelregistry":         modelRegistryTestSuite,
-		"trustyai":              trustyAITestSuite,
-		"kueue":                 kueueTestSuite,
-		"trainingoperator":      trainingoperatorTestSuite,
-		"datasciencepipelienes": dataSciencePipelinesTestSuite,
-		"codeflare":             codeflareTestSuite,
-		"workbenches":           workbenchesTestSuite,
-		"kserve":                kserveTestSuite,
-		"modelmesh":             modelMeshServingTestSuite,
-		"modelcontroller":       modelControllerTestSuite,
+		componentApi.DashboardComponentName:            dashboardTestSuite,
+		componentApi.RayComponentName:                  rayTestSuite,
+		componentApi.ModelRegistryComponentName:        modelRegistryTestSuite,
+		componentApi.TrustyAIComponentName:             trustyAITestSuite,
+		componentApi.KueueComponentName:                kueueTestSuite,
+		componentApi.TrainingOperatorComponentName:     trainingoperatorTestSuite,
+		componentApi.DataSciencePipelinesComponentName: dataSciencePipelinesTestSuite,
+		componentApi.CodeFlareComponentName:            codeflareTestSuite,
+		componentApi.WorkbenchesComponentName:          workbenchesTestSuite,
+		componentApi.KserveComponentName:               kserveTestSuite,
+		componentApi.ModelMeshServingComponentName:     modelMeshServingTestSuite,
+		componentApi.ModelControllerComponentName:      modelControllerTestSuite,
 	}
 )
 

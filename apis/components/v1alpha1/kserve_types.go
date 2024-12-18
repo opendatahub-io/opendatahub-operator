@@ -25,10 +25,9 @@ import (
 )
 
 const (
-	KserveComponentName          = "kserve"
-	ModelControllerComponentName = "odh-model-controller" // shared by kserve and mm
+	KserveComponentName = "kserve"
 	// value should match what's set in the XValidation below
-	KserveInstanceName = "default-kserve"
+	KserveInstanceName = "default-" + KserveComponentName
 	KserveKind         = "Kserve"
 )
 

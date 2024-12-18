@@ -70,7 +70,7 @@ func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj cl
 		return errors.New("failed to convert to DataSciencePipelines")
 	}
 
-	dsc.Status.InstalledComponents[s.GetName()] = false
+	dsc.Status.InstalledComponents[LegacyComponentName] = false
 	dsc.Status.Components.DataSciencePipelines.ManagementSpec.ManagementState = s.GetManagementState(dsc)
 	dsc.Status.Components.DataSciencePipelines.DataSciencePipelinesCommonStatus = nil
 
@@ -83,7 +83,7 @@ func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj cl
 
 	switch s.GetManagementState(dsc) {
 	case operatorv1.Managed:
-		dsc.Status.InstalledComponents[s.GetName()] = true
+		dsc.Status.InstalledComponents[LegacyComponentName] = true
 		dsc.Status.Components.DataSciencePipelines.DataSciencePipelinesCommonStatus = c.Status.DataSciencePipelinesCommonStatus.DeepCopy()
 
 		if rc := meta.FindStatusCondition(c.Status.Conditions, status.ConditionTypeReady); rc != nil {

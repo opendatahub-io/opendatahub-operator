@@ -6,20 +6,32 @@ GITHUB_URL="https://github.com"
 # component: notebook, dsp, kserve, dashbaord, cf/ray/kueue/trainingoperator, trustyai, modelmesh, modelregistry.
 # in the format of "repo-org:repo-name:ref-name:source-folder:target-folder".
 declare -A COMPONENT_MANIFESTS=(
-    ["codeflare"]="opendatahub-io:codeflare-operator:main:config:codeflare"
-    ["ray"]="opendatahub-io:kuberay:dev:ray-operator/config:ray"
-    ["kueue"]="opendatahub-io:kueue:dev:config:kueue"
-    ["data-science-pipelines-operator"]="opendatahub-io:data-science-pipelines-operator:main:config:data-science-pipelines-operator"
+    # dashboard
     ["odh-dashboard"]="opendatahub-io:odh-dashboard:main:manifests:dashboard"
-    ["kf-notebook-controller"]="opendatahub-io:kubeflow:v1.7-branch:components/notebook-controller/config:odh-notebook-controller/kf-notebook-controller"
-    ["odh-notebook-controller"]="opendatahub-io:kubeflow:v1.7-branch:components/odh-notebook-controller/config:odh-notebook-controller/odh-notebook-controller"
-    ["notebooks"]="opendatahub-io:notebooks:main:manifests:notebooks"
-    ["trustyai"]="trustyai-explainability:trustyai-service-operator:main:config:trustyai-service-operator"
-    ["model-mesh"]="opendatahub-io:modelmesh-serving:release-0.12.0-rc0:config:model-mesh"
-    ["odh-model-controller"]="opendatahub-io:odh-model-controller:incubating:config:odh-model-controller"
+    # workbenches
+    ["kf-notebook-controller"]="opendatahub-io:kubeflow:v1.7-branch:components/notebook-controller/config:workbenches/kf-notebook-controller"
+    ["odh-notebook-controller"]="opendatahub-io:kubeflow:v1.7-branch:components/odh-notebook-controller/config:workbenches/odh-notebook-controller"
+    ["notebooks"]="opendatahub-io:notebooks:main:manifests:workbenches/notebooks"
+    # modelmeshserving
+    ["model-mesh"]="opendatahub-io:modelmesh-serving:release-0.12.0-rc0:config:modelmeshserving"
+    # kserve
     ["kserve"]="opendatahub-io:kserve:release-v0.14:config:kserve"
-    ["modelregistry"]="opendatahub-io:model-registry-operator:main:config:model-registry-operator"
+    # kueue
+    ["kueue"]="opendatahub-io:kueue:dev:config:kueue"
+    # codeflare
+    ["codeflare"]="opendatahub-io:codeflare-operator:main:config:codeflare"
+    # ray
+    ["ray"]="opendatahub-io:kuberay:dev:ray-operator/config:ray"
+    # trustyai
+    ["trustyai"]="trustyai-explainability:trustyai-service-operator:main:config:trustyai"
+    # modelregistry
+    ["modelregistry"]="opendatahub-io:model-registry-operator:main:config:modelregistry"
+    # trainingoperator
     ["trainingoperator"]="opendatahub-io:training-operator:dev:manifests:trainingoperator"
+    # datasciencepipelines
+    ["data-science-pipelines-operator"]="opendatahub-io:data-science-pipelines-operator:main:config:datasciencepipelines"
+    # modelcontroller
+    ["odh-model-controller"]="opendatahub-io:odh-model-controller:incubating:config:modelcontroller"
 )
 
 # Allow overwriting repo using flags component=repo

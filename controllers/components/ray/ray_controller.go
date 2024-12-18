@@ -55,15 +55,15 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithEventHandler(
 				handlers.ToNamed(componentApi.RayInstanceName)),
 			reconciler.WithPredicates(
-				component.ForLabel(labels.ODH.Component(ComponentName), labels.True)),
+				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True)),
 		).
 		// Add Ray-specific actions
 		WithAction(initialize).
 		WithAction(devFlags).
 		WithAction(kustomize.NewAction(
 			kustomize.WithCache(),
-			kustomize.WithLabel(labels.ODH.Component(ComponentName), labels.True),
-			kustomize.WithLabel(labels.K8SCommon.PartOf, ComponentName),
+			kustomize.WithLabel(labels.ODH.Component(LegacyComponentName), labels.True),
+			kustomize.WithLabel(labels.K8SCommon.PartOf, LegacyComponentName),
 		)).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),

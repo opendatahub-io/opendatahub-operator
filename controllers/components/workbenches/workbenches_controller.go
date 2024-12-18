@@ -57,7 +57,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithEventHandler(
 				handlers.ToNamed(componentApi.WorkbenchesInstanceName)),
 			reconciler.WithPredicates(
-				component.ForLabel(labels.ODH.Component(ComponentName), labels.True)),
+				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True)),
 		).
 		WithAction(initialize).
 		WithAction(devFlags).
@@ -65,8 +65,8 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(security.NewUpdatePodSecurityRoleBindingAction(serviceAccounts)).
 		WithAction(kustomize.NewAction(
 			kustomize.WithCache(),
-			kustomize.WithLabel(labels.ODH.Component(ComponentName), labels.True),
-			kustomize.WithLabel(labels.K8SCommon.PartOf, ComponentName),
+			kustomize.WithLabel(labels.ODH.Component(LegacyComponentName), labels.True),
+			kustomize.WithLabel(labels.K8SCommon.PartOf, LegacyComponentName),
 		)).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),

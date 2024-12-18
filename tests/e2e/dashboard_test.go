@@ -18,6 +18,7 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -219,9 +220,11 @@ func (d *DashboardTestCtx) validateDashboardInstance(t *testing.T) {
 		d.List(gvk.DataScienceCluster),
 	).Should(And(
 		HaveLen(1),
-		HaveEach(
+		HaveEach(And(
 			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.DashboardComponentName, metav1.ConditionTrue),
-		),
+			jq.Match(`.status.installedComponents."%s" == true`, dashboard.LegacyComponentNameUpstream),
+			jq.Match(`.status.components.%s.managementState == "%s"`, componentApi.DashboardComponentName, operatorv1.Managed),
+		)),
 	))
 }
 
