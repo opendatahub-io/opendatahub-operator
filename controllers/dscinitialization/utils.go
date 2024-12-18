@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"time"
 
-	operatorv1 "github.com/openshift/api/operator/v1"
 	userv1 "github.com/openshift/api/user/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -22,6 +21,7 @@ import (
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
@@ -72,7 +72,7 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 			return err
 		}
 		// Patch Application Namespace if it exists
-	} else if dscInit.Spec.Monitoring.ManagementState == operatorv1.Managed {
+	} else if common.IsMonitoringEnabled(dscInit.Spec.Monitoring) {
 		log.Info("Patching application namespace for Managed cluster", "name", name)
 		labelPatch := `{"metadata":{"labels":{"openshift.io/cluster-monitoring":"true","pod-security.kubernetes.io/enforce":"baseline","opendatahub.io/generated-namespace": "true"}}}`
 		err = r.Patch(ctx, foundNamespace, client.RawPatch(types.MergePatchType,
@@ -82,7 +82,7 @@ func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, ds
 		}
 	}
 	// Create Monitoring Namespace if it is enabled and not exists
-	if dscInit.Spec.Monitoring.ManagementState == operatorv1.Managed {
+	if common.IsMonitoringEnabled(dscInit.Spec.Monitoring) {
 		foundMonitoringNamespace := &corev1.Namespace{}
 		monitoringName := dscInit.Spec.Monitoring.Namespace
 		err := r.Get(ctx, client.ObjectKey{Name: monitoringName}, foundMonitoringNamespace)

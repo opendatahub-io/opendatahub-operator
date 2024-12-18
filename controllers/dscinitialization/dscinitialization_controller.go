@@ -22,7 +22,6 @@ import (
 	"path/filepath"
 	"reflect"
 
-	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -47,6 +46,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/trustedcabundle"
@@ -193,7 +193,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	switch req.Name {
 	case "prometheus": // prometheus configmap
-		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == cluster.ManagedRhoai {
+		if common.IsMonitoringEnabled(instance.Spec.Monitoring) && platform == cluster.ManagedRhoai {
 			log.Info("Monitoring enabled to restart deployment", "cluster", "Managed Service Mode")
 			err := r.configureManagedMonitoring(ctx, instance, "updates")
 			if err != nil {
@@ -203,7 +203,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 		return ctrl.Result{}, nil
 	case "addon-managed-odh-parameters":
-		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == cluster.ManagedRhoai {
+		if common.IsMonitoringEnabled(instance.Spec.Monitoring) && platform == cluster.ManagedRhoai {
 			log.Info("Monitoring enabled when notification updated", "cluster", "Managed Service Mode")
 			err := r.configureManagedMonitoring(ctx, instance, "updates")
 			if err != nil {
@@ -213,7 +213,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 		return ctrl.Result{}, nil
 	case "backup": // revert back to the original prometheus.yml
-		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == cluster.ManagedRhoai {
+		if common.IsMonitoringEnabled(instance.Spec.Monitoring) && platform == cluster.ManagedRhoai {
 			log.Info("Monitoring enabled to restore back", "cluster", "Managed Service Mode")
 			err := r.configureManagedMonitoring(ctx, instance, "revertbackup")
 			if err != nil {
@@ -239,7 +239,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 					return reconcile.Result{}, err
 				}
 			}
-			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
+			if common.IsMonitoringEnabled(instance.Spec.Monitoring) {
 				log.Info("Monitoring enabled, won't apply changes", "cluster", "Self-Managed RHODS Mode")
 				err = r.configureCommonMonitoring(ctx, instance)
 				if err != nil {
@@ -255,7 +255,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 				return reconcile.Result{}, err
 			}
-			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
+			if common.IsMonitoringEnabled(instance.Spec.Monitoring) {
 				log.Info("Monitoring enabled in initialization stage", "cluster", "Managed Service Mode")
 				err := r.configureManagedMonitoring(ctx, instance, "init")
 				if err != nil {
@@ -276,7 +276,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 					return reconcile.Result{}, err
 				}
 			}
-			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
+			if common.IsMonitoringEnabled(instance.Spec.Monitoring) {
 				log.Info("Monitoring enabled, won't apply changes", "cluster", "ODH Mode")
 			}
 		}

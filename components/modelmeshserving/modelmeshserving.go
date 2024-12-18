@@ -18,6 +18,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
@@ -110,7 +111,7 @@ func (m *ModelMeshServing) ReconcileComponent(ctx context.Context,
 ) error {
 	l := logf.FromContext(ctx)
 	enabled := m.GetManagementState() == operatorv1.Managed
-	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
+	monitoringEnabled := common.IsMonitoringEnabled(dscispec.Monitoring)
 
 	// Update Default rolebinding
 	if enabled {
