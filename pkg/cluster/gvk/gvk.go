@@ -143,9 +143,9 @@ var (
 	}
 
 	Kueue = schema.GroupVersionKind{
-		Group:   "components.platform.opendatahub.io",
-		Version: "v1alpha1",
-		Kind:    "Kueue",
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.KueueKind,
 	}
 
 	CodeFlare = schema.GroupVersionKind{
