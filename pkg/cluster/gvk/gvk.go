@@ -130,6 +130,12 @@ var (
 		Kind:    componentApi.ModelMeshServingKind,
 	}
 
+	ModelController = schema.GroupVersionKind{
+		Group:   "components.opendatahub.io",
+		Version: "v1",
+		Kind:    "ModelController",
+	}
+
 	DataSciencePipelines = schema.GroupVersionKind{
 		Group:   componentApi.GroupVersion.Group,
 		Version: componentApi.GroupVersion.Version,
