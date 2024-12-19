@@ -260,28 +260,23 @@ func (tc *WorkbenchesTestCtx) testUpdateOnWorkbenchesResources() error {
 }
 
 func (tc *WorkbenchesTestCtx) testUpdateWorkbenchesComponentDisabled() error {
-	// Test Updating workbenches to be disabled
-	var workbenchesDeploymentName string
+	if tc.testCtx.testDsc.Spec.Components.Workbenches.ManagementState != operatorv1.Managed {
+		return errors.New("the Workbenches spec should be in 'enabled: true' state in order to perform test")
+	}
 
-	if tc.testCtx.testDsc.Spec.Components.Workbenches.ManagementState == operatorv1.Managed {
-		appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-			LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(gvk.Workbenches.Kind),
-		})
-		if err != nil {
-			return fmt.Errorf("error getting enabled component %v", componentApi.WorkbenchesComponentName)
+	deployments, err := tc.testCtx.getComponentDeployments(gvk.Workbenches)
+	if err != nil {
+		return fmt.Errorf("error getting enabled component %s", componentApi.WorkbenchesComponentName)
+	}
+
+	for _, d := range deployments {
+		if d.Status.ReadyReplicas == 0 {
+			return fmt.Errorf("component %s deployment %sis not ready", d.Name, componentApi.WorkbenchesComponentName)
 		}
-		if len(appDeployments.Items) > 0 {
-			workbenchesDeploymentName = appDeployments.Items[0].Name
-			if appDeployments.Items[0].Status.ReadyReplicas == 0 {
-				return fmt.Errorf("error getting enabled component: %s its deployment 'ReadyReplicas'", workbenchesDeploymentName)
-			}
-		}
-	} else {
-		return errors.New("workbenches spec should be in 'enabled: true' state in order to perform test")
 	}
 
 	// Disable component Workbenches
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		// refresh the instance in case it was updated during the reconcile
 		err := tc.testCtx.customClient.Get(tc.testCtx.ctx, types.NamespacedName{Name: tc.testCtx.testDsc.Name}, tc.testCtx.testDsc)
 		if err != nil {
@@ -315,17 +310,16 @@ func (tc *WorkbenchesTestCtx) testUpdateWorkbenchesComponentDisabled() error {
 		return fmt.Errorf("component %v is disabled, should not get the Workbenches CR %v", tc.testWorkbenchesInstance.Name, tc.testWorkbenchesInstance.Name)
 	}
 
-	// Sleep for 20 seconds to allow the operator to reconcile
-	time.Sleep(2 * generalRetryInterval)
-	_, err = tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).Get(tc.testCtx.ctx, workbenchesDeploymentName, metav1.GetOptions{})
+	deployments, err = tc.testCtx.getComponentDeployments(gvk.Workbenches)
 	if err != nil {
-		if k8serr.IsNotFound(err) {
-			return nil // correct result: should not find deployment after we disable it already
-		}
-		return fmt.Errorf("error getting component resource after reconcile: %w", err)
+		return fmt.Errorf("error listing deployments: %w", err)
 	}
-	return fmt.Errorf("component %v is disabled, should not get its deployment %v from NS %v any more",
-		componentApi.WorkbenchesKind,
-		workbenchesDeploymentName,
-		tc.testCtx.applicationsNamespace)
+
+	if len(deployments) != 0 {
+		return fmt.Errorf("component %v is disabled, should not have deployments in NS %v any more",
+			gvk.Workbenches.Kind,
+			tc.testCtx.applicationsNamespace)
+	}
+
+	return nil
 }

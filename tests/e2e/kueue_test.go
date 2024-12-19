@@ -259,28 +259,23 @@ func (tc *KueueTestCtx) testUpdateOnKueueResources() error {
 }
 
 func (tc *KueueTestCtx) testUpdateKueueComponentDisabled() error {
-	// Test Updating Kueue to be disabled
-	var kueueDeploymentName string
+	if tc.testCtx.testDsc.Spec.Components.Kueue.ManagementState != operatorv1.Managed {
+		return errors.New("the Kueue spec should be in 'enabled: true' state in order to perform test")
+	}
 
-	if tc.testCtx.testDsc.Spec.Components.Kueue.ManagementState == operatorv1.Managed {
-		appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-			LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(gvk.Kueue.Kind),
-		})
-		if err != nil {
-			return fmt.Errorf("error getting enabled component %v", componentApi.KueueComponentName)
+	deployments, err := tc.testCtx.getComponentDeployments(gvk.Kueue)
+	if err != nil {
+		return fmt.Errorf("error getting enabled component %s", componentApi.KueueComponentName)
+	}
+
+	for _, d := range deployments {
+		if d.Status.ReadyReplicas == 0 {
+			return fmt.Errorf("component %s deployment %sis not ready", d.Name, componentApi.KueueComponentName)
 		}
-		if len(appDeployments.Items) > 0 {
-			kueueDeploymentName = appDeployments.Items[0].Name
-			if appDeployments.Items[0].Status.ReadyReplicas == 0 {
-				return fmt.Errorf("error getting enabled component: %s its deployment 'ReadyReplicas'", kueueDeploymentName)
-			}
-		}
-	} else {
-		return errors.New("kueue spec should be in 'enabled: true' state in order to perform test")
 	}
 
 	// Disable component Kueue
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		// refresh DSC instance in case it was updated during the reconcile
 		err := tc.testCtx.customClient.Get(tc.testCtx.ctx, types.NamespacedName{Name: tc.testCtx.testDsc.Name}, tc.testCtx.testDsc)
 		if err != nil {
@@ -312,17 +307,16 @@ func (tc *KueueTestCtx) testUpdateKueueComponentDisabled() error {
 		return fmt.Errorf("component kueue is disabled, should not get the Kueue CR %v", tc.testKueueInstance.Name)
 	}
 
-	// Sleep for 20 seconds to allow the operator to reconcile
-	time.Sleep(2 * generalRetryInterval)
-	_, err = tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).Get(tc.testCtx.ctx, kueueDeploymentName, metav1.GetOptions{})
+	deployments, err = tc.testCtx.getComponentDeployments(gvk.Kueue)
 	if err != nil {
-		if k8serr.IsNotFound(err) {
-			return nil // correct result: should not find deployment after we disable it already
-		}
-		return fmt.Errorf("error getting component resource after reconcile: %w", err)
+		return fmt.Errorf("error listing deployments: %w", err)
 	}
-	return fmt.Errorf("component %v is disabled, should not get its deployment %v from NS %v any more",
-		componentApi.KueueKind,
-		kueueDeploymentName,
-		tc.testCtx.applicationsNamespace)
+
+	if len(deployments) != 0 {
+		return fmt.Errorf("component %v is disabled, should not have deployments in NS %v any more",
+			gvk.Kueue.Kind,
+			tc.testCtx.applicationsNamespace)
+	}
+
+	return nil
 }

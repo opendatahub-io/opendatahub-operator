@@ -298,29 +298,23 @@ func (tc *DataSciencePipelinesTestCtx) testUpdateOnDataSciencePipelinesResources
 }
 
 func (tc *DataSciencePipelinesTestCtx) testUpdateDataSciencePipelinesComponentDisabled() error {
-	// Test Updating DSP to be disabled
-	var dspDeploymentName string
+	if tc.testCtx.testDsc.Spec.Components.DataSciencePipelines.ManagementState != operatorv1.Managed {
+		return errors.New("the DataSciencePipelines spec should be in 'enabled: true' state in order to perform test")
+	}
 
-	if tc.testCtx.testDsc.Spec.Components.DataSciencePipelines.ManagementState == operatorv1.Managed {
-		appDeployments, err := tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).List(tc.testCtx.ctx, metav1.ListOptions{
-			LabelSelector: labels.PlatformPartOf + "=" + strings.ToLower(gvk.DataSciencePipelines.Kind),
-		})
-		if err != nil {
-			return fmt.Errorf("error getting enabled component %v", componentApi.DataSciencePipelinesComponentName)
-		}
+	deployments, err := tc.testCtx.getComponentDeployments(gvk.DataSciencePipelines)
+	if err != nil {
+		return fmt.Errorf("error getting enabled component %s", componentApi.DataSciencePipelinesComponentName)
+	}
 
-		if len(appDeployments.Items) > 0 {
-			dspDeploymentName = appDeployments.Items[0].Name
-			if appDeployments.Items[0].Status.ReadyReplicas == 0 {
-				return fmt.Errorf("error getting enabled component: %s its deployment 'ReadyReplicas'", dspDeploymentName)
-			}
+	for _, d := range deployments {
+		if d.Status.ReadyReplicas == 0 {
+			return fmt.Errorf("component %s deployment %sis not ready", d.Name, componentApi.DataSciencePipelinesComponentName)
 		}
-	} else {
-		return errors.New("datasciencepipelines spec should be in 'enabled: true' state in order to perform test")
 	}
 
 	// Disable component DataSciencePipelines
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		// refresh DSC instance in case it was updated during the reconcile
 		err := tc.testCtx.customClient.Get(tc.testCtx.ctx, types.NamespacedName{Name: tc.testCtx.testDsc.Name}, tc.testCtx.testDsc)
 		if err != nil {
@@ -354,17 +348,16 @@ func (tc *DataSciencePipelinesTestCtx) testUpdateDataSciencePipelinesComponentDi
 		return fmt.Errorf("component datasciencepipelines is disabled, should not get the DataSciencePipelines CR %v", tc.testDataSciencePipelinesInstance.Name)
 	}
 
-	// Sleep for 20 seconds to allow the operator to reconcile
-	time.Sleep(2 * generalRetryInterval)
-	_, err = tc.testCtx.kubeClient.AppsV1().Deployments(tc.testCtx.applicationsNamespace).Get(tc.testCtx.ctx, dspDeploymentName, metav1.GetOptions{})
+	deployments, err = tc.testCtx.getComponentDeployments(gvk.DataSciencePipelines)
 	if err != nil {
-		if k8serr.IsNotFound(err) {
-			return nil // correct result: should not find deployment after we disable it already
-		}
-		return fmt.Errorf("error getting component resource after reconcile: %w", err)
+		return fmt.Errorf("error listing deployments: %w", err)
 	}
-	return fmt.Errorf("component %v is disabled, should not get its deployment %v from NS %v any more",
-		componentApi.DataSciencePipelinesKind,
-		dspDeploymentName,
-		tc.testCtx.applicationsNamespace)
+
+	if len(deployments) != 0 {
+		return fmt.Errorf("component %v is disabled, should not have deployments in NS %v any more",
+			gvk.DataSciencePipelines.Kind,
+			tc.testCtx.applicationsNamespace)
+	}
+
+	return nil
 }
