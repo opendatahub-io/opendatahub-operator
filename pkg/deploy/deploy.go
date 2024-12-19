@@ -133,7 +133,7 @@ func unpackTarFromReader(reader io.Reader, basePath, componentName, contextDir s
 }
 
 // resolveTargetPath computes the target file path based on the tar header and context directory.
-func resolveTargetPath(headerName, basePath, contextDir, componentName string) (string, error) {
+func resolveTargetPath(headerName, basePath, componentName, contextDir string) (string, error) {
 	componentFiles := strings.Split(headerName, "/")
 	componentManifestPath := filepath.Join(componentFiles[0], contextDir)
 
