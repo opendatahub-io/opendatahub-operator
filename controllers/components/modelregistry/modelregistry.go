@@ -77,7 +77,7 @@ func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj cl
 	dsc.Status.Components.ModelRegistry.ModelRegistryCommonStatus = nil
 
 	nc := conditionsv1.Condition{
-		Type:    conditionsv1.ConditionType(s.GetName() + status.ReadySuffix),
+		Type:    ReadyConditionType,
 		Status:  corev1.ConditionFalse,
 		Reason:  "Unknown",
 		Message: "Not Available",

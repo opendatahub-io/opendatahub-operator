@@ -4,17 +4,21 @@ import (
 	"context"
 	"fmt"
 
+	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	componentsApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 const (
-	ComponentName = componentsApi.DashboardComponentName
+	ComponentName = componentApi.DashboardComponentName
+
+	ReadyConditionType = conditionsv1.ConditionType(componentApi.DashboardKind + status.ReadySuffix)
 
 	// Legacy component names are the name of the component that is assigned to deployments
 	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
