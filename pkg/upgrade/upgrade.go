@@ -218,7 +218,7 @@ func CleanupExistingResource(ctx context.Context,
 	oldReleaseVersion cluster.Release,
 ) error {
 	var multiErr *multierror.Error
-	// Special Handling of cleanup of deprecated model monitoring stack
+	// Special Handling of cleanup of deprecated model monitoring stack on managed
 	if platform == cluster.ManagedRhoai {
 		deprecatedDeployments := []string{"rhods-prometheus-operator"}
 		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedDeployments, &appsv1.DeploymentList{}))
@@ -247,9 +247,20 @@ func CleanupExistingResource(ctx context.Context,
 		deprecatedServicemonitors := []string{"modelmesh-federated-metrics"}
 		multiErr = multierror.Append(multiErr, deleteDeprecatedServiceMonitors(ctx, cli, dscMonitoringNamespace, deprecatedServicemonitors))
 	}
+	// Special Handling of cleanup of deprecated SRE monitoring stack on self-managed
+	if platform == cluster.SelfManagedRhoai {
+		deprecatedOperatorSM := []string{"rhods-monitor-federation"}
+		multiErr = multierror.Append(multiErr, deleteDeprecatedServiceMonitors(ctx, cli, dscMonitoringNamespace, deprecatedOperatorSM))
+
+		deprecatedRolebindings := []string{"rhods-prometheus-cluster-monitoring-viewer-binding", "redhat-ods-monitoring"}
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedRolebindings, &rbacv1.RoleBindingList{}))
+
+		deprecatedRroles := []string{"redhat-ods-monitoring"}
+		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedRroles, &rbacv1.RoleList{}))
+	}
 	// common logic for both self-managed and managed
-	deprecatedOperatorSM := []string{"rhods-monitor-federation2"}
-	multiErr = multierror.Append(multiErr, deleteDeprecatedServiceMonitors(ctx, cli, dscMonitoringNamespace, deprecatedOperatorSM))
+	deprecatedOperatorSM2 := []string{"rhods-monitor-federation2"}
+	multiErr = multierror.Append(multiErr, deleteDeprecatedServiceMonitors(ctx, cli, dscMonitoringNamespace, deprecatedOperatorSM2))
 
 	// Remove deprecated opendatahub namespace(previously owned by kuberay and Kueue)
 	multiErr = multierror.Append(multiErr, deleteDeprecatedNamespace(ctx, cli, "opendatahub"))
