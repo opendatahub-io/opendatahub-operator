@@ -1,0 +1,31 @@
+# permissions for end users to edit auths.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: auth-editor-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: opendatahub-operator
+    app.kubernetes.io/part-of: opendatahub-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: auth-editor-role
+rules:
+- apiGroups:
+  - services.opendatahub.io
+  resources:
+  - auths
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - services.opendatahub.io
+  resources:
+  - auths/status
+  verbs:
+  - get

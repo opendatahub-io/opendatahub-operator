@@ -1,0 +1,20 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: admingroupcluster-role
+rules:
+- apiGroups:
+  - services.platform.opendatahub.io
+  resources:
+  - auths
+  verbs:
+  - get
+  - list
+  - watch
+  - patch
+- apiGroups:
+  - services.platform.opendatahub.io
+  resources:
+  - auths/status
+  verbs:
+  - get

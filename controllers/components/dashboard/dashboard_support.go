@@ -100,3 +100,7 @@ func computeComponentName() string {
 
 	return name
 }
+
+func GetAdminGroup() string {
+	return adminGroups[cluster.GetRelease().Name]
+}
