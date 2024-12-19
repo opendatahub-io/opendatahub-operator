@@ -221,7 +221,7 @@ func (d *DashboardTestCtx) validateDashboardInstance(t *testing.T) {
 	).Should(And(
 		HaveLen(1),
 		HaveEach(And(
-			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.DashboardComponentName, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, dashboard.ReadyConditionType, metav1.ConditionTrue),
 			jq.Match(`.status.installedComponents."%s" == true`, dashboard.LegacyComponentNameUpstream),
 			jq.Match(`.status.components.%s.managementState == "%s"`, componentApi.DashboardComponentName, operatorv1.Managed),
 		)),

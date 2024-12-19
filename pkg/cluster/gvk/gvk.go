@@ -6,6 +6,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 )
 
 var (
@@ -105,75 +107,75 @@ var (
 	}
 
 	Dashboard = schema.GroupVersionKind{
-		Group:   "components.platform.opendatahub.io",
-		Version: "v1alpha1",
-		Kind:    "Dashboard",
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.DashboardKind,
 	}
 
 	Workbenches = schema.GroupVersionKind{
-		Group:   "components.platform.opendatahub.io",
-		Version: "v1alpha1",
-		Kind:    "Workbenches",
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.WorkbenchesKind,
 	}
 
 	ModelController = schema.GroupVersionKind{
-		Group:   "components.platform.opendatahub.io",
-		Version: "v1alpha1",
-		Kind:    "ModelController",
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.ModelControllerKind,
 	}
 
 	ModelMeshServing = schema.GroupVersionKind{
-		Group:   "components.platform.opendatahub.io",
-		Version: "v1alpha1",
-		Kind:    "ModelMeshServing",
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.ModelMeshServingKind,
 	}
 
 	DataSciencePipelines = schema.GroupVersionKind{
-		Group:   "components.platform.opendatahub.io",
-		Version: "v1alpha1",
-		Kind:    "DataSciencePipelines",
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.DataSciencePipelinesKind,
 	}
 
 	Kserve = schema.GroupVersionKind{
-		Group:   "components.platform.opendatahub.io",
-		Version: "v1alpha1",
-		Kind:    "Kserve",
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.KserveKind,
 	}
 
 	Kueue = schema.GroupVersionKind{
-		Group:   "components.platform.opendatahub.io",
-		Version: "v1alpha1",
-		Kind:    "Kueue",
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.KueueKind,
 	}
 
 	CodeFlare = schema.GroupVersionKind{
-		Group:   "components.platform.opendatahub.io",
-		Version: "v1alpha1",
-		Kind:    "CodeFlare",
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.CodeFlareKind,
 	}
 
 	Ray = schema.GroupVersionKind{
-		Group:   "components.platform.opendatahub.io",
-		Version: "v1alpha1",
-		Kind:    "Ray",
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.RayKind,
 	}
 
 	TrustyAI = schema.GroupVersionKind{
-		Group:   "components.platform.opendatahub.io",
-		Version: "v1alpha1",
-		Kind:    "TrustyAI",
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.TrustyAIKind,
 	}
 
 	ModelRegistry = schema.GroupVersionKind{
-		Group:   "components.platform.opendatahub.io",
-		Version: "v1alpha1",
-		Kind:    "ModelRegistry",
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.ModelRegistryKind,
 	}
 
 	TrainingOperator = schema.GroupVersionKind{
-		Group:   "components.platform.opendatahub.io",
-		Version: "v1alpha1",
-		Kind:    "TrainingOperator",
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.TrainingOperatorKind,
 	}
 
 	CustomResourceDefinition = schema.GroupVersionKind{

@@ -22,6 +22,7 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
@@ -167,13 +168,13 @@ func (tc *TrustyaiTestCtx) testOwnerReferences() error {
 func (tc *TrustyaiTestCtx) validateTrustyaiReady() error {
 	err := wait.PollUntilContextTimeout(tc.testCtx.ctx, generalRetryInterval, componentReadyTimeout, true, func(ctx context.Context) (bool, error) {
 		key := types.NamespacedName{Name: tc.testTrustyaiInstance.Name}
-		trustyai := &componentApi.TrustyAI{}
+		tai := &componentApi.TrustyAI{}
 
-		err := tc.testCtx.customClient.Get(ctx, key, trustyai)
+		err := tc.testCtx.customClient.Get(ctx, key, tai)
 		if err != nil {
 			return false, err
 		}
-		return trustyai.Status.Phase == readyStatus, nil
+		return tai.Status.Phase == readyStatus, nil
 	})
 
 	if err != nil {
@@ -192,7 +193,7 @@ func (tc *TrustyaiTestCtx) validateTrustyaiReady() error {
 		}
 
 		for _, c := range list.Items[0].Status.Conditions {
-			if c.Type == componentApi.TrustyAIComponentName+"Ready" {
+			if c.Type == trustyai.ReadyConditionType {
 				return c.Status == corev1.ConditionTrue, nil
 			}
 		}
@@ -304,8 +305,8 @@ func (tc *TrustyaiTestCtx) testUpdateTrustyaiComponentDisabled() error {
 
 	if err = tc.testCtx.wait(func(ctx context.Context) (bool, error) {
 		// Verify trustyai CR is deleted
-		trustyai := &componentApi.TrustyAI{}
-		err = tc.testCtx.customClient.Get(ctx, client.ObjectKey{Name: tc.testTrustyaiInstance.Name}, trustyai)
+		tai := &componentApi.TrustyAI{}
+		err = tc.testCtx.customClient.Get(ctx, client.ObjectKey{Name: tc.testTrustyaiInstance.Name}, tai)
 		return k8serr.IsNotFound(err), nil
 	}); err != nil {
 		return fmt.Errorf("component trustyai is disabled, should not get the Trustyai CR %v", tc.testTrustyaiInstance.Name)
