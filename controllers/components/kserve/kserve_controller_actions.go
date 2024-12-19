@@ -115,15 +115,19 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	kSourcePath := kserveManifestSourcePath
 
 	for _, subcomponent := range df.Manifests {
-		if strings.Contains(subcomponent.URI, componentName) {
-			if err := deploy.DownloadManifests(ctx, componentName, subcomponent); err != nil {
-				return err
-			}
-
-			if subcomponent.SourcePath != "" {
-				kSourcePath = subcomponent.SourcePath
-			}
+		if !strings.Contains(subcomponent.URI, componentName) && !strings.Contains(subcomponent.URI, LegacyComponentName) {
+			continue
 		}
+
+		if err := deploy.DownloadManifests(ctx, componentName, subcomponent); err != nil {
+			return err
+		}
+
+		if subcomponent.SourcePath != "" {
+			kSourcePath = subcomponent.SourcePath
+		}
+
+		break
 	}
 
 	rr.Manifests = []odhtypes.ManifestInfo{
