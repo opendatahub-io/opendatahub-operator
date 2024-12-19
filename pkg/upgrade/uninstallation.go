@@ -8,10 +8,12 @@ import (
 	"github.com/hashicorp/go-multierror"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -27,6 +29,11 @@ const (
 // This includes DSCI, namespace created by operator (but not workbench or MR's), subscription and CSV.
 func OperatorUninstall(ctx context.Context, cli client.Client, platform cluster.Platform) error {
 	log := logf.FromContext(ctx)
+
+	if err := removeDSC(ctx, cli); err != nil {
+		return err
+	}
+
 	if err := removeDSCInitialization(ctx, cli); err != nil {
 		return err
 	}
@@ -100,6 +107,16 @@ func removeDSCInitialization(ctx context.Context, cli client.Client) error {
 	}
 
 	return multiErr.ErrorOrNil()
+}
+
+func removeDSC(ctx context.Context, cli client.Client) error {
+	instance := &dscv1.DataScienceCluster{}
+
+	if err := cli.DeleteAllOf(ctx, instance, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
+		return fmt.Errorf("failure deleting DSC: %w", err)
+	}
+
+	return nil
 }
 
 // HasDeleteConfigMap returns true if delete configMap is added to the operator namespace by managed-tenants repo.
