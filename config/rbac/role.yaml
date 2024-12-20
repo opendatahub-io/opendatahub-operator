@@ -846,6 +846,7 @@ rules:
 - apiGroups:
   - services.platform.opendatahub.io
   resources:
+  - auths
   - monitorings
   verbs:
   - create
@@ -858,12 +859,14 @@ rules:
 - apiGroups:
   - services.platform.opendatahub.io
   resources:
+  - auths/finalizers
   - monitorings/finalizers
   verbs:
   - update
 - apiGroups:
   - services.platform.opendatahub.io
   resources:
+  - auths/status
   - monitorings/status
   verbs:
   - get

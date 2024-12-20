@@ -69,6 +69,7 @@ import (
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/services/auth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/setupcontroller"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/webhook"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -345,6 +346,10 @@ func main() { //nolint:funlen,maintidx
 
 	// Initialize component reconcilers
 	if err = CreateComponentReconcilers(ctx, mgr); err != nil {
+		os.Exit(1)
+	}
+
+	if err := auth.NewServiceReconciler(ctx, mgr); err != nil {
 		os.Exit(1)
 	}
 
