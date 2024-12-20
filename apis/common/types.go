@@ -81,5 +81,4 @@ type WithDevFlags interface {
 type PlatformObject interface {
 	client.Object
 	WithStatus
-	WithDevFlags
 }

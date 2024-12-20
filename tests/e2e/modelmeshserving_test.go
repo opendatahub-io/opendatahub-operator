@@ -17,6 +17,8 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelcontroller"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelmeshserving"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -204,8 +206,8 @@ func (tc *ModelMeshServingTestCtx) validateModelMeshServingInstance(t *testing.T
 	).Should(And(
 		HaveLen(1),
 		HaveEach(And(
-			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.ModelMeshServingComponentName, metav1.ConditionTrue),
-			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.ModelControllerComponentName, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, modelmeshserving.ReadyConditionType, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, modelcontroller.ReadyConditionType, metav1.ConditionTrue),
 		)),
 	))
 
@@ -337,7 +339,7 @@ func (tc *ModelMeshServingTestCtx) validateModelMeshServingDisabled(t *testing.T
 	).Should(And(
 		HaveLen(1),
 		HaveEach(
-			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.ModelMeshServingComponentName, metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, modelmeshserving.ReadyConditionType, metav1.ConditionFalse),
 		),
 	))
 }

@@ -28,7 +28,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -36,9 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/event"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
@@ -52,7 +49,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/dependent"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
 
 // DataScienceClusterReconciler reconciles a DataScienceCluster object.
@@ -76,53 +72,24 @@ const (
 func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx).WithName("DataScienceCluster")
 	log.Info("Reconciling DataScienceCluster resources", "Request.Name", req.Name)
-
 	instance := &dscv1.DataScienceCluster{}
 	err := r.Client.Get(ctx, req.NamespacedName, instance)
 
 	switch {
 	case k8serr.IsNotFound(err):
-		// Request object not found, could have been deleted after reconcile request.
-		// Owned objects are automatically garbage collected.
-		// For additional cleanup logic use operatorUninstall function.
-		// Return and don't requeue
-		if upgrade.HasDeleteConfigMap(ctx, r.Client) {
-			if uninstallErr := upgrade.OperatorUninstall(ctx, r.Client, cluster.GetRelease().Name); uninstallErr != nil {
-				return ctrl.Result{}, fmt.Errorf("error while operator uninstall: %w", uninstallErr)
-			}
-		}
-
 		return ctrl.Result{}, nil
 	case err != nil:
 		return ctrl.Result{}, err
 	}
 
-	// We don't need finalizer anymore, remove it if present to handle the
-	// upgrade case
 	if controllerutil.RemoveFinalizer(instance, finalizerName) {
 		if err := r.Client.Update(ctx, instance); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
 
-	// If DSC CR exist and deletion CM exist
-	// delete DSC CR and let reconcile requeue
-	if upgrade.HasDeleteConfigMap(ctx, r.Client) {
-		err := r.Client.Delete(ctx, instance, client.PropagationPolicy(metav1.DeletePropagationForeground))
-		if err != nil {
-			return ctrl.Result{}, client.IgnoreNotFound(err)
-		}
-
-		return ctrl.Result{}, nil
-	}
-
 	if !instance.ObjectMeta.DeletionTimestamp.IsZero() {
 		log.Info("Finalization DataScienceCluster start deleting instance", "name", instance.Name)
-
-		if upgrade.HasDeleteConfigMap(ctx, r.Client) {
-			return ctrl.Result{Requeue: true}, nil
-		}
-
 		return ctrl.Result{}, nil
 	}
 
@@ -327,51 +294,7 @@ func (r *DataScienceClusterReconciler) SetupWithManager(_ context.Context, mgr c
 		Watches(
 			&dsciv1.DSCInitialization{},
 			handlers.Fn(r.watchDataScienceClusters)).
-		Watches(
-			&corev1.ConfigMap{},
-			handlers.Fn(r.watchDataScienceClusters),
-			builder.WithPredicates(r.filterDeleteConfigMap())).
 		Complete(r)
-}
-
-func (r *DataScienceClusterReconciler) filterDeleteConfigMap() predicate.Funcs {
-	filter := func(obj client.Object) bool {
-		cm, ok := obj.(*corev1.ConfigMap)
-		if !ok {
-			return false
-		}
-
-		// Trigger reconcile function when uninstall configmap is created
-		operatorNs, err := cluster.GetOperatorNamespace()
-		if err != nil {
-			return false
-		}
-
-		if cm.Namespace != operatorNs {
-			return false
-		}
-
-		if cm.Labels[upgrade.DeleteConfigMapLabel] != "true" {
-			return false
-		}
-
-		return true
-	}
-
-	return predicate.Funcs{
-		CreateFunc: func(e event.CreateEvent) bool {
-			return filter(e.Object)
-		},
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			return filter(e.ObjectNew)
-		},
-		DeleteFunc: func(e event.DeleteEvent) bool {
-			return false
-		},
-		GenericFunc: func(e event.GenericEvent) bool {
-			return false
-		},
-	}
 }
 
 func (r *DataScienceClusterReconciler) watchDataScienceClusters(ctx context.Context, _ client.Object) []reconcile.Request {

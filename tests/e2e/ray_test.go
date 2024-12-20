@@ -22,6 +22,7 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/ray"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
@@ -192,7 +193,7 @@ func (tc *RayTestCtx) validateRayReady() error {
 		}
 
 		for _, c := range list.Items[0].Status.Conditions {
-			if c.Type == componentApi.RayComponentName+"Ready" {
+			if c.Type == ray.ReadyConditionType {
 				return c.Status == corev1.ConditionTrue, nil
 			}
 		}

@@ -31,6 +31,8 @@ const (
 	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
 	// deployment to the new component name, so keep it around till we figure out a solution.
 	LegacyComponentName = "kserve"
+
+	ReadyConditionType = conditionsv1.ConditionType(componentApi.KserveKind + status.ReadySuffix)
 )
 
 type componentHandler struct{}
@@ -85,7 +87,7 @@ func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj cl
 	dsc.Status.Components.Kserve.KserveCommonStatus = nil
 
 	nc := conditionsv1.Condition{
-		Type:    conditionsv1.ConditionType(s.GetName() + status.ReadySuffix),
+		Type:    ReadyConditionType,
 		Status:  corev1.ConditionFalse,
 		Reason:  "Unknown",
 		Message: "Not Available",

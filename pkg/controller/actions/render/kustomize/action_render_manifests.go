@@ -75,11 +75,11 @@ func WithCache() ActionOpts {
 	}
 }
 
-func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error {
+func (a *Action) run(_ context.Context, rr *types.ReconciliationRequest) error {
 	var err error
 	var cachingKey []byte
 
-	inst, ok := rr.Instance.(common.PlatformObject)
+	inst, ok := rr.Instance.(common.WithDevFlags)
 	if ok && inst.GetDevFlags() != nil {
 		// if dev flags are enabled, caching is disabled as dev flags are meant for
 		// development time only where caching is not relevant

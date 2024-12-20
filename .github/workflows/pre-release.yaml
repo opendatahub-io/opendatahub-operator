@@ -38,7 +38,7 @@ jobs:
         skopeo copy docker://quay.io/${{ secrets.QUAY_ORG }}/opendatahub-operator:pr-${{ github.event.pull_request.number }} docker://quay.io/${{ secrets.QUAY_ORG }}/opendatahub-operator:v${{ env.VERSION }}
         echo "Successfully updated tag to quay.io with version: v${{ env.VERSION }}"
     - uses: actions/checkout@v4
-    - name: Create version update pr in incubation
+    - name: Create version update pr in main
       uses: ./.github/actions/update-release-version
       with:
         version: ${{ env.VERSION }}
@@ -46,11 +46,11 @@ jobs:
         commit-message: "Update version to ${{ env.VERSION }}"
         title: "Update version to ${{ env.VERSION }}"
         branch-name: "odh-release/version-update"
-        base-branch: incubation
+        base-branch: main
     - name: Create release branch
       run: |
-        git fetch origin incubation:incubation
-        git checkout incubation
+        git fetch origin main:main
+        git checkout main
         git checkout -b odh-${{ env.VERSION }}
         git push -f origin odh-${{ env.VERSION }}
     - uses: ./.github/actions/update-manifest-branches

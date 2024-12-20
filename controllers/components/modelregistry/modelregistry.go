@@ -41,16 +41,8 @@ func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) ope
 func (s *componentHandler) Init(_ cluster.Platform) error {
 	mi := baseManifestInfo(BaseManifestsSourcePath)
 
-	params := make(map[string]string)
-	for k, v := range imagesMap {
-		params[k] = v
-	}
-	for k, v := range extraParamsMap {
-		params[k] = v
-	}
-
-	if err := odhdeploy.ApplyParams(mi.String(), params); err != nil {
-		return fmt.Errorf("failed to update images on path %s: %w", mi, err)
+	if err := odhdeploy.ApplyParams(mi.String(), imagesMap, extraParamsMap); err != nil {
+		return fmt.Errorf("failed to update params on path %s: %w", mi, err)
 	}
 
 	return nil
@@ -85,7 +77,7 @@ func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj cl
 	dsc.Status.Components.ModelRegistry.ModelRegistryCommonStatus = nil
 
 	nc := conditionsv1.Condition{
-		Type:    conditionsv1.ConditionType(s.GetName() + status.ReadySuffix),
+		Type:    ReadyConditionType,
 		Status:  corev1.ConditionFalse,
 		Reason:  "Unknown",
 		Message: "Not Available",
