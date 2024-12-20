@@ -28,6 +28,7 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 const (
@@ -73,6 +74,26 @@ func (tc *testContext) waitForOperatorDeployment(name string, replicas int32) er
 	})
 
 	return err
+}
+
+func (tc *testContext) getComponentDeployments(componentGVK schema.GroupVersionKind) ([]appsv1.Deployment, error) {
+	deployments := appsv1.DeploymentList{}
+	err := tc.customClient.List(
+		tc.ctx,
+		&deployments,
+		client.InNamespace(
+			tc.applicationsNamespace,
+		),
+		client.MatchingLabels{
+			labels.PlatformPartOf: strings.ToLower(componentGVK.Kind),
+		},
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return deployments.Items, nil
 }
 
 func setupDSCICR(name string) *dsciv1.DSCInitialization {
