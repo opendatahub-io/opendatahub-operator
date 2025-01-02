@@ -99,7 +99,7 @@ func (tc *testContext) testAllApplicationDeletion(t *testing.T) error { //nolint
 	}
 
 	for _, c := range components {
-		c := c
+		c := c //nolint: copyloopvar
 		t.Run("Delete "+c.GetComponentName(), func(t *testing.T) {
 			t.Parallel()
 			err = tc.testComponentDeletion(c)
