@@ -319,7 +319,6 @@ func deleteOneResource(ctx context.Context, c client.Client, res ResourceSpec) e
 	}
 
 	for _, item := range list.Items {
-		item := item
 		v, ok, err := unstructured.NestedString(item.Object, res.Path...)
 		if err != nil {
 			return fmt.Errorf("failed to get field %v for %s %s/%s: %w", res.Path, res.Gvk.Kind, res.Namespace, item.GetName(), err)
@@ -350,7 +349,7 @@ func deleteDeprecatedResources(ctx context.Context, cli client.Client, namespace
 		multiErr = multierror.Append(multiErr, err)
 	}
 	items := reflect.ValueOf(resourceType).Elem().FieldByName("Items")
-	for i := 0; i < items.Len(); i++ {
+	for i := range items.Len() {
 		item := items.Index(i).Addr().Interface().(client.Object) //nolint:errcheck,forcetypeassert
 		for _, name := range resourceList {
 			if name == item.GetName() {
@@ -380,7 +379,6 @@ func deleteDeprecatedServiceMonitors(ctx context.Context, cli client.Client, nam
 	}
 
 	for _, servicemonitor := range servicemonitors.Items {
-		servicemonitor := servicemonitor
 		for _, name := range resourceList {
 			if name == servicemonitor.Name {
 				ctrl.Log.Info("Attempting to delete " + servicemonitor.Name + " in namespace " + namespace)
