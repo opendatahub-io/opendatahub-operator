@@ -75,7 +75,7 @@ Additionally installing `Authorino operator` & `Service Mesh operator` enhances 
 
 #### Pre-requisites
 
-- Go version **go1.21**
+- Go version **go1.22**
 - operator-sdk version can be updated to **v1.31.1**
 
 #### Download manifests
@@ -142,12 +142,6 @@ e.g `make image-build USE_LOCAL=true"`
 
   ```commandline
   make image -e IMG=quay.io/<username>/opendatahub-operator:<custom-tag>
-  ```
-
-  or (for example to user <username>)
-
-  ```commandline
-  make image -e IMAGE_OWNER=<username>
   ```
 
   The default image used is `quay.io/opendatahub/opendatahub-operator:dev-0.0.1` when not supply argument for `make image`
