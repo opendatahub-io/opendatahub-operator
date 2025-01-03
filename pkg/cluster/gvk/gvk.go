@@ -213,4 +213,10 @@ var (
 		Version: "v1beta1",
 		Kind:    "Gateway",
 	}
+
+	Auth = schema.GroupVersionKind{
+		Group:   "services.platform.opendatahub.io",
+		Version: "v1alpha1",
+		Kind:    "Auth",
+	}
 )

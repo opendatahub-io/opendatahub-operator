@@ -30,6 +30,7 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
 )
 
 type TestFn func(t *testing.T)
@@ -73,6 +74,7 @@ type testContextConfig struct {
 	operatorControllerTest bool
 	webhookTest            bool
 	components             arrayFlags
+	authControllerTest     bool
 }
 
 // Holds information specific to individual tests.
@@ -149,6 +151,7 @@ func TestOdhOperator(t *testing.T) {
 	utilruntime.Must(ofapi.AddToScheme(scheme))
 	utilruntime.Must(operatorv1.AddToScheme(scheme))
 	utilruntime.Must(componentApi.AddToScheme(scheme))
+	utilruntime.Must(serviceApi.AddToScheme(scheme))
 
 	log.SetLogger(zap.New(zap.UseDevMode(true)))
 
@@ -169,6 +172,10 @@ func TestOdhOperator(t *testing.T) {
 		}
 
 		t.Run("validate installation of "+k+" component", v)
+	}
+
+	if testOpts.authControllerTest {
+		t.Run("test auth controller", authControllerTestSuite)
 	}
 
 	// Run deletion if skipDeletion is not set
@@ -192,6 +199,8 @@ func TestMain(m *testing.M) {
 
 	componentNames := strings.Join(maps.Keys(componentsTestSuites), ", ")
 	flag.Var(&testOpts.components, "test-component", "run tests for the specified component. valid components names are: "+componentNames)
+
+	flag.BoolVar(&testOpts.authControllerTest, "test-auth-controller", true, "run auth controller tests")
 
 	flag.Parse()
 
