@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
+	templatev1 "github.com/openshift/api/template/v1"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -288,8 +289,8 @@ func CleanupExistingResource(ctx context.Context,
 	toDelete := getDashboardWatsonResources(dscApplicationsNamespace)
 	multiErr = multierror.Append(multiErr, deleteResources(ctx, cli, &toDelete))
 
-	// cleanup nvidia nim integration remove tech preview
-	multiErr = multierror.Append(multiErr, cleanupNimIntegrationTechPreview(ctx, cli, oldReleaseVersion, dscApplicationsNamespace))
+	// cleanup nvidia nim integration
+	multiErr = multierror.Append(multiErr, cleanupNimIntegration(ctx, cli, oldReleaseVersion, dscApplicationsNamespace))
 
 	return multiErr.ErrorOrNil()
 }
@@ -599,34 +600,55 @@ func GetDeployedRelease(ctx context.Context, cli client.Client) (cluster.Release
 	return cluster.Release{}, nil
 }
 
-func cleanupNimIntegrationTechPreview(ctx context.Context, cli client.Client, oldRelease cluster.Release, applicationNS string) error {
+func cleanupNimIntegration(ctx context.Context, cli client.Client, oldRelease cluster.Release, applicationNS string) error {
 	var errs *multierror.Error
 
-	if oldRelease.Version.Minor >= 14 && oldRelease.Version.Minor <= 15 {
-		nimCronjob := "nvidia-nim-periodic-validator"
-		nimConfigMap := "nvidia-nim-validation-result"
-		nimAPISec := "nvidia-nim-access"
-
-		deleteObjs := []struct {
+	if oldRelease.Version.Minor >= 14 && oldRelease.Version.Minor <= 16 {
+		type objForDel struct {
 			obj        client.Object
 			name, desc string
-		}{
-			{
-				obj:  &batchv1.CronJob{},
-				name: nimCronjob,
-				desc: "validator CronJob",
-			},
+		}
+
+		// the following objects created by TP (14-15) and by the first GA (16)
+		deleteObjs := []objForDel{
 			{
 				obj:  &corev1.ConfigMap{},
-				name: nimConfigMap,
+				name: "nvidia-nim-images-data",
 				desc: "data ConfigMap",
 			},
 			{
+				obj:  &templatev1.Template{},
+				name: "nvidia-nim-serving-template",
+				desc: "runtime Template",
+			},
+			{
 				obj:  &corev1.Secret{},
-				name: nimAPISec,
-				desc: "API key Secret",
+				name: "nvidia-nim-image-pull",
+				desc: "pull Secret",
 			},
 		}
+
+		// the following objects created by TP (14-15)
+		if oldRelease.Version.Minor < 16 {
+			deleteObjs = append(deleteObjs,
+				objForDel{
+					obj:  &batchv1.CronJob{},
+					name: "nvidia-nim-periodic-validator",
+					desc: "validator CronJob",
+				},
+				objForDel{
+					obj:  &corev1.ConfigMap{},
+					name: "nvidia-nim-validation-result",
+					desc: "validation result ConfigMap",
+				},
+				// the api key is also used by GA (16), but cleanup is only required for TP->GA switch
+				objForDel{
+					obj:  &corev1.Secret{},
+					name: "nvidia-nim-access",
+					desc: "API key Secret",
+				})
+		}
+
 		for _, delObj := range deleteObjs {
 			if gErr := cli.Get(ctx, types.NamespacedName{Name: delObj.name, Namespace: applicationNS}, delObj.obj); gErr != nil {
 				if !k8serr.IsNotFound(gErr) {
