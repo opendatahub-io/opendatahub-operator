@@ -262,3 +262,18 @@ func customizeKserveConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRe
 
 	return nil
 }
+
+func setStatusFields(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	k, ok := rr.Instance.(*componentApi.Kserve)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.Kserve)", rr.Instance)
+	}
+
+	ddm, err := getDefaultDeploymentMode(ctx, rr.Client, &rr.DSCI.Spec)
+	if err != nil {
+		return err
+	}
+
+	k.Status.DefaultDeploymentMode = ddm
+	return nil
+}

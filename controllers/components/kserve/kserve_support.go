@@ -148,24 +148,37 @@ func removeServerlessFeatures(ctx context.Context, cli client.Client, k *compone
 	return serverlessFeatures.Delete(ctx, cli)
 }
 
-func setDefaultDeploymentMode(inferenceServiceConfigMap *corev1.ConfigMap, defaultmode componentApi.DefaultDeploymentMode) error {
-	// set data.deploy.defaultDeploymentMode to the model specified in the Kserve spec
-	var deployData map[string]interface{}
-	if err := json.Unmarshal([]byte(inferenceServiceConfigMap.Data["deploy"]), &deployData); err != nil {
-		return fmt.Errorf("error retrieving value for key 'deploy' from configmap %s. %w", kserveConfigMapName, err)
+func getDefaultDeploymentMode(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec) (string, error) {
+	kserveConfigMap := corev1.ConfigMap{}
+	if err := cli.Get(ctx, client.ObjectKey{Name: kserveConfigMapName, Namespace: dscispec.ApplicationsNamespace}, &kserveConfigMap); err != nil {
+		return "", err
 	}
-	modeFound := deployData["defaultDeploymentMode"]
-	if modeFound != string(defaultmode) {
-		deployData["defaultDeploymentMode"] = defaultmode
+
+	deployConfig, err := getDeployConfig(&kserveConfigMap)
+	if err != nil {
+		return "", err
+	}
+
+	return deployConfig.DefaultDeploymentMode, nil
+}
+
+func setDefaultDeploymentMode(inferenceServiceConfigMap *corev1.ConfigMap, defaultmode componentApi.DefaultDeploymentMode) error {
+	deployData, err := getDeployConfig(inferenceServiceConfigMap)
+	if err != nil {
+		return err
+	}
+
+	if deployData.DefaultDeploymentMode != string(defaultmode) {
+		deployData.DefaultDeploymentMode = string(defaultmode)
 		deployDataBytes, err := json.MarshalIndent(deployData, "", " ")
 		if err != nil {
 			return fmt.Errorf("could not set values in configmap %s. %w", kserveConfigMapName, err)
 		}
-		inferenceServiceConfigMap.Data["deploy"] = string(deployDataBytes)
+		inferenceServiceConfigMap.Data[DeployConfigName] = string(deployDataBytes)
 
 		var ingressData map[string]interface{}
-		if err = json.Unmarshal([]byte(inferenceServiceConfigMap.Data["ingress"]), &ingressData); err != nil {
-			return fmt.Errorf("error retrieving value for key 'ingress' from configmap %s. %w", kserveConfigMapName, err)
+		if err = json.Unmarshal([]byte(inferenceServiceConfigMap.Data[IngressConfigKeyName]), &ingressData); err != nil {
+			return fmt.Errorf("error retrieving value for key '%s' from configmap %s. %w", IngressConfigKeyName, kserveConfigMapName, err)
 		}
 		if defaultmode == componentApi.RawDeployment {
 			ingressData["disableIngressCreation"] = true
@@ -176,7 +189,7 @@ func setDefaultDeploymentMode(inferenceServiceConfigMap *corev1.ConfigMap, defau
 		if err != nil {
 			return fmt.Errorf("could not set values in configmap %s. %w", kserveConfigMapName, err)
 		}
-		inferenceServiceConfigMap.Data["ingress"] = string(ingressDataBytes)
+		inferenceServiceConfigMap.Data[IngressConfigKeyName] = string(ingressDataBytes)
 	}
 
 	return nil

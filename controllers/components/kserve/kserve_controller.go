@@ -157,6 +157,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).
+		WithAction(setStatusFields).
 		WithAction(updatestatus.NewAction()).
 		// must be the final action
 		WithAction(gc.NewAction()).

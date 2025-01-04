@@ -718,6 +718,11 @@ spec:
                   kserve:
                     description: Kserve component status.
                     properties:
+                      defaultDeploymentMode:
+                        description: |-
+                          DefaultDeploymentMode is the value of the defaultDeploymentMode field
+                          as read from the "deploy" JSON in the inferenceservice-config ConfigMap
+                        type: string
                       managementState:
                         description: |-
                           Set to one of the following values:
