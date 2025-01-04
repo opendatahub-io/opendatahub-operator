@@ -3,39 +3,27 @@ set -e
 
 GITHUB_URL="https://github.com"
 
-# component: notebook, dsp, kserve, dashbaord, cf/ray/kueue/trainingoperator, trustyai, modelmesh, modelregistry.
-# in the format of "repo-org:repo-name:ref-name:source-folder:target-folder".
+# COMPONENT_MANIFESTS is a list of components repositories info to fetch the manifests
+# in the format of "repo-org:repo-name:ref-name:source-folder" and key is the target folder under manifests/
 declare -A COMPONENT_MANIFESTS=(
-    # dashboard
-    ["odh-dashboard"]="opendatahub-io:odh-dashboard:main:manifests:dashboard"
-    # workbenches
-    ["kf-notebook-controller"]="opendatahub-io:kubeflow:v1.7-branch:components/notebook-controller/config:workbenches/kf-notebook-controller"
-    ["odh-notebook-controller"]="opendatahub-io:kubeflow:v1.7-branch:components/odh-notebook-controller/config:workbenches/odh-notebook-controller"
-    ["notebooks"]="opendatahub-io:notebooks:main:manifests:workbenches/notebooks"
-    # modelmeshserving
-    ["model-mesh"]="opendatahub-io:modelmesh-serving:release-0.12.0-rc0:config:modelmeshserving"
-    # kserve
-    ["kserve"]="opendatahub-io:kserve:release-v0.14:config:kserve"
-    # kueue
-    ["kueue"]="opendatahub-io:kueue:dev:config:kueue"
-    # codeflare
-    ["codeflare"]="opendatahub-io:codeflare-operator:main:config:codeflare"
-    # ray
-    ["ray"]="opendatahub-io:kuberay:dev:ray-operator/config:ray"
-    # trustyai
-    ["trustyai"]="trustyai-explainability:trustyai-service-operator:main:config:trustyai"
-    # modelregistry
-    ["modelregistry"]="opendatahub-io:model-registry-operator:main:config:modelregistry"
-    # trainingoperator
-    ["trainingoperator"]="opendatahub-io:training-operator:dev:manifests:trainingoperator"
-    # datasciencepipelines
-    ["data-science-pipelines-operator"]="opendatahub-io:data-science-pipelines-operator:main:config:datasciencepipelines"
-    # modelcontroller
-    ["odh-model-controller"]="opendatahub-io:odh-model-controller:incubating:config:modelcontroller"
+    ["dashboard"]="opendatahub-io:odh-dashboard:main:manifests"
+    ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:v1.7-branch:components/notebook-controller/config"
+    ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:v1.7-branch:components/odh-notebook-controller/config"
+    ["workbenches/notebooks"]="opendatahub-io:notebooks:main:manifests"
+    ["modelmeshserving"]="opendatahub-io:modelmesh-serving:release-0.12.0-rc0:config"
+    ["kserve"]="opendatahub-io:kserve:release-v0.14:config"
+    ["kueue"]="opendatahub-io:kueue:dev:config"
+    ["codeflare"]="opendatahub-io:codeflare-operator:main:config"
+    ["ray"]="opendatahub-io:kuberay:dev:ray-operator/config"
+    ["trustyai"]="trustyai-explainability:trustyai-service-operator:main:config"
+    ["modelregistry"]="opendatahub-io:model-registry-operator:main:config"
+    ["trainingoperator"]="opendatahub-io:training-operator:dev:manifests"
+    ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main:config"
+    ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating:config"
 )
 
 # Allow overwriting repo using flags component=repo
-pattern="^[a-zA-Z0-9_.-]+:[a-zA-Z0-9_.-]+:[a-zA-Z0-9_.-]+:[a-zA-Z0-9_./-]+:[a-zA-Z0-9_./-]+$"
+pattern="^[a-zA-Z0-9_.-]+:[a-zA-Z0-9_.-]+:[a-zA-Z0-9_.-]+:[a-zA-Z0-9_./-]+$"
 if [ "$#" -ge 1 ]; then
     for arg in "$@"; do
         if [[ $arg == --* ]]; then
@@ -43,7 +31,7 @@ if [ "$#" -ge 1 ]; then
             IFS="=" read -r key value <<< "$arg"
             if [[ -n "${COMPONENT_MANIFESTS[$key]}" ]]; then
                 if [[ ! $value =~ $pattern ]]; then
-                    echo "ERROR: The value '$value' does not match the expected format 'repo-org:repo-name:branch-name:source-folder:target-folder'."
+                    echo "ERROR: The value '$value' does not match the expected format 'repo-org:repo-name:ref-name:source-folder'."
                     continue
                 fi
                 COMPONENT_MANIFESTS["$key"]=$value
@@ -89,7 +77,7 @@ for key in "${!COMPONENT_MANIFESTS[@]}"; do
     repo_name="${repo_info[1]}"
     repo_ref="${repo_info[2]}"
     source_path="${repo_info[3]}"
-    target_path="${repo_info[4]}"
+    target_path="${key}"
 
     repo_url="${GITHUB_URL}/${repo_org}/${repo_name}"
     repo_dir=${TMP_DIR}/${key}
