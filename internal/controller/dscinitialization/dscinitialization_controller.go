@@ -32,7 +32,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -98,35 +97,21 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 	}
 
-	if instance.DeletionTimestamp.IsZero() {
-		if !controllerutil.ContainsFinalizer(instance, finalizerName) {
-			log.Info("Adding finalizer for DSCInitialization", "name", instance.Name, "finalizer", finalizerName)
-			controllerutil.AddFinalizer(instance, finalizerName)
-			if err := r.Client.Update(ctx, instance); err != nil {
-				return ctrl.Result{}, err
-			}
-		}
-	} else {
+	// manually handle DSCI deletion: this is only to deal with any DSCI creation in the old release with finalizer already added
+	// 1. remove finalizer in memory during DSCI deletion if finalier exists
+	// 2. remove ServiceMesh configurations, it might not have owner as DSCI from old release
+	// 3. update DSCI if finalzer was there
+	if !instance.DeletionTimestamp.IsZero() {
 		log.Info("Finalization DSCInitialization start deleting instance", "name", instance.Name, "finalizer", finalizerName)
-
-		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			newInstance := &dsciv1.DSCInitialization{}
-			if err := r.Client.Get(ctx, client.ObjectKeyFromObject(instance), newInstance); err != nil {
-				return err
-			}
-			if controllerutil.ContainsFinalizer(newInstance, finalizerName) {
-				controllerutil.RemoveFinalizer(newInstance, finalizerName)
-				if err := r.Client.Update(ctx, newInstance); err != nil {
-					return err
-				}
-			}
-			return nil
-		})
-		if err != nil {
-			log.Error(err, "Failed to remove finalizer when deleting DSCInitialization instance")
-			return ctrl.Result{}, err
+		// skip retry function, let reconcile do itself if failed to update in-mem.
+		if !controllerutil.RemoveFinalizer(instance, finalizerName) {
+			return ctrl.Result{}, nil
 		}
 
+		if err := r.Client.Update(ctx, instance); err != nil {
+			log.Error(err, "Failed to remove finalizer when deleting DSCInitialization instance")
+			return reconcile.Result{}, err
+		}
 		return ctrl.Result{}, nil
 	}
 
