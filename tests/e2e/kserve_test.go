@@ -74,6 +74,7 @@ func (k *KserveTestCtx) validateKserveInstance(t *testing.T) {
 				k.testDsc.Spec.Components.Kserve.Serving.IngressGateway.Certificate.Type),
 
 			jq.Match(`.status.phase == "%s"`, readyStatus),
+			jq.Match(`.status.defaultDeploymentMode == "%s"`, k.testDsc.Spec.Components.Kserve.DefaultDeploymentMode),
 		)),
 	))
 
@@ -86,6 +87,7 @@ func (k *KserveTestCtx) validateKserveInstance(t *testing.T) {
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, modelcontroller.ReadyConditionType, metav1.ConditionTrue),
 			jq.Match(`.status.installedComponents."%s" == true`, kserve.LegacyComponentName),
 			jq.Match(`.status.components.%s.managementState == "%s"`, componentApi.KserveComponentName, operatorv1.Managed),
+			jq.Match(`.status.components.%s.defaultDeploymentMode == "%s"`, componentApi.KserveComponentName, k.testDsc.Spec.Components.Kserve.DefaultDeploymentMode),
 		)),
 	))
 
