@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,7 +33,7 @@ func OperatorUninstall(ctx context.Context, cli client.Client, platform cluster.
 		return err
 	}
 
-	if err := removeDSCInitialization(ctx, cli); err != nil {
+	if err := removeDSCI(ctx, cli); err != nil {
 		return err
 	}
 
@@ -92,21 +91,14 @@ func OperatorUninstall(ctx context.Context, cli client.Client, platform cluster.
 	return err
 }
 
-func removeDSCInitialization(ctx context.Context, cli client.Client) error {
-	instanceList := &dsciv1.DSCInitializationList{}
+func removeDSCI(ctx context.Context, cli client.Client) error {
+	instance := &dsciv1.DSCInitialization{}
 
-	if err := cli.List(ctx, instanceList); err != nil {
-		return err
+	if err := cli.DeleteAllOf(ctx, instance, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
+		return fmt.Errorf("failure deleting DSCI: %w", err)
 	}
 
-	var multiErr *multierror.Error
-	for _, dsciInstance := range instanceList.Items {
-		if err := cli.Delete(ctx, &dsciInstance); !k8serr.IsNotFound(err) {
-			multiErr = multierror.Append(multiErr, err)
-		}
-	}
-
-	return multiErr.ErrorOrNil()
+	return nil
 }
 
 func removeDSC(ctx context.Context, cli client.Client) error {
