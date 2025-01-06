@@ -1,0 +1,13 @@
+groups:
+- name: KubeFlow Training Operator
+  interval: 1m
+  rules:
+    - alert: KubeFlow Training Operator is not running
+      expr: absent(up{job=~'KubeFlow Training Operator'}) or up{job=~'KubeFlow Training Operator'} != 1
+      labels:
+        severity: warning
+      annotations:
+        description: This alert fires when the KubeFlow Training Operator is not running.
+        triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/training-operator-availability.md'
+        summary: Alerting for KubeFlow Training Operator
+
