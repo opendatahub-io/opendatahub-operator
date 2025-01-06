@@ -34,3 +34,17 @@ func ForAnnotation(name string, value string) predicate.Funcs {
 		},
 	}
 }
+
+func ForLabelAllEvents(name string, value string) predicate.Funcs {
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return resources.HasLabel(e.Object, name, value)
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return resources.HasLabel(e.Object, name, value)
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			return resources.HasLabel(e.ObjectNew, name, value) || resources.HasLabel(e.ObjectOld, name, value)
+		},
+	}
+}

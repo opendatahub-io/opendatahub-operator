@@ -1,9 +1,14 @@
 package resources
 
 import (
+	"reflect"
+
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 )
 
 var _ predicate.Predicate = DeploymentPredicate{}
@@ -52,4 +57,42 @@ func Deleted() predicate.Funcs {
 			return false
 		},
 	}
+}
+
+// Content predicates moved from original controller.
+var CMContentChangedPredicate = predicate.Funcs{
+	UpdateFunc: func(e event.UpdateEvent) bool {
+		oldCM, _ := e.ObjectOld.(*corev1.ConfigMap)
+		newCM, _ := e.ObjectNew.(*corev1.ConfigMap)
+		return !reflect.DeepEqual(oldCM.Data, newCM.Data)
+	},
+}
+
+var SecretContentChangedPredicate = predicate.Funcs{
+	UpdateFunc: func(e event.UpdateEvent) bool {
+		oldSecret, _ := e.ObjectOld.(*corev1.Secret)
+		newSecret, _ := e.ObjectNew.(*corev1.Secret)
+		return !reflect.DeepEqual(oldSecret.Data, newSecret.Data)
+	},
+}
+
+var DSCDeletionPredicate = predicate.Funcs{
+	DeleteFunc: func(e event.DeleteEvent) bool {
+		return true
+	},
+}
+
+var DSCSpecUpdatePredicate = predicate.Funcs{
+	UpdateFunc: func(e event.UpdateEvent) bool {
+		oldDSC, ok := e.ObjectOld.(*dscv1.DataScienceCluster)
+		if !ok {
+			return false
+		}
+		newDSC, ok := e.ObjectNew.(*dscv1.DataScienceCluster)
+		if !ok {
+			return false
+		}
+		// Compare components state
+		return !reflect.DeepEqual(oldDSC.Spec.Components, newDSC.Spec.Components)
+	},
 }

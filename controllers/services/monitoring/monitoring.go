@@ -9,11 +9,13 @@ import (
 	"gopkg.in/yaml.v2"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
+	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 var (
-	prometheusConfigPath = filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps", "prometheus-configs.yaml")
+	ComponentName        = serviceApi.MonitoringServiceName
+	prometheusConfigPath = filepath.Join(odhdeploy.DefaultManifestPath, ComponentName, "prometheus", "apps", "prometheus-configs.yaml")
 )
 
 // UpdatePrometheusConfig update prometheus-configs.yaml to include/exclude <component>.rules
@@ -43,8 +45,6 @@ func UpdatePrometheusConfig(ctx context.Context, enable bool, component string) 
 			MMARules               string `yaml:"model-mesh-alerting.rules"`
 			OdhModelRRules         string `yaml:"odh-model-controller-recording.rules"`
 			OdhModelARules         string `yaml:"odh-model-controller-alerting.rules"`
-			CFORRules              string `yaml:"codeflare-recording.rules"`
-			CFOARules              string `yaml:"codeflare-alerting.rules"`
 			RayARules              string `yaml:"ray-alerting.rules"`
 			WorkbenchesRRules      string `yaml:"workbenches-recording.rules"`
 			WorkbenchesARules      string `yaml:"workbenches-alerting.rules"`

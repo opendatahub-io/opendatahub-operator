@@ -1,0 +1,110 @@
+groups:
+  - name: SLOs-haproxy_backend_http_responses_dashboard
+    rules:
+    - alert: RHODS Dashboard Route Error 5m and 1h Burn Rate high
+      annotations:
+        message: 'High error budget burn for {{ $labels.route }} (current value: {{ $value }}).'
+        triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-error-burn-rate.md'
+        summary: RHODS Dashboard Route Error 5m and 1h Burn Rate high
+      expr: |
+        sum(haproxy_backend_http_responses_total:burnrate5m{route=~"rhods-dashboard"}) by (route) > (14.40 * (1-0.99950))
+        and
+        sum(haproxy_backend_http_responses_total:burnrate1h{route=~"rhods-dashboard"}) by (route) > (14.40 * (1-0.99950))
+      for: 2m
+      labels:
+        severity: critical
+        namespace: redhat-ods-applications
+    - alert: RHODS Dashboard Route Error 30m and 6h Burn Rate high
+      annotations:
+        message: 'High error budget burn for {{ $labels.route }} (current value: {{ $value }}).'
+        triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-error-burn-rate.md'
+        summary: RHODS Dashboard Route Error 30m and 6h Burn Rate high
+      expr: |
+        sum(haproxy_backend_http_responses_total:burnrate30m{route=~"rhods-dashboard"}) by (route) > (6.00 * (1-0.99950))
+        and
+        sum(haproxy_backend_http_responses_total:burnrate6h{route=~"rhods-dashboard"}) by (route) > (6.00 * (1-0.99950))
+      for: 15m
+      labels:
+        severity: critical
+        namespace: redhat-ods-applications
+    - alert: RHODS Dashboard Route Error 2h and 1d Burn Rate high
+      annotations:
+        message: 'High error budget burn for {{ $labels.route }} (current value: {{ $value }}).'
+        triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-error-burn-rate.md'
+        summary: RHODS Dashboard Route Error 2h and 1d Burn Rate high
+      expr: |
+        sum(haproxy_backend_http_responses_total:burnrate2h{route=~"rhods-dashboard"}) by (route) > (3.00 * (1-0.99950))
+        and
+        sum(haproxy_backend_http_responses_total:burnrate1d{route=~"rhods-dashboard"}) by (route) > (3.00 * (1-0.99950))
+      for: 1h
+      labels:
+        severity: warning
+        namespace: redhat-ods-applications
+    - alert: RHODS Dashboard Route Error 6h and 3d Burn Rate high
+      annotations:
+        message: 'High error budget burn for {{ $labels.route }} (current value: {{ $value }}).'
+        triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-error-burn-rate.md'
+        summary: RHODS Dashboard Route Error 6h and 3d Burn Rate high
+      expr: |
+        sum(haproxy_backend_http_responses_total:burnrate6h{route=~"rhods-dashboard"}) by (route) > (1.00 * (1-0.99950))
+        and
+        sum(haproxy_backend_http_responses_total:burnrate3d{route=~"rhods-dashboard"}) by (route) > (1.00 * (1-0.99950))
+      for: 3h
+      labels:
+        severity: warning
+        namespace: redhat-ods-applications
+  - name: SLOs-probe_success_dashboard
+    rules:
+    - alert: RHODS Dashboard Probe Success 5m and 1h Burn Rate high
+      annotations:
+        message: 'High error budget burn for {{ $labels.name }} (current value: {{ $value }}).'
+        triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-dashboard-probe-success-burn-rate.md"
+        summary: RHODS Dashboard Probe Success 5m and 1h Burn Rate high
+      expr: |
+        sum(probe_success:burnrate5m{name=~"rhods-dashboard"}) by (name) > (14.40 * (1-0.98))
+        and
+        sum(probe_success:burnrate1h{name=~"rhods-dashboard"}) by (name) > (14.40 * (1-0.98))
+      for: 2m
+      labels:
+        severity: critical
+        namespace: redhat-ods-applications
+    - alert: RHODS Dashboard Probe Success 30m and 6h Burn Rate high
+      annotations:
+        message: 'High error budget burn for {{ $labels.name }} (current value: {{ $value }}).'
+        triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-dashboard-probe-success-burn-rate.md"
+        summary: RHODS Dashboard Probe Success 30m and 6h Burn Rate high
+      expr: |
+        sum(probe_success:burnrate30m{name=~"rhods-dashboard"}) by (name) > (6.00 * (1-0.98))
+        and
+        sum(probe_success:burnrate6h{name=~"rhods-dashboard"}) by (name) > (6.00 * (1-0.98))
+      for: 15m
+      labels:
+        severity: critical
+        namespace: redhat-ods-applications
+    - alert: RHODS Dashboard Probe Success 2h and 1d Burn Rate high
+      annotations:
+        message: 'High error budget burn for {{ $labels.name }} (current value: {{ $value }}).'
+        triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-dashboard-probe-success-burn-rate.md"
+        summary: RHODS Dashboard Probe Success 2h and 1d Burn Rate high
+      expr: |
+        sum(probe_success:burnrate2h{name=~"rhods-dashboard"}) by (name) > (3.00 * (1-0.98))
+        and
+        sum(probe_success:burnrate1d{name=~"rhods-dashboard"}) by (name) > (3.00 * (1-0.98))
+      for: 1h
+      labels:
+        severity: warning
+        namespace: redhat-ods-applications
+    - alert: RHODS Dashboard Probe Success 6h and 3d Burn Rate high
+      annotations:
+        message: 'High error budget burn for {{ $labels.name }} (current value: {{ $value }}).'
+        triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-dashboard-probe-success-burn-rate.md"
+        summary: RHODS Dashboard Probe Success 6h and 3d Burn Rate high
+      expr: |
+        sum(probe_success:burnrate6h{name=~"rhods-dashboard"}) by (name) > (1.00 * (1-0.98))
+        and
+        sum(probe_success:burnrate3d{name=~"rhods-dashboard"}) by (name) > (1.00 * (1-0.98))
+      for: 3h
+      labels:
+        severity: warning
+        namespace: redhat-ods-applications
+
