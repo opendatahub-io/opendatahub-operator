@@ -8,6 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
 )
 
 var (
@@ -176,6 +177,12 @@ var (
 		Group:   componentApi.GroupVersion.Group,
 		Version: componentApi.GroupVersion.Version,
 		Kind:    componentApi.TrainingOperatorKind,
+	}
+
+	Monitoring = schema.GroupVersionKind{
+		Group:   serviceApi.GroupVersion.Group,
+		Version: serviceApi.GroupVersion.Version,
+		Kind:    serviceApi.MonitoringKind,
 	}
 
 	CustomResourceDefinition = schema.GroupVersionKind{

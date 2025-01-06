@@ -1,0 +1,40 @@
+groups:
+  - name: SLOs-probe_success_kserve
+    rules:
+    - alert: Kserve Controller Probe Success 5m and 1h Burn Rate high
+      annotations:
+        message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+        triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-kserve-controller-probe-success-burn-rate.md"
+        summary: Kserve Controller Probe Success 5m and 1h Burn Rate high
+      expr: |
+        sum(probe_success:burnrate5m{instance=~"kserve-controller-manager"}) by (instance) > (14.40 * (1-0.98000))
+        and
+        sum(probe_success:burnrate1h{instance=~"kserve-controller-manager"}) by (instance) > (14.40 * (1-0.98000))
+      for: 2m
+      labels:
+        severity: critical
+    - alert: Kserve Controller Probe Success 30m and 6h Burn Rate high
+      annotations:
+        message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+        triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-kserve-controller-probe-success-burn-rate.md"
+        summary: Kserve Controller Probe Success 30m and 6h Burn Rate high
+      expr: |
+        sum(probe_success:burnrate30m{instance=~"kserve-controller-manager"}) by (instance) > (6.00 * (1-0.98000))
+        and
+        sum(probe_success:burnrate6h{instance=~"kserve-controller-manager"}) by (instance) > (6.00 * (1-0.98000))
+      for: 15m
+      labels:
+        severity: critical
+    - alert: Kserve Controller Probe Success 2h and 1d Burn Rate high
+      annotations:
+        message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+        triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-kserve-controller-probe-success-burn-rate.md"
+        summary: Kserve Controller Probe Success 2h and 1d Burn Rate high
+      expr: |
+        sum(probe_success:burnrate2h{instance=~"kserve-controller-manager"}) by (instance) > (3.00 * (1-0.98000))
+        and
+        sum(probe_success:burnrate1d{instance=~"kserve-controller-manager"}) by (instance) > (3.00 * (1-0.98000))
+      for: 1h
+      labels:
+        severity: warning
+

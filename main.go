@@ -70,6 +70,7 @@ import (
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/services/auth"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/services/monitoring"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/setupcontroller"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/webhook"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -139,7 +140,7 @@ func initComponents(_ context.Context, p cluster.Platform) error {
 	})
 }
 
-func main() { //nolint:funlen,maintidx
+func main() { //nolint:funlen,maintidx,gocyclo
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
@@ -351,6 +352,12 @@ func main() { //nolint:funlen,maintidx
 
 	if err := auth.NewServiceReconciler(ctx, mgr); err != nil {
 		os.Exit(1)
+	}
+
+	if platform == cluster.ManagedRhoai {
+		if err := monitoring.NewServiceReconciler(ctx, mgr); err != nil {
+			os.Exit(1)
+		}
 	}
 
 	// get old release version before we create default DSCI CR

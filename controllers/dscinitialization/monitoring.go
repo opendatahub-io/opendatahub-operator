@@ -57,6 +57,8 @@ func (r *DSCInitializationReconciler) configureManagedMonitoring(ctx context.Con
 				"(.*)-(.*)odh-model-controller(.*).rules":            "",
 				"(.*)-(.*)ray(.*).rules":                             "",
 				"(.*)-(.*)trustyai(.*).rules":                        "",
+				"(.*)-(.*)kueue(.*).rules":                           "",
+				"(.*)-(.*)trainingoperator(.*).rules":                "",
 			})
 		if err != nil {
 			log.Error(err, "error to remove previous enabled component rules")

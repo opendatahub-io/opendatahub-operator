@@ -1,0 +1,116 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: anaconda-ce-periodic-validator
+  namespace: redhat-ods-applications
+  labels:
+    opendatahub.io/modified: "false"
+spec:
+  schedule: "0 0 * * *"
+  concurrencyPolicy: "Replace"
+  startingDeadlineSeconds: 200
+  suspend: true
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            parent: "anaconda-ce-periodic-validator"
+        spec:
+          serviceAccount: "rhods-dashboard"
+          imagePullSecrets:
+            - name: addon-managed-odh-pullsecret
+          containers:
+          - name: anaconda-ce-validator
+            image: registry.redhat.io/openshift4/ose-cli@sha256:75bf9b911b6481dcf29f7942240d1555adaa607eec7fc61bedb7f624f87c36d4
+            command:
+              - /bin/sh
+              - -c
+              - >
+                #!/bin/sh
+
+                IMAGESTREAM_NAME='s2i-minimal-notebook-anaconda'
+                CONFIGMAP_NAME='anaconda-ce-validation-result'
+                BUILDCONFIG_NAME='s2i-minimal-notebook-anaconda'
+                ANACONDA_VERSION='v0.2.2-anaconda'
+
+                function generate_imagestream() {
+                  echo '{"apiVersion":"image.openshift.io/v1","kind":"ImageStream","metadata":{"annotations":{"opendatahub.io/notebook-image-order":"10","opendatahub.io/notebook-image-desc":"Notebook with Anaconda CE tools instead of pip.","opendatahub.io/notebook-image-name":"Anaconda Commercial Edition","opendatahub.io/notebook-image-url":"https://github.com/red-hat-data-services/notebooks"},"labels":{"component.opendatahub.io/name":"jupyterhub","opendatahub.io/modified":"false","opendatahub.io/notebook-image":"true"},"name":"s2i-minimal-notebook-anaconda"},"spec":{"lookupPolicy":{"local":true},"tags":[{"name":"2023.1","annotations":{"opendatahub.io/default-image":"true","opendatahub.io/notebook-python-dependencies":"[{\"name\":\"JupyterLab\",\"version\": \"3.5\"}, {\"name\": \"Notebook\",\"version\": \"6.5\"}]","opendatahub.io/notebook-software":"[{\"name\":\"Python\",\"version\":\"v3.8\"}]","opendatahub.io/workbench-image-recommended":"true","openshift.io/imported-from":"quay.io/modh/odh-anaconda-notebook"},"from":{"kind":"DockerImage","name":"quay.io/modh/odh-anaconda-notebook@sha256:380c07bf79f5ec7d22441cde276c50b5eb2a459485cde05087837639a566ae3d"},"generation":2,"importPolicy":{"importMode":"Legacy"},"referencePolicy":{"type":"Local"}}]}}'
+                }
+
+                function create_imagestream() {
+                  generate_imagestream | oc apply -f-
+                }
+
+                function delete_imagestream() {
+                  generate_imagestream | oc delete -f-
+                }
+
+                function get_variable() {
+                  cat "/etc/secret-volume/${1}"
+                }
+
+                function verify_configmap_exists() {
+                  if ! oc get configmap "${CONFIGMAP_NAME}" &>/dev/null; then
+                    echo "Result ConfigMap doesn't exist, creating"
+                    oc create configmap "${CONFIGMAP_NAME}" --from-literal validation_result="false"
+                  fi
+                }
+
+                function write_configmap_value() {
+                  oc patch configmap "${CONFIGMAP_NAME}" -p '"data": { "validation_result": "'${1}'" }'
+                }
+
+                function write_last_valid_time() {
+                  oc patch configmap "${CONFIGMAP_NAME}" -p '"data": { "last_valid_time": "'$(date -Is)'" }'
+                }
+
+                function success() {
+                  echo "Validation succeeded, enabling image"
+                  create_imagestream
+                  verify_configmap_exists
+                  write_configmap_value true
+                  write_last_valid_time
+                }
+
+                function failure() {
+                  echo "Validation failed, disabling image"
+                  verify_configmap_exists
+                  write_configmap_value false
+                }
+
+                CURL_RESULT=$(curl -w 'RESP_CODE:%{response_code}' -IHEAD "https://repo.anaconda.cloud/repo/t/$(get_variable Anaconda_ce_key)/main/noarch/repodata.json" 2>/dev/null)
+                CURL_CODE=$(echo "${CURL_RESULT}" | grep -o 'RESP_CODE:[1-5][0-9][0-9]'| cut -d':' -f2)
+
+                echo "Validation result: ${CURL_CODE}"
+
+                if [ "${CURL_CODE}" == 200 ]; then
+                  success
+                elif [ "${CURL_CODE}" == 403 ]; then
+                  failure
+                else
+                  echo "Return code ${CURL_CODE} from validation check, possibly upstream error. Exiting."
+                  echo "Result from curl:"
+                  echo "${CURL_RESULT}"
+                fi
+
+                exit 0
+                
+            volumeMounts:
+                - name: secret-volume
+                  mountPath: /etc/secret-volume
+                  readOnly: true
+            resources:
+              limits:
+                cpu: 100m
+                memory: 256Mi
+              requests:
+                cpu: 100m
+                memory: 256Mi
+          volumes:
+            - name: secret-volume
+              secret:
+                secretName: anaconda-ce-access
+          restartPolicy: Never
