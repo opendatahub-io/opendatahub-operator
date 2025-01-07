@@ -28,6 +28,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -245,7 +246,7 @@ func (r *DataScienceClusterReconciler) reconcileComponent(
 			return nil, err
 		}
 	case operatorv1.Removed:
-		err := r.Client.Delete(ctx, componentCR)
+		err := r.Client.Delete(ctx, componentCR, client.PropagationPolicy(metav1.DeletePropagationForeground))
 		if err != nil && !k8serr.IsNotFound(err) {
 			return nil, err
 		}
