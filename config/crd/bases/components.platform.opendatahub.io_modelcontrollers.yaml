@@ -203,6 +203,17 @@ spec:
                 type: integer
               phase:
                 type: string
+              releases:
+                items:
+                  properties:
+                    name:
+                      type: string
+                    repoURL:
+                      type: string
+                    version:
+                      type: string
+                  type: object
+                type: array
             type: object
         type: object
         x-kubernetes-validations:

@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -112,4 +113,5 @@ type DSCModelRegistry struct {
 type DSCModelRegistryStatus struct {
 	common.ManagementSpec      `json:",inline"`
 	*ModelRegistryCommonStatus `json:",inline"`
+	Releases                   []status.ComponentReleaseStatus `json:"releases,omitempty"`
 }

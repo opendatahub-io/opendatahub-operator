@@ -22,6 +22,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 )
 
 const (
@@ -134,4 +135,5 @@ type DSCKserve struct {
 type DSCKserveStatus struct {
 	common.ManagementSpec `json:",inline"`
 	*KserveCommonStatus   `json:",inline"`
+	Releases              []status.ComponentReleaseStatus `json:"releases,omitempty"`
 }

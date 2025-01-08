@@ -17,7 +17,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
@@ -39,7 +39,7 @@ func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) ope
 }
 
 func (s *componentHandler) Init(_ cluster.Platform) error {
-	if err := deploy.ApplyParams(paramsPath().String(), imageParamMap); err != nil {
+	if err := odhdeploy.ApplyParams(paramsPath().String(), imageParamMap); err != nil {
 		return fmt.Errorf("failed to update images on path %s: %w", paramsPath(), err)
 	}
 
@@ -73,6 +73,7 @@ func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj cl
 	dsc.Status.InstalledComponents[LegacyComponentName] = false
 	dsc.Status.Components.DataSciencePipelines.ManagementSpec.ManagementState = s.GetManagementState(dsc)
 	dsc.Status.Components.DataSciencePipelines.DataSciencePipelinesCommonStatus = nil
+	dsc.Status.Components.DataSciencePipelines.Releases = nil
 
 	nc := conditionsv1.Condition{
 		Type:    ReadyConditionType,
@@ -81,10 +82,17 @@ func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj cl
 		Message: "Not Available",
 	}
 
+	releases, err := status.GetReleaseStatus(odhdeploy.DefaultManifestPath, ComponentName)
+
+	if err != nil {
+		return err
+	}
+
 	switch s.GetManagementState(dsc) {
 	case operatorv1.Managed:
 		dsc.Status.InstalledComponents[LegacyComponentName] = true
 		dsc.Status.Components.DataSciencePipelines.DataSciencePipelinesCommonStatus = c.Status.DataSciencePipelinesCommonStatus.DeepCopy()
+		dsc.Status.Components.DataSciencePipelines.Releases = releases
 
 		if rc := meta.FindStatusCondition(c.Status.Conditions, status.ConditionTypeReady); rc != nil {
 			nc.Status = corev1.ConditionStatus(rc.Status)

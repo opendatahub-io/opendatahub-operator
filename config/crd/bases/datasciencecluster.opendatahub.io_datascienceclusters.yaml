@@ -676,6 +676,17 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      releases:
+                        items:
+                          properties:
+                            name:
+                              type: string
+                            repoURL:
+                              type: string
+                            version:
+                              type: string
+                          type: object
+                        type: array
                     type: object
                   dashboard:
                     description: Dashboard component status.
@@ -694,6 +705,17 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      releases:
+                        items:
+                          properties:
+                            name:
+                              type: string
+                            repoURL:
+                              type: string
+                            version:
+                              type: string
+                          type: object
+                        type: array
                       url:
                         type: string
                     type: object
@@ -714,6 +736,17 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      releases:
+                        items:
+                          properties:
+                            name:
+                              type: string
+                            repoURL:
+                              type: string
+                            version:
+                              type: string
+                          type: object
+                        type: array
                     type: object
                   kserve:
                     description: Kserve component status.
@@ -737,6 +770,17 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      releases:
+                        items:
+                          properties:
+                            name:
+                              type: string
+                            repoURL:
+                              type: string
+                            version:
+                              type: string
+                          type: object
+                        type: array
                     type: object
                   kueue:
                     description: Kueue component status.
@@ -755,6 +799,17 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      releases:
+                        items:
+                          properties:
+                            name:
+                              type: string
+                            repoURL:
+                              type: string
+                            version:
+                              type: string
+                          type: object
+                        type: array
                     type: object
                   modelmeshserving:
                     description: ModelMeshServing component status.
@@ -773,6 +828,17 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      releases:
+                        items:
+                          properties:
+                            name:
+                              type: string
+                            repoURL:
+                              type: string
+                            version:
+                              type: string
+                          type: object
+                        type: array
                     type: object
                   modelregistry:
                     description: ModelRegistry component status.
@@ -793,6 +859,17 @@ spec:
                         type: string
                       registriesNamespace:
                         type: string
+                      releases:
+                        items:
+                          properties:
+                            name:
+                              type: string
+                            repoURL:
+                              type: string
+                            version:
+                              type: string
+                          type: object
+                        type: array
                     type: object
                   ray:
                     description: Ray component status.
@@ -811,6 +888,17 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      releases:
+                        items:
+                          properties:
+                            name:
+                              type: string
+                            repoURL:
+                              type: string
+                            version:
+                              type: string
+                          type: object
+                        type: array
                     type: object
                   trainingoperator:
                     description: Training Operator component status.
@@ -829,6 +917,17 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      releases:
+                        items:
+                          properties:
+                            name:
+                              type: string
+                            repoURL:
+                              type: string
+                            version:
+                              type: string
+                          type: object
+                        type: array
                     type: object
                   trustyai:
                     description: TrustyAI component status.
@@ -847,6 +946,17 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      releases:
+                        items:
+                          properties:
+                            name:
+                              type: string
+                            repoURL:
+                              type: string
+                            version:
+                              type: string
+                          type: object
+                        type: array
                     type: object
                   workbenches:
                     description: Workbenches component status.
@@ -865,6 +975,17 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      releases:
+                        items:
+                          properties:
+                            name:
+                              type: string
+                            repoURL:
+                              type: string
+                            version:
+                              type: string
+                          type: object
+                        type: array
                     type: object
                 type: object
               conditions:

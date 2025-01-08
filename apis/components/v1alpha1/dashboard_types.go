@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -104,4 +105,5 @@ type DSCDashboard struct {
 type DSCDashboardStatus struct {
 	common.ManagementSpec  `json:",inline"`
 	*DashboardCommonStatus `json:",inline"`
+	Releases               []status.ComponentReleaseStatus `json:"releases,omitempty"`
 }
