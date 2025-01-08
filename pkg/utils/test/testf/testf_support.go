@@ -15,8 +15,8 @@ import (
 // by wrapping the original error (if any) with the provided message.
 //
 // Parameters:
-//   - message: A string message that describes the reason for stopping retries.
 //   - err: An error to wrap.
+//   - message: A string message that describes the reason for stopping retries.
 //
 // Returns:
 //
@@ -26,10 +26,10 @@ import (
 //
 //	err := someOperation()
 //	if err != nil {
-//	    return StopErr("Operation failed", err)
+//	    return StopErr(err, "Operation failed")
 //	}
-func StopErr(message string, err error) error {
-	return gomega.StopTrying(message).Wrap(err)
+func StopErr(err error, format string, args ...any) error {
+	return gomega.StopTrying(fmt.Sprintf(format, args...)).Wrap(err)
 }
 
 // TransformFn defines a function type that takes an *unstructured.Unstructured object

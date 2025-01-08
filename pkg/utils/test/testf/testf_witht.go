@@ -2,7 +2,6 @@ package testf
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/onsi/gomega"
@@ -69,11 +68,14 @@ func (t *WithT) List(
 			items.SetGroupVersionKind(gvk)
 
 			err := t.Client().List(ctx, &items, option...)
-			if err != nil {
-				return nil, err
+			switch {
+			case errors.IsNotFound(err):
+				return []unstructured.Unstructured{}, nil
+			case err != nil:
+				return nil, StopErr(err, "failed to list resource: %s", gvk)
+			default:
+				return items.Items, nil
 			}
-
-			return items.Items, nil
 		},
 	}
 }
@@ -91,11 +93,14 @@ func (t *WithT) Get(
 			u.SetGroupVersionKind(gvk)
 
 			err := t.Client().Get(ctx, nn, &u, option...)
-			if err != nil {
-				return nil, err
+			switch {
+			case errors.IsNotFound(err):
+				return nil, nil
+			case err != nil:
+				return nil, StopErr(err, "failed to get resource: %s, nn: %s", gvk, nn.String())
+			default:
+				return &u, nil
 			}
-
-			return &u, nil
 		},
 	}
 }
@@ -114,11 +119,14 @@ func (t *WithT) Delete(
 			u.SetNamespace(nn.Namespace)
 
 			err := t.Client().Delete(ctx, u, option...)
-			if err != nil {
-				return err
+			switch {
+			case errors.IsNotFound(err):
+				return nil
+			case err != nil:
+				return StopErr(err, "failed to delete resource: %s, nn: %s", gvk, nn.String())
+			default:
+				return nil
 			}
-
-			return nil
 		},
 	}
 }
@@ -135,8 +143,12 @@ func (t *WithT) Update(
 		f: func(ctx context.Context) (*unstructured.Unstructured, error) {
 			obj := resources.GvkToUnstructured(gvk)
 
-			if err := t.Client().Get(ctx, nn, obj); err != nil {
-				return nil, fmt.Errorf("failed to fetch resource: %w", err)
+			err := t.Client().Get(ctx, nn, obj)
+			switch {
+			case errors.IsNotFound(err):
+				return nil, nil
+			case err != nil:
+				return nil, StopErr(err, "failed to get resource: %s, nn: %s", gvk, nn.String())
 			}
 
 			in, err := resources.ToUnstructured(obj)
@@ -151,7 +163,7 @@ func (t *WithT) Update(
 			err = t.Client().Update(ctx, in, option...)
 			switch {
 			case errors.IsForbidden(err):
-				return nil, gomega.StopTrying("failed to update resource").Wrap(err)
+				return nil, StopErr(err, "failed to update resource: %s, nn: %s", gvk, nn.String())
 			case err != nil:
 				return nil, err
 			default:
