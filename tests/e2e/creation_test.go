@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
@@ -28,6 +29,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/serverless"
+
+	. "github.com/onsi/gomega"
 )
 
 func creationTestSuite(t *testing.T) {
@@ -130,6 +133,16 @@ func (tc *testContext) testDSCICreation() error {
 	}
 
 	return nil
+}
+
+func (tc *testContext) WithT(t *testing.T) *WithT {
+	t.Helper()
+
+	g := NewWithT(t)
+	g.SetDefaultEventuallyTimeout(generalWaitTimeout)
+	g.SetDefaultEventuallyPollingInterval(1 * time.Second)
+
+	return g
 }
 
 func (tc *testContext) testDSCCreation(t *testing.T) error {
@@ -371,8 +384,6 @@ func (tc *testContext) testTrustedCABundleWhenManaged(t *testing.T) error {
 	CAConfigMapName := "odh-trusted-ca-bundle"
 	CADataFieldName := "odh-ca-bundle.crt"
 
-	tc.testDSCI.Spec.TrustedCABundle.ManagementState = "Managed"
-
 	foundConfigMap := &corev1.ConfigMap{}
 	err := tc.customClient.Get(tc.ctx, client.ObjectKey{
 		Name:      CAConfigMapName,
@@ -399,10 +410,11 @@ func (tc *testContext) testTrustedCABundleWhenManaged(t *testing.T) error {
 
 func (tc *testContext) testTrustedCABundleWhenRemoved(t *testing.T) error {
 	t.Helper()
+	g := tc.WithT(t)
 	CAConfigMapName := "odh-trusted-ca-bundle"
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		// refresh the instance in case it was updated during the reconcile
-		err := tc.customClient.Get(tc.ctx, types.NamespacedName{Name: tc.testDsc.Name}, tc.testDsc)
+		err := tc.customClient.Get(tc.ctx, types.NamespacedName{Name: tc.testDSCI.Name}, tc.testDSCI)
 		if err != nil {
 			return fmt.Errorf("error getting resource %w", err)
 		}
@@ -410,14 +422,7 @@ func (tc *testContext) testTrustedCABundleWhenRemoved(t *testing.T) error {
 		// Disable the TrustedCABundle
 		tc.testDSCI.Spec.TrustedCABundle.ManagementState = operatorv1.Removed
 
-		// Try to update
-		err = tc.customClient.Update(tc.ctx, tc.testDsc)
-		// Return err itself here (not wrapped inside another error)
-		// so that RetryOnConflict can identify it correctly.
-		if err != nil {
-			return fmt.Errorf("error updating component from 'enabled: true' to 'enabled: false': %w", err)
-		}
-		return nil
+		return tc.customClient.Update(tc.ctx, tc.testDSCI)
 	})
 
 	if err != nil {
@@ -425,16 +430,10 @@ func (tc *testContext) testTrustedCABundleWhenRemoved(t *testing.T) error {
 	}
 
 	foundConfigMap := &corev1.ConfigMap{}
-	err = tc.customClient.Get(tc.ctx, client.ObjectKey{
+	g.Eventually(tc.customClient.Get).WithArguments(tc.ctx, client.ObjectKey{
 		Name:      CAConfigMapName,
 		Namespace: tc.testDSCI.Spec.ApplicationsNamespace,
-	}, foundConfigMap)
-
-	if k8serr.IsNotFound(err) {
-		t.Log("Config map not found in the namespace")
-	} else {
-		return fmt.Errorf("failed to validate trusted CA bundle %w", err)
-	}
+	}, foundConfigMap).Should(Succeed())
 
 	return nil
 }
