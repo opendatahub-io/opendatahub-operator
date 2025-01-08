@@ -20,11 +20,11 @@ package datasciencecluster
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
-	"golang.org/x/exp/slices"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"

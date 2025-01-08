@@ -2,10 +2,10 @@ package kustomize
 
 import (
 	"fmt"
+	"maps"
 	"path/filepath"
+	"slices"
 
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/kustomize/api/krusty"
 	"sigs.k8s.io/kustomize/kyaml/filesys"

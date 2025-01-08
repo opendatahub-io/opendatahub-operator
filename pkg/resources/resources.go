@@ -7,10 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 
 	"github.com/davecgh/go-spew/spew"
 	routev1 "github.com/openshift/api/route/v1"
-	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
