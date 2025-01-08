@@ -2,54 +2,67 @@ package servicemesh
 
 import (
 	"context"
-	"fmt"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 )
 
-func RemoveExtensionProvider(f *feature.Feature) error {
-	ossmAuthzProvider := fmt.Sprintf("%s-auth-provider", f.Spec.AppNamespace)
+func RemoveExtensionProvider(controlPlane infrav1.ControlPlaneSpec, extensionName string) feature.CleanupFunc {
+	return func(ctx context.Context, cli client.Client) error {
+		smcp := &unstructured.Unstructured{}
+		smcp.SetGroupVersionKind(gvk.ServiceMeshControlPlane)
 
-	mesh := f.Spec.ControlPlane
-	smcp := &unstructured.Unstructured{}
-	smcp.SetGroupVersionKind(gvk.ServiceMeshControlPlane)
+		if err := cli.Get(ctx, client.ObjectKey{
+			Namespace: controlPlane.Namespace,
+			Name:      controlPlane.Name,
+		}, smcp); err != nil {
+			return client.IgnoreNotFound(err)
+		}
 
-	if err := f.Client.Get(context.TODO(), client.ObjectKey{
-		Namespace: mesh.Namespace,
-		Name:      mesh.Name,
-	}, smcp); err != nil {
-		return client.IgnoreNotFound(err)
-	}
+		extensionProviders, found, err := unstructured.NestedSlice(smcp.Object, "spec", "techPreview", "meshConfig", "extensionProviders")
+		if err != nil {
+			return err
+		}
+		if !found {
+			return nil
+		}
 
-	extensionProviders, found, err := unstructured.NestedSlice(smcp.Object, "spec", "techPreview", "meshConfig", "extensionProviders")
-	if err != nil {
-		return err
-	}
-	if !found {
-		f.Log.Info("no extension providers found", "feature", f.Name, "control-plane", mesh.Name, "namespace", mesh.Namespace)
+		removed := false
+
+		for i, v := range extensionProviders {
+			extensionProvider, ok := v.(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			currentExtensionName, isString := extensionProvider["name"].(string)
+			if !isString {
+				continue
+			}
+			if currentExtensionName == extensionName {
+				extensionProviders = append(extensionProviders[:i], extensionProviders[i+1:]...)
+				err = unstructured.SetNestedSlice(smcp.Object, extensionProviders, "spec", "techPreview", "meshConfig", "extensionProviders")
+				if err != nil {
+					return err
+				}
+				removed = true
+				break
+			}
+		}
+
+		if removed {
+			// Update the ServiceMeshControlPlane with the removed extension provider.
+			// As it could have been updated by another controller in the meantime, we need to retry on conflict.
+			return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+				return cli.Update(ctx, smcp)
+			})
+		}
+
 		return nil
 	}
-
-	for i, v := range extensionProviders {
-		extensionProvider, ok := v.(map[string]interface{})
-		if !ok {
-			f.Log.Info("WARN: Unexpected type for extensionProvider will not be removed")
-			continue
-		}
-
-		if extensionProvider["name"] == ossmAuthzProvider {
-			extensionProviders = append(extensionProviders[:i], extensionProviders[i+1:]...)
-			err = unstructured.SetNestedSlice(smcp.Object, extensionProviders, "spec", "techPreview", "meshConfig", "extensionProviders")
-			if err != nil {
-				return err
-			}
-			break
-		}
-	}
-
-	return f.Client.Update(context.TODO(), smcp)
 }

@@ -40,7 +40,16 @@ spec:
         env:
           - name: DISABLE_DSC_CONFIG
             value: 'true'
+          - name: OPERATOR_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: DEFAULT_MANIFESTS_PATH
+            value: /opt/manifests
+          - name: ODH_PLATFORM_TYPE
+            value: OpenDataHub
         args:
+        - --leader-elect
         - --operator-name=opendatahub
         image: controller:latest
         imagePullPolicy: Always
@@ -73,7 +82,7 @@ spec:
             cpu: 500m
             memory: 4Gi
           requests:
-            cpu: 500m
-            memory: 256Mi
+            cpu: 100m
+            memory: 780Mi
       serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10

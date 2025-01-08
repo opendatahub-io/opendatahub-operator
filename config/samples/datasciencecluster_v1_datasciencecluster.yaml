@@ -18,10 +18,13 @@ spec:
       managementState: "Managed"
     kserve: {
       managementState: "Managed",
+      nim: {
+        managementState: "Managed"
+      },
       serving: {
         ingressGateway: {
           certificate: {
-            type: SelfSigned
+            type: OpenshiftDefaultIngress
           }
         },
         name: "knative-serving",
@@ -33,7 +36,7 @@ spec:
     kueue:
       managementState: "Managed"
     trainingoperator:
-      managementState: "Removed"
+      managementState: "Managed"
     ray:
       managementState: "Managed"
     workbenches:
@@ -41,4 +44,5 @@ spec:
     trustyai:
       managementState: "Managed"
     modelregistry:
-      managementState: "Removed"
+      managementState: "Managed"
+      registriesNamespace: "odh-model-registries"

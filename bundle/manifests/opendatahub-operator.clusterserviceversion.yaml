@@ -30,10 +30,13 @@ metadata:
               },
               "kserve": {
                 "managementState": "Managed",
+                "nim": {
+                  "managementState": "Managed"
+                },
                 "serving": {
                   "ingressGateway": {
                     "certificate": {
-                      "type": "SelfSigned"
+                      "type": "OpenshiftDefaultIngress"
                     }
                   },
                   "managementState": "Managed",
@@ -47,13 +50,14 @@ metadata:
                 "managementState": "Managed"
               },
               "modelregistry": {
-                "managementState": "Removed"
+                "managementState": "Managed",
+                "registriesNamespace": "odh-model-registries"
               },
               "ray": {
                 "managementState": "Managed"
               },
               "trainingoperator": {
-                "managementState": "Removed"
+                "managementState": "Managed"
               },
               "trustyai": {
                 "managementState": "Managed"
@@ -101,14 +105,13 @@ metadata:
     capabilities: Full Lifecycle
     categories: AI/Machine Learning, Big Data
     certified: "False"
-    containerImage: quay.io/opendatahub/opendatahub-operator:v2.12.0
-    createdAt: "2024-4-22T00:00:00Z"
-    olm.skipRange: '>=1.0.0 <2.12.0'
-    operators.operatorframework.io/builder: operator-sdk-v1.24.1
-    operators.operatorframework.io/internal-objects: '[dscinitialization.opendatahub.io]'
+    containerImage: quay.io/opendatahub/opendatahub-operator:v2.22.0
+    createdAt: "2024-12-12T14:21:26Z"
+    olm.skipRange: '>=1.0.0 <2.22.0'
+    operators.operatorframework.io/builder: operator-sdk-v1.31.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/opendatahub-io/opendatahub-operator
-  name: opendatahub-operator.v2.12.0
+  name: opendatahub-operator.v2.22.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -175,11 +178,11 @@ spec:
     built on top of Kubeflow Notebook Controller with support for OAuth\n* Jupyter
     Notebooks - JupyterLab notebook that provide Python support for GPU workloads\n*
     Data Science Pipelines - Pipeline solution for end to end MLOps workflows that
-    support the Kubeflow Pipelines SDK and Tekton\n* Model Mesh - ModelMesh Serving
-    is the Controller for managing ModelMesh, a general-purpose model serving management/routing
-    layer\n* Distributed Workloads(Incubation) - Stack built to make managing distributed
-    compute infrastructure in the cloud easy and intuitive for Data Scientists. This
-    stack consists of three components \n                                      Codeflare
+    support the Kubeflow Pipelines SDK and Argo Workflows\n* Model Mesh - ModelMesh
+    Serving is the Controller for managing ModelMesh, a general-purpose model serving
+    management/routing layer\n* Distributed Workloads(Incubation) - Stack built to
+    make managing distributed compute infrastructure in the cloud easy and intuitive
+    for Data Scientists. This stack consists of three components \n                                      Codeflare
     , KubeRay and Kueue.\n* Kserve - Kserve is the Controller for for serving machine
     learning (ML) models on arbitrary frameworks"
   displayName: Open Data Hub Operator
@@ -193,26 +196,8 @@ spec:
         - apiGroups:
           - '*'
           resources:
-          - customresourcedefinitions
-          verbs:
-          - get
-          - list
-          - watch
-        - apiGroups:
-          - '*'
-          resources:
           - deployments
-          verbs:
-          - '*'
-        - apiGroups:
-          - '*'
-          resources:
           - replicasets
-          verbs:
-          - '*'
-        - apiGroups:
-          - '*'
-          resources:
           - services
           verbs:
           - '*'
@@ -229,26 +214,9 @@ spec:
           - update
           - watch
         - apiGroups:
-          - addons.managed.openshift.io
-          resources:
-          - addons
-          verbs:
-          - get
-        - apiGroups:
           - admissionregistration.k8s.io
           resources:
           - mutatingwebhookconfigurations
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - admissionregistration.k8s.io
-          resources:
           - validatingwebhookconfigurations
           verbs:
           - create
@@ -285,23 +253,8 @@ spec:
           - apps
           resources:
           - deployments
-          verbs:
-          - '*'
-        - apiGroups:
-          - apps
-          resources:
           - deployments/finalizers
-          verbs:
-          - '*'
-        - apiGroups:
-          - apps
-          resources:
           - replicasets
-          verbs:
-          - '*'
-        - apiGroups:
-          - apps
-          resources:
           - statefulsets
           verbs:
           - '*'
@@ -317,6 +270,7 @@ spec:
           - tokenreviews
           verbs:
           - create
+          - get
         - apiGroups:
           - authorino.kuadrant.io
           resources:
@@ -329,27 +283,14 @@ spec:
           - subjectaccessreviews
           verbs:
           - create
+          - get
         - apiGroups:
           - authorization.openshift.io
+          - rbac.authorization.k8s.io
           resources:
           - clusterrolebindings
-          verbs:
-          - '*'
-        - apiGroups:
-          - authorization.openshift.io
-          resources:
           - clusterroles
-          verbs:
-          - '*'
-        - apiGroups:
-          - authorization.openshift.io
-          resources:
           - rolebindings
-          verbs:
-          - '*'
-        - apiGroups:
-          - authorization.openshift.io
-          resources:
           - roles
           verbs:
           - '*'
@@ -360,30 +301,27 @@ spec:
           verbs:
           - create
           - delete
+          - get
           - list
           - patch
           - update
           - watch
         - apiGroups:
           - autoscaling.openshift.io
+          - machine.openshift.io
           resources:
           - machineautoscalers
-          verbs:
-          - delete
-          - list
-          - patch
-        - apiGroups:
-          - autoscaling.openshift.io
-          resources:
           - machinesets
           verbs:
           - delete
+          - get
           - list
           - patch
         - apiGroups:
           - batch
           resources:
           - cronjobs
+          - jobs/status
           verbs:
           - create
           - delete
@@ -399,45 +337,15 @@ spec:
           verbs:
           - '*'
         - apiGroups:
-          - batch
-          resources:
-          - jobs/status
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
           - build.openshift.io
           resources:
           - buildconfigs
-          verbs:
-          - create
-          - delete
-          - list
-          - patch
-          - watch
-        - apiGroups:
-          - build.openshift.io
-          resources:
           - buildconfigs/instantiate
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - watch
-        - apiGroups:
-          - build.openshift.io
-          resources:
           - builds
           verbs:
           - create
           - delete
+          - get
           - list
           - patch
           - watch
@@ -452,8 +360,10 @@ spec:
         - apiGroups:
           - config.openshift.io
           resources:
+          - authentications
           - clusterversions
           verbs:
+          - get
           - list
           - watch
         - apiGroups:
@@ -506,13 +416,21 @@ spec:
           - ""
           resources:
           - clusterversions
+          - rhmis
           verbs:
+          - get
           - list
           - watch
         - apiGroups:
           - ""
           resources:
           - configmaps
+          - events
+          - namespaces
+          - secrets
+          - secrets/finalizers
+          - serviceaccounts
+          - services/finalizers
           verbs:
           - create
           - delete
@@ -534,6 +452,11 @@ spec:
           - ""
           resources:
           - deployments
+          - persistentvolumeclaims
+          - persistentvolumes
+          - pods
+          - pods/exec
+          - pods/log
           verbs:
           - '*'
         - apiGroups:
@@ -550,104 +473,8 @@ spec:
         - apiGroups:
           - ""
           resources:
-          - events
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - ""
-          resources:
-          - namespaces
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - ""
-          resources:
           - namespaces/finalizers
           verbs:
-          - delete
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - ""
-          resources:
-          - persistentvolumeclaims
-          verbs:
-          - '*'
-        - apiGroups:
-          - ""
-          resources:
-          - persistentvolumes
-          verbs:
-          - '*'
-        - apiGroups:
-          - ""
-          resources:
-          - pods
-          verbs:
-          - '*'
-        - apiGroups:
-          - ""
-          resources:
-          - pods/exec
-          verbs:
-          - '*'
-        - apiGroups:
-          - ""
-          resources:
-          - pods/log
-          verbs:
-          - '*'
-        - apiGroups:
-          - ""
-          resources:
-          - rhmis
-          verbs:
-          - list
-          - watch
-        - apiGroups:
-          - ""
-          resources:
-          - secrets
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - ""
-          resources:
-          - secrets/finalizers
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - ""
-          resources:
-          - serviceaccounts
-          verbs:
-          - create
           - delete
           - get
           - list
@@ -668,45 +495,10 @@ spec:
           - update
           - watch
         - apiGroups:
-          - ""
-          resources:
-          - services/finalizers
-          verbs:
-          - create
-          - delete
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - custom.tekton.dev
-          resources:
-          - pipelineloops
-          verbs:
-          - '*'
-        - apiGroups:
           - dashboard.opendatahub.io
           resources:
           - acceleratorprofiles
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-        - apiGroups:
-          - dashboard.opendatahub.io
-          resources:
           - odhapplications
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-        - apiGroups:
-          - dashboard.opendatahub.io
-          resources:
           - odhdocuments
           verbs:
           - create
@@ -757,12 +549,6 @@ spec:
           - datasciencepipelinesapplications.opendatahub.io
           resources:
           - datasciencepipelinesapplications/finalizers
-          verbs:
-          - patch
-          - update
-        - apiGroups:
-          - datasciencepipelinesapplications.opendatahub.io
-          resources:
           - datasciencepipelinesapplications/status
           verbs:
           - get
@@ -784,14 +570,6 @@ spec:
           - dscinitialization.opendatahub.io
           resources:
           - dscinitializations/finalizers
-          verbs:
-          - delete
-          - get
-          - patch
-          - update
-        - apiGroups:
-          - dscinitialization.opendatahub.io
-          resources:
           - dscinitializations/status
           verbs:
           - delete
@@ -804,6 +582,7 @@ spec:
           - events
           verbs:
           - delete
+          - get
           - list
           - patch
           - watch
@@ -811,6 +590,7 @@ spec:
           - extensions
           resources:
           - deployments
+          - replicasets
           verbs:
           - '*'
         - apiGroups:
@@ -823,12 +603,6 @@ spec:
           - list
           - patch
           - watch
-        - apiGroups:
-          - extensions
-          resources:
-          - replicasets
-          verbs:
-          - '*'
         - apiGroups:
           - features.opendatahub.io
           resources:
@@ -866,11 +640,6 @@ spec:
           - image.openshift.io
           resources:
           - imagestreamtags
-          verbs:
-          - get
-        - apiGroups:
-          - image.openshift.io
-          resources:
           - registry/metrics
           verbs:
           - get
@@ -880,43 +649,10 @@ spec:
           - rhmis
           verbs:
           - delete
-          - list
-          - patch
-          - watch
-        - apiGroups:
-          - kfdef.apps.kubeflow.org
-          resources:
-          - kfdefs
-          verbs:
-          - create
-          - delete
           - get
           - list
           - patch
-          - update
           - watch
-        - apiGroups:
-          - kubeflow.org
-          resources:
-          - '*'
-          verbs:
-          - '*'
-        - apiGroups:
-          - machine.openshift.io
-          resources:
-          - machineautoscalers
-          verbs:
-          - delete
-          - list
-          - patch
-        - apiGroups:
-          - machine.openshift.io
-          resources:
-          - machinesets
-          verbs:
-          - delete
-          - list
-          - patch
         - apiGroups:
           - machinelearning.seldon.io
           resources:
@@ -927,41 +663,8 @@ spec:
           - maistra.io
           resources:
           - servicemeshcontrolplanes
-          verbs:
-          - create
-          - get
-          - list
-          - patch
-          - update
-          - use
-          - watch
-        - apiGroups:
-          - maistra.io
-          resources:
           - servicemeshmemberrolls
-          verbs:
-          - create
-          - get
-          - list
-          - patch
-          - update
-          - use
-          - watch
-        - apiGroups:
-          - maistra.io
-          resources:
           - servicemeshmembers
-          verbs:
-          - create
-          - get
-          - list
-          - patch
-          - update
-          - use
-          - watch
-        - apiGroups:
-          - maistra.io
-          resources:
           - servicemeshmembers/finalizers
           verbs:
           - create
@@ -988,6 +691,7 @@ spec:
           resources:
           - modelregistries/finalizers
           verbs:
+          - get
           - update
         - apiGroups:
           - modelregistry.opendatahub.io
@@ -1001,36 +705,17 @@ spec:
           - monitoring.coreos.com
           resources:
           - alertmanagerconfigs
-          verbs:
-          - create
-          - delete
-          - deletecollection
-          - get
-          - patch
-        - apiGroups:
-          - monitoring.coreos.com
-          resources:
           - alertmanagers
-          verbs:
-          - create
-          - delete
-          - deletecollection
-          - get
-          - patch
-        - apiGroups:
-          - monitoring.coreos.com
-          resources:
           - alertmanagers/finalizers
-          verbs:
-          - create
-          - delete
-          - deletecollection
-          - get
-          - patch
-        - apiGroups:
-          - monitoring.coreos.com
-          resources:
           - alertmanagers/status
+          - probes
+          - prometheuses
+          - prometheuses/finalizers
+          - prometheuses/status
+          - prometheusrules
+          - thanosrulers
+          - thanosrulers/finalizers
+          - thanosrulers/status
           verbs:
           - create
           - delete
@@ -1052,56 +737,6 @@ spec:
         - apiGroups:
           - monitoring.coreos.com
           resources:
-          - probes
-          verbs:
-          - create
-          - delete
-          - deletecollection
-          - get
-          - patch
-        - apiGroups:
-          - monitoring.coreos.com
-          resources:
-          - prometheuses
-          verbs:
-          - create
-          - delete
-          - deletecollection
-          - get
-          - patch
-        - apiGroups:
-          - monitoring.coreos.com
-          resources:
-          - prometheuses/finalizers
-          verbs:
-          - create
-          - delete
-          - deletecollection
-          - get
-          - patch
-        - apiGroups:
-          - monitoring.coreos.com
-          resources:
-          - prometheuses/status
-          verbs:
-          - create
-          - delete
-          - deletecollection
-          - get
-          - patch
-        - apiGroups:
-          - monitoring.coreos.com
-          resources:
-          - prometheusrules
-          verbs:
-          - create
-          - delete
-          - deletecollection
-          - get
-          - patch
-        - apiGroups:
-          - monitoring.coreos.com
-          resources:
           - servicemonitors
           verbs:
           - create
@@ -1113,50 +748,10 @@ spec:
           - update
           - watch
         - apiGroups:
-          - monitoring.coreos.com
-          resources:
-          - thanosrulers
-          verbs:
-          - create
-          - delete
-          - deletecollection
-          - get
-          - patch
-        - apiGroups:
-          - monitoring.coreos.com
-          resources:
-          - thanosrulers/finalizers
-          verbs:
-          - create
-          - delete
-          - deletecollection
-          - get
-          - patch
-        - apiGroups:
-          - monitoring.coreos.com
-          resources:
-          - thanosrulers/status
-          verbs:
-          - create
-          - delete
-          - deletecollection
-          - get
-          - patch
-        - apiGroups:
           - networking.istio.io
           resources:
           - envoyfilters
-          verbs:
-          - '*'
-        - apiGroups:
-          - networking.istio.io
-          resources:
           - gateways
-          verbs:
-          - '*'
-        - apiGroups:
-          - networking.istio.io
-          resources:
           - virtualservices
           verbs:
           - '*'
@@ -1178,23 +773,13 @@ spec:
           - virtualservices/status
           verbs:
           - delete
+          - get
           - patch
           - update
         - apiGroups:
           - networking.k8s.io
           resources:
           - ingresses
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - networking.k8s.io
-          resources:
           - networkpolicies
           verbs:
           - create
@@ -1244,8 +829,10 @@ spec:
           - operator.openshift.io
           resources:
           - consoles
+          - ingresscontrollers
           verbs:
           - delete
+          - get
           - list
           - patch
           - watch
@@ -1253,6 +840,7 @@ spec:
           - operators.coreos.com
           resources:
           - catalogsources
+          - operatorconditions
           verbs:
           - get
           - list
@@ -1279,14 +867,6 @@ spec:
         - apiGroups:
           - operators.coreos.com
           resources:
-          - operatorconditions
-          verbs:
-          - get
-          - list
-          - watch
-        - apiGroups:
-          - operators.coreos.com
-          resources:
           - subscriptions
           verbs:
           - delete
@@ -1307,17 +887,6 @@ spec:
           - ray.io
           resources:
           - rayjobs
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - ray.io
-          resources:
           - rayservices
           verbs:
           - create
@@ -1328,38 +897,9 @@ spec:
           - update
           - watch
         - apiGroups:
-          - rbac.authorization.k8s.io
-          resources:
-          - clusterrolebindings
-          verbs:
-          - '*'
-        - apiGroups:
-          - rbac.authorization.k8s.io
-          resources:
-          - clusterroles
-          verbs:
-          - '*'
-        - apiGroups:
-          - rbac.authorization.k8s.io
-          resources:
-          - rolebindings
-          verbs:
-          - '*'
-        - apiGroups:
-          - rbac.authorization.k8s.io
-          resources:
-          - roles
-          verbs:
-          - '*'
-        - apiGroups:
           - route.openshift.io
           resources:
           - routers/federate
-          verbs:
-          - get
-        - apiGroups:
-          - route.openshift.io
-          resources:
           - routers/metrics
           verbs:
           - get
@@ -1407,20 +947,11 @@ spec:
           - serving.knative.dev
           resources:
           - services
-          verbs:
-          - create
-          - delete
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - serving.knative.dev
-          resources:
           - services/finalizers
           verbs:
           - create
           - delete
+          - get
           - list
           - patch
           - update
@@ -1431,26 +962,24 @@ spec:
           - services/status
           verbs:
           - delete
+          - get
           - patch
           - update
         - apiGroups:
           - serving.kserve.io
           resources:
           - clusterservingruntimes
-          verbs:
-          - create
-          - delete
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - serving.kserve.io
-          resources:
           - clusterservingruntimes/finalizers
+          - inferencegraphs
+          - inferenceservices
+          - inferenceservices/finalizers
+          - predictors
+          - servingruntimes/finalizers
+          - trainedmodels
           verbs:
           - create
           - delete
+          - get
           - list
           - patch
           - update
@@ -1459,85 +988,22 @@ spec:
           - serving.kserve.io
           resources:
           - clusterservingruntimes/status
-          verbs:
-          - delete
-          - patch
-          - update
-        - apiGroups:
-          - serving.kserve.io
-          resources:
-          - inferencegraphs
-          verbs:
-          - create
-          - delete
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - serving.kserve.io
-          resources:
           - inferencegraphs/status
-          verbs:
-          - delete
-          - patch
-          - update
-        - apiGroups:
-          - serving.kserve.io
-          resources:
-          - inferenceservices
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - serving.kserve.io
-          resources:
-          - inferenceservices/finalizers
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - serving.kserve.io
-          resources:
           - inferenceservices/status
+          - predictors/status
+          - trainedmodels/status
           verbs:
           - delete
+          - get
           - patch
           - update
-        - apiGroups:
-          - serving.kserve.io
-          resources:
-          - predictors
-          verbs:
-          - create
-          - delete
-          - list
-          - patch
-          - update
-          - watch
         - apiGroups:
           - serving.kserve.io
           resources:
           - predictors/finalizers
+          - servingruntimes/status
           verbs:
-          - patch
-          - update
-        - apiGroups:
-          - serving.kserve.io
-          resources:
-          - predictors/status
-          verbs:
-          - delete
+          - get
           - patch
           - update
         - apiGroups:
@@ -1546,44 +1012,6 @@ spec:
           - servingruntimes
           verbs:
           - '*'
-        - apiGroups:
-          - serving.kserve.io
-          resources:
-          - servingruntimes/finalizers
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - serving.kserve.io
-          resources:
-          - servingruntimes/status
-          verbs:
-          - patch
-          - update
-        - apiGroups:
-          - serving.kserve.io
-          resources:
-          - trainedmodels
-          verbs:
-          - create
-          - delete
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - serving.kserve.io
-          resources:
-          - trainedmodels/status
-          verbs:
-          - delete
-          - patch
-          - update
         - apiGroups:
           - snapshot.storage.k8s.io
           resources:
@@ -1594,43 +1022,11 @@ spec:
           - get
           - patch
         - apiGroups:
-          - tekton.dev
-          resources:
-          - '*'
-          verbs:
-          - '*'
-        - apiGroups:
           - template.openshift.io
           resources:
           - templates
           verbs:
           - '*'
-        - apiGroups:
-          - trustyai.opendatahub.io
-          resources:
-          - trustyaiservices
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - trustyai.opendatahub.io
-          resources:
-          - trustyaiservices/finalizers
-          verbs:
-          - update
-        - apiGroups:
-          - trustyai.opendatahub.io
-          resources:
-          - trustyaiservices/status
-          verbs:
-          - get
-          - patch
-          - update
         - apiGroups:
           - user.openshift.io
           resources:
@@ -1648,6 +1044,7 @@ spec:
           - users
           verbs:
           - delete
+          - get
           - list
           - patch
           - watch
@@ -1674,12 +1071,20 @@ spec:
               - args:
                 - --health-probe-bind-address=:8081
                 - --metrics-bind-address=0.0.0.0:8080
-                - --operator-name=opendatahub
+                - --leader-elect
                 command:
                 - /manager
                 env:
                 - name: DISABLE_DSC_CONFIG
                   value: "true"
+                - name: OPERATOR_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: DEFAULT_MANIFESTS_PATH
+                  value: /opt/manifests
+                - name: ODH_PLATFORM_TYPE
+                  value: OpenDataHub
                 image: REPLACE_IMAGE:latest
                 imagePullPolicy: Always
                 livenessProbe:
@@ -1707,8 +1112,8 @@ spec:
                     cpu: 500m
                     memory: 4Gi
                   requests:
-                    cpu: 500m
-                    memory: 256Mi
+                    cpu: 100m
+                    memory: 780Mi
                 securityContext:
                   allowPrivilegeEscalation: false
                   capabilities:
@@ -1747,7 +1152,9 @@ spec:
   - workbenches
   - dashboard
   - kserve
-  - distributed-workloads
+  - distributed workloads
+  - trustyai
+  - modelregistry
   links:
   - name: Open Data Hub
     url: https://opendatahub.io
@@ -1757,14 +1164,34 @@ spec:
   - email: opendatahub@redhat.com
     name: Open Data Hub Maintainers
   maturity: stable
-  minKubeVersion: 1.22.0
+  minKubeVersion: 1.25.0
   provider:
     name: ODH
   selector:
     matchLabels:
       component: opendatahub-operator
-  version: 2.12.0
+  version: 2.22.0
   webhookdefinitions:
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: opendatahub-operator-controller-manager
+    failurePolicy: Fail
+    generateName: mutate.operator.opendatahub.io
+    rules:
+    - apiGroups:
+      - datasciencecluster.opendatahub.io
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - datascienceclusters
+    sideEffects: None
+    targetPort: 9443
+    type: MutatingAdmissionWebhook
+    webhookPath: /mutate-opendatahub-io-v1
   - admissionReviewVersions:
     - v1
     containerPort: 443
@@ -1779,7 +1206,7 @@ spec:
       - v1
       operations:
       - CREATE
-      - UPDATE
+      - DELETE
       resources:
       - datascienceclusters
       - dscinitializations

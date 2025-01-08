@@ -1,6 +1,7 @@
 package features_test
 
 import (
+	"context"
 	"os"
 	"path"
 
@@ -9,6 +10,8 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/manifest"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/provider"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/integration/features/fixtures"
 
@@ -16,7 +19,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Manifest sources", func() {
+var _ = Describe("Applying resources", func() {
 
 	var (
 		objectCleaner *envtestutil.Cleaner
@@ -24,67 +27,74 @@ var _ = Describe("Manifest sources", func() {
 		namespace     *corev1.Namespace
 	)
 
-	BeforeEach(func() {
+	BeforeEach(func(ctx context.Context) {
 		objectCleaner = envtestutil.CreateCleaner(envTestClient, envTest.Config, fixtures.Timeout, fixtures.Interval)
-		nsName := envtestutil.AppendRandomNameTo("smcp-ns")
+		nsName := envtestutil.AppendRandomNameTo("ns-smcp")
+		dsciName := envtestutil.AppendRandomNameTo("dsci-smcp")
 
 		var err error
-		namespace, err = cluster.CreateNamespace(envTestClient, nsName)
+		namespace, err = cluster.CreateNamespace(ctx, envTestClient, nsName)
 		Expect(err).ToNot(HaveOccurred())
 
-		dsci = fixtures.NewDSCInitialization(nsName)
+		dsci = fixtures.NewDSCInitialization(ctx, envTestClient, dsciName, nsName)
 		dsci.Spec.ServiceMesh.ControlPlane.Namespace = namespace.Name
 	})
 
-	AfterEach(func() {
-		objectCleaner.DeleteAll(namespace)
+	AfterEach(func(ctx context.Context) {
+		objectCleaner.DeleteAll(ctx, namespace, dsci)
 	})
 
-	It("should be able to process an embedded YAML file", func() {
+	It("should be able to process an embedded YAML file", func(ctx context.Context) {
 		// given
-		featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-			createNamespaceErr := feature.CreateFeature("create-namespace").
-				For(handler).
-				UsingConfig(envTest.Config).
-				ManifestSource(fixtures.TestEmbeddedFiles).
-				Manifests(path.Join(fixtures.BaseDir, "namespace.yaml")).
-				Load()
+		featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+			errNsCreate := registry.Add(feature.Define("create-namespaces").
+				Manifests(
+					manifest.Location(fixtures.TestEmbeddedFiles).
+						Include(path.Join(fixtures.BaseDir, "namespaces.yaml")),
+				),
+			)
 
-			Expect(createNamespaceErr).ToNot(HaveOccurred())
+			Expect(errNsCreate).ToNot(HaveOccurred())
 
 			return nil
 		})
 
 		// when
-		Expect(featuresHandler.Apply()).To(Succeed())
+		Expect(featuresHandler.Apply(ctx, envTestClient)).To(Succeed())
 
 		// then
-		embeddedNs, err := fixtures.GetNamespace(envTestClient, "embedded-test-ns")
-		defer objectCleaner.DeleteAll(embeddedNs)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(embeddedNs.Name).To(Equal("embedded-test-ns"))
+		embeddedNs1, errNS1 := fixtures.GetNamespace(ctx, envTestClient, "embedded-test-ns-1")
+		embeddedNs2, errNS2 := fixtures.GetNamespace(ctx, envTestClient, "embedded-test-ns-2")
+		defer objectCleaner.DeleteAll(ctx, embeddedNs1, embeddedNs2)
+
+		Expect(errNS1).ToNot(HaveOccurred())
+		Expect(errNS2).ToNot(HaveOccurred())
+
+		Expect(embeddedNs1.Name).To(Equal("embedded-test-ns-1"))
+		Expect(embeddedNs2.Name).To(Equal("embedded-test-ns-2"))
 	})
 
-	It("should be able to process an embedded template file", func() {
+	It("should be able to process an embedded template file", func(ctx context.Context) {
 		// given
-		featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-			createServiceErr := feature.CreateFeature("create-local-gw-svc").
-				For(handler).
-				UsingConfig(envTest.Config).
-				ManifestSource(fixtures.TestEmbeddedFiles).
-				Manifests(path.Join(fixtures.BaseDir, "local-gateway-svc.tmpl.yaml")).
-				Load()
+		featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+			errSvcCreate := registry.Add(feature.Define("create-local-gw-svc").
+				Manifests(
+					manifest.Location(fixtures.TestEmbeddedFiles).
+						Include(path.Join(fixtures.BaseDir, "local-gateway-svc.tmpl.yaml")),
+				).
+				WithData(feature.Entry("ControlPlane", provider.ValueOf(dsci.Spec.ServiceMesh.ControlPlane).Get)),
+			)
 
-			Expect(createServiceErr).ToNot(HaveOccurred())
+			Expect(errSvcCreate).ToNot(HaveOccurred())
 
 			return nil
 		})
 
 		// when
-		Expect(featuresHandler.Apply()).To(Succeed())
+		Expect(featuresHandler.Apply(ctx, envTestClient)).To(Succeed())
 
 		// then
-		service, err := fixtures.GetService(envTestClient, namespace.Name, "knative-local-gateway")
+		service, err := fixtures.GetService(ctx, envTestClient, namespace.Name, "knative-local-gateway")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(service.Name).To(Equal("knative-local-gateway"))
 	})
@@ -94,31 +104,31 @@ kind: Namespace
 metadata:
   name: real-file-test-ns`
 
-	It("should source manifests from a specified temporary directory within the file system", func() {
+	It("should source manifests from a specified temporary directory within the file system", func(ctx context.Context) {
 		// given
 		tempDir := GinkgoT().TempDir()
 
 		Expect(fixtures.CreateFile(tempDir, "namespace.yaml", nsYAML)).To(Succeed())
 
-		featuresHandler := feature.ClusterFeaturesHandler(dsci, func(handler *feature.FeaturesHandler) error {
-			createServiceErr := feature.CreateFeature("create-namespace").
-				For(handler).
-				UsingConfig(envTest.Config).
-				ManifestSource(os.DirFS(tempDir)).
-				Manifests(path.Join("namespace.yaml")). // must be relative to root DirFS defined above
-				Load()
+		featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+			errSvcCreate := registry.Add(feature.Define("create-namespace").
+				Manifests(
+					manifest.Location(os.DirFS(tempDir)).
+						Include(path.Join("namespace.yaml")), // must be relative to root DirFS defined above
+				),
+			)
 
-			Expect(createServiceErr).ToNot(HaveOccurred())
+			Expect(errSvcCreate).ToNot(HaveOccurred())
 
 			return nil
 		})
 
 		// when
-		Expect(featuresHandler.Apply()).To(Succeed())
+		Expect(featuresHandler.Apply(ctx, envTestClient)).To(Succeed())
 
 		// then
-		realNs, err := fixtures.GetNamespace(envTestClient, "real-file-test-ns")
-		defer objectCleaner.DeleteAll(realNs)
+		realNs, err := fixtures.GetNamespace(ctx, envTestClient, "real-file-test-ns")
+		defer objectCleaner.DeleteAll(ctx, realNs)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(realNs.Name).To(Equal("real-file-test-ns"))
 	})

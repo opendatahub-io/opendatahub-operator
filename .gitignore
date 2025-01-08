@@ -51,9 +51,11 @@ components/gcp-click-to-deploy/src/user_config/**
 **/reg_tmp
 scripts/gke/build/**
 
-odh-manifests/
+opt/manifests/
 
 cover.out
+
+config/manager/kustomization.yaml
 
 # Ignore any local.mk files that would be consumed by the Makefile
 local.mk

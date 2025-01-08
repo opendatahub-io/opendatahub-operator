@@ -1,3 +1,5 @@
+//go:build !nowebhook
+
 /*
 Copyright 2023.
 
@@ -21,51 +23,94 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/go-logr/logr"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	admissionv1 "k8s.io/api/admission/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
+
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
-var log = ctrl.Log.WithName("odh-controller-webhook")
-
-//+kubebuilder:webhook:path=/validate-opendatahub-io-v1,mutating=false,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io;dscinitialization.opendatahub.io,resources=datascienceclusters;dscinitializations,verbs=create;update,versions=v1,name=operator.opendatahub.io,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/validate-opendatahub-io-v1,mutating=false,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io;dscinitialization.opendatahub.io,resources=datascienceclusters;dscinitializations,verbs=create;delete,versions=v1,name=operator.opendatahub.io,admissionReviewVersions=v1
 //nolint:lll
 
-type OpenDataHubWebhook struct {
-	client  client.Client
-	decoder *admission.Decoder
+// TODO: Get rid of platform in name, rename to ValidatingWebhook.
+type OpenDataHubValidatingWebhook struct {
+	Client  client.Client
+	Decoder *admission.Decoder
+	Name    string
 }
 
-func (w *OpenDataHubWebhook) SetupWithManager(mgr ctrl.Manager) {
+func Init(mgr ctrl.Manager) {
+	(&OpenDataHubValidatingWebhook{
+		Client:  mgr.GetClient(),
+		Decoder: admission.NewDecoder(mgr.GetScheme()),
+		Name:    "ValidatingWebhook",
+	}).SetupWithManager(mgr)
+
+	(&DSCDefaulter{
+		Name: "DefaultingWebhook",
+	}).SetupWithManager(mgr)
+}
+
+// newLogConstructor creates a new logger constructor for a webhook.
+// It is based on the root controller-runtime logger witch is set in main.go
+// The purpose of it is to remove "admission" from the log name.
+func newLogConstructor(name string) func(logr.Logger, *admission.Request) logr.Logger {
+	return func(_ logr.Logger, req *admission.Request) logr.Logger {
+		base := ctrl.Log
+		l := admission.DefaultLogConstructor(base, req)
+		return l.WithValues("webhook", name)
+	}
+}
+
+func (w *OpenDataHubValidatingWebhook) SetupWithManager(mgr ctrl.Manager) {
 	hookServer := mgr.GetWebhookServer()
 	odhWebhook := &webhook.Admission{
-		Handler: w,
+		Handler:        w,
+		LogConstructor: newLogConstructor(w.Name),
 	}
 	hookServer.Register("/validate-opendatahub-io-v1", odhWebhook)
 }
 
-func (w *OpenDataHubWebhook) InjectDecoder(d *admission.Decoder) error {
-	w.decoder = d
-	return nil
-}
+func countObjects(ctx context.Context, cli client.Client, gvk schema.GroupVersionKind) (int, error) {
+	list := &unstructured.UnstructuredList{}
+	list.SetGroupVersionKind(gvk)
 
-func (w *OpenDataHubWebhook) InjectClient(c client.Client) error {
-	w.client = c
-	return nil
-}
-
-func (w *OpenDataHubWebhook) checkDupCreation(ctx context.Context, req admission.Request) admission.Response {
-	if req.Operation != admissionv1.Create {
-		return admission.Allowed(fmt.Sprintf("duplication check: skipping %v request", req.Operation))
+	if err := cli.List(ctx, list); err != nil {
+		return 0, err
 	}
 
+	return len(list.Items), nil
+}
+
+func denyCountGtZero(ctx context.Context, cli client.Client, gvk schema.GroupVersionKind, msg string) admission.Response {
+	count, err := countObjects(ctx, cli, gvk)
+	if err != nil {
+		return admission.Errored(http.StatusBadRequest, err)
+	}
+
+	if count > 0 {
+		return admission.Denied(msg)
+	}
+
+	return admission.Allowed("")
+}
+
+func (w *OpenDataHubValidatingWebhook) checkDupCreation(ctx context.Context, req admission.Request) admission.Response {
+	log := logf.FromContext(ctx)
+
 	switch req.Kind.Kind {
-	case "DataScienceCluster":
-	case "DSCInitialization":
+	case "DataScienceCluster", "DSCInitialization":
 	default:
 		log.Info("Got wrong kind", "kind", req.Kind.Kind)
 		return admission.Errored(http.StatusBadRequest, nil)
@@ -77,35 +122,74 @@ func (w *OpenDataHubWebhook) checkDupCreation(ctx context.Context, req admission
 		Kind:    req.Kind.Kind,
 	}
 
-	list := &unstructured.UnstructuredList{}
-	list.SetGroupVersionKind(gvk)
-
-	if err := w.client.List(ctx, list); err != nil {
-		return admission.Errored(http.StatusBadRequest, err)
-	}
-
-	// if len == 1 now creation of #2 is being handled
-	if len(list.Items) > 0 {
-		return admission.Denied(fmt.Sprintf("Only one instance of %s object is allowed", req.Kind.Kind))
-	}
-
-	return admission.Allowed(fmt.Sprintf("%s duplication check passed", req.Kind.Kind))
+	// if count == 1 now creation of #2 is being handled
+	return denyCountGtZero(ctx, w.Client, gvk,
+		fmt.Sprintf("Only one instance of %s object is allowed", req.Kind.Kind))
 }
 
-func (w *OpenDataHubWebhook) Handle(ctx context.Context, req admission.Request) admission.Response {
-	var resp admission.Response
-
-	// Handle only Create and Update
-	if req.Operation == admissionv1.Delete || req.Operation == admissionv1.Connect {
-		msg := fmt.Sprintf("ODH skipping %v request", req.Operation)
-		log.Info(msg)
-		return admission.Allowed(msg)
+func (w *OpenDataHubValidatingWebhook) checkDeletion(ctx context.Context, req admission.Request) admission.Response {
+	if req.Kind.Kind == "DataScienceCluster" {
+		return admission.Allowed("")
 	}
 
-	resp = w.checkDupCreation(ctx, req)
+	// Restrict deletion of DSCI if DSC exists
+	return denyCountGtZero(ctx, w.Client, gvk.DataScienceCluster,
+		fmt.Sprintln("Cannot delete DSCI object when DSC object still exists"))
+}
+
+func (w *OpenDataHubValidatingWebhook) Handle(ctx context.Context, req admission.Request) admission.Response {
+	log := logf.FromContext(ctx).WithName(w.Name).WithValues("operation", req.Operation)
+	ctx = logf.IntoContext(ctx, log)
+
+	var resp admission.Response
+	resp.Allowed = true // initialize Allowed to be true in case Operation falls into "default" case
+
+	switch req.Operation {
+	case admissionv1.Create:
+		resp = w.checkDupCreation(ctx, req)
+	case admissionv1.Delete:
+		resp = w.checkDeletion(ctx, req)
+	default: // for other operations by default it is admission.Allowed("")
+		// no-op
+	}
+
 	if !resp.Allowed {
 		return resp
 	}
 
-	return admission.Allowed(fmt.Sprintf("%s allowed", req.Kind.Kind))
+	return admission.Allowed(fmt.Sprintf("Operation %s on %s allowed", req.Operation, req.Kind.Kind))
+}
+
+//+kubebuilder:webhook:path=/mutate-opendatahub-io-v1,mutating=true,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io,resources=datascienceclusters,verbs=create;update,versions=v1,name=mutate.operator.opendatahub.io,admissionReviewVersions=v1
+//nolint:lll
+
+type DSCDefaulter struct {
+	Name string
+}
+
+// just assert that DSCDefaulter implements webhook.CustomDefaulter.
+var _ webhook.CustomDefaulter = &DSCDefaulter{}
+
+func (m *DSCDefaulter) SetupWithManager(mgr ctrl.Manager) {
+	mutateWebhook := admission.WithCustomDefaulter(mgr.GetScheme(), &dscv1.DataScienceCluster{}, m)
+	mutateWebhook.LogConstructor = newLogConstructor(m.Name)
+	mgr.GetWebhookServer().Register("/mutate-opendatahub-io-v1", mutateWebhook)
+}
+
+// Implement admission.CustomDefaulter interface.
+// It currently only sets defaults for modelregiestry in datascienceclusters.
+func (m *DSCDefaulter) Default(_ context.Context, obj runtime.Object) error {
+	// TODO: add debug logging, log := logf.FromContext(ctx).WithName(m.Name)
+	dsc, isDSC := obj.(*dscv1.DataScienceCluster)
+	if !isDSC {
+		return fmt.Errorf("expected DataScienceCluster but got a different type: %T", obj)
+	}
+
+	// set default registriesNamespace if empty "" but ModelRegistry is enabled
+	if dsc.Spec.Components.ModelRegistry.ManagementState == operatorv1.Managed {
+		if dsc.Spec.Components.ModelRegistry.RegistriesNamespace == "" {
+			dsc.Spec.Components.ModelRegistry.RegistriesNamespace = modelregistry.DefaultModelRegistriesNamespace
+		}
+	}
+	return nil
 }

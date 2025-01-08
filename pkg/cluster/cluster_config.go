@@ -7,21 +7,80 @@ import (
 	"os"
 	"strings"
 
-	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
-	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"github.com/blang/semver/v4"
+	"github.com/go-logr/logr"
+	configv1 "github.com/openshift/api/config/v1"
+	"github.com/operator-framework/api/pkg/lib/version"
+	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
-// +kubebuilder:rbac:groups="config.openshift.io",resources=ingresses,verbs=get
+type Platform string
 
-func GetDomain(c client.Client) (string, error) {
+// Release includes information on operator version and platform
+// +kubebuilder:object:generate=true
+type Release struct {
+	Name    Platform                `json:"name,omitempty"`
+	Version version.OperatorVersion `json:"version,omitempty"`
+}
+
+var clusterConfig struct {
+	Namespace string
+	Release   Release
+}
+
+// Init initializes cluster configuration variables on startup
+// init() won't work since it is needed to check the error.
+func Init(ctx context.Context, cli client.Client) error {
+	var err error
+	log := logf.FromContext(ctx)
+
+	clusterConfig.Namespace, err = getOperatorNamespace()
+	if err != nil {
+		log.Error(err, "unable to find operator namespace")
+		// not fatal, fallback to ""
+	}
+
+	clusterConfig.Release, err = getRelease(ctx, cli)
+	if err != nil {
+		return err
+	}
+
+	printClusterConfig(log)
+
+	return nil
+}
+
+func printClusterConfig(log logr.Logger) {
+	log.Info("Cluster config",
+		"Namespace", clusterConfig.Namespace,
+		"Release", clusterConfig.Release)
+}
+
+func GetOperatorNamespace() (string, error) {
+	if clusterConfig.Namespace == "" {
+		return "", errors.New("unable to find operator namespace")
+	}
+	return clusterConfig.Namespace, nil
+}
+
+func GetRelease() Release {
+	return clusterConfig.Release
+}
+
+func GetDomain(ctx context.Context, c client.Client) (string, error) {
 	ingress := &unstructured.Unstructured{}
 	ingress.SetGroupVersionKind(gvk.OpenshiftIngress)
 
-	if err := c.Get(context.TODO(), client.ObjectKey{
+	if err := c.Get(ctx, client.ObjectKey{
 		Namespace: "",
 		Name:      "cluster",
 	}, ingress); err != nil {
@@ -36,87 +95,154 @@ func GetDomain(c client.Client) (string, error) {
 	return domain, err
 }
 
-func GetOperatorNamespace() (string, error) {
+func getOperatorNamespace() (string, error) {
+	operatorNS, exist := os.LookupEnv("OPERATOR_NAMESPACE")
+	if exist && operatorNS != "" {
+		return operatorNS, nil
+	}
 	data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
 	return string(data), err
 }
 
-// GetClusterServiceVersion retries the clusterserviceversions available in the operator namespace.
-func GetClusterServiceVersion(ctx context.Context, c client.Client, watchNameSpace string) (*ofapi.ClusterServiceVersion, error) {
-	clusterServiceVersionList := &ofapi.ClusterServiceVersionList{}
-	if err := c.List(ctx, clusterServiceVersionList, client.InNamespace(watchNameSpace)); err != nil {
-		return nil, fmt.Errorf("failed listign cluster service versions: %w", err)
-	}
+func IsNotReservedNamespace(ns *corev1.Namespace) bool {
+	return !strings.HasPrefix(ns.GetName(), "openshift-") && !strings.HasPrefix(ns.GetName(), "kube-") &&
+		ns.GetName() != "default" && ns.GetName() != "openshift"
+}
 
-	for _, csv := range clusterServiceVersionList.Items {
-		for _, operatorCR := range csv.Spec.CustomResourceDefinitions.Owned {
-			if operatorCR.Kind == "DataScienceCluster" {
-				return &csv, nil
+// GetClusterServiceVersion retries CSV only from the defined namespace.
+func GetClusterServiceVersion(ctx context.Context, c client.Client, namespace string) (*ofapiv1alpha1.ClusterServiceVersion, error) {
+	clusterServiceVersionList := &ofapiv1alpha1.ClusterServiceVersionList{}
+	paginateListOption := &client.ListOptions{
+		Limit:     100,
+		Namespace: namespace,
+	}
+	for { // for the case we have very big size of CSV even just in one namespace
+		if err := c.List(ctx, clusterServiceVersionList, paginateListOption); err != nil {
+			return nil, fmt.Errorf("failed listing cluster service versions for %s: %w", namespace, err)
+		}
+		for _, csv := range clusterServiceVersionList.Items {
+			for _, operatorCR := range csv.Spec.CustomResourceDefinitions.Owned {
+				if operatorCR.Kind == "DataScienceCluster" {
+					return &csv, nil
+				}
 			}
+		}
+		if paginateListOption.Continue = clusterServiceVersionList.GetContinue(); paginateListOption.Continue == "" {
+			break
 		}
 	}
 
-	return nil, nil
+	return nil, k8serr.NewNotFound(
+		schema.GroupResource{Group: gvk.ClusterServiceVersion.Group},
+		gvk.ClusterServiceVersion.Kind)
 }
 
-type Platform string
+// detectSelfManaged detects if it is Self Managed Rhoai or OpenDataHub.
+func detectSelfManaged(ctx context.Context, cli client.Client) (Platform, error) {
+	variants := map[string]Platform{
+		"opendatahub-operator": OpenDataHub,
+		"rhods-operator":       SelfManagedRhoai,
+	}
 
-// isSelfManaged checks presence of ClusterServiceVersions:
-// when CSV displayname contains OpenDataHub, return 'OpenDataHub,nil' => high priority
-// when CSV displayname contains SelfManagedRhods, return 'SelfManagedRhods,nil'
-// when in dev mode and  could not find CSV (deploy by olm), return "", nil
-// otherwise return "",err.
-func isSelfManaged(cli client.Client) (Platform, error) {
-	clusterCsvs := &ofapi.ClusterServiceVersionList{}
-	err := cli.List(context.TODO(), clusterCsvs)
-	if err != nil {
-		return "", err
-	} else { //nolint:golint,revive // Readability on else
-		for _, csv := range clusterCsvs.Items {
-			if strings.Contains(csv.Spec.DisplayName, string(OpenDataHub)) {
-				return OpenDataHub, nil
-			}
-			if strings.Contains(csv.Spec.DisplayName, string(SelfManagedRhods)) {
-				return SelfManagedRhods, nil
-			}
+	for k, v := range variants {
+		exists, err := OperatorExists(ctx, cli, k)
+		if err != nil {
+			return Unknown, err
+		}
+		if exists {
+			return v, nil
 		}
 	}
 
 	return Unknown, nil
 }
 
-// isManagedRHODS checks if CRD add-on exists and contains string ManagedRhods.
-func isManagedRHODS(cli client.Client) (Platform, error) {
-	catalogSourceCRD := &apiextv1.CustomResourceDefinition{}
-
-	err := cli.Get(context.TODO(), client.ObjectKey{Name: "catalogsources.operators.coreos.com"}, catalogSourceCRD)
+// detectManagedRhoai checks if catsrc CR add-on exists ManagedRhoai.
+func detectManagedRhoai(ctx context.Context, cli client.Client) (Platform, error) {
+	catalogSource := &ofapiv1alpha1.CatalogSource{}
+	operatorNs, err := GetOperatorNamespace()
 	if err != nil {
-		return "", client.IgnoreNotFound(err)
+		operatorNs = "redhat-ods-operator"
 	}
-	expectedCatlogSource := &ofapi.CatalogSourceList{}
-	err = cli.List(context.TODO(), expectedCatlogSource)
+	err = cli.Get(ctx, client.ObjectKey{Name: "addon-managed-odh-catalog", Namespace: operatorNs}, catalogSource)
 	if err != nil {
-		return Unknown, err
+		return Unknown, client.IgnoreNotFound(err)
 	}
-	if len(expectedCatlogSource.Items) > 0 {
-		for _, cs := range expectedCatlogSource.Items {
-			if cs.Name == string(ManagedRhods) {
-				return ManagedRhods, nil
-			}
-		}
-	}
-
-	return "", nil
+	return ManagedRhoai, nil
 }
 
-func GetPlatform(cli client.Client) (Platform, error) {
-	// First check if its addon installation to return 'ManagedRhods, nil'
-	if platform, err := isManagedRHODS(cli); err != nil {
-		return Unknown, err
-	} else if platform == ManagedRhods {
-		return ManagedRhods, nil
+func getPlatform(ctx context.Context, cli client.Client) (Platform, error) {
+	switch os.Getenv("ODH_PLATFORM_TYPE") {
+	case "OpenDataHub":
+		return OpenDataHub, nil
+	case "ManagedRHOAI":
+		return ManagedRhoai, nil
+	case "SelfManagedRHOAI":
+		return SelfManagedRhoai, nil
+	default:
+		// fall back to detect platform if ODH_PLATFORM_TYPE env is not provided in CSV or set to ""
+		platform, err := detectManagedRhoai(ctx, cli)
+		if err != nil {
+			return Unknown, err
+		}
+		if platform == ManagedRhoai {
+			return ManagedRhoai, nil
+		}
+		return detectSelfManaged(ctx, cli)
+	}
+}
+
+func getRelease(ctx context.Context, cli client.Client) (Release, error) {
+	initRelease := Release{
+		// dummy version set to name "", version 0.0.0
+		Version: version.OperatorVersion{
+			Version: semver.Version{},
+		},
+	}
+	// Set platform
+	platform, err := getPlatform(ctx, cli)
+	if err != nil {
+		return initRelease, err
+	}
+	initRelease.Name = platform
+
+	// For unit-tests
+	if os.Getenv("CI") == "true" {
+		return initRelease, nil
 	}
 
-	// check and return whether ODH or self-managed platform
-	return isSelfManaged(cli)
+	// Set Version
+	// Get watchNamespace
+	operatorNamespace, err := GetOperatorNamespace()
+	if err != nil {
+		// unit test does not have k8s file or env var set, return default
+		return initRelease, err
+	}
+	csv, err := GetClusterServiceVersion(ctx, cli, operatorNamespace)
+	if k8serr.IsNotFound(err) {
+		// hide not found, return default
+		return initRelease, nil
+	}
+	if err != nil {
+		return initRelease, err
+	}
+	initRelease.Version = csv.Spec.Version
+	return initRelease, nil
+}
+
+// IsDefaultAuthMethod returns true if the default authentication method is IntegratedOAuth or empty.
+// This will give indication that Operator should create userGroups or not in the cluster.
+func IsDefaultAuthMethod(ctx context.Context, cli client.Client) (bool, error) {
+	authenticationobj := &configv1.Authentication{}
+	if err := cli.Get(ctx, client.ObjectKey{Name: ClusterAuthenticationObj, Namespace: ""}, authenticationobj); err != nil {
+		if errors.Is(err, &meta.NoKindMatchError{}) { // when CRD is missing, conver error type
+			return false, k8serr.NewNotFound(configv1.Resource("authentications"), ClusterAuthenticationObj)
+		}
+		return false, err
+	}
+
+	// for now, HPC support "" "None" "IntegratedOAuth"(default) "OIDC"
+	// other offering support "" "None" "IntegratedOAuth"(default)
+	// we only create userGroups for "IntegratedOAuth" or "" and leave other or new supported type value in the future
+	return authenticationobj.Spec.Type == configv1.AuthenticationTypeIntegratedOAuth || authenticationobj.Spec.Type == "", nil
 }

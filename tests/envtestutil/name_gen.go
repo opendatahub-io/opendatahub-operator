@@ -16,5 +16,5 @@ func AppendRandomNameTo(base string) string {
 	if len(base) > maxGeneratedNameLength {
 		base = base[:maxGeneratedNameLength]
 	}
-	return fmt.Sprintf("%s%s", base, utilrand.String(randomLength))
+	return fmt.Sprintf("%s-%s", base, utilrand.String(randomLength))
 }

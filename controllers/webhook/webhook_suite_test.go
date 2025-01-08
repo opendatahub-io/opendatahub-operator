@@ -31,19 +31,24 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
@@ -56,6 +61,7 @@ import (
 const (
 	namespace = "webhook-test-ns"
 	nameBase  = "webhook-test"
+	mrNS      = "model-registry-namespace"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
@@ -64,8 +70,8 @@ const (
 var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
-var ctx context.Context
-var cancel context.CancelFunc
+var gCtx context.Context
+var gCancel context.CancelFunc
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -73,10 +79,12 @@ func TestAPIs(t *testing.T) {
 	RunSpecs(t, "Webhook Suite")
 }
 
+//nolint:fatcontext
 var _ = BeforeSuite(func() {
-	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
+	// can't use suite's context as the manager should survive the function
+	gCtx, gCancel = context.WithCancel(context.Background())
 
-	ctx, cancel = context.WithCancel(context.TODO())
+	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
@@ -95,10 +103,10 @@ var _ = BeforeSuite(func() {
 
 	scheme := runtime.NewScheme()
 	// DSCI
-	err = dsci.AddToScheme(scheme)
+	err = dsciv1.AddToScheme(scheme)
 	Expect(err).NotTo(HaveOccurred())
 	// DSC
-	err = dsc.AddToScheme(scheme)
+	err = dscv1.AddToScheme(scheme)
 	Expect(err).NotTo(HaveOccurred())
 	// Webhook
 	err = admissionv1beta1.AddToScheme(scheme)
@@ -111,22 +119,34 @@ var _ = BeforeSuite(func() {
 	// start webhook server using Manager
 	webhookInstallOptions := &testEnv.WebhookInstallOptions
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
-		Scheme:             scheme,
-		Host:               webhookInstallOptions.LocalServingHost,
-		Port:               webhookInstallOptions.LocalServingPort,
-		CertDir:            webhookInstallOptions.LocalServingCertDir,
-		LeaderElection:     false,
-		MetricsBindAddress: "0",
+		Scheme:         scheme,
+		LeaderElection: false,
+		Metrics: ctrlmetrics.Options{
+			BindAddress: "0",
+			CertDir:     webhookInstallOptions.LocalServingCertDir,
+		},
+		WebhookServer: ctrlwebhook.NewServer(ctrlwebhook.Options{
+			Port:    webhookInstallOptions.LocalServingPort,
+			TLSOpts: []func(*tls.Config){func(config *tls.Config) {}},
+			Host:    webhookInstallOptions.LocalServingHost,
+			CertDir: webhookInstallOptions.LocalServingCertDir,
+		}),
+		Cache: cache.Options{Scheme: scheme},
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	(&webhook.OpenDataHubWebhook{}).SetupWithManager(mgr)
+	(&webhook.OpenDataHubValidatingWebhook{
+		Client:  mgr.GetClient(),
+		Decoder: admission.NewDecoder(mgr.GetScheme()),
+	}).SetupWithManager(mgr)
 
-	//+kubebuilder:scaffold:webhook
+	(&webhook.DSCDefaulter{}).SetupWithManager(mgr)
+
+	// +kubebuilder:scaffold:webhook
 
 	go func() {
 		defer GinkgoRecover()
-		err = mgr.Start(ctx)
+		err = mgr.Start(gCtx)
 		Expect(err).NotTo(HaveOccurred())
 	}()
 
@@ -145,31 +165,75 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	cancel()
+	gCancel()
+
 	By("tearing down the test environment")
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
 })
 
-var _ = Describe("DSC/DSCI webhook", func() {
-	It("Should not have more than one DSCI instance in the cluster", func() {
+var _ = Describe("DSC/DSCI validating webhook", func() {
+	It("Should not have more than one DSCI instance in the cluster", func(ctx context.Context) {
 		desiredDsci := newDSCI(nameBase + "-dsci-1")
-		Expect(k8sClient.Create(context.Background(), desiredDsci)).Should(Succeed())
+		Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
 		desiredDsci2 := newDSCI(nameBase + "-dsci-2")
-		Expect(k8sClient.Create(context.Background(), desiredDsci2)).ShouldNot(Succeed())
+		Expect(k8sClient.Create(ctx, desiredDsci2)).ShouldNot(Succeed())
+		Expect(clearInstance(ctx, desiredDsci)).Should(Succeed())
 	})
 
-	It("Should block creation of second DSC instance", func() {
-		dscSpec := newDSC(nameBase+"-dsc-1", namespace)
-		Expect(k8sClient.Create(context.Background(), dscSpec)).Should(Succeed())
-		dscSpec = newDSC(nameBase+"-dsc-2", namespace)
-		Expect(k8sClient.Create(context.Background(), dscSpec)).ShouldNot(Succeed())
+	It("Should block creation of second DSC instance", func(ctx context.Context) {
+		dscSpec1 := newDSC(nameBase+"-dsc-1", namespace)
+		Expect(k8sClient.Create(ctx, dscSpec1)).Should(Succeed())
+		dscSpec2 := newDSC(nameBase+"-dsc-2", namespace)
+		Expect(k8sClient.Create(ctx, dscSpec2)).ShouldNot(Succeed())
+		Expect(clearInstance(ctx, dscSpec1)).Should(Succeed())
+	})
+
+	It("Should block deletion of DSCI instance when DSC instance exist", func(ctx context.Context) {
+		dscInstance := newDSC(nameBase+"-dsc-1", "webhook-test-namespace")
+		Expect(k8sClient.Create(ctx, dscInstance)).Should(Succeed())
+		dsciInstance := newDSCI(nameBase + "-dsci-1")
+		Expect(k8sClient.Create(ctx, dsciInstance)).Should(Succeed())
+		Expect(k8sClient.Delete(ctx, dsciInstance)).ShouldNot(Succeed())
+		Expect(clearInstance(ctx, dscInstance)).Should(Succeed())
+		Expect(clearInstance(ctx, dsciInstance)).Should(Succeed())
+	})
+
+	It("Should allow deletion of DSCI instance when DSC instance does not exist", func(ctx context.Context) {
+		dscInstance := newDSC(nameBase+"-dsc-1", "webhook-test-namespace")
+		Expect(k8sClient.Create(ctx, dscInstance)).Should(Succeed())
+		dsciInstance := newDSCI(nameBase + "-dsci-1")
+		Expect(k8sClient.Create(ctx, dsciInstance)).Should(Succeed())
+		Expect(k8sClient.Delete(ctx, dscInstance)).Should(Succeed())
+		Expect(k8sClient.Delete(ctx, dsciInstance)).Should(Succeed())
+	})
+
+})
+
+// mutating webhook tests for model registry.
+var _ = Describe("DSC mutating webhook", func() {
+	It("Should use defaults for DSC if empty string for MR namespace when MR is enabled", func(ctx context.Context) {
+		dscInstance := newMRDSC1(nameBase+"-dsc-mr1", "", operatorv1.Managed)
+		Expect(k8sClient.Create(ctx, dscInstance)).Should(Succeed())
+		Expect(dscInstance.Spec.Components.ModelRegistry.RegistriesNamespace).
+			Should(Equal(modelregistry.DefaultModelRegistriesNamespace))
+		Expect(clearInstance(ctx, dscInstance)).Should(Succeed())
+	})
+
+	It("Should create DSC if no MR is set (for upgrade case)", func(ctx context.Context) {
+		dscInstance := newMRDSC2(nameBase + "-dsc-mr2")
+		Expect(k8sClient.Create(ctx, dscInstance)).Should(Succeed())
+		Expect(clearInstance(ctx, dscInstance)).Should(Succeed())
 	})
 })
 
-func newDSCI(appName string) *dsci.DSCInitialization {
+func clearInstance(ctx context.Context, instance client.Object) error {
+	return k8sClient.Delete(ctx, instance)
+}
+
+func newDSCI(appName string) *dsciv1.DSCInitialization {
 	monitoringNS := "monitoring-namespace"
-	return &dsci.DSCInitialization{
+	return &dsciv1.DSCInitialization{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DSCInitialization",
 			APIVersion: "v1",
@@ -178,26 +242,26 @@ func newDSCI(appName string) *dsci.DSCInitialization {
 			Name:      appName,
 			Namespace: namespace,
 		},
-		Spec: dsci.DSCInitializationSpec{
+		Spec: dsciv1.DSCInitializationSpec{
 			ApplicationsNamespace: namespace,
-			Monitoring: dsci.Monitoring{
+			Monitoring: dsciv1.Monitoring{
 				Namespace:       monitoringNS,
 				ManagementState: operatorv1.Managed,
 			},
-			TrustedCABundle: dsci.TrustedCABundleSpec{
+			TrustedCABundle: &dsciv1.TrustedCABundleSpec{
 				ManagementState: operatorv1.Managed,
 			},
 		},
 	}
 }
-func newDSC(name string, namespace string) *dsc.DataScienceCluster {
-	return &dsc.DataScienceCluster{
+func newDSC(name string, namespace string) *dscv1.DataScienceCluster {
+	return &dscv1.DataScienceCluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
 		},
-		Spec: dsc.DataScienceClusterSpec{
-			Components: dsc.Components{
+		Spec: dscv1.DataScienceClusterSpec{
+			Components: dscv1.Components{
 				Dashboard: dashboard.Dashboard{
 					Component: components.Component{
 						ManagementState: operatorv1.Removed,
@@ -234,6 +298,48 @@ func newDSC(name string, namespace string) *dsc.DataScienceCluster {
 					},
 				},
 				TrustyAI: trustyai.TrustyAI{
+					Component: components.Component{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				ModelRegistry: modelregistry.ModelRegistry{
+					Component: components.Component{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+			},
+		},
+	}
+}
+
+func newMRDSC1(name string, mrNamespace string, state operatorv1.ManagementState) *dscv1.DataScienceCluster {
+	return &dscv1.DataScienceCluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: "appNS",
+		},
+		Spec: dscv1.DataScienceClusterSpec{
+			Components: dscv1.Components{
+				ModelRegistry: modelregistry.ModelRegistry{
+					Component: components.Component{
+						ManagementState: state,
+					},
+					RegistriesNamespace: mrNamespace,
+				},
+			},
+		},
+	}
+}
+
+func newMRDSC2(name string) *dscv1.DataScienceCluster {
+	return &dscv1.DataScienceCluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: "appNS",
+		},
+		Spec: dscv1.DataScienceClusterSpec{
+			Components: dscv1.Components{
+				Workbenches: workbenches.Workbenches{
 					Component: components.Component{
 						ManagementState: operatorv1.Removed,
 					},

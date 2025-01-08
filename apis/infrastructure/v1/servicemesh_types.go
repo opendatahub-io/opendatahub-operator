@@ -20,6 +20,8 @@ type ControlPlaneSpec struct {
 	Name string `json:"name,omitempty"`
 	// Namespace is a namespace where Service Mesh is deployed. Defaults to "istio-system".
 	// +kubebuilder:default=istio-system
+	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
+	// +kubebuilder:validation:MaxLength=63
 	Namespace string `json:"namespace,omitempty"`
 	// MetricsCollection specifies if metrics from components on the Mesh namespace
 	// should be collected. Setting the value to "Istio" will collect metrics from the
@@ -30,21 +32,23 @@ type ControlPlaneSpec struct {
 	MetricsCollection string `json:"metricsCollection,omitempty"`
 }
 
-// IngressGatewaySpec represents the configuration of the Ingress Gateways.
-type IngressGatewaySpec struct {
-	// Domain specifies the DNS name for intercepting ingress requests coming from
-	// outside the cluster. Most likely, you will want to use a wildcard name,
-	// like *.example.com. If not set, the domain of the OpenShift Ingress is used.
+// GatewaySpec represents the configuration of the Ingress Gateways.
+type GatewaySpec struct {
+	// Domain specifies the host name for intercepting incoming requests.
+	// Most likely, you will want to use a wildcard name, like *.example.com.
+	// If not set, the domain of the OpenShift Ingress is used.
 	// If you choose to generate a certificate, this is the domain used for the certificate request.
 	Domain string `json:"domain,omitempty"`
-	// Certificate specifies configuration of the TLS certificate securing communications of
-	// the for Ingress Gateway.
+	// Certificate specifies configuration of the TLS certificate securing communication
+	// for the gateway.
 	Certificate CertificateSpec `json:"certificate,omitempty"`
 }
 
 type AuthSpec struct {
 	// Namespace where it is deployed. If not provided, the default is to
 	// use '-auth-provider' suffix on the ApplicationsNamespace of the DSCI.
+	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
+	// +kubebuilder:validation:MaxLength=63
 	Namespace string `json:"namespace,omitempty"`
 	// Audiences is a list of the identifiers that the resource server presented
 	// with the token identifies as. Audience-aware token authenticators will verify
