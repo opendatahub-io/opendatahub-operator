@@ -447,7 +447,7 @@ func ensureServicemeshOperators(t *testing.T, tc *testContext) error { //nolint:
 		}(op)
 	}
 
-	for range len(ops) {
+	for range ops {
 		err := <-c
 		errors = multierror.Append(errors, err)
 	}

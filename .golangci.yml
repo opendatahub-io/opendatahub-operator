@@ -87,7 +87,6 @@ linters:
     - forbidigo
     - gochecknoglobals # Prevents use of global vars.
     - gofumpt
-    - gomnd # Doesnot allow hardcoded numbers
     - gomoddirectives # Doesnot allow replace in go mod file
     - mnd
     - nestif
@@ -98,7 +97,6 @@ linters:
     - wsl # [too strict and mostly code is not more readable] whitespace linter forces you to use empty lines
     - wrapcheck # check if this is required. Prevents direct return of err.
     - exportloopref # Since Go1.22 (loopvar) this linter is no longer relevant. Replaced by copyloopvar.
-    - execinquery # Deprecated upstream. Not applicable since we don't make DB queries.
 
     # Need to check
     - nlreturn # [too strict and mostly code is not more readable] checks for a new line before return and branch statements to increase code clarity

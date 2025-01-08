@@ -58,7 +58,7 @@ func MergeDeployments(source *unstructured.Unstructured, target *unstructured.Un
 			r = make(map[string]interface{})
 		}
 
-		//nolint:forcetypeassert
+		//nolint:forcetypeassert,errcheck
 		resources[name.(string)] = r
 	}
 
@@ -74,12 +74,13 @@ func MergeDeployments(source *unstructured.Unstructured, target *unstructured.Un
 			continue
 		}
 
+		//nolint:errcheck
 		nr, ok := resources[name.(string)]
 		if !ok {
 			continue
 		}
 
-		//nolint:forcetypeassert
+		//nolint:forcetypeassert,errcheck
 		if len(nr.(map[string]interface{})) == 0 {
 			delete(m, "resources")
 		} else {

@@ -116,9 +116,9 @@ func CheckControlPlaneComponentReadiness(ctx context.Context, c client.Client, s
 		return false, fmt.Errorf("status conditions not found or error in parsing of Service Mesh Control Plane: %w", err)
 	}
 
-	readyComponents := len(components["ready"].([]interface{}))     //nolint:forcetypeassert
-	pendingComponents := len(components["pending"].([]interface{})) //nolint:forcetypeassert
-	unreadyComponents := len(components["unready"].([]interface{})) //nolint:forcetypeassert
+	readyComponents := len(components["ready"].([]interface{}))     //nolint:forcetypeassert,errcheck
+	pendingComponents := len(components["pending"].([]interface{})) //nolint:forcetypeassert,errcheck
+	unreadyComponents := len(components["unready"].([]interface{})) //nolint:forcetypeassert,errcheck
 
 	return pendingComponents == 0 && unreadyComponents == 0 && readyComponents > 0, nil
 }

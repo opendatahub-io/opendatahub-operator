@@ -5,10 +5,10 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"maps"
 	"strings"
 	gt "text/template"
 
-	"golang.org/x/exp/maps"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 
