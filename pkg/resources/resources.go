@@ -283,25 +283,21 @@ func KindForObject(scheme *runtime.Scheme, obj runtime.Object) (string, error) {
 	return gvk.Kind, nil
 }
 
-func GroupVersionKindForObject(s *runtime.Scheme, obj runtime.Object) (schema.GroupVersionKind, error) {
+func GetGroupVersionKindForObject(s *runtime.Scheme, obj runtime.Object) (schema.GroupVersionKind, error) {
 	if obj.GetObjectKind().GroupVersionKind().Version != "" && obj.GetObjectKind().GroupVersionKind().Kind != "" {
 		return obj.GetObjectKind().GroupVersionKind(), nil
 	}
 
-	kinds, _, err := s.ObjectKinds(obj)
+	gvk, err := apiutil.GVKForObject(obj, s)
 	if err != nil {
-		return schema.GroupVersionKind{}, fmt.Errorf("cannot get kind of resource: %w", err)
+		return schema.GroupVersionKind{}, fmt.Errorf("failed to get GVK: %w", err)
 	}
 
-	if len(kinds) != 1 {
-		return schema.GroupVersionKind{}, fmt.Errorf("expected to find a single GVK for %v, but got %d", obj, len(kinds))
-	}
-
-	return kinds[0], nil
+	return gvk, nil
 }
 
 func EnsureGroupVersionKind(s *runtime.Scheme, obj client.Object) error {
-	gvk, err := GroupVersionKindForObject(s, obj)
+	gvk, err := GetGroupVersionKindForObject(s, obj)
 	if err != nil {
 		return err
 	}

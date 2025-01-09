@@ -45,7 +45,7 @@ func NewComponentTestCtx(object common.PlatformObject) (*ComponentTestCtx, error
 		return nil, err
 	}
 
-	ogvk, err := resources.GroupVersionKindForObject(tcf.Scheme(), object)
+	ogvk, err := resources.GetGroupVersionKindForObject(tcf.Scheme(), object)
 	if err != nil {
 		return nil, err
 	}
