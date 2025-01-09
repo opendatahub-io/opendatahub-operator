@@ -1,6 +1,8 @@
 package datasciencepipelines
 
 import (
+	"path"
+
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
@@ -48,15 +50,9 @@ var (
 		cluster.OpenDataHub:      "overlays/odh",
 		cluster.Unknown:          "overlays/odh",
 	}
-)
 
-func paramsPath() types.ManifestInfo {
-	return types.ManifestInfo{
-		Path:       odhdeploy.DefaultManifestPath,
-		ContextDir: ComponentName,
-		SourcePath: "base",
-	}
-}
+	paramsPath = path.Join(odhdeploy.DefaultManifestPath, ComponentName, "base")
+)
 
 func manifestPath(p cluster.Platform) types.ManifestInfo {
 	return types.ManifestInfo{
