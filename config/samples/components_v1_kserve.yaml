@@ -1,6 +1,0 @@
-apiVersion: components.platform.opendatahub.io/v1
-kind: Kserve
-metadata:
-  name: kserve-sample
-spec:
-  # TODO(user): Add fields here
