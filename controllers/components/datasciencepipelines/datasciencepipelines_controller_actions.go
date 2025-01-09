@@ -83,6 +83,11 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 		return fmt.Errorf("marshalling preloaded pipelines failed: %w", err)
 	}
 
+	data, err = json.Marshal(string(data))
+	if err != nil {
+		return fmt.Errorf("marshalling preloaded pipelines failed: %w", err)
+	}
+
 	extraParamsMap := map[string]string{
 		"PREINSTALLEDPIPELINES": string(data),
 	}

@@ -78,14 +78,17 @@ spec:
               preloadedPipelines:
                 properties:
                   instructLab:
+                    description: |-
+                      Configure whether to auto import the InstructLab pipeline pon any new pipeline server (or DSPA) creation.
+                      Please note that the pipeline requires that trainingoperator be enabled in the DSC to run.
                     properties:
                       state:
                         default: Removed
                         description: |-
                           Set to one of the following values:
 
-                          - "Managed" : TODO
-                          - "Removed" : TODO
+                          - "Managed" : Upon any new pipeline server (or DSPA) creation this pipeline is auto imported
+                          - "Removed" : Upon any new pipeline server (or DSPA) creation this pipeline is not auto imported
                         enum:
                         - Managed
                         - Removed
