@@ -186,6 +186,24 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      preloadedPipelines:
+                        properties:
+                          instructLab:
+                            properties:
+                              state:
+                                default: Removed
+                                description: |-
+                                  Set to one of the following values:
+
+                                  - "Managed" : TODO
+                                  - "Removed" : TODO
+                                enum:
+                                - Managed
+                                - Removed
+                                pattern: ^(Managed|Unmanaged|Force|Removed)$
+                                type: string
+                            type: object
+                        type: object
                     type: object
                   kserve:
                     description: |-
