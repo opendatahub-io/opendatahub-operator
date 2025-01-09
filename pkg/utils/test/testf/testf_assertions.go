@@ -119,7 +119,7 @@ func (a *Assertion[T]) Should(matcher types.GomegaMatcher, optionalDescription .
 
 	a.build(wrapper).Should(matcher, optionalDescription...)
 
-	//nolint:forcetypeassert
+	//nolint:forcetypeassert,errcheck
 	return res.Load().(T)
 }
 
@@ -135,7 +135,7 @@ func (a *Assertion[T]) ShouldNot(matcher types.GomegaMatcher, optionalDescriptio
 
 	a.build(wrapper).ShouldNot(matcher, optionalDescription...)
 
-	//nolint:forcetypeassert
+	//nolint:forcetypeassert,errcheck
 	return res.Load().(T)
 }
 
