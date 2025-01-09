@@ -3,6 +3,8 @@ kind: Authorino
 metadata:
   name: {{ .AuthProviderName }}
   namespace: {{ .AuthNamespace }}
+  labels:
+    sidecar.istio.io/inject: "true"
 spec:
   authConfigLabelSelectors: security.opendatahub.io/authorization-group=default
   clusterWide: true
