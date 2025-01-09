@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/pkg/errors"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
@@ -71,7 +72,10 @@ func (c *Client) Apply(ctx context.Context, in ctrlCli.Object, opts ...ctrlCli.P
 	unstructured.RemoveNestedField(u.Object, "status")
 
 	err = c.Client.Patch(ctx, u, ctrlCli.Apply, opts...)
-	if err != nil {
+	switch {
+	case k8serr.IsNotFound(err):
+		return nil
+	case err != nil:
 		return fmt.Errorf("unable to patch object %s: %w", u, err)
 	}
 
@@ -98,7 +102,10 @@ func (c *Client) ApplyStatus(ctx context.Context, in ctrlCli.Object, opts ...ctr
 	unstructured.RemoveNestedField(u.Object, "metadata", "resourceVersion")
 
 	err = c.Client.Status().Patch(ctx, u, ctrlCli.Apply, opts...)
-	if err != nil {
+	switch {
+	case k8serr.IsNotFound(err):
+		return nil
+	case err != nil:
 		return fmt.Errorf("unable to patch object status %s: %w", u, err)
 	}
 
