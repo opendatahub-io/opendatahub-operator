@@ -51,7 +51,7 @@ func modelRegistryTestSuite(t *testing.T) {
 }
 
 func (c *ModelRegistryTestCtx) validateSpec(t *testing.T) {
-	g := c.WithT(t)
+	g := c.NewWithT(t)
 
 	dsc, err := c.GetDSC()
 	g.Expect(err).NotTo(HaveOccurred())
@@ -65,7 +65,7 @@ func (c *ModelRegistryTestCtx) validateSpec(t *testing.T) {
 }
 
 func (c *ModelRegistryTestCtx) validateOperandsWatchedResources(t *testing.T) {
-	g := c.WithT(t)
+	g := c.NewWithT(t)
 
 	g.List(
 		gvk.ServiceMeshMember,
@@ -79,7 +79,7 @@ func (c *ModelRegistryTestCtx) validateOperandsWatchedResources(t *testing.T) {
 }
 
 func (c *ModelRegistryTestCtx) validateOperandsDynamicallyWatchedResources(t *testing.T) {
-	g := c.WithT(t)
+	g := c.NewWithT(t)
 
 	mri, err := g.Get(gvk.ModelRegistry, types.NamespacedName{Name: componentApi.ModelRegistryInstanceName}).Get()
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -110,7 +110,7 @@ func (c *ModelRegistryTestCtx) validateOperandsDynamicallyWatchedResources(t *te
 }
 
 func (c *ModelRegistryTestCtx) validateModelRegistryCert(t *testing.T) {
-	g := c.WithT(t)
+	g := c.NewWithT(t)
 
 	dsci, err := g.Get(gvk.DSCInitialization, c.DSCIName).Get()
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -130,7 +130,7 @@ func (c *ModelRegistryTestCtx) validateModelRegistryCert(t *testing.T) {
 }
 
 func (c *ModelRegistryTestCtx) validateModelRegistryServiceMeshMember(t *testing.T) {
-	g := c.WithT(t)
+	g := c.NewWithT(t)
 
 	mri, err := g.Get(gvk.ModelRegistry, types.NamespacedName{Name: componentApi.ModelRegistryInstanceName}).Get()
 	g.Expect(err).ShouldNot(HaveOccurred())

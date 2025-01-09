@@ -66,7 +66,7 @@ func (c *ModelControllerTestCtx) validateComponentDeployed(
 ) {
 	t.Helper()
 
-	g := c.WithT(t)
+	g := c.NewWithT(t)
 
 	g.Update(
 		gvk.DataScienceCluster,

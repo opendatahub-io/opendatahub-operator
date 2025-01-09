@@ -43,7 +43,7 @@ type DashboardTestCtx struct {
 }
 
 func (c *DashboardTestCtx) validateOperandsDynamicallyWatchedResources(t *testing.T) {
-	g := c.WithT(t)
+	g := c.NewWithT(t)
 
 	newPt := xid.New().String()
 	oldPt := ""

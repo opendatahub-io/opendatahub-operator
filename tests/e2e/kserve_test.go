@@ -40,7 +40,7 @@ type KserveTestCtx struct {
 }
 
 func (c *KserveTestCtx) validateSpec(t *testing.T) {
-	g := c.WithT(t)
+	g := c.NewWithT(t)
 
 	dsc, err := c.GetDSC()
 	g.Expect(err).NotTo(HaveOccurred())
@@ -58,7 +58,7 @@ func (c *KserveTestCtx) validateSpec(t *testing.T) {
 }
 
 func (c *KserveTestCtx) validateModelControllerInstance(t *testing.T) {
-	g := c.WithT(t)
+	g := c.NewWithT(t)
 
 	g.List(gvk.ModelController).Eventually().Should(And(
 		HaveLen(1),
@@ -77,7 +77,7 @@ func (c *KserveTestCtx) validateModelControllerInstance(t *testing.T) {
 }
 
 func (c *KserveTestCtx) validateDefaultCertsAvailable(t *testing.T) {
-	g := c.WithT(t)
+	g := c.NewWithT(t)
 
 	defaultIngressSecret, err := cluster.FindDefaultIngressSecret(g.Context(), g.Client())
 	g.Expect(err).ToNot(HaveOccurred())

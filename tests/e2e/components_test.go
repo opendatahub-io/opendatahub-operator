@@ -80,7 +80,7 @@ func NewComponentTestCtx(object common.PlatformObject) (*ComponentTestCtx, error
 }
 
 func (c *ComponentTestCtx) ValidateComponentEnabled(t *testing.T) {
-	g := c.WithT(t)
+	g := c.NewWithT(t)
 
 	g.Update(
 		gvk.DataScienceCluster,
@@ -108,7 +108,7 @@ func (c *ComponentTestCtx) ValidateComponentEnabled(t *testing.T) {
 }
 
 func (c *ComponentTestCtx) ValidateOperandsOwnerReferences(t *testing.T) {
-	g := c.WithT(t)
+	g := c.NewWithT(t)
 
 	g.List(
 		gvk.Deployment,
@@ -123,7 +123,7 @@ func (c *ComponentTestCtx) ValidateOperandsOwnerReferences(t *testing.T) {
 }
 
 func (c *ComponentTestCtx) ValidateUpdateDeploymentsResources(t *testing.T) {
-	g := c.WithT(t)
+	g := c.NewWithT(t)
 
 	deployments := g.List(
 		gvk.Deployment,
@@ -171,7 +171,7 @@ func (c *ComponentTestCtx) ValidateUpdateDeploymentsResources(t *testing.T) {
 }
 
 func (c *ComponentTestCtx) ValidateComponentDisabled(t *testing.T) {
-	g := c.WithT(t)
+	g := c.NewWithT(t)
 
 	g.List(c.GVK).Eventually().ShouldNot(
 		BeEmpty(),
@@ -211,7 +211,7 @@ func (c *ComponentTestCtx) ValidateComponentDisabled(t *testing.T) {
 func (c *ComponentTestCtx) ValidateCRDReinstated(t *testing.T, name string) {
 	t.Helper()
 
-	g := c.WithT(t)
+	g := c.NewWithT(t)
 	crdSel := client.MatchingFields{"metadata.name": name}
 
 	g.Update(

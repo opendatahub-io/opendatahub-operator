@@ -36,7 +36,7 @@ type ModelMeshServingTestCtx struct {
 }
 
 func (tc *ModelMeshServingTestCtx) validateModelControllerInstance(t *testing.T) {
-	g := tc.WithT(t)
+	g := tc.NewWithT(t)
 
 	g.List(gvk.ModelController).Eventually().Should(And(
 		HaveLen(1),

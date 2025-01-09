@@ -144,7 +144,7 @@ func (tc *TestContext) Scheme() *runtime.Scheme {
 	return tc.client.Scheme()
 }
 
-func (tc *TestContext) WithT(t *testing.T, opts ...WithTOpts) *WithT {
+func (tc *TestContext) NewWithT(t *testing.T, opts ...WithTOpts) *WithT {
 	t.Helper()
 
 	g := gomega.NewWithT(t)
