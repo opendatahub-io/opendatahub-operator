@@ -36,7 +36,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
+	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
@@ -185,7 +185,7 @@ func (m *DSCDefaulter) Default(_ context.Context, obj runtime.Object) error {
 	// set default registriesNamespace if empty "" but ModelRegistry is enabled
 	if dsc.Spec.Components.ModelRegistry.ManagementState == operatorv1.Managed {
 		if dsc.Spec.Components.ModelRegistry.RegistriesNamespace == "" {
-			dsc.Spec.Components.ModelRegistry.RegistriesNamespace = modelregistry.DefaultModelRegistriesNamespace
+			dsc.Spec.Components.ModelRegistry.RegistriesNamespace = modelregistryctrl.DefaultModelRegistriesNamespace
 		}
 	}
 	return nil

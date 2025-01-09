@@ -25,7 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	componentsApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
@@ -83,7 +83,7 @@ func NewServiceReconciler(ctx context.Context, mgr ctrl.Manager) error {
 
 func shouldWatchDashboardConfig(ctx context.Context, request *types.ReconciliationRequest) bool {
 	d := resources.GvkToUnstructured(gvk.Dashboard)
-	if err := request.Client.Get(ctx, client.ObjectKey{Name: componentsApi.DashboardInstanceName}, d); err != nil {
+	if err := request.Client.Get(ctx, client.ObjectKey{Name: componentApi.DashboardInstanceName}, d); err != nil {
 		return false
 	}
 
