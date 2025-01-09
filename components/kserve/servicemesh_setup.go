@@ -52,6 +52,8 @@ func (k *Kserve) defineServiceMeshFeatures(ctx context.Context, cli client.Clien
 							path.Join(Resources.ServiceMeshDir, "activator-envoyfilter.tmpl.yaml"),
 							path.Join(Resources.ServiceMeshDir, "envoy-oauth-temp-fix.tmpl.yaml"),
 							path.Join(Resources.ServiceMeshDir, "kserve-predictor-authorizationpolicy.tmpl.yaml"),
+							path.Join(Resources.ServiceMeshDir, "kserve-inferencegraph-envoyfilter.tmpl.yaml"),
+							path.Join(Resources.ServiceMeshDir, "kserve-inferencegraph-authorizationpolicy.tmpl.yaml"),
 							path.Join(Resources.ServiceMeshDir, "z-migrations"),
 						),
 				).
