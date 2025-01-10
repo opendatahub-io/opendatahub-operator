@@ -88,15 +88,6 @@ func NewTestContext(opts ...TestContextOpt) (*TestContext, error) {
 		tc.ctx = context.Background()
 	}
 
-	if tc.cfg == nil {
-		cfg, err := ctrlcfg.GetConfig()
-		if err != nil {
-			return nil, fmt.Errorf("error creating the config object %w", err)
-		}
-
-		tc.cfg = cfg
-	}
-
 	if tc.scheme == nil {
 		tc.scheme = runtime.NewScheme()
 		for _, at := range DefaultAddToSchemes {
@@ -104,6 +95,15 @@ func NewTestContext(opts ...TestContextOpt) (*TestContext, error) {
 				return nil, err
 			}
 		}
+	}
+
+	if tc.cfg == nil && tc.client == nil {
+		cfg, err := ctrlcfg.GetConfig()
+		if err != nil {
+			return nil, fmt.Errorf("error creating the config object %w", err)
+		}
+
+		tc.cfg = cfg
 	}
 
 	if tc.client == nil {

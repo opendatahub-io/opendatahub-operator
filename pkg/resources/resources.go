@@ -284,6 +284,10 @@ func KindForObject(scheme *runtime.Scheme, obj runtime.Object) (string, error) {
 }
 
 func GetGroupVersionKindForObject(s *runtime.Scheme, obj runtime.Object) (schema.GroupVersionKind, error) {
+	if obj == nil {
+		return schema.GroupVersionKind{}, errors.New("nil object")
+	}
+
 	if obj.GetObjectKind().GroupVersionKind().Version != "" && obj.GetObjectKind().GroupVersionKind().Kind != "" {
 		return obj.GetObjectKind().GroupVersionKind(), nil
 	}
