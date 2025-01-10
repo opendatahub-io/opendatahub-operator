@@ -174,8 +174,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	// Check namespace is not exist, then create
 	namespace := instance.Spec.ApplicationsNamespace
-	err := r.createOdhNamespace(ctx, instance, namespace, platform)
-	if err != nil {
+	if err := r.createOperatorResource(ctx, instance, namespace, platform); err != nil {
 		// no need to log error as it was already logged in createOdhNamespace
 		return reconcile.Result{}, err
 	}
