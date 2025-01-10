@@ -29,7 +29,12 @@ import (
 //	    return StopErr(err, "Operation failed")
 //	}
 func StopErr(err error, format string, args ...any) error {
-	return gomega.StopTrying(fmt.Sprintf(format, args...)).Wrap(err)
+	msg := format
+	if len(args) != 0 {
+		msg = fmt.Sprintf(format, args...)
+	}
+
+	return gomega.StopTrying(msg).Wrap(err)
 }
 
 // TransformFn defines a function type that takes an *unstructured.Unstructured object

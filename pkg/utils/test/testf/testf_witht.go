@@ -68,14 +68,11 @@ func (t *WithT) List(
 			items.SetGroupVersionKind(gvk)
 
 			err := t.Client().List(ctx, &items, option...)
-			switch {
-			case errors.IsNotFound(err):
-				return []unstructured.Unstructured{}, nil
-			case err != nil:
+			if err != nil {
 				return nil, StopErr(err, "failed to list resource: %s", gvk)
-			default:
-				return items.Items, nil
 			}
+
+			return items.Items, nil
 		},
 	}
 }
@@ -153,11 +150,11 @@ func (t *WithT) Update(
 
 			in, err := resources.ToUnstructured(obj)
 			if err != nil {
-				return nil, gomega.StopTrying("failed to convert to unstructured").Wrap(err)
+				return nil, StopErr(err, "failed to convert to unstructured")
 			}
 
 			if err := fn(in); err != nil {
-				return nil, gomega.StopTrying("failed to apply function").Wrap(err)
+				return nil, StopErr(err, "failed to apply function")
 			}
 
 			err = t.Client().Update(ctx, in, option...)

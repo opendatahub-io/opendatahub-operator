@@ -36,8 +36,8 @@ type ComponentTestCtx struct {
 func NewComponentTestCtx(object common.PlatformObject) (*ComponentTestCtx, error) {
 	tcf, err := testf.NewTestContext(
 		testf.WithTOptions(
-			testf.WithEventuallyTimeout(2*time.Minute),
-			testf.WithEventuallyPollingInterval(1*time.Second),
+			testf.WithEventuallyTimeout(generalWaitTimeout),
+			testf.WithEventuallyPollingInterval(generalPollInterval),
 		),
 	)
 
@@ -86,7 +86,7 @@ func (c *ComponentTestCtx) ValidateComponentEnabled(t *testing.T) {
 		gvk.DataScienceCluster,
 		c.DSCName,
 		testf.Transform(`.spec.components.%s.managementState = "%s"`, strings.ToLower(c.GVK.Kind), operatorv1.Managed),
-	).Eventually().WithTimeout(30 * time.Second).WithPolling(1 * time.Second).Should(
+	).Eventually().Should(
 		jq.Match(`.spec.components.%s.managementState == "%s"`, strings.ToLower(c.GVK.Kind), operatorv1.Managed),
 	)
 
@@ -233,8 +233,8 @@ func (c *ComponentTestCtx) ValidateCRDReinstated(t *testing.T, name string) {
 		gvk.CustomResourceDefinition,
 		types.NamespacedName{Name: name},
 		client.PropagationPolicy(metav1.DeletePropagationForeground),
-	).Eventually().ShouldNot(
-		HaveOccurred(),
+	).Eventually().Should(
+		Succeed(),
 	)
 
 	g.List(gvk.CustomResourceDefinition, crdSel).Eventually().Should(
