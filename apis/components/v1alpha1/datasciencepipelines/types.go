@@ -7,7 +7,7 @@ import operatorv1 "github.com/openshift/api/operator/v1"
 
 type PreloadedPipelinesSpec struct {
 	// Configure whether to auto import the InstructLab pipeline on any new pipeline server (or DSPA) creation.
-	// Please note that the pipeline requires that trainingoperator be enabled in the DSC to run.
+	// You must enable the trainingoperator component to run the InstructLab pipeline.
 	InstructLab PreloadedPipelineOptions `json:"instructLab,omitempty"`
 }
 
