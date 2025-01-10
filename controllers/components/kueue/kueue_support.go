@@ -1,6 +1,8 @@
 package kueue
 
 import (
+	"context"
+
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
@@ -32,4 +34,17 @@ func manifestsPath() odhtypes.ManifestInfo {
 		ContextDir: ComponentName,
 		SourcePath: "rhoai",
 	}
+}
+
+func extramanifestsPath() odhtypes.ManifestInfo {
+	return odhtypes.ManifestInfo{
+		Path:       odhdeploy.DefaultManifestPath,
+		ContextDir: ComponentName,
+		SourcePath: "rhoai/ocp-4.17-addons",
+	}
+}
+
+// return true if OCP is greater or equal 4.17.
+func vapPredicate(context.Context, *odhtypes.ReconciliationRequest) bool {
+	return enableVAP
 }

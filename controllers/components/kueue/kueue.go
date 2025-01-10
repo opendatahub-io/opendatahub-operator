@@ -23,6 +23,8 @@ import (
 
 type componentHandler struct{}
 
+var enableVAP bool
+
 func init() { //nolint:gochecknoinits
 	cr.Add(&componentHandler{})
 }

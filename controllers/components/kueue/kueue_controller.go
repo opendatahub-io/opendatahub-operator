@@ -19,6 +19,7 @@ package kueue
 import (
 	"context"
 
+	"github.com/blang/semver/v4"
 	promv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -29,6 +30,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
@@ -41,6 +44,7 @@ import (
 )
 
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
+	enableVAP = cluster.GetClusterInfo().Version.GTE(semver.MustParse("4.17.0"))
 	_, err := reconciler.ReconcilerFor(mgr, &componentApi.Kueue{}).
 		// customized Owns() for Component with new predicates
 		Owns(&corev1.ConfigMap{}).
@@ -56,6 +60,16 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Owns(&promv1.PrometheusRule{}).
 		Owns(&admissionregistrationv1.MutatingWebhookConfiguration{}).
 		Owns(&admissionregistrationv1.ValidatingWebhookConfiguration{}).
+		// We need dynamically "watch" VAP, because we want it to be configable by user and it can be left behind when kueue is removed.
+		OwnsGVK(
+			gvk.ValidatingAdmissionPolicy,
+			reconciler.Dynamic(vapPredicate),
+		).
+		// We need dynamically "own" VAPB, because we want it has owner so when kueue is removed it gets cleaned.
+		WatchesGVK(
+			gvk.ValidatingAdmissionPolicyBinding,
+			reconciler.Dynamic(vapPredicate),
+		).
 		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(resources.NewDeploymentPredicate())).
 		Watches(
 			&extv1.CustomResourceDefinition{},
@@ -72,6 +86,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			kustomize.WithLabel(labels.ODH.Component(LegacyComponentName), labels.True),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, LegacyComponentName),
 		)).
+		WithAction(customizeResources).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).
