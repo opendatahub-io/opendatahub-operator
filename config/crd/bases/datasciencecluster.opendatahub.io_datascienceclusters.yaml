@@ -190,8 +190,8 @@ spec:
                         properties:
                           instructLab:
                             description: |-
-                              Configure whether to auto import the InstructLab pipeline pon any new pipeline server (or DSPA) creation.
-                              Please note that the pipeline requires that trainingoperator be enabled in the DSC to run.
+                              Configure whether to auto import the InstructLab pipeline on any new pipeline server (or DSPA) creation.
+                              You must enable the trainingoperator component to run the InstructLab pipeline.
                             properties:
                               state:
                                 default: Removed
