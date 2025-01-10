@@ -18,7 +18,6 @@ package datasciencepipelines
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -78,18 +77,9 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 
 	rr.Manifests = []odhtypes.ManifestInfo{manifestPath(rr.Release.Name)}
 
-	data, err := json.Marshal(dsp.Spec.PreloadedPipelines)
+	extraParamsMap, err := computeParamsMap(dsp)
 	if err != nil {
-		return fmt.Errorf("marshalling preloaded pipelines failed: %w", err)
-	}
-
-	data, err = json.Marshal(string(data))
-	if err != nil {
-		return fmt.Errorf("marshalling preloaded pipelines failed: %w", err)
-	}
-
-	extraParamsMap := map[string]string{
-		"PREINSTALLEDPIPELINES": string(data),
+		return fmt.Errorf("computing extra params failed: %w", err)
 	}
 
 	if err := odhdeploy.ApplyParams(paramsPath, nil, extraParamsMap); err != nil {
