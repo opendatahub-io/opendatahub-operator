@@ -526,21 +526,6 @@ func removeRBACProxyModelRegistry(ctx context.Context, cli client.Client, compon
 	return nil
 }
 
-func RemoveLabel(ctx context.Context, cli client.Client, objectName string, labelKey string) error {
-	foundNamespace := &corev1.Namespace{}
-	if err := cli.Get(ctx, client.ObjectKey{Name: objectName}, foundNamespace); err != nil {
-		if k8serr.IsNotFound(err) {
-			return nil
-		}
-		return fmt.Errorf("could not get %s namespace: %w", objectName, err)
-	}
-	delete(foundNamespace.Labels, labelKey)
-	if err := cli.Update(ctx, foundNamespace); err != nil {
-		return fmt.Errorf("error removing %s from %s : %w", labelKey, objectName, err)
-	}
-	return nil
-}
-
 func deleteDeprecatedNamespace(ctx context.Context, cli client.Client, namespace string) error {
 	log := logf.FromContext(ctx)
 	foundNamespace := &corev1.Namespace{}

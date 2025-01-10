@@ -48,7 +48,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/rest"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -97,8 +96,6 @@ import (
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/trustyai"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/workbenches"
 )
-
-const controllerNum = 4 // we should keep this updated if we have new controllers to add
 
 var (
 	scheme   = runtime.NewScheme()
@@ -179,9 +176,6 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		setupLog.Error(err, "error getting config for setup")
 		os.Exit(1)
 	}
-	// uplift default limiataions
-	setupCfg.QPS = rest.DefaultQPS * controllerNum     // 5 * 4 controllers
-	setupCfg.Burst = rest.DefaultBurst * controllerNum // 10 * 4 controllers
 
 	setupClient, err := client.New(setupCfg, client.Options{Scheme: scheme})
 	if err != nil {
