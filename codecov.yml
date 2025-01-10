@@ -7,4 +7,4 @@ coverage:
         informational: false
     patch:
       default:
-        informational: false
+        informational: true
