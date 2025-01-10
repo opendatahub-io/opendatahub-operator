@@ -1,2 +1,10 @@
 codecov:
   branch: main # set new Default branch
+coverage:
+  status:
+    project:
+      default:
+        informational: false
+    patch:
+      default:
+        informational: false
