@@ -46,3 +46,5 @@ spec:
     modelregistry:
       managementState: "Managed"
       registriesNamespace: "odh-model-registries"
+    feastoperator:
+      managementState: "Removed"

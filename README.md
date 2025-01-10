@@ -344,6 +344,8 @@ spec:
       managementState: Managed
     workbenches:
       managementState: Managed
+    feastoperator:
+      managementState: Managed         
 ```
 
 2. Enable only Dashboard and Workbenches

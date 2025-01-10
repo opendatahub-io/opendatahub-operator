@@ -75,6 +75,12 @@ func (tc *testContext) validateOwnedCRDs(t *testing.T) {
 			"error in validating CRD : trainingoperators.components.platform.opendatahub.io")
 	})
 
+	t.Run("Validate FeastOperator CRD", func(t *testing.T) {
+		t.Parallel()
+		require.NoErrorf(t, tc.validateCRD("feastoperators.components.platform.opendatahub.io"),
+			"error in validating CRD : feastoperators.components.platform.opendatahub.io")
+	})
+
 	t.Run("Validate DataSciencePipelines CRD", func(t *testing.T) {
 		t.Parallel()
 		require.NoErrorf(t, tc.validateCRD("datasciencepipelines.components.platform.opendatahub.io"),
