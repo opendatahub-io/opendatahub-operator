@@ -6,7 +6,7 @@ package datasciencepipelines
 import operatorv1 "github.com/openshift/api/operator/v1"
 
 type PreloadedPipelinesSpec struct {
-	// Configure whether to auto import the InstructLab pipeline on any new pipeline server (or DSPA) creation.
+	// Configures whether to automatically import the InstructLab pipeline when new pipeline servers or DSPAs are created.
 	// You must enable the trainingoperator component to run the InstructLab pipeline.
 	InstructLab PreloadedPipelineOptions `json:"instructLab,omitempty"`
 }
@@ -14,8 +14,8 @@ type PreloadedPipelinesSpec struct {
 type PreloadedPipelineOptions struct {
 	// Set to one of the following values:
 	//
-	// - "Managed" : Upon any new pipeline server (or DSPA) creation this pipeline is auto imported
-	// - "Removed" : Upon any new pipeline server (or DSPA) creation this pipeline is not auto imported
+	// - "Managed" : This pipeline is automatically imported when a new pipeline server or DSPA is created.
+	// - "Removed" : This pipeline is not automatically imported when a new pipeline server or DSPA is created.
 	//
 	// +kubebuilder:validation:Enum=Managed;Removed
 	// +kubebuilder:default=Removed
