@@ -28,6 +28,9 @@ metadata:
               "datasciencepipelines": {
                 "managementState": "Managed"
               },
+              "feastoperator": {
+                "managementState": "Removed"
+              },
               "kserve": {
                 "managementState": "Managed",
                 "nim": {
@@ -106,7 +109,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.23.1
-    createdAt: "2025-01-23T10:07:37Z"
+    createdAt: "2025-01-23T19:03:37Z"
     olm.skipRange: '>=1.0.0 <2.23.1'
     operators.operatorframework.io/builder: operator-sdk-v1.31.0
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
@@ -115,7 +118,8 @@ metadata:
       "kueues.components.platform.opendatahub.io", "modelmeshservings.components.platform.opendatahub.io",
       "modelregistries.components.platform.opendatahub.io", "rays.components.platform.opendatahub.io",
       "trainingoperators.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io",  "workbenches.components.platform.opendatahub.io",
-      "monitorings.services.platform.opendatahub.io","modelcontrollers.components.platform.opendatahub.io"]'
+      "monitorings.services.platform.opendatahub.io","modelcontrollers.components.platform.opendatahub.io"
+      , feastoperators.components.platform.opendatahub.io]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/opendatahub-io/opendatahub-operator
   name: opendatahub-operator.v2.23.1
@@ -189,6 +193,9 @@ spec:
         displayName: Conditions
         path: conditions
       version: v1
+    - kind: FeastOperator
+      name: feastoperators.components.platform.opendatahub.io
+      version: v1alpha1
     - kind: FeatureTracker
       name: featuretrackers.features.opendatahub.io
       version: v1
@@ -442,6 +449,7 @@ spec:
           - codeflares
           - dashboards
           - datasciencepipelines
+          - feastoperators
           - kserves
           - kueues
           - modelcontrollers
@@ -464,6 +472,7 @@ spec:
           resources:
           - codeflares/finalizers
           - datasciencepipelines/finalizers
+          - feastoperators/finalizers
           - kserves/finalizers
           - kueues/finalizers
           - modelcontrollers/finalizers
@@ -481,6 +490,7 @@ spec:
           - codeflares/status
           - dashboards/status
           - datasciencepipelines/status
+          - feastoperators/status
           - kserves/status
           - kueues/status
           - modelcontrollers/status
