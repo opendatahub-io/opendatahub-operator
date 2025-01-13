@@ -40,7 +40,7 @@ func TestGet(t *testing.T) {
 
 	key := client.ObjectKeyFromObject(&cm)
 
-	matcher := And(
+	matchMetadata := And(
 		jq.Match(`.metadata.namespace == "%s"`, cm.Namespace),
 		jq.Match(`.metadata.name == "%s"`, cm.Name),
 	)
@@ -51,20 +51,20 @@ func TestGet(t *testing.T) {
 		v, err := wt.Get(gvk.ConfigMap, key).Get()
 
 		g.Expect(err).ShouldNot(HaveOccurred())
-		g.Expect(v).Should(matcher)
+		g.Expect(v).Should(matchMetadata)
 	})
 
 	t.Run("Eventually", func(t *testing.T) {
 		wt := tc.NewWithT(t)
 
-		v := wt.Get(gvk.ConfigMap, key).Eventually().Should(matcher)
+		v := wt.Get(gvk.ConfigMap, key).Eventually().Should(matchMetadata)
 		g.Expect(v).ShouldNot(BeNil())
 	})
 
 	t.Run("Consistently", func(t *testing.T) {
 		wt := tc.NewWithT(t)
 
-		v := wt.Get(gvk.ConfigMap, key).Consistently().WithTimeout(1 * time.Second).Should(matcher)
+		v := wt.Get(gvk.ConfigMap, key).Consistently().WithTimeout(1 * time.Second).Should(matchMetadata)
 		g.Expect(v).ShouldNot(BeNil())
 	})
 }
@@ -165,7 +165,6 @@ func TestUpdate(t *testing.T) {
 		wt := tc.NewWithT(t)
 
 		v := wt.Update(gvk.ConfigMap, key, transformer).Eventually().Should(matcher)
-		g.Expect(v).ShouldNot(BeNil())
 		g.Expect(v).Should(matcher)
 	})
 
@@ -173,7 +172,6 @@ func TestUpdate(t *testing.T) {
 		wt := tc.NewWithT(t)
 
 		v := wt.Update(gvk.ConfigMap, key, transformer).Consistently().WithTimeout(1 * time.Second).Should(matcher)
-		g.Expect(v).ShouldNot(BeNil())
 		g.Expect(v).Should(matcher)
 	})
 }

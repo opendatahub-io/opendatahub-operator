@@ -1,6 +1,7 @@
 package resources_test
 
 import (
+	"errors"
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -79,24 +80,21 @@ func TestGetGroupVersionKindForObject(t *testing.T) {
 	})
 
 	t.Run("ObjectWithoutGVK_SuccessfulLookup", func(t *testing.T) {
-		obj := &unstructured.Unstructured{}
-		obj.SetAPIVersion(gvk.Deployment.GroupVersion().String())
-		obj.SetKind(gvk.Deployment.Kind)
+		obj := &appsv1.Deployment{}
 
 		gotGVK, err := resources.GetGroupVersionKindForObject(scheme, obj)
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(gotGVK.Group).To(Equal(gvk.Deployment.Group))
-		g.Expect(gotGVK.Version).To(Equal(gvk.Deployment.Version))
-		g.Expect(gotGVK.Kind).To(Equal(gvk.Deployment.Kind))
+		g.Expect(gotGVK).To(Equal(gvk.Deployment))
 	})
 
 	t.Run("ObjectWithoutGVK_ErrorInLookup", func(t *testing.T) {
 		obj := &unstructured.Unstructured{}
-		obj.SetKind("UnknownKind")
 
 		_, err := resources.GetGroupVersionKindForObject(scheme, obj)
-		g.Expect(err).To(HaveOccurred())
-		g.Expect(err.Error()).To(ContainSubstring("failed to get GVK"))
+		g.Expect(err).To(WithTransform(
+			errors.Unwrap,
+			MatchError(runtime.IsMissingKind, "IsMissingKind"),
+		))
 	})
 
 	t.Run("NilObject", func(t *testing.T) {

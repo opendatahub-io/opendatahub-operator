@@ -45,43 +45,58 @@ var (
 	}
 )
 
-type TestContextOpt func(testContext *TestContext)
+type testContextOpts struct {
+	ctx       context.Context
+	cfg       *rest.Config
+	client    *odhcli.Client
+	scheme    *runtime.Scheme
+	withTOpts []WithTOpts
+}
+
+type TestContextOpt func(testContext *testContextOpts)
 
 func WithClient(value *odhcli.Client) TestContextOpt {
-	return func(tc *TestContext) {
+	return func(tc *testContextOpts) {
 		tc.client = value
 	}
 }
 
 func WithRestConfig(value *rest.Config) TestContextOpt {
-	return func(tc *TestContext) {
+	return func(tc *testContextOpts) {
 		tc.cfg = value
 	}
 }
 
 func WithScheme(value *runtime.Scheme) TestContextOpt {
-	return func(tc *TestContext) {
+	return func(tc *testContextOpts) {
 		tc.scheme = value
 	}
 }
 
 //nolint:fatcontext
 func WitContext(value context.Context) TestContextOpt {
-	return func(tc *TestContext) {
+	return func(tc *testContextOpts) {
 		tc.ctx = value
 	}
 }
 
 func WithTOptions(opts ...WithTOpts) TestContextOpt {
-	return func(tc *TestContext) {
+	return func(tc *testContextOpts) {
 		tc.withTOpts = append(tc.withTOpts, opts...)
 	}
 }
 
 func NewTestContext(opts ...TestContextOpt) (*TestContext, error) {
-	tc := TestContext{}
+	tco := testContextOpts{}
 	for _, opt := range opts {
-		opt(&tc)
+		opt(&tco)
+	}
+
+	tc := TestContext{
+		ctx:       tco.ctx,
+		scheme:    tco.scheme,
+		client:    tco.client,
+		withTOpts: tco.withTOpts,
 	}
 
 	if tc.ctx == nil {
@@ -97,22 +112,23 @@ func NewTestContext(opts ...TestContextOpt) (*TestContext, error) {
 		}
 	}
 
-	if tc.cfg == nil && tc.client == nil {
-		cfg, err := ctrlcfg.GetConfig()
-		if err != nil {
-			return nil, fmt.Errorf("error creating the config object %w", err)
+	if tc.client == nil {
+		clientCfg := tco.cfg
+		if clientCfg == nil {
+			cfg, err := ctrlcfg.GetConfig()
+			if err != nil {
+				return nil, fmt.Errorf("error creating the config object %w", err)
+			}
+
+			clientCfg = cfg
 		}
 
-		tc.cfg = cfg
-	}
-
-	if tc.client == nil {
-		ctrlCli, err := ctrlcli.New(tc.cfg, ctrlcli.Options{Scheme: tc.scheme})
+		ctrlCli, err := ctrlcli.New(clientCfg, ctrlcli.Options{Scheme: tc.scheme})
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize custom client: %w", err)
 		}
 
-		odhCli, err := odhcli.NewFromConfig(tc.cfg, ctrlCli)
+		odhCli, err := odhcli.NewFromConfig(clientCfg, ctrlCli)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize odh client: %w", err)
 		}
@@ -125,7 +141,6 @@ func NewTestContext(opts ...TestContextOpt) (*TestContext, error) {
 
 type TestContext struct {
 	ctx    context.Context
-	cfg    *rest.Config
 	client *odhcli.Client
 	scheme *runtime.Scheme
 
