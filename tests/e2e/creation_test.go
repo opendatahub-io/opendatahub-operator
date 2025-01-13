@@ -22,8 +22,6 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/serverless"
 )
 
 func creationTestSuite(t *testing.T) {
@@ -350,45 +348,6 @@ func (tc *testContext) validateDSC() error {
 		return err
 	}
 
-	return nil
-}
-
-func (tc *testContext) testDefaultCertsAvailable() error {
-	// Get expected cert secrets
-	defaultIngressCtrl, err := cluster.FindAvailableIngressController(tc.ctx, tc.customClient)
-	if err != nil {
-		return fmt.Errorf("failed to get ingress controller: %w", err)
-	}
-
-	defaultIngressCertName := cluster.GetDefaultIngressCertSecretName(defaultIngressCtrl)
-
-	defaultIngressSecret, err := cluster.GetSecret(tc.ctx, tc.customClient, "openshift-ingress", defaultIngressCertName)
-	if err != nil {
-		return err
-	}
-
-	// Verify secret from Control Plane namespace matches the default cert secret
-	defaultSecretName := tc.testDsc.Spec.Components.Kserve.Serving.IngressGateway.Certificate.SecretName
-	if defaultSecretName == "" {
-		defaultSecretName = serverless.DefaultCertificateSecretName
-	}
-	ctrlPlaneSecret, err := cluster.GetSecret(tc.ctx, tc.customClient, tc.testDSCI.Spec.ServiceMesh.ControlPlane.Namespace,
-		defaultSecretName)
-	if err != nil {
-		return err
-	}
-
-	if ctrlPlaneSecret.Type != defaultIngressSecret.Type {
-		return fmt.Errorf("wrong type of cert secret is created for %v. Expected %v, Got %v", defaultSecretName, defaultIngressSecret.Type, ctrlPlaneSecret.Type)
-	}
-
-	if string(defaultIngressSecret.Data["tls.crt"]) != string(ctrlPlaneSecret.Data["tls.crt"]) {
-		return fmt.Errorf("default cert secret not expected. Epected %v, Got %v", defaultIngressSecret.Data["tls.crt"], ctrlPlaneSecret.Data["tls.crt"])
-	}
-
-	if string(defaultIngressSecret.Data["tls.key"]) != string(ctrlPlaneSecret.Data["tls.key"]) {
-		return fmt.Errorf("default cert secret not expected. Epected %v, Got %v", defaultIngressSecret.Data["tls.crt"], ctrlPlaneSecret.Data["tls.crt"])
-	}
 	return nil
 }
 

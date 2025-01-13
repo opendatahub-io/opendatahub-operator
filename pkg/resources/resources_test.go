@@ -1,10 +1,15 @@
 package resources_test
 
 import (
+	"errors"
 	"testing"
 
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 
 	. "github.com/onsi/gomega"
@@ -56,4 +61,78 @@ func TestHasAnnotationAndLabels(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestGetGroupVersionKindForObject(t *testing.T) {
+	g := NewWithT(t)
+
+	scheme := runtime.NewScheme()
+	g.Expect(corev1.AddToScheme(scheme)).To(Succeed())
+	g.Expect(appsv1.AddToScheme(scheme)).To(Succeed())
+
+	t.Run("ObjectWithGVK", func(t *testing.T) {
+		obj := &unstructured.Unstructured{}
+		obj.SetGroupVersionKind(gvk.Deployment)
+
+		gotGVK, err := resources.GetGroupVersionKindForObject(scheme, obj)
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(gotGVK).To(Equal(gvk.Deployment))
+	})
+
+	t.Run("ObjectWithoutGVK_SuccessfulLookup", func(t *testing.T) {
+		obj := &appsv1.Deployment{}
+
+		gotGVK, err := resources.GetGroupVersionKindForObject(scheme, obj)
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(gotGVK).To(Equal(gvk.Deployment))
+	})
+
+	t.Run("ObjectWithoutGVK_ErrorInLookup", func(t *testing.T) {
+		obj := &unstructured.Unstructured{}
+
+		_, err := resources.GetGroupVersionKindForObject(scheme, obj)
+		g.Expect(err).To(WithTransform(
+			errors.Unwrap,
+			MatchError(runtime.IsMissingKind, "IsMissingKind"),
+		))
+	})
+
+	t.Run("NilObject", func(t *testing.T) {
+		_, err := resources.GetGroupVersionKindForObject(scheme, nil)
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(err.Error()).To(ContainSubstring("nil object"))
+	})
+}
+
+func TestEnsureGroupVersionKind(t *testing.T) {
+	g := NewWithT(t)
+
+	scheme := runtime.NewScheme()
+	g.Expect(corev1.AddToScheme(scheme)).To(Succeed())
+	g.Expect(appsv1.AddToScheme(scheme)).To(Succeed())
+
+	t.Run("ForObject", func(t *testing.T) {
+		obj := &unstructured.Unstructured{}
+		obj.SetAPIVersion(gvk.Deployment.GroupVersion().String())
+		obj.SetKind(gvk.Deployment.Kind)
+
+		err := resources.EnsureGroupVersionKind(scheme, obj)
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(obj.GetObjectKind().GroupVersionKind()).To(Equal(gvk.Deployment))
+	})
+
+	t.Run("ErrorOnNilObject", func(t *testing.T) {
+		err := resources.EnsureGroupVersionKind(scheme, nil)
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(err.Error()).To(ContainSubstring("nil object"))
+	})
+
+	t.Run("ErrorOnInvalidObject", func(t *testing.T) {
+		obj := &unstructured.Unstructured{}
+		obj.SetKind("UnknownKind")
+
+		err := resources.EnsureGroupVersionKind(scheme, obj)
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(err.Error()).To(ContainSubstring("failed to get GVK"))
+	})
 }

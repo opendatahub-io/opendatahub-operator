@@ -46,6 +46,7 @@ const (
 	dscCreationTimeout       = 20 * time.Second // time required to wait till DSC is created.
 	generalRetryInterval     = 10 * time.Second
 	generalWaitTimeout       = 2 * time.Minute
+	generalPollInterval      = 1 * time.Second
 	readyStatus              = "Ready"
 	dscKind                  = "DataScienceCluster"
 )

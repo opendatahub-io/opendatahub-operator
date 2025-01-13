@@ -37,7 +37,7 @@ type TestFn func(t *testing.T)
 
 var (
 	testOpts testContextConfig
-	scheme   = runtime.NewScheme()
+	Scheme   = runtime.NewScheme()
 
 	componentsTestSuites = map[string]TestFn{
 		// do not add modelcontroller here, due to dependency, test it separately below
@@ -46,7 +46,7 @@ var (
 		componentApi.ModelRegistryComponentName:        modelRegistryTestSuite,
 		componentApi.TrustyAIComponentName:             trustyAITestSuite,
 		componentApi.KueueComponentName:                kueueTestSuite,
-		componentApi.TrainingOperatorComponentName:     trainingoperatorTestSuite,
+		componentApi.TrainingOperatorComponentName:     trainingOperatorTestSuite,
 		componentApi.DataSciencePipelinesComponentName: dataSciencePipelinesTestSuite,
 		componentApi.CodeFlareComponentName:            codeflareTestSuite,
 		componentApi.WorkbenchesComponentName:          workbenchesTestSuite,
@@ -115,7 +115,7 @@ func NewTestContext() (*testContext, error) {
 	}
 
 	// custom client to manages resources like Route etc
-	custClient, err := client.New(config, client.Options{Scheme: scheme})
+	custClient, err := client.New(config, client.Options{Scheme: Scheme})
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize custom client: %w", err)
 	}
@@ -140,18 +140,18 @@ func NewTestContext() (*testContext, error) {
 
 // TestOdhOperator sets up the testing suite for ODH Operator.
 func TestOdhOperator(t *testing.T) {
-	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-	utilruntime.Must(routev1.AddToScheme(scheme))
-	utilruntime.Must(apiextv1.AddToScheme(scheme))
-	utilruntime.Must(autoscalingv1.AddToScheme(scheme))
-	utilruntime.Must(dsciv1.AddToScheme(scheme))
-	utilruntime.Must(dscv1.AddToScheme(scheme))
-	utilruntime.Must(featurev1.AddToScheme(scheme))
-	utilruntime.Must(monitoringv1.AddToScheme(scheme))
-	utilruntime.Must(ofapi.AddToScheme(scheme))
-	utilruntime.Must(operatorv1.AddToScheme(scheme))
-	utilruntime.Must(componentApi.AddToScheme(scheme))
-	utilruntime.Must(serviceApi.AddToScheme(scheme))
+	utilruntime.Must(clientgoscheme.AddToScheme(Scheme))
+	utilruntime.Must(routev1.AddToScheme(Scheme))
+	utilruntime.Must(apiextv1.AddToScheme(Scheme))
+	utilruntime.Must(autoscalingv1.AddToScheme(Scheme))
+	utilruntime.Must(dsciv1.AddToScheme(Scheme))
+	utilruntime.Must(dscv1.AddToScheme(Scheme))
+	utilruntime.Must(featurev1.AddToScheme(Scheme))
+	utilruntime.Must(monitoringv1.AddToScheme(Scheme))
+	utilruntime.Must(ofapi.AddToScheme(Scheme))
+	utilruntime.Must(operatorv1.AddToScheme(Scheme))
+	utilruntime.Must(componentApi.AddToScheme(Scheme))
+	utilruntime.Must(serviceApi.AddToScheme(Scheme))
 
 	log.SetLogger(zap.New(zap.UseDevMode(true)))
 
@@ -165,14 +165,16 @@ func TestOdhOperator(t *testing.T) {
 	// Run create and delete tests for all the components
 	t.Run("create DSCI and DSC CRs", creationTestSuite)
 
-	for k, v := range componentsTestSuites {
-		if len(testOpts.components) != 0 && !slices.Contains(testOpts.components, k) {
-			t.Logf("Skipping tests for component %s", k)
-			continue
-		}
+	t.Run("components", func(t *testing.T) {
+		for k, v := range componentsTestSuites {
+			if len(testOpts.components) != 0 && !slices.Contains(testOpts.components, k) {
+				t.Logf("Skipping tests for component %s", k)
+				continue
+			}
 
-		t.Run("validate installation of "+k+" component", v)
-	}
+			t.Run(k, v)
+		}
+	})
 
 	if testOpts.authControllerTest {
 		t.Run("test auth controller", authControllerTestSuite)

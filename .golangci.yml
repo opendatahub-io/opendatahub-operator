@@ -64,6 +64,8 @@ linters-settings:
       - predicate.Predicate
       - client.Object
       - common.PlatformObject
+      - types.AsyncAssertion
+      - kubernetes.Interface
   revive:
     rules:
       - name: dot-imports
@@ -116,3 +118,6 @@ issues:
       linters:
         - typecheck
         - dupl
+    - path: pkg/utils/test/testf/(.+)\.go
+      linters:
+        - containedctx
