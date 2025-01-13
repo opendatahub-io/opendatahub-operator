@@ -444,7 +444,7 @@ func (r *DSCInitializationReconciler) watchAuthResource(ctx context.Context, a c
 	if len(instanceList.Items) == 0 {
 		log.Info("Found no Auth instance in cluster, reconciling to recreate")
 
-		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "auth", Namespace: r.ApplicationsNamespace}}}
+		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "auth"}}}
 	}
 
 	return nil
