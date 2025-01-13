@@ -14,6 +14,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -209,12 +210,14 @@ func CleanupExistingResource(ctx context.Context,
 ) error {
 	var multiErr *multierror.Error
 	// get DSCI CR to get application namespace
-	d := &dsciv1.DSCInitialization{}
-	k := types.NamespacedName{Name: "default-dsci"}
-	if err := cli.Get(ctx, k, d); err != nil {
+	dsciList := &dsciv1.DSCInitializationList{}
+	if err := cli.List(ctx, dsciList); err != nil {
 		return err
 	}
-
+	if len(dsciList.Items) == 0 {
+		return nil
+	}
+	d := &dsciList.Items[0]
 	// Handling for dashboard OdhApplication Jupyterhub CR, see jira #443
 	multiErr = multierror.Append(multiErr, removOdhApplicationsCR(ctx, cli, gvk.OdhApplication, "jupyterhub", d.Spec.ApplicationsNamespace))
 
@@ -223,8 +226,8 @@ func CleanupExistingResource(ctx context.Context,
 	multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, d.Spec.ApplicationsNamespace, deprecatedFeatureTrackers, &featuresv1.FeatureTrackerList{}))
 
 	// Cleanup of deprecated default RoleBinding resources
-	deprecatedDefaultRoleBinding := []string{dscApplicationsNamespace}
-	multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscApplicationsNamespace, deprecatedDefaultRoleBinding, &rbacv1.RoleBindingList{}))
+	deprecatedDefaultRoleBinding := []string{d.Spec.ApplicationsNamespace}
+	multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, d.Spec.ApplicationsNamespace, deprecatedDefaultRoleBinding, &rbacv1.RoleBindingList{}))
 
 	// Handling for dashboard OdhDocument Jupyterhub CR, see jira #443 comments
 	odhDocJPH := getJPHOdhDocumentResources(
