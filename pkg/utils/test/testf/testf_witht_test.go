@@ -90,7 +90,7 @@ func TestList(t *testing.T) {
 	tc, err := testf.NewTestContext(testf.WithClient(cl))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	matcher := And(
+	matchMetadata := And(
 		HaveLen(1),
 		HaveEach(And(
 			jq.Match(`.metadata.namespace == "%s"`, cm.Namespace),
@@ -104,20 +104,20 @@ func TestList(t *testing.T) {
 		v, err := wt.List(gvk.ConfigMap).Get()
 
 		g.Expect(err).ShouldNot(HaveOccurred())
-		g.Expect(v).Should(matcher)
+		g.Expect(v).Should(matchMetadata)
 	})
 
 	t.Run("Eventually", func(t *testing.T) {
 		wt := tc.NewWithT(t)
 
-		v := wt.List(gvk.ConfigMap).Eventually().Should(matcher)
+		v := wt.List(gvk.ConfigMap).Eventually().Should(matchMetadata)
 		g.Expect(v).ShouldNot(BeNil())
 	})
 
 	t.Run("Consistently", func(t *testing.T) {
 		wt := tc.NewWithT(t)
 
-		v := wt.List(gvk.ConfigMap).Consistently().WithTimeout(1 * time.Second).Should(matcher)
+		v := wt.List(gvk.ConfigMap).Consistently().WithTimeout(1 * time.Second).Should(matchMetadata)
 		g.Expect(v).ShouldNot(BeNil())
 	})
 }
@@ -143,7 +143,7 @@ func TestUpdate(t *testing.T) {
 	tc, err := testf.NewTestContext(testf.WithClient(cl))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	matcher := And(
+	matchMetadataAndData := And(
 		jq.Match(`.metadata.namespace == "%s"`, cm.Namespace),
 		jq.Match(`.metadata.name == "%s"`, cm.Name),
 		jq.Match(`.data.foo == "%s"`, cm.Name),
@@ -158,21 +158,21 @@ func TestUpdate(t *testing.T) {
 		v, err := wt.Update(gvk.ConfigMap, key, transformer).Get()
 
 		g.Expect(err).ShouldNot(HaveOccurred())
-		g.Expect(v).Should(matcher)
+		g.Expect(v).Should(matchMetadataAndData)
 	})
 
 	t.Run("Eventually", func(t *testing.T) {
 		wt := tc.NewWithT(t)
 
-		v := wt.Update(gvk.ConfigMap, key, transformer).Eventually().Should(matcher)
-		g.Expect(v).Should(matcher)
+		v := wt.Update(gvk.ConfigMap, key, transformer).Eventually().Should(matchMetadataAndData)
+		g.Expect(v).Should(matchMetadataAndData)
 	})
 
 	t.Run("Consistently", func(t *testing.T) {
 		wt := tc.NewWithT(t)
 
-		v := wt.Update(gvk.ConfigMap, key, transformer).Consistently().WithTimeout(1 * time.Second).Should(matcher)
-		g.Expect(v).Should(matcher)
+		v := wt.Update(gvk.ConfigMap, key, transformer).Consistently().WithTimeout(1 * time.Second).Should(matchMetadataAndData)
+		g.Expect(v).Should(matchMetadataAndData)
 	})
 }
 
