@@ -15,6 +15,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -23,7 +24,8 @@ import (
 const (
 	workingNamespace     = "test-operator-ns"
 	applicationName      = "default-dsci"
-	applicationNamespace = "test-application-ns"
+	customizedAppNs      = "my-opendatahub"
+	applicationNamespace = "opendatahub"
 	usergroupName        = "odh-admins"
 	configmapName        = "odh-common-config"
 	monitoringNamespace  = "test-monitoring-ns"
@@ -31,7 +33,44 @@ const (
 )
 
 var _ = Describe("DataScienceCluster initialization", func() {
-	Context("Creation of related resources", func() {
+	Context("Creation of customized related resources", func() {
+
+		BeforeEach(func(ctx context.Context) {
+			// when
+			Expect(k8sClient.Create(ctx, &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: customizedAppNs,
+					Labels: map[string]string{
+						labels.CustomizedAppNamespace: labels.True,
+					},
+				},
+			})).Should(Succeed())
+			desiredDsci := createCustomizedDSCI(customizedAppNs)
+			Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
+
+			foundDsci := &dsciv1.DSCInitialization{}
+			Eventually(dscInitializationIsReady(applicationName, customizedAppNs, foundDsci)).
+				WithContext(ctx).
+				WithTimeout(timeout).
+				WithPolling(interval).
+				Should(BeTrue())
+		})
+
+		AfterEach(cleanupResources)
+
+		It("Should have labels on application namespace", func(ctx context.Context) {
+			// then
+			appNS := &corev1.Namespace{}
+			Eventually(namespaceExists(customizedAppNs, appNS)).
+				WithContext(ctx).
+				WithTimeout(timeout).
+				WithPolling(interval).
+				Should(BeTrue())
+			Expect(appNS.Labels).To(HaveKeyWithValue(labels.SecurityEnforce, "baseline"))
+		})
+	})
+
+	Context("Creation of default related resources", func() {
 		// must be default as instance name, or it will break
 
 		BeforeEach(func(ctx context.Context) {
@@ -57,6 +96,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 				WithPolling(interval).
 				Should(BeTrue())
 			Expect(foundApplicationNamespace.Name).To(Equal(applicationNamespace))
+			Expect(foundApplicationNamespace.Labels).To(HaveKeyWithValue(labels.SecurityEnforce, "baseline"))
 		})
 
 		// Currently commented out in the DSCI reconcile - setting test to Pending
@@ -386,9 +426,34 @@ func createDSCI(enableMonitoring operatorv1.ManagementState, enableTrustedCABund
 	}
 }
 
-func dscInitializationIsReady(ns string, name string, dsciObj *dsciv1.DSCInitialization) func(ctx context.Context) bool { //nolint:unparam
+func createCustomizedDSCI(appNS string) *dsciv1.DSCInitialization {
+	return &dsciv1.DSCInitialization{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "DSCInitialization",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      applicationName,
+			Namespace: workingNamespace,
+		},
+		Spec: dsciv1.DSCInitializationSpec{
+			ApplicationsNamespace: appNS,
+			Monitoring: serviceApi.DSCMonitoring{
+				ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+				MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
+					Namespace: "monitoring-ns",
+				},
+			},
+			TrustedCABundle: &dsciv1.TrustedCABundleSpec{
+				ManagementState: operatorv1.Managed,
+			},
+		},
+	}
+}
+
+func dscInitializationIsReady(name string, namespace string, dsciObj *dsciv1.DSCInitialization) func(ctx context.Context) bool { //nolint:unparam
 	return func(ctx context.Context) bool {
-		_ = k8sClient.Get(ctx, client.ObjectKey{Name: ns, Namespace: name}, dsciObj)
+		_ = k8sClient.Get(ctx, client.ObjectKey{Name: name, Namespace: namespace}, dsciObj)
 
 		return dsciObj.Status.Phase == readyPhase
 	}

@@ -141,7 +141,7 @@ func initComponents(_ context.Context, p cluster.Platform) error {
 	})
 }
 
-func main() { //nolint:funlen,maintidx
+func main() { //nolint:funlen,maintidx,gocyclo
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
@@ -468,7 +468,7 @@ func createSecretCacheConfig(ctx context.Context, cli client.Client, platform cl
 	// maistra.io/member-of=istio-system
 	// network.openshift.io/policy-group=ingress
 
-	namespaceList := &corev1.NamespaceList{}
+	cNamespaceList := &corev1.NamespaceList{}
 
 	// if user create namespace and want it to be used as application namespace
 	// they need to create label "opendatahub.io/application-namespace": "true" then set DSCI to use it
@@ -477,15 +477,18 @@ func createSecretCacheConfig(ctx context.Context, cli client.Client, platform cl
 		labels.CustomizedAppNamespace: labels.True,
 	}
 
-	if err := cli.List(ctx, namespaceList, labelSelector); err != nil {
+	if err := cli.List(ctx, cNamespaceList, labelSelector); err != nil {
 		return map[string]cache.Config{}, err
 	}
-	if len(namespaceList.Items) > 1 {
+	if len(cNamespaceList.Items) > 1 {
 		return map[string]cache.Config{}, errors.New("found multiple namespace with label: opendatahub.io/application-namespace: true")
+	}
+	for _, ns := range cNamespaceList.Items {
+		namespaceConfigs[ns.Name] = cache.Config{}
 	}
 
 	// get all default namespaces by label.
-	// append second list result into first list
+	namespaceList := &corev1.NamespaceList{}
 	labelSelector = client.MatchingLabels{
 		labels.ODH.OwnedNamespace: labels.True,
 	}
@@ -519,24 +522,27 @@ func createODHGeneralCacheConfig(ctx context.Context, cli client.Client, platfor
 	namespaceConfigs := map[string]cache.Config{
 		"istio-system": {}, // for serivcemonitor: data-science-smcp-pilot-monitor
 	}
-	namespaceList := &corev1.NamespaceList{}
+	cNamespaceList := &corev1.NamespaceList{}
 	// they need to create label "opendatahub.io/application-namespace": "true" then set DSCI to use it
 	// we only support only namespace in the cluster has this label
 	labelSelector := client.MatchingLabels{
 		labels.CustomizedAppNamespace: labels.True,
 	}
-	if err := cli.List(ctx, namespaceList, labelSelector); err != nil {
+	if err := cli.List(ctx, cNamespaceList, labelSelector); err != nil {
 		return map[string]cache.Config{}, err
 	}
-	if len(namespaceList.Items) > 1 {
+	if len(cNamespaceList.Items) > 1 {
 		return map[string]cache.Config{}, errors.New("found multiple namespace with label: opendatahub.io/application-namespace: true")
 	}
+	for _, ns := range cNamespaceList.Items {
+		namespaceConfigs[ns.Name] = cache.Config{}
+	}
 
+	namespaceList := &corev1.NamespaceList{}
 	// get all default namespaces by label.
 	labelSelector = client.MatchingLabels{
 		labels.ODH.OwnedNamespace: labels.True,
 	}
-	// append list result into first list
 	if err := cli.List(ctx, namespaceList, labelSelector); err != nil {
 		return map[string]cache.Config{}, err
 	}

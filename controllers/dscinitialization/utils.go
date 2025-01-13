@@ -35,14 +35,15 @@ var (
 )
 
 // createOperatorResource include steps:
-// - 1. validate , create or update application namespace
-// - 2. patch namespaces for managed cluster
-//   - Odh specific labels
+// - 1. validate customized application namespace || create/update default application namespace
+// - 2. patch application namespaces for managed cluster
+//   - Odh specific labels for access
 //   - Pod security labels for baseline permissions
 //
-// - 3. Network Policies 'opendatahub' that allow traffic between the ODH namespaces
-// - 4. ConfigMap  'odh-common-config'
-// - 5. RoleBinding 'opendatahub'.
+// - 3. Patch monitoring namespace
+// - 4. Network Policies 'opendatahub' that allow traffic between the ODH namespaces
+// - 5. ConfigMap  'odh-common-config'
+// - 6. RoleBinding 'opendatahub'.
 func (r *DSCInitializationReconciler) createOperatorResource(ctx context.Context, dscInit *dsciv1.DSCInitialization, nsName string, platform cluster.Platform) error {
 	log := logf.FromContext(ctx)
 
@@ -68,16 +69,16 @@ func (r *DSCInitializationReconciler) createOperatorResource(ctx context.Context
 			log.Error(err, "error patch application namespace for managed cluster")
 			return err
 		}
-		// Patch monitoring namespace for Managed cluster
-		err = r.patchMonitoringNS(ctx, dscInit, log)
-		if err != nil {
-			log.Error(err, "error patch monitoring namespace for managed cluster")
-			return err
-		}
+	}
+	// Patch monitoring namespace
+	err := r.patchMonitoringNS(ctx, dscInit, log)
+	if err != nil {
+		log.Error(err, "error patch monitoring namespace for managed cluster")
+		return err
 	}
 
 	// Create default NetworkPolicy for the namespace
-	err := r.reconcileDefaultNetworkPolicy(ctx, nsName, dscInit, platform, log)
+	err = r.reconcileDefaultNetworkPolicy(ctx, nsName, dscInit, platform, log)
 	if err != nil {
 		log.Error(err, "error reconciling network policy ", "name", nsName)
 		return err
@@ -130,6 +131,9 @@ func (r *DSCInitializationReconciler) validateCustomizeAppNS(ctx context.Context
 		return err
 	}
 	resources.SetLabel(appNamespace, labels.SecurityEnforce, "baseline")
+	if err := r.Update(ctx, appNamespace); err != nil {
+		log.Error(err, "Failed to force security label on namespace", "name", nsName)
+	}
 	return nil
 }
 
@@ -154,8 +158,8 @@ func (r *DSCInitializationReconciler) patchMonitoringNS(ctx context.Context, dsc
 	if dscInit.Spec.Monitoring.ManagementState != operatorv1.Managed {
 		return nil
 	}
-	// Create Monitoring Namespace if it is enabled and not exists
 	foundMonitoringNamespace := &corev1.Namespace{}
+	// Create Monitoring Namespace if it is enabled and not exists
 	monitoringName := dscInit.Spec.Monitoring.Namespace
 	err := r.Get(ctx, client.ObjectKey{Name: monitoringName}, foundMonitoringNamespace)
 	if err != nil {
