@@ -209,12 +209,14 @@ func CleanupExistingResource(ctx context.Context,
 ) error {
 	var multiErr *multierror.Error
 	// get DSCI CR to get application namespace
-	d := &dsciv1.DSCInitialization{}
-	k := types.NamespacedName{Name: "default-dsci"}
-	if err := cli.Get(ctx, k, d); err != nil {
+	dsciList := &dsciv1.DSCInitializationList{}
+	if err := cli.List(ctx, dsciList); err != nil {
 		return err
 	}
-
+	if len(dsciList.Items) == 0 {
+		return nil
+	}
+	d := &dsciList.Items[0]
 	// Handling for dashboard OdhApplication Jupyterhub CR, see jira #443
 	multiErr = multierror.Append(multiErr, removOdhApplicationsCR(ctx, cli, gvk.OdhApplication, "jupyterhub", d.Spec.ApplicationsNamespace))
 
