@@ -18,4 +18,5 @@ resources:
 #- components_v1_trainingoperator.yaml
 #- services_v1_dscmonitoring.yaml
 - services_v1_monitoring.yaml
+- services_v1alpha1_auth.yaml
 #+kubebuilder:scaffold:manifestskustomizesamples

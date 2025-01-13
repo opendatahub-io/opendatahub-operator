@@ -124,6 +124,11 @@ spec:
   apiservicedefinitions: {}
   customresourcedefinitions:
     owned:
+    - description: Auth is the Schema for the auths API
+      displayName: Auth
+      kind: Auth
+      name: auths.services.platform.opendatahub.io
+      version: v1alpha1
     - description: CodeFlare is the Schema for the codeflares API
       displayName: Code Flare
       kind: CodeFlare
@@ -1107,6 +1112,7 @@ spec:
         - apiGroups:
           - services.platform.opendatahub.io
           resources:
+          - auths
           - monitorings
           verbs:
           - create
@@ -1119,12 +1125,14 @@ spec:
         - apiGroups:
           - services.platform.opendatahub.io
           resources:
+          - auths/finalizers
           - monitorings/finalizers
           verbs:
           - update
         - apiGroups:
           - services.platform.opendatahub.io
           resources:
+          - auths/status
           - monitorings/status
           verbs:
           - get

@@ -23,6 +23,11 @@ spec:
   apiservicedefinitions: {}
   customresourcedefinitions:
     owned:
+    - description: Auth is the Schema for the auths API
+      displayName: Auth
+      kind: Auth
+      name: auths.services.platform.opendatahub.io
+      version: v1alpha1
     - description: CodeFlare is the Schema for the codeflares API
       displayName: Code Flare
       kind: CodeFlare
