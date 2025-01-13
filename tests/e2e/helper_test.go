@@ -113,11 +113,7 @@ func setupDSCICR(name string) *dsciv1.DSCInitialization {
 			},
 			TrustedCABundle: &dsciv1.TrustedCABundleSpec{
 				ManagementState: operatorv1.Managed,
-				CustomCABundle: `-----BEGIN CERTIFICATE-----
-      MIIFVjCCAz6gAwIBAgIUQ+NxE9izWRRdt86M/TX9b7wFjUUwDQYJKoZIhvcNAQEL
-     ...
-      IrrVQJLuM7IjWcmOvFjai57QGfIvWcaMY1q6n6MLsLOaXLoRuBLpDLvPbmyAhykU
-      ------END ------`,
+				CustomCABundle:  "",
 			},
 			ServiceMesh: &infrav1.ServiceMeshSpec{
 				ControlPlane: infrav1.ControlPlaneSpec{
