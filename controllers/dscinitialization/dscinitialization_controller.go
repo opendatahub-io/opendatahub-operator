@@ -67,9 +67,8 @@ var managementStateChangeTrustedCA = false
 // DSCInitializationReconciler reconciles a DSCInitialization object.
 type DSCInitializationReconciler struct {
 	*odhClient.Client
-	Scheme                *runtime.Scheme
-	Recorder              record.EventRecorder
-	ApplicationsNamespace string
+	Scheme   *runtime.Scheme
+	Recorder record.EventRecorder
 }
 
 // Reconcile contains controller logic specific to DSCInitialization instance updates.
@@ -249,7 +248,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			}
 		case cluster.ManagedRhoai:
 			osdConfigsPath := filepath.Join(deploy.DefaultManifestPath, "osd-configs")
-			err = deploy.DeployManifestsFromPath(ctx, r.Client, instance, osdConfigsPath, r.ApplicationsNamespace, "osd", true)
+			err = deploy.DeployManifestsFromPath(ctx, r.Client, instance, osdConfigsPath, namespace, "osd", true)
 			if err != nil {
 				log.Error(err, "Failed to apply osd specific configs from manifests", "Manifests path", osdConfigsPath)
 				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to apply "+osdConfigsPath)

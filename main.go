@@ -143,9 +143,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
-	var dscApplicationsNamespace string
 	var dscMonitoringNamespace string
-	var operatorName string
 	var logmode string
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
@@ -153,11 +151,8 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
-	flag.StringVar(&dscApplicationsNamespace, "dsc-applications-namespace", "opendatahub", "The namespace where data science cluster"+
-		"applications will be deployed")
 	flag.StringVar(&dscMonitoringNamespace, "dsc-monitoring-namespace", "opendatahub", "The namespace where data science cluster"+
 		"monitoring stack will be deployed")
-	flag.StringVar(&operatorName, "operator-name", "opendatahub", "The name of the operator")
 	flag.StringVar(&logmode, "log-mode", "", "Log mode ('', prod, devel), default to ''")
 
 	opts := zap.Options{}
@@ -319,10 +314,9 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	}
 
 	if err = (&dscictrl.DSCInitializationReconciler{
-		Client:                oc,
-		Scheme:                mgr.GetScheme(),
-		Recorder:              mgr.GetEventRecorderFor("dscinitialization-controller"),
-		ApplicationsNamespace: dscApplicationsNamespace,
+		Client:   oc,
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("dscinitialization-controller"),
 	}).SetupWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DSCInitiatlization")
 		os.Exit(1)
@@ -399,7 +393,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		setupLog.Info("DSCI auto creation is disabled")
 	} else {
 		var createDefaultDSCIFunc manager.RunnableFunc = func(ctx context.Context) error {
-			err := upgrade.CreateDefaultDSCI(ctx, setupClient, platform, dscApplicationsNamespace, dscMonitoringNamespace)
+			err := upgrade.CreateDefaultDSCI(ctx, setupClient, platform, dscMonitoringNamespace)
 			if err != nil {
 				setupLog.Error(err, "unable to create initial setup for the operator")
 			}
@@ -429,7 +423,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	}
 	// Cleanup resources from previous v2 releases
 	var cleanExistingResourceFunc manager.RunnableFunc = func(ctx context.Context) error {
-		if err = upgrade.CleanupExistingResource(ctx, setupClient, platform, dscApplicationsNamespace, dscMonitoringNamespace, oldReleaseVersion); err != nil {
+		if err = upgrade.CleanupExistingResource(ctx, setupClient, platform, dscMonitoringNamespace, oldReleaseVersion); err != nil {
 			setupLog.Error(err, "unable to perform cleanup")
 		}
 		return err
