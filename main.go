@@ -389,9 +389,6 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
-	// get old release version before we create default DSCI CR
-	oldReleaseVersion, _ = upgrade.GetDeployedRelease(ctx, setupClient)
-
 	// Check if user opted for disabling DSC configuration
 	disableDSCConfig, existDSCConfig := os.LookupEnv("DISABLE_DSC_CONFIG")
 	if existDSCConfig && disableDSCConfig != "false" {
@@ -468,53 +465,43 @@ func createSecretCacheConfig(ctx context.Context, cli client.Client, platform cl
 	// maistra.io/member-of=istio-system
 	// network.openshift.io/policy-group=ingress
 
-	cNamespaceList := &corev1.NamespaceList{}
-
-	// if user create namespace and want it to be used as application namespace
-	// they need to create label "opendatahub.io/application-namespace": "true" then set DSCI to use it
-	// we only support only namespace in the cluster has this label
-	labelSelector := client.MatchingLabels{
-		labels.CustomizedAppNamespace: labels.True,
-	}
-
-	if err := cli.List(ctx, cNamespaceList, labelSelector); err != nil {
-		return map[string]cache.Config{}, err
-	}
-	if len(cNamespaceList.Items) > 1 {
-		return map[string]cache.Config{}, errors.New("found multiple namespace with label: opendatahub.io/application-namespace: true")
-	}
-	for _, ns := range cNamespaceList.Items {
-		namespaceConfigs[ns.Name] = cache.Config{}
-	}
-
-	// get all default namespaces by label.
-	namespaceList := &corev1.NamespaceList{}
-	labelSelector = client.MatchingLabels{
-		labels.ODH.OwnedNamespace: labels.True,
-	}
-	if err := cli.List(ctx, namespaceList, labelSelector); err != nil {
-		return map[string]cache.Config{}, err
-	}
-
-	for _, ns := range namespaceList.Items {
-		namespaceConfigs[ns.Name] = cache.Config{}
-	}
-
 	switch platform {
 	case cluster.ManagedRhoai:
 		namespaceConfigs["redhat-ods-monitoring"] = cache.Config{}
 		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
-		// Managed cluster need extra secrets to be watched in operator namespace
 		operatorNs, err := cluster.GetOperatorNamespace()
 		if err != nil {
 			operatorNs = "redhat-ods-operator" // fall back case
 		}
 		namespaceConfigs[operatorNs] = cache.Config{}
-	case cluster.SelfManagedRhoai:
-		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
+		return namespaceConfigs, nil
 	default:
-		namespaceConfigs["opendatahub"] = cache.Config{}
+		cNamespaceList := &corev1.NamespaceList{}
+		// if user create namespace and want it to be used as application namespace
+		// they need to create label "opendatahub.io/application-namespace": "true" then set DSCI to use it
+		// we only support one namespace in the cluster has this label
+		// if other namespace has generated-namespace label, we wont use such namespace
+		labelSelector := client.MatchingLabels{
+			labels.CustomizedAppNamespace: labels.True,
+		}
+		if err := cli.List(ctx, cNamespaceList, labelSelector); err != nil {
+			return map[string]cache.Config{}, err
+		}
+		switch len(cNamespaceList.Items) {
+		case 0:
+			if platform == cluster.SelfManagedRhoai {
+				namespaceConfigs["redhat-ods-applications"] = cache.Config{}
+				return namespaceConfigs, nil
+			}
+			namespaceConfigs["opendatahub"] = cache.Config{}
+			return namespaceConfigs, nil
+		case 1:
+			namespaceConfigs[cNamespaceList.Items[0].Name] = cache.Config{}
+		default:
+			return map[string]cache.Config{}, errors.New("found multiple namespace with label: opendatahub.io/application-namespace: true")
+		}
 	}
+
 	return namespaceConfigs, nil
 }
 
@@ -522,45 +509,40 @@ func createODHGeneralCacheConfig(ctx context.Context, cli client.Client, platfor
 	namespaceConfigs := map[string]cache.Config{
 		"istio-system": {}, // for serivcemonitor: data-science-smcp-pilot-monitor
 	}
+	if platform == cluster.ManagedRhoai {
+		namespaceConfigs["redhat-ods-monitoring"] = cache.Config{}
+		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
+		return namespaceConfigs, nil
+	}
+
 	cNamespaceList := &corev1.NamespaceList{}
 	// they need to create label "opendatahub.io/application-namespace": "true" then set DSCI to use it
-	// we only support only namespace in the cluster has this label
+	// we only support one namespace in the cluster has this label
+	// if other namespace has generated-namespace label, we wont use such namespace
 	labelSelector := client.MatchingLabels{
 		labels.CustomizedAppNamespace: labels.True,
 	}
 	if err := cli.List(ctx, cNamespaceList, labelSelector); err != nil {
 		return map[string]cache.Config{}, err
 	}
-	if len(cNamespaceList.Items) > 1 {
+
+	switch len(cNamespaceList.Items) {
+	case 0:
+		if platform == cluster.SelfManagedRhoai {
+			namespaceConfigs["redhat-ods-applications"] = cache.Config{}
+			return namespaceConfigs, nil
+		}
+		namespaceConfigs["opendatahub"] = cache.Config{}
+		return namespaceConfigs, nil
+	case 1:
+		namespaceConfigs[cNamespaceList.Items[0].Name] = cache.Config{}
+	default:
 		return map[string]cache.Config{}, errors.New("found multiple namespace with label: opendatahub.io/application-namespace: true")
 	}
-	for _, ns := range cNamespaceList.Items {
-		namespaceConfigs[ns.Name] = cache.Config{}
-	}
 
-	namespaceList := &corev1.NamespaceList{}
-	// get all default namespaces by label.
-	labelSelector = client.MatchingLabels{
-		labels.ODH.OwnedNamespace: labels.True,
-	}
-	if err := cli.List(ctx, namespaceList, labelSelector); err != nil {
-		return map[string]cache.Config{}, err
-	}
-
-	for _, ns := range namespaceList.Items {
-		namespaceConfigs[ns.Name] = cache.Config{}
-	}
-	// remove rhods-notebooks if it exists since we do not have deployment in this namespace, only SFS
-	delete(namespaceConfigs, cluster.DefaultNotebooksNamespace)
-
-	switch platform {
-	case cluster.ManagedRhoai:
+	if platform == cluster.ManagedRhoai {
 		namespaceConfigs["redhat-ods-monitoring"] = cache.Config{}
 		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
-	case cluster.SelfManagedRhoai:
-		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
-	default:
-		namespaceConfigs["opendatahub"] = cache.Config{}
 	}
 
 	return namespaceConfigs, nil

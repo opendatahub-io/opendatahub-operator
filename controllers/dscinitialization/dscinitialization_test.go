@@ -25,7 +25,7 @@ const (
 	workingNamespace     = "test-operator-ns"
 	applicationName      = "default-dsci"
 	customizedAppNs      = "my-opendatahub"
-	applicationNamespace = "opendatahub"
+	applicationNamespace = "test-application-ns"
 	usergroupName        = "odh-admins"
 	configmapName        = "odh-common-config"
 	monitoringNamespace  = "test-monitoring-ns"
@@ -58,7 +58,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 
 		AfterEach(cleanupResources)
 
-		It("Should have labels on application namespace", func(ctx context.Context) {
+		It("Should have security labels on application namespace", func(ctx context.Context) {
 			// then
 			appNS := &corev1.Namespace{}
 			Eventually(namespaceExists(customizedAppNs, appNS)).
@@ -70,9 +70,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 		})
 	})
 
-	Context("Creation of default related resources", func() {
-		// must be default as instance name, or it will break
-
+	Context("Creation of related resources", func() {
 		BeforeEach(func(ctx context.Context) {
 			// when
 			desiredDsci := createDSCI(operatorv1.Managed, operatorv1.Managed, monitoringNamespace)

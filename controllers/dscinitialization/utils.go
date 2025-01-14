@@ -3,6 +3,8 @@ package dscinitialization
 import (
 	"context"
 	"crypto/rand"
+	"errors"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -35,30 +37,21 @@ var (
 )
 
 // createOperatorResource include steps:
-// - 1. validate customized application namespace || create/update default application namespace
+// - 1. validate customized application namespace || create/update application namespace
 // - 2. patch application namespaces for managed cluster
 //   - Odh specific labels for access
-//   - Pod security labels for baseline permissions
+//   - Pod security labels for baseline permissions//
 //
 // - 3. Patch monitoring namespace
 // - 4. Network Policies 'opendatahub' that allow traffic between the ODH namespaces
 // - 5. ConfigMap  'odh-common-config'
 // - 6. RoleBinding 'opendatahub'.
-func (r *DSCInitializationReconciler) createOperatorResource(ctx context.Context, dscInit *dsciv1.DSCInitialization, nsName string, platform cluster.Platform) error {
+func (r *DSCInitializationReconciler) createOperatorResource(ctx context.Context, dscInit *dsciv1.DSCInitialization, platform cluster.Platform) error {
 	log := logf.FromContext(ctx)
+	nsName := dscInit.Spec.ApplicationsNamespace
 
-	switch nsName { // default application: create or update labels
-	case "opendatahub", "redhat-odh-applications":
-		if err := r.createAppNamespace(ctx, nsName); err != nil {
-			log.Error(err, "error create application namespace", "name", nsName)
-			return err
-		}
-	default:
-		// validate customized namespace
-		if err := r.validateCustomizeAppNS(ctx, nsName, log); err != nil {
-			log.Error(err, "error pass vaclidation on application namespace", "name", nsName)
-			return err
-		}
+	if err := r.appNamespaceHandler(ctx, nsName, log); err != nil {
+		return fmt.Errorf("error handle application namespace: %w", err)
 	}
 
 	// managed cluster need to patch its namespaces
@@ -100,6 +93,34 @@ func (r *DSCInitializationReconciler) createOperatorResource(ctx context.Context
 	return nil
 }
 
+func (r *DSCInitializationReconciler) appNamespaceHandler(ctx context.Context, nsName string, log logr.Logger) error {
+	// Check if application namespace has label "opendatahub.io/application-namespace:true"
+	// if no such namespace exist, we create it with generated-namespace and security label
+	// if namespace exist but no label, we exit
+	// if namespace exist and has label, we enforce security label onto it.
+	appNamespace := &corev1.Namespace{}
+	desiredAppNS := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: nsName,
+		},
+	}
+	if err := r.Get(ctx, client.ObjectKeyFromObject(desiredAppNS), appNamespace); err != nil {
+		if !k8serr.IsNotFound(err) {
+			return err
+		}
+		return r.createAppNamespace(ctx, nsName)
+	}
+
+	l := appNamespace.GetLabels()
+	if l[labels.CustomizedAppNamespace] == "true" {
+		resources.SetLabel(appNamespace, labels.SecurityEnforce, "baseline")
+		if err := r.Update(ctx, appNamespace); err != nil {
+			log.Error(err, "Failed to force security label on namespace", "name", nsName)
+		}
+	}
+	return errors.New("application namespace missing required label or label value is incorrect. Please recreate DSCI to set the label, or leave it to default value")
+}
+
 func (r *DSCInitializationReconciler) createAppNamespace(ctx context.Context, nsName string) error {
 	desiredDefaultNS := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{Name: nsName},
@@ -110,31 +131,6 @@ func (r *DSCInitializationReconciler) createAppNamespace(ctx context.Context, ns
 		return nil
 	})
 	return err
-}
-
-func (r *DSCInitializationReconciler) validateCustomizeAppNS(ctx context.Context, nsName string, log logr.Logger) error {
-	// user defined application namespace
-	// Check if application namespace has label "opendatahub.io/application-namespace:true"
-	// we do not remove generated-namespace label if it exists, it is up to user to decide if they want namespace to be deleted or not during uninstallation.
-	appNamespace := &corev1.Namespace{}
-	desiredAppNS := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: nsName,
-			Labels: map[string]string{
-				labels.CustomizedAppNamespace: labels.True,
-			},
-		},
-	}
-	err := r.Get(ctx, client.ObjectKeyFromObject(desiredAppNS), appNamespace)
-	if err != nil {
-		log.Error(err, "Failed to find application namespace with required label. Recreate DSCI to set value to the one with label or leave it to default value", "name", nsName)
-		return err
-	}
-	resources.SetLabel(appNamespace, labels.SecurityEnforce, "baseline")
-	if err := r.Update(ctx, appNamespace); err != nil {
-		log.Error(err, "Failed to force security label on namespace", "name", nsName)
-	}
-	return nil
 }
 
 func (r *DSCInitializationReconciler) patchAppNS(ctx context.Context, nsName string, log logr.Logger) error {
