@@ -23,12 +23,9 @@ import (
 	"slices"
 	"strings"
 
-	operatorv1 "github.com/openshift/api/operator/v1"
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -39,12 +36,10 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
 	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
@@ -97,14 +92,18 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	// validate pre-requisites
 	if err := r.validate(ctx, instance); err != nil {
 		log.Info(err.Error())
-		status.SetCondition(&instance.Status.Conditions, "Degraded", status.ReconcileFailed, err.Error(), corev1.ConditionTrue)
+
+		status.SetCondition(
+			&instance.Status.Conditions,
+			string(conditionsv1.ConditionAvailable),
+			status.DegradedReason,
+			err.Error(),
+			corev1.ConditionFalse,
+		)
 	}
 
 	// deploy components
-	if err := r.reconcileComponents(ctx, instance, cr.DefaultRegistry()); err != nil {
-		log.Info(err.Error())
-		status.SetCondition(&instance.Status.Conditions, "Degraded", status.ReconcileFailed, err.Error(), corev1.ConditionTrue)
-	}
+	reconcileComponents(ctx, r.Client, instance, cr.DefaultRegistry())
 
 	// keep conditions sorted
 	slices.SortFunc(instance.Status.Conditions, func(a, b conditionsv1.Condition) int {
@@ -148,125 +147,6 @@ func (r *DataScienceClusterReconciler) validate(ctx context.Context, _ *dscv1.Da
 	}
 
 	return nil
-}
-
-func (r *DataScienceClusterReconciler) reconcileComponents(
-	ctx context.Context,
-	instance *dscv1.DataScienceCluster,
-	reg *cr.Registry) error {
-	log := logf.FromContext(ctx).WithName("DataScienceCluster")
-
-	notReadyComponents := make([]string, 0)
-
-	// all DSC defined components
-	componentErrors := reg.ForEach(func(component cr.ComponentHandler) error {
-		ci, err := r.reconcileComponent(ctx, instance, component)
-		if err != nil {
-			return err
-		}
-
-		if !cr.IsManaged(component, instance) {
-			return nil
-		}
-
-		if !meta.IsStatusConditionTrue(ci.GetStatus().Conditions, status.ConditionTypeReady) {
-			notReadyComponents = append(notReadyComponents, component.GetName())
-		}
-
-		return nil
-	})
-
-	// Process errors for components
-	if componentErrors != nil {
-		log.Info("DataScienceCluster Deployment Incomplete.")
-
-		status.SetCompleteCondition(
-			&instance.Status.Conditions,
-			status.ReconcileCompletedWithComponentErrors,
-			fmt.Sprintf("DataScienceCluster resource reconciled with component errors: %v", componentErrors),
-		)
-
-		r.Recorder.Eventf(instance, corev1.EventTypeNormal,
-			"DataScienceClusterComponentFailures",
-			"DataScienceCluster instance %s created, but have some failures in component %v", instance.Name, componentErrors)
-	} else {
-		log.Info("DataScienceCluster Deployment Completed.")
-
-		// finalize reconciliation
-		status.SetCompleteCondition(
-			&instance.Status.Conditions,
-			status.ReconcileCompleted,
-			"DataScienceCluster resource reconciled successfully",
-		)
-	}
-
-	if len(notReadyComponents) != 0 {
-		instance.Status.Phase = status.PhaseNotReady
-
-		conditionsv1.SetStatusCondition(&instance.Status.Conditions, conditionsv1.Condition{
-			Type:    conditionsv1.ConditionType(status.ConditionTypeReady),
-			Status:  corev1.ConditionFalse,
-			Reason:  "NotReady",
-			Message: fmt.Sprintf("Some components are not ready: %s", strings.Join(notReadyComponents, ",")),
-		})
-	} else {
-		instance.Status.Phase = status.PhaseReady
-
-		conditionsv1.SetStatusCondition(&instance.Status.Conditions, conditionsv1.Condition{
-			Type:    conditionsv1.ConditionType(status.ConditionTypeReady),
-			Status:  corev1.ConditionTrue,
-			Reason:  "Ready",
-			Message: "Ready",
-		})
-	}
-
-	instance.Status.Release = cluster.GetRelease()
-	instance.Status.ObservedGeneration = instance.Generation
-
-	if componentErrors != nil {
-		return componentErrors
-	}
-
-	return nil
-}
-
-func (r *DataScienceClusterReconciler) reconcileComponent(
-	ctx context.Context,
-	instance *dscv1.DataScienceCluster,
-	component cr.ComponentHandler,
-) (common.PlatformObject, error) {
-	ms := component.GetManagementState(instance)
-	componentCR := component.NewCRObject(instance)
-
-	switch ms {
-	case operatorv1.Managed:
-		err := ctrl.SetControllerReference(instance, componentCR, r.Scheme)
-		if err != nil {
-			return nil, err
-		}
-		err = r.Client.Apply(ctx, componentCR, client.FieldOwner(fieldOwner), client.ForceOwnership)
-		if err != nil {
-			return nil, err
-		}
-	case operatorv1.Removed:
-		err := r.Client.Delete(ctx, componentCR, client.PropagationPolicy(metav1.DeletePropagationForeground))
-		if err != nil && !k8serr.IsNotFound(err) {
-			return nil, err
-		}
-	default:
-		return nil, fmt.Errorf("unsupported management state: %s", ms)
-	}
-
-	if instance.Status.InstalledComponents == nil {
-		instance.Status.InstalledComponents = make(map[string]bool)
-	}
-
-	err := component.UpdateDSCStatus(instance, componentCR)
-	if err != nil {
-		return nil, fmt.Errorf("failed to update status of DataScienceCluster component %s: %w", component.GetName(), err)
-	}
-
-	return componentCR, nil
 }
 
 func (r *DataScienceClusterReconciler) reportError(ctx context.Context, err error, instance *dscv1.DataScienceCluster, message string) {

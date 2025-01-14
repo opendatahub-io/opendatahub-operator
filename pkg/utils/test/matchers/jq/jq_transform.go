@@ -6,13 +6,18 @@ import (
 	"github.com/itchyny/gojq"
 )
 
-func Extract(expression string) func(in any) (any, error) {
+func Extract(format string, args ...any) func(in any) (any, error) {
 	return func(in any) (any, error) {
-		return ExtractValue[any](in, expression)
+		return ExtractValue[any](in, format, args...)
 	}
 }
 
-func ExtractValue[T any](in any, expression string) (T, error) {
+func ExtractValue[T any](in any, format string, args ...any) (T, error) {
+	expression := format
+	if len(args) > 0 {
+		expression = fmt.Sprintf(format, args...)
+	}
+
 	var result T
 	var ok bool
 

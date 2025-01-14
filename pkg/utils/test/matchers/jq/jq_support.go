@@ -11,6 +11,9 @@ import (
 	"github.com/onsi/gomega/format"
 	"github.com/onsi/gomega/gbytes"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 func formattedMessage(comparisonMessage string, failurePath []interface{}) string {
@@ -91,6 +94,13 @@ func toType(in any) (any, error) {
 		return v.Object, nil
 	case *unstructured.Unstructured:
 		return v.Object, nil
+	case client.Object:
+		u, err := resources.ToUnstructured(v)
+		if err != nil {
+			return nil, err
+		}
+
+		return u.Object, nil
 	}
 
 	switch reflect.TypeOf(in).Kind() {
