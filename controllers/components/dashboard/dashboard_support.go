@@ -57,13 +57,6 @@ var (
 		cluster.Unknown:          "/odh",
 	}
 
-	serviceAccounts = map[cluster.Platform][]string{
-		cluster.SelfManagedRhoai: {"rhods-dashboard"},
-		cluster.ManagedRhoai:     {"rhods-dashboard"},
-		cluster.OpenDataHub:      {"odh-dashboard"},
-		cluster.Unknown:          {"odh-dashboard"},
-	}
-
 	imagesMap = map[string]string{
 		"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
 	}
