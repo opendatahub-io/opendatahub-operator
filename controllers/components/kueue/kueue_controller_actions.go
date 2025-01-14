@@ -14,10 +14,12 @@ import (
 
 func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	rr.Manifests = append(rr.Manifests, manifestsPath())
+	return nil
+}
+
+func extraInitialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	// Add specific manifests if OCP is greater or equal 4.17.
-	if enableVAP {
-		rr.Manifests = append(rr.Manifests, extramanifestsPath())
-	}
+	rr.Manifests = append(rr.Manifests, extramanifestsPath())
 	return nil
 }
 

@@ -44,8 +44,7 @@ import (
 )
 
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	enableVAP = cluster.GetClusterInfo().Version.GTE(semver.MustParse("4.17.0"))
-	_, err := reconciler.ReconcilerFor(mgr, &componentApi.Kueue{}).
+	b := reconciler.ReconcilerFor(mgr, &componentApi.Kueue{}).
 		// customized Owns() for Component with new predicates
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Secret{}).
@@ -60,16 +59,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Owns(&promv1.PrometheusRule{}).
 		Owns(&admissionregistrationv1.MutatingWebhookConfiguration{}).
 		Owns(&admissionregistrationv1.ValidatingWebhookConfiguration{}).
-		// We need dynamically "watch" VAP, because we want it to be configable by user and it can be left behind when kueue is removed.
-		OwnsGVK(
-			gvk.ValidatingAdmissionPolicy,
-			reconciler.Dynamic(vapPredicate),
-		).
-		// We need dynamically "own" VAPB, because we want it has owner so when kueue is removed it gets cleaned.
-		WatchesGVK(
-			gvk.ValidatingAdmissionPolicyBinding,
-			reconciler.Dynamic(vapPredicate),
-		).
 		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(resources.NewDeploymentPredicate())).
 		Watches(
 			&extv1.CustomResourceDefinition{},
@@ -92,10 +81,15 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		)).
 		WithAction(updatestatus.NewAction()).
 		// must be the final action
-		WithAction(gc.NewAction()).
-		Build(ctx)
+		WithAction(gc.NewAction())
 
-	if err != nil {
+	if cluster.GetClusterInfo().Version.GTE(semver.MustParse("4.17.0")) {
+		b = b.OwnsGVK(gvk.ValidatingAdmissionPolicy)           // "own" VAP, because we want it has owner so when kueue is removed it gets cleaned.
+		b = b.WatchesGVK(gvk.ValidatingAdmissionPolicyBinding) // "watch" VAPB, because we want it to be configable by user and it can be left behind when kueue is remov
+		b = b.WithAction(extraInitialize)
+	}
+
+	if _, err := b.Build(ctx); err != nil {
 		return err // no need customize error, it is done in the caller main
 	}
 
