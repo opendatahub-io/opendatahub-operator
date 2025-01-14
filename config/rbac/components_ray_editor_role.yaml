@@ -1,0 +1,24 @@
+# permissions for end users to edit rays.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ray-editor-role
+rules:
+- apiGroups:
+  - components.platform.opendatahub.io
+  resources:
+  - rays
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - components.platform.opendatahub.io
+  resources:
+  - rays/status
+  verbs:
+  - get

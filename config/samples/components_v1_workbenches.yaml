@@ -1,0 +1,6 @@
+apiVersion: components.platform.opendatahub.io/v1
+kind: Workbenches
+metadata:
+  name: workbenches-sample
+spec:
+  # TODO(user): Add fields here

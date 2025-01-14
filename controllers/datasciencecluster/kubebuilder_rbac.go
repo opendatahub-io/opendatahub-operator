@@ -1,79 +1,21 @@
 package datasciencecluster
 
-//+kubebuilder:rbac:groups="datasciencecluster.opendatahub.io",resources=datascienceclusters/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups="datasciencecluster.opendatahub.io",resources=datascienceclusters/finalizers,verbs=update;patch
-//+kubebuilder:rbac:groups="datasciencecluster.opendatahub.io",resources=datascienceclusters,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="datasciencecluster.opendatahub.io",resources=datascienceclusters/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups="datasciencecluster.opendatahub.io",resources=datascienceclusters/finalizers,verbs=update;patch
+// +kubebuilder:rbac:groups="datasciencecluster.opendatahub.io",resources=datascienceclusters,verbs=get;list;watch;create;update;patch;delete;deletecollection
 
-/* Serverless prerequisite */
-// +kubebuilder:rbac:groups="networking.istio.io",resources=gateways,verbs=*
-// +kubebuilder:rbac:groups="operator.knative.dev",resources=knativeservings,verbs=*
-// +kubebuilder:rbac:groups="config.openshift.io",resources=ingresses,verbs=get
-
-/* Service Mesh Integration */
-// +kubebuilder:rbac:groups="maistra.io",resources=servicemeshcontrolplanes,verbs=create;get;list;patch;update;use;watch
-// +kubebuilder:rbac:groups="maistra.io",resources=servicemeshmemberrolls,verbs=create;get;list;patch;update;use;watch
-// +kubebuilder:rbac:groups="maistra.io",resources=servicemeshmembers,verbs=create;get;list;patch;update;use;watch
-// +kubebuilder:rbac:groups="maistra.io",resources=servicemeshmembers/finalizers,verbs=create;get;list;patch;update;use;watch
-// +kubebuilder:rbac:groups="networking.istio.io",resources=virtualservices/status,verbs=update;patch;delete;get
-// +kubebuilder:rbac:groups="networking.istio.io",resources=virtualservices/finalizers,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="networking.istio.io",resources=virtualservices,verbs=*
-// +kubebuilder:rbac:groups="networking.istio.io",resources=gateways,verbs=*
-// +kubebuilder:rbac:groups="networking.istio.io",resources=envoyfilters,verbs=*
-// +kubebuilder:rbac:groups="security.istio.io",resources=authorizationpolicies,verbs=*
-// +kubebuilder:rbac:groups="authorino.kuadrant.io",resources=authconfigs,verbs=*
-// +kubebuilder:rbac:groups="operator.authorino.kuadrant.io",resources=authorinos,verbs=*
-
-/* This is for DSP */
-//+kubebuilder:rbac:groups="datasciencepipelinesapplications.opendatahub.io",resources=datasciencepipelinesapplications/status,verbs=update;patch;get
-//+kubebuilder:rbac:groups="datasciencepipelinesapplications.opendatahub.io",resources=datasciencepipelinesapplications/finalizers,verbs=update;patch;get
-//+kubebuilder:rbac:groups="datasciencepipelinesapplications.opendatahub.io",resources=datasciencepipelinesapplications,verbs=create;delete;list;update;watch;patch;get
-//+kubebuilder:rbac:groups="image.openshift.io",resources=imagestreamtags,verbs=get
-//+kubebuilder:rbac:groups="authentication.k8s.io",resources=tokenreviews,verbs=create;get
-//+kubebuilder:rbac:groups="authorization.k8s.io",resources=subjectaccessreviews,verbs=create;get
-
-/* This is for dashboard */
-// +kubebuilder:rbac:groups="opendatahub.io",resources=odhdashboardconfigs,verbs=create;get;patch;watch;update;delete;list
-// +kubebuilder:rbac:groups="console.openshift.io",resources=odhquickstarts,verbs=create;get;patch;list;delete
-// +kubebuilder:rbac:groups="dashboard.opendatahub.io",resources=odhdocuments,verbs=create;get;patch;list;delete
-// +kubebuilder:rbac:groups="dashboard.opendatahub.io",resources=odhapplications,verbs=create;get;patch;list;delete
-// +kubebuilder:rbac:groups="dashboard.opendatahub.io",resources=acceleratorprofiles,verbs=create;get;patch;list;delete
+// +kubebuilder:rbac:groups="authentication.k8s.io",resources=tokenreviews,verbs=create;get
+// +kubebuilder:rbac:groups="authorization.k8s.io",resources=subjectaccessreviews,verbs=create;get
 
 // +kubebuilder:rbac:groups="operators.coreos.com",resources=clusterserviceversions,verbs=get;list;watch;delete;update
 // +kubebuilder:rbac:groups="operators.coreos.com",resources=customresourcedefinitions,verbs=create;get;patch;delete
 // +kubebuilder:rbac:groups="operators.coreos.com",resources=subscriptions,verbs=get;list;watch;delete
 // +kubebuilder:rbac:groups="operators.coreos.com",resources=operatorconditions,verbs=get;list;watch
-
-/* This is for operator */
 // +kubebuilder:rbac:groups="operators.coreos.com",resources=catalogsources,verbs=get;list;watch
 
-// +kubebuilder:rbac:groups="apiextensions.k8s.io",resources=customresourcedefinitions,verbs=get;list;watch
-
-// +kubebuilder:rbac:groups="user.openshift.io",resources=users,verbs=list;watch;patch;delete;get
-
-// +kubebuilder:rbac:groups="template.openshift.io",resources=templates,verbs=*
+// +kubebuilder:rbac:groups="apiextensions.k8s.io",resources=customresourcedefinitions,verbs=get;list;watch;create;patch;delete;update
 
 // +kubebuilder:rbac:groups="snapshot.storage.k8s.io",resources=volumesnapshots,verbs=create;delete;patch;get
-
-// +kubebuilder:rbac:groups="serving.kserve.io",resources=trainedmodels/status,verbs=update;patch;delete;get
-// +kubebuilder:rbac:groups="serving.kserve.io",resources=trainedmodels,verbs=create;delete;list;update;watch;patch;get
-// +kubebuilder:rbac:groups="serving.kserve.io",resources=servingruntimes/status,verbs=update;patch;get
-// +kubebuilder:rbac:groups="serving.kserve.io",resources=servingruntimes/finalizers,verbs=create;delete;list;update;watch;patch;get
-// +kubebuilder:rbac:groups="serving.kserve.io",resources=servingruntimes,verbs=*
-// +kubebuilder:rbac:groups="serving.kserve.io",resources=predictors/status,verbs=update;patch;delete;get
-// +kubebuilder:rbac:groups="serving.kserve.io",resources=predictors/finalizers,verbs=update;patch;get
-// +kubebuilder:rbac:groups="serving.kserve.io",resources=predictors,verbs=create;delete;list;update;watch;patch;get
-// +kubebuilder:rbac:groups="serving.kserve.io",resources=inferenceservices/status,verbs=update;patch;delete;get
-// +kubebuilder:rbac:groups="serving.kserve.io",resources=inferenceservices/finalizers,verbs=create;delete;list;update;watch;patch;get
-// +kubebuilder:rbac:groups="serving.kserve.io",resources=inferenceservices,verbs=create;delete;list;update;watch;patch;get
-// +kubebuilder:rbac:groups="serving.kserve.io",resources=inferencegraphs/status,verbs=update;patch;delete;get
-// +kubebuilder:rbac:groups="serving.kserve.io",resources=inferencegraphs,verbs=create;delete;list;update;watch;patch;get
-// +kubebuilder:rbac:groups="serving.kserve.io",resources=clusterservingruntimes/status,verbs=update;patch;delete;get
-// +kubebuilder:rbac:groups="serving.kserve.io",resources=clusterservingruntimes/finalizers,verbs=create;delete;list;update;watch;patch;get
-// +kubebuilder:rbac:groups="serving.kserve.io",resources=clusterservingruntimes,verbs=create;delete;list;update;watch;patch;get
-
-// +kubebuilder:rbac:groups="serving.knative.dev",resources=services/status,verbs=update;patch;delete;get
-// +kubebuilder:rbac:groups="serving.knative.dev",resources=services/finalizers,verbs=create;delete;list;watch;update;patch;get
-// +kubebuilder:rbac:groups="serving.knative.dev",resources=services,verbs=create;delete;list;watch;update;patch;get
 
 // +kubebuilder:rbac:groups="security.openshift.io",resources=securitycontextconstraints,verbs=*,resourceNames=restricted
 // +kubebuilder:rbac:groups="security.openshift.io",resources=securitycontextconstraints,verbs=*,resourceNames=anyuid
@@ -88,10 +30,6 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources=clusterroles,verbs=*
 
 // +kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources=clusterrolebindings,verbs=*
-
-// +kubebuilder:rbac:groups="ray.io",resources=rayservices,verbs=create;delete;list;watch;update;patch;get
-// +kubebuilder:rbac:groups="ray.io",resources=rayjobs,verbs=create;delete;list;update;watch;patch;get
-// +kubebuilder:rbac:groups="ray.io",resources=rayclusters,verbs=create;delete;list;patch;get
 
 // +kubebuilder:rbac:groups="apiregistration.k8s.io",resources=apiservices,verbs=create;delete;list;watch;update;patch;get
 
@@ -142,7 +80,6 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="machine.openshift.io",resources=machineautoscalers,verbs=list;patch;delete;get
 
 // +kubebuilder:rbac:groups="integreatly.org",resources=rhmis,verbs=list;watch;patch;delete;get
-
 // +kubebuilder:rbac:groups="image.openshift.io",resources=imagestreams,verbs=patch;create;update;delete;get
 // +kubebuilder:rbac:groups="image.openshift.io",resources=imagestreams,verbs=create;list;watch;patch;delete;get
 
@@ -180,6 +117,7 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="core",resources=configmaps,verbs=get;create;update;watch;patch;delete;list
 
 // +kubebuilder:rbac:groups="core",resources=clusterversions,verbs=watch;list;get
+
 // +kubebuilder:rbac:groups="config.openshift.io",resources=clusterversions,verbs=watch;list;get
 
 // +kubebuilder:rbac:groups="coordination.k8s.io",resources=leases,verbs=get;list;watch;create;update;patch;delete
@@ -207,11 +145,8 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="authorization.openshift.io",resources=clusterroles,verbs=*
 // +kubebuilder:rbac:groups="authorization.openshift.io",resources=clusterrolebindings,verbs=*
 
-// +kubebuilder:rbac:groups="argoproj.io",resources=workflows,verbs=*
-
-// +kubebuilder:rbac:groups="apps",resources=statefulsets,verbs=*
-
 // +kubebuilder:rbac:groups="apps",resources=replicasets,verbs=*
+// +kubebuilder:rbac:groups="*",resources=replicasets,verbs=*
 
 // +kubebuilder:rbac:groups="apps",resources=deployments/finalizers,verbs=*
 // +kubebuilder:rbac:groups="core",resources=deployments,verbs=*
@@ -219,21 +154,134 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="*",resources=deployments,verbs=*
 // +kubebuilder:rbac:groups="extensions",resources=deployments,verbs=*
 
-// +kubebuilder:rbac:groups="apiextensions.k8s.io",resources=customresourcedefinitions,verbs=get;list;watch;create;patch;delete
-
 // +kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=validatingwebhookconfigurations,verbs=get;list;watch;create;update;delete;patch
 // +kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=mutatingwebhookconfigurations,verbs=create;delete;list;update;watch;patch;get
 
-/* This is needed to derterminiate cluster type */
-// +kubebuilder:rbac:groups="addons.managed.openshift.io",resources=addons,verbs=get
-
 // +kubebuilder:rbac:groups="*",resources=statefulsets,verbs=create;update;get;list;watch;patch;delete
-
-// +kubebuilder:rbac:groups="*",resources=replicasets,verbs=*
-
-// +kubebuilder:rbac:groups="*",resources=customresourcedefinitions,verbs=get;list;watch
+// +kubebuilder:rbac:groups="apps",resources=statefulsets,verbs=*
 
 /* Only for RHOAI */
-
+// +kubebuilder:rbac:groups="user.openshift.io",resources=users,verbs=list;watch;patch;delete;get
 // +kubebuilder:rbac:groups="user.openshift.io",resources=groups,verbs=get;create;list;watch;patch;delete
-// +kubebuilder:rbac:groups="console.openshift.io",resources=consolelinks,verbs=create;get;patch;delete
+// +kubebuilder:rbac:groups="console.openshift.io",resources=consolelinks,verbs=create;get;patch;list;delete;watch
+
+// Ray
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=rays,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=rays/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=rays/finalizers,verbs=update
+// +kubebuilder:rbac:groups="ray.io",resources=rayservices,verbs=create;delete;list;watch;update;patch;get
+// +kubebuilder:rbac:groups="ray.io",resources=rayjobs,verbs=create;delete;list;update;watch;patch;get
+// +kubebuilder:rbac:groups="ray.io",resources=rayclusters,verbs=create;delete;list;patch;get
+// +kubebuilder:rbac:groups="autoscaling",resources=horizontalpodautoscalers,verbs=watch;create;update;delete;list;patch;get
+// +kubebuilder:rbac:groups="autoscaling.openshift.io",resources=machinesets,verbs=list;patch;delete;get
+// +kubebuilder:rbac:groups="autoscaling.openshift.io",resources=machineautoscalers,verbs=list;patch;delete;get
+// +kubebuilder:rbac:groups="batch",resources=jobs/status,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="batch",resources=jobs,verbs=*
+// +kubebuilder:rbac:groups="batch",resources=cronjobs,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="batch",resources=cronjobs,verbs=create;get;patch
+
+// Dashboard
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=dashboards,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=dashboards/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=dashboards/finalizers,verbs=create;get;list;patch;update;use;watch
+// +kubebuilder:rbac:groups="opendatahub.io",resources=odhdashboardconfigs,verbs=create;get;patch;watch;update;delete;list
+// +kubebuilder:rbac:groups="console.openshift.io",resources=odhquickstarts,verbs=create;get;patch;list;delete;watch
+// +kubebuilder:rbac:groups="dashboard.opendatahub.io",resources=odhdocuments,verbs=create;get;patch;list;delete;watch
+// +kubebuilder:rbac:groups="dashboard.opendatahub.io",resources=odhapplications,verbs=create;get;patch;list;delete;watch
+// +kubebuilder:rbac:groups="dashboard.opendatahub.io",resources=acceleratorprofiles,verbs=create;get;patch;list;delete;watch
+
+// ModelRegistry
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=modelregistries,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=modelregistries/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=modelregistries/finalizers,verbs=update
+// +kubebuilder:rbac:groups=modelregistry.opendatahub.io,resources=modelregistries,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=modelregistry.opendatahub.io,resources=modelregistries/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=modelregistry.opendatahub.io,resources=modelregistries/finalizers,verbs=update;get
+// +kubebuilder:rbac:groups=maistra.io,resources=servicemeshmembers,verbs=get;list;watch;create;update;patch;delete
+
+// Kueue
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=kueues,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=kueues/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=kueues/finalizers,verbs=update
+// +kubebuilder:rbac:groups="monitoring.coreos.com",resources=prometheusrules,verbs=get;create;patch;delete;deletecollection;list;watch
+// +kubebuilder:rbac:groups="monitoring.coreos.com",resources=podmonitors,verbs=get;create;delete;update;watch;list;patch
+
+// CFO
+//+kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=codeflares,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=codeflares/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=codeflares/finalizers,verbs=update
+
+// Kserve
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=kserves,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=kserves/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=kserves/finalizers,verbs=update
+// +kubebuilder:rbac:groups="serving.kserve.io",resources=trainedmodels/status,verbs=update;patch;delete;get
+// +kubebuilder:rbac:groups="serving.kserve.io",resources=trainedmodels,verbs=create;delete;list;update;watch;patch;get
+// +kubebuilder:rbac:groups="serving.kserve.io",resources=servingruntimes/status,verbs=update;patch;get
+// +kubebuilder:rbac:groups="serving.kserve.io",resources=servingruntimes/finalizers,verbs=create;delete;list;update;watch;patch;get
+// +kubebuilder:rbac:groups="serving.kserve.io",resources=servingruntimes,verbs=*
+// +kubebuilder:rbac:groups="serving.kserve.io",resources=predictors/status,verbs=update;patch;delete;get
+// +kubebuilder:rbac:groups="serving.kserve.io",resources=predictors/finalizers,verbs=update;patch;get
+// +kubebuilder:rbac:groups="serving.kserve.io",resources=predictors,verbs=create;delete;list;update;watch;patch;get
+// +kubebuilder:rbac:groups="serving.kserve.io",resources=inferenceservices/status,verbs=update;patch;delete;get
+// +kubebuilder:rbac:groups="serving.kserve.io",resources=inferenceservices/finalizers,verbs=create;delete;list;update;watch;patch;get
+// +kubebuilder:rbac:groups="serving.kserve.io",resources=inferenceservices,verbs=create;delete;list;update;watch;patch;get
+// +kubebuilder:rbac:groups="serving.kserve.io",resources=inferencegraphs/status,verbs=update;patch;delete;get
+// +kubebuilder:rbac:groups="serving.kserve.io",resources=inferencegraphs,verbs=create;delete;list;update;watch;patch;get
+// +kubebuilder:rbac:groups="serving.kserve.io",resources=clusterservingruntimes/status,verbs=update;patch;delete;get
+// +kubebuilder:rbac:groups="serving.kserve.io",resources=clusterservingruntimes/finalizers,verbs=create;delete;list;update;watch;patch;get
+// +kubebuilder:rbac:groups="serving.kserve.io",resources=clusterservingruntimes,verbs=create;delete;list;update;watch;patch;get
+// +kubebuilder:rbac:groups="template.openshift.io",resources=templates,verbs=*
+// +kubebuilder:rbac:groups="serving.knative.dev",resources=services/status,verbs=update;patch;delete;get
+// +kubebuilder:rbac:groups="serving.knative.dev",resources=services/finalizers,verbs=create;delete;list;watch;update;patch;get
+// +kubebuilder:rbac:groups="serving.knative.dev",resources=services,verbs=create;delete;list;watch;update;patch;get
+/* Serverless prerequisite */
+// +kubebuilder:rbac:groups="networking.istio.io",resources=gateways,verbs=*
+// +kubebuilder:rbac:groups="operator.knative.dev",resources=knativeservings,verbs=*
+// +kubebuilder:rbac:groups="config.openshift.io",resources=ingresses,verbs=get
+
+// TODO: WB
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=workbenches,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=workbenches/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=workbenches/finalizers,verbs=update
+// +kubebuilder:rbac:groups="image.openshift.io",resources=imagestreamtags,verbs=get
+// +kubebuilder:rbac:groups="image.openshift.io",resources=imagestreams,verbs=patch;create;update;delete;get
+// +kubebuilder:rbac:groups="image.openshift.io",resources=imagestreams,verbs=create;list;watch;patch;delete;get
+// OpenVino still need buildconfig
+// +kubebuilder:rbac:groups="build.openshift.io",resources=builds,verbs=create;patch;delete;list;watch;get
+// +kubebuilder:rbac:groups="build.openshift.io",resources=buildconfigs/instantiate,verbs=create;patch;delete;get;list;watch
+// +kubebuilder:rbac:groups="build.openshift.io",resources=buildconfigs,verbs=list;watch;create;patch;delete;get
+
+// DataSciencePipelines
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=datasciencepipelines,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=datasciencepipelines/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=datasciencepipelines/finalizers,verbs=update
+// +kubebuilder:rbac:groups="datasciencepipelinesapplications.opendatahub.io",resources=datasciencepipelinesapplications/status,verbs=update;patch;get
+// +kubebuilder:rbac:groups="datasciencepipelinesapplications.opendatahub.io",resources=datasciencepipelinesapplications/finalizers,verbs=update;patch;get
+// +kubebuilder:rbac:groups="datasciencepipelinesapplications.opendatahub.io",resources=datasciencepipelinesapplications,verbs=create;delete;list;update;watch;patch;get
+// +kubebuilder:rbac:groups="argoproj.io",resources=workflows,verbs=*
+
+// TrainingOperator
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=trainingoperators,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=trainingoperators/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=trainingoperators/finalizers,verbs=update
+
+// ModelMeshServing
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=modelmeshservings,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=modelmeshservings/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=modelmeshservings/finalizers,verbs=update
+
+// TrustyAI
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=trustyais,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=trustyais/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=trustyais/finalizers,verbs=update
+
+// ModelController
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=modelcontrollers,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=modelcontrollers/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=modelcontrollers/finalizers,verbs=update
+
+// Auth
+// +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=auths,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=auths/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=auths/finalizers,verbs=update

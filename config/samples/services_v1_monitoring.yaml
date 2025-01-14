@@ -1,0 +1,6 @@
+apiVersion: services.platform.opendatahub.io/v1
+kind: Monitoring
+metadata:
+  name: monitoring-sample
+spec:
+  # TODO(user): Add fields here

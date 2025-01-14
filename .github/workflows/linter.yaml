@@ -5,6 +5,10 @@ on:
       - main
       - incubation
   pull_request:
+permissions:
+  contents: read
+  pull-requests: read
+  checks: write
 jobs:
   golangci:
     name: golangci-lint
@@ -15,8 +19,6 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: v1.60.2
-          args: --timeout 5m0s
+      - name: lint
+        run:
+          make lint

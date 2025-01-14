@@ -24,16 +24,21 @@ import (
 	addonv1alpha1 "github.com/openshift/addon-operator/apis/addons/v1alpha1"
 	ocappsv1 "github.com/openshift/api/apps/v1" //nolint:importas //reason: conflicts with appsv1 "k8s.io/api/apps/v1"
 	buildv1 "github.com/openshift/api/build/v1"
+	configv1 "github.com/openshift/api/config/v1"
+	consolev1 "github.com/openshift/api/console/v1"
 	imagev1 "github.com/openshift/api/image/v1"
 	oauthv1 "github.com/openshift/api/oauth/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
+	securityv1 "github.com/openshift/api/security/v1"
+	templatev1 "github.com/openshift/api/template/v1"
 	userv1 "github.com/openshift/api/user/v1"
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
-	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	promv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
+	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -49,24 +54,48 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/certconfigmapgenerator"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/services/auth"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/setupcontroller"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/webhook"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
+	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/services/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
+
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/codeflare"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/dashboard"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/datasciencepipelines"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/kserve"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/kueue"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelcontroller"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelmeshserving"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/ray"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/trainingoperator"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/trustyai"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/workbenches"
 )
 
-const controllerNum = 4 // we should keep this updated if we have new controllers to add
+const controllerNum = 20 // we should keep this updated if we have new controllers to add
 
 var (
 	scheme   = runtime.NewScheme()
@@ -74,6 +103,8 @@ var (
 )
 
 func init() { //nolint:gochecknoinits
+	utilruntime.Must(componentApi.AddToScheme(scheme))
+	utilruntime.Must(serviceApi.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(dsciv1.AddToScheme(scheme))
@@ -95,8 +126,17 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(apiextensionsv1.AddToScheme(scheme))
 	utilruntime.Must(admissionregistrationv1.AddToScheme(scheme))
 	utilruntime.Must(apiregistrationv1.AddToScheme(scheme))
-	utilruntime.Must(monitoringv1.AddToScheme(scheme))
-	utilruntime.Must(operatorv1.Install(scheme)) // here also add configv1.Install(scheme) no need add configv1 explicitly
+	utilruntime.Must(promv1.AddToScheme(scheme))
+	utilruntime.Must(operatorv1.Install(scheme))
+	utilruntime.Must(consolev1.AddToScheme(scheme))
+	utilruntime.Must(securityv1.Install(scheme))
+	utilruntime.Must(templatev1.Install(scheme))
+}
+
+func initComponents(_ context.Context, p cluster.Platform) error {
+	return cr.ForEach(func(ch cr.ComponentHandler) error {
+		return ch.Init(p)
+	})
 }
 
 func main() { //nolint:funlen,maintidx
@@ -120,12 +160,16 @@ func main() { //nolint:funlen,maintidx
 	flag.StringVar(&operatorName, "operator-name", "opendatahub", "The name of the operator")
 	flag.StringVar(&logmode, "log-mode", "", "Log mode ('', prod, devel), default to ''")
 
+	opts := zap.Options{}
+	opts.BindFlags(flag.CommandLine)
+
 	flag.Parse()
 
-	ctrl.SetLogger(logger.ConfigLoggers(logmode))
+	ctrl.SetLogger(logger.NewLogger(logmode, &opts))
 
 	// root context
 	ctx := ctrl.SetupSignalHandler()
+	ctx = logf.IntoContext(ctx, setupLog)
 	// Create new uncached client to run initial setup
 	setupCfg, err := config.GetConfig()
 	if err != nil {
@@ -141,14 +185,21 @@ func main() { //nolint:funlen,maintidx
 		setupLog.Error(err, "error getting client for setup")
 		os.Exit(1)
 	}
-	// Get operator platform
-	release, err := cluster.GetRelease(ctx, setupClient)
+
+	err = cluster.Init(ctx, setupClient)
 	if err != nil {
-		setupLog.Error(err, "error getting release")
+		setupLog.Error(err, "unable to initialize cluster config")
 		os.Exit(1)
 	}
+
+	// Get operator platform
+	release := cluster.GetRelease()
 	platform := release.Name
-	setupLog.Info("running on", "platform", platform)
+
+	if err := initComponents(ctx, platform); err != nil {
+		setupLog.Error(err, "unable to init components")
+		os.Exit(1)
+	}
 
 	secretCache := createSecretCacheConfig(platform)
 	deploymentCache := createDeploymentCacheConfig(platform)
@@ -175,8 +226,14 @@ func main() { //nolint:funlen,maintidx
 			&operatorv1.IngressController{}: {
 				Field: fields.Set{"metadata.name": "default"}.AsSelector(),
 			},
+			// For authentication CR "cluster"
+			&configv1.Authentication{}: {
+				Field: fields.Set{"metadata.name": cluster.ClusterAuthenticationObj}.AsSelector(),
+			},
 			// for prometheus and black-box deployment and ones we owns
 			&appsv1.Deployment{}: {Namespaces: deploymentCache},
+			// kueue need prometheusrules
+			&promv1.PrometheusRule{}: {Namespaces: deploymentCache},
 		},
 	}
 
@@ -202,6 +259,17 @@ func main() { //nolint:funlen,maintidx
 		// if you are doing or is intended to do any operation such as perform cleanups
 		// after the manager stops then its usage might be unsafe.
 		// LeaderElectionReleaseOnCancel: true,
+		Client: client.Options{
+			Cache: &client.CacheOptions{
+				DisableFor: []client.Object{
+					resources.GvkToUnstructured(gvk.OpenshiftIngress),
+					&authorizationv1.SelfSubjectRulesReview{},
+				},
+				// Set it to true so the cache-backed client reads unstructured objects
+				// or lists from the cache instead of a live lookup.
+				Unstructured: true,
+			},
+		},
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -210,10 +278,15 @@ func main() { //nolint:funlen,maintidx
 
 	webhook.Init(mgr)
 
+	oc, err := odhClient.NewFromManager(mgr)
+	if err != nil {
+		setupLog.Error(err, "unable to create client")
+		os.Exit(1)
+	}
+
 	if err = (&dscictrl.DSCInitializationReconciler{
-		Client:                mgr.GetClient(),
+		Client:                oc,
 		Scheme:                mgr.GetScheme(),
-		Log:                   logger.LogWithLevel(ctrl.Log.WithName(operatorName).WithName("controllers").WithName("DSCInitialization"), logmode),
 		Recorder:              mgr.GetEventRecorderFor("dscinitialization-controller"),
 		ApplicationsNamespace: dscApplicationsNamespace,
 	}).SetupWithManager(ctx, mgr); err != nil {
@@ -222,35 +295,61 @@ func main() { //nolint:funlen,maintidx
 	}
 
 	if err = (&dscctrl.DataScienceClusterReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		Log:    logger.LogWithLevel(ctrl.Log.WithName(operatorName).WithName("controllers").WithName("DataScienceCluster"), logmode),
-		DataScienceCluster: &dscctrl.DataScienceClusterConfig{
-			DSCISpec: &dsciv1.DSCInitializationSpec{
-				ApplicationsNamespace: dscApplicationsNamespace,
-			},
-		},
+		Client:   oc,
+		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorderFor("datasciencecluster-controller"),
 	}).SetupWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DataScienceCluster")
 		os.Exit(1)
 	}
 
-	if err = (&secretgenerator.SecretGeneratorReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		Log:    logger.LogWithLevel(ctrl.Log.WithName(operatorName).WithName("controllers").WithName("SecretGenerator"), logmode),
+	if err = (&setupcontroller.SetupControllerReconciler{
+		Client: oc,
 	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "SetupController")
+		os.Exit(1)
+	}
+
+	if err = (&secretgenerator.SecretGeneratorReconciler{
+		Client: oc,
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "SecretGenerator")
 		os.Exit(1)
 	}
 
 	if err = (&certconfigmapgenerator.CertConfigmapGeneratorReconciler{
-		Client: mgr.GetClient(),
+		Client: oc,
 		Scheme: mgr.GetScheme(),
-		Log:    logger.LogWithLevel(ctrl.Log.WithName(operatorName).WithName("controllers").WithName("CertConfigmapGenerator"), logmode),
-	}).SetupWithManager(mgr); err != nil {
+	}).SetupWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CertConfigmapGenerator")
+		os.Exit(1)
+	}
+
+	ons, err := cluster.GetOperatorNamespace()
+	if err != nil {
+		setupLog.Error(err, "unable to determine Operator Namespace")
+		os.Exit(1)
+	}
+
+	gc.Instance = gc.New(
+		oc,
+		ons,
+		gc.WithUnremovables(gvk.CustomResourceDefinition, gvk.Lease),
+	)
+
+	err = mgr.Add(gc.Instance)
+	if err != nil {
+		setupLog.Error(err, "unable to register GC service")
+		os.Exit(1)
+	}
+
+	// Initialize component reconcilers
+	if err = CreateComponentReconcilers(ctx, mgr); err != nil {
+		os.Exit(1)
+	}
+
+	if err := auth.NewServiceReconciler(ctx, mgr); err != nil {
 		os.Exit(1)
 	}
 
@@ -312,6 +411,10 @@ func main() { //nolint:funlen,maintidx
 		setupLog.Error(err, "unable to set up ready check")
 		os.Exit(1)
 	}
+	if err := initComponents(ctx, platform); err != nil {
+		setupLog.Error(err, "unable to init components")
+		os.Exit(1)
+	}
 
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctx); err != nil {
@@ -353,6 +456,12 @@ func createDeploymentCacheConfig(platform cluster.Platform) map[string]cache.Con
 	default:
 		namespaceConfigs["opendatahub"] = cache.Config{}
 	}
-
 	return namespaceConfigs
+}
+
+func CreateComponentReconcilers(ctx context.Context, mgr manager.Manager) error {
+	// TODO: can it be moved to initComponents?
+	return cr.ForEach(func(ch cr.ComponentHandler) error {
+		return ch.NewComponentReconciler(ctx, mgr)
+	})
 }

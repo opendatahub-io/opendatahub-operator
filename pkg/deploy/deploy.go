@@ -25,12 +25,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"golang.org/x/exp/maps"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -44,7 +44,7 @@ import (
 	"sigs.k8s.io/kustomize/api/resource"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/conversion"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -52,19 +52,21 @@ import (
 )
 
 var (
-	DefaultManifestPath = os.Getenv("DEFAULT_MANIFESTS_PATH")
+	DefaultManifestPath     = os.Getenv("DEFAULT_MANIFESTS_PATH")
+	errPathResolutionFailed = errors.New("path resolution failed")
+	errPathIrrelevant       = errors.New("path is irrelevant")
 )
 
 // DownloadManifests function performs following tasks:
 // 1. It takes component URI and only downloads folder specified by component.ContextDir field
 // 2. It saves the manifests in the odh-manifests/component-name/ folder.
-func DownloadManifests(ctx context.Context, componentName string, manifestConfig components.ManifestsConfig) error {
-	// Get the component repo from the given url
-	// e.g.  https://github.com/example/tarball/master
+func DownloadManifests(ctx context.Context, componentName string, manifestConfig common.ManifestsConfig) error {
+	// Download and validate the manifest archive from the given url, e.g.  https://github.com/example/tarball/master
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, manifestConfig.URI, nil)
 	if err != nil {
 		return err
 	}
+
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("error downloading manifests: %w", err)
@@ -75,73 +77,111 @@ func DownloadManifests(ctx context.Context, componentName string, manifestConfig
 		return fmt.Errorf("error downloading manifests: %v HTTP status", resp.StatusCode)
 	}
 
-	// Create a new gzip reader
+	// Initialize a gzip reader for the response body
 	gzipReader, err := gzip.NewReader(resp.Body)
 	if err != nil {
 		return fmt.Errorf("error creating gzip reader: %w", err)
 	}
 	defer gzipReader.Close()
 
-	// Create a new TAR reader
-	tarReader := tar.NewReader(gzipReader)
-
-	// Create manifest directory
-	mode := os.ModePerm
-	err = os.MkdirAll(DefaultManifestPath, mode)
-	if err != nil {
-		return fmt.Errorf("error creating manifests directory : %w", err)
+	// Ensure manifest directory exists
+	if err := createDirectory(DefaultManifestPath); err != nil {
+		return err
 	}
 
-	// Extract the contents of the TAR archive to the current directory
+	// Extract TAR contents
+	return unpackTarFromReader(gzipReader, DefaultManifestPath, componentName, manifestConfig.ContextDir)
+}
+
+// createDirectory ensures the specified directory exists, creating it if necessary.
+func createDirectory(path string) error {
+	err := os.MkdirAll(path, os.ModePerm)
+	if err != nil {
+		return fmt.Errorf("error creating directory %s: %w", path, err)
+	}
+	return nil
+}
+
+// unpackTarFromReader extracts files from a TAR reader into the target base path.
+func unpackTarFromReader(reader io.Reader, basePath, componentName, contextDir string) error {
+	tarReader := tar.NewReader(reader)
+
 	for {
 		header, err := tarReader.Next()
 		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
+			return fmt.Errorf("error reading tar header: %w", err)
+		}
+
+		targetPath, err := resolveTargetPath(header.Name, basePath, componentName, contextDir)
+		if errors.Is(err, errPathIrrelevant) {
+			continue
+		}
+		if err != nil {
 			return err
 		}
 
-		componentFiles := strings.Split(header.Name, "/")
-		componentFileName := header.Name
-		componentManifestPath := componentFiles[0] + "/" + manifestConfig.ContextDir
-
-		if strings.Contains(componentFileName, componentManifestPath) {
-			// Get manifest path relative to repo
-			// e.g. of repo/a/b/manifests/base --> base/
-			componentFoldersList := strings.Split(componentFileName, "/")
-			componentFileRelativePathFound := strings.Join(componentFoldersList[len(strings.Split(componentManifestPath, "/")):], "/")
-
-			if header.Typeflag == tar.TypeDir {
-				err = os.MkdirAll(DefaultManifestPath+"/"+componentName+"/"+componentFileRelativePathFound, mode)
-				if err != nil {
-					return fmt.Errorf("error creating directory:%w", err)
-				}
-				continue
-			}
-
-			if header.Typeflag == tar.TypeReg {
-				file, err := os.Create(DefaultManifestPath + "/" + componentName + "/" + componentFileRelativePathFound)
-				if err != nil {
-					return fmt.Errorf("error creating file: %w", err)
-				}
-
-				defer file.Close()
-
-				for {
-					_, err := io.CopyN(file, tarReader, 1024)
-					if err != nil {
-						if errors.Is(err, io.EOF) {
-							break
-						}
-						return fmt.Errorf("error downloading file contents: %w", err)
-					}
-				}
-				continue
-			}
+		err = extractFileOrDirectory(header, tarReader, targetPath)
+		if err != nil {
+			return err
 		}
 	}
-	return err
+
+	return nil
+}
+
+// resolveTargetPath computes the target file path based on the tar header and context directory.
+func resolveTargetPath(headerName, basePath, componentName, contextDir string) (string, error) {
+	componentFiles := strings.Split(headerName, "/")
+	componentManifestPath := filepath.Join(componentFiles[0], contextDir)
+
+	if !strings.Contains(headerName, componentManifestPath) {
+		return "", errPathIrrelevant
+	}
+
+	componentFoldersList := strings.Split(headerName, "/")
+	if len(componentFoldersList) < len(strings.Split(componentManifestPath, "/")) {
+		return "", errPathResolutionFailed // Path resolution failed
+	}
+
+	relativePath := strings.Join(componentFoldersList[len(strings.Split(componentManifestPath, "/")):], "/")
+
+	return filepath.Join(basePath, componentName, relativePath), nil
+}
+
+// processTarHeader processes a TAR header, creating files or directories as needed.
+func extractFileOrDirectory(header *tar.Header, tarReader *tar.Reader, targetPath string) error {
+	switch header.Typeflag {
+	case tar.TypeDir:
+		// Create a directory for the current header
+		return createDirectory(targetPath)
+
+	case tar.TypeReg:
+		// Create a file and copy its contents from the TAR reader
+		return writeFileFromTar(targetPath, tarReader)
+
+	default:
+		// Handle unsupported header types if needed
+		return nil
+	}
+}
+
+// writeFileFromTar writes a file from the tar reader to the target path.
+func writeFileFromTar(targetPath string, tarReader *tar.Reader) error {
+	file, err := os.Create(targetPath)
+	if err != nil {
+		return fmt.Errorf("error creating file %s: %w", targetPath, err)
+	}
+	defer file.Close()
+
+	_, err = io.Copy(file, tarReader)
+	if err != nil {
+		return fmt.Errorf("error writing to file %s: %w", targetPath, err)
+	}
+
+	return nil
 }
 
 func DeployManifestsFromPath(
@@ -152,6 +192,28 @@ func DeployManifestsFromPath(
 	namespace string,
 	componentName string,
 	componentEnabled bool,
+) error {
+	return DeployManifestsFromPathWithLabels(
+		ctx,
+		cli,
+		owner,
+		manifestPath,
+		namespace,
+		componentName,
+		componentEnabled, map[string]string{},
+	)
+}
+
+func DeployManifestsFromPathWithLabels(
+	ctx context.Context,
+	cli client.Client,
+	owner metav1.Object,
+	manifestPath string,
+	namespace string,
+	componentName string,
+	componentEnabled bool,
+	// TODO: this method must be refactored, left it just to avoid breaking compatibility
+	additionalLabels map[string]string,
 ) error {
 	// Render the Kustomize manifests
 	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
@@ -177,7 +239,22 @@ func DeployManifestsFromPath(
 		return fmt.Errorf("failed applying namespace plugin when preparing Kustomize resources. %w", err)
 	}
 
-	labelsPlugin := plugins.CreateAddLabelsPlugin(componentName)
+	resourceLabels := map[string]string{
+		labels.ODH.Component(componentName): "true",
+		labels.K8SCommon.PartOf:             componentName,
+	}
+
+	for k, v := range additionalLabels {
+		_, ok := resourceLabels[k]
+		if ok {
+			// don't override default labels
+			continue
+		}
+
+		resourceLabels[k] = v
+	}
+
+	labelsPlugin := plugins.CreateSetLabelsPlugin(resourceLabels)
 	if err := labelsPlugin.Transform(resMap); err != nil {
 		return fmt.Errorf("failed applying labels plugin when preparing Kustomize resources. %w", err)
 	}

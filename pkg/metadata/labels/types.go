@@ -5,6 +5,9 @@ const (
 	InjectTrustCA     = "config.openshift.io/inject-trusted-cabundle"
 	SecurityEnforce   = "pod-security.kubernetes.io/enforce"
 	ClusterMonitoring = "openshift.io/cluster-monitoring"
+	PlatformPartOf    = "platform.opendatahub.io/part-of"
+	Platform          = "platform"
+	True              = "true"
 )
 
 // K8SCommon keeps common kubernetes labels [1]

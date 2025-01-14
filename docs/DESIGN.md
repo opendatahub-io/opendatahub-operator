@@ -75,6 +75,8 @@ To deploy ODH components seamlessly, ODH operator will watch two CRDs:
             managementState: Managed
           workbenches:
             managementState: Managed
+          trustyai:
+            managementState: Managed
     ```
 
 2. Enable only Dashboard and Workbenches(Jupyter Notebooks)
@@ -90,4 +92,17 @@ To deploy ODH components seamlessly, ODH operator will watch two CRDs:
             managementState: Managed
           workbenches:
             managementState: Managed 
+    ```
+
+3. Enable Data Science Pipelines
+
+    ```console
+      apiVersion: datasciencecluster.opendatahub.io/v1
+      kind: DataScienceCluster
+      metadata:
+        name: example
+      spec:
+        components:
+          datasciencepipelines:
+            managementState: Managed
     ```

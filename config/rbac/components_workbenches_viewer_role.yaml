@@ -1,0 +1,20 @@
+# permissions for end users to view workbenches.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: workbenches-viewer-role
+rules:
+- apiGroups:
+  - components.platform.opendatahub.io
+  resources:
+  - workbenches
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - components.platform.opendatahub.io
+  resources:
+  - workbenches/status
+  verbs:
+  - get
