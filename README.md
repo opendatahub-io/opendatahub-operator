@@ -1,3 +1,4 @@
+[![codecov](https://codecov.io/github/opendatahub-io/opendatahub-operator/graph/badge.svg?token=QN7G7IVSYA)](https://codecov.io/github/opendatahub-io/opendatahub-operator)
 
 This operator is the primary operator for Open Data Hub. It is responsible for enabling Data science applications like 
 Jupyter Notebooks, Modelmesh serving, Datascience pipelines etc. The operator makes use of `DataScienceCluster` CRD to deploy
