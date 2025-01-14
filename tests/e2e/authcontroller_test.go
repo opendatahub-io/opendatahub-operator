@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 
 	. "github.com/onsi/gomega"
 )
@@ -94,8 +95,16 @@ func (tc *AuthControllerTestCtx) validateAuthCRDefaultContent() error {
 		return errors.New("AdminGroups is empty ")
 	}
 
-	if tc.testAuthInstance.Spec.AdminGroups[0] != "odh-admins" {
-		return fmt.Errorf("expected odh-admins, found %v", tc.testAuthInstance.Spec.AdminGroups[0])
+	fmt.Print("************")
+	fmt.Print(tc.platform)
+	if tc.testContext.platform == cluster.SelfManagedRhoai || tc.testContext.platform == cluster.ManagedRhoai {
+		if tc.testAuthInstance.Spec.AdminGroups[0] != "rhods-admins" {
+			return fmt.Errorf("expected rhods-admins, found %v", tc.testAuthInstance.Spec.AdminGroups[0])
+		}
+	} else {
+		if tc.testAuthInstance.Spec.AdminGroups[0] != "odh-admins" {
+			return fmt.Errorf("expected odh-admins, found %v", tc.testAuthInstance.Spec.AdminGroups[0])
+		}
 	}
 
 	if tc.testAuthInstance.Spec.AllowedGroups[0] != "system:authenticated" {
@@ -109,11 +118,12 @@ func (tc *AuthControllerTestCtx) validateAuthCRRoleCreation() error {
 	adminRole := &rbacv1.Role{}
 	allowedRole := &rbacv1.Role{}
 
-	if err := tc.testContext.customClient.Get(tc.ctx, types.NamespacedName{Namespace: "opendatahub", Name: "admingroup-role"}, adminRole); err != nil {
+	fmt.Print("this is the ns " + tc.testContext.applicationsNamespace)
+	if err := tc.testContext.customClient.Get(tc.ctx, types.NamespacedName{Namespace: tc.testContext.applicationsNamespace, Name: "admingroup-role"}, adminRole); err != nil {
 		return err
 	}
 
-	if err := tc.testContext.customClient.Get(tc.ctx, types.NamespacedName{Namespace: "opendatahub", Name: "allowedgroup-role"}, allowedRole); err != nil {
+	if err := tc.testContext.customClient.Get(tc.ctx, types.NamespacedName{Namespace: tc.testContext.applicationsNamespace, Name: "allowedgroup-role"}, allowedRole); err != nil {
 		return err
 	}
 
@@ -123,7 +133,7 @@ func (tc *AuthControllerTestCtx) validateAuthCRRoleCreation() error {
 func (tc *AuthControllerTestCtx) validateAuthCRClusterRoleCreation() error {
 	adminClusterRole := &rbacv1.ClusterRole{}
 
-	if err := tc.testContext.customClient.Get(tc.ctx, types.NamespacedName{Namespace: "opendatahub", Name: "admingroupcluster-role"}, adminClusterRole); err != nil {
+	if err := tc.testContext.customClient.Get(tc.ctx, types.NamespacedName{Name: "admingroupcluster-role"}, adminClusterRole); err != nil {
 		return err
 	}
 
@@ -134,11 +144,12 @@ func (tc *AuthControllerTestCtx) validateAuthCRRoleBindingCreation() error {
 	adminRolebinding := &rbacv1.RoleBinding{}
 	allowedRolebinding := &rbacv1.RoleBinding{}
 
-	if err := tc.testContext.customClient.Get(tc.ctx, types.NamespacedName{Namespace: "opendatahub", Name: "admingroup-rolebinding"}, adminRolebinding); err != nil {
+	if err := tc.testContext.customClient.Get(tc.ctx, types.NamespacedName{Namespace: tc.testContext.applicationsNamespace,
+		Name: "admingroup-rolebinding"}, adminRolebinding); err != nil {
 		return err
 	}
 
-	if err := tc.testContext.customClient.Get(tc.ctx, types.NamespacedName{Namespace: "opendatahub", Name: "allowedgroup-rolebinding"}, allowedRolebinding); err != nil {
+	if err := tc.testContext.customClient.Get(tc.ctx, types.NamespacedName{Namespace: tc.applicationsNamespace, Name: "allowedgroup-rolebinding"}, allowedRolebinding); err != nil {
 		return err
 	}
 
@@ -148,7 +159,8 @@ func (tc *AuthControllerTestCtx) validateAuthCRRoleBindingCreation() error {
 func (tc *AuthControllerTestCtx) validateAuthCRClusterRoleBindingCreation() error {
 	adminClusterRolebinding := &rbacv1.ClusterRoleBinding{}
 
-	if err := tc.testContext.customClient.Get(tc.ctx, types.NamespacedName{Namespace: "opendatahub", Name: "admingroupcluster-rolebinding"}, adminClusterRolebinding); err != nil {
+	if err := tc.testContext.customClient.Get(tc.ctx, types.NamespacedName{Namespace: tc.applicationsNamespace,
+		Name: "admingroupcluster-rolebinding"}, adminClusterRolebinding); err != nil {
 		return err
 	}
 
@@ -167,19 +179,20 @@ func (tc *AuthControllerTestCtx) validateAddingGroups() error {
 	adminClusterRolebinding := &rbacv1.ClusterRoleBinding{}
 	allowedRolebinding := &rbacv1.RoleBinding{}
 
-	if err := tc.testContext.customClient.Get(tc.ctx, types.NamespacedName{Namespace: "opendatahub", Name: "admingroup-rolebinding"}, adminRolebinding); err != nil {
+	if err := tc.testContext.customClient.Get(tc.ctx, types.NamespacedName{Namespace: tc.applicationsNamespace, Name: "admingroup-rolebinding"}, adminRolebinding); err != nil {
 		if adminRolebinding.Subjects[1].Name != "aTestAdminGroup" {
 			return fmt.Errorf("Expected aTestAdminGroup found %s ", adminRolebinding.Subjects[1].Name)
 		}
 	}
 
-	if err := tc.testContext.customClient.Get(tc.ctx, types.NamespacedName{Namespace: "opendatahub", Name: "admingroupcluster-rolebinding"}, adminClusterRolebinding); err != nil {
+	if err := tc.testContext.customClient.Get(tc.ctx, types.NamespacedName{Namespace: tc.applicationsNamespace,
+		Name: "admingroupcluster-rolebinding"}, adminClusterRolebinding); err != nil {
 		if adminRolebinding.Subjects[1].Name != "aTestAdminGroup" {
 			return fmt.Errorf("Expected aTestAdminGroup found %s ", adminRolebinding.Subjects[1].Name)
 		}
 	}
 
-	if err := tc.testContext.customClient.Get(tc.ctx, types.NamespacedName{Namespace: "opendatahub", Name: "allowedgroup-rolebinding"}, allowedRolebinding); err != nil {
+	if err := tc.testContext.customClient.Get(tc.ctx, types.NamespacedName{Namespace: tc.applicationsNamespace, Name: "allowedgroup-rolebinding"}, allowedRolebinding); err != nil {
 		if allowedRolebinding.Subjects[1].Name != "aTestAllowedGroup" {
 			return fmt.Errorf("Expected aTestAllowedGroup found %s ", allowedRolebinding.Subjects[1].Name)
 		}

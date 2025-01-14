@@ -101,13 +101,13 @@ func setupDSCICR(name string) *dsciv1.DSCInitialization {
 			Name: name,
 		},
 		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: "opendatahub",
+			ApplicationsNamespace: "redhat-ods-applications",
 			Monitoring: serviceApi.DSCMonitoring{
 				ManagementSpec: common.ManagementSpec{
 					ManagementState: operatorv1.Removed,
 				},
 				MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
-					Namespace: "opendatahub",
+					Namespace: "redhat-ods-monitoring",
 				},
 			},
 			TrustedCABundle: &dsciv1.TrustedCABundleSpec{

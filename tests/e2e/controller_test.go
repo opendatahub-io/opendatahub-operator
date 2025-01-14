@@ -94,6 +94,8 @@ type testContext struct {
 	testDsc *dscv1.DataScienceCluster
 	// test DSCI CR because we do not create it in ODH by default
 	testDSCI *dsciv1.DSCInitialization
+	// test platform
+	platform cluster.Platform
 	// context for accessing resources
 	//nolint:containedctx //reason: legacy v1 test setup
 	ctx context.Context
@@ -135,6 +137,7 @@ func NewTestContext() (*testContext, error) {
 		ctx:                   context.TODO(),
 		testDsc:               testDSC,
 		testDSCI:              testDSCI,
+		platform:              cluster.SelfManagedRhoai,
 		testOpts:              testOpts,
 	}, nil
 }
