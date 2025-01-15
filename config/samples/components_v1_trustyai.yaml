@@ -1,6 +1,0 @@
-apiVersion: components.platform.opendatahub.io/v1
-kind: TrustyAI
-metadata:
-  name: trustyai-sample
-spec:
-  # TODO(user): Add fields here
