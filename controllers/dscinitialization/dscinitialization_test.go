@@ -7,7 +7,6 @@ import (
 	userv1 "github.com/openshift/api/user/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -87,32 +86,6 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			Expect(foundNetworkPolicy.Spec.PolicyTypes[0]).To(Equal(networkingv1.PolicyTypeIngress))
 		})
 
-		It("Should create default rolebinding", func(ctx context.Context) {
-			// then
-			foundRoleBinding := &rbacv1.RoleBinding{}
-			Eventually(objectExists(applicationNamespace, applicationNamespace, foundRoleBinding)).
-				WithContext(ctx).
-				WithTimeout(timeout).
-				WithPolling(interval).
-				Should(BeTrue())
-			expectedSubjects := []rbacv1.Subject{
-				{
-					Kind:      "ServiceAccount",
-					Namespace: applicationNamespace,
-					Name:      "default",
-				},
-			}
-			expectedRoleRef := rbacv1.RoleRef{
-				APIGroup: "rbac.authorization.k8s.io",
-				Kind:     "ClusterRole",
-				Name:     "system:openshift:scc:anyuid",
-			}
-			Expect(foundRoleBinding.Name).To(Equal(applicationNamespace))
-			Expect(foundRoleBinding.Namespace).To(Equal(applicationNamespace))
-			Expect(foundRoleBinding.Subjects).To(Equal(expectedSubjects))
-			Expect(foundRoleBinding.RoleRef).To(Equal(expectedRoleRef))
-		})
-
 		It("Should create default configmap", func(ctx context.Context) {
 			// then
 			foundConfigMap := &corev1.ConfigMap{}
@@ -183,54 +156,6 @@ var _ = Describe("DataScienceCluster initialization", func() {
 	Context("Handling existing resources", func() {
 		AfterEach(cleanupResources)
 		const applicationName = "default-dsci"
-
-		It("Should not update rolebinding if it exists", func(ctx context.Context) {
-
-			// given
-			desiredRoleBinding := &rbacv1.RoleBinding{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "RoleBinding",
-					APIVersion: "v1",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      applicationNamespace,
-					Namespace: applicationNamespace,
-				},
-
-				RoleRef: rbacv1.RoleRef{
-					APIGroup: "rbac.authorization.k8s.io",
-					Kind:     "ClusterRole",
-					Name:     "system:openshift:scc:anyuid",
-				},
-			}
-			Expect(k8sClient.Create(ctx, desiredRoleBinding)).Should(Succeed())
-			createdRoleBinding := &rbacv1.RoleBinding{}
-			Eventually(objectExists(applicationNamespace, applicationNamespace, createdRoleBinding)).
-				WithContext(ctx).
-				WithTimeout(timeout).
-				WithPolling(interval).
-				Should(BeTrue())
-
-			// when
-			desiredDsci := createDSCI(operatorv1.Managed, operatorv1.Managed, monitoringNamespace)
-			Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
-			foundDsci := &dsciv1.DSCInitialization{}
-			Eventually(dscInitializationIsReady(applicationName, workingNamespace, foundDsci)).
-				WithContext(ctx).
-				WithTimeout(timeout).
-				WithPolling(interval).
-				Should(BeTrue())
-
-			// then
-			foundRoleBinding := &rbacv1.RoleBinding{}
-			Eventually(objectExists(applicationNamespace, applicationNamespace, foundRoleBinding)).
-				WithContext(ctx).
-				WithTimeout(timeout).
-				WithPolling(interval).
-				Should(BeTrue())
-			Expect(foundRoleBinding.UID).To(Equal(createdRoleBinding.UID))
-			Expect(foundRoleBinding.Subjects).To(BeNil())
-		})
 
 		It("Should not update configmap if it exists", func(ctx context.Context) {
 
@@ -388,20 +313,8 @@ func cleanupResources(ctx context.Context) {
 
 	Expect(k8sClient.DeleteAllOf(ctx, &networkingv1.NetworkPolicy{}, appNamespace)).To(Succeed())
 	Expect(k8sClient.DeleteAllOf(ctx, &corev1.ConfigMap{}, appNamespace)).To(Succeed())
-	Expect(k8sClient.DeleteAllOf(ctx, &rbacv1.RoleBinding{}, appNamespace)).To(Succeed())
-	Expect(k8sClient.DeleteAllOf(ctx, &rbacv1.ClusterRoleBinding{}, appNamespace)).To(Succeed())
 
 	Eventually(noInstanceExistsIn(workingNamespace, &dsciv1.DSCInitializationList{})).
-		WithContext(ctx).
-		WithTimeout(timeout).
-		WithPolling(interval).
-		Should(BeTrue())
-	Eventually(noInstanceExistsIn(applicationNamespace, &rbacv1.ClusterRoleBindingList{})).
-		WithContext(ctx).
-		WithTimeout(timeout).
-		WithPolling(interval).
-		Should(BeTrue())
-	Eventually(noInstanceExistsIn(applicationNamespace, &rbacv1.RoleBindingList{})).
 		WithContext(ctx).
 		WithTimeout(timeout).
 		WithPolling(interval).
