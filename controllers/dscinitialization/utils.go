@@ -47,9 +47,8 @@ var (
 // - 6. RoleBinding 'opendatahub'.
 func (r *DSCInitializationReconciler) createOperatorResource(ctx context.Context, dscInit *dsciv1.DSCInitialization, platform cluster.Platform) error {
 	log := logf.FromContext(ctx)
-	nsName := dscInit.Spec.ApplicationsNamespace
 
-	if err := r.appNamespaceHandler(ctx, nsName, platform); err != nil {
+	if err := r.appNamespaceHandler(ctx, dscInit, platform); err != nil {
 		return fmt.Errorf("error handle application namespace: %w", err)
 	}
 
@@ -61,30 +60,31 @@ func (r *DSCInitializationReconciler) createOperatorResource(ctx context.Context
 	}
 
 	// Create default NetworkPolicy for the namespace
-	err = r.reconcileDefaultNetworkPolicy(ctx, nsName, dscInit, platform)
+	err = r.reconcileDefaultNetworkPolicy(ctx, dscInit, platform)
 	if err != nil {
-		log.Error(err, "error reconciling network policy ", "name", nsName)
-		return err
+		log.Error(err, "error reconciling network policy ", "name", dscInit.Spec.ApplicationsNamespace)
+		return fmt.Errorf("error: %w", err)
 	}
 
 	// Create odh-common-config Configmap for the Namespace
-	err = r.createOdhCommonConfigMap(ctx, nsName, dscInit)
+	err = r.createOdhCommonConfigMap(ctx, dscInit)
 	if err != nil {
 		log.Error(err, "error creating configmap", "name", "odh-common-config")
 		return err
 	}
 
 	// Create default Rolebinding for the namespace
-	err = r.createDefaultRoleBinding(ctx, nsName, dscInit)
+	err = r.createDefaultRoleBinding(ctx, dscInit)
 	if err != nil {
-		log.Error(err, "error creating rolebinding", "name", nsName)
+		log.Error(err, "error creating rolebinding", "name", dscInit.Spec.ApplicationsNamespace)
 		return err
 	}
 	return nil
 }
 
-func (r *DSCInitializationReconciler) appNamespaceHandler(ctx context.Context, nsName string, platform cluster.Platform) error {
+func (r *DSCInitializationReconciler) appNamespaceHandler(ctx context.Context, dscInit *dsciv1.DSCInitialization, platform cluster.Platform) error {
 	log := logf.FromContext(ctx)
+	nsName := dscInit.Spec.ApplicationsNamespace
 	// Check if application namespace has label "opendatahub.io/application-namespace:true"
 	// if no such namespace exist, we create it with generated-namespace and security label
 	// if namespace exist but no label, we exit
@@ -184,8 +184,9 @@ func (r *DSCInitializationReconciler) patchMonitoringNS(ctx context.Context, dsc
 	return nil
 }
 
-func (r *DSCInitializationReconciler) createDefaultRoleBinding(ctx context.Context, name string, dscInit *dsciv1.DSCInitialization) error {
+func (r *DSCInitializationReconciler) createDefaultRoleBinding(ctx context.Context, dscInit *dsciv1.DSCInitialization) error {
 	log := logf.FromContext(ctx)
+	name := dscInit.Spec.ApplicationsNamespace
 	// Expected namespace for the given name
 	desiredRoleBinding := &rbacv1.RoleBinding{
 		TypeMeta: metav1.TypeMeta{
@@ -234,11 +235,11 @@ func (r *DSCInitializationReconciler) createDefaultRoleBinding(ctx context.Conte
 
 func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(
 	ctx context.Context,
-	name string,
 	dscInit *dsciv1.DSCInitialization,
 	platform cluster.Platform,
 ) error {
 	log := logf.FromContext(ctx)
+	name := dscInit.Spec.ApplicationsNamespace
 	if platform == cluster.ManagedRhoai || platform == cluster.SelfManagedRhoai {
 		// Get operator namepsace
 		operatorNs, err := cluster.GetOperatorNamespace()
@@ -422,8 +423,9 @@ func GenerateRandomHex(length int) ([]byte, error) {
 	return randomBytes, nil
 }
 
-func (r *DSCInitializationReconciler) createOdhCommonConfigMap(ctx context.Context, name string, dscInit *dsciv1.DSCInitialization) error {
+func (r *DSCInitializationReconciler) createOdhCommonConfigMap(ctx context.Context, dscInit *dsciv1.DSCInitialization) error {
 	log := logf.FromContext(ctx)
+	name := dscInit.Spec.ApplicationsNamespace
 	// Expected configmap for the given namespace
 	desiredConfigMap := &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{

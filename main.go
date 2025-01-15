@@ -456,69 +456,14 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	}
 }
 
-func createSecretCacheConfig(ctx context.Context, cli client.Client, platform cluster.Platform) (map[string]cache.Config, error) {
-	namespaceConfigs := map[string]cache.Config{
-		"istio-system":      {}, // for both knative-serving-cert and default-modelregistry-cert, as an easy workarond, to watch both in this namespace
-		"openshift-ingress": {},
-	}
-	// TODO: if we dont want harcoded above two namespace we can add them with label selector
-	// maistra.io/member-of=istio-system
-	// network.openshift.io/policy-group=ingress
-
-	switch platform {
-	case cluster.ManagedRhoai:
-		namespaceConfigs["redhat-ods-monitoring"] = cache.Config{}
-		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
-		operatorNs, err := cluster.GetOperatorNamespace()
-		if err != nil {
-			operatorNs = "redhat-ods-operator" // fall back case
-		}
-		namespaceConfigs[operatorNs] = cache.Config{}
-		return namespaceConfigs, nil
-	default:
-		cNamespaceList := &corev1.NamespaceList{}
-		// if user create namespace and want it to be used as application namespace
-		// they need to create label "opendatahub.io/application-namespace": "true" then set DSCI to use it
-		// we only support one namespace in the cluster has this label
-		// if other namespace has generated-namespace label, we wont use such namespace
-		labelSelector := client.MatchingLabels{
-			labels.CustomizedAppNamespace: labels.True,
-		}
-		if err := cli.List(ctx, cNamespaceList, labelSelector); err != nil {
-			return map[string]cache.Config{}, err
-		}
-		switch len(cNamespaceList.Items) {
-		case 0:
-			if platform == cluster.SelfManagedRhoai {
-				namespaceConfigs["redhat-ods-applications"] = cache.Config{}
-				return namespaceConfigs, nil
-			}
-			namespaceConfigs["opendatahub"] = cache.Config{}
-			return namespaceConfigs, nil
-		case 1:
-			namespaceConfigs[cNamespaceList.Items[0].Name] = cache.Config{}
-		default:
-			return map[string]cache.Config{}, errors.New("found multiple namespace with label: opendatahub.io/application-namespace: true")
-		}
-	}
-
-	return namespaceConfigs, nil
-}
-
-func createODHGeneralCacheConfig(ctx context.Context, cli client.Client, platform cluster.Platform) (map[string]cache.Config, error) {
-	namespaceConfigs := map[string]cache.Config{
-		"istio-system": {}, // for serivcemonitor: data-science-smcp-pilot-monitor
-	}
+func getCommonCache(ctx context.Context, cli client.Client, platform cluster.Platform) (map[string]cache.Config, error) {
+	namespaceConfigs := map[string]cache.Config{}
 	if platform == cluster.ManagedRhoai {
 		namespaceConfigs["redhat-ods-monitoring"] = cache.Config{}
 		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
 		return namespaceConfigs, nil
 	}
-
 	cNamespaceList := &corev1.NamespaceList{}
-	// they need to create label "opendatahub.io/application-namespace": "true" then set DSCI to use it
-	// we only support one namespace in the cluster has this label
-	// if other namespace has generated-namespace label, we wont use such namespace
 	labelSelector := client.MatchingLabels{
 		labels.CustomizedAppNamespace: labels.True,
 	}
@@ -537,14 +482,47 @@ func createODHGeneralCacheConfig(ctx context.Context, cli client.Client, platfor
 	case 1:
 		namespaceConfigs[cNamespaceList.Items[0].Name] = cache.Config{}
 	default:
-		return map[string]cache.Config{}, errors.New("found multiple namespace with label: opendatahub.io/application-namespace: true")
+		return map[string]cache.Config{}, errors.New("only support max. one namespace with label: opendatahub.io/application-namespace: true")
+	}
+	return namespaceConfigs, nil
+}
+
+func createSecretCacheConfig(ctx context.Context, cli client.Client, platform cluster.Platform) (map[string]cache.Config, error) {
+	namespaceConfigs := map[string]cache.Config{
+		"istio-system":      {}, // for both knative-serving-cert and default-modelregistry-cert, as an easy workarond, to watch both in this namespace
+		"openshift-ingress": {},
 	}
 
 	if platform == cluster.ManagedRhoai {
-		namespaceConfigs["redhat-ods-monitoring"] = cache.Config{}
-		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
+		operatorNs, err := cluster.GetOperatorNamespace()
+		if err != nil {
+			operatorNs = "redhat-ods-operator" // fall back case
+		}
+		namespaceConfigs[operatorNs] = cache.Config{}
 	}
 
+	c, err := getCommonCache(ctx, cli, platform)
+	if err != nil {
+		return nil, err
+	}
+	for n := range c {
+		namespaceConfigs[n] = cache.Config{}
+	}
+	return namespaceConfigs, nil
+}
+
+func createODHGeneralCacheConfig(ctx context.Context, cli client.Client, platform cluster.Platform) (map[string]cache.Config, error) {
+	namespaceConfigs := map[string]cache.Config{
+		"istio-system": {}, // for serivcemonitor: data-science-smcp-pilot-monitor
+	}
+
+	c, err := getCommonCache(ctx, cli, platform)
+	if err != nil {
+		return nil, err
+	}
+	for n := range c {
+		namespaceConfigs[n] = cache.Config{}
+	}
 	return namespaceConfigs, nil
 }
 
