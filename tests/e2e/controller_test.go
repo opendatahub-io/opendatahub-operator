@@ -31,6 +31,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
 type TestFn func(t *testing.T)
@@ -93,6 +94,8 @@ type testContext struct {
 	testDsc *dscv1.DataScienceCluster
 	// test DSCI CR because we do not create it in ODH by default
 	testDSCI *dsciv1.DSCInitialization
+	// test platform
+	platform cluster.Platform
 	// context for accessing resources
 	//nolint:containedctx //reason: legacy v1 test setup
 	ctx context.Context
@@ -120,6 +123,8 @@ func NewTestContext() (*testContext, error) {
 		return nil, fmt.Errorf("failed to initialize custom client: %w", err)
 	}
 
+	release := cluster.GetRelease()
+
 	// setup DSCI CR since we do not create automatically by operator
 	testDSCI := setupDSCICR("e2e-test-dsci")
 	// Setup DataScienceCluster CR
@@ -134,6 +139,7 @@ func NewTestContext() (*testContext, error) {
 		ctx:                   context.TODO(),
 		testDsc:               testDSC,
 		testDSCI:              testDSCI,
+		platform:              release.Name,
 		testOpts:              testOpts,
 	}, nil
 }
