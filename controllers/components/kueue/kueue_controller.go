@@ -44,9 +44,15 @@ import (
 )
 
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	b := reconciler.ReconcilerFor(mgr, &componentApi.Kueue{}).
-		// customized Owns() for Component with new predicates
-		Owns(&corev1.ConfigMap{}).
+	b := reconciler.ReconcilerFor(mgr, &componentApi.Kueue{})
+
+	if cluster.GetClusterInfo().Version.GTE(semver.MustParse("4.17.0")) {
+		b = b.OwnsGVK(gvk.ValidatingAdmissionPolicy). // "own" VAP, because we want it has owner so when kueue is removed it gets cleaned.
+								WatchesGVK(gvk.ValidatingAdmissionPolicyBinding). // "watch" VAPB, because we want it to be configable by user and it can be left behind when kueue is remov
+								WithAction(extraInitialize)
+	}
+	// customized Owns() for Component with new predicates
+	b.Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Secret{}).
 		Owns(&rbacv1.ClusterRoleBinding{}).
 		Owns(&rbacv1.ClusterRole{}).
@@ -82,12 +88,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(updatestatus.NewAction()).
 		// must be the final action
 		WithAction(gc.NewAction())
-
-	if cluster.GetClusterInfo().Version.GTE(semver.MustParse("4.17.0")) {
-		b = b.OwnsGVK(gvk.ValidatingAdmissionPolicy)           // "own" VAP, because we want it has owner so when kueue is removed it gets cleaned.
-		b = b.WatchesGVK(gvk.ValidatingAdmissionPolicyBinding) // "watch" VAPB, because we want it to be configable by user and it can be left behind when kueue is remov
-		b = b.WithAction(extraInitialize)
-	}
 
 	if _, err := b.Build(ctx); err != nil {
 		return err // no need customize error, it is done in the caller main
